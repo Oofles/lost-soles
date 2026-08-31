@@ -356,6 +356,33 @@ Where it runs, and why the two halves differ:
   bundle, so zero resolved literals is a failure rather than a skip. D-163: the workflow is the
   alarm, this is the lock. A direct push to `main` cannot bypass it.
 
+### Footnote: this document tripped the repaired pre-commit hook
+
+Adding the section below was blocked by `.githooks/pre-commit`, on **two lines written during 0017**
+— the ones quoting `AKIA…EXAMPLE` and a PEM header while explaining the vendored-AWS-CLI false
+positive. They were committed cleanly at the time because the hook's literal-pattern layer was dead
+code (0125); it is now live, and it sees the whole staged file rather than only the diff.
+
+Resolved with per-line `gitleaks:allow` markers, the designed visible exception. Kept as a note
+because it is the second concrete measurement of how long that layer was off, and because it
+illustrates the tension the hook's own comment names: a project whose security documentation must
+quote credential patterns in order to explain them will keep meeting its own scanner. The answer is
+a visible per-line exemption in the diff, never a weakened pattern.
+
+### The check that mattered, run by a human on a phone
+
+Every other proof in this section concerns a build tree — on a laptop, or inside a build container.
+This one concerns what a browser actually receives.
+
+On 2026-08-31 the operator opened `https://soles.devaultsecurity.com` on the Android phone, signed
+in, and searched the loaded JavaScript for the Strava client secret via `chrome://inspect` from the
+laptop. **No hit.** Checked against the deployment from Amplify build 18, not against a local build.
+
+Recorded as the operator's result rather than an agent observation, deliberately. It is the one
+check in capability 02 that no agent can make, and 0010 already demonstrated what happens when an
+operator-verifiable criterion is ticked by whoever wrote it: the skill shipped inert for days
+(0123). The criterion stayed open until a human ran it.
+
 ### `amplify_outputs.json` is not a leak
 
 It contains the Cognito user pool id, app client id, identity pool id and the AppSync endpoint.
@@ -383,8 +410,8 @@ name and the reason — never silently. §7 already records the client id as sem
 tree the check went red on eight findings inside
 `asset.98f62bef….zip!awscli/botocore/data/iam/2010-05-08/examples-1.json` — the AWS CLI Lambda layer
 that CDK vendors into `cdk.out` for the storage construct. All three distinct AKIA values were
-`AKIA111111111EXAMPLE`, `AKIA222222222EXAMPLE` and `AKIAIOSFODNN7EXAMPLE`; the private-key hit was a
-`-----BEGIN RSA PRIVATE KEY-----` header followed by the literal text
+`AKIA111111111EXAMPLE`, `AKIA222222222EXAMPLE` and `AKIAIOSFODNN7EXAMPLE`; the private-key hit was a <!-- gitleaks:allow -->
+`-----BEGIN RSA PRIVATE KEY-----` header followed by the literal text <!-- gitleaks:allow -->
 `<a very long private key string>`. AWS's own published documentation placeholders, in 4,300 files
 of vendored API docs.
 

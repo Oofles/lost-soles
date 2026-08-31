@@ -258,3 +258,22 @@ Performed by the agent on the laptop (WSL2, Ubuntu), 2026-08-31, against the rea
    "not one secret value could be resolved", the role needs `ssm:GetParametersByPath` on
    `/amplify/*` — the same class of gap `check-auth-posture.mjs` hit in 0014, recorded in the
    capability doc.
+
+## Operator validation performed — 2026-08-31
+
+**The phone check passed.** The operator ran it on the Android device against
+`https://soles.devaultsecurity.com` and reports no hit: the Strava client secret does not appear in
+the JavaScript the deployed site serves. Recorded as the operator's result, not an agent
+observation — this is the one check in this ticket an agent cannot make, and the whole reason it was
+written as operator-verifiable (0123's lesson, and 0124's).
+
+This is the criterion that matters. Everything else 0017 proved was about a build tree on a laptop
+or in a container; this is about what a browser actually receives. A secret in a bundle is readable
+by anyone who loads the page, and that is now checked against a real deployment (Amplify build 18)
+rather than inferred from a local build.
+
+**The second item — staging a fake credential and watching the pre-commit hook block it in a real
+terminal — was waived by the operator.** It was offered as a confidence check on 0125's repaired
+hook, not as a gate: that hook is covered by 18 automated tests, including two proofs against real
+historical breakage. Nothing rests on the manual run. Noted as waived rather than passed, so the
+record does not overstate what was checked.
