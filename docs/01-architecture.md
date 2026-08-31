@@ -945,12 +945,17 @@ so it is archived to S3 and scored by the same XP code path.
 
 ### Repository and branches
 
-- **Repo:** `github.com/Oofles/lost-soles`, private.
+- **Repo:** `github.com/Oofles/lost-soles`, **public** since 2026-08-31 (was private; changed
+  under ticket 0013 — see D-165). GitHub secret scanning and push protection are enabled, which
+  is only free on a public repo and is why 0004's third scanning layer exists at all.
 - **Default branch: `main`.** A deliberate divergence: `devaultsecurity` uses `master`.
   R5's advice is to *decide once and be consistent*, because Amplify branch names drive both
   deploy targets and per-branch secret namespaces. `main` for the new repo.
-- **Branch model:** trunk-based. `main` is production. Work happens on short-lived
-  `feat/*` / `fix/*` branches merged by PR. No long-running `develop`.
+- **Branch model:** trunk-based. `main` is production. ~~Work happens on short-lived
+  `feat/*` / `fix/*` branches merged by PR.~~ No long-running `develop`.
+  **Superseded by D-150:** `main` is the *only* branch and every ticket closes by pushing straight
+  to it. There is no PR flow and no branch protection — see **D-163** for why, and for the
+  consequence that `amplify.yml`, not GitHub, is what actually gates production.
 - **`.gitignore` from commit one:** `node_modules/`, `.DS_Store`, `.env*`, `.amplify/`,
   `amplify_outputs.json`, `.claude/*.local.json`, build artifacts. R5 found
   `node_modules/` (2,229 files), a 19 MB `public.tar.gz`, and `.DS_Store` all tracked in the

@@ -575,3 +575,26 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - The cost is real and accepted: every future warning blocks the build and the deploy. For a
     project whose stated position is that a gate slow or soft enough to be resented is a gate that
     gets bypassed, a warning nobody must act on is worse than no rule at all.
+
+- **D-165** **The repository is public.** Changed 2026-08-31 during ticket 0013, user-directed:
+  *"I actually don't mind this being a public repo — I'd rather show it off vs. worrying about
+  someone taking my work, I like the open-source mindset."*
+  - **Pre-flight, run before the flip and not after.** Going public publishes **all history**,
+    permanently and cloneably, so the check had to cover history rather than the working tree:
+    `gitleaks detect --log-opts=--all` over all 24 commits found **no leaks**; no `.env`, `*.pem`,
+    `*.key`, `credentials` or `amplify_outputs.json` was ever committed (`.env.example` is, by
+    design); and the one open security finding — the dormant 2022 access key of **0122** — was
+    confirmed already `Inactive`, so the repo discloses a *remediated* weakness rather than a live
+    one. 0122's remaining delete is a soak formality due 2026-09-01.
+  - **Knowingly published, and judged acceptable:** AWS account `286588821906` and two ACM
+    certificate ARNs (identifiers, not credentials — AWS does not treat an account id as secret),
+    and the operator's commit email, which is permanently public and will be scraped.
+  - **What it bought, beyond the intent.** GitHub **secret scanning and push protection** are free
+    only on public repos and are now enabled — this is 0004's third scanning layer, which could not
+    be turned on while the repo was private and free, and it matters specifically because the
+    capture endpoint (capability `03`) commits dictated prose from a phone into `tickets/inbox/`
+    with no human re-read. Actions minutes also become unmetered.
+  - **What it deliberately did NOT change.** Branch protection became *available* at this moment
+    (the API moved from `403 Upgrade to GitHub Pro` to `404 Branch not protected`). It is still
+    declined, for the reasons in D-163. The change makes that a standing choice rather than a
+    platform limit, which is the honest way to hold it.
