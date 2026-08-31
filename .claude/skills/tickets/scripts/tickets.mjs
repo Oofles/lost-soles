@@ -258,10 +258,18 @@ function writeIndex(tickets = load()) {
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 
-function requireCleanTree(cmd, allowDirty) {
+/**
+ * `except` is the path of the file this command is itself transitioning.
+ * Ticking a ticket's final acceptance criteria is *part of closing it*, so a
+ * dirty entry for that exact file is not the "unrelated work in flight" D-158
+ * guards against. Without this exemption the honest workflow needs two commits
+ * or a routine --allow-dirty, and a rule reached for routinely stops being one.
+ */
+function requireCleanTree(cmd, allowDirty, except = null) {
   if (allowDirty) return;
   const dirty = git("status", "--porcelain").split("\n").filter(Boolean)
-    .filter((l) => !l.includes("tickets/index.json"));
+    .filter((l) => !l.includes("tickets/index.json"))
+    .filter((l) => !(except && l.includes(except)));
   if (dirty.length) {
     die(`'${cmd}' refuses to run with a dirty working tree (D-158).\n` +
         `  ${dirty.length} uncommitted path(s). This command git-mv's a file and expects to be\n` +
@@ -429,9 +437,9 @@ function cmdUnblock(id, flags) {
 }
 
 function cmdClose(id, flags) {
-  requireCleanTree("close", flags["allow-dirty"]);
   const ts = load(); const index = byId(ts);
   const t = index.get(Number(id)) ?? die(`no ticket ${id}`);
+  requireCleanTree("close", flags["allow-dirty"], t.path);
   if (t.folder === "closed") die(`${pad(t.fm.id)} is already closed.`);
 
   const { unchecked } = acceptance(t.body);
@@ -463,11 +471,11 @@ function cmdClose(id, flags) {
 }
 
 function cmdTriageMove(path, flags) {
-  requireCleanTree("triage-move", flags["allow-dirty"]);
   if (!flags.slug) die("triage-move requires --slug");
   if (!SLUG_RE.test(flags.slug)) die(`slug '${flags.slug}' is not kebab-case (^[a-z0-9]+(-[a-z0-9]+)*$)`);
   const rel = path.startsWith("tickets/") ? path : relative(ROOT, path);
   if (!existsSync(join(ROOT, rel))) die(`no such file: ${rel}`);
+  requireCleanTree("triage-move", flags["allow-dirty"], rel);
   const p = parse(readFileSync(join(ROOT, rel), "utf8"), rel);
   if (!p.fm) die(`${rel}: ${p.error}`);
   const ids = load().map((t) => t.fm?.id).filter((n) => typeof n === "number");

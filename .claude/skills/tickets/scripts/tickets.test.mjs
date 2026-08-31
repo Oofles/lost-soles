@@ -432,3 +432,24 @@ describe("0007 — index.json", () => {
     rmSync(d, { recursive: true, force: true });
   });
 });
+
+describe("0008 — the dirty-tree rule exempts the ticket being closed", () => {
+  test("a dirty ticket-under-close does not trip the refusal, but another file does", () => {
+    const d = repo();
+    ticket(d, "open", FM(), "\n## Acceptance criteria\n\n- [ ] a\n\n## Resolution\n\nx\n\n## Operator validation\n\nx\n");
+    commitAll(d);
+    // tick the last criterion — this is part of closing, not unrelated work
+    const p = join(d, "tickets/open/0001-a-ticket.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("- [ ] a", "- [x] a"));
+    assert.equal(run(d, "close", "1").code, 0, "its own file being dirty must not block the close");
+
+    // and the rule still bites for genuinely unrelated changes
+    const d2 = repo();
+    ticket(d2, "open", FM(), "\n## Acceptance criteria\n\n- [x] a\n\n## Resolution\n\nx\n\n## Operator validation\n\nx\n");
+    commitAll(d2);
+    writeFileSync(join(d2, "unrelated.txt"), "dirty");
+    assert.notEqual(run(d2, "close", "1").code, 0, "unrelated dirt must still refuse");
+    rmSync(d, { recursive: true, force: true });
+    rmSync(d2, { recursive: true, force: true });
+  });
+});
