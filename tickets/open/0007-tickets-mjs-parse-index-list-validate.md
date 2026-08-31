@@ -68,37 +68,37 @@ and make `.gitignore` agree with it.
 
 ## Acceptance criteria
 
-- [ ] `.claude/skills/tickets/scripts/tickets.mjs` runs on the project's pinned Node with no
+- [x] `.claude/skills/tickets/scripts/tickets.mjs` runs on the project's pinned Node with no
       `npm install` step required beyond the repo's own `npm ci`.
-- [ ] `node tickets.mjs index` walks all three ticket folders and writes `tickets/index.json`.
+- [x] `node tickets.mjs index` walks all three ticket folders and writes `tickets/index.json`.
       Running it twice in a row produces a byte-identical file (idempotent).
-- [ ] `index.json` entries contain every frontmatter field plus `path`, `ready`, and
+- [x] `index.json` entries contain every frontmatter field plus `path`, `ready`, and
       `acceptance: {checked, total}`, and contain **no** ticket body text.
-- [ ] `node tickets.mjs list` prints a table with id, type, priority, size, capability, status,
+- [x] `node tickets.mjs list` prints a table with id, type, priority, size, capability, status,
       title, sourced only from `index.json` — verified by deleting every ticket body's content in a
       scratch copy and confirming `list` output is unchanged.
-- [ ] `list` supports `--status`, `--type`, `--priority`, `--capability`, `--ready` and `--size`,
+- [x] `list` supports `--status`, `--type`, `--priority`, `--capability`, `--ready` and `--size`,
       and they compose (e.g. `--status open --priority high`).
-- [ ] `node tickets.mjs show 42` prints the ticket's raw markdown plus, for each id in `depends_on`
+- [x] `node tickets.mjs show 42` prints the ticket's raw markdown plus, for each id in `depends_on`
       and `blocked_by`, that ticket's title and current status.
-- [ ] `--json` is accepted by `index`, `list`, `show` and `validate` and emits parseable JSON on
+- [x] `--json` is accepted by `index`, `list`, `show` and `validate` and emits parseable JSON on
       stdout with no decorative output mixed in.
-- [ ] A ticket whose `title` contains a colon and a `#` round-trips through parse → serialize
+- [x] A ticket whose `title` contains a colon and a `#` round-trips through parse → serialize
       byte-identically, and a unit test asserts it.
-- [ ] A ticket with an unknown frontmatter key round-trips with the key preserved, and `validate`
+- [x] A ticket with an unknown frontmatter key round-trips with the key preserved, and `validate`
       reports it as a warning, not an error.
-- [ ] Frontmatter key order in a rewritten file matches §3.1 order, and the body is byte-identical
+- [x] Frontmatter key order in a rewritten file matches §3.1 order, and the body is byte-identical
       to the input, asserted by a unit test.
-- [ ] Acceptance-checkbox counting matches only `- [ ]` / `- [x]` lines under `## Acceptance
+- [x] Acceptance-checkbox counting matches only `- [ ]` / `- [x]` lines under `## Acceptance
       criteria` and stops at the next `##` — asserted with a fixture containing checkbox-looking
       lines in `## Notes`.
-- [ ] `validate` implements every error in the list above and exits 1 on any of them, naming the
+- [x] `validate` implements every error in the list above and exits 1 on any of them, naming the
       file and the rule for each.
-- [ ] `validate` implements every warning in the list above and exits **0** when only warnings are
+- [x] `validate` implements every warning in the list above and exits **0** when only warnings are
       present.
-- [ ] A fixture directory of deliberately-broken tickets exists (one per error rule) and a test
+- [x] A fixture directory of deliberately-broken tickets exists (one per error rule) and a test
       asserts `validate` flags exactly the expected rule for each.
-- [ ] Q-07-1 is decided and recorded as a `D-xxx` in `docs/decisions/DECISIONS.md`, and
+- [x] Q-07-1 is decided and recorded as a `D-xxx` in `docs/decisions/DECISIONS.md`, and
       `.gitignore` matches the decision.
 
 ## Notes
