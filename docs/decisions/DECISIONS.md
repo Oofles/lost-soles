@@ -488,3 +488,18 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   `npm install` that do not exist until 0012; `node --test` is built in and runs today. Same
   reasoning as D-155 (`.githooks` over husky): take the zero-dependency option that works now,
   revisit when the project has a package manifest. 44 tests currently pass.
+
+- **D-161** **`size: l` stays a WARNING in `validate`, and a REFUSAL in `next`.** Settled while
+  closing 0011, which asked whether `l` should be promoted to an error.
+  - `validate` warns only when an `l` ticket is *in the ready set* (`size === "l" && isReady(...)`),
+    so a large ticket sitting behind unmet dependencies is silent. `next` refuses to hand one over
+    at all, exits 1, and tells the operator to split it.
+  - Rationale: enforcement belongs at the **moment of pickup**, where the operator is already
+    thinking about the ticket and can act on it. Making `l` a hard error would fail validation over
+    a ticket nobody will touch for six weeks, and the only way to get a green run would be to split
+    tickets speculatively — which is worse planning, not better.
+  - This also means a clean `validate` does **not** assert the backlog is free of `l` tickets. That
+    is intended: `l` is a smell recorded honestly (0006 is the standing example), and the system's
+    job is to stop you *starting* one, not to stop you *writing one down*.
+  - Consequence: `validate` reporting zero warnings is not evidence that no `size: l` exists. When
+    auditing, check `l` tickets directly rather than inferring their absence from a clean run.
