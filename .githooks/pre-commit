@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Pre-commit secret scan. docs/08-security-privacy.md §7.3 layer 1.
+#
+# This is the layer that makes an accidental `git add .` survivable, and it is
+# the direct answer to the O-005 finding. It runs on STAGED CONTENT only.
+set -uo pipefail
+
+fail() { echo "" >&2; echo "  COMMIT BLOCKED: $*" >&2; echo "" >&2; exit 1; }
+
+# ── 1. gitleaks on staged content ──────────────────────────────────────────
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --redact --no-banner; then
+    fail "gitleaks found a secret in staged content (above, redacted).
+  Nothing has been committed. Unstage it, remove the secret, and try again.
+  A credential value never belongs in a file — use ~/.aws, SSM, or an env var."
+  fi
+else
+  # Never pass silently. A missing scanner is a broken guard, not an absent one.
+  fail "gitleaks is not installed, so staged content cannot be scanned.
+  Install it (https://github.com/gitleaks/gitleaks/releases) or, if you have
+  genuinely considered the risk, bypass this once with: git commit --no-verify"
+fi
+
+# ── 2. literal patterns, belt-and-braces ───────────────────────────────────
+# Explicit patterns from §7.3. Cheap, and independent of gitleaks' ruleset.
+PATTERNS=(
+  'AKIA[0-9A-Z]{16}'
+  'ghp_[A-Za-z0-9]{36}'
+  'github_pat_[A-Za-z0-9_]{20,}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+  'xox[baprs]-[A-Za-z0-9-]+'
+)
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+hits=""
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  for p in "${PATTERNS[@]}"; do
+    # NOTE the `--`: without it, grep parses a pattern beginning "-----BEGIN"
+    # as command-line options and errors out, silently skipping that check.
+    if git show ":$f" 2>/dev/null | grep -qE -- "$p"; then
+      hits="${hits}
+    ${f}  matches  ${p}"
+    fi
+  done
+done <<< "$staged"
+
+if [ -n "$hits" ]; then
+  fail "staged content matches a known credential pattern:${hits}
+
+  Nothing has been committed."
+fi
+
+exit 0

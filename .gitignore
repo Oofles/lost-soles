@@ -1,0 +1,48 @@
+# ─── credentials and environment ───────────────────────────────────────────
+# See docs/08-security-privacy.md §7.1. These exist from the initial commit:
+# a .gitignore added on day 40 does not protect the first 39 days, and git
+# history is append-only in exactly the way the map is (D-020).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials
+.aws/
+
+# ─── agent + editor tooling config ─────────────────────────────────────────
+# The O-005 class. Agent tool configuration is a credential-bearing surface —
+# a live AWS credential pair was found inlined in a permission allowlist — and
+# it is machine-local by nature: nothing in it needs sharing with a repo that
+# has one contributor. Deny by default, allow by exception (D-154).
+# NOTE the trailing /* rather than / on .claude — this is load-bearing.
+# `.claude/` excludes the DIRECTORY, so git never descends into it and no
+# later ! rule can re-admit anything inside. `.claude/*` excludes the
+# contents, which leaves the directory walkable so the exceptions below work.
+.claude/*
+.cursor/
+.vscode/
+*.local.json
+**/settings.local.json
+
+# ...allow by exception: the /tickets skill genuinely belongs in version
+# control. Re-admitted explicitly, and reviewed on the way in.
+!.claude/skills/
+!.claude/skills/**
+
+# ─── generated, environment-specific ───────────────────────────────────────
+# amplify_outputs.json is ignored because it is generated per-environment,
+# NOT because it is sensitive. Stated so nobody "fixes" this by deleting the
+# line, and nobody treats a leak of it as an incident.
+amplify_outputs.json
+.amplify/
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# ─── os / editor noise ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp

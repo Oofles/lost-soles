@@ -1,0 +1,428 @@
+# Lost Soles — Decision Log
+
+Running record of settled decisions. Anything here is CONFIRMED by the user unless
+marked PROVISIONAL. Research findings live in `docs/research/`.
+
+Last updated: 2026-08-30
+
+---
+
+## Process
+
+- **D-001** Nothing gets built until the full plan + ticket backlog exists and the user signs off.
+- **D-002** Planning proceeds in phases: research (done) → clarifying rounds → design docs → ticket backlog.
+- **D-003** Design docs are split by concern so no single session must hold the whole plan in context.
+
+## Product
+
+- **D-010** App name: **Lost Soles**. Fantasy/RPG theme, pun on "soles".
+- **D-011** Primary purpose is *self*-motivation. Explicitly NOT competitive/social —
+  the user rejected INTVL partly for pushing competition against people with more time to run.
+- **D-012** Core motivator is **novelty**: running new places, not repeating routes.
+- **D-013** **Low-upkeep is a hard design constraint.** The user abandoned Habitica because
+  maintenance cost exceeded motivation. No daily check-ins, no chores, no streak punishment.
+  Ingestion should be automatic wherever possible.
+- **D-014** Multi-user is minimal: the owner plus up to ~5 friends/family, someday.
+
+## Fog of war  (Round 1)
+
+- **D-020** Revealed territory is **permanent forever**. The map only ever grows. Append-only data model.
+- **D-021** Re-running previously explored ground grants **half XP**.
+- **D-022** **6-month discovery cooldown**: ground run within the last 6 months yields no
+  discovery credit. Ground last run >6 months ago becomes eligible for discovery again.
+  (Territory stays visually revealed the whole time — only *discovery* credit re-arms.)
+  → NEEDS CONFIRMATION: exact reading of the user's wording. See Round 3.
+
+## Progression  (Round 1)
+
+- **D-030** **Hybrid skill system**: per-activity skills 1:1 with exercises, PLUS meta skills.
+  One action can train multiple skills, Runescape-style.
+- **D-031** Activity skills (working names): Wayfaring (running), Might (pushups),
+  Fortitude (situps), Endurance (planks). Adding a workout type adds a skill — must be modular.
+- **D-032** Meta skills (working names): Cartography (new territory), Slayer (monsters),
+  Constitution (total volume).
+- **D-033** A **Total Level** aggregates all skills, as in Runescape.
+
+## Combat  (Round 1)
+
+- **D-040** **Both** map encounters and boss quests.
+  Map creatures inhabit fogged regions and are encountered by running into/near them.
+  A longer-running boss/quest accepts damage from *any* workout, so non-running days still count.
+- **D-041** Combat resolves automatically from skills + gear at import time. Not a game the user plays.
+  (Rejected: manual turn-based battles — that is the Habitica upkeep trap.)
+- ~~**D-042** PROVISIONAL: map encounters likely land in MVP~~ → **STRUCK.** Superseded by
+  D-122: ALL combat (map encounters AND boss quests) is out of MVP.
+
+## Presentation  (Round 2)
+
+- **D-050** Art direction: **dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy.**
+- **D-051** **The map must remain a real, legible street map.** Non-negotiable: the user needs to
+  see actual streets to decide where to run. Atmosphere may never cost legibility.
+- **D-052** **Two map modes**: "atlas" (high-legibility, for planning) and
+  "adventure" (full atmosphere, for admiring the map). A toggle.
+- **D-053** Research independently converged on a **parchment basemap with dark fog** rather than
+  dark-on-dark, because dark basemap + dark fog destroys reveal contrast. Consistent with D-051.
+
+## Workout logging  (Round 2)
+
+- **D-060** Strength work (pushups/situps/planks) is logged **in-app**. No API anywhere exposes
+  reps or sets — not Strava, not Whoop, not Fitbit. This is forced, not chosen.
+- **D-061** UI: an **"Add workout" button**, NOT per-exercise buttons on the home screen.
+  It opens a dedicated page with multiple quick-log entries, one row per workout type.
+  Chosen specifically so adding future workout types does not clutter the home screen.
+- **D-062** One-tap quick log for MVP. Sets/reps/rest-timer deferred, but the data model
+  must accommodate sets from day one.
+
+## Route planning  (added by user during Round 1 confirmation)
+
+- **D-070** Feature: **plan a run by target distance + start point, prioritizing new territory.**
+  Confirmed as in-scope. Drove research track R7.
+
+## Data & platform
+
+- **D-080** PROVISIONAL: Hosting stays **AWS Amplify Gen 2**, subdomain of devaultsecurity.com,
+  source in GitHub, fully cloud-hosted. No local server. (User preference; research confirms fit.)
+- **D-081** Avoid VPC-attached Lambdas. A Lambda needing both VPC and internet forces a
+  **NAT Gateway at ~$33/mo**, ~10x the entire target budget.
+- **D-082** No Postgres/PostGIS. Explored territory as **H3 cells in DynamoDB**.
+- **D-083** Target running cost: a few dollars a month. Research estimate ~$1-5/mo all-in.
+
+## Tickets
+
+- **D-090** A ticketsmith-derived system ships with the project from day one.
+- **D-091** `/tickets` command is required.
+- **D-092** Manual ticket creation from the app UI is required (phone-friendly).
+- **D-093** PROVISIONAL: markdown in the repo is the single source of truth; the phone UI only
+  ever *creates* (into `tickets/inbox/`), the agent only ever *edits/numbers/moves*.
+  Disjoint write sets ⇒ no merge conflicts, no sync engine.
+
+## Ingestion architecture  (from R8)
+
+- **D-100** **Ingestion is source-agnostic.** The internal contract is a normalized
+  `Activity` + `Trace`. Every source (Strava, file upload, a watch vendor, an Android
+  companion, manual entry) is an **adapter** behind that contract.
+  Rationale: every surviving app in this category is multi-source — Wandrer 4, CityStrides 7,
+  Dawarich file-import, Fog of World never used Strava. StatsHunters is the ONLY single-source
+  app in the category and the most fragile. An app promising a *permanent* map must not depend
+  on a party that reserves the right to force deletion in 30 days.
+- **D-101** **User-supplied files are the system of record.** Original GPX/FIT is retained
+  in S3. Anything API-sourced is reproducible/replaceable, never the only copy.
+- **D-102** Strava is permitted as a *convenience adapter*, not a foundation.
+  Verified risk profile: violates written terms (yes, unambiguously); enforced against a
+  6-user app (<1%); could break one day (yes — and 2026 enforcement targets ATHLETE CAPS,
+  not storage: apps downgraded 9,999→1 without notice, nobody has graduated past 10 athletes
+  since 2026-06-01). Failure mode is friends being locked out, not data deletion.
+- **D-103** Because of D-100, **the watch/device decision is no longer blocking.** It can be
+  made later and added as an adapter without touching the rest of the system.
+
+### R8 corrections to R1
+- R1 wrongly called §5.7 "new in 2026". It dates to at least Sept 2022; the 7-day cache rule
+  to 2015. Genuinely new in 2026: §5.5 "Persistent Index", §5.16 (MCP/proxy ban), §3.3 (tiers).
+- All four clauses (§6.2, §5.7, §5.5, §7.4) and the §6.6 export carve-out were re-verified
+  verbatim against the live documents. R1's textual reading stands.
+
+---
+
+## OPEN — blocking design
+
+- **O-001** ~~Run ingestion path~~ → RESOLVED IN PRINCIPLE by D-100..D-103 (source-agnostic
+  adapters). What REMAINS open is only *which adapter ships first in MVP*, pending R9/R10.
+  User rejected: manual file upload as the *primary* path (becomes a chore), and knowingly
+  violating Strava's terms.
+  User constraint: **any watch must not need daily charging.** Loved Whoop's ~14-day battery;
+  abandoned a Pixel Watch over daily charging.
+- ~~**O-002** H3 resolution~~ → RESOLVED: res 10. See D-115.
+- **O-003** MVP cut line. To be settled in Round 3.
+
+---
+
+## Ingestion adapters — concrete findings  (from R10, 2026-08-30)
+
+- **D-110** **PWA run-recording is REJECTED.** Screen Wake Lock is auto-released when the tab
+  hides, there is no service-worker geolocation, and a pocketed phone loses the trace in ~90s.
+  The user's instinct that it "needed to be an Android app" was correct.
+- **D-111** **Share-sheet GPX import is REJECTED.** `share_target` works, but **Strava has no
+  GPX export in its mobile app** — export is website-only, per Strava support docs. The
+  "manual file upload" option offered in Round 2 would have required a desktop after every run.
+- **D-112** **GPSLogger is the recommended first adapter.** F-Droid, GPLv2, maintained. Already
+  POSTs finished GPX (or per-point JSON w/ custom method, headers, auth) to an arbitrary HTTPS
+  endpoint. Zero Android code written by us; we build only the ingest endpoint that D-100
+  requires anyway. Bonus: run continuously it reveals every street *walked*, not just runs.
+- **D-113** **Health Connect is the preferred long-term adapter**, pending one check.
+  `ExerciseRoute` carries full GPS (lat/lng/alt/accuracy/timestamp per point).
+  **Google imposes NO retention limit** on lawfully-read data — only disclosure + a delete path.
+  Constraints: reads capped to last 30 days without `READ_HEALTH_DATA_HISTORY`; background reads
+  of another app's route always return `ConsentRequired`, so sync happens on app-open, not
+  silently (acceptable).
+  → **BLOCKED ON USER CHECK:** does Strava write *routes* (not just summary sessions) to
+  Health Connect? Verify at: Health Connect → App permissions → Strava → look for "Exercise route".
+- **D-114** **Sideload any companion app.** Removes the Play health declaration, the
+  background-location demo video, and the yearly target-SDK deadline entirely.
+- **D-115** H3 **resolution 10** (resolves O-002). R4's soft-disc splatting means hex geometry
+  never appears visually, so res 11's 4.4x data cost buys nothing.
+
+### R10 method caveat
+WebSearch quota was exhausted for that agent; findings come from primary docs only
+(developer.android.com, Play policy, project READMEs). Not cross-checked against community reports.
+
+### Device path (from R9)
+- **D-116** Garmin's developer API is CLOSED (business-only; new applications paused in 2026;
+  the unofficial `garth` workaround died 2026-03-27 to Cloudflare TLS fingerprinting).
+- **D-117** A watch purchase is a **Whoop-replacement decision**, NOT a legal necessity.
+  Candidates: Suunto Race 2 ($499, ~14d, real webhook API, non-commercial allowed);
+  Polar Vantage M3 ($399, self-serve API, no retention cap, but ~6d battery);
+  Garmin Instinct 3 Solar ($399, ~17d, best hardware, no API). Deferred indefinitely.
+
+---
+
+## Round 3 answers — CONFIRMED  (2026-08-30)
+
+- **D-120** **Fog/XP rules, FINAL.** The map NEVER re-fogs; revealed ground is visible forever.
+  - Re-running previously explored ground: **half XP** to the activity skill (Wayfaring).
+  - Ground run within the last **6 months**: **zero** discovery credit.
+  - Ground last run **more than 6 months ago**: re-arms for **partial discovery credit at 50%**.
+    Rewards returning to a long-neglected part of town without ever making it as valuable as
+    genuinely new ground.
+  - Supersedes the provisional D-022.
+  - Implication for the data model: each explored cell needs a `lastRunAt` timestamp, not just
+    a presence bit, and discovery scoring is a function of `now - lastRunAt`.
+
+- **D-121** **MVP ingestion = Strava API adapter.** User's explicit decision, made with full
+  knowledge of the retention terms (R1/R8) and after rejecting it once in Round 2.
+  Stated reasoning: buying dedicated hardware is the eventual plan; Strava unblocks MVP now.
+  - I advised against it. User reaffirmed. Building it.
+  - **Practical risk is the athlete cap, not deletion**: apps have been downgraded 9,999→1
+    without notice, and nobody has graduated past 10 athletes since 2026-06-01. This only
+    bites when friends/family are added, which is out of MVP scope anyway.
+  - **Required mitigations, non-negotiable:**
+    1. Strava lives strictly behind the D-100 adapter boundary. No Strava types leak into the
+       domain model. Swapping adapters must touch exactly one module.
+    2. **Archive every raw trace to S3 at ingest.** When the user migrates to owned hardware,
+       nothing is lost and the replacement adapter can backfill from the archive.
+    3. Ship `activity:read_all` scope, not `activity:read` (R1: the lesser scope returns
+       privacy-zone-truncated traces that would permanently blank the map around home).
+    4. Use the full `latlng` stream, never `summary_polyline` (R1: Douglas-Peucker simplified
+       to ~100-300 pts vs ~2,700; corners cut, loops collapsed to chords).
+  - Post-MVP adapter order: Health Connect bridge (D-113) or GPSLogger (D-112), then a
+    watch vendor if hardware is purchased (D-117).
+
+- **D-122** **MVP SCOPE = map + fog + full hybrid skill system + strength logging.**
+  IN: Strava ingest, fog of war rendering, both map modes, all activity + meta skills,
+      XP/levels, the "Add workout" quick-log page, ticket system (required from day one per D-090).
+  OUT of MVP: combat (map encounters AND boss quests), novelty route planning, equipment/loot.
+  - Note: Cartography and Constitution meta-skills are IN. Slayer is OUT (no combat yet).
+
+- **D-123** **No special home-location privacy handling.** Single-user app, private AWS account,
+  map shown only to the owner. Full-fidelity traces stored, nothing truncated or masked.
+  - REVISIT TRIGGER: if friends/family accounts or any share/screenshot feature is ever added,
+    this decision must be reopened. Note it in `08-security-privacy.md` as a standing condition.
+
+## Remaining open
+
+- **O-003** ~~MVP cut line~~ → RESOLVED by D-122.
+- **O-004** Does Strava write *routes* to Health Connect? User check pending (D-113).
+  NOT blocking — only affects post-MVP adapter choice.
+- **O-005** ⚠️ **SEVERITY CORRECTED 2026-08-30.** `~/devaultsecurity/.claude/settings.local.json`
+  contains a **complete AWS credential pair** — both the access key id and the secret access key,
+  in plaintext, inside the command strings the permission allowlist matches on. 6 occurrences of
+  the id, of which **5 also carry the secret**. One key, repeated.
+  - The initial scan grepped only for the `AKIA` id pattern and therefore under-reported this as
+    "6 occurrences of an access key ID". **An id alone is unusable; an id plus secret is a working
+    credential.** The corrected reading is one step more serious.
+  - Still **not tracked and not in git history** — nothing has reached GitHub. `.claude/` is not
+    gitignored, so it remains one `git add .` from exposure.
+  - **Additional exposure:** part of the secret was printed to a Claude Code session transcript
+    during the 2026-08-30 inspection. Nothing left the machine, but it is now in one more place
+    than it was, which removes the justification for a leisurely soak.
+  - **Revised remediation: create the replacement key and DEACTIVATE the old one the same day**
+    (was: deactivate after 24h of normal use). Ticket 0002 steps 4-9 are unchanged.
+  - Unrelated to Lost Soles; in scope because the mechanism is identical and the same tooling runs
+    on the same machine.
+
+  ### ✅ CLOSED 2026-08-30 — ticket 0002
+
+  - **Rotated.** Operator created a replacement key via the IAM console and configured it as
+    profile `devault` in `~/.aws/credentials` (`0600`). Verified: `sts get-caller-identity` returns
+    `arn:aws:iam::286588821906:user/cli-user`.
+  - **Old key deleted.** The inlined key is no longer present in IAM at all.
+  - **Gitignored.** `.claude/` and `*.local.json` added to `~/devaultsecurity/.gitignore`, committed
+    as `81a79b0`. Verified by staging: `git add -A` now stages **0** files under `.claude/`.
+  - **De-inlined.** All credential material removed from `settings.local.json`; allowlist went 33 →
+    28 entries. The two `Bash(export AWS_…_KEY="…")` entries were **deleted outright** — allowlisting
+    the act of exporting a credential is the anti-pattern itself, not something to rewrite. The five
+    amplify entries now match on prefix patterns (`Bash(aws amplify get-job:*)`,
+    `Bash(aws amplify list-jobs:*)`). Repo-wide sweep for `AKIA[0-9A-Z]{16}` returns nothing.
+  - **CloudTrail verdict: NEAR-MISS CONFIRMED, with a stated limit.** Zero events attributable to
+    the old key in the 90-day lookback. No evidence of use, let alone misuse. **But CloudTrail's
+    default retention is 90 days and the key existed far longer — this is absence of evidence, not
+    evidence of absence.** Recorded honestly rather than as a clean bill of health. §8 incident
+    playbook not invoked.
+  - **Root cause, and why it matters more than the instance:** there was **no configured AWS profile
+    on the machine at all**. The key was inlined because there was nowhere else to put it — every
+    command needed credentials pasted inline, and the permission allowlist recorded those command
+    strings verbatim. The allowlist became a credential store by accident. Creating a real profile
+    is therefore the class fix, not hygiene.
+  - **Class fix status: PARTIAL.** A profile now exists, so credentials have a proper home. IAM
+    Identity Center (short-lived credentials, no standing `AKIA…` on the laptop) was **not** adopted
+    — a long-lived key still exists, it is just stored correctly. Revisit under 0122.
+  - **Follow-on filed:** **0122** — a second, dormant access key on `cli-user` created 2022-12-06 is
+    still Active with no CloudTrail activity. Separate finding, not part of O-005.
+
+- **D-154** **Standing rule, from O-005.** A credential value never appears in a configuration file,
+  and tool/agent configuration directories are gitignored from a repository's first commit.
+  Config holds **references** — a profile name, an SSM parameter path, an env var name — never the
+  material. Binding on permission allowlists, MCP definitions, editor and agent settings.
+  Required content for the Lost Soles `.gitignore`, implemented by ticket 0004:
+  `.claude/`, `*.local.json`, `.env*`, with an explicit `!` un-ignore for
+  `.claude/skills/tickets/` reviewed on the way in.
+
+- **D-124** **Target platform is Android.** The user runs with an Android phone (established in
+  Round 2 / R10). Any capture shortcut, companion app or share-target design must be Android:
+  Tasker/MacroDroid HTTP tasks, Google Assistant routines, PWA `share_target`. **Not** iOS
+  Shortcuts / Siri. Desktop browser is a secondary target for planning and admin.
+
+---
+
+## Round 4 answers — game balance & fog UI  (2026-08-30, CONFIRMED)
+
+- **D-130** **XP curve = `4L²` to advance from L to L+1.** Cumulative `C(L) = 2(L−1)L(2L−1)/3`,
+  `C(99) = 1,274,196`. Cubic, NOT exponential.
+  - **Runescape's curve was evaluated and REJECTED** with the user's real mileage: RS is
+    `XP ∝ 2^(L/7)` and works in-game only because income grows ~100x from L1→L99. Real running
+    volume is flat for life (~1,841 km in year 1 and year 15 alike). Fed real numbers, the RS
+    curve yields level 52 in year one and **level 99 in 126 years**. Rescaling XP/km cannot fix
+    it — that shifts all levels equally. Diagnostic ratio `XP(99)/XP(50)`: RS 128.6, ours 7.88.
+  - Progression: 1mo Wayfaring 22 · 2mo 27 (the hook target) · 1yr 47, Total 225 ·
+    3yr Total 315 · 10yr Total 462 · **99 Wayfaring at 11.9 years**.
+  - Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/sec · new H3 cell 15 ·
+    Constitution = 1/3 of activity XP (pattern lifted from RS Hitpoints).
+  - To rescale the whole timeline, change the one constant: `3L²` → 99 in 8.9y, `5L²` → 14.9y.
+
+- **D-131** **Strength-skill pacing left as-is.** 99 Might ≈ 27 years at modest volume is
+  ACCEPTED as honest. Skill levels mean the same thing across disciplines; the remedy for a
+  slow bar is more pushups, not cheaper XP. Rejected: rebalancing strength rates upward, and
+  per-skill curve constants (which would make levels non-comparable across skills).
+
+- **D-132** **GPS-less running trains a SEPARATE activity skill**, at full XP, with zero
+  discovery credit and no map reveal.
+  - Proposed name **Vigil** (running hard while going nowhere). Naming is provisional — the
+    mechanic is confirmed, the word is not.
+  - Covers treadmill, track-in-a-gym, and any run whose trace is absent or rejected.
+  - **This is the modular skill system's first real test (D-031): adding it must be a DATA ROW,
+    not code.** If implementing Vigil requires a code change, the skill schema is wrong.
+  - Outdoor and indoor progress are tracked separately; neither dilutes the other.
+
+- **D-133** **Cold-territory display: atlas mode ONLY** (D-052).
+  - Adventure mode stays pure known/unknown for atmosphere.
+  - Atlas mode renders explored ground past the 6-month cooldown differently (cooler/dimmer/
+    faintly misted) so rediscovery-eligible ground is visible when planning.
+  - Rationale: the information is only useful while deciding where to run, so it earns its place
+    only in the planning view. Avoids a third visual state competing with the reveal edge.
+
+- **D-134** **Gear grants NO XP multipliers.** Combat power, lantern reveal radius, and
+  appearance only. XP-bearing gear silently compounds against the D-130 curve and makes the
+  user's own history non-comparable across time. (Decided by Claude; reversible.)
+
+- **D-135** **Replay never lowers already-displayed XP.** Corrections may only add. A downward
+  correction on a run the user already celebrated is worse than a small permanent inaccuracy.
+  (Decided by Claude; reversible. Resolves an open question from 05-fog-of-war §9.3.)
+
+## Contract reconciliation
+
+- **D-140** `01-architecture.md` and `03-integrations.md` were written in parallel and defined
+  `Activity`/`Trace`/`SourceAdapter` independently, conflicting in 8 places. **The canonical
+  merged contract is `docs/contracts/ingestion-contract.md` — that file wins.** Both source docs
+  carry a banner pointing to it. Key resolutions: absolute epoch-ms timestamps (not relative);
+  three time fields UTC + naive-local + IANA (an offset is not a timezone — DST); `activityId` =
+  sha256(user, source, externalId) not ULID (deterministic ⇒ idempotent replay); `kind` on the
+  activity but `skill` in the game layer; `listSince` MANDATORY (covers silently dropped webhooks).
+
+---
+
+## Skill schema defect found by the Vigil test  (2026-08-30)
+
+- **D-141** **The skill-as-data schema in `04-game-design.md` §1.3 is DEFECTIVE as written and
+  must be amended before any scoring code exists.**
+  - Defect: Wayfaring (outdoor running) and Vigil (GPS-less running, D-132) are **byte-identical**
+    in every field of the §1.3 schema — same `kind: activity`, `logMode: trace`, `unit: km`,
+    `xpPerUnit: 100`. Nothing in a row states *which activities feed it*, so a scorer would need
+    `activity.hasTrace ? "wayfaring" : "vigil"` — the exact hardcoded switch D-031 forbids.
+  - Root cause: the schema covers measurement, rating, propagation and presentation, but not
+    **SELECTION**.
+  - Fix: add a declarative `match` block (`kinds`, `requiresTrace`, `sources`, `measure`) plus
+    `matchPriority`, using only types already in `contracts/ingestion-contract.md`.
+  - With `match`, adding Vigil is **one YAML row, zero code** — D-031 satisfied.
+    D-132's "zero discovery credit / no reveal" clause needs no field: `hasTrace: false` ⇒ no
+    trace ⇒ no cells ⇒ no Cartography, which falls out of `05-fog-of-war.md` §3.6.
+  - **`match` must land in `xp-rules-v1.yaml` BEFORE any scoring code is written.** The backlog
+    must carry a ticket to amend `04-game-design.md` §1.3, and CI must carry the D-132 test
+    permanently (`02-data-model.md` §3.8).
+  - **Value of the exercise: this defect was caught in planning rather than in ticket ~15, where
+    every subsequently-added workout type would have compounded the switch statement.**
+
+- **D-142** **XP ledger enforces D-135 inside the ledger, not by clamping.** Append-only, one row
+  per (activity, skill, reason), each carrying `xpRulesVersion`; `SkillState` is a pure SUM.
+  A replay deletes only `isFloor: false` rows, and any shortfall against the pre-replay waterline
+  is written as a deterministic `retained_floor` row. Keeps `displayedXp == SUM(ledger)` true,
+  makes retention auditable and idempotent, and prevents compounding across successive rebalances.
+  `levelHighWater` is a SECOND ratchet — the XP floor covers rate changes, not curve changes.
+
+- **D-143** **One documented exception to D-101's "everything is reconstructible from raw":**
+  D-135 requires knowing what was *displayed*, which is not derivable from raw files.
+  `snapshots/skillstate/` is therefore also system-of-record. Recorded in `02-data-model.md` §8.2.
+
+- **D-144** Cell writes sit OUTSIDE the ingest transaction (DynamoDB's 100-item cap vs 40-130 cells
+  per run). The failure mode is deliberately **"map ahead of XP"**, never the reverse.
+
+## Knock-on effects of D-132 (Vigil) found by the UI/UX pass
+
+- **D-145** **Total Level ceiling is 693, not 594.** Adding Vigil as a fifth activity skill moved
+  it. `04-game-design.md` §1.2 still states the old figure and must be corrected.
+- **D-146** **Adding a skill mints a free Total Level point.** It must NEVER fire a level-up
+  celebration. Any future workout type hits this. Guard it at the notification layer, not the
+  scoring layer. (`06-ui-ux.md` §5.4, §10.5.)
+- **D-147** Cold territory (D-133) is rendered on a DIFFERENT PERCEPTUAL CHANNEL from the reveal
+  edge — frontier = warm luminance, cold ground = cool desaturation — and the cold wash is clipped
+  two cell-widths *inside* the coverage mask so the two can never touch. This is how D-050
+  atmosphere and D-051 legibility are both satisfied. Continuous from month 5.
+- **D-148** Gold leaf is a FILL and a RULE, never body text (2.1:1 on parchment). Gold type only
+  at >=24sp or on navy. All floating chrome is OPAQUE — translucent chrome is illegible against a
+  surface that swings from #F5EDD9 to #0B1020 within one screen.
+
+---
+
+## Working agreement — session, git, and audit  (2026-08-30, user-directed)
+
+- **D-150** **Auto-commit and push to `main` after every ticket close and every meaningful change.**
+  User-directed, standing authorization — no per-commit confirmation needed.
+  - Solo repo, no branch protection, no PR flow for ordinary work. `main` is the only branch.
+  - Commit message: `NNNN: <ticket title>` plus the `## Resolution` summary; ticket file moves to
+    `tickets/closed/` in the same commit as the code it describes.
+  - **The one carve-out:** a commit that would push a secret is never made. `gitleaks protect
+    --staged` (0004) runs first; a hit stops the commit rather than prompting.
+  - Rationale: the ticket file and the code that satisfies it must be one atomic unit of history,
+    or `git log` stops being a usable record of why anything exists.
+
+- **D-151** **Session protocol: clear context at capability boundaries, not at every ticket.**
+  - Within a capability, do **2–3 tickets per session** — they touch the same files and cite the
+    same design sections, so re-orienting per ticket is pure waste.
+  - Clear **between capabilities**, and mid-capability whenever context passes ~50%.
+  - **The ticket's `## Resolution` IS the context handoff.** Written properly, clearing costs
+    nothing; written lazily, clearing loses the session. This is why 07-ticketsmith makes
+    Resolution mandatory.
+  - **Never read a whole design doc.** They run 1,000–1,700 lines. Tickets cite sections; read by
+    section. `docs/INDEX.md` (0120) exists to make that cheap.
+  - Exception: for the three overrun-risk capabilities (`08`, `09`, `12`) clear per ticket — they
+    are where a stale mental model does the most damage.
+
+- **D-152** **Ask before implementing anything the plan does not cover.**
+  User-directed. If a ticket's acceptance criteria do not settle a question, or implementation
+  reveals the design was wrong, **stop and ask** rather than choosing and proceeding.
+  - Never silently expand a ticket's scope — file a new ticket (`source: agent`).
+  - A design doc that turns out to be wrong is a finding, not an obstacle: surface it, get a
+    decision, record it as a new `D-xxx`, then continue.
+
+- **D-153** **Every capability closes with a drift audit.** See `docs/capabilities/AUDIT.md`.
+  A capability is not done when its tickets are closed; it is done when the audit passes.
+  **The governing rule: if the implementation diverged from the design doc, either the code
+  changes or the doc changes — never neither.** Silent divergence is the drift.
