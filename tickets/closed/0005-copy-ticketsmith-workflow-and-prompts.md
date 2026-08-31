@@ -4,13 +4,14 @@ slug: copy-ticketsmith-workflow-and-prompts
 title: Copy TicketSmith WORKFLOW.md, TEMPLATE.md and the three prompt files, with two edits
 type: docs
 priority: med
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: [3]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-08-30T00:00:00Z
 ---
 
 ## Description
@@ -87,3 +88,44 @@ The `## Operator validation` idea comes from these files and is the single best 
 3. Practical check, and the one that actually matters: hand an agent `docs/capabilities/TEMPLATE.md`
    and ask it to start a capability doc for `00-preflight-and-repo`. If it produces the right shape
    without asking clarifying questions about the format, the copy is complete and correct.
+
+## Resolution
+
+TicketSmith's five project-agnostic files copied wholesale (MIT — licence retained at
+`docs/capabilities/TICKETSMITH-LICENSE`):
+
+| File | Destination |
+|---|---|
+| `templates/docs/capabilities/WORKFLOW.md` | `docs/capabilities/WORKFLOW.md` |
+| `templates/docs/capabilities/TEMPLATE.md` | `docs/capabilities/TEMPLATE.md` |
+| `templates/prompts/CAPABILITY_DESIGN.md` | `prompts/CAPABILITY_DESIGN.md` |
+| `templates/prompts/CONSOLIDATION_PASS.md` | `prompts/CONSOLIDATION_PASS.md` |
+| `templates/prompts/ARCHITECTURE_REVIEW.md` | `prompts/ARCHITECTURE_REVIEW.md` |
+
+**Edit 1 — decisions path.** Six references across four files pointed at a single
+`docs/DECISIONS.md`; all now point at the `docs/decisions/` directory, matching this project's
+layout (`CLAUDE.md`, Layout notes).
+
+**Edit 2 — the `inbox` state.** `WORKFLOW.md` described a two-state lifecycle mirroring `open/`
+and `closed/`. Added a section documenting the third state and, more importantly, **why the
+asymmetry matters**: the phone only ever creates, the agent only ever numbers, edits and moves.
+Disjoint write sets, so merge conflicts are structurally impossible and no sync engine exists.
+Also records that the inbox is never seeded — an inbox that starts full teaches you to ignore it.
+
+**Two additions beyond the ticket's two edits**, both flagged for the capability audit:
+
+1. **USE is not a metaphor here.** Added a note that for Lost Soles the USE step means going for a
+   run with the build on your phone. The defects that matter — a shimmering fog edge, a banner 4px
+   off, a map unreadable in sunlight — pass every automated test.
+2. **Capability close audit.** WORKFLOW.md's REFLECT step now points at `AUDIT.md` (D-153), since
+   that is where its findings get written.
+
+Every copied file carries a provenance banner naming TicketSmith, the licence, and both edits, so
+a future session does not mistake local edits for upstream text or "fix" them back.
+
+## Operator validation
+
+Open `docs/capabilities/WORKFLOW.md`. The five-step cycle should read as TicketSmith wrote it, with
+the inbox section clearly marked as a Lost Soles addition rather than blended in. Confirm the
+provenance banner is present on all five copied files and that `docs/capabilities/TICKETSMITH-LICENSE`
+exists — this is someone else's work and the attribution should be obvious at a glance.

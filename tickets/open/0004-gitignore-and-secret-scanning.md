@@ -107,6 +107,28 @@ Two entries carry notes that must be preserved as comments in the file so nobody
 
 ## Notes
 
+### ⏸ STATUS 2026-08-30 — local work complete, REMOTE WORK BLOCKED
+
+Everything that does not need GitHub is done and committed (`f876f84`). **Three criteria remain,
+all requiring `gh auth login`, which is interactive and cannot be done by the agent:**
+
+- [ ] `gh repo create <owner>/lost-soles --private --source=. --remote=origin`
+- [ ] `git push -u origin main` (three commits are waiting locally)
+- [ ] GitHub → Settings → Code security: enable **Secret scanning** and **Push protection**, and
+      note the state in the capability doc
+
+The push-protection step is worth doing rather than skipping: it is the only layer that catches a
+secret pushed with `--no-verify`, which is exactly how the local hook gets bypassed under time
+pressure.
+
+**Deviation from this ticket's own criteria, recorded for the capability audit (D-153):** the hook
+is a version-controlled `.githooks/pre-commit` with `core.hooksPath`, **not husky + lint-staged**.
+Husky requires a `package.json`, which does not exist until 0012 — installing one now would collide
+with 0012's project init. `.githooks` satisfies the criterion's intent (a pre-commit hook running
+`gitleaks protect --staged`), applies to every clone, needs no npm dependency, and is version
+controlled. If husky is still wanted after 0012, migrating is a five-minute change.
+
+
 **Required `.gitignore` content, handed over by ticket 0002 (D-154).** These are not suggestions —
 they are the remediation of a live finding, and 0002 cannot close without 0004 carrying them:
 
