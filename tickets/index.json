@@ -564,7 +564,7 @@
     "title": "src/domain/activity.ts - Activity, Trace, GeoPoint, ActivityKind, transcribed from the canonical contract",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "04-domain-contract-and-rules",
     "depends_on": [
@@ -574,10 +574,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T21:28:45Z",
-    "path": "tickets/open/0025-domain-activity-contract.md",
-    "ready": true,
+    "closed": "2026-08-31T21:44:01Z",
+    "path": "tickets/closed/0025-domain-activity-contract.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -597,7 +598,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0026-adapter-types-and-registry.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -642,7 +643,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0028-xp-rules-v1-match-block.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -1607,7 +1608,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0070-workout-entry-accommodates-sets.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9

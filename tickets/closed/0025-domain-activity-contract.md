@@ -4,7 +4,7 @@ slug: domain-activity-contract
 title: src/domain/activity.ts - Activity, Trace, GeoPoint, ActivityKind, transcribed from the canonical contract
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 04-domain-contract-and-rules
 depends_on: [12]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-08-31T21:28:45Z
+closed: 2026-08-31T21:44:01Z
 ---
 
 ## Description
