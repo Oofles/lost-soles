@@ -1,0 +1,75 @@
+name: gate
+
+# The correctness gate: typecheck, lint, tests, and the D-100 adapter boundary.
+#
+# Named `gate.yml`, not `pr.yml` (as ticket 0013 originally specified), because it
+# runs on PUSH TO MAIN. D-150 settled that this is a solo repo with no PR flow —
+# `main` is the only branch — so a pull_request-only workflow would sit dormant and
+# gate nothing. That is precisely the inherited failure mode 0013 exists to avoid:
+# devaultsecurity's one workflow triggers on `main` in a repo whose default branch
+# is `master`, and has therefore never run. `pull_request` is kept as well so the
+# gate still works if a branch is ever used.
+#
+# This workflow is an ALARM, not a lock — branch protection is unavailable on this
+# account (D-163), so a red run here does not block anything. The LOCK is
+# amplify.yml, which runs these same checks on the deploy path.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A superseded run tells you nothing. Cancel it rather than pay for it.
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc   # 22 — pinned, never inherited
+          cache: npm
+
+      # `npm install --no-save`, NOT `npm ci` — D-162. npm ci cannot install the
+      # Amplify Gen 2 dependency set at all: data-construct and graphql-api-construct
+      # ship internally inconsistent BUNDLED trees and ci refuses with ~94 "Missing
+      # ... from lock file" lines. Verified again from a clean directory on
+      # 2026-08-31 while building this workflow. --no-save installs from the
+      # committed lock and leaves it byte-identical. Mirrors amplify.yml exactly,
+      # which is the point of this gate. Revert both under ticket 0128.
+      - name: install (from the committed lockfile)
+        run: npm install --no-save --prefer-offline
+
+      # The lock guarantee --no-save costs us, bought back cheaply: if the lockfile
+      # drifted from package.json, the install rewrites it and this fails.
+      - name: package-lock.json is unchanged by the install
+        run: git diff --exit-code package-lock.json
+
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: lint
+        run: npm run lint
+
+      - name: test
+        run: npm test
+
+      # D-100 (01-architecture.md §3 T1). Passes trivially today — the domain is
+      # empty — which is exactly why it is added now rather than after a leak.
+      - name: D-100 boundary check self-test
+        run: node scripts/check-boundaries.mjs --self-test
+
+      - name: D-100 boundary — no Strava type outside the adapter
+        run: node scripts/check-boundaries.mjs
+
+      # Folded in from docs-index.yml, per the note that file carried naming 0013
+      # as its owner. A section index whose line numbers are wrong is worse than no
+      # index: it sends you to the wrong place confidently.
+      - name: docs/INDEX.md is up to date
+        run: node scripts/build-index.mjs --check

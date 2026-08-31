@@ -18,8 +18,15 @@ frontend:
         - npm install --no-save --cache .npm --prefer-offline   # D-162, see above
     build:
       commands:
+        # These four run BEFORE the build, cheapest first. There is no branch
+        # protection on this repo (D-163), so the GitHub Actions gate is an alarm
+        # and THIS is the lock: the only thing that can actually stop bad code
+        # reaching soles.devaultsecurity.com. A failed build leaves the previous
+        # deployment live. Keep this list in step with .github/workflows/gate.yml.
+        - node scripts/check-boundaries.mjs   # D-100 — milliseconds, guards a map that cannot re-fog
         - npm run typecheck  # tsc --noEmit — REAL, not the dead script pattern
         - npm run lint       # eslint — REAL, actually installed and configured
+        - npm test           # vitest — carries the T1-T4 boundary tests as they land
         - npm run build
   artifacts:
     baseDirectory: .next
