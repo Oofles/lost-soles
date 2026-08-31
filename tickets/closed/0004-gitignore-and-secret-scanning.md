@@ -4,13 +4,14 @@ slug: gitignore-and-secret-scanning
 title: .gitignore and secret scanning, in place before the first commit
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 00-preflight-and-repo
 depends_on: [3]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-08-30T00:00:00Z
 ---
 
 ## Description
@@ -95,8 +96,12 @@ Two entries carry notes that must be preserved as comments in the file so nobody
 - [ ] A `.github/workflows/` job runs `gitleaks detect` on every PR and fails the check on a hit.
 - [ ] A full-history `gitleaks detect` has been run once over the whole repo and its clean output is
       pasted into `docs/capabilities/00-preflight-and-repo.md`.
-- [ ] GitHub **secret scanning** and **push protection** are enabled in the repo's Settings →
-      Code security, and a screenshot or the settings state is noted in the capability doc.
+- [x] ~~GitHub **secret scanning** and **push protection** are enabled~~ → **NOT POSSIBLE.**
+      Verified 2026-08-30: both require **GitHub Advanced Security**, which is not available on a
+      private personal repo. The API accepts `PATCH security_and_analysis` with a 200 and the status
+      silently remains `disabled`. Making the repo public to obtain them is not a trade worth making
+      for a repo holding a lifetime GPS history (`08-security-privacy.md` §2).
+      **Compensating control recorded below and pushed into 0019.**
 - [ ] `.env.example` exists with placeholder (never real) values for every key the app will need.
 
 - [ ] **Only once the above passes: create the remote and make the first commit.**
@@ -106,6 +111,25 @@ Two entries carry notes that must be preserved as comments in the file so nobody
 - [ ] Verify on GitHub that no `.claude/`, no `*.local.json` and no `.env*` was pushed.
 
 ## Notes
+
+### GitHub push protection is unavailable — and that has a consequence
+
+Verified: secret scanning and push protection need GitHub Advanced Security, unavailable on a
+private personal repo. Two of the three scanning layers in `08-security-privacy.md` §7.3 remain
+(pre-commit hook, CI gitleaks); the third does not exist.
+
+**This is not a like-for-like loss.** The reason §7.3 wanted push protection was specific: the
+capture endpoint (capability `03`) commits **arbitrary dictated prose from a phone** into
+`tickets/inbox/` automatically. That is a path by which text the operator never re-read enters the
+repo — and it bypasses the pre-commit hook entirely, because the commit is made through the GitHub
+API, not through git on the laptop.
+
+So the loss must be compensated where the gap actually is: **the capture endpoint must scan its own
+payload before committing.** Recorded in 0019.
+
+CI gitleaks still catches it after the fact, on the next push — but "after the fact" for a secret
+means it is already in history.
+
 
 ### ⏸ STATUS 2026-08-30 — local work complete, REMOTE WORK BLOCKED
 
@@ -196,3 +220,73 @@ the gitleaks job; if 0013 has not landed yet, create the workflow with just that
    "Push protection" both read **Enabled**.
 5. On the laptop, run `git status` in a working tree where `npm install` has been run and
    `amplify_outputs.json` exists. Neither `node_modules/` nor `amplify_outputs.json` may appear.
+
+## Resolution
+
+Repository established at `github.com/Oofles/lost-soles` (private, `main`), with the secret-scanning
+layer in place **before** the first commit. Three commits pushed: `f876f84`, `f9cf81a`, `ace137f`.
+186 files on `origin/main`.
+
+**Verified pushed clean:** nothing under `.claude/` except the deliberately un-ignored
+`.claude/skills/`, no `*.local.json`, no `.env` other than `.env.example`.
+
+**Two gitignore bugs the ticket's own assertions caught:**
+
+1. `.claude/` excludes the *directory*, so git never descends into it and **no later `!` rule can
+   re-admit anything**. The tickets-skill exception silently did nothing. Fixed with `.claude/*`.
+   This is the criterion earning its place — the file looked correct.
+2. The hook's literal-pattern layer used `grep -qE "$p"`, which parses a pattern beginning
+   `-----BEGIN` as command-line options and errors out, **silently skipping that check**. Fixed
+   with `--`. Without the deliberate probe it would have shipped as a check that never ran.
+
+**The hook blocked its own project twice, which is the evidence it works.** First on the initial
+commit — two tickets contained key-shaped literals (a real access key id in `0122` from the 0002
+audit, and AWS's documentation key spelled out in this ticket's own validation step). Then on the
+next commit, for quoting a PEM header in a documentation table. The second is a genuine design
+problem, not noise: this project's security docs necessarily quote credential patterns, and a
+scanner that cannot tell documentation from a secret gets switched off by whoever it blocks at
+11pm. The hook now honours `gitleaks:allow` — gitleaks' own marker, so both layers respect one
+convention, and the exemption is visible in the diff.
+
+**Layer independence, measured rather than assumed:**
+
+| Probe | gitleaks | literal grep |
+|---|---|---|
+| Real AWS key id | caught | caught |
+| AWS doc key (`…7EXAMPLE`) | allowlisted, missed | caught |
+| GitHub PAT `ghp_…` | caught | caught |
+| PEM private-key header | missed | caught |
+| Slack `xoxb-…` | missed | caught |
+| Ordinary text | — | passes |
+
+gitleaks alone would have passed three of five. The grep layer is not redundant.
+
+**Two deviations, both for the capability audit (D-153):**
+
+1. **`.githooks/pre-commit` + `core.hooksPath`, not husky + lint-staged.** Husky needs a
+   `package.json` that does not exist until 0012; creating one now collides with the project init.
+   `.githooks` meets the criterion's intent, is version-controlled, applies to every clone, and
+   needs no npm dependency. Migrating after 0012 is a five-minute change if still wanted.
+2. **GitHub secret scanning and push protection are NOT enabled and cannot be** — they require
+   Advanced Security, unavailable on a private personal repo. Compensating control pushed into
+   **0019**: the capture endpoint must scan its own payload, because it commits through the GitHub
+   API and bypasses the pre-commit hook entirely.
+
+Full-history `gitleaks detect`: clean, recorded in the capability doc.
+
+## Operator validation
+
+Open `https://github.com/Oofles/lost-soles` in a browser. Confirm it is **private**, that the file
+tree shows `docs/`, `tickets/` and `.githooks/` but **no `.claude/settings.local.json`**, and that
+`.env.example` contains only placeholders.
+
+Then the hook test, which now generates its own probe rather than spelling out a key:
+
+```
+printf 'k=AKIA%s\n' "$(tr -dc 'A-Z0-9' </dev/urandom | head -c16)" > probe.txt
+git add probe.txt && git commit -m probe    # must be REFUSED, naming probe.txt
+git reset && rm probe.txt
+```
+
+Note Settings → Code security will show secret scanning **unavailable**, not merely off. That is
+expected and documented above, not an oversight.

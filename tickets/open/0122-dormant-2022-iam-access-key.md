@@ -81,3 +81,25 @@ know existed".
 In the IAM console → Users → `cli-user` → Security credentials, confirm the key list matches the
 decision recorded above. If the decision was to remove it, exactly one key is listed and its ID
 ends `WPBV`.
+
+## Progress — 2026-08-30
+
+**Evidence obtained, and it is decisive.** `get-access-key-last-used` on the 2022 key:
+
+```
+LastUsedDate: 2022-12-06T04:49:00+00:00
+ServiceName:  s3
+Region:       us-east-1
+```
+
+Created 2022-12-06T03:03:45. **Last used one hour and 46 minutes later, and never again** — 3 years,
+8 months, 25 days dormant. This supersedes the 90-day CloudTrail window entirely and removes the
+"absence of evidence" caveat: IAM's own record shows a key that was created, used once, and
+abandoned.
+
+**Decision: deactivate, then delete.** Deactivated 2026-08-30 (`--status Inactive`). The live
+`devault` profile was verified working immediately after, and `cli-user` now shows one Active key
+and one Inactive.
+
+**Remaining: elapsed time, not work.** Delete after a 24-48h soak with nothing broken — due on or
+after **2026-09-01**. Recorded as D-157.

@@ -426,3 +426,33 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   A capability is not done when its tickets are closed; it is done when the audit passes.
   **The governing rule: if the implementation diverged from the design doc, either the code
   changes or the doc changes — never neither.** Silent divergence is the drift.
+
+---
+
+## Capability `00` close audit — divergences  (2026-08-30, D-153)
+
+- **D-155** **Pre-commit hook is `.githooks/pre-commit` + `core.hooksPath`, NOT husky + lint-staged.**
+  Ticket 0004's criterion named husky; husky requires a `package.json` that does not exist until
+  0012, and creating one early collides with the project init. `.githooks` satisfies the intent
+  (a pre-commit hook running `gitleaks protect --staged`), is version-controlled, applies to every
+  clone, and needs no npm dependency. Resolution class: **design was wrong**, criterion amended.
+  Revisit after 0012 only if husky buys something `.githooks` does not.
+
+- **D-156** **GitHub secret scanning and push protection are UNAVAILABLE and will not be enabled.**
+  Both require GitHub Advanced Security, which a private personal repo does not have. Verified: the
+  API accepts `PATCH security_and_analysis` with a 200 and the status silently remains `disabled`.
+  Making the repo public to obtain them is not a trade worth making for a repo holding a lifetime
+  GPS history (`08-security-privacy.md` §2). Resolution class: **design was wrong**, criterion
+  amended in 0004.
+  - **This is not a like-for-like loss, and the compensating control is specific.** §7.3 wanted push
+    protection because the capture endpoint (capability `03`) commits **dictated prose from a phone
+    through the GitHub API**, bypassing the local pre-commit hook entirely. That gap is real and is
+    now a requirement on **ticket 0019**: the endpoint scans its own payload for the five patterns
+    and rejects, rather than committing and cleaning up after — a secret committed and later removed
+    is still in history.
+  - Remaining layers: pre-commit hook (laptop commits) and CI gitleaks (after the fact, on push).
+
+- **D-157** **The 2022 access key on `cli-user` is deactivated.** `get-access-key-last-used` is
+  decisive: last used **2022-12-06T04:49**, one hour 46 minutes after creation, and never again —
+  3 years 8 months dormant. Deactivated 2026-08-30 (reversible). Deletion follows a 24-48h soak
+  under ticket 0122. The live `devault` profile was verified working immediately after.

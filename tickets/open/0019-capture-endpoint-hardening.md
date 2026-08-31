@@ -77,6 +77,26 @@ Also in scope:
 
 ## Notes
 
+### Added by 0004 (2026-08-30): this endpoint must scan its own payload
+
+**GitHub push protection is unavailable on this repo** — it needs Advanced Security, which a
+private personal repo does not have. That matters *here specifically* rather than generally:
+
+This endpoint commits dictated prose from a phone straight into `tickets/inbox/` **through the
+GitHub API**, so it bypasses the `.githooks/pre-commit` scanner completely — that hook only runs
+on `git commit` from the laptop. Push protection was the layer that would have caught a secret
+arriving this way. It does not exist.
+
+**Requirement:** before committing a capture, the endpoint scans `title` and `body` for the same
+five patterns the pre-commit hook uses (`08-security-privacy.md` §7.3) and **rejects with a clear
+message** rather than committing and cleaning up afterwards — a secret committed and later removed
+is still in history, and history is what an attacker clones.
+
+Realistic threat, not a theoretical one: voice dictation of something read off a screen, or a
+pasted error message containing a token. The operator will not re-read what they dictated at mile
+six.
+
+
 The §6.5 abuse table is the test plan; each row above maps to one row of it. The one abuse case
 **not** covered here is the forged webhook against the browse cache (§6.4/7, HMAC over the raw
 body with constant-time comparison) — that belongs with the cache in capability `17`, because

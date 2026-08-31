@@ -195,6 +195,94 @@ reads better than quoting it.
 as command-line options and errors, silently skipping that check. Fixed with `grep -qE --`. Without
 the deliberate probe this would have shipped as a check that never ran.
 
+## Close audit — 2026-08-30 (D-153)
+
+Run by hand; `/tickets audit` does not exist until ticket 0121.
+
+### §1 Automated
+
+| Check | Result |
+|---|---|
+| `tsc` / ESLint / `vitest` | **N/A** — no code exists. This capability is repo and process. |
+| Invariant sweep `I-1`…`I-30` | **N/A** — no data layer yet. |
+| Boundary greps (no Strava in `domain/`) | **N/A** — no `src/` yet. |
+| Vigil test (adding a skill is a data row) | **N/A** — no rules file until 0028. |
+| Ticket validation | ✅ **122 tickets, 0 errors, 0 dangling refs, 0 cycles.** Every closed ticket carries `## Resolution`; every ticket has all four required body sections. |
+| `gitleaks detect` full history | ✅ 3 commits scanned, no leaks. |
+
+### §2 Design conformance — **2 divergences, under the budget of 3**
+
+Both resolved as **design was wrong** → docs amended, decisions recorded in the same commit.
+
+1. **husky + lint-staged → `.githooks/pre-commit`** (D-155). Husky needs a `package.json` that does
+   not exist until 0012. `.githooks` meets the intent and is version-controlled.
+2. **GitHub secret scanning / push protection unavailable** (D-156). Requires Advanced Security,
+   which a private personal repo lacks. Compensating control pushed into 0019: the capture endpoint
+   must scan its own payload, because it commits through the GitHub API and bypasses the local hook.
+
+**Not counted as divergences** — corrections made *during planning*, before the capability began,
+and already reflected in the tickets: the remote-creation step moving from 0003 to 0004, `CLAUDE.md`
+being pre-written, 0006 closing on arrival, and the stale 50 m reveal radius in `09-roadmap.md`.
+Counting planning corrections as implementation drift would inflate the number and make the drift
+budget meaningless.
+
+**Canonical contract** (`contracts/ingestion-contract.md`): untouched — nothing in this capability
+implements it. Still accurate.
+
+### §3 Operator validation
+
+| Ticket | Validated |
+|---|---|
+| 0001 | ✅ Operator confirmed apex + `www` in a desktop browser, and the apex on Android over mobile data. |
+| 0002 | ✅ IAM console shows the new key; `settings.local.json` is clean; `git status` clean. |
+| 0003, 0005, 0120 | ✅ Verified by the agent against objective criteria (file contents, index probes). |
+| 0004 | ⏳ **Outstanding** — the operator has not yet opened the GitHub repo in a browser to confirm the tree. Low risk (verified via `git ls-tree` against `origin/main`) but not the same check. |
+
+### §4 Regression
+
+No earlier capability exists. `explored-r10.bin`, XP totals: N/A.
+
+### §5 Cost and hygiene
+
+- **Active NAT gateways: 0.** The D-081 tripwire is clean — a NAT gateway appearing anywhere means
+  something has gone badly wrong.
+- AWS spend to date: **$0** of new resources. Only IAM key operations and read-only queries.
+- No `blocked_by` pointing at a closed ticket (two apparent hits were body text describing the
+  field, not frontmatter).
+- Scope discovered mid-capability was filed, not absorbed: **0122** (dormant key), and the 0019
+  requirement from D-156.
+
+### §6 Reflection
+
+**What the design got wrong.** Two criteria in 0004 were unbuildable as written — one because of a
+tool ordering dependency (husky before `package.json`), one because of a GitHub licensing
+constraint nobody checked during planning. Both were cheap to discover *because the tickets stated
+them precisely enough to fail*. A vaguer criterion ("add secret scanning") would have been marked
+done and the push-protection gap would have gone unnoticed until capability 03 shipped.
+
+**What the design got right, non-obviously.** The gitignore assertion criteria. `.gitignore` looked
+correct and was not — `.claude/` excludes the directory so git never descends into it, and the `!`
+un-ignore for the tickets skill silently did nothing. Only the explicit
+`git check-ignore` assertion caught it. Likewise the deliberate hook probe found a `grep` bug that
+would have shipped a check that never ran.
+
+**The guard caught its author twice**, on the first two commits of the project. That is the single
+most useful signal from this capability: the scanning layer is real, not decorative.
+
+**Estimate vs actual.** Roadmap estimated capability `00` at 11 tickets. Actual: 8 (0006 closed on
+arrival as a planning artifact, 0120 and 0122 added). Sessions: 2, against an estimate of 2-3.
+
+**What the next capability should do differently.** Capability `01` builds `tickets.mjs` and the
+`/tickets` skill — the tooling that replaces the hand-validation used here. Its ticket 0011 should
+treat *this* audit's ad-hoc validator output as the baseline to beat, and 0011's deliberate-error
+injection is now the load-bearing part of that ticket rather than a formality: the seed backlog is
+already clean, so a validator that finds nothing proves nothing.
+
+### Verdict
+
+> ✅ **Capability `00` passes**, with one carry-forward: **0122 remains open**, awaiting a 24-48h
+> soak before the dormant key is deleted. That is elapsed time, not work. Capability `01` may start.
+
 ## Design notes
 
 _Filled in at the DESIGN step, before TICKET-WRITE._
