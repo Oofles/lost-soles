@@ -192,9 +192,19 @@ slot in as ordinary vitest cases, which was its stated job.
 6. **Full-history `gitleaks detect`** over all 24 commits: no leaks. Run as the pre-flight for making
    the repository public.
 
-**★ Requires the operator, in a desktop browser — not verifiable from here:**
+7. **The Amplify mirror is real — verified after the close, by CLI.** Amplify job **4**
+   (commit `3e2fd15`, the commit carrying the `amplify.yml` change) **SUCCEED**. Its `BUILD` log
+   shows the four mirrored checks running in order, before the build:
+   `node scripts/check-boundaries.mjs` (line 279), `npm run typecheck` (280), `npm run lint` (283),
+   `npm test` (286 → `Test Files  1 passed (1)`), then `npm run build` (296 →
+   `✓ Compiled successfully in 4.7s`). This is the evidence that D-163's lock exists on the deploy
+   path and is not merely documented. *Originally written as an operator-only item; it turned out to
+   be checkable from here via `aws amplify get-job`, as 0012 did, so it was checked.*
 
-7. **Amplify console → `lost-soles` → the most recent `main` build.** Confirm the frontend build log
-   shows `node scripts/check-boundaries.mjs` and `npm test` running and succeeding *before*
-   `npm run build`. This is the check that proves the lock in D-163 is real and not just documented —
-   if these lines are absent, the deploy path is not gated and D-163's central claim is false.
+**★ Requires the operator — worth an eye, though nothing here is blocking:**
+
+8. **Amplify console → `lost-soles`, desktop browser.** Confirm the most recent `main` job is green
+   and `https://soles.devaultsecurity.com/` still serves. Two further builds (jobs 5 and 6) were
+   still running when this ticket closed, and job 5 is the first to build under
+   `eslint . --max-warnings 0` (D-164) — if a pre-existing warning lurks anywhere the lint config
+   reaches, that is the build that will find it.
