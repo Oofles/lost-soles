@@ -59,7 +59,9 @@ should block a close rather than be ticked in advance.
 - [x] A test asserts **every** `SKILL.md` under `.claude/skills/` parses, so this cannot recur for a
       future skill.
 - [x] CI runs that test.
-- [x] `/tickets` appears in Claude Code and its subcommands work. → **operator-verified; may need
+- [ ] `/tickets` appears in Claude Code and its subcommands work. → **UNVERIFIED — awaiting the
+      operator.** Deliberately left unchecked so `close` refuses: this is the exact criterion 0010
+      pre-ticked and closed on, and it was false. See 0124. May need
       a session restart.** Frontmatter hot-reload covers *edits* to a known skill; a skill that was
       never registered (because it never parsed) is a new discovery.
 

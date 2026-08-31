@@ -2827,7 +2827,7 @@
     "path": "tickets/open/0123-skill-frontmatter-invalid-yaml.md",
     "ready": true,
     "acceptance": {
-      "checked": 6,
+      "checked": 5,
       "total": 6
     }
   },
