@@ -10,6 +10,13 @@ backend:
         # byte-identical. Revert to `npm ci` under ticket 0128.
         - npm install --no-save --cache .npm --prefer-offline
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+        # Post-deploy, and in the BACKEND phase on purpose: this needs both the
+        # amplify_outputs.json that pipeline-deploy just wrote and the AWS
+        # credentials this phase already holds. Self-signup and guest identities
+        # are two booleans a console click can flip back, and source code cannot
+        # see that (08-security-privacy.md §5.1, D-163). Both were live-WRONG
+        # before 0014. Fails closed: an unreadable posture fails the deploy.
+        - node scripts/check-auth-posture.mjs
 frontend:
   phases:
     preBuild:
