@@ -160,7 +160,7 @@
     "title": "tickets.mjs — allocate, create, start, block, unblock, close, triage-move",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -169,7 +169,8 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0008-tickets-mjs-mutating-commands.md",
+    "closed": "2026-08-31T02:36:30Z",
+    "path": "tickets/closed/0008-tickets-mjs-mutating-commands.md",
     "ready": false,
     "acceptance": {
       "checked": 18,
