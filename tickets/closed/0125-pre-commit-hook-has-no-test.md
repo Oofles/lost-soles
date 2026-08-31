@@ -4,7 +4,7 @@ slug: pre-commit-hook-has-no-test
 title: The pre-commit hook has no test — a silent edit disabled a layer
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-08-31T02:59:59Z
 started: 2026-08-31T21:04:12Z
+closed: 2026-08-31T21:08:55Z
 ---
 
 ## Description

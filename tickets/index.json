@@ -2872,7 +2872,7 @@
     "title": "The pre-commit hook has no test — a silent edit disabled a layer",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "00-preflight-and-repo",
     "depends_on": [],
@@ -2880,10 +2880,11 @@
     "source": "agent",
     "created": "2026-08-31T02:59:59Z",
     "started": "2026-08-31T21:04:12Z",
-    "path": "tickets/open/0125-pre-commit-hook-has-no-test.md",
-    "ready": true,
+    "closed": "2026-08-31T21:08:55Z",
+    "path": "tickets/closed/0125-pre-commit-hook-has-no-test.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
