@@ -3012,7 +3012,7 @@
     "title": "check-bundle-leak: SSM read asks for /amplify recursively and truncates its own error",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
@@ -3020,10 +3020,11 @@
     "source": "agent",
     "created": "2026-08-31T20:26:26Z",
     "started": "2026-08-31T20:33:17Z",
-    "path": "tickets/open/0132-bundle-leak-ssm-path-and-error-truncation.md",
-    "ready": true,
+    "closed": "2026-08-31T20:53:57Z",
+    "path": "tickets/closed/0132-bundle-leak-ssm-path-and-error-truncation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   }

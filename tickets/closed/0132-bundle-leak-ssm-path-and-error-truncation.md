@@ -4,7 +4,7 @@ slug: bundle-leak-ssm-path-and-error-truncation
 title: check-bundle-leak: SSM read asks for /amplify recursively and truncates its own error
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-08-31T20:26:26Z
 started: 2026-08-31T20:33:17Z
+closed: 2026-08-31T20:53:57Z
 ---
 
 ## Description
