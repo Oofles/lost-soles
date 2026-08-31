@@ -258,7 +258,7 @@
     "title": "Next.js 15 App Router project and Amplify Gen 2 backend skeleton",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -269,10 +269,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T03:31:17Z",
-    "path": "tickets/open/0012-nextjs-amplify-gen2-skeleton.md",
-    "ready": true,
+    "closed": "2026-08-31T14:14:15Z",
+    "path": "tickets/closed/0012-nextjs-amplify-gen2-skeleton.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
@@ -293,7 +294,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0013-github-actions-pr-gate.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -315,7 +316,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0014-cognito-email-signin-locked-down.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -338,7 +339,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0015-domain-association-soles-subdomain.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -564,7 +565,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0025-domain-activity-contract.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -1178,7 +1179,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0052-pmtiles-basemap-on-r2.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -1408,7 +1409,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0062-xp-ledger-entry-append-only.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -2932,7 +2933,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]
