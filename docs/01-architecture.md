@@ -629,13 +629,31 @@ and it is what turns the S3 archive into a recovery mechanism.
 
 Not a design intention. Four checks, all mechanical, all in CI:
 
-**T1 — No Strava-shaped type in the domain.** A grep gate:
+**T1 — No Strava-shaped type in the domain.** Implemented as
+`scripts/check-boundaries.mjs`, which runs in both CI surfaces and carries its own self-test.
+The rule it enforces:
 
 ```bash
-# fails the build on any hit
+# the ORIGINAL formulation — kept for the record, and see the correction below
 rg -n --ignore-case 'strava|polyline|athlete|activity:read|hub\.challenge' \
    src/domain src/pipeline && exit 1 || exit 0
 ```
+
+> **Corrected 2026-08-31 (ticket 0025, D-167).** As written above this gate was **never
+> satisfiable by this very document**: `AdapterId`, 220 lines up in this same section, declares
+> `| "strava"` inside `src/domain/activity.ts` — annotated *"an opaque tag; the domain never
+> branches on it."* Both statements are deliberate; only one can be literally true.
+>
+> The rule is about **dependency**, not **vocabulary**. The check now blesses exactly one shape —
+> a line consisting only of union members, only under `src/domain/` — and still fails on every
+> form that expresses an actual dependency: a Strava-shaped field (`stravaId`), a branch on a
+> source id (`source === "strava"`), an import from an adapter, or `summary_polyline`. Self-tested
+> in both directions, in the same file, so the narrowing cannot quietly become a hole.
+>
+> This is the **third** narrowing of this check (after D-166's secret-key names and 0016's UI
+> copy) and all three are the same root cause arriving again: a text search for a word standing in
+> for a rule about dependencies. D-167 records that; if there is a fourth, replace the mechanism
+> rather than the pattern.
 
 Reinforced by an ESLint `no-restricted-imports` rule making `src/adapters/*/**` unreachable
 from `src/domain/**` and `src/pipeline/**` — the pipeline may import `adapters/types.ts` and

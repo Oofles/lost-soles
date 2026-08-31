@@ -109,6 +109,38 @@ function walk(dir, out = []) {
 const isExempt = (rel) =>
   EXEMPT.some((e) => rel === e || rel.startsWith(e + "/"));
 
+/**
+ * THIRD NARROWING (D-167, ticket 0025). The domain names its known sources in one
+ * union, and that is by design:
+ *
+ *     export type SourceId =
+ *       | "strava"          // MVP (D-121)
+ *       | (string & {})
+ *
+ * contracts/ingestion-contract.md §2 puts it there deliberately (conflict #1:
+ * "enumerate known sources for documentation value, but keep (string & {})
+ * widening so adding a source never edits the domain"), and 01-architecture.md §3
+ * had the same literal in `AdapterId` — 220 lines ABOVE the grep that forbids it,
+ * in the same section, with the author's own note: "an opaque tag; the domain
+ * never branches on it."
+ *
+ * So T1 as written was never satisfiable, in its own document, before any
+ * reconciliation. The rule is about DEPENDENCY; the grep searches for VOCABULARY.
+ *
+ * Blessed here: a line that is nothing but union members — `| "name"`, optionally
+ * several, optionally with a trailing comment — and ONLY under src/domain/. That
+ * shape cannot express a dependency. Everything that can, still fires:
+ * `stravaId`, `source === "strava"`, an import, `summary_polyline`, a field type.
+ */
+const UNION_MEMBERS_ONLY = /^\s*(\|\s*"[a-z0-9-]+"\s*)+$/;
+
+function stripBlessedLiterals(rel, line) {
+  if (!rel.startsWith("src/domain/")) return line;
+  // Trailing line comment is not part of the declaration.
+  const code = line.replace(/\/\/.*$/, "");
+  return UNION_MEMBERS_ONLY.test(code) ? "" : line;
+}
+
 function scan({ roots, pattern, why, redact }, hits, base) {
   for (const root of roots) {
     for (const file of walk(join(base, root))) {
@@ -119,7 +151,8 @@ function scan({ roots, pattern, why, redact }, hits, base) {
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
         // Strip the rule's blessed tokens, then test what is LEFT — so a line
         // carrying both a secret key name and a real violation still fires.
-        const probe = redact ? line.replace(redact, "") : line;
+        let probe = redact ? line.replace(redact, "") : line;
+        probe = stripBlessedLiterals(rel, probe);
         if (pattern.test(probe)) hits.push({ rel, n: i + 1, line: line.trim(), why });
       });
     }
@@ -178,6 +211,18 @@ if (process.argv.includes("--self-test")) {
     "amplify/functions/lower.ts":           ["const k = strava_client_secret", true],
     "src/domain/geo.ts":               ["export type GeoPoint = { lat: number; lng: number }", false],
     "src/domain/note.ts":              ["// never a Strava type here — D-100", false],
+    // D-167 — the domain names its sources in one union and that is the design.
+    // Blessed only in src/domain/, only for a line that is nothing but members.
+    "src/domain/source-id.ts":              ['  | "strava"          // MVP (D-121)', false],
+    "src/domain/kinds.ts":                  ['  | "suunto" | "polar"// D-117', false],
+    // Everything that can actually express a dependency still fires, in the same file.
+    "src/domain/leak-field.ts":             ["  stravaId: string", true],
+    "src/domain/leak-branch.ts":            ['  if (source === "strava") return 1', true],
+    "src/domain/leak-import.ts":            ['import { X } from "@/adapters/strava/types"', true],
+    "src/domain/leak-polyline.ts":          ["  const p = raw.summary_polyline", true],
+    // The blessing is src/domain-only: the same line elsewhere is still a hit.
+    "src/pipeline/sources.ts":              ['  | "strava"', true],
+    "app/pick-source.tsx":                  ['  | "strava"', true],
     "src/adapters/strava/normalize.ts":["export function fromStrava(raw: StravaActivity) {}", false],
     "src/adapters/registry.ts":        ["export const PRIMARY_ADAPTER = 'strava'", false],
     "app/page.tsx":                    ["export default function Home() { return null }", false],

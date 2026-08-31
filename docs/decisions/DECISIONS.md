@@ -626,3 +626,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     An exemption on `amplify/functions/` was considered and rejected — that directory will hold every
     ingestion Lambda, which is precisely where a Strava-shaped type reaching the pipeline would do
     the most damage.
+
+- **D-167** **D-100 is about dependency, not vocabulary. The domain may NAME its sources in one
+  union; it may not DEPEND on any of them.** Found during ticket 0025, on the first attempt to
+  transcribe `contracts/ingestion-contract.md` §2 into `src/domain/activity.ts`. **This clarifies
+  D-100's scope; it does not weaken it.**
+  - **The check was never satisfiable, in its own document, from the day it was written.**
+    `01-architecture.md` §3 defines T1 as a grep for `strava` over `src/domain` that must return
+    nothing — and **220 lines earlier, in the same section**, declares
+    `export type AdapterId = | "strava" | … | (string & {})` as living in
+    `src/domain/activity.ts`, annotated *"an opaque tag; the domain never branches on it."* The
+    canonical contract later inherited the grep verbatim, so §2 and §5.1 of that file contradict
+    each other too. Neither contradiction was introduced by reconciliation; both were latent from
+    the start, and only surfaced when someone first tried to write the file.
+  - **Naming is not depending.** Nothing in the domain reads that union member, and the
+    `(string & {})` widening means adding a source still never requires editing the domain — so
+    T2 ("swapping the primary source touches one directory and one registry line, zero lines in
+    `src/domain/`") holds unchanged. That is the operational test, and it is untouched.
+  - **Blessed: exactly one shape, in exactly one place.** A line consisting only of union members
+    (`| "name"`, optionally several, optionally with a trailing comment), only under
+    `src/domain/`. Everything capable of expressing a dependency still fails **in the same file** —
+    a Strava-shaped field, a branch on a source id, an import from an adapter, `summary_polyline` —
+    each with its own self-test case. The same union line in `src/pipeline/` or `app/` still fires.
+  - **This is the third narrowing of this one check in a day** — 0016's settings copy, D-166's
+    secret key names, and now this. Recorded together deliberately, because three exceptions to a
+    rule usually means the rule is stated wrong rather than that reality keeps being exceptional.
+    Here the diagnosis is consistent across all three: **a text search for a word is standing in
+    for a rule about dependencies.** It is kept because it is free, runs in both CI surfaces with no
+    toolchain, and has caught real things. **If a fourth narrowing is needed, replace the mechanism
+    — an import-graph and identifier check — rather than adding another pattern.** That is the
+    trigger, written down so the next person does not have to notice the pattern themselves.
+  - **Not fixed in the transcription.** Ticket 0025 is explicit that a contract problem found while
+    transcribing must be surfaced, not quietly repaired in the copy. It was raised, decided, and
+    corrected **in the contract and in `01-architecture.md` §3 first**; only then was the domain
+    file written. A domain that quietly disagrees with its contract is worse than either being
+    wrong, because the disagreement is invisible.

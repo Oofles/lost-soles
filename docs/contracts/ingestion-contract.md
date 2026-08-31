@@ -198,7 +198,9 @@ accept()                                   → ack the source in <2s, enqueue
 
 ## 5. CI checks that prove the boundary holds (D-100)
 
-1. `grep -ri strava src/domain src/pipeline` returns **nothing**.
+1. `grep -ri strava src/domain src/pipeline` returns **nothing except the `SourceId` union
+   members in `src/domain/activity.ts`** — see the note below. Enforced by
+   `scripts/check-boundaries.mjs`, not by a bare grep.
 2. Swapping the primary source touches **one directory + one registry line**.
 3. Cross-adapter equivalence: the same physical run ingested via two adapters yields the
    **same H3 cell set** (within tolerance).
@@ -206,3 +208,19 @@ accept()                                   → ack the source in <2s, enqueue
 5. **Fidelity floor**: assert points-per-km above a threshold, to catch a silent
    source-side decimation (the `summary_polyline` failure mode) before it permanently
    corrupts the map.
+
+> **Correction, 2026-08-31 (ticket 0025, D-167).** Check 1 previously read "returns **nothing**",
+> full stop. **That was never satisfiable** — §2 of this file puts `"strava"` in `SourceId`
+> deliberately (conflict #1), and it was not introduced by this reconciliation:
+> `01-architecture.md` §3 already carried the same literal in `AdapterId`, **220 lines above the
+> grep that forbids it, in the same section**, annotated *"an opaque tag; the domain never branches
+> on it."*
+>
+> The rule is about **dependency**, not **vocabulary**. Naming a source in a union expresses no
+> dependency — nothing reads it, and `(string & {})` means adding a source still never edits the
+> domain, so check 2 holds unchanged. Depending on one does, and every form of that still fails:
+> a Strava-shaped field, a branch on a source id, an import from an adapter, `summary_polyline`.
+>
+> `scripts/check-boundaries.mjs` blesses exactly one shape — a line consisting only of union
+> members, only under `src/domain/` — with self-test cases proving each of the four failure forms
+> above still fires **in the same file**.
