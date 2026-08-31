@@ -1,9 +1,11 @@
 ---
 name: tickets
-description: Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage, create, start, block, close, sync. Bare /tickets works the backlog in priority order.
+description: >
+  Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage,
+  create, start, block, close, sync. Bare /tickets works the backlog in priority order.
 argument-hint: "[list|show|next|triage|create|start|block|close|sync] [id]"
 arguments: [action, id]
-allowed-tools: Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *) Bash(git *) Read Edit Write Grep Glob
+allowed-tools: "Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *), Bash(git *), Read, Edit, Write, Grep, Glob"
 disable-model-invocation: true
 ---
 

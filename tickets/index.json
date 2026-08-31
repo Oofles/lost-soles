@@ -2810,5 +2810,45 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 123,
+    "slug": "skill-frontmatter-invalid-yaml",
+    "title": "SKILL.md frontmatter is invalid YAML — /tickets never registers",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T02:57:39Z",
+    "path": "tickets/open/0123-skill-frontmatter-invalid-yaml.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 6,
+      "total": 6
+    }
+  },
+  {
+    "id": 124,
+    "slug": "operator-verifiable-criteria-block-close",
+    "title": "Operator-verifiable criteria should block a close, not be pre-ticked",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T02:59:11Z",
+    "path": "tickets/open/0124-operator-verifiable-criteria-block-close.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

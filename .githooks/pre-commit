@@ -31,7 +31,17 @@ PATTERNS=(
   'xox[baprs]-[A-Za-z0-9-]+'
 )
 staged=$(git diff --cached --name-only --diff-filter=ACM)
-[ -z "$staged" ] && exit 0
+[ -z "$staged" ] && # ── 3. skill frontmatter ───────────────────────────────────────────────────
+# A SKILL.md whose frontmatter does not parse is skipped by Claude Code with no
+# error shown anywhere (ticket 0123). Cheap to check, invisible to debug.
+if echo "$staged" | grep -q 'SKILL\.md$'; then
+  if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
+    node scripts/check-skills.mjs >&2 || true
+    fail "a staged SKILL.md has unparseable frontmatter — Claude Code would skip it silently."
+  fi
+fi
+
+exit 0
 
 hits=""
 while IFS= read -r f; do

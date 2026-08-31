@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: skills parse (0123 — a broken SKILL.md is silently skipped)
+        run: node scripts/check-skills.mjs
       - name: unit tests
         run: node --test .claude/skills/tickets/scripts/tickets.test.mjs
       - name: backlog validates

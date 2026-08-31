@@ -558,13 +558,25 @@ Note that `@file` imports work only in `CLAUDE.md`, not in skill bodies — `SKI
 ```yaml
 ---
 name: tickets
-description: Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage, create, start, block, close, sync. Bare /tickets works the backlog in priority order.
+description: >
+  Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage,
+  create, start, block, close, sync. Bare /tickets works the backlog in priority order.
 argument-hint: "[list|show|next|triage|create|start|block|close|sync] [id]"
 arguments: [action, id]
-allowed-tools: Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *) Bash(git *) Read Edit Write Grep Glob
+allowed-tools: "Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *), Bash(git *), Read, Edit, Write, Grep, Glob"
 disable-model-invocation: true
 ---
 ```
+
+> **Corrected 2026-08-31 (ticket 0123).** `description` was previously an unquoted scalar
+> containing `Subcommands: list…`. The `: ` makes it invalid YAML — *"mapping values are not allowed
+> here"* — and **a skill whose frontmatter does not parse is silently skipped, with no error
+> anywhere.** `/tickets` simply never appeared. The folded `>` scalar and the quoted `allowed-tools`
+> are load-bearing; do not unquote them. A test now asserts every `SKILL.md` parses.
+>
+> The wider lesson: ticket 0010 required this block be reproduced **verbatim**, and it was — a
+> byte-for-byte check passed while the thing it described was broken. **"Matches the spec" is not a
+> test.** Where a spec contains something machine-checkable, assert that it *parses and behaves*.
 
 **`disable-model-invocation: true` is deliberate.** `/tickets` moves files and makes commits.
 It must fire only when the user types it, never because a description matched something
