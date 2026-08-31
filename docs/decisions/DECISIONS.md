@@ -503,3 +503,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     job is to stop you *starting* one, not to stop you *writing one down*.
   - Consequence: `validate` reporting zero warnings is not evidence that no `size: l` exists. When
     auditing, check `l` tickets directly rather than inferring their absence from a clean run.
+
+---
+
+## Capability `02` — first application code  (2026-08-31, ticket 0012)
+
+- **D-162** **`amplify.yml` installs with `npm install --no-save`, NOT `npm ci`.** Supersedes the
+  literal `npm ci --cache .npm --prefer-offline` written in `01-architecture.md` §6. The intent of
+  §6 — install from the committed lockfile, reproducibly, in a clean environment — is unchanged;
+  only the command changes, and only because `npm ci` does not work.
+  - **`npm ci` cannot install Amplify Gen 2 at all today.** Reduced to a two-line `package.json`:
+    `{"@aws-amplify/backend": "^1.24.0"}` alone exits 1; `{"@aws-amplify/backend-cli": "^1.9.0"}`
+    alone exits 0. `@aws-amplify/data-construct@1.17.7` and
+    `@aws-amplify/graphql-api-construct@1.22.2` ship internally inconsistent **bundled** dependency
+    trees — a bundled `@opentelemetry/resources@2.0.0` pinning `@opentelemetry/core@2.0.0` sits
+    beside a bundled `core@2.8.0`, and the same shape recurs for
+    `@aws-amplify/plugin-types@1.12.1` → `@aws-cdk/toolkit-lib@1.19.0`. `npm install` tolerates a
+    bundled subtree; `npm ci` validates it strictly and refuses with ~95 `Missing … from lock file`
+    lines.
+  - **Ruled out, each tested rather than assumed:** npm **9.9.3 / 10.5.0 / 10.8.2 / 10.9.2 / 11**
+    all fail identically, so it is not the local Node 23. `@aws-amplify/backend`
+    **1.20 / 1.21 / 1.22 / 1.23 / 1.24** all fail, because every one caret-resolves to the same
+    broken tarballs. **`overrides` cannot fix it** — an override does not rewrite the contents of a
+    bundled tarball; pinning the constructs to their last self-consistent releases
+    (`data-construct@1.17.3`, `graphql-api-construct@1.21.4`) made the missing-entry list *larger*.
+    `--install-strategy=nested` did not help.
+  - **What `--no-save` buys and what it costs.** Verified from a fresh clone: it installs from the
+    committed lock, leaves `package-lock.json` **byte-identical** (same md5 before and after), and
+    `next build` succeeds. What is lost is `npm ci`'s hard guarantee that the build FAILS when
+    `package.json` and the lockfile have drifted apart. That guarantee is worth having, which is
+    why this is a temporary retreat with a ticket attached and not a new preference.
+  - **Deliberately NOT chosen:** `npm ci || npm install --no-save`. It would self-heal once upstream
+    republishes, but it also silently swallows a genuine lock desync — the exact failure `npm ci`
+    exists to catch. A visible, documented substitution beats an invisible fallback.
+  - **Revert path: ticket 0128.** Re-test `npm ci` against a two-line reproduction; when it exits 0,
+    restore §6's command verbatim and close D-162 as superseded.

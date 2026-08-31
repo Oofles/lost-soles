@@ -2914,5 +2914,25 @@
       "checked": 0,
       "total": 3
     }
+  },
+  {
+    "id": 128,
+    "slug": "restore-npm-ci-in-amplify-yml-once-the-amplify-gen-2-bundled",
+    "title": "Restore npm ci in amplify.yml once the Amplify Gen 2 bundled-dependency defect is fixed upstream",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T13:22:07Z",
+    "path": "tickets/open/0128-restore-npm-ci-in-amplify-yml-once-the-amplify-gen-2-bundled.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
