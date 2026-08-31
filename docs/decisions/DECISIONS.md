@@ -538,3 +538,40 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     exists to catch. A visible, documented substitution beats an invisible fallback.
   - **Revert path: ticket 0128.** Re-test `npm ci` against a two-line reproduction; when it exits 0,
     restore §6's command verbatim and close D-162 as superseded.
+
+---
+
+## Capability `02` — the correctness gate  (2026-08-31, ticket 0013)
+
+- **D-163** **The GitHub Actions gate is an alarm; `amplify.yml` is the lock.** Branch protection is
+  declined, and every check therefore runs in **both** places. Amends `01-architecture.md` §6 CI,
+  which assumed a PR gate, and amends ticket 0013's criteria 7–9.
+  - **Why no branch protection.** D-150 settled that this is a solo repo: `main` is the only branch
+    and every ticket closes by pushing straight to it. GitHub's "require status checks" cannot
+    express *"run the checks and tell me"* — on a protected branch it rejects any push whose commit
+    has not already passed them, which is unsatisfiable for a direct push and so forces a PR per
+    ticket. That is the ceremony D-150 exists to refuse. Protection was also **unavailable** at the
+    time of writing (private repo, free personal account: the protection and rulesets APIs both
+    return `403 Upgrade to GitHub Pro or make this repository public`), but the repo went public
+    under 0122/0013 and protection is now merely **declined**, not blocked. The distinction matters:
+    reversing this is a policy change, not a purchase.
+  - **The consequence, stated honestly.** A red run on `main` blocks nothing. It is a notification,
+    and notifications get ignored — this was not hypothetical: `docs-index` had been failing on
+    `main` for four consecutive pushes over ~10 hours, since `30438db`, and nobody noticed. That is
+    the entire argument for the second copy.
+  - **Therefore the deploy path carries the same checks.** `amplify.yml`'s frontend build runs the
+    D-100 boundary check, `typecheck`, `lint` and `test` before `build`, cheapest first. A failed
+    Amplify build leaves the previous deployment live, so this — not GitHub — is what actually
+    stops bad code reaching `soles.devaultsecurity.com`. **The two lists must be kept in step**;
+    a check added to one and not the other is a check that only half exists.
+  - **Superseded if** a second contributor ever appears. Review by a second human is a real reason
+    for a PR flow; gating a solo trunk against oneself is not.
+
+- **D-164** **`npm run lint` is `eslint . --max-warnings 0`.** Found while proving the gate could go
+  red: it could not. `next/typescript` sets `@typescript-eslint/no-unused-vars` and most of its rule
+  set to severity **warn**, and `eslint` exits 0 on warnings — so `npm run lint` passed on an unused
+  variable and would have passed on almost any lint fault. The gate was decorative in exactly the way
+  0013 was written to prevent, and had shipped that way in 0012.
+  - The cost is real and accepted: every future warning blocks the build and the deploy. For a
+    project whose stated position is that a gate slow or soft enough to be resented is a gate that
+    gets bypassed, a warning nobody must act on is worse than no rule at all.
