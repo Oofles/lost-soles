@@ -254,19 +254,36 @@ what hid it: reading across every path at once, the three keys looked like one c
 check now prints **each key's origin path**, so a split is visible in the log rather than inferred
 from an absence. Pass `--identifier` to `ampx sandbox` to pin the environment when it matters.
 
-### What the Amplify build role needs
+### Why the SSM read failed in the build, and what it was not
 
-Alongside the `check-auth-posture.mjs` grant recorded below, the build role needs SSM read for the
-leak check's literal scan, scoped to this app:
+**It was not an IAM denial.** That was the working hypothesis for two builds, and it was wrong. The
+Amplify build container ships **AWS CLI v1**, which rejects `--no-cli-pager` — a v2-only flag the
+script passed unconditionally:
 
 ```
-ssm:GetParametersByPath   on arn:aws:ssm:us-east-1:286588821906:parameter/amplify/d14fhvl4rp79nn/*
-ssm:GetParametersByPath   on arn:aws:ssm:us-east-1:286588821906:parameter/amplify/shared/d14fhvl4rp79nn/*
+source: ssm /amplify/d14fhvl4rp79nn/main/ →   aws <command> <subcommand> help | Unknown options: --no-cli-pager
 ```
 
-0017 asked for `/amplify` recursively — permission across **every** Amplify app in the account —
-which passed locally under the broad `cli-user` and was denied the first time it ran under the build
-role. Same least-privilege gap as 0014's, and it should have been anticipated from that.
+The flag was purely cosmetic (v2 pages only on a TTY, and CI has none), so it was removed. Every
+other flag in that call is common to both major versions. **Nothing about the build role's
+permissions needed to change**, and no IAM grant was added for this check — unlike
+`check-auth-posture.mjs` below, which genuinely did need one.
+
+**The lesson is the diagnostic, not the flag.** 0017 truncated this error to 80 characters, and the
+cut landed one word before `Unknown options`. Two builds were spent guessing at IAM. The fix that
+mattered in 0132 was making the failure say what actually happened; the flag then took thirty
+seconds. A check that fails closed but cannot say why costs more than it saves.
+
+**The path narrowing was kept regardless.** 0017 asked for `/amplify` recursively — read across
+**every** Amplify app in the account — which is more than this needs and passed locally only because
+`cli-user` holds broad SSM read. It now reads `/amplify/<app-id>/<branch>/` and
+`/amplify/shared/<app-id>/`. That was good practice on its own; it simply was not the bug.
+
+**Build 17 went green while the SSM read was still broken**, because Amplify injects branch and
+shared secrets into the build environment and the script's `process.env` fallback caught them. The
+scan was real and `--require-literals` was satisfied honestly — but it was passing by way of the
+fallback rather than as designed, which is exactly the kind of accidental green that a log line
+naming each key's origin (`from env` vs a parameter path) makes visible instead of invisible.
 
 ### Proving `secret()` works before there is a consumer
 

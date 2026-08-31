@@ -261,8 +261,13 @@ function fromSsm() {
   const hits = []
   const notes = []
   for (const path of ssmPaths()) {
+    // NO `--no-cli-pager`. It is a v2-only flag, and the Amplify build container
+    // ships AWS CLI **v1**, which rejects it outright — every SSM read failed
+    // there with `Unknown options: --no-cli-pager` while passing locally on v2.
+    // It was only cosmetic anyway: v2 pages solely on a TTY, and CI has none.
+    // Every other flag here is common to v1 and v2.
     const args = ["ssm", "get-parameters-by-path", "--path", path, "--recursive",
-      "--with-decryption", "--output", "json", "--no-cli-pager"]
+      "--with-decryption", "--output", "json"]
     if (process.env.AWS_REGION) args.push("--region", process.env.AWS_REGION)
     try {
       const out = execFileSync("aws", args, { maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] })
