@@ -356,7 +356,7 @@
     "title": "App shell, the seven route stubs, and the design-token file",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -367,10 +367,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T19:10:27Z",
-    "path": "tickets/open/0016-app-shell-route-stubs-and-design-tokens.md",
-    "ready": true,
+    "closed": "2026-08-31T19:29:19Z",
+    "path": "tickets/closed/0016-app-shell-route-stubs-and-design-tokens.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
