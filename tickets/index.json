@@ -328,7 +328,7 @@
     "title": "Domain association for soles.devaultsecurity.com",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -338,10 +338,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0015-domain-association-soles-subdomain.md",
-    "ready": true,
+    "closed": "2026-08-31T14:20:06Z",
+    "path": "tickets/closed/0015-domain-association-soles-subdomain.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
