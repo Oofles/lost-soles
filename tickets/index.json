@@ -308,7 +308,7 @@
     "title": "Cognito — email sign-in, self-signup OFF, unauthenticated identities OFF",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -318,10 +318,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T15:03:39Z",
-    "path": "tickets/open/0014-cognito-email-signin-locked-down.md",
-    "ready": true,
+    "closed": "2026-08-31T15:50:33Z",
+    "path": "tickets/closed/0014-cognito-email-signin-locked-down.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -366,7 +367,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0016-app-shell-route-stubs-and-design-tokens.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 12
@@ -2958,7 +2959,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   },
   {
@@ -2978,7 +2979,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]
