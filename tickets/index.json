@@ -208,7 +208,7 @@
     "title": "The /tickets project skill — SKILL.md and reference.md",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -218,8 +218,9 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0010-tickets-skill.md",
-    "ready": true,
+    "closed": "2026-08-31T02:46:19Z",
+    "path": "tickets/closed/0010-tickets-skill.md",
+    "ready": false,
     "acceptance": {
       "checked": 16,
       "total": 16
@@ -244,7 +245,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0011-validate-the-hand-authored-backlog.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -2782,7 +2783,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0121-tickets-audit-subcommand.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10

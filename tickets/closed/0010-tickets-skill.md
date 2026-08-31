@@ -4,13 +4,14 @@ slug: tickets-skill
 title: The /tickets project skill — SKILL.md and reference.md
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: [8, 9]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-08-31T02:46:19Z
 ---
 
 ## Description
