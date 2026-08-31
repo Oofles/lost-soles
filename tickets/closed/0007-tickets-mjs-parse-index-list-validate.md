@@ -4,13 +4,14 @@ slug: tickets-mjs-parse-index-list-validate
 title: tickets.mjs — frontmatter parse, index.json generation, list, and the validator
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: [3]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-08-31T02:37:41Z
 ---
 
 ## Description

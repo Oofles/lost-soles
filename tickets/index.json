@@ -138,7 +138,7 @@
     "title": "tickets.mjs — frontmatter parse, index.json generation, list, and the validator",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -147,10 +147,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0007-tickets-mjs-parse-index-list-validate.md",
-    "ready": true,
+    "closed": "2026-08-31T02:37:41Z",
+    "path": "tickets/closed/0007-tickets-mjs-parse-index-list-validate.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 15,
       "total": 15
     }
   },
