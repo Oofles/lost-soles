@@ -598,3 +598,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     (the API moved from `403 Upgrade to GitHub Pro` to `404 Branch not protected`). It is still
     declined, for the reasons in D-163. The change makes that a standing choice rather than a
     platform limit, which is the honest way to hold it.
+
+- **D-166** **An SSM parameter name is not a Strava-shaped type — D-100's tier-2 grep excludes
+  SCREAMING_SNAKE `STRAVA_*` tokens.** Found during ticket 0017, the first time anything in the repo
+  referenced the secret registry: `secret("STRAVA_WEBHOOK_VERIFY_TOKEN")` failed
+  `scripts/check-boundaries.mjs`, because the tier-2 pattern `strava[A-Za-z0-9_]` matches `STRAVA`
+  followed by an underscore. **This clarifies D-100's scope; it does not weaken it.**
+  - **The collision was between two parts of the design, not between the design and convenience.**
+    `01-architecture.md` §7 fixes the spelling of those four keys, and `secret('STRAVA_CLIENT_SECRET')`
+    inside a `defineFunction` environment block is how capability 05 wires the adapter's credentials
+    — that block is the *correct* home for it. As written, the gate made the §7 registry
+    unreferenceable from anywhere in the repo.
+  - **SCREAMING_SNAKE is the discriminator, and it is a real one.** A type is PascalCase, a variable
+    is camelCase; an all-caps `STRAVA_*` token is an environment or parameter key and nothing else.
+    The redaction is case-**sensitive** for exactly that reason, so `stravaId` and `StravaActivity`
+    are untouched. `strava_client_secret` in lowercase still fires.
+  - **The STRICT tier gets no exclusion at all.** A `STRAVA_ANYTHING` in `src/domain` or
+    `src/pipeline` still fails: the domain has no business reading a source's credentials either.
+    That asymmetry is the whole reason this is a narrowing rather than a hole.
+  - **Implemented by redacting the blessed token and testing what is left**, so a line carrying both
+    a secret key name and a genuine violation still fires. Four self-test cases cover it in both
+    directions — blessed in BROAD, caught in STRICT, caught when mixed, caught in lowercase.
+  - **This is the second narrowing of the same tier**, after 0016's settings copy (`note="Strava
+    re-auth, ..."`). Both were false positives on legitimate code, found within two tickets of the
+    check landing. The pattern holds: a gate with false positives is a gate that gets bypassed, and
+    the fix each time was to make the rule say what it actually means rather than to exempt a path.
+    An exemption on `amplify/functions/` was considered and rejected — that directory will hold every
+    ingestion Lambda, which is precisely where a Strava-shaped type reaching the pipeline would do
+    the most damage.

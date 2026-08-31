@@ -95,3 +95,29 @@ jobs:
       # index: it sends you to the wrong place confidently.
       - name: docs/INDEX.md is up to date
         run: node scripts/build-index.mjs --check
+
+      # ── the bundle-leak check (0017) ────────────────────────────────────────
+      #
+      # This job holds NO AWS CREDENTIALS, deliberately (0017: adding an OIDC role
+      # here would put SSM read access in a second place, to buy a duplicate of a
+      # check the deploy path already runs under real credentials). So the two
+      # halves split:
+      #
+      #   HERE    the generic credential patterns over the built client output,
+      #           plus a self-test that proves the LITERAL scanner fires against a
+      #           planted secret. The scanner cannot rot unnoticed.
+      #   AMPLIFY the literal scan, with --require-literals, reading the real
+      #           values from SSM. D-163: this workflow is the alarm, amplify.yml
+      #           is the lock.
+      #
+      # The build is here only because the check needs .next/static to exist. It
+      # is a genuine second benefit: until now a Next build error surfaced first
+      # at deploy time.
+      - name: build (the leak check needs .next/static to exist)
+        run: npm run build
+
+      - name: bundle leak check self-test
+        run: node scripts/check-bundle-leak.mjs --self-test
+
+      - name: no secret in built output (patterns; literals are the deploy path's job)
+        run: node scripts/check-bundle-leak.mjs

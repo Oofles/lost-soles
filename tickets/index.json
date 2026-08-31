@@ -391,6 +391,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-08-31T19:57:24Z",
     "path": "tickets/open/0017-secrets-via-ssm-and-bundle-leak-test.md",
     "ready": true,
     "acceptance": {
@@ -2982,6 +2983,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 131,
+    "slug": "sandbox-stack-is-update-failed-its-cognito-pool-predates-001",
+    "title": "Sandbox stack is UPDATE_FAILED — its Cognito pool predates 0014 and cannot be updated in place",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T20:10:12Z",
+    "path": "tickets/open/0131-sandbox-stack-is-update-failed-its-cognito-pool-predates-001.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

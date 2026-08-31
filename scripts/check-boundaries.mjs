@@ -61,6 +61,25 @@ const BROAD = {
     'i',
   ),
   why: "D-100 — a Strava-shaped identifier or import outside the adapter",
+
+  // SECOND NARROWING (D-166, ticket 0017). `STRAVA_CLIENT_SECRET` is an SSM
+  // parameter name, not a Strava-shaped type — but `strava[A-Za-z0-9_]` matches
+  // STRAVA followed by an underscore, so the registry in 01-architecture.md §7
+  // could not be referenced anywhere without tripping this gate.
+  //
+  // That is not a hypothetical: `secret('STRAVA_CLIENT_SECRET')` inside a
+  // defineFunction environment block is how capability 05 wires the adapter's
+  // credentials, and that block is the CORRECT place for it.
+  //
+  // SCREAMING_SNAKE is the discriminator, and it is a real one: a TYPE is
+  // PascalCase and a variable is camelCase, so an all-caps STRAVA_* token is an
+  // environment or parameter key and nothing else. Redaction is case-SENSITIVE
+  // for exactly that reason — `stravaId` and `StravaActivity` are untouched.
+  //
+  // The STRICT tier deliberately gets NO redaction: a STRAVA_ANYTHING appearing
+  // in src/domain or src/pipeline still fails, because the domain has no business
+  // reading a source's credentials either. Self-tested both ways below.
+  redact: /\bSTRAVA_[A-Z0-9_]+\b/g,
 };
 
 // The adapter itself, and the one registry line the design explicitly blesses:
@@ -90,7 +109,7 @@ function walk(dir, out = []) {
 const isExempt = (rel) =>
   EXEMPT.some((e) => rel === e || rel.startsWith(e + "/"));
 
-function scan({ roots, pattern, why }, hits, base) {
+function scan({ roots, pattern, why, redact }, hits, base) {
   for (const root of roots) {
     for (const file of walk(join(base, root))) {
       const rel = relative(base, file).split(sep).join("/");
@@ -98,7 +117,10 @@ function scan({ roots, pattern, why }, hits, base) {
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
         // A comment explaining WHY a boundary exists is not a violation of it.
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-        if (pattern.test(line)) hits.push({ rel, n: i + 1, line: line.trim(), why });
+        // Strip the rule's blessed tokens, then test what is LEFT — so a line
+        // carrying both a secret key name and a real violation still fires.
+        const probe = redact ? line.replace(redact, "") : line;
+        if (pattern.test(probe)) hits.push({ rel, n: i + 1, line: line.trim(), why });
       });
     }
   }
@@ -146,6 +168,14 @@ if (process.argv.includes("--self-test")) {
     "app/connect/page.tsx":            ["const heading = 'Connect Strava'", false],
     "app/sync/page.tsx":               ["const src = 'strava'", true],
     "amplify/functions/ingest.ts":     ["const url = 'https://www.strava.com/api/v3'", true],
+    // D-166 — an SSM parameter name is not a Strava-shaped type. All four cases:
+    // blessed in the BROAD tier, still caught in STRICT, still caught when a real
+    // violation shares the line, and the redaction is case-sensitive.
+    "amplify/functions/secret/resource.ts": ['STRAVA_CLIENT_SECRET: secret("STRAVA_CLIENT_SECRET"),', false],
+    "amplify/functions/secret/handler.ts":  ["const v = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN", false],
+    "src/domain/creds.ts":                  ["const v = process.env.STRAVA_CLIENT_SECRET", true],
+    "amplify/functions/mixed.ts":           ['const a: StravaActivity = j(process.env.STRAVA_CLIENT_ID)', true],
+    "amplify/functions/lower.ts":           ["const k = strava_client_secret", true],
     "src/domain/geo.ts":               ["export type GeoPoint = { lat: number; lng: number }", false],
     "src/domain/note.ts":              ["// never a Strava type here — D-100", false],
     "src/adapters/strava/normalize.ts":["export function fromStrava(raw: StravaActivity) {}", false],

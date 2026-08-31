@@ -2,6 +2,7 @@ import { defineBackend } from "@aws-amplify/backend"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
+import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { storage } from "./storage/resource"
 
 /**
@@ -17,6 +18,9 @@ const backend = defineBackend({
   auth,
   data,
   storage,
+  // Ticket 0017. Proves secret() resolves end to end; deleted when token-refresh
+  // (ticket 0094) reads the same secret in earnest. See its resource.ts.
+  secretSmokeTest,
 })
 
 /*

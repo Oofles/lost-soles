@@ -8,7 +8,10 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     environment: "node",
-    include: ["**/*.test.ts", "**/*.test.tsx"],
+    // .mjs is included so the check scripts in scripts/ can carry real tests.
+    // They are plain node by design — they run in the Amplify build container,
+    // which has no TypeScript — so their tests cannot be .ts either.
+    include: ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"],
     exclude: ["node_modules/**", ".next/**", ".amplify/**", ".claude/**"],
   },
 })

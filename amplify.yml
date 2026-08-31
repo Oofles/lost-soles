@@ -36,6 +36,14 @@ frontend:
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
         - npm run build
+        # AFTER the build, and the only place the LITERAL scan can run: this
+        # container holds AWS credentials, so the real secret values come from
+        # SSM. --require-literals makes it fail closed — if the SSM read breaks,
+        # a pattern-only pass would be a green tick over an unscanned bundle
+        # (0017). Scans .next/static, .next/server and the cdk.out Lambda
+        # bundles the backend phase wrote earlier in this same container.
+        - node scripts/check-bundle-leak.mjs --self-test
+        - node scripts/check-bundle-leak.mjs --require-literals
   artifacts:
     baseDirectory: .next
     files:

@@ -170,6 +170,262 @@ cognito-identity:DescribeIdentityPool on arn:aws:cognito-identity:us-east-1:2865
 Wildcards on the pool ARN rather than the specific pool, deliberately: the production pool has
 already been replaced once, and a policy pinned to a dead ARN fails open the next time that happens.
 
+---
+
+## Secrets, and the check that proves none of them reach the browser  (ticket 0017, 2026-08-31)
+
+### The standing rule
+
+**Environment variables are NOT secrets.** Amplify renders them in plaintext into build artifacts,
+readable by anyone with `get-app` access on the app. Anything sensitive uses `secret()`, which is a
+deploy-time reference to SSM Parameter Store — the value never appears in source, in CloudFormation
+output, or in a build artifact.
+
+The corollary, from `08-security-privacy.md` §7.4 and the O-005 finding that motivated it:
+**configuration files hold references — a parameter path, an environment variable name — never the
+material.** `.env.example` is committed and contains `replace-me`; that is the shape of every config
+file in this repo.
+
+### The registry
+
+Two stores, chosen by **rotation frequency and ownership** (`01-architecture.md` §7). Static
+application config in SSM; per-user rotating credentials in DynamoDB.
+
+| Key | Store | Used by | Notes |
+|---|---|---|---|
+| `STRAVA_CLIENT_ID` | SSM `secret()` | `/api/strava/callback`, `process-activity`, `token-refresh` | Semi-public — it appears in the OAuth authorize URL — but kept server-side anyway. No reason to build the habit of leaking it |
+| `STRAVA_CLIENT_SECRET` | SSM `secret()` | callback + token refresh | **Never leaves a Lambda** |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM `secret()` | `strava-webhook` GET handshake | Compared in constant time |
+| `INGEST_BEARER_TOKEN` | SSM `secret()` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
+| `NEXT_PUBLIC_TILES_BASE_URL` | **plain env var** | client build (ticket 0052) | **Not a secret.** A public URL the browser fetches tiles from; it is in the client bundle by necessity. It appears in the §7 registry only because it VARIES BY ENVIRONMENT, which is a different problem from being sensitive |
+
+**One deviation from §7's spelling, forced by Next.js:** §7 names the tiles variable
+`TILES_BASE_URL`. Next only inlines an environment variable into the client bundle if it is prefixed
+`NEXT_PUBLIC_`, and the browser is the consumer, so the real name is `NEXT_PUBLIC_TILES_BASE_URL`.
+The prefix is not decoration — it is Next's own explicit opt-in for "this value will be public",
+which is exactly the property §7 is asserting about this key. Ticket `0052` consumes it.
+
+**Not in SSM, deliberately:** the Strava **access and refresh tokens**. Those are per-user
+credentials that rotate on every refresh, and they live in the `LostSolesSourceAccount` DynamoDB
+table — created in CDK and deliberately *not* an Amplify Data model, so AppSync cannot be
+misconfigured into exposing them (`01-architecture.md` §7). Tickets `0032`, `0033` and `0094` own
+that; nothing about it belongs to this capability. The four keys above are permanent application
+credentials, which is why they are the ones in SSM.
+
+**Secrets Manager is not used.** $0.40/secret/month is real money against a $3–5 budget (D-083), and
+its rotation machinery buys nothing when the values rotate roughly never.
+
+### Setting them
+
+```
+npx ampx sandbox secret set <KEY> --profile devault     # sandbox
+```
+
+`--profile devault` is required on this machine: the default AWS credential chain is empty and
+`ampx` reports "Unable to locate credentials" without it. The command **prompts** for the value —
+there is no `--value` flag — which is the desirable property, because it means a secret can be set
+without ever appearing in a shell history, a transcript, or a file.
+
+Branch environments (`main`) are set in the **Amplify console**, under Hosting → Secrets. `ampx` has
+no branch-secret command.
+
+Stored at `/amplify/<app-id>/<branch>-branch-<hash>/<KEY>` for a branch and under the sandbox's own
+path for a sandbox; `secret('KEY')` resolves the right one per environment with no conditional in
+the source. App id for this project is `d14fhvl4rp79nn`, and the `main` branch environment is
+`main-branch-843f54c241`. **Standard parameters are free.**
+
+### Proving `secret()` works before there is a consumer
+
+`secret()` resolves only into a **Lambda's environment at deploy time** — there is no other consumer
+shape. Every real consumer (`/api/strava/callback`, `process-activity`, `token-refresh`,
+`strava-webhook`) belongs to capability 05 or 14, so establishing the mechanism only when the first
+of those lands would mean debugging SSM resolution, IAM and an OAuth exchange in one session.
+
+`amplify/functions/secret-smoke-test/` decouples them. It is the exact counterpart of the
+`DeploySmokeTest` placeholder model in `amplify/data/resource.ts` and exists for the same reason:
+prove the mechanism while it is the only thing that can be wrong. It reads
+`STRAVA_WEBHOOK_VERIFY_TOKEN` and returns the value's **length and the first twelve hex characters
+of its SHA-256** — never the value. A smoke test that logs the secret to prove it arrived writes a
+second, un-audited copy of the credential into CloudWatch, which is the O-005 failure exactly.
+
+It reads `process.env`, not `$amplify/env/secret-smoke-test`. The typed accessor is generated into
+`.amplify/`, which is gitignored, so the typed import resolves locally and after a deploy but **not
+in a fresh clone** — precisely how `amplify_outputs.json` broke the gate during ticket 0014.
+
+**Delete this function when `token-refresh` (ticket 0094) ships.** It reads the same secret in
+earnest, and the standing control is the leak check below, which does not depend on the function.
+
+### The leak check — `scripts/check-bundle-leak.mjs`
+
+gitleaks (ticket 0004) scans **committed source**. This scans **built output**. Different surfaces,
+both needed: a secret can reach `.next/static` without ever being committed, by being read from SSM
+into a client component.
+
+Two zones, two rules:
+
+| Zone | Paths | Rule |
+|---|---|---|
+| `CLIENT` | `.next/static/**` | Zero secret literals. No exceptions, no allowlist. Anyone who loads the page can read this |
+| `SERVER` | `.next/server/**`, `.amplify/artifacts/cdk.out/**` (including `.zip` Lambda bundles, opened with `unzip`) | Also zero today. `secret()` injects into the Lambda *environment*, never into the bundle, so a literal here means someone hardcoded it. `SERVER_ALLOWLIST` is empty and adding an entry requires a docs citation in its `why` |
+
+It also scans both zones for the generic shapes `AKIA[0-9A-Z]{16}`, `ghp_`, `github_pat_`,
+`-----BEGIN … PRIVATE KEY-----` and `xox[baprs]-`.
+
+**It never prints a secret value.** Findings name the key, the file and the byte offset, and the
+excerpt has the value replaced by `<KEY>`. A leak detector that writes the leak into a public CI log
+is the bug it exists to find.
+
+Where it runs, and why the two halves differ:
+
+- **`.github/workflows/gate.yml`** — patterns, plus `--self-test`. This job holds no AWS credentials
+  by design: adding an OIDC role would put SSM read access in a second place to buy a duplicate of a
+  check the deploy path already runs under real credentials. `npm run build` was added here because
+  the check needs `.next/static` to exist; the side benefit is that a Next build error now surfaces
+  before deploy rather than at it.
+- **`amplify.yml`** — the same, plus `--require-literals`, reading the real values from SSM. **Fails
+  closed:** if the SSM read breaks, a pattern-only pass would be a green tick over an unscanned
+  bundle, so zero resolved literals is a failure rather than a skip. D-163: the workflow is the
+  alarm, this is the lock. A direct push to `main` cannot bypass it.
+
+### `amplify_outputs.json` is not a leak
+
+It contains the Cognito user pool id, app client id, identity pool id and the AppSync endpoint.
+These are **public identifiers**, protected by the pool's policy and AppSync's auth rules, not by
+obscurity. The file is gitignored because it is *generated per-environment*, **not** because it is
+sensitive, and **its presence in the client bundle is correct**.
+
+This is asserted by `scripts/check-bundle-leak.test.mjs`, not left to inspection, because the
+failure mode is social rather than technical: a future contributor sees the check go red on a pool
+id, concludes the check is noisy, and deletes the check. The test makes the intended behaviour
+executable, so "the check flagged `amplify_outputs.json`" is a red test rather than a judgement
+call. The fixture asserts it really does contain each identifier before asserting none of them fire
+— a test that passes because the values are absent proves nothing.
+
+### Two amendments to the ticket, and the real finding behind each
+
+**1. Short values are not scanned for, and the skip is reported by name.** Criterion 5 asks for the
+literal value of *every* SSM-backed secret. `STRAVA_CLIENT_ID` is a five- or six-digit number, and a
+six-digit run appears in minified chunk names, integer constants and timestamps many times per
+bundle. Scanning for it produces noise that trains people to ignore the check, which is worse than
+not scanning. Values under **12 characters** are skipped, and every skip is printed with the key
+name and the reason — never silently. §7 already records the client id as semi-public by design.
+
+**2. The generic patterns were narrowed, not path-allowlisted.** On its first run against the real
+tree the check went red on eight findings inside
+`asset.98f62bef….zip!awscli/botocore/data/iam/2010-05-08/examples-1.json` — the AWS CLI Lambda layer
+that CDK vendors into `cdk.out` for the storage construct. All three distinct AKIA values were
+`AKIA111111111EXAMPLE`, `AKIA222222222EXAMPLE` and `AKIAIOSFODNN7EXAMPLE`; the private-key hit was a
+`-----BEGIN RSA PRIVATE KEY-----` header followed by the literal text
+`<a very long private key string>`. AWS's own published documentation placeholders, in 4,300 files
+of vendored API docs.
+
+Allowlisting that path would have been one line — and would have switched the pattern scan **off
+inside the largest third-party blob in the build**, which is exactly where a supply-chain problem
+would sit. Instead both patterns were narrowed by shape: an AKIA ending in `EXAMPLE` is AWS's
+placeholder convention and is not a key AWS issues, and a `BEGIN … PRIVATE KEY` header with no
+base64 material in the 400 characters after it is prose, not a key. The scan stays live in every
+zone, including vendored ones. Both exclusions have self-test cases either way — the placeholder
+must pass, a real-shaped key must still fire.
+
+### The D-100 collision this ticket surfaced
+
+The first line in the repo to reference the §7 registry — `secret("STRAVA_WEBHOOK_VERIFY_TOKEN")` —
+**failed the D-100 boundary gate.** Its tier-2 pattern `strava[A-Za-z0-9_]` matches `STRAVA`
+followed by an underscore, so as written the gate made the secret registry unreferenceable from
+anywhere in the repo, including from the `defineFunction` environment block that is the correct home
+for it.
+
+Settled as **D-166**: tier 2 excludes SCREAMING_SNAKE `STRAVA_*` tokens, case-sensitively, because a
+type is PascalCase and a variable is camelCase — an all-caps token is a parameter key and nothing
+else. The STRICT tier over `src/domain` and `src/pipeline` gets **no** exclusion, so credentials
+reaching the domain still fail. An exemption on `amplify/functions/` was considered and rejected: it
+would switch the check off across the directory that will hold every ingestion Lambda.
+
+This is the second narrowing of that tier in two tickets, after 0016's settings copy. Both were
+false positives on legitimate code, and both were fixed by making the rule say what it means rather
+than by exempting a path.
+
+### Proof that the check can actually fail
+
+
+Run on the laptop, 2026-08-31, against the **real** `STRAVA_WEBHOOK_VERIFY_TOKEN` read from SSM —
+not a synthetic literal. The leak was planted the way a real one would happen: a `NEXT_PUBLIC_`
+variable, which Next inlines into the client bundle at build time.
+
+```tsx
+// app/leak-proof/page.tsx  — TEMPORARY
+"use client"
+export default function LeakProof() {
+  return <p>{process.env.NEXT_PUBLIC_LEAK_PROOF}</p>
+}
+```
+
+```
+$ NEXT_PUBLIC_LEAK_PROOF="$SECRET" npm run build
+$ node scripts/check-bundle-leak.mjs --require-literals
+
+========================================================================
+SECRET IN BUILT OUTPUT — build failed
+========================================================================
+
+  CLIENT  .next/static/chunks/app/leak-proof/page-ace43439631ddcc9.js  @181
+    key:     STRAVA_WEBHOOK_VERIFY_TOKEN   (literal)
+    context: ...eturn(0,r.jsx)("p",{children:"<STRAVA_WEBHOOK_VERIFY_TOKEN>"})}},49201:...
+
+  SERVER  .next/server/app/leak-proof/page.js  @3586
+    key:     STRAVA_WEBHOOK_VERIFY_TOKEN   (literal)
+    context: ...eturn(0,d.jsx)("p",{children:"<STRAVA_WEBHOOK_VERIFY_TOKEN>"})}},28354:...
+
+1 finding(s) are in .next/static — that output is served to every visitor.
+Treat the key as compromised: rotate it, then find how it reached the client.
+
+$ echo $?
+1
+```
+
+It names the file, names the key, exits non-zero, and **the value itself does not appear in the
+output** — `<STRAVA_WEBHOOK_VERIFY_TOKEN>` marks where it sat. The component was then deleted,
+`.next/` removed, and the build re-run; the check returns green.
+
+The value was never written into a file: it went from SSM into the build environment and back out
+through the scanner. That is the point of `secret()`, and it is worth noting that the proof itself
+obeyed the rule it was proving.
+
+**A one-off manual run cannot protect anything, so it is not the control.**
+`node scripts/check-bundle-leak.mjs --self-test` runs on every CI run in both places and re-proves
+the same behaviour against a planted fixture, so the scanner cannot rot into a decorative green tick.
+
+**Ticket amendment.** Criterion 8 and the ticket's operator-validation step 3 both call for the
+proof to be a deliberately-leaking **pull request** going red in the Checks tab. D-150 settled that
+`main` is the only branch and there is no PR flow, so that shape is unavailable without manufacturing
+a branch purely to satisfy a checkbox. The proof above exercises the identical code path under real
+credentials, and the CI self-test provides the standing coverage a one-off PR would not have. The
+criterion is met in substance and amended in form.
+
+### The clean run, and the two verifications behind it
+
+```
+$ node scripts/check-bundle-leak.mjs --require-literals
+  literal sources tried: ssm
+  scanning for literals: STRAVA_WEBHOOK_VERIFY_TOKEN, STRAVA_CLIENT_SECRET
+  skipped: STRAVA_CLIENT_ID — value is 6 chars, under the 12-char floor ...
+  not set in this environment: INGEST_BEARER_TOKEN
+No secret in built output. 2 literal(s) and 5 patterns checked across 3 zone(s).
+```
+
+`INGEST_BEARER_TOKEN` is unset on purpose — it is post-MVP (D-112/D-113), and values land with the
+capability that consumes them. `STRAVA_CLIENT_ID`'s skip line is the amendment above justifying
+itself in real output rather than in prose.
+
+**`secret()` proven end to end.** The deployed `secret-smoke-test` Lambda returned
+`{"key":"STRAVA_WEBHOOK_VERIFY_TOKEN","resolved":true,"length":32,"sha256Prefix":"e5a6d6a0cde8"}`,
+and the same two values computed locally from the SSM parameter match exactly. The value crossed
+from SSM into a Lambda environment and was confirmed identical without either end ever printing it.
+
+**No secret in source or in a build log.** Every set secret value was searched for across all 236
+git-tracked files and the full `npm run build` log: zero hits. This is the check gitleaks does not
+do — gitleaks knows credential *patterns*, this knows the actual *current values*.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
