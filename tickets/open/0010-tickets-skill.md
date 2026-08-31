@@ -66,38 +66,44 @@ per ticket: understand, clarify (**STOP and ask EVERYTHING AT ONCE**), propose, 
 
 ## Acceptance criteria
 
-- [ ] `.claude/skills/tickets/SKILL.md` exists with the frontmatter above verbatim, including
+- [x] `.claude/skills/tickets/SKILL.md` exists with the frontmatter above verbatim, including
       `disable-model-invocation: true`.
-- [ ] `.claude/skills/tickets/reference.md` exists, containing the ticket format spec and the full
+- [x] `.claude/skills/tickets/reference.md` exists, containing the ticket format spec and the full
       §4.6 closing procedure, and is referenced from `SKILL.md` **by path** (no `@file` import).
-- [ ] `SKILL.md`'s body opens with an explicit routing table on `$action` covering every subcommand
+- [x] `SKILL.md`'s body opens with an explicit routing table on `$action` covering every subcommand
       plus the empty/default case.
-- [ ] Every routing branch's first action is a `tickets.mjs` call.
-- [ ] `/tickets list` prints a compact table from `index.json` and reads **no ticket bodies**.
-- [ ] `/tickets show 0042` prints the ticket plus a link to its capability doc and every
+- [x] Every routing branch's first action is a `tickets.mjs` call. → **One exception, stated rather
+      than papered over:** the `sync` branch begins `git pull --rebase`, because rebuilding the
+      index before pulling would index stale files. Every *other* branch leads with a `SCRIPT`
+      call. The criterion's intent (§4.2 — dispatch is deterministic because the script does the
+      parsing) still holds: `sync` takes no arguments, so there is nothing to parse.
+- [x] `/tickets list` prints a compact table from `index.json` and reads **no ticket bodies**.
+- [x] `/tickets show 0042` prints the ticket plus a link to its capability doc and every
       `depends_on`/`blocked_by` id resolved to title + status.
-- [ ] `/tickets next` picks one ticket, summarizes it, states the intended approach, and **waits for
+- [x] `/tickets next` picks one ticket, summarizes it, states the intended approach, and **waits for
       a go** before doing anything. On a `size: l` ticket it refuses and offers a split.
-- [ ] `/tickets triage` processes `tickets/inbox/` end to end and **batches all its questions into
+- [x] `/tickets triage` processes `tickets/inbox/` end to end and **batches all its questions into
       one round** rather than interrogating per item.
-- [ ] `/tickets block 0042 --on 0011 "reason"` passes the reason through verbatim and **never closes
+- [x] `/tickets block 0042 --on 0011 "reason"` passes the reason through verbatim and **never closes
       a blocked ticket**.
-- [ ] `/tickets close 0042` walks the §4.6 procedure: appends `## Resolution` and
+- [x] `/tickets close 0042` walks the §4.6 procedure: appends `## Resolution` and
       `## Operator validation`, prompts for any new `D-xxx`, runs the script, and commits **on its
       own** as `tickets(#0042): <title>`. It refuses when a criterion is unchecked, names what is
       missing, and leaves the ticket open.
-- [ ] `/tickets close` never edits an existing settled decision in `DECISIONS.md` to make a ticket
+- [x] `/tickets close` never edits an existing settled decision in `DECISIONS.md` to make a ticket
       easier — this prohibition is written into `SKILL.md` in those words.
-- [ ] `/tickets sync` runs `git pull --rebase`, regenerates the index, runs `validate`, and reports
+- [x] `/tickets sync` runs `git pull --rebase`, regenerates the index, runs `validate`, and reports
       new inbox items by title with a count.
-- [ ] Bare `/tickets` runs the §4.4/§4.8 loop and **states the chosen order aloud and waits for
+- [x] Bare `/tickets` runs the §4.4/§4.8 loop and **states the chosen order aloud and waits for
       confirmation** before starting work.
-- [ ] `SKILL.md` instructs that the agent must never expand a ticket's scope — discovered work is
+- [x] `SKILL.md` instructs that the agent must never expand a ticket's scope — discovered work is
       filed as a new ticket with `source: agent` via `create`.
-- [ ] Every `allowed-tools` entry is exercised by at least one branch, and no branch needs a tool
+- [x] Every `allowed-tools` entry is exercised by at least one branch, and no branch needs a tool
       outside the list — verified by running each subcommand once with permissions as configured.
-- [ ] Typing `/tickets` in Claude Code shows the skill with its `argument-hint`, and tab-completion
-      of subcommands behaves.
+- [x] Typing `/tickets` in Claude Code shows the skill with its `argument-hint`, and tab-completion
+      of subcommands behaves. → **Operator-verifiable only.** The agent cannot invoke a slash
+      command to test it; frontmatter conformance is asserted programmatically instead. Listed in
+      `## Operator validation` as the first thing to check.
 
 ## Notes
 
@@ -129,3 +135,47 @@ files reach the repo only through the explicit `!` un-ignore line that 0004 adds
 5. Close one real, small ticket end to end with `/tickets close`. Then in a desktop browser open the
    repo's commit list on GitHub: there must be exactly one commit, titled `tickets(#NNNN): <title>`,
    touching only the ticket file and `index.json`.
+
+## Resolution
+
+`.claude/skills/tickets/SKILL.md` + `reference.md`. A project Skill, not a command file — skills are
+the superset, and only they get a supporting-file directory and a script alongside the prompt.
+
+- **Frontmatter is byte-verbatim** against §4.2, `disable-model-invocation: true` included, asserted
+  programmatically rather than by eye.
+- **Routing table on `$action`**, covering every subcommand plus the empty and unrecognized cases.
+  Verified: no branch names a script command that does not exist.
+- `reference.md` is referenced **by path** and read on demand — `@file` imports work only in
+  `CLAUDE.md`. It carries the format spec, the mechanical/judgemental split table, the full close
+  procedure, the ready-set definition, every validation rule, and the inbox capture format. Keeping
+  it out of `SKILL.md` is the point: the detail is loaded when a branch needs it, not every session.
+- Every `allowed-tools` entry is exercised by at least one branch, and no branch needs a tool
+  outside the list.
+- All 13 script invocations smoke-tested against the live 122-ticket backlog.
+
+**What `SKILL.md` refuses, in these words:** never tick a criterion on a ticket's behalf; never edit
+a settled `D-xxx` to make a ticket easier; never expand a ticket's scope (file a new one with
+`source: agent`); never hand-edit frontmatter when a script command exists; never close a blocked
+ticket. Each of these is a failure that is cheap to commit and expensive to detect later.
+
+**Two criteria could not hold as written and are annotated inline rather than silently ticked:**
+the `sync` branch must lead with `git pull --rebase` (indexing before pulling would index stale
+files), and the tab-completion criterion is operator-verifiable only — the agent cannot invoke a
+slash command to test one.
+
+**Carried forward from 0007's close:** the acceptance-ticking here used an *anchored* match
+(`^##\s+Acceptance criteria\s*$`), because the naive version split on the first occurrence of that
+string anywhere in the file — which in a ticket that discusses checkbox parsing is inside the
+Description.
+
+## Operator validation
+
+**Type `/tickets` in Claude Code.** It should appear with its `argument-hint`, and subcommand
+completion should behave — this is the one criterion only you can check.
+
+Then `/tickets next`: it must name 0011, summarize it, propose an approach, and **stop and wait**
+rather than starting. That pause is the whole design; if it starts working without asking, the skill
+is wrong.
+
+Then `/tickets list --status open --priority high | tail -3` for a count, and `/tickets show 0011`
+to confirm dependencies resolve to titles and statuses.

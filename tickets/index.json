@@ -221,7 +221,7 @@
     "path": "tickets/open/0010-tickets-skill.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 16,
       "total": 16
     }
   },
