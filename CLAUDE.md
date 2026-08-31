@@ -16,10 +16,19 @@ Check `tickets/closed/` to see what has actually been built.
 ## What to do at the start of a session
 
 1. **Find the next tickets.**
-   - Once ticket `0009` exists: `/tickets next`. It computes the ready set from the dependency
-     graph and is authoritative.
-   - Before then: read **`docs/BUILD-ORDER.md`**, which carries a precomputed topological order and
-     the session grouping. Take the first session whose tickets are not yet in `tickets/closed/`.
+   Three stages, because the tooling arrives in two steps — check which you are in:
+   - **Once the `/tickets` skill exists** (ticket `0010`): `/tickets next`. Authoritative.
+   - **Once `tickets.mjs` exists but the skill does not** (tickets `0007`–`0009` closed, `0010`
+     open — *this is the current state*): call the script directly. It is fully working:
+     ```
+     node .claude/skills/tickets/scripts/tickets.mjs next        # what to pick up
+     node .claude/skills/tickets/scripts/tickets.mjs next --all   # the whole ready set
+     node .claude/skills/tickets/scripts/tickets.mjs show <id>    # why something is not ready
+     node .claude/skills/tickets/scripts/tickets.mjs validate     # must be 0 errors
+     ```
+   - **Before either**: read **`docs/BUILD-ORDER.md`** — a precomputed topological order with
+     session grouping. Take the first session whose tickets are not yet in `tickets/closed/`.
+     It is a fallback; the script supersedes it once available.
 2. **Propose the session's batch and confirm it before starting.** Do not silently start work.
 3. Read each ticket in full, plus **only the design sections it cites**.
 
@@ -55,11 +64,15 @@ Read `docs/decisions/DECISIONS.md` in full at the **start of a capability**, not
   never neither.* Capabilities `00` and `01` are audited by hand; from `02` onward
   `/tickets audit` runs it and blocks starting the next capability.
 
-## Ticket workflow before `/tickets` exists (tickets 0001–0009)
+## Ticket workflow before the `/tickets` skill exists (through ticket 0010)
 
 The methodology works with no tooling — that is the point of it.
 
-- Work `tickets/open/` in the order `docs/BUILD-ORDER.md` gives.
+- Find the next ticket with `tickets.mjs next` (see above), or `docs/BUILD-ORDER.md` if
+  even the script does not exist yet.
+- **Prefer the script over hand-editing** once it exists: `create`, `start`, `block`,
+  `close` and `triage-move` maintain `index.json`, enforce the close preconditions, and
+  `git mv` so history follows the file. Hand-editing silently skips all of that.
 - To close: append `## Resolution` (files touched, decisions made, why) and `## Operator validation`
   (what you actually checked, on what device), set `status: closed`, add `closed:` as an ISO
   timestamp, and **move the file to `tickets/closed/`** in the same commit as the code.
@@ -100,7 +113,7 @@ to run checks on pushes, not to gate a review that has no second reviewer.
 |---|---|
 | Why it exists, and what it refuses to be | `docs/00-vision.md` |
 | Every decision + reasoning | `docs/decisions/DECISIONS.md` |
-| What to build next | `docs/BUILD-ORDER.md`, then `/tickets next` |
+| What to build next | `tickets.mjs next` — or `/tickets next` once `0010` lands |
 | Which capability is next | `docs/capabilities/ROADMAP.md` |
 | Ticket format (short reference) | `docs/TICKET_FORMAT.md` — `07-ticketsmith.md` §3 is normative |
 | Capability lifecycle | `docs/capabilities/WORKFLOW.md` *(lands in ticket `0005`)* |
