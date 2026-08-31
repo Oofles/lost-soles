@@ -279,6 +279,24 @@ seconds. A check that fails closed but cannot say why costs more than it saves.
 `cli-user` holds broad SSM read. It now reads `/amplify/<app-id>/<branch>/` and
 `/amplify/shared/<app-id>/`. That was good practice on its own; it simply was not the bug.
 
+**The green run, from Amplify build 18's log** — reading the parameter store as designed:
+
+```
+source: ssm /amplify/d14fhvl4rp79nn/main/ → 0 key(s)
+source: ssm /amplify/shared/d14fhvl4rp79nn/ → 3 key(s)
+scanning for literals:
+  STRAVA_CLIENT_SECRET  from /amplify/shared/d14fhvl4rp79nn
+  STRAVA_WEBHOOK_VERIFY_TOKEN  from /amplify/shared/d14fhvl4rp79nn
+skipped: STRAVA_CLIENT_ID — value is 6 chars, under the 12-char floor ...
+not set in this environment: INGEST_BEARER_TOKEN
+No secret in built output. 2 literal(s) and 5 patterns checked across 3 zone(s).
+```
+
+The `main/` path returning **0 keys** is correct, not a fault: the operator set these in the Amplify
+console as **shared** secrets, so they live under `/amplify/shared/<app-id>/` and apply to every
+branch. Reading both paths is what makes that work without configuration. Worth knowing it was the
+choice made, because a second branch environment would inherit these rather than hold its own.
+
 **Build 17 went green while the SSM read was still broken**, because Amplify injects branch and
 shared secrets into the build environment and the script's `process.env` fallback caught them. The
 scan was real and `--require-literals` was satisfied honestly — but it was passing by way of the

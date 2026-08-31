@@ -65,21 +65,27 @@ with no way to tell an IAM denial from a missing binary. Verified in Amplify job
 
 ## Acceptance criteria
 
-- [ ] `fromSsm()` requests only the paths it needs: `/amplify/<app-id>/<branch>/` and
+- [x] `fromSsm()` requests only the paths it needs: `/amplify/<app-id>/<branch>/` and
       `/amplify/shared/<app-id>/` when `AWS_APP_ID` is present, falling back to a broader path only
       when it is not. A failure on one path does not abandon the others.
-- [ ] The failure message carries the **full** underlying error, so an IAM denial, a missing `aws`
+- [x] The failure message carries the **full** underlying error, so an IAM denial, a missing `aws`
       binary and an empty result are each distinguishable from the build log alone. Truncation, if
       any, keeps the AWS error text rather than the command line.
-- [ ] The IAM permission the Amplify build role actually needs is stated in
+- [x] The IAM permission the Amplify build role actually needs is stated in
       `docs/capabilities/02-deploy-and-auth.md`, next to the `check-auth-posture.mjs` grant that is
       already recorded there, with the resource ARN scoped to this app.
-- [ ] The `/amplify/<app-id>/<branch>/<KEY>` layout is corrected in both
+      *AMENDED — the premise was wrong.* **No IAM grant was needed and none was added.** This
+      criterion assumed an AccessDenied; the actual cause was `--no-cli-pager`, a v2-only flag
+      rejected by the AWS CLI **v1** in the Amplify container. The capability doc now records that,
+      and explicitly says no grant was required — leaving the original wording ticked as written
+      would have planted a false claim about the build role's permissions in the one document
+      someone would consult before editing them.
+- [x] The `/amplify/<app-id>/<branch>/<KEY>` layout is corrected in both
       `docs/capabilities/02-deploy-and-auth.md` and `01-architecture.md` §7, with a note that
       `/amplify/resource_reference/...` is a different path holding deploy outputs, not secrets.
-- [ ] An Amplify build on `main` runs the check to a **pass**, with the branch secrets set, and the
+- [x] An Amplify build on `main` runs the check to a **pass**, with the branch secrets set, and the
       log line naming which literals were scanned is quoted in the capability doc.
-- [ ] The check still fails closed when it genuinely cannot read SSM — proven, not assumed.
+- [x] The check still fails closed when it genuinely cannot read SSM — proven, not assumed.
 
 ## Notes
 
@@ -93,3 +99,69 @@ In the Amplify console on the desktop, open the `main` build log for the commit 
 confirm the leak-check step names the literals it scanned and passes. Then, in the same console,
 temporarily remove one branch secret and redeploy: the build must go red with a message that says
 plainly which key could not be read and why.
+
+## Resolution
+
+**The reported bug was real. The diagnosis in the ticket body was wrong, and the ticket's own
+criterion 2 is what corrected it.**
+
+**Files touched**
+
+- `scripts/check-bundle-leak.mjs` — `ssmPaths()` reads `/amplify/<app-id>/<branch>/` and
+  `/amplify/shared/<app-id>/` when `AWS_APP_ID` is present, falling back to `/amplify` on a
+  developer machine where the project segment is not derivable. Each path is attempted
+  independently, so one failure does not abandon the rest. `awsError()` returns the AWS error text
+  rather than the command line, and names `ENOENT` as a missing CLI. Each resolved key now prints
+  its **origin path**. The fail-closed message lists every path tried, verbatim.
+- `docs/01-architecture.md` §7 and `docs/capabilities/02-deploy-and-auth.md` — the secret path
+  corrected to `/amplify/<app-id>/<branch>/<KEY>`, with the sandbox layout and the OS-user naming
+  written down.
+
+**What actually happened, in order**
+
+1. **Two builds were spent on a wrong hypothesis.** 0017 truncated the SSM error to 80 characters
+   and the cut landed one word before the answer. "Over-broad path denied by IAM" was plausible,
+   matched a known prior failure (0014's posture check), and was **wrong**.
+2. **The real cause, visible the moment the error was printed in full:**
+   `Unknown options: --no-cli-pager`. The Amplify build container ships **AWS CLI v1**; that flag is
+   v2-only. It was cosmetic — v2 pages only on a TTY and CI has none — so it was removed. Every other
+   flag in the call is common to both versions. **No IAM change was needed and none was made.**
+3. **Build 17 went green while the read was still broken.** Amplify injects branch and shared secrets
+   into the build environment, and the `process.env` fallback caught them, so `--require-literals`
+   was satisfied and the scan was genuine — but by the fallback, not as designed. The per-key origin
+   line (`from env` versus a parameter path) is the only reason that was visible rather than a silent
+   accidental pass. Build 18 reads from `/amplify/shared/d14fhvl4rp79nn/` properly.
+4. **A third finding, incidental to the fix.** While scoping the paths, the broad read revealed the
+   three sandbox secrets were split across **two sandboxes** — `root-sandbox-*` and
+   `vivicat-sandbox-*` — because `ampx sandbox` names the environment after the OS user and the agent
+   and operator ran it as different users. The over-broad read is precisely what had hidden it: read
+   across everything at once, the keys looked like one coherent set. Operator has since consolidated
+   into the root sandbox. `--identifier` pins the name.
+
+**The lesson worth keeping.** The path narrowing was good practice and was kept, but it was not the
+bug. **The bug that cost real time was a check that fails closed and cannot say why.** 0017 built a
+control whose failure message described the command it ran instead of the error it got. That turned
+a thirty-second fix into two red builds and a confident wrong answer. The stale `vivicat-sandbox-*`
+duplicates are now unused; harmless, and left for `0130`/`0131` to clean up with the rest of the
+sandbox work rather than widening this ticket.
+
+## Operator validation
+
+- **Amplify build 18 on `main`, `SUCCEED`** — BUILD, DEPLOY and VERIFY all green. Its log shows the
+  literal scan reading from the parameter store, quoted verbatim in
+  `docs/capabilities/02-deploy-and-auth.md`: `ssm /amplify/shared/d14fhvl4rp79nn/ → 3 key(s)`, two
+  literals scanned by origin path, `STRAVA_CLIENT_ID` skipped by name, no secret in built output.
+- **It still fails closed, proven rather than assumed** — builds 15 and 16 both went red on
+  `--require-literals` with zero literals resolved, and a local run with `AWS_APP_ID`/`AWS_BRANCH`
+  set against paths holding no keys exits 1 and lists every path tried.
+- **The error is now diagnostic** — the v1/v2 flag mismatch was found *by* this change, which is the
+  strongest available evidence that criterion 2 is met.
+- **Operator actions completed during this ticket:** all three secrets set in the Amplify console
+  (as **shared**, under `/amplify/shared/d14fhvl4rp79nn/`), and the sandbox secrets consolidated into
+  `root-sandbox-bcc61467ba`.
+
+**Still worth an operator's eyes, on a device:** the phone check from 0017 is unchanged and still
+outstanding — on the **Android phone at `https://soles.devaultsecurity.com`**, sign in, then via
+`chrome://inspect` from the laptop search the loaded JS for the first six characters of the Strava
+client secret. Zero hits expected. Build 18 is the first deployment where that is checkable against
+what CloudFront actually serves.
