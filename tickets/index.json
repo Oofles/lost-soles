@@ -2810,6 +2810,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-08-31T14:44:14Z",
     "path": "tickets/open/0122-dormant-2022-iam-access-key.md",
     "ready": true,
     "acceptance": {

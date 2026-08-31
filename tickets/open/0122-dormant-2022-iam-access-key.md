@@ -11,6 +11,7 @@ depends_on: [2]
 blocked_by: []
 source: agent
 created: 2026-08-30T00:00:00Z
+started: 2026-08-31T14:44:14Z
 ---
 
 ## Description
@@ -103,3 +104,18 @@ and one Inactive.
 
 **Remaining: elapsed time, not work.** Delete after a 24-48h soak with nothing broken — due on or
 after **2026-09-01**. Recorded as D-157.
+
+## Progress — 2026-08-31
+
+Re-verified during the 0013 session, as the pre-flight for making the repository public:
+`list-access-keys` on `cli-user` shows `…WPBV` **Active** (created 2026-08-31) and `…EHYC`
+**Inactive** (created 2022-12-06). The soak is holding and nothing has broken.
+
+**Not closed: the delete is due on or after 2026-09-01** and today is 2026-08-31. Blocked on elapsed
+time rather than work. Deletion is irreversible and the ticket's own criterion sets the date, so it
+was not brought forward.
+
+Noted while deciding whether to publish the repo: this ticket describes the weakness *and* its
+remediation, so publishing it discloses a fixed problem, not a live one. That is a reasonable thing
+to have in public. The two remaining criteria — whether `cli-user` should exist at all once Lost
+Soles deploys, and the IAM Identity Center question — are untouched and still open.
