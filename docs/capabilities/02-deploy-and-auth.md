@@ -229,10 +229,44 @@ without ever appearing in a shell history, a transcript, or a file.
 Branch environments (`main`) are set in the **Amplify console**, under Hosting → Secrets. `ampx` has
 no branch-secret command.
 
-Stored at `/amplify/<app-id>/<branch>-branch-<hash>/<KEY>` for a branch and under the sandbox's own
-path for a sandbox; `secret('KEY')` resolves the right one per environment with no conditional in
-the source. App id for this project is `d14fhvl4rp79nn`, and the `main` branch environment is
-`main-branch-843f54c241`. **Standard parameters are free.**
+Stored at **`/amplify/<app-id>/<branch>/<KEY>`** for a branch and
+`/amplify/<project>/<user>-sandbox-<hash>/<KEY>` for a sandbox; `secret('KEY')` resolves the right
+one per environment with no conditional in the source. App id for this project is `d14fhvl4rp79nn`,
+so `main`'s secrets live at `/amplify/d14fhvl4rp79nn/main/`. **Standard parameters are free.**
+
+**Not `main-branch-843f54c241`.** That hashed name is the `/amplify/resource_reference/` path, which
+holds deploy outputs — bucket names, the GraphQL endpoint — and is a different thing entirely. 0017
+recorded the hashed form here and in `01-architecture.md` §7; both were corrected in **0132**, from
+Amplify build 15's own log line `SSM params {"Path":"/amplify/d14fhvl4rp79nn/main/"}`.
+
+**A sandbox is named after the OS user, and that split the secrets in two.** 0017 set
+`STRAVA_WEBHOOK_VERIFY_TOKEN` while running as `root` and the operator set `STRAVA_CLIENT_ID` and
+`STRAVA_CLIENT_SECRET` as `vivicat`, producing:
+
+```
+/amplify/lostsoles/root-sandbox-bcc61467ba/STRAVA_WEBHOOK_VERIFY_TOKEN
+/amplify/lostsoles/vivicat-sandbox-7b04466b62/STRAVA_CLIENT_ID
+/amplify/lostsoles/vivicat-sandbox-7b04466b62/STRAVA_CLIENT_SECRET
+```
+
+Two sandboxes, neither complete. The over-broad `--path /amplify` read that 0132 exists to fix is
+what hid it: reading across every path at once, the three keys looked like one coherent set. The
+check now prints **each key's origin path**, so a split is visible in the log rather than inferred
+from an absence. Pass `--identifier` to `ampx sandbox` to pin the environment when it matters.
+
+### What the Amplify build role needs
+
+Alongside the `check-auth-posture.mjs` grant recorded below, the build role needs SSM read for the
+leak check's literal scan, scoped to this app:
+
+```
+ssm:GetParametersByPath   on arn:aws:ssm:us-east-1:286588821906:parameter/amplify/d14fhvl4rp79nn/*
+ssm:GetParametersByPath   on arn:aws:ssm:us-east-1:286588821906:parameter/amplify/shared/d14fhvl4rp79nn/*
+```
+
+0017 asked for `/amplify` recursively — permission across **every** Amplify app in the account —
+which passed locally under the broad `cli-user` and was denied the first time it ran under the build
+role. Same least-privilege gap as 0014's, and it should have been anticipated from that.
 
 ### Proving `secret()` works before there is a consumer
 

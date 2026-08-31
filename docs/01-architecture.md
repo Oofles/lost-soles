@@ -1100,9 +1100,21 @@ in SSM; per-user rotating credentials go in DynamoDB.
 ### SSM Parameter Store, via Amplify's `secret()`
 
 Set with `npx ampx sandbox secret set <KEY>` (sandbox) or in the Amplify console (branch
-environments). Stored at `/amplify/shared/<app-id>/<key>` or
-`/amplify/<app-id>/<branch>-branch-<hash>/<key>`, and `secret('KEY')` resolves the correct
-one per environment automatically. **Standard parameters are free.**
+environments). Stored at `/amplify/<app-id>/<branch>/<key>` for a branch,
+`/amplify/shared/<app-id>/<key>` for a shared value, and
+`/amplify/<project>/<user>-sandbox-<hash>/<key>` for a sandbox; `secret('KEY')` resolves
+the correct one per environment automatically. **Standard parameters are free.**
+
+> **Corrected 2026-08-31 (ticket 0132).** This previously read
+> `/amplify/<app-id>/<branch>-branch-<hash>/<key>`. That is the **`/amplify/resource_reference/`**
+> path, which holds deploy outputs — bucket names, the GraphQL endpoint — and not secrets.
+> The branch secret path carries no hash, confirmed from Amplify build 15's own log:
+> `SSM params {"Path":"/amplify/d14fhvl4rp79nn/main/","WithDecryption":true}`.
+>
+> **A sandbox is named for the OS user.** `ampx sandbox secret set` writes to
+> `<username>-sandbox-<hash>`, so the same command run by two different users — or by a
+> person and an agent — silently populates two different environments. Pass
+> `--identifier <name>` to pin it.
 
 | Key | Used by | Notes |
 |---|---|---|

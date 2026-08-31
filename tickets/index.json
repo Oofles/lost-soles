@@ -3019,11 +3019,12 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T20:26:26Z",
+    "started": "2026-08-31T20:33:17Z",
     "path": "tickets/open/0132-bundle-leak-ssm-path-and-error-truncation.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]

@@ -221,21 +221,68 @@ export function scanBuild(base, literals) {
  */
 const PLACEHOLDER = /^(replace-me|changeme|xxx+|00000|todo)$/i
 
-function fromSsm() {
-  // /amplify covers all three layouts: /amplify/shared/<app-id>/<key>,
-  // /amplify/<app-id>/<branch>-branch-<hash>/<key>, and the sandbox's own path.
-  // One recursive call rather than guessing the branch hash.
-  const args = ["ssm", "get-parameters-by-path", "--path", "/amplify", "--recursive",
-    "--with-decryption", "--output", "json", "--no-cli-pager"]
-  if (process.env.AWS_REGION) args.push("--region", process.env.AWS_REGION)
-  const out = execFileSync("aws", args, { maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] })
-  const params = JSON.parse(out.toString("utf8")).Parameters ?? []
-  const hits = []
-  for (const p of params) {
-    const key = p.Name.slice(p.Name.lastIndexOf("/") + 1)
-    if (SSM_KEYS.includes(key)) hits.push({ key, value: p.Value, from: "ssm" })
+/**
+ * The paths to read, narrowest first (0132).
+ *
+ * The original asked for `/amplify --recursive`, which requires
+ * `ssm:GetParametersByPath` across EVERY Amplify app in the account. That passed
+ * locally, where `cli-user` holds broad SSM read, and was denied the first time it
+ * ran under the Amplify build role — the same least-privilege gap
+ * check-auth-posture.mjs hit in 0014.
+ *
+ * The branch layout is `/amplify/<app-id>/<branch>/<KEY>`, confirmed from Amplify
+ * build 15's own log line: {"Path":"/amplify/d14fhvl4rp79nn/main/"}. It is NOT
+ * `<branch>-branch-<hash>` — that is `/amplify/resource_reference/...`, which holds
+ * deploy outputs, not secrets.
+ */
+function ssmPaths() {
+  const app = process.env.AWS_APP_ID
+  const branch = process.env.AWS_BRANCH
+  if (app) {
+    return [branch && `/amplify/${app}/${branch}/`, `/amplify/shared/${app}/`].filter(Boolean)
   }
-  return hits
+  // No AWS_APP_ID: a developer laptop, not a build container. Sandbox secrets live
+  // at /amplify/<project>/<user>-sandbox-<hash>/ and the project segment is not
+  // derivable here, so this stays broad — and every key's origin path is reported,
+  // which is what makes a split across two sandboxes visible rather than silent.
+  return ["/amplify"]
+}
+
+/** The AWS error itself, never the command line we already know we ran (0132). */
+function awsError(e) {
+  if (e?.code === "ENOENT") return "the `aws` CLI is not on PATH in this container"
+  const stderr = (e?.stderr ?? "").toString("utf8").trim()
+  if (stderr) return stderr.split("\n").filter(Boolean).slice(-2).join(" | ")
+  return String(e?.message ?? e).split("\n")[0]
+}
+
+/** Returns { hits, notes } — notes is one human-readable line per path attempted. */
+function fromSsm() {
+  const hits = []
+  const notes = []
+  for (const path of ssmPaths()) {
+    const args = ["ssm", "get-parameters-by-path", "--path", path, "--recursive",
+      "--with-decryption", "--output", "json", "--no-cli-pager"]
+    if (process.env.AWS_REGION) args.push("--region", process.env.AWS_REGION)
+    try {
+      const out = execFileSync("aws", args, { maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] })
+      const params = JSON.parse(out.toString("utf8")).Parameters ?? []
+      let found = 0
+      for (const p of params) {
+        const key = p.Name.slice(p.Name.lastIndexOf("/") + 1)
+        if (!SSM_KEYS.includes(key)) continue
+        found++
+        // The PARAMETER PATH is recorded, never the value. It is not sensitive and
+        // it is the only way to see which environment a key actually came from.
+        hits.push({ key, value: p.Value, from: "ssm", at: p.Name.slice(0, p.Name.lastIndexOf("/")) })
+      }
+      notes.push(`${path} → ${found} key(s)`)
+    } catch (e) {
+      // One denied path must not abandon the others.
+      notes.push(`${path} → ${awsError(e)}`)
+    }
+  }
+  return { hits, notes }
 }
 
 function fromEnvFile(base) {
@@ -259,12 +306,9 @@ function fromEnvFile(base) {
 export function resolveLiterals(base) {
   const found = new Map()
   const sources = []
-  try {
-    for (const h of fromSsm()) if (!found.has(h.key)) found.set(h.key, h)
-    sources.push("ssm")
-  } catch (e) {
-    sources.push(`ssm unavailable (${String(e.message ?? e).split("\n")[0].slice(0, 80)})`)
-  }
+  const ssm = fromSsm()
+  for (const h of ssm.hits) if (!found.has(h.key)) found.set(h.key, h)
+  sources.push(...ssm.notes.map((n) => `ssm ${n}`))
   for (const key of SSM_KEYS) {
     if (!found.has(key) && process.env[key]) found.set(key, { key, value: process.env[key], from: "env" })
   }
@@ -275,8 +319,13 @@ export function resolveLiterals(base) {
   const { literals, skipped } = resolveLiteralsFrom(
     Object.fromEntries([...found.values()].map((h) => [h.key, h.value])),
   )
+  // Where each surviving literal came from — so a key sitting in the wrong
+  // environment is visible in the log rather than inferred from its absence.
+  const origins = Object.fromEntries(
+    [...found.values()].map((h) => [h.key, h.at ?? h.from]),
+  )
   const unresolved = SSM_KEYS.filter((k) => !found.has(k))
-  return { literals, skipped, unresolved, sources }
+  return { literals, skipped, unresolved, sources, origins }
 }
 
 /**
@@ -421,19 +470,28 @@ if (!built.length) {
   process.exit(1)
 }
 
-const { literals, skipped, unresolved, sources } = resolveLiterals(ROOT)
+const { literals, skipped, unresolved, sources, origins } = resolveLiterals(ROOT)
 
 console.log(`Bundle leak check — zones: ${built.join(", ")}`)
-console.log(`  literal sources tried: ${sources.join("; ")}`)
-console.log(`  scanning for literals: ${literals.length ? literals.map((l) => l.key).join(", ") : "(none)"}`)
+for (const s of sources) console.log(`  source: ${s}`)
+if (literals.length) {
+  console.log("  scanning for literals:")
+  for (const l of literals) console.log(`    ${l.key}  from ${origins[l.key]}`)
+} else {
+  console.log("  scanning for literals: (none)")
+}
 for (const s of skipped) console.log(`  skipped: ${s}`)
 if (unresolved.length) console.log(`  not set in this environment: ${unresolved.join(", ")}`)
 console.log(`  generic patterns: ${PATTERNS.map((p) => p.name).join(", ")}`)
 
 if (!literals.length && requireLiterals) {
   console.error("\nBUNDLE LEAK CHECK FAILED: --require-literals was passed and NOT ONE secret value")
-  console.error("could be resolved. On the deploy path this means the SSM read is broken, and a")
-  console.error("pattern-only pass would be a green tick over an unscanned bundle. Failing closed.")
+  console.error("could be resolved. A pattern-only pass would be a green tick over an unscanned")
+  console.error("bundle, so this fails closed. What was tried, verbatim:\n")
+  for (const s of sources) console.error(`  ${s}`)
+  console.error("\nAn AccessDenied here means the build role lacks ssm:GetParametersByPath on")
+  console.error("the paths above. Zero keys found on a readable path means the branch secrets")
+  console.error("are not set — `ampx` cannot set those; use the Amplify console (0017).")
   process.exit(1)
 }
 if (!literals.length) {
