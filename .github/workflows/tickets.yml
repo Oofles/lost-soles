@@ -1,0 +1,27 @@
+name: tickets
+
+# The ticket system is load-bearing infrastructure for this project: if
+# tickets.mjs is wrong, the backlog silently rots. Validate on every push.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tickets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: unit tests
+        run: node --test .claude/skills/tickets/scripts/tickets.test.mjs
+      - name: backlog validates
+        run: node .claude/skills/tickets/scripts/tickets.mjs validate
+      - name: index.json is current (D-159 — it is committed)
+        run: |
+          node .claude/skills/tickets/scripts/tickets.mjs index
+          git diff --exit-code tickets/index.json \
+            || (echo "tickets/index.json is stale — run 'tickets.mjs index' and commit"; exit 1)

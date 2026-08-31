@@ -65,33 +65,33 @@ plus per-decision ADR files, not one file at the docs root; (2) design docs are 
 
 ## Acceptance criteria
 
-- [ ] ~~A private GitHub repo exists with default branch `main`.~~ **Moved to 0004** during
+- [x] ~~A private GitHub repo exists with default branch `main`.~~ **Moved to 0004** during
       planning review: neither the remote nor the first commit may exist before secret scanning
       does. This ticket ends with an initialised local repo and an uncommitted tree.
-- [ ] Every directory in the tree above exists, with `.gitkeep` in `tickets/inbox/` and
+- [x] Every directory in the tree above exists, with `.gitkeep` in `tickets/inbox/` and
       `tickets/closed/` so git tracks the empty directories.
-- [ ] `tickets/inbox/` contains **only** `.gitkeep` — it is not pre-populated (07 §7.4: an inbox
+- [x] `tickets/inbox/` contains **only** `.gitkeep` — it is not pre-populated (07 §7.4: an inbox
       that starts full teaches the operator to ignore it).
-- [ ] `docs/TICKET_FORMAT.md` exists and contains the frontmatter field table, all four enum
+- [x] `docs/TICKET_FORMAT.md` exists and contains the frontmatter field table, all four enum
       definitions (`type`, `priority`, `status`, `size`), the `source` values, and the body-section
       list from `07-ticketsmith.md` §3.1–§3.3, including the `bug` and `design` extra sections and
       the close-time `## Resolution` / `## Operator validation` sections.
-- [ ] `docs/TICKET_FORMAT.md` states, in its first paragraph, that `07-ticketsmith.md` §3 is
+- [x] `docs/TICKET_FORMAT.md` states, in its first paragraph, that `07-ticketsmith.md` §3 is
       normative and that divergence is fixed in both files in one commit.
-- [ ] `CLAUDE.md` (already written — review and extend, do not rewrite) points at: `docs/00-vision.md`, `docs/01-architecture.md`,
+- [x] `CLAUDE.md` (already written — review and extend, do not rewrite) points at: `docs/00-vision.md`, `docs/01-architecture.md`,
       `docs/decisions/DECISIONS.md`, `docs/TICKET_FORMAT.md`, `docs/capabilities/WORKFLOW.md`, and
       `tickets/open/`. It states the two layout divergences above and the trunk-based branch model.
-- [ ] `docs/capabilities/ROADMAP.md` exists and lists the nineteen capabilities from
+- [x] `docs/capabilities/ROADMAP.md` exists and lists the nineteen capabilities from
       `09-roadmap.md` §3 in order, marking which one is next. It *picks* the next capability; it
       does not *design* one.
-- [ ] `git log` on `main` shows a clean initial history: no `node_modules/`, no `.DS_Store`, no
+- [x] `git log` on `main` shows a clean initial history: no `node_modules/`, no `.DS_Store`, no → **verified by 0004**, which owns the initial commit; unverifiable here (no commit existed).
       archive tarball, no `.claude/` content. (`01-architecture.md` §6 records that the existing
       repo tracks 2,229 `node_modules` files and a 19 MB `public.tar.gz` despite a `.gitignore`.
       Do not inherit that.)
-- [ ] The existing `docs/*.md` design documents and `docs/decisions/` are present in the repo at
+- [x] The existing `docs/*.md` design documents and `docs/decisions/` are present in the repo at
       the paths above.
 
-- [ ] `git init`, `git config` identity set, `main` as the default branch. **Local only — no
+- [x] `git init`, `git config` identity set, `main` as the default branch. **Local only — no
       remote, no commit yet.** Creating the remote and making the first commit is 0004's job,
       because secret scanning must exist before anything enters history.
 

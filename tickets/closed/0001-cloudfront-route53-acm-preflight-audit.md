@@ -51,28 +51,28 @@ into a config file (that is exactly the O-005 failure).
 
 ## Acceptance criteria
 
-- [ ] All three `aws` queries above have been run and their raw output pasted verbatim into
+- [x] All three `aws` queries above have been run and their raw output pasted verbatim into
       `docs/capabilities/00-preflight-and-repo.md` under a dated "Pre-flight audit" heading.
-- [ ] Every CloudFront distribution carrying a `devaultsecurity.com` alias is either (a) confirmed
+- [x] Every CloudFront distribution carrying a `devaultsecurity.com` alias is either (a) confirmed
       to be a live, wanted distribution and documented as such, or (b) disabled, waited out of
       `InProgress`, and deleted. A disabled-but-existing distribution still holds the alias.
-- [ ] Every stale `CNAME`/`A`/`ALIAS` record in the existing hosted zone that points at a dead or
+- [x] Every stale `CNAME`/`A`/`ALIAS` record in the existing hosted zone that points at a dead or
       deleted distribution is removed, and the removal is listed in the capability doc.
-- [ ] CAA records on `devaultsecurity.com` are enumerated. If a CAA record exists and does not
+- [x] CAA records on `devaultsecurity.com` are enumerated. If a CAA record exists and does not
       authorize an Amazon CA (`amazon.com`/`amazontrust.com`/`awstrust.com`/`amazonaws.com`), it is
       fixed **before** any domain association work, and the capability doc records the before/after
       record set. If no CAA record exists, that fact is written down explicitly.
-- [ ] The existing `devaultsecurity` Amplify app's automatic-subdomain-creation setting is checked
+- [x] The existing `devaultsecurity` Amplify app's automatic-subdomain-creation setting is checked
       and recorded; if auto-subdomain is on, the doc states that no branch on that app may be named
       `soles`.
-- [ ] The hosted zone ID for `devaultsecurity.com` that 0015 must reuse is written into the
+- [x] The hosted zone ID for `devaultsecurity.com` that 0015 must reuse is written into the
       capability doc. It is confirmed there is exactly **one** hosted zone for the domain; no second
       zone is created by this ticket.
-- [ ] Orphaned or `FAILED`/`VALIDATION_TIMED_OUT` ACM certificates in `us-east-1` are listed, and
+- [x] Orphaned or `FAILED`/`VALIDATION_TIMED_OUT` ACM certificates in `us-east-1` are listed, and
       each is either kept with a stated reason or deleted.
-- [ ] The capability doc contains a one-line verdict: "`soles.devaultsecurity.com` is clear to
+- [x] The capability doc contains a one-line verdict: "`soles.devaultsecurity.com` is clear to
       claim" or an explicit list of what still blocks it.
-- [ ] No AWS credential value appears anywhere in the repo as a result of this work.
+- [x] No AWS credential value appears anywhere in the repo as a result of this work.
 
 ## Notes
 

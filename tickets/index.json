@@ -1,0 +1,2810 @@
+[
+  {
+    "id": 1,
+    "slug": "cloudfront-route53-acm-preflight-audit",
+    "title": "CloudFront / Route 53 / ACM pre-flight audit of the devaultsecurity AWS account",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0001-cloudfront-route53-acm-preflight-audit.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 9,
+      "total": 9
+    }
+  },
+  {
+    "id": 2,
+    "slug": "rotate-o-005-aws-key-and-gitignore-agent-config",
+    "title": "Rotate the O-005 AWS access key and gitignore the agent config that contains it",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0002-rotate-o-005-aws-key-and-gitignore-agent-config.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 10,
+      "total": 10
+    }
+  },
+  {
+    "id": 3,
+    "slug": "repository-skeleton",
+    "title": "Create the repository skeleton per 07-ticketsmith §7.2",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0003-repository-skeleton.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 10,
+      "total": 10
+    }
+  },
+  {
+    "id": 4,
+    "slug": "gitignore-and-secret-scanning",
+    "title": ".gitignore and secret scanning, in place before the first commit",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [
+      3
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0004-gitignore-and-secret-scanning.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 15,
+      "total": 15
+    }
+  },
+  {
+    "id": 5,
+    "slug": "copy-ticketsmith-workflow-and-prompts",
+    "title": "Copy TicketSmith WORKFLOW.md, TEMPLATE.md and the three prompt files, with two edits",
+    "type": "docs",
+    "priority": "med",
+    "status": "closed",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [
+      3
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0005-copy-ticketsmith-workflow-and-prompts.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 7,
+      "total": 7
+    }
+  },
+  {
+    "id": 6,
+    "slug": "author-the-mvp-backlog",
+    "title": "Author the full MVP backlog by hand into tickets/open/",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "l",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [
+      3,
+      5
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0006-author-the-mvp-backlog.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 12,
+      "total": 12
+    }
+  },
+  {
+    "id": 7,
+    "slug": "tickets-mjs-parse-index-list-validate",
+    "title": "tickets.mjs — frontmatter parse, index.json generation, list, and the validator",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      3
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0007-tickets-mjs-parse-index-list-validate.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 15
+    }
+  },
+  {
+    "id": 8,
+    "slug": "tickets-mjs-mutating-commands",
+    "title": "tickets.mjs — allocate, create, start, block, unblock, close, triage-move",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      7
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0008-tickets-mjs-mutating-commands.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 18,
+      "total": 18
+    }
+  },
+  {
+    "id": 9,
+    "slug": "dependency-resolution-next-and-cycle-detection",
+    "title": "Dependency resolution, the ready set, `next`, and cycle detection",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      7,
+      8
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0009-dependency-resolution-next-and-cycle-detection.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 14,
+      "total": 14
+    }
+  },
+  {
+    "id": 10,
+    "slug": "tickets-skill",
+    "title": "The /tickets project skill — SKILL.md and reference.md",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      8,
+      9
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0010-tickets-skill.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 16
+    }
+  },
+  {
+    "id": 11,
+    "slug": "validate-the-hand-authored-backlog",
+    "title": "Validate the entire hand-authored backlog and fix everything it finds",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      6,
+      7,
+      9,
+      10
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0011-validate-the-hand-authored-backlog.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 12,
+    "slug": "nextjs-amplify-gen2-skeleton",
+    "title": "Next.js 15 App Router project and Amplify Gen 2 backend skeleton",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      4,
+      11
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0012-nextjs-amplify-gen2-skeleton.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 13,
+    "slug": "github-actions-pr-gate",
+    "title": "GitHub Actions PR gate — tsc --noEmit, ESLint, vitest, mirrored in amplify.yml",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      4,
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0013-github-actions-pr-gate.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 14,
+    "slug": "cognito-email-signin-locked-down",
+    "title": "Cognito — email sign-in, self-signup OFF, unauthenticated identities OFF",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0014-cognito-email-signin-locked-down.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 15,
+    "slug": "domain-association-soles-subdomain",
+    "title": "Domain association for soles.devaultsecurity.com",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      1,
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0015-domain-association-soles-subdomain.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 16,
+    "slug": "app-shell-route-stubs-and-design-tokens",
+    "title": "App shell, the seven route stubs, and the design-token file",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      12,
+      14
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0016-app-shell-route-stubs-and-design-tokens.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 17,
+    "slug": "secrets-via-ssm-and-bundle-leak-test",
+    "title": "Secrets via SSM secret() and a client-bundle leak test in CI",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [
+      12,
+      13
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0017-secrets-via-ssm-and-bundle-leak-test.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 18,
+    "slug": "ticket-capture-endpoint",
+    "title": "POST /api/tickets/capture commits a new file to tickets/inbox/",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      12,
+      14,
+      17
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0018-ticket-capture-endpoint.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 19,
+    "slug": "capture-endpoint-hardening",
+    "title": "Harden the capture endpoint - owner auth, server-derived path, size and rate limits, idempotency",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      18
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0019-capture-endpoint-hardening.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 20,
+    "slug": "android-quick-capture-tile",
+    "title": "Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      19
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0020-android-quick-capture-tile.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 21,
+    "slug": "google-assistant-capture-route",
+    "title": "Google Assistant routine as a second capture path",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      20
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0021-google-assistant-capture-route.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 22,
+    "slug": "offline-capture-retry-queue",
+    "title": "Capture-queue semantics for offline - retry lives in the Android task, not the app",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      19,
+      20
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0022-offline-capture-retry-queue.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 23,
+    "slug": "tickets-triage-inbox-end-to-end",
+    "title": "/tickets triage handles inbox files end to end",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      8,
+      18
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0023-tickets-triage-inbox-end-to-end.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 24,
+    "slug": "runbook-rotating-the-github-pat",
+    "title": "Runbook - rotating and revoking the GitHub PAT",
+    "type": "docs",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      18
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0024-runbook-rotating-the-github-pat.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 25,
+    "slug": "domain-activity-contract",
+    "title": "src/domain/activity.ts - Activity, Trace, GeoPoint, ActivityKind, transcribed from the canonical contract",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0025-domain-activity-contract.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 26,
+    "slug": "adapter-types-and-registry",
+    "title": "src/adapters/types.ts and registry.ts - SourceAdapter, IngestJob, IngestCommand, mandatory listSince",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      25
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0026-adapter-types-and-registry.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 27,
+    "slug": "boundary-ci-tests",
+    "title": "The four boundary CI tests (T1-T4) that prove the D-100 adapter boundary holds",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      13,
+      26
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0027-boundary-ci-tests.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 28,
+    "slug": "xp-rules-v1-match-block",
+    "title": "rules/xp-rules-v1.yaml WITH the match block and matchPriority - before the first line of the scorer",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      25
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0028-xp-rules-v1-match-block.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 29,
+    "slug": "select-activity-skills-matcher",
+    "title": "selectActivitySkills matcher plus the seed-time totality and determinism checks",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      28
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0029-select-activity-skills-matcher.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 13
+    }
+  },
+  {
+    "id": 30,
+    "slug": "vigil-test-permanently-in-ci",
+    "title": "The Vigil test, permanently in CI - adding a skill is a YAML row and zero code",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      13,
+      29
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0030-vigil-test-permanently-in-ci.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 31,
+    "slug": "doc-corrections-d145-and-measure",
+    "title": "Doc corrections - D-145 Total Level ceiling, D-146 free level point, and the 04 section 1.3 match/measure amendment",
+    "type": "docs",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      28
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0031-doc-corrections-d145-and-measure.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 32,
+    "slug": "strava-oauth-read-all-scope",
+    "title": "Strava OAuth connect flow with activity:read_all - and a callback that refuses the lesser scope",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      14,
+      26
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0032-strava-oauth-read-all-scope.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 33,
+    "slug": "strava-client-token-storage-and-refresh",
+    "title": "strava/client.ts - token storage in SourceAccount (T7) and rotating-refresh-token handling",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      32
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0033-strava-client-token-storage-and-refresh.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 34,
+    "slug": "strava-list-since",
+    "title": "strava listSince(since) - the mandatory reconciliation sweep and the manual-sync producer",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      33
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0034-strava-list-since.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 35,
+    "slug": "strava-fetch-latlng-stream",
+    "title": "Fetch the full latlng stream - never summary_polyline, and never send resolution/series_type",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      33,
+      34
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0035-strava-fetch-latlng-stream.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 36,
+    "slug": "strava-normalize-pure",
+    "title": "strava/normalize.ts - pure, no network, no clock, streams JSON to { activity, trace }",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      25,
+      27,
+      35
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0036-strava-normalize-pure.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 14
+    }
+  },
+  {
+    "id": 37,
+    "slug": "strava-kind-mapping-and-trace-sanitation",
+    "title": "Activity-kind mapping on sport_type, indoor/no-GPS handling, and trace sanitation",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      29,
+      36
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0037-strava-kind-mapping-and-trace-sanitation.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 16
+    }
+  },
+  {
+    "id": 38,
+    "slug": "strava-fixtures-and-rate-limit-backoff",
+    "title": "Checked-in real-response fixtures, the fidelity floor, and rate-limit backoff",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      34,
+      35,
+      36
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0038-strava-fixtures-and-rate-limit-backoff.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 39,
+    "slug": "archive-raw-before-normalize",
+    "title": "pipeline/archive.ts — write the raw source payload to S3 before normalize runs",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      12,
+      35
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0039-archive-raw-before-normalize.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 40,
+    "slug": "ingest-receipt-idempotency-ledger",
+    "title": "IngestReceipt idempotency ledger with deterministic activityId",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      12,
+      25,
+      39
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0040-ingest-receipt-idempotency-ledger.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 41,
+    "slug": "persist-activity-row",
+    "title": "pipeline/persist.ts — write the Activity row inside the ingest transaction",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      25,
+      40
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0041-persist-activity-row.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 42,
+    "slug": "process-activity-lambda-and-queue",
+    "title": "process-activity Lambda, SQS queue and DLQ via the CDK escape hatch",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      39,
+      40,
+      41
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0042-process-activity-lambda-and-queue.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 43,
+    "slug": "manual-sync-action",
+    "title": "Manual Sync action — listSince, then enqueue",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      34,
+      42
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0043-manual-sync-action.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 44,
+    "slug": "ingest-failure-visibility",
+    "title": "Failure handling and DLQ visibility — a failed job must be visible somewhere a human looks",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [
+      42,
+      43
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0044-ingest-failure-visibility.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 45,
+    "slug": "trace-to-h3-cell-set",
+    "title": "domain/fog.ts — traceToCells, a pure trace → H3 res-10 cell Set",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      25,
+      36
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0045-trace-to-h3-cell-set.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 46,
+    "slug": "reveal-radius-and-corridor-fill",
+    "title": "REVEAL_R_M = 65 m exact-radius filter and corridor fill",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      45
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0046-reveal-radius-and-corridor-fill.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 47,
+    "slug": "explored-cell-writes-first-last-run-at",
+    "title": "ExploredCell writes — firstRunAt via min, lastRunAt via max, outside the ingest transaction",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      41,
+      46
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0047-explored-cell-writes-first-last-run-at.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 48,
+    "slug": "discovery-classification-new-cold-warm",
+    "title": "Discovery classification — new / re-armed (>6mo, 50%) / cooled (<6mo, 0%)",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      47
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0048-discovery-classification-new-cold-warm.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 49,
+    "slug": "explored-blob-and-manifest-generation",
+    "title": "explored-r10.bin generation, aggregates, and the manifest generation counter",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      47
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0049-explored-blob-and-manifest-generation.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 50,
+    "slug": "same-run-edge-cases-and-out-of-order",
+    "title": "Same-run edge cases, out-of-order and backfilled activities, score-time idempotency",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      40,
+      48
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0050-same-run-edge-cases-and-out-of-order.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 51,
+    "slug": "cache-invalidation-contract",
+    "title": "Cache invalidation contract between the ingest Lambda and the browser",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      49
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0051-cache-invalidation-contract.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 52,
+    "slug": "pmtiles-basemap-on-r2",
+    "title": "Protomaps PMTiles basemap on Cloudflare R2 with the stock light flavour",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0052-pmtiles-basemap-on-r2.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 53,
+    "slug": "maplibre-shell-home-route",
+    "title": "MapLibre GL JS 6.x shell as the home route, DPR capped at 2",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      16,
+      52
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0053-maplibre-shell-home-route.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 54,
+    "slug": "explored-blob-loader-and-decoder",
+    "title": "Client blob loader and decoder — explored-r10.bin to a sorted typed array",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      49,
+      51,
+      53
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0054-explored-blob-loader-and-decoder.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 55,
+    "slug": "webgl2-coverage-mask-pass",
+    "title": "Custom WebGL2 layer, pass 1 — instanced soft-disc coverage mask in prerender",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      53,
+      118
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0055-webgl2-coverage-mask-pass.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 56,
+    "slug": "noisy-composite-pass",
+    "title": "Pass 2 — noisy composite: fBm-perturbed smoothstep with a warm rim glow",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      55
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0056-noisy-composite-pass.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 57,
+    "slug": "layer-order-and-run-polyline",
+    "title": "Layer order — fog above labels, run polyline above the fog",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      54,
+      56
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0057-layer-order-and-run-polyline.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 58,
+    "slug": "zoom-bucketing-and-viewport-culling",
+    "title": "Zoom bucketing and two-level viewport culling",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      54,
+      55
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0058-zoom-bucketing-and-viewport-culling.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 59,
+    "slug": "perf-harness-and-first-usable",
+    "title": "Perf harness against the §6.4 budget on a real mid-range Android phone — FIRST USABLE",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      43,
+      51,
+      57,
+      58
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0059-perf-harness-and-first-usable.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 60,
+    "slug": "scorer-select-activity-skills",
+    "title": "The scorer — activity to per-skill unit counts via selectActivitySkills",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      29
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0060-scorer-select-activity-skills.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 61,
+    "slug": "ground-multipliers",
+    "title": "Ground multipliers — new, re-armed and recent ground (D-120)",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      48,
+      60
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0061-ground-multipliers.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 62,
+    "slug": "xp-ledger-entry-append-only",
+    "title": "XpLedgerEntry (T4) — append-only, one row per (activity, skill, reason)",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      12
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0062-xp-ledger-entry-append-only.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 63,
+    "slug": "level-maths-and-total-level-693",
+    "title": "Level maths — 4L^2, C(L), Total Level and the 693 ceiling (D-130, D-145)",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      62
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0063-level-maths-and-total-level-693.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 64,
+    "slug": "meta-skill-propagation",
+    "title": "Meta-skill propagation — Cartography and Constitution via feeds",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      48,
+      60,
+      61,
+      62
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0064-meta-skill-propagation.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 65,
+    "slug": "new-skill-mints-total-level-point",
+    "title": "D-146 — a new skill mints a free Total Level point that must never celebrate",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      63
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0065-new-skill-mints-total-level-point.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 66,
+    "slug": "xp-replay-job-retained-floor",
+    "title": "Replay job — clear non-floor rows, write retained_floor, ReplayRun audit, levelHighWater",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      61,
+      62,
+      63,
+      64
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0066-xp-replay-job-retained-floor.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 67,
+    "slug": "skillstate-snapshot-writer",
+    "title": "snapshots/skillstate/ writer — the one documented exception to D-101",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      62,
+      63,
+      66
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0067-skillstate-snapshot-writer.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 68,
+    "slug": "log-route-one-row-per-workout-type",
+    "title": "/log route — one row per workout type, one tap to log",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      16,
+      60,
+      62,
+      70
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0068-log-route-one-row-per-workout-type.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 69,
+    "slug": "manual-adapter",
+    "title": "The manual adapter — src/adapters/manual/ behind the ingestion contract",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      26,
+      70
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0069-manual-adapter.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 70,
+    "slug": "workout-entry-accommodates-sets",
+    "title": "WorkoutEntry shape that accommodates sets from day one",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "10-add-workout",
+    "depends_on": [
+      25
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0070-workout-entry-accommodates-sets.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 71,
+    "slug": "log-row-anatomy-and-interaction-rules",
+    "title": "/log row anatomy and interaction rules — sweaty thumbs, one hand",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      68
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0071-log-row-anatomy-and-interaction-rules.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 13
+    }
+  },
+  {
+    "id": 72,
+    "slug": "new-workout-type-is-a-yaml-row-only",
+    "title": "A new workout type arrives as a YAML row only — proven by a zero-diff test",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      68,
+      71
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0072-new-workout-type-is-a-yaml-row-only.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 12
+    }
+  },
+  {
+    "id": 73,
+    "slug": "skills-panel-grid-and-total-level",
+    "title": "/skills panel — every skill, level, bar, Total Level headline",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "11-skills-panel",
+    "depends_on": [
+      16,
+      63
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0073-skills-panel-grid-and-total-level.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 13
+    }
+  },
+  {
+    "id": 74,
+    "slug": "skill-detail-sheet",
+    "title": "/skills/:skillId detail sheet",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "11-skills-panel",
+    "depends_on": [
+      62,
+      63,
+      73
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0074-skill-detail-sheet.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 75,
+    "slug": "panel-rules-for-year-ten",
+    "title": "The rules that keep the skills panel readable in year ten",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "11-skills-panel",
+    "depends_on": [
+      73
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0075-panel-rules-for-year-ten.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 76,
+    "slug": "vigil-renders-as-peer-no-special-case",
+    "title": "Vigil renders as a peer of Wayfaring with no special case — the UI half of D-132",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "11-skills-panel",
+    "depends_on": [
+      73,
+      75
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0076-vigil-renders-as-peer-no-special-case.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 77,
+    "slug": "gold-leaf-and-contrast-compliance",
+    "title": "Gold-leaf and contrast compliance on the skills panel (D-148)",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "11-skills-panel",
+    "depends_on": [
+      73,
+      74,
+      75
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0077-gold-leaf-and-contrast-compliance.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 78,
+    "slug": "post-run-route-and-end-state",
+    "title": "/run/:activityId route, its four entry points, and the persistent end state",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      53,
+      62
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0078-post-run-route-and-end-state.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 79,
+    "slug": "fog-reveal-animation-api",
+    "title": "Drive the 08 coverage mask from an animation clock, not from the cell set",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      55,
+      56
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0079-fog-reveal-animation-api.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 80,
+    "slug": "beat-1-the-map",
+    "title": "Beat 1 — the map (0.0 to 2.9 s): camera, lantern, route ink, three kinds of ground",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      78,
+      79,
+      57
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0080-beat-1-the-map.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 81,
+    "slug": "beat-2-the-tally",
+    "title": "Beat 2 — the parchment tally (2.9 to 6.0 s), staggered count-ups, and never a zero",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      78,
+      62,
+      65
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0081-beat-2-the-tally.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 82,
+    "slug": "beat-3-level-up-cards-and-the-d-146-guard",
+    "title": "Beat 3 — queued level-up cards, and the D-146 guard that must never let one fire",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      81,
+      65
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0082-beat-3-level-up-cards-and-the-d-146-guard.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 83,
+    "slug": "chronicle-and-frontier-lines",
+    "title": "Beats 4 and 5 — the chronicle line and the frontier line",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      81,
+      48
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0083-chronicle-and-frontier-lines.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 84,
+    "slug": "skip-interruption-failure-and-the-seen-flag",
+    "title": "Skip, interruption, reduced motion, WebGL loss, backfill, and the per-device seen flag",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      78,
+      80,
+      81,
+      82,
+      83
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0084-skip-interruption-failure-and-the-seen-flag.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 85,
+    "slug": "no-new-territory-fallback-and-the-trace-layer",
+    "title": "The no-new-territory fallback — the permanent trace layer and a run that still counts",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      80,
+      81,
+      83
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0085-no-new-territory-fallback-and-the-trace-layer.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 86,
+    "slug": "the-plinth-over-the-map",
+    "title": "The plinth over the map — Total Level, cells revealed, last run, three destinations",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      53,
+      65
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0086-the-plinth-over-the-map.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 87,
+    "slug": "home-screen-states",
+    "title": "Home screen states — cold start, nothing imported, sync in progress, sync failed, offline",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      86,
+      43
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0087-home-screen-states.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 88,
+    "slug": "chronicle-sheet",
+    "title": "/chronicle — the run list as a sheet dragged up from the plinth",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      86,
+      78
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0088-chronicle-sheet.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 89,
+    "slug": "settings-small-and-boring",
+    "title": "/settings — connect/disconnect source, sign out, account deletion entry point",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      86,
+      32
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0089-settings-small-and-boring.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 90,
+    "slug": "derived-stats-feed",
+    "title": "Derived stats feed — per-run territory counts, lifetime totals, and the frontier primitive",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      49,
+      62,
+      86
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0090-derived-stats-feed.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 91,
+    "slug": "strava-webhook-lambda-function-url",
+    "title": "strava-webhook Lambda behind a Function URL, added via the CDK escape hatch, acking in 2 s",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      42
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 92,
+    "slug": "hub-challenge-handshake-and-subscription-management",
+    "title": "The hub.challenge handshake (the key has a dot) and subscription lifecycle management",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      91
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0092-hub-challenge-handshake-and-subscription-management.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 93,
+    "slug": "webhook-validation-replay-and-cost-dos-defence",
+    "title": "Event validation, replay idempotency, deauthorization, and cost-DoS defence",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      91
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 15
+    }
+  },
+  {
+    "id": 94,
+    "slug": "token-refresh-scheduled-lambda",
+    "title": "token-refresh scheduled Lambda — refresh before expiry, every 4 hours, never on failure",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      33
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0094-token-refresh-scheduled-lambda.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 95,
+    "slug": "nightly-reconcile-listsince-backstop",
+    "title": "The reconciliation sweep — listSince backstop for silently dropped webhooks",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      34,
+      42,
+      91
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 96,
+    "slug": "your-run-is-on-the-map-notification",
+    "title": "\"Your run is on the map\" — the one notification, deep-linking to /run/:id",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      78,
+      86,
+      91
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0096-your-run-is-on-the-map-notification.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 11
+    }
+  },
+  {
+    "id": 97,
+    "slug": "parchment-basemap-fork",
+    "title": "Fork @protomaps/basemaps light into the parchment style, in two variants",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      52
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0097-parchment-basemap-fork.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 98,
+    "slug": "atlas-adventure-toggle",
+    "title": "The atlas / adventure toggle — uniforms, style variants, 320 ms cross-fade",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      97,
+      59
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0098-atlas-adventure-toggle.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 99,
+    "slug": "mode-parity-invariant-tests",
+    "title": "What the modes may NOT differ in — revealed set and geometry parity, enforced",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      98
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0099-mode-parity-invariant-tests.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 100,
+    "slug": "cold-territory-atlas-only",
+    "title": "Cold territory wash, atlas mode only, on a different perceptual channel",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      98,
+      99
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0100-cold-territory-atlas-only.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 101,
+    "slug": "map-controls-and-run-inspection",
+    "title": "Map controls, gestures, and inspecting a past run over the fog",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      98,
+      90
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0101-map-controls-and-run-inspection.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 102,
+    "slug": "rebuild-drill-enumerate-normalize-sort",
+    "title": "Rebuild drill steps 1-3 — enumerate raw/, normalize in parallel, sort",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "16-rebuild-drill",
+    "depends_on": [
+      38,
+      44
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0102-rebuild-drill-enumerate-normalize-sort.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 103,
+    "slug": "rebuild-drill-fold-replay-verify",
+    "title": "Rebuild drill steps 4-8 — re-project cells, fold, replay XP, verify, cut over never",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "16-rebuild-drill",
+    "depends_on": [
+      102,
+      51,
+      67
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0103-rebuild-drill-fold-replay-verify.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 104,
+    "slug": "ci-rebuild-drill-fixture",
+    "title": "CI rebuild drill on every build against a ~20-object fixture spanning every SourceId",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "16-rebuild-drill",
+    "depends_on": [
+      103
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0104-ci-rebuild-drill-fixture.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 105,
+    "slug": "execute-the-drill-for-real",
+    "title": "EXECUTE THE DRILL FOR REAL, once, before MVP ship — four numbers pasted or it did not happen",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "16-rebuild-drill",
+    "depends_on": [
+      103,
+      104
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0105-execute-the-drill-for-real.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 106,
+    "slug": "account-deletion-runbook-executed",
+    "title": "Account-deletion runbook, executed once against a throwaway account",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "16-rebuild-drill",
+    "depends_on": [
+      17,
+      44
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0106-account-deletion-runbook-executed.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 107,
+    "slug": "dev-tickets-capture-sheet",
+    "title": "/dev/tickets capture sheet — title, body, two chip rows, Save",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "17-tickets-ui",
+    "depends_on": [
+      24,
+      90
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0107-dev-tickets-capture-sheet.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 108,
+    "slug": "tickets-browse-grouped-by-capability",
+    "title": "Browse tickets, grouped by capability, priority-then-id within group",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "17-tickets-ui",
+    "depends_on": [
+      107,
+      110
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0108-tickets-browse-grouped-by-capability.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 109,
+    "slug": "ticket-detail-with-dependency-status",
+    "title": "/dev/tickets/:id detail with depends_on status resolved inline",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "17-tickets-ui",
+    "depends_on": [
+      108,
+      110
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0109-ticket-detail-with-dependency-status.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 110,
+    "slug": "ticket-read-cache-and-push-webhook",
+    "title": "Ticket read cache + GitHub push webhook — explicitly a cache, never authoritative",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "17-tickets-ui",
+    "depends_on": [
+      107
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0110-ticket-read-cache-and-push-webhook.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 111,
+    "slug": "enforce-tickets-ui-v1-non-goals",
+    "title": "Enforce the v1 non-goals — create and browse only, no write path from the phone",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "17-tickets-ui",
+    "depends_on": [
+      107,
+      108,
+      109,
+      110
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0111-enforce-tickets-ui-v1-non-goals.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 112,
+    "slug": "accessibility-and-reality-checks",
+    "title": "Accessibility and reality checks — sunlight, one-handed reach, sweaty thumbs, reduced motion",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      59,
+      85,
+      90,
+      101
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0112-accessibility-and-reality-checks.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 113,
+    "slug": "offline-and-slow-connection-behaviour",
+    "title": "Offline and slow-connection behaviour — the map degrades, never blanks",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      59,
+      90,
+      107
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0113-offline-and-slow-connection-behaviour.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 114,
+    "slug": "d123-standing-conditions-wired",
+    "title": "The D-123 standing conditions, wired as code and CI rather than caveated",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      17,
+      24,
+      111
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0114-d123-standing-conditions-wired.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 115,
+    "slug": "secrets-dependency-audit-incident-playbook",
+    "title": "Secrets and dependency audit; incident playbook dry-read",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      6,
+      17,
+      96
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0115-secrets-dependency-audit-incident-playbook.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 116,
+    "slug": "invariant-test-sweep-i1-i26",
+    "title": "Invariant test sweep — 02-data-model.md §9 I-1 through I-26",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      51,
+      59,
+      67,
+      103
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0116-invariant-test-sweep-i1-i26.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 117,
+    "slug": "mvp-definition-of-done-sweep",
+    "title": "MVP definition-of-done sweep — evaluate every box in roadmap §9 objectively",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      101,
+      105,
+      106,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0117-mvp-definition-of-done-sweep.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
+    }
+  },
+  {
+    "id": 118,
+    "slug": "spike-glmax-r8-fbo-on-target-device",
+    "title": "Spike — prove gl.MAX on a half-res R8 FBO inside MapLibre's prerender works on the target Android phone",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      53
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0118-spike-glmax-r8-fbo-on-target-device.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 119,
+    "slug": "tune-fog-atmosphere-against-legibility",
+    "title": "Tune the fog atmosphere against atlas legibility — time-boxed",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      56
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0119-tune-fog-atmosphere-against-legibility.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 120,
+    "slug": "docs-index-for-targeted-reading",
+    "title": "docs/INDEX.md — a section map so design docs are read by section, never whole",
+    "type": "docs",
+    "priority": "high",
+    "status": "closed",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [
+      3
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "closed": "2026-08-30T00:00:00Z",
+    "path": "tickets/closed/0120-docs-index-for-targeted-reading.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 6,
+      "total": 6
+    }
+  },
+  {
+    "id": 121,
+    "slug": "tickets-audit-subcommand",
+    "title": "/tickets audit — run the capability close audit and refuse to advance until it passes",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      9,
+      10
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0121-tickets-audit-subcommand.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
+  },
+  {
+    "id": 122,
+    "slug": "dormant-2022-iam-access-key",
+    "title": "Deactivate the dormant 2022 access key on cli-user, or document why it stays",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [
+      2
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-30T00:00:00Z",
+    "path": "tickets/open/0122-dormant-2022-iam-access-key.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  }
+]

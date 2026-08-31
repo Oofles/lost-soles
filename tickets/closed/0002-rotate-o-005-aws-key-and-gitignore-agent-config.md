@@ -82,40 +82,40 @@ use of a compromised credential. The console needs no local credential at all.
 
 Ordered. Each step is done before the next begins.
 
-- [ ] **1 (ROTATE FIRST — from the IAM console, in a browser).** A new access key is created for
+- [x] **1 (ROTATE FIRST — from the IAM console, in a browser).** A new access key is created for
       the same IAM principal via **IAM → Users → *user* → Security credentials → Create access key**.
       The CLI cannot do this: there is no working local credential (see Root cause above), and
       bootstrapping the CLI with the exposed key merely to rotate it is an avoidable extra use of a
       compromised credential.
-- [ ] **1b (NEW — the class fix, and a prerequisite for step 5).** The new key is written to a real
+- [x] **1b (NEW — the class fix, and a prerequisite for step 5).** The new key is written to a real
       credential store: `aws configure --profile devault`, which creates `~/.aws/credentials` with
       `0600` permissions. Verified with `aws sts get-caller-identity --profile devault`.
       **This must exist before step 5**, or de-inlining destroys the only copy of the credential on
       the machine. Prefer IAM Identity Center (`aws configure sso`) if the account supports it —
       then no long-lived key exists locally at all and the class is closed rather than relocated.
-- [ ] **2.** The old key is **deactivated (not deleted) the SAME DAY** — revised from "after 24
+- [x] **2.** The old key is **deactivated (not deleted) the SAME DAY** — revised from "after 24
       hours of normal use" by the severity correction above. Deactivate-before-delete is still the
       reversible step and still how you discover what was using the key; that discovery now happens
       *after* deactivation (something breaks → reactivate briefly, note the consumer, fix it,
       deactivate again) rather than by leaving a fully-exposed credential live for a day.
-- [ ] **3.** After 24-48h deactivated with nothing broken, the old key is **deleted** in IAM.
+- [x] **3.** After 24-48h deactivated with nothing broken, the old key is **deleted** in IAM.
       `aws iam list-access-keys` shows the old `AccessKeyId` is gone.
-- [ ] **4 (THEN GITIGNORE).** `.claude/` is added to `.gitignore` in `~/devaultsecurity`, and that
+- [x] **4 (THEN GITIGNORE).** `.claude/` is added to `.gitignore` in `~/devaultsecurity`, and that
       `.gitignore` change is committed. `git check-ignore -v .claude/settings.local.json` in that
       repo reports the rule as matching.
-- [ ] **5 (THEN DE-INLINE).** The key is removed from `~/devaultsecurity/.claude/settings.local.json`.
+- [x] **5 (THEN DE-INLINE).** The key is removed from `~/devaultsecurity/.claude/settings.local.json`.
       Every allowlist entry that referenced it now matches on a **command prefix or pattern**, never
       on a literal credential. `grep -c 'AKIA' ~/devaultsecurity/.claude/settings.local.json`
       returns 0.
-- [ ] **6.** `grep -rn 'AKIA[0-9A-Z]\{16\}' ~/devaultsecurity` returns no hits outside
+- [x] **6.** `grep -rn 'AKIA[0-9A-Z]\{16\}' ~/devaultsecurity` returns no hits outside
       `~/.aws` — and `~/.aws/credentials` itself is reviewed.
-- [ ] **7.** CloudTrail is queried for use of the old `AccessKeyId` over the period it existed. If
+- [x] **7.** CloudTrail is queried for use of the old `AccessKeyId` over the period it existed. If
       every use comes from the expected machine/IP, the near-miss reading is confirmed and recorded.
       If CloudTrail shows use from an unexpected source IP, this stops being a near-miss, §8.3
       applies, and a new `bug` ticket is filed rather than closing this one quietly.
-- [ ] **8.** O-005 is closed in `docs/decisions/DECISIONS.md` with the rotation date and the
+- [x] **8.** O-005 is closed in `docs/decisions/DECISIONS.md` with the rotation date and the
       CloudTrail verdict from step 7.
-- [ ] **9.** The same `.claude/` + `*.local.json` ignore rules are recorded as required content for
+- [x] **9.** The same `.claude/` + `*.local.json` ignore rules are recorded as required content for
       the Lost Soles `.gitignore` (implemented by 0004), so this class of finding cannot recur in
       the new repo.
 

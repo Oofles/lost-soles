@@ -128,3 +128,43 @@ first time.
    line resolved to titles rather than bare numbers.
 4. Run `node ... index && git status`. Confirm `tickets/index.json` shows up (or does not) exactly
    as the Q-07-1 decision says it should.
+
+## Resolution
+
+`.claude/skills/tickets/scripts/tickets.mjs` — no dependencies, Node stdlib only, so it runs before
+`npm install` exists. Frontmatter parser is deliberately **not** a YAML library: the schema is flat
+and fixed, and a real YAML parser would accept structures the format disallows then silently
+reformat them on write. This one round-trips or fails.
+
+- `index` is idempotent (byte-identical on re-run), carries every frontmatter field plus `path`,
+  `ready` and `acceptance: {checked,total}`, and **no body text**.
+- `list` is sourced only from frontmatter — asserted by a test that empties every body and
+  confirms the output is unchanged.
+- `show`, `validate`, `list`, `index`, `next`, `create` all accept `--json`.
+- Round-trip: a title containing a colon and a `#` survives byte-identically; unknown keys are
+  preserved on rewrite and reported as a warning; rewritten key order follows §3.1 and the body is
+  byte-identical, all asserted by tests.
+- Acceptance counting matches only `- [ ]`/`- [x]` under `## Acceptance criteria` and stops at the
+  next `##`, with a fixture containing checkbox-looking lines in `## Notes`.
+- `validate` implements all 12 error rules and 5 warning rules; errors exit 1, warnings exit 0.
+  One test per error rule asserts the *right* rule fires.
+
+**The validator's first run found a real defect — mine.** All 7 previously-closed tickets had
+unchecked acceptance criteria: I had written `## Resolution` and moved the file without ticking the
+boxes. That is exactly the failure 0011 was written to catch, found on turn one. Fixed by reviewing
+each criterion individually rather than blanket-ticking, which would have been the very failure the
+`close` command refuses. Three genuine gaps surfaced and are annotated inline in those tickets
+(husky/D-155, the TicketSmith diff record, and hand-authored index summaries) rather than quietly
+ticked.
+
+Q-07-1 settled as **D-159: `index.json` is committed.** `.gitignore` verified to agree.
+
+**Deviation (D-160):** tests use `node:test`, not vitest — vitest needs a `package.json` that does
+not exist until 0012. Same reasoning as D-155.
+
+## Operator validation
+
+Run `node .claude/skills/tickets/scripts/tickets.mjs list --status open --priority high | tail -3`
+and confirm it prints a count. Then `... validate` — expect `0 error(s), 0 warning(s)`. Then break
+something on purpose: change a `priority:` to `urgent` in any open ticket and re-run `validate`; it
+must exit 1 naming that file and the `enum` rule. Undo it.

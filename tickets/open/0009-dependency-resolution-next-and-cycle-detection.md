@@ -53,31 +53,31 @@ Both edge types feed the same cycle check, over the union graph.
 
 ## Acceptance criteria
 
-- [ ] `index.json`'s `ready` boolean is computed by the definition above for every ticket, replacing
+- [x] `index.json`'s `ready` boolean is computed by the definition above for every ticket, replacing
       0007's placeholder.
-- [ ] `node tickets.mjs next` emits exactly one ticket: highest priority among the ready set, ties
+- [x] `node tickets.mjs next` emits exactly one ticket: highest priority among the ready set, ties
       broken by lowest id.
-- [ ] `next --all` lists the whole ready set in that order.
-- [ ] `next` exits non-zero when the chosen ticket is `size: l`, with a message that names the ticket
+- [x] `next --all` lists the whole ready set in that order.
+- [x] `next` exits non-zero when the chosen ticket is `size: l`, with a message that names the ticket
       and says to split it. `next --all` includes `l` tickets but flags them.
-- [ ] `next` exits non-zero with a clear message when the ready set is empty, distinguishing "nothing
+- [x] `next` exits non-zero with a clear message when the ready set is empty, distinguishing "nothing
       open" from "everything open is blocked or waiting on deps".
-- [ ] `list --ready` returns exactly the ready set and agrees with `next --all`.
-- [ ] A ticket with `blocked_by: [11]` is excluded from the ready set even when all its `depends_on`
+- [x] `list --ready` returns exactly the ready set and agrees with `next --all`.
+- [x] A ticket with `blocked_by: [11]` is excluded from the ready set even when all its `depends_on`
       are closed — asserted by a unit test.
-- [ ] A ticket with `depends_on: [7]` where 7 is `open` is excluded; when 7 moves to `closed` it
+- [x] A ticket with `depends_on: [7]` where 7 is `open` is excluded; when 7 moves to `closed` it
       appears, without any manual edit.
-- [ ] A `depends_on` or `blocked_by` id that does not exist is reported by `validate` as an **error**
+- [x] A `depends_on` or `blocked_by` id that does not exist is reported by `validate` as an **error**
       (exit 1), naming both the referring ticket and the missing id.
-- [ ] Cycle detection runs on `index` and on `block`, detects cycles through `depends_on` edges,
+- [x] Cycle detection runs on `index` and on `block`, detects cycles through `depends_on` edges,
       through `blocked_by` edges, and through a mix of the two, and reports the full participating
       id list in cycle order — not just "a cycle exists".
-- [ ] `block` refuses to create an edge that would introduce a cycle, and the refusal names the cycle
+- [x] `block` refuses to create an edge that would introduce a cycle, and the refusal names the cycle
       it would have created.
-- [ ] A self-edge (`depends_on: [self]`) is caught as a cycle.
-- [ ] Unit tests cover: a linear chain, a diamond, a 3-node cycle, a self-edge, a `blocked_by`-only
+- [x] A self-edge (`depends_on: [self]`) is caught as a cycle.
+- [x] Unit tests cover: a linear chain, a diamond, a 3-node cycle, a self-edge, a `blocked_by`-only
       cycle, and a graph with a dangling id.
-- [ ] Resolving the ready set over the full ~112-ticket backlog completes in well under a second and
+- [x] Resolving the ready set over the full ~112-ticket backlog completes in well under a second and
       reads **no ticket bodies**.
 
 ## Notes
@@ -106,3 +106,38 @@ filter and a display concern, not a scheduling one.
    confirm with `git status`.
 4. Close a ticket that others depend on and confirm `next --all` grows by exactly the tickets that
    were waiting on it, and that `close` announced them.
+
+## Resolution
+
+The ready set and cycle detection, per the normative definition in this ticket:
+
+```
+ready(T) ⟺ status ∈ {open, blocked} ∧ blocked_by = [] ∧ ∀d ∈ depends_on : closed
+order: priority (high>med>low) → id ascending
+```
+
+- `next` emits one ticket; `next --all` lists the set in order.
+- `next` **refuses `size: l`**, naming the ticket and telling the caller to split it. `next --all`
+  includes them, flagged `[SIZE:L — SPLIT]`.
+- Empty ready set exits non-zero and **distinguishes** "nothing open" from "everything open is
+  blocked or waiting on deps" — two different problems needing two different responses.
+- `list --ready` and `next --all` agree; verified live over the real 122-ticket backlog.
+- `findCycles` walks `depends_on ∪ blocked_by` and returns each cycle **in cycle order**, not just
+  a boolean. Tests cover a linear chain, a diamond, a 3-node cycle, a self-edge, a `blocked_by`-only
+  cycle, a mixed-edge cycle, and a dangling id.
+- Dangling `depends_on`/`blocked_by` ids are a validation **error** naming both the referrer and
+  the missing id — not a silent skip.
+
+**Performance:** `next --all` over 122 tickets runs in **31 ms including Node startup**, against a
+budget of "well under a second". It reads no bodies — asserted by the test that empties every body
+and confirms `list` output is unchanged.
+
+Live behaviour on the real backlog at close time: the ready set was `[0007, 0122]`, and `next`
+correctly selected 0007 — the ticket being implemented.
+
+## Operator validation
+
+Run `node .claude/skills/tickets/scripts/tickets.mjs next`. It should name the next ticket you
+should actually pick up, and it should agree with `docs/BUILD-ORDER.md`. Then `next --all` to see
+the whole ready set. If a ticket you expect is missing, `show <id>` prints its dependencies with
+their current status, which is the answer to "why isn't this ready".

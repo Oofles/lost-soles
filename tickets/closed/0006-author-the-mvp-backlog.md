@@ -46,30 +46,30 @@ and the user signs off.
 
 ## Acceptance criteria
 
-- [ ] Every row of every capability table in `09-roadmap.md` §3 has a corresponding file in
+- [x] Every row of every capability table in `09-roadmap.md` §3 has a corresponding file in
       `tickets/open/`, in the roadmap's order, with ids allocated contiguously from 0001 with no gaps
       and no duplicates.
-- [ ] Every filename is `NNNN-slug.md` with a **zero-padded 4-digit** prefix matching the `id`
+- [x] Every filename is `NNNN-slug.md` with a **zero-padded 4-digit** prefix matching the `id`
       frontmatter value (which is written as a bare integer), and a slug matching the `slug` field.
-- [ ] Every ticket has all required frontmatter fields for `open/`: `id`, `slug`, `title`, `type`,
+- [x] Every ticket has all required frontmatter fields for `open/`: `id`, `slug`, `title`, `type`,
       `priority`, `status`, `size`, `capability`, `depends_on`, `blocked_by`, `source`, `created`.
       No `started`, no `closed`.
-- [ ] Every `capability` value is of the form `NN-name` and matches one of the nineteen capabilities
+- [x] Every `capability` value is of the form `NN-name` and matches one of the nineteen capabilities
       in `09-roadmap.md` §3.
-- [ ] Every ticket body has `## Description`, `## Acceptance criteria` (markdown checkboxes) and
+- [x] Every ticket body has `## Description`, `## Acceptance criteria` (markdown checkboxes) and
       `## Notes`. Every `bug` additionally has `## Steps to reproduce` and `## Expected vs actual`;
       every `design` additionally has `## Options considered` and `## Open questions`.
-- [ ] Every `design` ticket's acceptance criteria are of the form *"a capability doc exists at
+- [x] Every `design` ticket's acceptance criteria are of the form *"a capability doc exists at
       `docs/capabilities/NN-x.md` with no open questions"* — never "the feature works".
-- [ ] Every ticket has `## Operator validation` naming a screen, a device, and what to look at, or
+- [x] Every ticket has `## Operator validation` naming a screen, a device, and what to look at, or
       an explicit justification for why the work is genuinely invisible. No reflexive "None".
-- [ ] `blocked_by: []` on every ticket in the set.
-- [ ] Every id referenced in any `depends_on` array exists in the set. (Hand-checked here; 0011
+- [x] `blocked_by: []` on every ticket in the set.
+- [x] Every id referenced in any `depends_on` array exists in the set. (Hand-checked here; 0011
       re-checks it mechanically.)
-- [ ] `tickets/inbox/` contains only `.gitkeep`.
-- [ ] Every capability named by a ticket has a stub at `docs/capabilities/NN-name.md`, written from
+- [x] `tickets/inbox/` contains only `.gitkeep`.
+- [x] Every capability named by a ticket has a stub at `docs/capabilities/NN-name.md`, written from
       `docs/capabilities/TEMPLATE.md`.
-- [ ] The user has read the backlog and **signed off** (D-001), and the sign-off is recorded with a
+- [x] The user has read the backlog and **signed off** (D-001), and the sign-off is recorded with a
       date in `docs/capabilities/00-preflight-and-repo.md`.
 
 ## Notes

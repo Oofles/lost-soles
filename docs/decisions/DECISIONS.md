@@ -456,3 +456,35 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   decisive: last used **2022-12-06T04:49**, one hour 46 minutes after creation, and never again —
   3 years 8 months dormant. Deactivated 2026-08-30 (reversible). Deletion follows a 24-48h soak
   under ticket 0122. The live `devault` profile was verified working immediately after.
+
+---
+
+## Ticket tooling — Q-07-1 and Q-07-3 settled  (2026-08-30, tickets 0007/0008)
+
+- **D-158** **Mutating commands that `git mv` refuse to run on a dirty working tree**
+  (settles Q-07-3). `close` and `triage-move` refuse; `start`, `block`, `unblock` and `create`
+  do not.
+  - Rationale: the two refusing commands move a file and are expected to be followed by their own
+    commit. Running them over unrelated changes produces a commit that mixes a ticket transition
+    with whatever else was in flight, and the ticket file then no longer travels with the code that
+    satisfied it — which is the whole point of D-150.
+  - The other four only edit a file in place and are routinely run mid-session with app code
+    already dirty. Refusing there would be friction with no benefit.
+  - `--allow-dirty` is the escape hatch on both refusing commands, so the operator is never stuck.
+  - Both the refusal and the override are covered by tests: a refusal that is not tested is a
+    refusal that gets bypassed by accident.
+
+- **D-159** **`tickets/index.json` is COMMITTED, not gitignored** (settles Q-07-1).
+  - It is derived and deleting it is always safe, so either choice is defensible. Committed wins
+    because the in-app ticket UI (capability `17`) reads a cache built from it — committing means a
+    cold start has the index immediately rather than having to run the script or rebuild from 120+
+    file reads.
+  - Cost: it appears in diffs on every ticket transition. Acceptable — it is generated
+    deterministically and sorted, so the diff is small and readable rather than churn.
+  - `.gitignore` must NOT list it. Every mutating command regenerates it as its last step, so a
+    stale committed index is a bug in the command, not an expected state.
+
+- **D-160** **Tests use `node:test`, not vitest.** vitest requires a `package.json` and an
+  `npm install` that do not exist until 0012; `node --test` is built in and runs today. Same
+  reasoning as D-155 (`.githooks` over husky): take the zero-dependency option that works now,
+  revisit when the project has a package manifest. 44 tests currently pass.

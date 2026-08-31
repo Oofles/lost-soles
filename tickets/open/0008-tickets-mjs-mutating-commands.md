@@ -60,39 +60,39 @@ is never stuck.
 
 ## Acceptance criteria
 
-- [ ] `allocate` prints the next id zero-padded to four digits, computed as `max(id)+1` across
+- [x] `allocate` prints the next id zero-padded to four digits, computed as `max(id)+1` across
       `inbox/`, `open/` and `closed/`, and writes nothing. A test with a closed ticket holding the
       highest id proves ids do not reset.
-- [ ] `create --title "Title: with a colon" --type feature --priority high` produces a valid ticket
+- [x] `create --title "Title: with a colon" --type feature --priority high` produces a valid ticket
       in `open/` that `validate` (0007) passes, with `source` set appropriately, `status: open`,
       `blocked_by: []`, `created` stamped in ISO 8601 UTC, and no `started`/`closed` keys.
-- [ ] `create` prints the path of the file it wrote and nothing else on stdout when `--json` is not
+- [x] `create` prints the path of the file it wrote and nothing else on stdout when `--json` is not
       passed.
-- [ ] `start <id>` stamps `started:` in ISO 8601 UTC, leaves the file in `open/` with
+- [x] `start <id>` stamps `started:` in ISO 8601 UTC, leaves the file in `open/` with
       `status: open`, and is idempotent-safe (re-running reports the existing stamp rather than
       overwriting it).
-- [ ] `block 42 --on 11 --reason "..."` appends `11` to 42's `blocked_by`, sets `status: blocked`,
+- [x] `block 42 --on 11 --reason "..."` appends `11` to 42's `blocked_by`, sets `status: blocked`,
       and appends a **dated** entry under `## Notes` containing the reason verbatim.
-- [ ] `block` exits non-zero and changes nothing when the `--on` id does not exist.
-- [ ] `block` exits non-zero and changes nothing when the edge would create a cycle.
-- [ ] `unblock 42 --on 11` removes the edge; when `blocked_by` becomes `[]` the status returns to
+- [x] `block` exits non-zero and changes nothing when the `--on` id does not exist.
+- [x] `block` exits non-zero and changes nothing when the edge would create a cycle.
+- [x] `unblock 42 --on 11` removes the edge; when `blocked_by` becomes `[]` the status returns to
       `open`; when other edges remain the status stays `blocked`.
-- [ ] `close <id>` sets `status: closed`, stamps `closed:`, `git mv`s the file to `tickets/closed/`,
+- [x] `close <id>` sets `status: closed`, stamps `closed:`, `git mv`s the file to `tickets/closed/`,
       and regenerates `index.json`. `git log --follow` on the moved file shows its pre-move history.
-- [ ] `close` **refuses** (exit non-zero, no mutation) when any acceptance checkbox is unchecked, and
+- [x] `close` **refuses** (exit non-zero, no mutation) when any acceptance checkbox is unchecked, and
       its message lists the unchecked criteria verbatim.
-- [ ] `close` refuses when `## Resolution` or `## Operator validation` is missing, naming which.
-- [ ] No `--force` flag exists on `close`.
-- [ ] After a successful `close`, the command prints the ids and titles of every ticket that
+- [x] `close` refuses when `## Resolution` or `## Operator validation` is missing, naming which.
+- [x] No `--force` flag exists on `close`.
+- [x] After a successful `close`, the command prints the ids and titles of every ticket that
       referenced the closed id in `depends_on` or `blocked_by`, flagging which are now ready.
-- [ ] `triage-move tickets/inbox/2026-08-30T1432-foo.md --slug streak-freeze-tokens` allocates an
+- [x] `triage-move tickets/inbox/2026-08-30T1432-foo.md --slug streak-freeze-tokens` allocates an
       id, rewrites the frontmatter to full `open/` shape in §3.1 key order, preserves the body
       byte-for-byte, and `git mv`s to `tickets/open/NNNN-streak-freeze-tokens.md`.
-- [ ] `triage-move` refuses a `--slug` that does not match `^[a-z0-9]+(-[a-z0-9]+)*$`.
-- [ ] Every mutating command regenerates `index.json` as its last step.
-- [ ] Q-07-3 is decided, recorded as a `D-xxx` in `docs/decisions/DECISIONS.md`, implemented, and
+- [x] `triage-move` refuses a `--slug` that does not match `^[a-z0-9]+(-[a-z0-9]+)*$`.
+- [x] Every mutating command regenerates `index.json` as its last step.
+- [x] Q-07-3 is decided, recorded as a `D-xxx` in `docs/decisions/DECISIONS.md`, implemented, and
       the refusing commands accept `--allow-dirty`.
-- [ ] Unit tests cover each command against a temporary git repo fixture, including the refusal
+- [x] Unit tests cover each command against a temporary git repo fixture, including the refusal
       paths — a refusal that is not tested is a refusal that will be bypassed by accident.
 
 ## Notes
@@ -123,3 +123,37 @@ timestamp, not a stuck state that has to be cleaned up.
    reason in it, readable a month from now. Then `unblock` and confirm the status returns to `open`.
 4. Delete `tickets/index.json` and run any mutating command. The index must come back. Deleting it
    is always safe, and this proves it.
+
+## Resolution
+
+All mutating commands implemented in `tickets.mjs`, each regenerating `index.json` as its last step.
+
+- `allocate` is `max(id)+1` across all three folders — a test with the highest id in `closed/`
+  proves ids never reset.
+- `create` produces a ticket that `validate` passes, handles a colon in the title, and prints only
+  the path on stdout.
+- `start` is idempotent-safe: re-running reports the existing stamp rather than overwriting it.
+- `block` refuses a nonexistent `--on` id and refuses an edge that would create a cycle, **naming
+  the cycle**, and changes nothing in either case. `--reason` is appended dated under `## Notes`.
+- `unblock` returns status to `open` only when the last edge is removed.
+- `close` `git mv`s to `closed/` (so `git log --follow` keeps history), then prints every ticket
+  that referenced the closed id and flags which are **now ready**.
+- `triage-move` allocates an id, rewrites frontmatter to §3.1 order, preserves the body
+  **byte-for-byte**, and refuses a non-kebab-case slug.
+
+**`close` has no `--force`, and that is tested behaviourally rather than by grepping the source** —
+the refusal message itself contains the string "--force", so a textual test would pass for the
+wrong reason. The behavioural test asserts that passing `--force` to a ticket with unchecked
+criteria still refuses and still does not move the file.
+
+Q-07-3 settled as **D-158**: `close` and `triage-move` refuse a dirty tree (they `git mv` and expect
+their own commit); `start`/`block`/`unblock`/`create` do not (they only edit in place and are run
+mid-session with app code dirty). `--allow-dirty` on both refusing commands. Refusal *and* override
+are both tested.
+
+## Operator validation
+
+The refusals are the part worth seeing yourself. In the repo, edit any open ticket to uncheck one
+acceptance box, then run `close` on it: it must refuse and print that criterion verbatim. Re-check
+the box, then make an unrelated file dirty and try again: it must refuse for the dirty tree, and
+succeed with `--allow-dirty`. Undo afterwards.

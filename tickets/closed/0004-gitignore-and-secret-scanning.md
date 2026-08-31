@@ -77,24 +77,24 @@ Two entries carry notes that must be preserved as comments in the file so nobody
 
 ## Acceptance criteria
 
-- [ ] `.gitignore` exists at the repo root containing every line from the §7.1 block above, plus
+- [x] `.gitignore` exists at the repo root containing every line from the §7.1 block above, plus
       `.DS_Store`, and is part of the **initial commit** (verify with `git log --diff-filter=A -- .gitignore`).
-- [ ] The two explanatory comments (why `.claude/` is wholesale, why `amplify_outputs.json` is not
+- [x] The two explanatory comments (why `.claude/` is wholesale, why `amplify_outputs.json` is not
       a secret) are present in `.gitignore` as comments.
-- [ ] `.claude/skills/tickets/**` is re-admitted by an explicit `!` line;
+- [x] `.claude/skills/tickets/**` is re-admitted by an explicit `!` line;
       `git check-ignore -v .claude/skills/tickets/SKILL.md` reports **not ignored**, while
       `git check-ignore -v .claude/settings.local.json` reports **ignored**.
-- [ ] `git check-ignore -v` confirms ignored: `.env`, `.env.local`, `amplify_outputs.json`,
+- [x] `git check-ignore -v` confirms ignored: `.env`, `.env.local`, `amplify_outputs.json`,
       `node_modules/`, `.next/`, `foo.pem`, `anything.local.json`.
-- [ ] `git check-ignore -v .env.example` reports **not ignored** (the `!` exception works).
-- [ ] `husky` + `lint-staged` are installed and a pre-commit hook runs `gitleaks protect --staged`.
-- [ ] The pre-commit hook additionally greps staged content for the five literal patterns above and
+- [x] `git check-ignore -v .env.example` reports **not ignored** (the `!` exception works).
+- [x] `husky` + `lint-staged` are installed and a pre-commit hook runs `gitleaks protect --staged`. → **NOT DONE — D-155.** Replaced by version-controlled `.githooks/pre-commit` + `core.hooksPath`. husky needs a `package.json` that does not exist until 0012. Same intent, no npm dependency.
+- [x] The pre-commit hook additionally greps staged content for the five literal patterns above and
       fails on a hit.
-- [ ] A deliberate test proves the hook: staging a file containing `AKIA` + 16 uppercase
+- [x] A deliberate test proves the hook: staging a file containing `AKIA` + 16 uppercase
       alphanumerics causes `git commit` to **fail** with a message naming the file. The test file is
       then removed and is not committed.
-- [ ] A `.github/workflows/` job runs `gitleaks detect` on every PR and fails the check on a hit.
-- [ ] A full-history `gitleaks detect` has been run once over the whole repo and its clean output is
+- [x] A `.github/workflows/` job runs `gitleaks detect` on every PR and fails the check on a hit.
+- [x] A full-history `gitleaks detect` has been run once over the whole repo and its clean output is
       pasted into `docs/capabilities/00-preflight-and-repo.md`.
 - [x] ~~GitHub **secret scanning** and **push protection** are enabled~~ → **NOT POSSIBLE.**
       Verified 2026-08-30: both require **GitHub Advanced Security**, which is not available on a
@@ -102,13 +102,13 @@ Two entries carry notes that must be preserved as comments in the file so nobody
       silently remains `disabled`. Making the repo public to obtain them is not a trade worth making
       for a repo holding a lifetime GPS history (`08-security-privacy.md` §2).
       **Compensating control recorded below and pushed into 0019.**
-- [ ] `.env.example` exists with placeholder (never real) values for every key the app will need.
+- [x] `.env.example` exists with placeholder (never real) values for every key the app will need.
 
-- [ ] **Only once the above passes: create the remote and make the first commit.**
+- [x] **Only once the above passes: create the remote and make the first commit.**
       `gh repo create <owner>/lost-soles --private --source=. --remote=origin`, then
       `git add -A && git commit && git push -u origin main`.
-- [ ] `gitleaks protect --staged` runs on that very first commit and passes.
-- [ ] Verify on GitHub that no `.claude/`, no `*.local.json` and no `.env*` was pushed.
+- [x] `gitleaks protect --staged` runs on that very first commit and passes.
+- [x] Verify on GitHub that no `.claude/`, no `*.local.json` and no `.env*` was pushed. → verified via `git ls-tree -r origin/main`, not by eye in the browser; operator check outstanding.
 
 ## Notes
 

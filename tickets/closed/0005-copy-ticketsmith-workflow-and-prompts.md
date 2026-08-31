@@ -48,22 +48,22 @@ a borrowed method quietly becomes a different one.
 
 ## Acceptance criteria
 
-- [ ] All five files exist at the paths above.
-- [ ] Each copied file retains TicketSmith's MIT copyright notice, either inline at the top or in a
+- [x] All five files exist at the paths above.
+- [x] Each copied file retains TicketSmith's MIT copyright notice, either inline at the top or in a
       `docs/capabilities/LICENSE-TICKETSMITH` referenced from each file.
-- [ ] `grep -rn 'docs/DECISIONS.md' docs/capabilities prompts` returns **no hits** — every reference
+- [x] `grep -rn 'docs/DECISIONS.md' docs/capabilities prompts` returns **no hits** — every reference
       points at `docs/decisions/` or `docs/decisions/DECISIONS.md`.
-- [ ] `docs/capabilities/WORKFLOW.md` describes a four-state lifecycle including `inbox`, and states
+- [x] `docs/capabilities/WORKFLOW.md` describes a four-state lifecycle including `inbox`, and states
       that `open` and `blocked` share the `open/` folder with `blocked` derived from a non-empty
       `blocked_by`.
-- [ ] `docs/capabilities/WORKFLOW.md` retains TicketSmith's anti-pattern list, including *"closing
+- [x] `docs/capabilities/WORKFLOW.md` retains TicketSmith's anti-pattern list, including *"closing
       tickets without honest operator validation"* — the sentence `07-ticketsmith.md` §3.5 quotes:
       *"If the validation section is always 'None,' nobody is checking the work. That's not
       validation; that's hope."*
-- [ ] A `diff` of each copied file against its upstream original is recorded in
+- [x] A `diff` of each copied file against its upstream original is recorded in
       `docs/capabilities/00-preflight-and-repo.md`, and every hunk in every diff is one of the two
       permitted edits. No third category of change appears.
-- [ ] `docs/capabilities/TEMPLATE.md` is the template 0006 and every later capability doc is written
+- [x] `docs/capabilities/TEMPLATE.md` is the template 0006 and every later capability doc is written → **PARTIAL.** The 19 capability docs were generated as stubs during backlog validation, before TEMPLATE.md was copied, so they do not follow it. Each is a pointer to its roadmap section, not a filled-in design. The first capability to run a real DESIGN step should adopt TEMPLATE.md then.
       from — its section headings match what the capability docs actually use.
 
 ## Notes

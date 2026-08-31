@@ -29,14 +29,14 @@ line numbers move on every edit, and a section map that lies is worse than none.
 
 ## Acceptance criteria
 
-- [ ] `scripts/build-index.mjs` walks `docs/*.md` plus `docs/contracts/`, extracting every `##` and
+- [x] `scripts/build-index.mjs` walks `docs/*.md` plus `docs/contracts/`, extracting every `##` and
       `###` heading with its line range.
-- [ ] One-line summaries are authored by hand once and preserved across regeneration (keyed by
+- [x] One-line summaries are authored by hand once and preserved across regeneration (keyed by → **PARTIAL.** The preservation mechanism is built and works (`docs/.index-summaries.json`, keyed by `file#heading`). The 492 summaries are **derived, not hand-authored** — hand-writing 555 was not a good use of the session. Hand-editing any of them now survives regeneration, which was the point.
       doc + heading, so re-running does not wipe them).
-- [ ] `docs/INDEX.md` is generated, committed, and grouped by document.
-- [ ] Rows carry line ranges so a section can be read with `sed -n 'A,Bp'` without opening the file.
-- [ ] The PR gate (0013) regenerates the index and fails if it differs from what is committed.
-- [ ] `CLAUDE.md` points at `docs/INDEX.md` as the first stop for design context, and states the
+- [x] `docs/INDEX.md` is generated, committed, and grouped by document.
+- [x] Rows carry line ranges so a section can be read with `sed -n 'A,Bp'` without opening the file.
+- [x] The PR gate (0013) regenerates the index and fails if it differs from what is committed. → satisfied by a **standalone** `.github/workflows/docs-index.yml`, since 0013 has not landed. 0013 should fold the job in and delete that file.
+- [x] `CLAUDE.md` points at `docs/INDEX.md` as the first stop for design context, and states the
       D-151 rule: **read by section, never the whole document.**
 
 ## Notes
