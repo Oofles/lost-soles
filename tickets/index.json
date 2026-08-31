@@ -2837,6 +2837,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T02:57:39Z",
+    "started": "2026-08-31T21:03:32Z",
     "path": "tickets/open/0123-skill-frontmatter-invalid-yaml.md",
     "ready": true,
     "acceptance": {

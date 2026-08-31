@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-08-31T02:57:39Z
+started: 2026-08-31T21:03:32Z
 ---
 
 ## Description
@@ -59,11 +60,14 @@ should block a close rather than be ticked in advance.
 - [x] A test asserts **every** `SKILL.md` under `.claude/skills/` parses, so this cannot recur for a
       future skill.
 - [x] CI runs that test.
-- [ ] `/tickets` appears in Claude Code and its subcommands work. → **UNVERIFIED — awaiting the
-      operator.** Deliberately left unchecked so `close` refuses: this is the exact criterion 0010
-      pre-ticked and closed on, and it was false. See 0124. May need
-      a session restart.** Frontmatter hot-reload covers *edits* to a known skill; a skill that was
-      never registered (because it never parsed) is a new discovery.
+- [x] `/tickets` appears in Claude Code and its subcommands work. → **VERIFIED by the operator,
+      2026-08-31.** Left unchecked at first close deliberately, so `close` would refuse — this is the
+      exact criterion 0010 pre-ticked and closed on while it was false (see 0124). It stayed
+      unchecked until an operator actually ran it.
+      **The evidence:** the operator opened the session that closed this ticket by typing
+      `/tickets next`. The skill registered, the `next` subcommand routed, and it did what the
+      criterion asks — named ticket 0017, summarized it, and stopped for a go. That is the check
+      being run by the operator and passing, rather than an agent asserting it would.
 
 ## Notes
 
@@ -119,3 +123,32 @@ session** — hot-reload covers edits to an already-registered skill, but this o
 all, so it is a first discovery.
 
 Then `/tickets next`: it must name a ticket, summarize it, and **stop for a go**.
+
+## Close addendum — the verification, 2026-08-31
+
+This ticket was written, fixed and left **open on one criterion** rather than closed, because the
+criterion that mattered could only be checked by an operator using Claude Code. That was the whole
+point: 0010 pre-ticked the identical criterion, closed, and shipped a skill that never registered.
+
+**It has now been run, and it passed.** The operator opened the session that closed this ticket by
+typing `/tickets next`. The skill registered, the `next` subcommand routed, and it behaved as
+specified — it named ticket 0017, summarized it, and stopped for a go before touching anything. No
+session restart was needed in the end.
+
+Re-verified at close, since a fix that decayed between writing and closing would be worse than no
+fix:
+
+- `.claude/skills/tickets/SKILL.md` frontmatter parses under `yaml.safe_load`, and every key's value
+  is semantically what §4.2 intended — `description` and `argument-hint` come back as plain strings
+  with their colons intact, `arguments` as a two-element list, `disable-model-invocation` as a
+  boolean.
+- `node scripts/check-skills.mjs` → `all skills parse.`
+- It runs in CI at `.github/workflows/tickets.yml:20`, and in the pre-commit hook when a `SKILL.md`
+  is staged.
+
+**One correction to the record.** The hook layer that runs `check-skills.mjs` was, at the moment this
+ticket closed, **dead code** — `.githooks/pre-commit` had been broken by the scripted edit that
+ticket **0125** exists to prevent, in a way that made the skill check run only when the staging area
+was empty. So this ticket's prevention was live in CI but not in the hook. That is 0125's to repair,
+and it is being repaired in the same session; noted here so the two records agree rather than each
+claiming a layer the other knows is off.
