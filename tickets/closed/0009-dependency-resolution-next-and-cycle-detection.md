@@ -4,13 +4,14 @@ slug: dependency-resolution-next-and-cycle-detection
 title: Dependency resolution, the ready set, `next`, and cycle detection
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: [7, 8]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-08-31T02:36:31Z
 ---
 
 ## Description

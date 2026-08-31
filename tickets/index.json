@@ -183,7 +183,7 @@
     "title": "Dependency resolution, the ready set, `next`, and cycle detection",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -193,7 +193,8 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0009-dependency-resolution-next-and-cycle-detection.md",
+    "closed": "2026-08-31T02:36:31Z",
+    "path": "tickets/closed/0009-dependency-resolution-next-and-cycle-detection.md",
     "ready": false,
     "acceptance": {
       "checked": 14,
@@ -217,7 +218,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0010-tickets-skill.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 16
