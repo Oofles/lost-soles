@@ -381,7 +381,7 @@
     "title": "Secrets via SSM secret() and a client-bundle leak test in CI",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -392,10 +392,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T19:57:24Z",
-    "path": "tickets/open/0017-secrets-via-ssm-and-bundle-leak-test.md",
-    "ready": true,
+    "closed": "2026-08-31T20:19:33Z",
+    "path": "tickets/closed/0017-secrets-via-ssm-and-bundle-leak-test.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -417,7 +418,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0018-ticket-capture-endpoint.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -3002,7 +3003,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   }
 ]

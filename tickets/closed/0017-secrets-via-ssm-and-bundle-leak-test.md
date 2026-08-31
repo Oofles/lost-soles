@@ -4,7 +4,7 @@ slug: secrets-via-ssm-and-bundle-leak-test
 title: Secrets via SSM secret() and a client-bundle leak test in CI
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 02-deploy-and-auth
 depends_on: [12, 13]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-08-31T19:57:24Z
+closed: 2026-08-31T20:19:33Z
 ---
 
 ## Description
