@@ -2830,7 +2830,7 @@
     "title": "SKILL.md frontmatter is invalid YAML — /tickets never registers",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -2838,10 +2838,11 @@
     "source": "agent",
     "created": "2026-08-31T02:57:39Z",
     "started": "2026-08-31T21:03:32Z",
-    "path": "tickets/open/0123-skill-frontmatter-invalid-yaml.md",
-    "ready": true,
+    "closed": "2026-08-31T21:03:55Z",
+    "path": "tickets/closed/0123-skill-frontmatter-invalid-yaml.md",
+    "ready": false,
     "acceptance": {
-      "checked": 5,
+      "checked": 6,
       "total": 6
     }
   },
@@ -2878,6 +2879,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T02:59:59Z",
+    "started": "2026-08-31T21:04:12Z",
     "path": "tickets/open/0125-pre-commit-hook-has-no-test.md",
     "ready": true,
     "acceptance": {

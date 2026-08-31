@@ -96,6 +96,16 @@ jobs:
       - name: docs/INDEX.md is up to date
         run: node scripts/build-index.mjs --check
 
+      # 0125. The suite that exercises .githooks/pre-commit rides in `npm test`
+      # above, so it runs on both CI surfaces. This is the separate, cheaper
+      # assertion the ticket asks for: a syntax check that holds even if vitest
+      # itself is broken. Note it would NOT have caught the defect that motivated
+      # 0125 — that hook was syntactically valid throughout, and only the
+      # behavioural tests found it. Kept because it is nearly free, not because
+      # it is the guard.
+      - name: pre-commit hook is valid bash
+        run: bash -n .githooks/pre-commit
+
       # ── the bundle-leak check (0017) ────────────────────────────────────────
       #
       # This job holds NO AWS CREDENTIALS, deliberately (0017: adding an OIDC role

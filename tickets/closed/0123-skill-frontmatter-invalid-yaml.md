@@ -4,7 +4,7 @@ slug: skill-frontmatter-invalid-yaml
 title: SKILL.md frontmatter is invalid YAML — /tickets never registers
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-08-31T02:57:39Z
 started: 2026-08-31T21:03:32Z
+closed: 2026-08-31T21:03:55Z
 ---
 
 ## Description

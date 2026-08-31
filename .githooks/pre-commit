@@ -31,17 +31,16 @@ PATTERNS=(
   'xox[baprs]-[A-Za-z0-9-]+'
 )
 staged=$(git diff --cached --name-only --diff-filter=ACM)
-[ -z "$staged" ] && # ── 3. skill frontmatter ───────────────────────────────────────────────────
-# A SKILL.md whose frontmatter does not parse is skipped by Claude Code with no
-# error shown anywhere (ticket 0123). Cheap to check, invisible to debug.
-if echo "$staged" | grep -q 'SKILL\.md$'; then
-  if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
-    node scripts/check-skills.mjs >&2 || true
-    fail "a staged SKILL.md has unparseable frontmatter — Claude Code would skip it silently."
-  fi
+# Nothing staged is not a pass to hurry through — it is simply nothing to scan.
+# NOTE: a bare `[ -z "$staged" ] && exit 0` here is what broke this hook once
+# (ticket 0125). A scripted edit replaced the FIRST `exit 0` in the file, which
+# was this one, and in doing so swallowed the next check into the && and left
+# everything below an unconditional exit. Written as an explicit `if` block so
+# there is no bare `exit 0` mid-file for an edit to land on, and so the early
+# return cannot silently absorb whatever gets added after it.
+if [ -z "$staged" ]; then
+  exit 0
 fi
-
-exit 0
 
 hits=""
 while IFS= read -r f; do
@@ -69,4 +68,16 @@ if [ -n "$hits" ]; then
   Nothing has been committed."
 fi
 
+# ── 3. skill frontmatter ───────────────────────────────────────────────────
+# A SKILL.md whose frontmatter does not parse is skipped by Claude Code with no
+# error shown anywhere (ticket 0123). Cheap to check, invisible to debug.
+if echo "$staged" | grep -q 'SKILL\.md$'; then
+  if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
+    node scripts/check-skills.mjs >&2 || true
+    fail "a staged SKILL.md has unparseable frontmatter — Claude Code would skip it silently."
+  fi
+fi
+
+# The ONLY exit 0 in this file that is not inside an explicit if-block, and it is
+# the last line. scripts/pre-commit-hook.test.mjs asserts that stays true.
 exit 0
