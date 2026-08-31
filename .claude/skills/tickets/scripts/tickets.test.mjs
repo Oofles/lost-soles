@@ -453,3 +453,35 @@ describe("0008 — the dirty-tree rule exempts the ticket being closed", () => {
     rmSync(d2, { recursive: true, force: true });
   });
 });
+
+describe("0008 — create emits the sections its type requires", () => {
+  test("a bug gets Steps to reproduce and Expected vs actual, and validates", () => {
+    const d = repo();
+    assert.equal(run(d, "create", "--title", "A bug", "--type", "bug", "--priority", "high", "--slug", "a-bug").code, 0);
+    const body = readFileSync(join(d, "tickets/open/0001-a-bug.md"), "utf8");
+    assert.match(body, /^## Steps to reproduce$/m);
+    assert.match(body, /^## Expected vs actual$/m);
+    // the real assertion: what create produces must pass validate
+    assert.equal(run(d, "validate").code, 0, "create must not produce a ticket that fails validation");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a design ticket gets Options considered and Open questions", () => {
+    const d = repo();
+    run(d, "create", "--title", "A design", "--type", "design", "--priority", "med", "--slug", "a-design");
+    const body = readFileSync(join(d, "tickets/open/0001-a-design.md"), "utf8");
+    assert.match(body, /^## Options considered$/m);
+    assert.match(body, /^## Open questions$/m);
+    assert.equal(run(d, "validate").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a feature gets neither", () => {
+    const d = repo();
+    run(d, "create", "--title", "A feature", "--type", "feature", "--priority", "low", "--slug", "a-feature");
+    const body = readFileSync(join(d, "tickets/open/0001-a-feature.md"), "utf8");
+    assert.ok(!/## Steps to reproduce/.test(body));
+    assert.equal(run(d, "validate").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+});

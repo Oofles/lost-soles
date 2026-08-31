@@ -388,7 +388,15 @@ function cmdCreate(flags) {
     depends_on: flags.depends ? flags.depends.split(",").map(Number) : [], blocked_by: [],
     source: flags.source ?? "agent", created: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
   };
-  const body = `\n## Description\n\n${flags.body ?? "TODO"}\n\n## Acceptance criteria\n\n- [ ] TODO\n\n## Notes\n\nTODO\n\n## Operator validation\n\nTODO\n`;
+  // Type-specific sections are REQUIRED by validate (§3.3). Emitting them here
+  // rather than leaving them to be remembered is the difference between `create`
+  // producing a valid ticket and producing one that fails validation seconds later.
+  const extra = fm.type === "bug"
+    ? "\n## Steps to reproduce\n\n1. TODO\n\n## Expected vs actual\n\n**Expected:** TODO\n\n**Actual:** TODO\n"
+    : fm.type === "design"
+    ? "\n## Options considered\n\nTODO\n\n## Open questions\n\n- TODO\n"
+    : "";
+  const body = `\n## Description\n\n${flags.body ?? "TODO"}\n\n## Acceptance criteria\n\n- [ ] TODO\n${extra}\n## Notes\n\nTODO\n\n## Operator validation\n\nTODO\n`;
   const path = `${DIRS.open}/${pad(id)}-${slug}.md`;
   writeFileSync(join(ROOT, path), serialize(fm, body));
   writeIndex();
