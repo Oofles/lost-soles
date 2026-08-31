@@ -229,7 +229,11 @@ makes D-123's premise false, and that is an order of magnitude more work than th
    `soles.devaultsecurity.com` returns 200.
 5. **Exactly one user exists** in the production pool, status `FORCE_CHANGE_PASSWORD`.
 
-**★ Requires the operator — this is the half that cannot be checked from here:**
+**★ Operator validation — COMPLETED by the operator 2026-08-31**, reported as: *"I got the email
+and signed up while changing my password successfully via the prompt. All operator validation is
+complete."* Confirmed from here afterwards: the production pool's single user is now
+`UserStatus: CONFIRMED` (was `FORCE_CHANGE_PASSWORD`), which is the state transition a successful
+first sign-in and password change produces. The items validated were:
 
 6. **Check your email** (`amazingbrandon@gmail.com`) for the Cognito invite with the temporary
    password. **On the Android phone, in Chrome**, open `https://soles.devaultsecurity.com/` while
