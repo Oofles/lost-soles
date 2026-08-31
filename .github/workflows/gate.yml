@@ -81,6 +81,15 @@ jobs:
       - name: D-100 boundary — no Strava type outside the adapter
         run: node scripts/check-boundaries.mjs
 
+      # 06-ui-ux.md §8. Landed in 0016 while there are almost no components, for
+      # the same reason the D-100 grep landed while the domain was empty: a
+      # palette rule added after the palette has leaked has already failed.
+      - name: design tokens check self-test
+        run: node scripts/check-design-tokens.mjs --self-test
+
+      - name: design tokens — no raw colour outside app/tokens.css
+        run: node scripts/check-design-tokens.mjs
+
       # Folded in from docs-index.yml, per the note that file carried naming 0013
       # as its owner. A section index whose line numbers are wrong is worse than no
       # index: it sends you to the wrong place confidently.

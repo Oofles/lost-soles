@@ -33,13 +33,34 @@ const STRICT = {
   why: "01-architecture.md §3 T1 — the domain and pipeline are source-agnostic",
 };
 
-// TIER 2 — the vendor name alone, everywhere else. "Strava" is never a generic
-// word, so this cannot false-positive, and it catches the leak the strict tier
-// would miss: a Strava type imported into a component or a Lambda handler.
+// TIER 2 — everywhere else, the vendor name only where it is an IDENTIFIER or an
+// IMPORT, never as an English word.
+//
+// This started as a bare /strava/i and was WRONG. It fired on ticket 0016's
+// legitimate settings copy — `note="Strava re-auth, reduced motion, ..."` — the
+// first time real UI text was written, one ticket after the check landed.
+// 06-ui-ux.md §1.3 says /settings exists *for* Strava re-auth, so the app must be
+// able to say the word to the user.
+//
+// D-100 is about a Strava-shaped TYPE reaching the domain, not about the vendor's
+// name appearing in a label. So: fire on an import path, or on `strava` glued to
+// another word character (StravaActivity, stravaId, fromStrava) — never on a
+// standalone word in prose or a string. A gate with false positives is a gate
+// that gets bypassed, which is the failure this whole file exists to avoid.
 const BROAD = {
   roots: ["app", "lib", "amplify", "src"],
-  pattern: /strava/i,
-  why: "D-100 — Strava lives strictly behind the adapter boundary",
+  pattern: new RegExp(
+    [
+      '\\bimport\\b.*strava',        // import ... strava ...
+      'from\\s+["\'][^"\']*strava',  // from "@/adapters/strava/types"
+      '[A-Za-z0-9_]strava',           // fromStrava, xStrava
+      'strava[A-Za-z0-9_]',           // StravaActivity, stravaId
+      'strava\\.com',                 // the API host — an adapter's job, never app code
+      '["\'`]strava["\'`]',           // an exact 'strava' string: a source discriminator
+    ].join('|'),
+    'i',
+  ),
+  why: "D-100 — a Strava-shaped identifier or import outside the adapter",
 };
 
 // The adapter itself, and the one registry line the design explicitly blesses:
@@ -119,7 +140,11 @@ if (process.argv.includes("--self-test")) {
     "src/domain/activity.ts":          ["import type { StravaActivity } from '@/adapters/strava/types'", true],
     "src/pipeline/score.ts":           ["const pts = decodePolyline(raw.summary_polyline)", true],
     "src/pipeline/athlete.ts":         ["const id = athlete.id", true],
-    "app/dashboard/page.tsx":          ["const label = 'Connect Strava'", true],
+    "app/dashboard/page.tsx":          ["const label = stravaClient.id", true],
+    "app/import/page.tsx":             ["import { x } from '@/adapters/strava/types'", true],
+    "app/settings/page.tsx":           ['<Stub note="Strava re-auth, units, sign out" />', false],
+    "app/connect/page.tsx":            ["const heading = 'Connect Strava'", false],
+    "app/sync/page.tsx":               ["const src = 'strava'", true],
     "amplify/functions/ingest.ts":     ["const url = 'https://www.strava.com/api/v3'", true],
     "src/domain/geo.ts":               ["export type GeoPoint = { lat: number; lng: number }", false],
     "src/domain/note.ts":              ["// never a Strava type here — D-100", false],

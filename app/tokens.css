@@ -1,0 +1,137 @@
+/*
+ * Design tokens — 06-ui-ux.md §8.2 (primitives) and §8.3 (semantics).
+ *
+ * Landed in full at ticket 0016, deliberately ahead of the components that use
+ * them: 09-roadmap.md §2.3 puts this milestone at "unstyled chrome — the token
+ * system is DEFINED (it costs one file) but applied only to the map and one
+ * button". One file now; a dozen components restyled later if not.
+ *
+ * Hex values appear HERE AND NOWHERE ELSE. scripts/check-design-tokens.mjs
+ * enforces that: a raw colour in a component is a build failure, because a
+ * palette that leaks is a palette that drifts.
+ *
+ * ─── THE ONE GENUINE TRAP (§8.3) ────────────────────────────────────────────
+ * --gold-500 on parchment is 2.1:1. FILLS AND RULES ONLY. NEVER TEXT, AT ANY
+ * SIZE. Gold leaf is the app's signature and a poor text colour on parchment.
+ * Where gold must carry meaning in type it is either large (--gold-700, >=24sp
+ * or >=19sp bold) or it sits on navy, where it is 11.7:1 and excellent.
+ * Elsewhere gold is the FILL of a bar and --ink-900 is the number beside it.
+ *
+ * ─── MEASURED CONTRAST, so nobody has to guess (§8.3) ────────────────────────
+ *   --ink-900  on --parch-100   15.4:1   Body text. Comfortable in direct sun (§9.1)
+ *   --ink-600  on --parch-100    7.6:1   Secondary text. AA at any size
+ *   --ink-500  on --parch-100    4.8:1   AA normal text, and THE FLOOR. Nothing
+ *                                        lighter carries text
+ *   --gold-700 on --parch-100    3.7:1   LARGE TEXT ONLY (>=24sp, or >=19sp bold).
+ *                                        Never body copy
+ *   --gold-300 on --navy-900    11.7:1   The dark theme's accent text, unrestricted
+ *   --gold-500 on --parch-100    2.1:1   FILLS AND RULES ONLY. NEVER TEXT.
+ * ────────────────────────────────────────────────────────────────────────────
+ */
+
+:root {
+  /* Ink — the dark neutral. Blue-shifted, never neutral grey, never pure black. */
+  --ink-900: #14161c;
+  --ink-800: #1e2230;
+  --ink-700: #2c3242;
+  --ink-600: #414a5e;
+  --ink-500: #5c687f;
+  --ink-400: #8592a6;
+  --ink-300: #a9b3c2;
+
+  /* Parchment — the light neutral. Warm, low saturation, high lightness (05 §5.1). */
+  --parch-50: #fbf6e9;
+  --parch-100: #f5edd9;
+  --parch-200: #ede2c6;
+  --parch-300: #e0d2ae;
+  --parch-400: #cdbb90;
+
+  /* Deep navy — sheets, scrims, the dark theme's ground. */
+  --navy-900: #0b1020;
+  --navy-800: #121a2e;
+  --navy-700: #1a2237;
+
+  /* Gold leaf — progress, level-ups, the selected state. NEVER an error colour. */
+  --gold-300: #e8c87a;
+  --gold-500: #c9a227;
+  --gold-700: #97761a;
+
+  /* Lantern — the frontier, the route, the reveal.
+     FIXED BY 05-fog-of-war.md §4.4. DO NOT RETUNE. */
+  --lantern-300: #ffd79a;
+  --lantern-500: #ffb347;
+  --route-core: #fff2d0;
+
+  /* Verdigris — META SKILLS ONLY (§5.3 rule 5). Aged copper on an old map. */
+  --verdigris-500: #3e7c72;
+  --verdigris-300: #6fa79c;
+
+  /* Two one-offs, each with exactly one job. */
+  --cold-wash: #7e93ad;   /* §4.6, atlas only, multiply blend */
+  --oxblood: #8c2f27;     /* the destructive confirm in /settings. Only. */
+
+  /* ─── Semantic layer (§8.3) — light, the default ───────────────────────────
+     Components reference THESE, never a primitive and never a raw hex. */
+  --bg: var(--parch-100);
+  --surface: var(--parch-50);
+  --surface-raised: var(--parch-50);
+  --text-primary: var(--ink-900);
+  --text-secondary: var(--ink-600);
+  --text-muted: var(--ink-500);
+  --line: rgb(133 146 166 / 0.35);        /* --ink-400 @ 0.35 */
+  --accent: var(--gold-500);
+  --accent-text: var(--gold-700);
+  --scrim: rgb(11 16 32 / 0.72);          /* --navy-900 @ 0.72 */
+  --progress-activity: var(--gold-500);
+  --progress-meta: var(--verdigris-500);
+}
+
+/*
+ * Dark theme. THE DARK THEME DOES NOT DARKEN THE MAP (§8.3) — it restyles chrome
+ * and switches the basemap to its night-parchment variant, because a dark
+ * basemap breaks the reveal (§8.1). Only the semantic layer moves here; the
+ * primitive ramps are constants.
+ *
+ * System-following by default; /settings gets the manual override, and it is the
+ * ONLY visual preference the app offers.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: var(--navy-900);
+    --surface: var(--navy-800);
+    --surface-raised: var(--navy-700);
+    --text-primary: var(--parch-100);
+    --text-secondary: var(--ink-300);
+    --text-muted: var(--ink-400);        /* §8.3 lists #8592A6, which IS --ink-400 */
+    --line: rgb(245 237 217 / 0.18);     /* --parch-100 @ 0.18 */
+    --accent: var(--gold-300);
+    --accent-text: var(--gold-300);
+    --scrim: rgb(11 16 32 / 0.82);       /* --navy-900 @ 0.82 */
+    --progress-activity: var(--gold-300);
+    --progress-meta: var(--verdigris-300);
+  }
+}
+
+/* The manual override from /settings wins in both directions. */
+:root[data-theme="dark"] {
+  --bg: var(--navy-900);
+  --surface: var(--navy-800);
+  --surface-raised: var(--navy-700);
+  --text-primary: var(--parch-100);
+  --text-secondary: var(--ink-300);
+  --text-muted: var(--ink-400);
+  --line: rgb(245 237 217 / 0.18);
+  --accent: var(--gold-300);
+  --accent-text: var(--gold-300);
+  --scrim: rgb(11 16 32 / 0.82);
+  --progress-activity: var(--gold-300);
+  --progress-meta: var(--verdigris-300);
+}
+
+/* Chrome is deliberately unstyled at this milestone (roadmap §2.3). This is the
+   minimum that makes the tokens observable rather than merely defined. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+}

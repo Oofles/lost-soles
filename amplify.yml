@@ -31,6 +31,7 @@ frontend:
         # reaching soles.devaultsecurity.com. A failed build leaves the previous
         # deployment live. Keep this list in step with .github/workflows/gate.yml.
         - node scripts/check-boundaries.mjs   # D-100 — milliseconds, guards a map that cannot re-fog
+        - node scripts/check-design-tokens.mjs # 06 §8 — the palette does not leak
         - npm run typecheck  # tsc --noEmit — REAL, not the dead script pattern
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
