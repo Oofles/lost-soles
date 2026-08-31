@@ -143,6 +143,58 @@ tidiness only — see the open item below.
 
 None of these gate `0015`.
 
+## Secret scan — 2026-08-30 (ticket 0004)
+
+Full-history `gitleaks detect` over the repository, run after the initial commit:
+
+```
+[90m10:09PM[0m [32mINF[0m [1m1 commits scanned.[0m
+[90m10:09PM[0m [32mINF[0m [1mscanned ~2070947 bytes (2.07 MB) in 197ms[0m
+[90m10:09PM[0m [32mINF[0m [1mno leaks found[0m
+exit code: 0
+```
+
+Clean. Two layers are in place (`08-security-privacy.md` §7.3):
+
+1. **Pre-commit**, `.githooks/pre-commit` — `gitleaks protect --staged` plus five literal
+   patterns. `core.hooksPath` is set to `.githooks`, so the hook is version-controlled and
+   applies to every clone, unlike `.git/hooks`.
+2. **CI**, `.github/workflows/secret-scan.yml` — `gitleaks detect` on full history with
+   `fetch-depth: 0`, on every push to `main` and every PR.
+
+**The hook rejected the initial commit on its first attempt.** Two tickets contained key-shaped
+literals: `0122` carried a real access key id written there during the 0002 audit, and `0004`'s own
+operator-validation step spelled out AWS's documentation key as a test example. Both were rewritten
+to describe the shape rather than spell it. Recorded because it is the cheapest possible evidence
+that the guard works — it caught its author on the first commit of the project.
+
+**Layer independence, demonstrated rather than assumed.** Probing all five patterns:
+
+| Probe | gitleaks | literal grep |
+|---|---|---|
+| Real AWS key id | ✅ caught | ✅ caught |
+| AWS documentation key (`…7EXAMPLE`) | ✗ allowlisted | ✅ caught |
+| GitHub PAT `ghp_…` | ✅ caught | ✅ caught |
+| A PEM private-key header line | ✗ missed | ✅ caught |
+| Slack `xoxb-…` | ✗ missed | ✅ caught |
+| Ordinary text (negative control) | — | — passes, commit succeeds |
+
+The grep layer is not redundant. It caught four of five where gitleaks alone would have passed
+three of them.
+
+**A second issue, found by the guard blocking its own documentation.** The table above originally
+spelled out the PEM header literally, and the literal-pattern layer flagged the capability doc as
+containing a private key. A scanner that cannot distinguish documentation *about* a secret from a
+secret will be switched off by whoever it blocks at 11pm, so the layer now honours
+`gitleaks:allow` — gitleaks' own marker, reused so both layers respect one convention. Deny by
+default, allow by **visible** exception: the marker sits on the line, in the diff, where a
+reviewer sees it. The row above was reworded rather than exempted, because describing the pattern
+reads better than quoting it.
+
+**One bug found and fixed while testing:** `grep -qE "$p"` parses a pattern beginning `-----BEGIN`
+as command-line options and errors, silently skipping that check. Fixed with `grep -qE --`. Without
+the deliberate probe this would have shipped as a check that never ran.
+
 ## Design notes
 
 _Filled in at the DESIGN step, before TICKET-WRITE._

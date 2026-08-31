@@ -39,7 +39,14 @@ while IFS= read -r f; do
   for p in "${PATTERNS[@]}"; do
     # NOTE the `--`: without it, grep parses a pattern beginning "-----BEGIN"
     # as command-line options and errors out, silently skipping that check.
-    if git show ":$f" 2>/dev/null | grep -qE -- "$p"; then
+    #
+    # Lines carrying `gitleaks:allow` are exempt — gitleaks' own convention,
+    # reused here so both layers honour one marker. This project's security
+    # docs necessarily quote credential patterns in order to document them,
+    # and a scanner that cannot tell documentation from a secret gets disabled
+    # by whoever it blocks at 11pm. Deny by default, allow by VISIBLE exception:
+    # the marker sits on the line, in the diff, where a reviewer sees it.
+    if git show ":$f" 2>/dev/null | grep -vF 'gitleaks:allow' | grep -qE -- "$p"; then
       hits="${hits}
     ${f}  matches  ${p}"
     fi
