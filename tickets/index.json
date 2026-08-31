@@ -2940,5 +2940,45 @@
       "checked": 0,
       "total": 6
     }
+  },
+  {
+    "id": 129,
+    "slug": "cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in",
+    "title": "Cross-app SSO on devaultsecurity.com — evaluate Google sign-in against 08 section 5.1",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T15:31:42Z",
+    "path": "tickets/open/0129-cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 130,
+    "slug": "sandbox-environment-and-a-throwaway-agent-account-for-troubl",
+    "title": "Sandbox environment and a throwaway agent account for troubleshooting",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-08-31T15:31:47Z",
+    "path": "tickets/open/0130-sandbox-environment-and-a-throwaway-agent-account-for-troubl.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

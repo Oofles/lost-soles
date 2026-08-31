@@ -89,6 +89,87 @@ https://soles.devaultsecurity.com/       →   200
 host and 404s. This is expected behaviour, not a misconfiguration — written down here so it is not
 filed as a bug later.
 
+### Cognito — the two pools, and which is which (ticket 0014)
+
+**Record this table before touching auth anywhere.** During 0014 the agent's local
+`amplify_outputs.json` turned out to be the *sandbox's*, so an early posture read reported the
+sandbox pool's state while describing it as production. The finding survived — CloudTrail confirmed
+production had the same hole — but the evidence pointed at the wrong resource for a while.
+
+| | Production (`main`) | Sandbox |
+|---|---|---|
+| User pool | `us-east-1_3lreDA1d1` | `us-east-1_ortrz27yR` |
+| Identity pool | `us-east-1:8738715f-f93b-4aab-acc8-3f714a782a75` | `us-east-1:d30ffb7f-0669-4fd5-b424-a4b0e2f2e43a` |
+| App client | `5vc5e8t2ljv1hg3doau5mp0m00` | — |
+| CFN stack | `amplify-d14fhvl4rp79nn-main-branch-843f54c241-auth179371D7-…` | `amplify-lostsoles-root-sandbox-bcc61467ba-auth179371D7-…` |
+| Created | 2026-08-31T13:54:01Z | 2026-08-31T03:42:03Z |
+| Posture after 0014 | **fixed** | **still open** — no sandbox deploy since (ticket 0130) |
+
+**Owner account** — created by hand 2026-08-31 via `admin-create-user`, default email invite, no
+password shared over any chat:
+
+- email: `amazingbrandon@gmail.com`
+- **Cognito `sub`: `5488e4b8-d081-7014-748e-edd1937f8083`**
+
+That `sub` is the partition key for everything the user owns — DynamoDB rows, the `raw/<uid>/` S3
+prefix, the `entity('identity')` storage path (§5.4 step 6). **Rebuilding a user pool without
+preserving it orphans a permanent map, and D-020 has no restore button.** Note the production pool
+was itself replaced once already, on 2026-08-31 — pool replacement is not hypothetical here.
+
+### The two holes that were actually open, and the proof they are shut
+
+Both settings `08-security-privacy.md` §5.1 calls "the two lines that carry almost the entire
+security posture" were **live-wrong** from 0012's skeleton deploy until 0014. This is recorded
+because a hole that was open and is now shut is worth more in the record than a control that was
+never tested.
+
+CloudTrail, `CreateUserPool`, production pool `us-east-1_3lreDA1d1`, 2026-08-31T13:54:01Z:
+
+```
+adminCreateUserConfig: {"allowAdminCreateUserOnly": false, "unusedAccountValidityDays": 0}
+```
+
+The sandbox pool was created with the identical config ten hours earlier. Neither was a theoretical
+risk: the site serves publicly at `soles.devaultsecurity.com`, and the pool and client ids ship in
+the client bundle by design.
+
+**Proven shut by attack, not by config read** (0014 criteria 6 and 7), against production, unsigned:
+
+```
+$ aws cognito-idp sign-up --client-id 5vc5e8t2ljv1hg3doau5mp0m00 \
+      --username probe-0014@example.com --password '…' --no-sign-request
+An error occurred (NotAuthorizedException) when calling the SignUp operation:
+SignUp is not permitted for this user pool
+
+$ aws cognito-identity get-id \
+      --identity-pool-id us-east-1:8738715f-f93b-4aab-acc8-3f714a782a75 --no-sign-request
+An error occurred (NotAuthorizedException) when calling the GetId operation:
+Unauthenticated access is not supported for this identity pool.
+```
+
+Both are refusals *from Cognito*, not network or credential errors — which is what operator
+validation step 5 asks for, because an ambiguous failure is not proof.
+
+### The posture gate, and the IAM grant it needs
+
+`scripts/check-auth-posture.mjs` asserts five properties of the **deployed** pool and runs in
+`amplify.yml`'s backend phase after `ampx pipeline-deploy`. Per D-163 that makes it a lock: a bad
+posture fails the deploy. It **fails closed** — a missing CLI, missing credentials or a denied API
+call fail the build rather than passing quietly.
+
+It requires a read-only IAM grant on the Amplify build role
+`AmplifySSRLoggingRole-bcad2fbf-0a4f-4021-b300-8c0751d38d7e`, because the managed
+`AmplifyBackendDeployFullAccess` does not include these describes:
+
+```
+cognito-idp:DescribeUserPool        on arn:aws:cognito-idp:us-east-1:286588821906:userpool/*
+cognito-idp:ListIdentityProviders   on arn:aws:cognito-idp:us-east-1:286588821906:userpool/*
+cognito-identity:DescribeIdentityPool on arn:aws:cognito-identity:us-east-1:286588821906:identitypool/*
+```
+
+Wildcards on the pool ARN rather than the specific pool, deliberately: the production pool has
+already been replaced once, and a policy pinned to a dead ARN fails open the next time that happens.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
