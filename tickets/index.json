@@ -283,7 +283,7 @@
     "title": "GitHub Actions PR gate — tsc --noEmit, ESLint, vitest, mirrored in amplify.yml",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [
@@ -294,10 +294,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T14:32:30Z",
-    "path": "tickets/open/0013-github-actions-pr-gate.md",
-    "ready": true,
+    "closed": "2026-08-31T14:44:00Z",
+    "path": "tickets/closed/0013-github-actions-pr-gate.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -387,7 +388,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0017-secrets-via-ssm-and-bundle-leak-test.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
