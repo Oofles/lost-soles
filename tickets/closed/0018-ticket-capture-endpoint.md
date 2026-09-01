@@ -4,13 +4,14 @@ slug: ticket-capture-endpoint
 title: POST /api/tickets/capture commits a new file to tickets/inbox/
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 03-ticket-capture-endpoint
 depends_on: [12, 14, 17]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-01T01:46:53Z
 ---
 
 ## Description

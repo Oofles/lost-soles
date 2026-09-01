@@ -406,7 +406,7 @@
     "title": "POST /api/tickets/capture commits a new file to tickets/inbox/",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -417,10 +417,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0018-ticket-capture-endpoint.md",
-    "ready": true,
+    "closed": "2026-09-01T01:46:53Z",
+    "path": "tickets/closed/0018-ticket-capture-endpoint.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -440,7 +441,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0019-capture-endpoint-hardening.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -530,7 +531,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0023-tickets-triage-inbox-end-to-end.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 12
@@ -552,7 +553,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0024-runbook-rotating-the-github-pat.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -3032,6 +3033,20 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "title": "Capture endpoint smoke test — safe to discard",
+    "type": "chore",
+    "priority": "low",
+    "status": "inbox",
+    "source": "ui",
+    "created": "2026-09-01T01:44:47.182Z",
+    "path": "tickets/inbox/2026-09-01T0144-capture-endpoint-smoke-test-safe-to-discard.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 0
     }
   }
 ]
