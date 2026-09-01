@@ -4,13 +4,14 @@ slug: validate-required-body-sections
 title: validate: enforce required body sections on every ticket, not just closed ones
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: [11]
 blocked_by: []
 source: agent
 created: 2026-08-31T03:12:16Z
+closed: 2026-09-01T04:08:18Z
 ---
 
 ## Description

@@ -2900,7 +2900,7 @@
     "title": "validate: enforce required body sections on every ticket, not just closed ones",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -2909,10 +2909,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T03:12:16Z",
-    "path": "tickets/open/0126-validate-required-body-sections.md",
-    "ready": true,
+    "closed": "2026-09-01T04:08:18Z",
+    "path": "tickets/closed/0126-validate-required-body-sections.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
