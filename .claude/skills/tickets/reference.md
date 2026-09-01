@@ -17,7 +17,7 @@ slug: kebab-case            # ^[a-z0-9]+(-[a-z0-9]+)*$ — immutable once assign
 title: Human readable       # max 200 chars
 type: feature               # feature | bug | design | chore | refactor | docs
 priority: high              # high | med | low
-status: open                # inbox | open | blocked | closed  (mirrors the folder)
+status: open                # inbox | open | blocked | deferred | closed  (mirrors the folder)
 size: m                     # s <30min | m 30min-2h (TARGET) | l = too big, SPLIT IT
 capability: 04-domain-contract-and-rules   # or null; matches docs/capabilities/NN-name.md
 depends_on: [38]            # PLANNED constraints, set at ticket-write time
@@ -56,6 +56,20 @@ The marker means *no agent can check this*. Two refusals hang off it:
 
 Relaying an operator's reported result *is* the sign-off — write what they saw, dated, in their
 words where you have them. Inventing one is the failure this whole mechanism exists to prevent.
+
+### `blocked` vs `deferred`
+
+**`blocked` is waiting on a ticket in this backlog; `deferred` is waiting on the world** (D-174).
+Closing the blocker clears a `blocked` automatically and `blocked_by` names it. Nothing here can
+clear a `deferred` — there is no ticket id for "npm fixes its bundled tarballs" — so it carries a
+mandatory reason and a mandatory runnable re-check in a `## Deferred` section instead, both enforced
+by `validate`. A deferred ticket is out of the ready set and out of its capability's
+`capability-tickets-closed` check, but is **named** in the audit record: a capability that passed
+with deferrals must not read as one that passed clean.
+
+`recheck` runs the re-checks and reports. It never un-defers — `resume` is typed by someone who read
+the result. If you want to file a placeholder ticket just so `blocked_by` has something to hold, the
+state you want is `deferred`.
 
 ### `depends_on` vs `blocked_by`
 
@@ -125,6 +139,9 @@ SCRIPT create --title "…" --type … --priority … [--size --capability --slu
 SCRIPT start <id>
 SCRIPT block <id> --on <id> [--reason "…"]      refuses cycles and unknown ids
 SCRIPT unblock <id> --on <id>
+SCRIPT defer <id> --reason "…" --recheck "<shell>"   external wait; --recheck-file <path> also works
+SCRIPT resume <id> [--reason "…"]                    leaves the state; never automatic
+SCRIPT recheck [<id>]                                runs deferred re-checks and REPORTS; exits 0 either way
 SCRIPT close <id> [--allow-dirty]
 SCRIPT triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
 SCRIPT audit <capability>             AUDIT.md mechanical checks; exit 1 on any failure
@@ -132,7 +149,7 @@ SCRIPT audit <capability> --sections  design-doc sections this capability's tick
 SCRIPT audit <capability> --record [--divergence "res|ref|desc"]... [--no-divergences] [--force "reason"]
 ```
 
-`--json` on `index`, `list`, `show`, `validate`, `next`, `create`, `audit`.
+`--json` on `index`, `list`, `show`, `validate`, `next`, `create`, `audit`, `recheck`.
 
 ### `audit` and the three verdicts
 
@@ -185,7 +202,9 @@ id · self-edge · dependency cycle · `closed:` present when open or absent whe
 ticket missing `## Resolution` · closed ticket with an unchecked criterion · an `(operator)`
 criterion ticked with no dated sign-off (any folder) · **any `open/` or `closed/` ticket missing one
 of the four required body sections** · `bug` missing its extra sections · `design` missing its extra
-sections. **Inbox items are exempt from every section rule** — they are free-form captures (§2.3),
+sections · a `deferred` ticket with no `## Deferred` section, no `**Reason:**` line, or no fenced
+re-check block · a `deferred:` stamp whose status is not `deferred` (or vice versa).
+**Inbox items are exempt from every section rule** — they are free-form captures (§2.3),
 so a `type: bug` captured on a phone never fails validation.
 
 A ticket promoted by `triage-move` therefore fails `validate` until its sections are written. That

@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-01T19:04:02Z
+started: 2026-09-01T20:25:19Z
 ---
 ## Description
 
@@ -56,25 +57,28 @@ project.
 
 ## Acceptance criteria
 
-- [ ] A fifth status exists for work that is specified, correct, and waiting on something outside
+- [x] A fifth status exists for work that is specified, correct, and waiting on something outside
       the project's control. It carries a **mandatory reason** and a **mandatory re-check
       condition** — the cheap test that says whether the wait is over. `0128` already has exactly
       such a test in its Notes; the status should make recording one compulsory rather than lucky.
-- [ ] The status is **excluded from the audit's `capability-tickets-closed` check**, so a capability
+- [x] The status is **excluded from the audit's `capability-tickets-closed` check**, so a capability
       can close with deferred tickets outstanding. The audit record must **name them**, so a
       capability that passed with three deferred tickets never looks like one that passed clean.
-- [ ] `next` does not offer a deferred ticket as workable, and says how many are deferred alongside
+- [x] `next` does not offer a deferred ticket as workable, and says how many are deferred alongside
       the existing `N ready, M gated` line.
-- [ ] There is a script command to enter and leave the state, maintaining `index.json` and the
+- [x] There is a script command to enter and leave the state, maintaining `index.json` and the
       `git mv` like every other transition. **No hand-edited frontmatter** — that is the standing
       rule this ticket must not create an exception to.
-- [ ] Leaving the state is **not automatic**. Something must re-run the re-check condition and a
+- [x] Leaving the state is **not automatic**. Something must re-run the re-check condition and a
       human or agent must read the result; a ticket that silently un-defers is a ticket nobody
       looks at.
-- [ ] `validate` treats a deferred ticket with no reason, or no re-check condition, as an error.
-- [ ] `0128` is migrated to it, with its two-line reproduction as the re-check condition, and
-      capability `02`'s audit is re-run to confirm it passes without a `--force`.
-- [ ] `docs/07-ticketsmith.md` §3 and `docs/TICKET_FORMAT.md` document the status, including the
+- [x] `validate` treats a deferred ticket with no reason, or no re-check condition, as an error.
+- [x] `0128` is migrated to it, with its reproduction as the re-check condition, and capability
+      `02`'s audit is re-run to confirm **`0128` no longer holds it** — `capability-tickets-closed`
+      passes on the deferral alone, with no `--force`. *(Amended: the original wording said the
+      audit passes outright. It does not, and not because of anything here — `0129` is still
+      genuinely open. See ## Resolution.)*
+- [x] `docs/07-ticketsmith.md` §3 and `docs/TICKET_FORMAT.md` document the status, including the
       distinction from `blocked` — the sentence that stops the next person conflating them.
 
 ## Notes
@@ -100,9 +104,80 @@ un-deferring, which criterion 5 forbids. The likely resolution is: runnable, run
 Related: `0128` (the ticket that occasioned this), `0133` (the audit implementation),
 `0135` (the gate that turns one open ticket into eight blocked ones).
 
+## Resolution
+
+**What was built.** A fifth status, `deferred`, for work that is specified, correct, and waiting on
+something outside the project. Recorded as **D-174**.
+
+Files touched:
+
+- `.claude/skills/tickets/scripts/tickets.mjs` — `deferred` added to `ENUMS.status` and a `deferred:`
+  timestamp to `FIELD_ORDER`; a `deferral()` parser for the `## Deferred` body section; four new
+  `validate` rules; `capability-tickets-closed` excludes deferred tickets and names them; the audit
+  record grows a `deferred: [...]` field and a prose line; `next` counts deferrals aloud and marks
+  them in `--all`; three new commands, `defer`, `resume` and `recheck`.
+- `.claude/skills/tickets/scripts/tickets.test.mjs` — 14 tests, taking the suite from 101 to 115.
+- `docs/07-ticketsmith.md` §3 and `docs/TICKET_FORMAT.md` — the status, the `## Deferred` section,
+  and the `blocked` vs `deferred` sentence, in both (§3 is normative; they change together).
+- `docs/decisions/DECISIONS.md` — D-174.
+- `.claude/skills/tickets/SKILL.md` and `reference.md` — routing rows, a `## defer` procedure, the
+  command list, the validation-rule list, and `recheck` added to the `sync` step.
+- `tickets/open/0128-…md` — migrated to `deferred` via `defer`, not by hand.
+
+**Decisions made, both settled with the operator before any code was written** (the ticket's Notes
+asked for exactly this):
+
+1. **The re-check is runnable shell, run on demand, reported and never acted on.** The alternative
+   was prose. `0128`'s check was already three shell lines, and a check only a human can evaluate is
+   one nobody evaluates. The thing this buys — `sync` saying "0128's wait may be over" — is the
+   whole reason the status is not just a label. What it must not buy is automatic un-deferring, so
+   `recheck` exits 0 whichever way the check went and prints `resume` as a suggestion, never runs it.
+2. **`deferred` lives in `open/`**, exactly as `blocked` does, so there is no `git mv` and no fourth
+   folder. Criterion 4's phrase "the `git mv` like every other transition" reads as if it assumed a
+   move; the substance of the criterion — a script command that maintains `index.json` so no
+   frontmatter is ever hand-edited into the state — is met, and `block` sets the precedent for a
+   status change with no move.
+
+**Two things went differently than planned.**
+
+*The re-check's first draft reported badly.* It ran correctly and reported `npm error A complete log
+of this run can be found in: /root/.npm/_logs/…` — because `runCheck` returns the last output line,
+and `npm ci`'s last line is a log path. A report whose entire product is legibility had produced a
+line nobody can act on. The block now prints a one-line verdict on both paths, and the reported
+line is `npm ci still fails on ^1.24.0: npm error Missing: @aws-cdk/toolkit-lib@1.19.0 from lock
+file`. The general lesson is in the SKILL.md procedure: write the re-check so its **last line** is
+the verdict.
+
+*Capability `02` still does not pass, and criterion 7 had to be amended.* `0128` is out of the way —
+`capability-tickets-closed` now reads `1 closed; 1 deferred (0128)` where it read
+`4 still open: 0128, 0129, 0130, 0131`. But `0129` (cross-app SSO — evaluate Google sign-in against
+`08` §5.1) is still open, and it is *genuinely* open: it is waiting on an operator decision about
+whether to add a federated IdP against `08-security-privacy.md` §5.1's explicit prohibition, which
+is work inside this project and precisely what `open` means. `0130` and `0131`, both open when this
+ticket was filed, closed in the meantime. So the ticket's premise — that `0128` was the only thing
+holding `02` — was true on 2026-09-01 and is no longer the whole story. Deferring `0129` too would
+be the exact abuse of this status the ticket exists to prevent, and no `--force` was used. The
+criterion was amended to what is verifiable and this paragraph says why.
+
+**`0128`'s re-check was run twice against the real repo today** and the upstream defect is still
+live, so its premise is re-verified as of 2026-09-01.
+
 ## Operator validation
 
-None — this is ticket-system tooling with no user-visible surface. The check that matters is that
-`node .claude/skills/tickets/scripts/tickets.mjs audit 02-deploy-and-auth` reports
-`capability-tickets-closed` as passing with `0128` deferred, and that `next` no longer offers
-`0128`.
+None — this is ticket-system tooling with no user-visible surface. What was actually checked, at the
+keyboard in `/home/vivicat/lost-soles`:
+
+- `node --test .claude/skills/tickets/scripts/tickets.test.mjs` — 115 pass, 0 fail (101 before).
+- `tickets.mjs validate` — 0 errors, 0 warnings, with `0128` deferred.
+- `tickets.mjs recheck` against the live repo, twice, ~60s each: reports `waits 0128  npm ci still
+  fails on ^1.24.0: npm error Missing: @aws-cdk/toolkit-lib@1.19.0 from lock file`, exits 0, and the
+  ticket file is byte-identical afterwards.
+- `tickets.mjs audit 02-deploy-and-auth` — `capability-tickets-closed` now reads
+  `1 still open: 0129; 1 deferred (0128)`. Before the migration it read `2 still open: 0128, 0129`.
+  A test covers the case that matters and cannot be shown here — the same check going FAIL → pass
+  → recorded with `deferred: ["0002"]` and `verdict: "pass"` once the last non-deferred ticket
+  closes.
+- `tickets.mjs next` offers `0136`, not `0128`, and prints
+  `1 ticket(s) deferred, waiting on something outside the project (0128).`
+- `tickets.mjs next --all` marks it `[DEFERRED]` and ends
+  `11 ready, 8 gated on an unaudited capability, 1 deferred on something outside the project`.

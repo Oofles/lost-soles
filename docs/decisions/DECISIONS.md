@@ -860,3 +860,50 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Enforcement begins at capability `02`.** `00` and `01` predate the command that audits them;
     that bootstrap gap is closed by 0121's retroactive run rather than by pretending they were
     gated all along.
+
+---
+
+## A fifth ticket status: `deferred`  (2026-09-01, ticket 0136)
+
+- **D-174** **Work that is specified, correct, and waiting on something outside the project gets
+  its own status — `deferred` — and is excluded from the capability close gate.** Settled while
+  building 0136, which was filed the day capability `02`'s audit could not pass and no honest route
+  existed around it. `0128` (restore `npm ci` once Amplify Gen 2 stops shipping inconsistent bundled
+  tarballs) is unworkable through no fault of its own; it held capability `02` open, and D-173's
+  gate then held **eight** high-priority tickets across five later capabilities. An npm packaging
+  defect in someone else's tarball was the critical path of the whole project.
+  - **`blocked` is waiting on a ticket in this backlog; `deferred` is waiting on the world.** That
+    sentence is the whole distinction and it is in both format docs. `blocked_by` holds ticket ids
+    and a close clears it automatically; there is no honest ticket id for "npm fixes its tarballs",
+    and filing a placeholder so that `blocked_by` has something to hold is the exact dishonesty
+    this status removes. The other three statuses lie about such a ticket too: `open` claims it is
+    available, `closed` claims criteria are met, `inbox` claims untriaged.
+  - **Not a `--force`.** `audit --force` existed and would have cleared `02` that day. It records
+    `verdict: forced` for the *whole* capability, which permanently understates a capability whose
+    design conformance and operator validation were fine — one npm bug should not put an asterisk on
+    all of its tickets forever. Forcing also trains the reflex that the gate is negotiable, which is
+    precisely what D-153 was written to prevent.
+  - **Excluded from `capability-tickets-closed`, but NAMED in the audit record.** The check ignores
+    deferred tickets; the written record and the `audit-record` JSON list them by id. A capability
+    that passed with three deferrals must never read as one that passed clean. Same instinct as
+    D-169, D-171 and D-172: the record must distinguish "found nothing" from "did not look".
+  - **A mandatory reason and a mandatory re-check, both enforced by `validate`.** The reason names
+    the third party; the re-check is the cheap test that says the wait is over. A deferral with no
+    reason is indistinguishable from a ticket nobody got to. A deferral with no re-check is a wait
+    with no end condition — which is how a ticket goes quiet for a year.
+  - **The re-check is runnable shell, not prose** — settled against the alternative at the start of
+    0136, as the ticket's own notes asked. `0128`'s was already three shell lines, and a check that
+    only a human can evaluate is one nobody evaluates. It lives in a fenced block in a `## Deferred`
+    body section rather than a frontmatter field, because the frontmatter parser is deliberately
+    flat and one-line and a real re-check is not.
+  - **`recheck` reports and never acts.** It runs every deferred ticket's block, prints the verdict,
+    and exits 0 whichever way it went — a failing re-check is the expected case, so this is a report
+    and not a gate. Leaving the state is `resume`, typed by someone who read the output. Automatic
+    un-deferring was the tempting version and it is the same failure by a different door: a ticket
+    that silently returns to the backlog is a ticket nobody looks at.
+  - **`deferred` lives in `open/`, exactly as `blocked` does.** The folder is the coarse state —
+    untriaged / live / done — and a deferred ticket is still live work, just not available. No
+    fourth folder, no change to the documented layout.
+  - **`resume` renames the `## Deferred` heading rather than deleting the section.** What was waited
+    on, and why, is worth keeping. The rename is also load-bearing: without it a second deferral
+    would parse the first one's stale fenced block and `recheck` would run the wrong test.

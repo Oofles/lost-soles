@@ -2949,15 +2949,16 @@
     "title": "Restore npm ci in amplify.yml once the Amplify Gen 2 bundled-dependency defect is fixed upstream",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "deferred",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T13:22:07Z",
+    "deferred": "2026-09-01T20:29:27Z",
     "path": "tickets/open/0128-restore-npm-ci-in-amplify-yml-once-the-amplify-gen-2-bundled.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 6
@@ -3132,6 +3133,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T19:04:02Z",
+    "started": "2026-09-01T20:25:19Z",
     "path": "tickets/open/0136-a-ticket-status-for-work-waiting-on-a-third-party-excluded-f.md",
     "ready": true,
     "acceptance": {
@@ -3156,7 +3158,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 7
+      "total": 9
     }
   },
   {

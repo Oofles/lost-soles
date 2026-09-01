@@ -17,7 +17,7 @@ Generated from `07-ticketsmith.md` §3.1–§3.6 on 2026-08-30.
 | `title` | yes | string | Human-readable, editable. Max 200 chars. |
 | `type` | yes | enum | `feature` · `bug` · `design` · `chore` · `refactor` · `docs` |
 | `priority` | yes | enum | `high` · `med` · `low` |
-| `status` | yes | enum | `inbox` · `open` · `blocked` · `closed` |
+| `status` | yes | enum | `inbox` · `open` · `blocked` · `deferred` · `closed` |
 | `size` | open/closed only | enum | `s` · `m` · `l` |
 | `capability` | open/closed only | string \| null | `NN-name`, matching a file at `docs/capabilities/NN-name.md`. `null` is legal for genuinely standalone chores; the validator warns, it does not error. |
 | `depends_on` | open/closed only | int[] | Ticket ids. Planned ordering constraints. `[]` when none. |
@@ -26,6 +26,7 @@ Generated from `07-ticketsmith.md` §3.1–§3.6 on 2026-08-30.
 | `created` | yes | ISO 8601 UTC | Set once, never edited. |
 | `started` | no | ISO 8601 UTC | Stamped by `/tickets start`. Omitted until then. |
 | `closed` | closed only | ISO 8601 UTC | Stamped by `/tickets close`. Omitted while open. |
+| `deferred` | `deferred` only | ISO 8601 UTC | Stamped by `/tickets defer`, removed by `/tickets resume`. Present iff `status: deferred`. |
 
 #### Enum definitions
 
@@ -45,12 +46,45 @@ Generated from `07-ticketsmith.md` §3.1–§3.6 on 2026-08-30.
 **`priority`** — TicketSmith's three, unchanged. `high` · `med` · `low`. Three is enough. Five
 invites deliberation about whether something is P2 or P3, which is not work.
 
-**`status`** — four values. `inbox` and `closed` mirror their folders exactly. `open` and
-`blocked` **both live in `open/`**; `blocked` is derived from `blocked_by` being non-empty.
-Keeping the folder as the coarse state preserves TicketSmith's "status mirrors the folder" rule
-while giving structured blocking somewhere to live. There is deliberately no `in-progress`
-status — `/tickets start` stamps `started:` instead, so an abandoned session leaves a timestamp
-rather than a stuck state that has to be cleaned up.
+**`status`** — five values. `inbox` and `closed` mirror their folders exactly. `open`,
+`blocked` and `deferred` **all live in `open/`**; `blocked` is derived from `blocked_by` being
+non-empty. Keeping the folder as the coarse state preserves TicketSmith's "status mirrors the
+folder" rule while giving structured blocking somewhere to live. There is deliberately no
+`in-progress` status — `/tickets start` stamps `started:` instead, so an abandoned session leaves
+a timestamp rather than a stuck state that has to be cleaned up.
+
+**`blocked` vs `deferred` — the distinction, in one sentence: `blocked` is waiting on a ticket in
+this backlog, `deferred` is waiting on the world.** Closing the blocking ticket clears a `blocked`
+automatically, and `blocked_by` names it; nothing in the backlog can clear a `deferred`, and there
+is no ticket id to point at because "npm fixes its bundled tarballs" is not work anyone here can
+do. If you find yourself wanting to file a placeholder ticket so that `blocked_by` has something
+to hold, the state you want is `deferred`.
+
+`deferred` (D-174, ticket 0136) is for work that is **specified, correct, and unworkable through
+no fault of its own**. It exists because the other four statuses each lie about such a ticket:
+`open` claims it is available and makes every future session re-derive that it is not; `blocked`
+needs a ticket id there is no honest candidate for; `closed` says the criteria are met when they
+are not; `inbox` says untriaged when it is the most thoroughly triaged ticket in the backlog.
+
+Three consequences, all of them the point:
+
+- A deferred ticket is **not in the ready set**, so `/tickets next` never offers it. It is still
+  counted aloud on the `N ready, M gated` line, because a backlog that hides its deferrals makes
+  "nothing is ready" and "everything is waiting on npm" look identical.
+- It is **excluded from the audit's `capability-tickets-closed` check** (D-153), so one third-party
+  defect cannot hold a whole capability — and through the gate, every capability after it. The
+  audit record **names every deferred ticket it passed with**, so a capability that closed with
+  work outstanding never reads as one that closed clean.
+- It carries a **mandatory reason and a mandatory re-check** in a `## Deferred` body section (§3.3).
+  `validate` errors without either. A deferral with no reason is indistinguishable from a ticket
+  nobody got to; a deferral with no re-check is a wait with no end condition, which is how a ticket
+  goes quiet for a year.
+
+**Leaving the state is never automatic.** `/tickets recheck` runs the re-check and *reports*; it
+changes nothing and exits 0 either way, because a failing re-check is the expected case and this is
+a report, not a gate. A human or agent reads the result and types `/tickets resume`. A ticket that
+silently un-defers is a ticket nobody looks at — which is the failure the status was invented to
+prevent, arriving by a different door.
 
 **`size`** — a session-length estimate, not story points.
 
@@ -119,6 +153,15 @@ type's extra sections. Inbox captures are exempt — triage supplies their struc
 
 - `## Options considered`
 - `## Open questions`
+
+**`deferred` additionally** — written by `/tickets defer`, never by hand:
+
+- `## Deferred` — a `**Reason:**` line saying what is being waited on and naming the third party,
+  and a fenced shell block that is the **re-check**: the cheap test that says the wait is over.
+  `validate` errors on a deferred ticket missing either. `resume` renames the heading to
+  `## Deferred — resumed YYYY-MM-DD` and appends the result rather than deleting the section: what
+  was waited on, and why, is worth keeping, and the rename is also what makes a *second* deferral
+  open a fresh block instead of re-running the stale re-check.
 
 **Appended only at close time, by the implementer:**
 

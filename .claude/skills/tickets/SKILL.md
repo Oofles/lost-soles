@@ -39,9 +39,12 @@ subcommand dispatch, so this table is the dispatch.
 | `start` | `SCRIPT start $2` | Then work it |
 | `block` | `SCRIPT block $2 --on <id> --reason "…"` | Report; **never close a blocked ticket** |
 | `unblock` | `SCRIPT unblock $2 --on <id>` | Report the resulting status |
+| `defer` | `SCRIPT defer $2 --reason "…" --recheck "<shell>"` | For a wait on something **outside** the project. See `## defer` below |
+| `resume` | `SCRIPT resume $2 [--reason "…"]` | Report that it is back in the ready set |
+| `recheck` | `SCRIPT recheck [$2]` | Report each verdict. **Never `resume` on the strength of it without saying so first** |
 | `close` | **Read `reference.md` first**, then the close procedure | See below |
 | `validate` | `SCRIPT validate` | Report errors verbatim; fix or file, do not silence |
-| `sync` | `git pull --rebase`, then `SCRIPT index`, then `SCRIPT validate` | Report new inbox items by title, with a count |
+| `sync` | `git pull --rebase`, then `SCRIPT index`, `SCRIPT validate`, `SCRIPT recheck` | Report new inbox items by title with a count, and any deferred re-check that now passes |
 | `audit` | `SCRIPT audit $2` | The audit procedure, below. **A green table is not a passed audit** |
 | anything else | `SCRIPT` (prints usage) | Say which actions exist |
 
@@ -60,6 +63,22 @@ Then: summarize the ticket in two or three sentences, **state the approach you i
 If the script refuses because the ticket is `size: l`, do not work around it. Offer a concrete split
 into two or three tickets with proposed titles, and create them with `SCRIPT create` once agreed.
 `size: l` is a smell recorded honestly, not a valid plan.
+
+## `defer`
+
+For work that is **specified, correct, and waiting on something outside the project** — an upstream
+bug, a third party's release. Not `blocked`: `blocked_by` holds ticket ids, and a placeholder ticket
+filed so that `blocked_by` has something to hold is the dishonesty this status removes (D-174).
+
+Both `--reason` and `--recheck` are mandatory and the script refuses without them. The re-check is
+**runnable shell** — the cheap two-minute version of the ticket, not the ticket. Write one that
+prints a one-line verdict on both paths, because its last line is what `recheck` reports.
+
+`SCRIPT recheck` runs them and **reports**. It never un-defers, and neither do you silently: if a
+re-check passes, say so and let the operator decide, then `SCRIPT resume`. A ticket that returns to
+the backlog without anyone reading why is the failure this status was invented to prevent.
+
+Run `SCRIPT recheck` as part of `sync`, and report any that now pass.
 
 ## `triage`
 

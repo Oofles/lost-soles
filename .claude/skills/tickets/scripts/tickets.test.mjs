@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -1140,6 +1140,236 @@ describe("0135 — next refuses to advance into a new capability until the previ
     ticket(d, "open", FM({ id: 9, slug: "loose", capability: "null", type: "chore", priority: "high" }), BODY_OK);
     const r = run(d, "next");
     assert.equal(r.code, 0, r.out);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────── 0136 ────
+
+describe("0136 — deferred: work that is correct, specified, and waiting on a third party", () => {
+  const BODY_OK = "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n";
+  const bodyOf = (d, id, slug) => readFileSync(join(d, "tickets/open", `${String(id).padStart(4, "0")}-${slug}.md`), "utf8");
+
+  /** A repo with one open ticket, ready to be deferred. */
+  function one(extra = {}) {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "open", FM(extra), BODY_OK);
+    return d;
+  }
+
+  test("defer refuses without a reason, and without a re-check — both are mandatory", () => {
+    const d = one();
+    const noReason = run(d, "defer", "1", "--recheck", "true");
+    assert.notEqual(noReason.code, 0);
+    assert.match(noReason.out, /requires --reason/);
+
+    const noCheck = run(d, "defer", "1", "--reason", "npm has not shipped the fix");
+    assert.notEqual(noCheck.code, 0);
+    assert.match(noCheck.out, /requires --recheck/);
+
+    // Neither refusal may leave the ticket half-deferred.
+    assert.match(bodyOf(d, 1, "a-ticket"), /status: open/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("defer writes the section, stamps the frontmatter, and the result validates", () => {
+    const d = one();
+    const r = run(d, "defer", "1", "--reason", "npm has not shipped the fix", "--recheck", "npm ci\necho done");
+    assert.equal(r.code, 0, r.out);
+    const body = bodyOf(d, 1, "a-ticket");
+    assert.match(body, /^status: deferred$/m);
+    assert.match(body, /^deferred: \d{4}-\d\d-\d\dT/m);
+    assert.match(body, /## Deferred/);
+    assert.match(body, /\*\*Reason:\*\* npm has not shipped the fix/);
+    assert.match(body, /```sh\nnpm ci\necho done\n```/);
+    // The section lands between Description and the next heading, not at the end.
+    assert.ok(body.indexOf("## Deferred") > body.indexOf("## Description"));
+    assert.ok(body.indexOf("## Deferred") < body.indexOf("## Acceptance criteria"));
+    assert.equal(run(d, "validate").code, 0, run(d, "validate").out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("defer refuses a blocked ticket and says why the two are different", () => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "open", FM({ id: 1, slug: "a", status: "blocked", blocked_by: [2] }), BODY_OK);
+    ticket(d, "open", FM({ id: 2, slug: "b" }), BODY_OK);
+    const r = run(d, "defer", "1", "--reason", "waiting", "--recheck", "true");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /that is 'blocked', not 'deferred'/i);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("defer refuses a closed ticket", () => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      BODY_OK + "\n## Resolution\n\nx\n");
+    const r = run(d, "defer", "1", "--reason", "waiting", "--recheck", "true");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /Only a live ticket can be deferred/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("validate errors on a deferral with no reason, and on one with no re-check", () => {
+    // The two failures are separate rules because the right fix differs: one is
+    // "say what you are waiting for", the other is "say how anyone would know".
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "open", FM({ id: 1, slug: "a", status: "deferred", deferred: "2026-09-01T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Deferred\n\n```sh\ntrue\n```\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n");
+    ticket(d, "open", FM({ id: 2, slug: "b", status: "deferred", deferred: "2026-09-01T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Deferred\n\n**Reason:** npm\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n");
+    ticket(d, "open", FM({ id: 3, slug: "c", status: "deferred", deferred: "2026-09-01T00:00:00Z" }), BODY_OK);
+
+    const r = run(d, "validate");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /0001-a\.md\s+\[deferred-reason\]/);
+    assert.match(r.out, /0002-b\.md\s+\[deferred-recheck\]/);
+    assert.match(r.out, /0003-c\.md\s+\[deferred-section\]/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("validate errors on a deferred: stamp without the status, and vice versa", () => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "open", FM({ id: 1, slug: "a", deferred: "2026-09-01T00:00:00Z" }), BODY_OK);
+    const r = run(d, "validate");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /\[deferred-stamp\].*status is 'open'/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("an unterminated fence yields no re-check rather than feeding the rest of the ticket to bash", () => {
+    const d = deferral("\n## Deferred\n\n**Reason:** r\n\n```sh\nrm -rf /\n\n## Notes\n\nx\n");
+    assert.equal(d.found, true);
+    assert.equal(d.reason, "r");
+    assert.equal(d.recheck, "");
+  });
+
+  test("a deferred ticket is not ready, is not offered by next, and is counted aloud", () => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", "00-x.md"), "# 00-x\n");
+    ticket(d, "open", FM({ id: 1, slug: "a", priority: "high" }), BODY_OK);
+    ticket(d, "open", FM({ id: 2, slug: "b", priority: "high" }), BODY_OK);
+    run(d, "defer", "1", "--reason", "npm", "--recheck", "true");
+
+    const n = run(d, "next");
+    assert.equal(n.code, 0, n.out);
+    assert.match(n.out, /0002/);
+    assert.doesNotMatch(n.out.split("\n")[0], /0001/);
+    assert.match(n.out, /1 ticket\(s\) deferred/);
+    assert.match(n.out, /never un-defers/);
+
+    const all = run(d, "next", "--all");
+    assert.match(all.out, /\[DEFERRED\]/);
+    assert.match(all.out, /1 ready, 1 deferred on something outside the project/);
+
+    const json = JSON.parse(run(d, "next", "--json").out);
+    assert.equal(json.id, 2);
+    assert.equal(json.deferred, 1);
+
+    const idx = JSON.parse(readFileSync(join(d, "tickets/index.json"), "utf8"));
+    assert.equal(idx.find((t) => t.id === 1).ready, false);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("recheck reports and changes nothing — a passing check does not un-defer", () => {
+    const d = one();
+    run(d, "defer", "1", "--reason", "npm", "--recheck", "echo the wait is over; exit 0");
+    const before = bodyOf(d, 1, "a-ticket");
+
+    const r = run(d, "recheck");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /PASSES\s+0001/);
+    assert.match(r.out, /Nothing was changed/);
+    assert.match(r.out, /tickets\.mjs resume 0001/);
+    assert.equal(bodyOf(d, 1, "a-ticket"), before, "recheck must never mutate a ticket");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("recheck exits 0 on a failing check — it is a report, not a gate", () => {
+    const d = one();
+    run(d, "defer", "1", "--reason", "npm", "--recheck", "echo still broken; exit 1");
+    const r = run(d, "recheck", "1");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /waits\s+0001/);
+    assert.match(r.out, /every wait is still on/);
+
+    const json = JSON.parse(run(d, "recheck", "--json").out);
+    assert.equal(json.length, 1);
+    assert.equal(json[0].passes, false);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("recheck refuses a ticket that is not deferred", () => {
+    const d = one();
+    const r = run(d, "recheck", "1");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /is not deferred/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("resume returns it to open, keeps the record, and a second defer starts a fresh section", () => {
+    const d = one();
+    run(d, "defer", "1", "--reason", "npm 1", "--recheck", "false");
+    const r = run(d, "resume", "1", "--reason", "npm shipped 1.24.1");
+    assert.equal(r.code, 0, r.out);
+
+    let body = bodyOf(d, 1, "a-ticket");
+    assert.match(body, /^status: open$/m);
+    assert.doesNotMatch(body, /^deferred:/m);
+    assert.match(body, /## Deferred — resumed \d{4}-\d\d-\d\d/);
+    assert.match(body, /\*\*Resumed \d{4}-\d\d-\d\d:\*\* npm shipped 1\.24\.1/);
+    assert.match(body, /npm 1/, "the reason it was deferred stays in the record");
+    assert.equal(run(d, "validate").code, 0, run(d, "validate").out);
+
+    // A second deferral must not read the first one's stale re-check.
+    run(d, "defer", "1", "--reason", "npm 2", "--recheck", "second-check");
+    body = bodyOf(d, 1, "a-ticket");
+    assert.match(body, /```sh\nsecond-check\n```/);
+    const r2 = run(d, "recheck", "--json");
+    assert.match(JSON.parse(r2.out)[0].detail, /second-check/, "the fresh block is the one that runs");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("resume refuses a ticket that is not deferred", () => {
+    const d = one();
+    const r = run(d, "resume", "1");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /is not deferred/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the audit's capability-tickets-closed passes with a deferral, and names it", () => {
+    // The whole point of the ticket: one npm bug must not hold a capability, but
+    // a capability that passed with work outstanding must never read as clean.
+    const d = repo();
+    const cap = "00-x";
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n\n## Reflection\n\n` +
+      "The design got the validator's flat rule list right, which is why conformance could be checked line by line rather than argued about. ".repeat(3) + "\n");
+    ticket(d, "closed", FM({ id: 1, slug: "a", status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    ticket(d, "open", FM({ id: 2, slug: "b" }), BODY_OK);
+
+    const before = run(d, "audit", cap);
+    assert.notEqual(before.code, 0);
+    assert.match(before.out, /FAIL\s+capability-tickets-closed\s+1 still open: 0002/);
+
+    run(d, "defer", "2", "--reason", "npm ships nothing", "--recheck", "false");
+    const after = run(d, "audit", cap);
+    assert.equal(after.code, 0, after.out);
+    assert.match(after.out, /capability-tickets-closed\s+1 closed; 1 deferred \(0002\)/);
+
+    const rec = run(d, "audit", cap, "--record", "--no-divergences");
+    assert.equal(rec.code, 0, rec.out);
+    const doc = readFileSync(join(d, "docs/capabilities", `${cap}.md`), "utf8");
+    assert.match(doc, /Deferred, and therefore excluded/);
+    assert.match(doc, /`0002`/);
+    const record = [...doc.matchAll(/<!--\s*audit-record\s+(\{.*?\})\s*-->/g)].map((m) => JSON.parse(m[1])).pop();
+    assert.equal(record.verdict, "pass", "a deferral must not force the verdict");
+    assert.deepEqual(record.deferred, ["0002"]);
     rmSync(d, { recursive: true, force: true });
   });
 });

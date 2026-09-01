@@ -4,13 +4,14 @@ slug: restore-npm-ci-in-amplify-yml-once-the-amplify-gen-2-bundled
 title: Restore npm ci in amplify.yml once the Amplify Gen 2 bundled-dependency defect is fixed upstream
 type: chore
 priority: med
-status: open
+status: deferred
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-08-31T13:22:07Z
+deferred: 2026-09-01T20:29:27Z
 ---
 
 ## Description
@@ -28,6 +29,32 @@ tried and did not work, are in D-162.
 What is lost meanwhile is real: `npm ci` is what makes a build FAIL when `package.json` and
 `package-lock.json` have drifted apart. `--no-save` installs from the lock and leaves it
 byte-identical, but it will not shout when they disagree.
+
+## Deferred
+
+**Reason:** `npm ci` cannot install the Amplify Gen 2 dependency set at all: `@aws-amplify/data-construct` and `@aws-amplify/graphql-api-construct` ship internally inconsistent **bundled** dependency trees, which `npm ci` validates strictly and refuses. The fix is upstream, in someone else's tarball — there is no ticket in this backlog that can clear it, which is why this is `deferred` and not `blocked`. Full evidence, and the five things that were tried, are in D-162.
+
+**Re-check** — the cheap test that says the wait is over. `tickets.mjs recheck 0128`
+runs it and reports the result; nothing un-defers on its own. When it exits 0, read the
+output and `tickets.mjs resume 0128`.
+
+```sh
+# The two-line reproduction from criterion 1, self-contained. The version is read
+# from this repo's package.json rather than pinned, so the check cannot go stale
+# against a project that has since bumped @aws-amplify/backend. Both exits print a
+# one-line verdict, because the last line is what `recheck` reports.
+ver=$(node -p "require('./package.json').devDependencies['@aws-amplify/backend']")
+dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
+echo "{\"name\":\"r\",\"devDependencies\":{\"@aws-amplify/backend\":\"$ver\"}}" > "$dir/package.json"
+cd "$dir" && npm install --silent >/dev/null 2>&1 && rm -rf node_modules
+if npm ci >ci.log 2>&1; then
+  echo "npm ci SUCCEEDS on @aws-amplify/backend $ver — D-162's retreat can be reversed"
+else
+  echo "npm ci still fails on $ver: $(grep -m1 'npm error Missing' ci.log || echo 'see ci.log')"
+  exit 1
+fi
+```
+
 
 ## Acceptance criteria
 

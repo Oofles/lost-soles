@@ -27,12 +27,12 @@ const INDEX = "tickets/index.json";
 const FIELD_ORDER = [
   "id", "slug", "title", "type", "priority", "status", "size",
   "capability", "depends_on", "blocked_by", "source",
-  "created", "started", "closed",
+  "created", "started", "deferred", "closed",
 ];
 const ENUMS = {
   type: ["feature", "bug", "design", "chore", "refactor", "docs"],
   priority: ["high", "med", "low"],
-  status: ["inbox", "open", "blocked", "closed"],
+  status: ["inbox", "open", "blocked", "deferred", "closed"],
   size: ["s", "m", "l"],
   source: ["ui", "agent", "operator"],
 };
@@ -141,6 +141,92 @@ function acceptance(body) {
 }
 
 const hasSection = (body, name) => new RegExp(`^##\\s+${name}\\s*$`, "im").test(body);
+
+/**
+ * The `## Deferred` section: why the wait, and the cheap test that says it is over.
+ *
+ * `deferred` (0136) is for work that is specified, correct, and unworkable because
+ * something OUTSIDE the project has not happened yet. It is not `blocked` —
+ * `blocked_by` holds ticket ids, and there is no ticket for "npm fixes its
+ * tarballs". It is not `open`, which claims the work is available and makes every
+ * future session re-derive that it is not.
+ *
+ * Both halves are mandatory and `validate` errors without them. A deferral with no
+ * reason is indistinguishable from a ticket nobody got to; a deferral with no
+ * re-check is a wait with no end condition, which is how a ticket goes quiet for a
+ * year. The re-check is a fenced shell block rather than a frontmatter field
+ * because the frontmatter parser is deliberately flat and one-line, and a real
+ * re-check is not — 0128's is three commands.
+ *
+ * The block is RUN by `recheck` and REPORTED. Nothing un-defers on its own: leaving
+ * the state is `resume`, typed by someone who read the result. A ticket that
+ * silently un-defers is a ticket nobody looks at.
+ */
+function deferral(body) {
+  let inSec = false, found = false;
+  const sec = [];
+  for (const l of body.split("\n")) {
+    if (/^##\s/.test(l)) { inSec = /^##\s+Deferred\s*$/i.test(l); if (inSec) found = true; continue; }
+    if (inSec) sec.push(l);
+  }
+  const reason = (sec.map((l) => /^\*\*Reason:\*\*\s*(.*)$/.exec(l.trim())).find(Boolean)?.[1] ?? "").trim();
+  const open = sec.findIndex((l) => /^```[a-z]*\s*$/.test(l.trim()));
+  let recheck = "";
+  if (open !== -1) {
+    const rest = sec.slice(open + 1);
+    const end = rest.findIndex((l) => l.trim() === "```");
+    // An unterminated fence yields "", which validate reports. Guessing where the
+    // block ends would silently hand `bash -c` the rest of the ticket.
+    if (end !== -1) recheck = rest.slice(0, end).join("\n").trim();
+  }
+  return { found, reason, recheck };
+}
+
+/** The section `defer` writes. The doctrine is in the file, not only in the script. */
+const deferredSection = (reason, recheck, id) => [
+  "",
+  "## Deferred",
+  "",
+  `**Reason:** ${reason}`,
+  "",
+  "**Re-check** — the cheap test that says the wait is over. `tickets.mjs recheck " + pad(id) + "`",
+  "runs it and reports the result; nothing un-defers on its own. When it exits 0, read the",
+  "output and `tickets.mjs resume " + pad(id) + "`.",
+  "",
+  "```sh",
+  recheck,
+  "```",
+  "",
+].join("\n");
+
+/** Insert a block immediately after the named section, or at the end if absent. */
+function insertAfterSection(body, after, block) {
+  const lines = body.split("\n");
+  const i = lines.findIndex((l) => new RegExp(`^##\\s+${after}\\s*$`, "i").test(l));
+  if (i === -1) return body.replace(/\s*$/, "\n") + block;
+  let j = i + 1;
+  while (j < lines.length && !/^##\s/.test(lines[j])) j++;
+  while (j > i + 1 && !lines[j - 1].trim()) j--;   // keep the blank line before the next heading
+  return [...lines.slice(0, j), ...block.split("\n"), ...lines.slice(j)].join("\n");
+}
+
+/**
+ * `resume` renames the heading rather than deleting the section: the record of what
+ * was waited on, and why, is worth more than a tidy file. Renaming also means a
+ * second deferral opens a FRESH `## Deferred` — without it, `deferral()` would read
+ * the stale re-check from the first one and `recheck` would run the wrong test.
+ */
+function closeDeferredSection(body, stamp, note) {
+  const lines = body.split("\n");
+  const i = lines.findIndex((l) => /^##\s+Deferred\s*$/i.test(l));
+  if (i === -1) return body;
+  let j = i + 1;
+  while (j < lines.length && !/^##\s/.test(lines[j])) j++;
+  let k = j;
+  while (k > i + 1 && !lines[k - 1].trim()) k--;
+  lines[i] = `## Deferred — resumed ${stamp}`;
+  return [...lines.slice(0, k), "", note, "", ...lines.slice(j)].join("\n");
+}
 
 /**
  * Which `## sections` a ticket body must carry, and under what condition.
@@ -276,12 +362,27 @@ function validate(tickets) {
       else seenIds.set(fm.id, t.path);
     }
 
-    const folderStatus = { inbox: ["inbox"], open: ["open", "blocked"], closed: ["closed"] }[folder];
+    const folderStatus = { inbox: ["inbox"], open: ["open", "blocked", "deferred"], closed: ["closed"] }[folder];
     if (fm.status && !folderStatus.includes(fm.status)) E("status-folder", `status '${fm.status}' disagrees with folder '${folder}/'`);
 
     const blocked = (fm.blocked_by ?? []).length > 0;
     if (blocked && fm.status !== "blocked") E("blocked-status", `blocked_by is non-empty but status is '${fm.status}'`);
     if (!blocked && fm.status === "blocked") E("blocked-status", `status is 'blocked' but blocked_by is empty`);
+
+    // A deferral must say what it is waiting on and how anyone would know it is
+    // over. Neither is optional, because a deferred ticket is one nobody will look
+    // at again until something makes them (0136).
+    if (fm.status === "deferred") {
+      const d = deferral(body);
+      if (!("deferred" in fm)) E("deferred-stamp", "status is 'deferred' but there is no 'deferred:' timestamp");
+      if (!d.found) E("deferred-section", "status is 'deferred' but there is no '## Deferred' section");
+      else {
+        if (!d.reason) E("deferred-reason", "'## Deferred' has no '**Reason:**' line — what is this waiting on?");
+        if (!d.recheck) E("deferred-recheck", "'## Deferred' has no fenced re-check block — a wait with no end condition");
+      }
+    } else if ("deferred" in fm) {
+      E("deferred-stamp", `'deferred:' is present on a ticket whose status is '${fm.status}'`);
+    }
 
     for (const field of ["depends_on", "blocked_by"]) {
       for (const d of fm[field] ?? []) {
@@ -515,12 +616,20 @@ function auditChecks(capability, tickets) {
     ? FAIL("blocked-by-closed", "5", staleBlocks.join("; "))
     : PASS("blocked-by-closed", "5", "no blocked_by points at a closed ticket"));
 
+  // A `deferred` ticket (0136) does not hold a capability open: it is correct,
+  // specified, and waiting on something the project does not control. It IS named
+  // in both the row and the recorded audit, so a capability that passed with three
+  // deferrals never reads as one that passed clean.
   const mine = tickets.filter((t) => t.fm?.capability === capability);
-  const openInCap = mine.filter((t) => t.fm.status !== "closed");
+  const deferredInCap = mine.filter((t) => t.fm.status === "deferred");
+  const openInCap = mine.filter((t) => !["closed", "deferred"].includes(t.fm.status));
+  const defNote = deferredInCap.length
+    ? `; ${deferredInCap.length} deferred (${deferredInCap.map((t) => pad(t.fm.id)).join(", ")})`
+    : "";
   checks.push(openInCap.length
     ? FAIL("capability-tickets-closed", "5",
-        `${openInCap.length} still open: ${openInCap.map((t) => pad(t.fm.id)).join(", ")}`)
-    : PASS("capability-tickets-closed", "5", `all ${mine.length} tickets closed`));
+        `${openInCap.length} still open: ${openInCap.map((t) => pad(t.fm.id)).join(", ")}${defNote}`)
+    : PASS("capability-tickets-closed", "5", `${mine.length - deferredInCap.length} closed${defNote}`));
 
   return checks;
 }
@@ -741,6 +850,8 @@ function cmdAudit(capability, flags) {
     mechanical: { pass: checks.length - failed.length - na.length, fail: failed.length, na: na.length },
     divergences: divergences.length,
   };
+  const deferredInCap = tickets.filter((t) => t.fm?.capability === capability && t.fm.status === "deferred");
+  if (deferredInCap.length) record.deferred = deferredInCap.map((t) => pad(t.fm.id));
   if (problems.length) record.forced = String(force);
 
   const lines = [
@@ -754,6 +865,12 @@ function cmdAudit(capability, flags) {
   if (problems.length) {
     lines.push(`> **Overridden with \`--force\`.** Reason: ${force}`, ``,
                ...problems.map((p) => `> - ${p.split("\n")[0]}`), ``);
+  }
+  if (deferredInCap.length) {
+    lines.push(`**Deferred, and therefore excluded from \`capability-tickets-closed\`:** ` +
+               deferredInCap.map((t) => `\`${pad(t.fm.id)}\` ${t.fm.title}`).join("; ") +
+               `. This capability passed with work outstanding — waiting on something outside the ` +
+               `project, not forgotten. \`tickets.mjs recheck\` reports whether any wait is over.`, ``);
   }
   lines.push(divergences.length
     ? `**Divergences (${divergences.length} of a budget of 3):**`
@@ -929,11 +1046,20 @@ const isGated = (t, tickets) => auditBlockers(t.fm?.capability, tickets).length 
 function cmdNext(flags) {
   const ts = load();
   const ready = readySet(ts);
+  // isReady already excludes `deferred`, so a deferred ticket is never offered as
+  // workable. It is still counted aloud (0136): a backlog that hides its deferrals
+  // is one where "nothing is ready" and "everything is waiting on npm" look alike.
+  const deferred = ts.filter((t) => t.fm?.status === "deferred").sort((a, b) => a.fm.id - b.fm.id);
+  const defTail = deferred.length
+    ? `\n\n  ${deferred.length} ticket(s) are deferred, waiting on something outside the project:\n` +
+      deferred.map((t) => `    ${pad(t.fm.id)}  ${t.fm.title}`).join("\n") +
+      `\n  'tickets.mjs recheck' runs their re-checks and reports; it never un-defers.`
+    : "";
   if (!ready.length) {
     const open = ts.filter((t) => t.fm && ["open", "blocked"].includes(t.fm.status));
-    if (!open.length) die("nothing open. Every ticket is closed or in the inbox.");
+    if (!open.length) die(`nothing open. Every ticket is closed, deferred or in the inbox.${defTail}`);
     die(`nothing is ready. ${open.length} ticket(s) are open, but all are blocked or waiting on\n` +
-        `  unclosed dependencies. Run 'tickets.mjs list --status blocked' to see why.`);
+        `  unclosed dependencies. Run 'tickets.mjs list --status blocked' to see why.${defTail}`);
   }
 
   const gate = new Map(ready.map((t) => [t.fm.id, auditBlockers(t.fm.capability, ts)]));
@@ -946,7 +1072,12 @@ function cmdNext(flags) {
       const mark = blockers.length ? `[GATED on ${blockers[0]}] ` : "";
       console.log(`  ${pad(t.fm.id)}  ${t.fm.priority.padEnd(5)}${t.fm.size === "l" ? "[SIZE:L — SPLIT] " : ""}${mark}${t.fm.title}`);
     }
-    console.log(`\n  ${ready.length} ready${ready.length - open_.length ? `, ${ready.length - open_.length} gated on an unaudited capability` : ""}`);
+    for (const t of deferred) {
+      console.log(`  ${pad(t.fm.id)}  ${t.fm.priority.padEnd(5)}[DEFERRED] ${t.fm.title}`);
+    }
+    console.log(`\n  ${ready.length} ready` +
+      `${ready.length - open_.length ? `, ${ready.length - open_.length} gated on an unaudited capability` : ""}` +
+      `${deferred.length ? `, ${deferred.length} deferred on something outside the project` : ""}`);
     return;
   }
 
@@ -967,13 +1098,18 @@ function cmdNext(flags) {
         `  'l' is a smell recorded honestly, not a valid plan. Split it into two tickets\n` +
         `  before starting, or pick another with 'tickets.mjs next --all'.`);
   }
-  if (flags.json) return console.log(JSON.stringify({ ...t.fm, path: t.path, gated: ready.length - open_.length }, null, 2));
+  if (flags.json) return console.log(JSON.stringify({ ...t.fm, path: t.path, gated: ready.length - open_.length, deferred: deferred.length }, null, 2));
   console.log(`  ${pad(t.fm.id)}  ${t.fm.title}\n  ${t.path}`);
   const gated = ready.length - open_.length;
   if (gated) {
     const blocker = gate.get(ready.find((r) => gate.get(r.fm.id).length).fm.id)[0];
     console.log(`\n  ${gated} higher-priority ticket(s) are gated on capability '${blocker}' —`);
     console.log(`  its audit has not passed. 'tickets.mjs audit ${blocker}' to start it.`);
+  }
+  if (deferred.length) {
+    console.log(`\n  ${deferred.length} ticket(s) deferred, waiting on something outside the project` +
+                ` (${deferred.map((d) => pad(d.fm.id)).join(", ")}).`);
+    console.log(`  'tickets.mjs recheck' reports whether any wait is over. It never un-defers.`);
   }
 }
 
@@ -1048,6 +1184,110 @@ function cmdUnblock(id, flags) {
   const fm = { ...t.fm, blocked_by: remaining, status: remaining.length ? "blocked" : "open" };
   rewrite(t, fm); writeIndex();
   console.log(`${pad(t.fm.id)} unblocked from ${pad(on)} — status now ${fm.status}`);
+}
+
+/**
+ * `defer` and `resume` — entering and leaving the fifth status (0136).
+ *
+ * Deliberately NOT a `git mv`: `deferred` lives in `open/` exactly as `blocked`
+ * does. The folder is the coarse state — untriaged / live / done — and a deferred
+ * ticket is still live work, just not available. Both commands maintain
+ * `index.json`, so no frontmatter is ever hand-edited into this state.
+ */
+function cmdDefer(id, flags) {
+  const ts = load();
+  const t = byId(ts).get(Number(id)) ?? die(`no ticket ${id}`);
+  const reason = typeof flags.reason === "string" ? flags.reason.trim() : "";
+  const file = typeof flags["recheck-file"] === "string" ? flags["recheck-file"] : null;
+  const recheck = file
+    ? readFileSync(existsSync(file) ? file : join(ROOT, file), "utf8").trim()
+    : (typeof flags.recheck === "string" ? flags.recheck.trim() : "");
+
+  if (!reason) {
+    die(`defer requires --reason "…".\n` +
+        `  Say what is being waited on, and name the third party. A deferral with no reason is\n` +
+        `  indistinguishable from a ticket nobody got around to — which is the thing this\n` +
+        `  status exists to stop looking the same.`);
+  }
+  if (!recheck) {
+    die(`defer requires --recheck "<shell>" (or --recheck-file <path>).\n` +
+        `  The cheap test that says the wait is over — the two-minute version, not the ticket.\n` +
+        `  It is run by 'tickets.mjs recheck' and REPORTED; nothing un-defers on its own.\n` +
+        `  A deferral with no re-check is a wait with no end condition.`);
+  }
+  if (t.folder !== "open") {
+    die(`${pad(t.fm.id)} is in ${t.folder}/. Only a live ticket can be deferred — a closed one is\n` +
+        `  done and an inbox item is not yet a ticket.`);
+  }
+  if (t.fm.status === "deferred") die(`${pad(t.fm.id)} is already deferred. 'resume ${pad(t.fm.id)}' first if the wait is over.`);
+  if ((t.fm.blocked_by ?? []).length) {
+    die(`${pad(t.fm.id)} has blocked_by ${(t.fm.blocked_by).map(pad).join(", ")}. That is 'blocked', not 'deferred'.\n` +
+        `  'blocked' means another ticket in this backlog has to land first, and closing it clears\n` +
+        `  the block automatically. 'deferred' means nothing in this backlog can clear it. Unblock\n` +
+        `  first if the dependency was really an external wait.`);
+  }
+
+  const fm = { ...t.fm, status: "deferred", deferred: new Date().toISOString().replace(/\.\d+Z$/, "Z") };
+  rewrite(t, fm, insertAfterSection(t.body, "Description", deferredSection(reason, recheck, t.fm.id)));
+  writeIndex();
+  console.log(`deferred ${pad(t.fm.id)} — out of the ready set, and out of its capability's close gate.`);
+  console.log(`  'tickets.mjs recheck ${pad(t.fm.id)}' runs the re-check; 'resume ${pad(t.fm.id)}' brings it back.`);
+}
+
+function cmdResume(id, flags) {
+  const ts = load();
+  const t = byId(ts).get(Number(id)) ?? die(`no ticket ${id}`);
+  if (t.fm.status !== "deferred") die(`${pad(t.fm.id)} is not deferred (status: ${t.fm.status}). Nothing changed.`);
+  const fm = { ...t.fm, status: "open" };
+  delete fm.deferred;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const note = `**Resumed ${stamp}:** ${flags.reason ?? "the wait is over — re-check read by hand."}`;
+  rewrite(t, fm, closeDeferredSection(t.body, stamp, note));
+  writeIndex();
+  console.log(`resumed ${pad(t.fm.id)} — status now open, back in the ready set and back in`);
+  console.log(`  '${t.fm.capability}'s close gate. The old '## Deferred' section is kept, renamed.`);
+}
+
+/**
+ * `recheck` — runs the re-check condition and REPORTS. It changes nothing, ever.
+ *
+ * Criterion 5 of 0136: leaving the state is not automatic. A ticket that silently
+ * un-defers is a ticket nobody looks at, and the whole value of the status is that
+ * somebody reads the result and decides. So this exits 0 whatever the outcome —
+ * it is a report, not a gate, and a failing re-check is the expected case.
+ */
+function cmdRecheck(id, flags) {
+  const ts = load();
+  const targets = id
+    ? [byId(ts).get(Number(id)) ?? die(`no ticket ${id}`)]
+    : ts.filter((t) => t.fm?.status === "deferred").sort((a, b) => a.fm.id - b.fm.id);
+  if (id && targets[0].fm.status !== "deferred") {
+    die(`${pad(targets[0].fm.id)} is not deferred (status: ${targets[0].fm.status}) — there is no re-check to run.`);
+  }
+  if (!targets.length) {
+    if (flags.json) return console.log("[]");
+    return console.log(`\n  no deferred tickets — nothing is waiting on anything outside the project.\n`);
+  }
+
+  const results = [];
+  for (const t of targets) {
+    const { recheck } = deferral(t.body);
+    if (!recheck) {
+      results.push({ id: t.fm.id, title: t.fm.title, passes: false, detail: "no fenced re-check block (validate reports this)" });
+      continue;
+    }
+    const r = runCheck("bash", ["-c", recheck], { timeout: 600_000 });
+    results.push({ id: t.fm.id, title: t.fm.title, passes: r.ok, detail: r.detail });
+  }
+  if (flags.json) return console.log(JSON.stringify(results, null, 2));
+
+  console.log(`\n  re-checks — reported, never acted on\n`);
+  for (const r of results) console.log(`   ${r.passes ? "PASSES" : " waits"}  ${pad(r.id)}  ${r.detail}`);
+  const passing = results.filter((r) => r.passes);
+  console.log(passing.length
+    ? `\n  ${passing.length} wait(s) may be over. Nothing was changed — read the output, then:\n` +
+      passing.map((r) => `    tickets.mjs resume ${pad(r.id)}`).join("\n") + "\n"
+    : `\n  every wait is still on. Nothing to do.\n`);
 }
 
 function cmdClose(id, flags) {
@@ -1158,6 +1398,9 @@ if (isMain) try {
     case "start": cmdStart(positional[0]); break;
     case "block": cmdBlock(positional[0], flags); break;
     case "unblock": cmdUnblock(positional[0], flags); break;
+    case "defer": cmdDefer(positional[0], flags); break;
+    case "resume": cmdResume(positional[0], flags); break;
+    case "recheck": cmdRecheck(positional[0], flags); break;
     case "close": cmdClose(positional[0], flags); break;
     case "triage-move": cmdTriageMove(positional[0], flags); break;
     case "audit": cmdAudit(positional[0], flags); break;
@@ -1174,15 +1417,18 @@ if (isMain) try {
   start <id>
   block <id> --on <id> [--reason "..."]
   unblock <id> --on <id>
+  defer <id> --reason "..." --recheck "<shell>" | --recheck-file <path>
+  resume <id> [--reason "..."]
+  recheck [<id>]              run deferred tickets' re-checks and REPORT; never un-defers
   close <id> [--allow-dirty]
   triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
   audit <capability>          AUDIT.md mechanical checks; exit 1 on any failure
 
-  --json works on index, list, show, validate, next, create, audit.`);
+  --json works on index, list, show, validate, next, create, audit, recheck.`);
       process.exit(cmd ? 1 : 0);
   }
 } catch (err) {
   die(err.message);
 }
 
-export { auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
