@@ -3016,6 +3016,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T20:10:12Z",
+    "started": "2026-09-01T19:03:04Z",
     "path": "tickets/open/0131-sandbox-stack-is-update-failed-its-cognito-pool-predates-001.md",
     "ready": true,
     "acceptance": {
@@ -3113,6 +3114,26 @@
     "acceptance": {
       "checked": 5,
       "total": 5
+    }
+  },
+  {
+    "id": 136,
+    "slug": "a-ticket-status-for-work-waiting-on-a-third-party-excluded-f",
+    "title": "A ticket status for work waiting on a third party, excluded from the capability close gate",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T19:04:02Z",
+    "path": "tickets/open/0136-a-ticket-status-for-work-waiting-on-a-third-party-excluded-f.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
     }
   },
   {
