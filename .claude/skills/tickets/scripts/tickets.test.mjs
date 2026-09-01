@@ -753,3 +753,142 @@ describe("0127 — create derives a valid slug from a title long enough to trunc
     rmSync(d, { recursive: true, force: true });
   });
 });
+
+// ──────────────────────────────────────────── 0133 the audit mechanical checks ────
+
+describe("0133 — audit runs AUDIT.md's mechanical half and is honest about what it cannot run", () => {
+  const withCap = (d, name = "00-x") => {
+    writeFileSync(join(d, "docs/capabilities", `${name}.md`), "# cap\n");
+    return name;
+  };
+  const auditJson = (d, cap) => JSON.parse(run(d, "audit", cap, "--json").out);
+
+  test("every n/a result carries a reason — an empty one is a bug, not a shortcut", () => {
+    // The whole design: "could not check" must survive into the output as
+    // something other than "checked". A blank reason collapses the two again.
+    const d = repo();
+    const cap = withCap(d);
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    const { checks } = auditJson(d, cap);
+    const nas = checks.filter((c) => c.status === "na");
+    assert.ok(nas.length >= 4, `expected several n/a on a bare repo, got ${nas.length}`);
+    for (const c of checks) {
+      assert.ok(c.detail && c.detail.trim().length > 0, `check '${c.id}' has an empty detail`);
+      if (c.status === "na") {
+        assert.ok(c.detail.length > 25, `n/a reason for '${c.id}' is too thin to be useful: '${c.detail}'`);
+        assert.ok(/exist|no |activat|add one|until|yet/i.test(c.detail),
+          `n/a reason for '${c.id}' does not say what would make it applicable: '${c.detail}'`);
+      }
+    }
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("n/a alone exits 0 — an inapplicable check is not a failure", () => {
+    const d = repo();
+    const cap = withCap(d);
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    const r = run(d, "audit", cap);
+    assert.equal(r.code, 0, `a repo whose checks are all pass-or-n/a must exit 0:\n${r.out}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("an open ticket in the capability fails the audit and is named", () => {
+    const d = repo();
+    const cap = withCap(d);
+    ticket(d, "open", FM({ capability: cap }));
+    const r = run(d, "audit", cap);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /capability-tickets-closed/);
+    assert.match(r.out, /0001/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a blocked_by pointing at a closed ticket fails §5", () => {
+    const d = repo();
+    const cap = withCap(d);
+    const closed = "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n";
+    ticket(d, "closed", FM({ id: 1, status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }), closed);
+    ticket(d, "open", FM({ id: 2, slug: "b", status: "blocked", blocked_by: [1], capability: "99-other" }));
+    const { checks } = auditJson(d, cap);
+    const c = checks.find((x) => x.id === "blocked-by-closed");
+    assert.equal(c.status, "fail", c.detail);
+    assert.match(c.detail, /0002 blocked_by 0001/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the invariant sweep parses I-n rows and goes live once a test cites one", () => {
+    const d = repo();
+    const cap = withCap(d);
+    mkdirSync(join(d, "docs"), { recursive: true });
+    writeFileSync(join(d, "docs/02-data-model.md"),
+      "## 9. Invariants\n\n| **I-1** | never re-fog | why | **[S]** enforced |\n| **I-2** | xp only grows | why | CI |\n");
+
+    // No citation anywhere: n/a, and the reason names the activation condition.
+    let c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /2 invariants declared/);
+    assert.match(c.detail, /activates/);
+
+    // One cited, one not: live, and it names the gap rather than the coverage.
+    mkdirSync(join(d, "src"), { recursive: true });
+    writeFileSync(join(d, "src/cells.test.mjs"), "// asserts I-1 holds\n");
+    c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+    assert.equal(c.status, "fail");
+    assert.match(c.detail, /I-2/);
+    assert.ok(!/I-1\b/.test(c.detail.replace(/1\/2/, "")), `I-1 is cited and must not be listed as missing: ${c.detail}`);
+
+    // Both cited: pass.
+    writeFileSync(join(d, "src/xp.test.mjs"), "// asserts I-2 holds\n");
+    c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+    assert.equal(c.status, "pass", c.detail);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a citation outside the app roots does not activate the sweep", () => {
+    // Regression: 0133's own test carries `| **I-1** |` rows as fixture data,
+    // and scanning the whole repo let that trip the sweep against the real
+    // backlog — 28 uncited invariants reported from a string describing the
+    // check itself.
+    const d = repo();
+    const cap = withCap(d);
+    mkdirSync(join(d, "docs"), { recursive: true });
+    writeFileSync(join(d, "docs/02-data-model.md"), "| **I-1** | never re-fog | why | CI |\n");
+    mkdirSync(join(d, ".claude/skills/x"), { recursive: true });
+    writeFileSync(join(d, ".claude/skills/x/tool.test.mjs"), "const fixture = '| **I-1** | never re-fog |';\n");
+    const c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+    assert.equal(c.status, "na", `tooling fixtures must not activate the sweep: ${c.detail}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("an unknown capability is refused and the real ones are listed", () => {
+    const d = repo();
+    withCap(d, "00-preflight-and-repo");
+    withCap(d, "01-ticket-system");
+    const r = run(d, "audit", "01-ticket-sistem");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /00-preflight-and-repo/);
+    assert.match(r.out, /01-ticket-system/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("audit with no capability names the ones that exist rather than guessing", () => {
+    const d = repo();
+    withCap(d, "01-ticket-system");
+    const r = run(d, "audit");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /01-ticket-system/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the table names §2, §3 and §6 as not run, so a green table is not mistaken for a pass", () => {
+    const d = repo();
+    const cap = withCap(d);
+    const out = run(d, "audit", cap).out;
+    assert.match(out, /mechanical half/i);
+    assert.match(out, /§2/);
+    assert.match(out, /0134/);
+    rmSync(d, { recursive: true, force: true });
+  });
+});

@@ -760,3 +760,36 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     that triage must be finished before committing rather than abandoned halfway.
   - **No ticket in the backlog needed fixing.** All 133 validated clean immediately, as 0011's audit
     predicted — the rule formalises what hand-authoring already did.
+
+---
+
+## The audit's three verdicts  (2026-09-01, ticket 0133)
+
+- **D-171** **An audit check reports `pass`, `fail` or `n/a` — and an `n/a` must name what would make
+  it applicable.** Settled while building the mechanical half of `/tickets audit` (0133), the first
+  of the three tickets 0121 was split into.
+  - **Why a third verdict at all.** Most of `AUDIT.md` targets application code that does not exist
+    yet: no Vigil test (`0030`), no `rules/`, no fog blob, no XP ledger, no `src/pipeline`. A
+    two-verdict audit has to call those checks green, and then the audit reports a pass while having
+    checked almost nothing. Capability `01`'s hand-run audit had already named the failure —
+    *"a checklist that is 60% dishonest ticks is worse than no checklist"* — and marked its
+    inapplicable rows **n/a** by hand. This makes that discipline mechanical.
+  - **The reason is the load-bearing part**, not the verdict. `n/a` with no reason is
+    indistinguishable from a skip, and a skip is how a check disappears permanently. Every `n/a`
+    names its activation condition — "no vigil test exists yet, ticket 0030 puts it permanently in
+    CI", "activates as soon as one test names an `I-n`" — so the audit doubles as the list of what
+    the project has not yet earned the right to check. A test asserts every `n/a` carries one.
+  - **This is D-169 in a second place.** There, a ticked criterion had to carry a dated result so
+    "a human checked it" could not masquerade as "the agent ticked it". Here, a check that could not
+    run must not masquerade as one that passed. The same distinction, one layer up: **the output
+    must preserve the difference between *checked* and *could not check*.**
+  - **`n/a` never fails the run.** It is not a soft failure and must not become one, or the pressure
+    to tick it green returns immediately.
+  - **The invariant sweep self-activates.** It parses the `I-n` rows from `02-data-model.md` §9 and
+    checks which are cited by a test. While no test cites any, it is `n/a` rather than 30 failures —
+    noise on a repo with no domain model would train everyone to ignore the row, which is the same
+    outcome as not having it. It goes live the moment the first test names an invariant.
+  - **The command writes nothing and gates nothing.** That is 0134 (the recorded result, the
+    divergence list, the drift budget) and 0135 (`next` refusing across a capability boundary). A
+    green table from 0133 is explicitly **not** a passed audit, and the command prints that in its
+    own output so the distinction cannot be lost by someone reading only the table.

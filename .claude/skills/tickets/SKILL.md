@@ -2,8 +2,8 @@
 name: tickets
 description: >
   Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage,
-  create, start, block, close, sync. Bare /tickets works the backlog in priority order.
-argument-hint: "[list|show|next|triage|create|start|block|close|sync] [id]"
+  create, start, block, close, sync, audit. Bare /tickets works the backlog in priority order.
+argument-hint: "[list|show|next|triage|create|start|block|close|sync|audit] [id]"
 arguments: [action, id]
 allowed-tools: "Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *), Bash(git *), Read, Edit, Write, Grep, Glob"
 disable-model-invocation: true
@@ -42,6 +42,7 @@ subcommand dispatch, so this table is the dispatch.
 | `close` | **Read `reference.md` first**, then the close procedure | See below |
 | `validate` | `SCRIPT validate` | Report errors verbatim; fix or file, do not silence |
 | `sync` | `git pull --rebase`, then `SCRIPT index`, then `SCRIPT validate` | Report new inbox items by title, with a count |
+| `audit` | `SCRIPT audit $2` | Report the table verbatim. **A green table is not a passed audit** — say which halves did not run |
 | anything else | `SCRIPT` (prints usage) | Say which actions exist |
 
 ## `next`

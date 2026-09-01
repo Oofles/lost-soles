@@ -16,7 +16,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join, basename, relative } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const ROOT = process.env.TICKETS_ROOT ?? new URL("../../../../", import.meta.url).pathname.replace(/\/$/, "");
@@ -346,6 +346,217 @@ function writeIndex(tickets = load()) {
   return data;
 }
 
+// ─────────────────────────────────────────────────────────────────── audit ────
+
+/**
+ * `AUDIT.md`'s mechanical half (D-153), ticket 0133.
+ *
+ * Every check returns one of three verdicts, and the third is the point:
+ *
+ *   pass  ran, and was green
+ *   fail  ran, and was red
+ *   na    could NOT run — with a reason naming what would make it applicable
+ *
+ * Most of AUDIT.md targets application code that does not exist yet. Collapsing
+ * "could not check" into "checked" would make the audit read green while
+ * checking almost nothing, and capability 01's hand-run audit already named the
+ * failure mode: "a checklist that is 60% dishonest ticks is worse than no
+ * checklist." An `na` with no reason is therefore a bug, not a shortcut — same
+ * rule as a ticked (operator) criterion with no sign-off (D-169).
+ *
+ * This command is advisory and writes nothing. The recorded result, the
+ * divergence list and the drift budget are 0134; the gate in `next` is 0135.
+ */
+const PASS = (id, section, detail) => ({ id, section, status: "pass", detail });
+const FAIL = (id, section, detail) => ({ id, section, status: "fail", detail });
+const NA = (id, section, reason) => ({ id, section, status: "na", detail: reason });
+
+/** Run a command, and report only whether it succeeded — audits are not test runners. */
+function runCheck(cmd, args, { timeout = 300_000 } = {}) {
+  const r = spawnSync(cmd, args, { cwd: ROOT, encoding: "utf8", timeout });
+  if (r.error && r.error.code === "ETIMEDOUT") return { ok: false, detail: `timed out after ${timeout / 1000}s` };
+  if (r.error) return { ok: false, detail: r.error.message };
+  const out = ((r.stdout ?? "") + (r.stderr ?? "")).trim().split("\n").filter(Boolean);
+  return { ok: r.status === 0, detail: out.length ? out[out.length - 1].slice(0, 160) : `exit ${r.status}` };
+}
+
+const pkgScripts = () => {
+  try { return JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).scripts ?? {}; }
+  catch { return null; }
+};
+
+/** An npm script check: na when there is no package.json, or no such script in it. */
+function npmCheck(id, section, script) {
+  const scripts = pkgScripts();
+  if (scripts === null) return NA(id, section, "no package.json at the repo root yet — applies once the app exists (ticket 0012)");
+  if (!scripts[script]) return NA(id, section, `package.json has no '${script}' script — add one to activate this check`);
+  const { ok, detail } = runCheck("npm", ["run", "--silent", script]);
+  return ok ? PASS(id, section, `npm run ${script}`) : FAIL(id, section, detail);
+}
+
+/**
+ * The invariant sweep. `02-data-model.md` §9 numbers its invariants `I-n`
+ * precisely so tests can cite them, so the sweep is a citation check: which
+ * invariants does a test actually name?
+ *
+ * It stays `na` until at least one test cites one. That is deliberate rather
+ * than lenient — reporting 30 uncited invariants as failures on a repo with no
+ * domain model would be noise that trains everyone to ignore the row, and the
+ * reason string names exactly what switches it on.
+ */
+function invariantSweep() {
+  const doc = join(ROOT, "docs/02-data-model.md");
+  const S = "1";
+  if (!existsSync(doc)) return NA("invariant-sweep", S, "docs/02-data-model.md does not exist");
+  const invariants = [...readFileSync(doc, "utf8").matchAll(/^\|\s*\*\*(I-\d+)\*\*\s*\|(.*)$/gm)]
+    .map((m) => ({ id: m[1], structural: m[2].includes("[S]") }));
+  if (!invariants.length) return NA("invariant-sweep", S, "no `| **I-n** |` rows found in 02-data-model.md §9");
+
+  const tests = testFiles();
+  const cited = new Set();
+  for (const f of tests) {
+    for (const m of readFileSync(f, "utf8").matchAll(/\bI-\d+\b/g)) cited.add(m[0]);
+  }
+  if (!cited.size) {
+    return NA("invariant-sweep", S,
+      `${invariants.length} invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)`);
+  }
+  const missing = invariants.filter((i) => !cited.has(i.id));
+  if (!missing.length) return PASS("invariant-sweep", S, `all ${invariants.length} invariants cited by a test`);
+  return FAIL("invariant-sweep", S,
+    `${missing.length}/${invariants.length} invariants have no citing test: ${missing.map((i) => i.id + (i.structural ? " [S]" : "")).join(", ")}`);
+}
+
+/**
+ * Test files under the APPLICATION roots only — not the whole repo.
+ *
+ * The `I-n` invariants are properties of the data model, enforced in app code
+ * and CI assertions; the ticket tooling under `.claude/` is not where they
+ * live. Scanning everything looked equivalent and was not: 0133's own test
+ * carries `| **I-1** |` rows as *fixture data*, which activated the invariant
+ * sweep against the real backlog and reported 28 uncited invariants. A sweep
+ * that can be tripped by the string that describes it is worse than no sweep.
+ */
+const APP_ROOTS = ["src", "app", "lib", "scripts"];
+
+function testFiles(roots = APP_ROOTS, acc = []) {
+  for (const r of roots) {
+    const abs = join(ROOT, r);
+    if (!existsSync(abs)) continue;
+    walkTests(abs, acc);
+  }
+  return acc;
+}
+
+function walkTests(dir, acc) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === "node_modules" || e.name === ".git" || e.name === ".next") continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) walkTests(p, acc);
+    else if (/\.test\.(ts|tsx|mjs|js)$/.test(e.name)) acc.push(p);
+  }
+  return acc;
+}
+
+function auditChecks(capability, tickets) {
+  const checks = [];
+
+  // ── §1 automated ──────────────────────────────────────────────────────────
+  checks.push(npmCheck("typecheck", "1", "typecheck"));
+  checks.push(npmCheck("lint", "1", "lint"));
+  checks.push(npmCheck("unit-tests", "1", "test"));
+
+  // The node:test suite is a separate gate from vitest (D-160) and predates it.
+  const scriptTests = join(ROOT, ".claude/skills/tickets/scripts/tickets.test.mjs");
+  if (!existsSync(scriptTests)) {
+    checks.push(NA("script-tests", "1", "no tickets.test.mjs — the node:test suite (D-160) does not exist here"));
+  } else {
+    // The explicit file path, never the directory form: `node --test <dir>` tries
+    // to execute tickets.mjs itself, which prints usage and exits 1. Recorded in
+    // capability 01's audit; repeated here so nobody "helpfully" shortens it.
+    const { ok, detail } = runCheck("node", ["--test", scriptTests]);
+    checks.push(ok ? PASS("script-tests", "1", "node --test tickets.test.mjs") : FAIL("script-tests", "1", detail));
+  }
+
+  checks.push(invariantSweep());
+
+  const boundaries = join(ROOT, "scripts/check-boundaries.mjs");
+  if (!existsSync(boundaries)) {
+    checks.push(NA("boundary-greps", "1", "scripts/check-boundaries.mjs does not exist — D-100's grep gate lands with the domain layer"));
+  } else {
+    const { ok, detail } = runCheck("node", [boundaries]);
+    checks.push(ok ? PASS("boundary-greps", "1", "check-boundaries.mjs clean") : FAIL("boundary-greps", "1", detail));
+  }
+
+  const vigil = testFiles().filter((f) => /vigil/i.test(f));
+  checks.push(vigil.length
+    ? (() => { const { ok, detail } = runCheck("npx", ["vitest", "run", ...vigil]);
+               return ok ? PASS("vigil-test", "1", vigil.map((f) => relative(ROOT, f)).join(", ")) : FAIL("vigil-test", "1", detail); })()
+    : NA("vigil-test", "1", "no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)"));
+
+  const { errors } = validate(tickets);
+  checks.push(errors.length
+    ? FAIL("validate", "1", `${errors.length} validation error(s): ${errors.slice(0, 3).map((e) => e.rule).join(", ")}`)
+    : PASS("validate", "1", "0 errors across open/ and closed/"));
+
+  // ── §4 regression, the scriptable rows ────────────────────────────────────
+  checks.push(NA("fog-no-refog", "4",
+    "no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)"));
+  checks.push(NA("xp-not-lower", "4",
+    "no XP ledger exists yet — activates with capability 09 (D-135, I-16)"));
+
+  // ── §5 hygiene ────────────────────────────────────────────────────────────
+  const byIdx = byId(tickets);
+  const staleBlocks = tickets.filter((t) => t.fm)
+    .flatMap((t) => (t.fm.blocked_by ?? [])
+      .filter((d) => byIdx.get(d)?.fm?.status === "closed")
+      .map((d) => `${pad(t.fm.id)} blocked_by ${pad(d)} (closed)`));
+  checks.push(staleBlocks.length
+    ? FAIL("blocked-by-closed", "5", staleBlocks.join("; "))
+    : PASS("blocked-by-closed", "5", "no blocked_by points at a closed ticket"));
+
+  const mine = tickets.filter((t) => t.fm?.capability === capability);
+  const openInCap = mine.filter((t) => t.fm.status !== "closed");
+  checks.push(openInCap.length
+    ? FAIL("capability-tickets-closed", "5",
+        `${openInCap.length} still open: ${openInCap.map((t) => pad(t.fm.id)).join(", ")}`)
+    : PASS("capability-tickets-closed", "5", `all ${mine.length} tickets closed`));
+
+  return checks;
+}
+
+function cmdAudit(capability, flags) {
+  const tickets = load();
+  const caps = existsSync(join(ROOT, "docs/capabilities"))
+    ? readdirSync(join(ROOT, "docs/capabilities")).filter((f) => /^\d\d-.*\.md$/.test(f)).map((f) => f.slice(0, -3)).sort()
+    : [];
+  if (!capability) die(`audit requires a capability.\n${caps.map((c) => `    ${c}`).join("\n")}`);
+  if (!caps.includes(capability)) {
+    die(`no capability '${capability}'. These exist:\n${caps.map((c) => `    ${c}`).join("\n")}`);
+  }
+
+  const checks = auditChecks(capability, tickets);
+  const failed = checks.filter((c) => c.status === "fail");
+  const na = checks.filter((c) => c.status === "na");
+
+  if (flags.json) {
+    console.log(JSON.stringify({ capability, checks, passed: !failed.length }, null, 2));
+  } else {
+    console.log(`\n  audit ${capability} — AUDIT.md mechanical half (0133)\n`);
+    let section = null;
+    for (const c of checks) {
+      if (c.section !== section) { section = c.section; console.log(`  §${section}`); }
+      const mark = { pass: "  ok  ", fail: " FAIL ", na: "  n/a " }[c.status];
+      console.log(`   ${mark} ${c.id.padEnd(26)} ${c.detail}`);
+    }
+    console.log(`\n  ${checks.length - failed.length - na.length} passed, ${failed.length} failed, ${na.length} n/a`);
+    console.log(`\n  This is the mechanical half only. AUDIT.md §2 (design conformance), §3`);
+    console.log(`  (operator validation) and §6 (REFLECT) are judgement and are not run here;`);
+    console.log(`  the recorded result and drift budget are ticket 0134.`);
+  }
+  if (failed.length) process.exit(1);
+}
+
 // ────────────────────────────────────────────────────────────────────  git ────
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
@@ -648,6 +859,7 @@ if (isMain) try {
     case "unblock": cmdUnblock(positional[0], flags); break;
     case "close": cmdClose(positional[0], flags); break;
     case "triage-move": cmdTriageMove(positional[0], flags); break;
+    case "audit": cmdAudit(positional[0], flags); break;
     default:
       console.log(`tickets.mjs <command>
 
@@ -663,12 +875,13 @@ if (isMain) try {
   unblock <id> --on <id>
   close <id> [--allow-dirty]
   triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
+  audit <capability>          AUDIT.md mechanical checks; exit 1 on any failure
 
-  --json works on index, list, show, validate, next, create.`);
+  --json works on index, list, show, validate, next, create, audit.`);
       process.exit(cmd ? 1 : 0);
   }
 } catch (err) {
   die(err.message);
 }
 
-export { parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { auditChecks, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

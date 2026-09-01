@@ -127,9 +127,22 @@ SCRIPT block <id> --on <id> [--reason "…"]      refuses cycles and unknown ids
 SCRIPT unblock <id> --on <id>
 SCRIPT close <id> [--allow-dirty]
 SCRIPT triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
+SCRIPT audit <capability>             AUDIT.md mechanical checks; exit 1 on any failure
 ```
 
-`--json` on `index`, `list`, `show`, `validate`, `next`, `create`.
+`--json` on `index`, `list`, `show`, `validate`, `next`, `create`, `audit`.
+
+### `audit` and the three verdicts
+
+`audit <capability>` reports each check as `pass`, `fail` or **`n/a` with a reason naming what would
+make it applicable** (D-171). Most of `AUDIT.md` targets code that does not exist yet — no Vigil
+test, no fog blob, no ledger — and an `n/a` is how the audit says *could not check* without it
+reading as *checked*. `n/a` never fails the run; a missing reason is a bug.
+
+**It runs the mechanical half only.** §2 design conformance, §3 operator validation and §6 REFLECT
+are the judgement half and are yours (`0134` wires them into this skill); the audit does not yet
+gate `next` (`0135`). A green table is not a passed audit, and the command says so in its own
+output.
 
 **Ready set:**
 ```

@@ -653,6 +653,7 @@ that might need to vary their arguments.
 | `/tickets close 0042` | The full TicketSmith closing procedure. See §4.6. **Refuses if any acceptance criterion is unchecked** — names what is missing and leaves the ticket open. |
 | `/tickets sync` | `git pull --rebase`, regenerate `index.json`, report what arrived from the phone since last session (count of new inbox items, listed by title). |
 | `/tickets validate` | Run the validator over every ticket and report violations. Also runs implicitly inside `sync`. |
+| `/tickets audit <capability>` | Run `AUDIT.md`'s **mechanical half** — §1, the scriptable §4 rows, §5 — and report `pass` / `fail` / **`n/a` with a reason** per check. Exit 1 on any failure; `n/a` never fails. Ticket `0133`. §2 design conformance, §3 operator validation and §6 REFLECT are judgement and are **not** run by the script (`0134`), and the audit does not yet gate `next` (`0135`). |
 
 **Argument handling.** `arguments: [action, id]` gives `$action` and `$id`. `/tickets close 0042`
 → `$action=close`, `$id=0042`. Bare `/tickets` leaves both empty, which the routing table treats
