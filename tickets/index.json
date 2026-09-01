@@ -2787,7 +2787,7 @@
     "title": "/tickets audit — run the capability close audit and refuse to advance until it passes",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -2801,10 +2801,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-01T04:39:56Z",
-    "path": "tickets/open/0121-tickets-audit-subcommand.md",
-    "ready": true,
+    "closed": "2026-09-01T04:43:41Z",
+    "path": "tickets/closed/0121-tickets-audit-subcommand.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },

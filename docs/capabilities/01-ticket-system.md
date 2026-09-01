@@ -402,3 +402,28 @@ check runner, a record format, a gate and two retroactive audits. Split into `01
 rather than pushed through, on the reasoning that building the anti-rubber-stamping tool by
 rubber-stamping would have been self-defeating. The split was the right call and the three tickets
 each landed cleanly inside a session.
+
+## Audit — 2026-09-01 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 8 passed, 0 failed, 4 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `D-170` — 07-ticketsmith §3 made four body sections normative while §4.7's rule list omitted them; the validator followed §4.7, so a body-less ticket validated clean
+2. **code-was-wrong** — `0127` — create's slug derivation trimmed hyphens before truncating, so any title long enough to truncate on a word boundary produced an invalid slug
+3. **design-was-wrong** — `D-169` — 0010 closed on an operator-verifiable criterion ticked without verification; the format had no way to express the distinction and the skill shipped inert for days
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **na** — 30 invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — all 13 tickets closed
+
+<!-- audit-record {"capability":"01-ticket-system","audited":"2026-09-01T04:44:00Z","verdict":"pass","mechanical":{"pass":8,"fail":0,"na":4},"divergences":3} -->
