@@ -3,12 +3,37 @@
 #
 # This is the layer that makes an accidental `git add .` survivable, and it is
 # the direct answer to the O-005 finding. It runs on STAGED CONTENT only.
+#
+# ONE RULE GOVERNS EVERY CHECK BELOW (ticket 0137): a guard must be able to tell
+# "I ran and found nothing" from "I never ran". Those two states are the same
+# value in shell far more often than they look — an empty string, an exit 0 —
+# and every time they have been conflated in this file it has failed OPEN.
 set -uo pipefail
 
 fail() { echo "" >&2; echo "  COMMIT BLOCKED: $*" >&2; echo "" >&2; exit 1; }
 
 # ── 1. gitleaks on staged content ──────────────────────────────────────────
 if command -v gitleaks >/dev/null 2>&1; then
+  # `command -v` answers "is there a FILE on PATH called gitleaks", not "is there
+  # a WORKING secret scanner". Those came apart on 2026-09-01 (ticket 0137 §1b):
+  # the real binary was overwritten with a 19-byte `#!/bin/bash` / `exit 0` stub,
+  # and every commit for the rest of that session passed this layer in complete
+  # silence. A present-but-broken scanner is the more dangerous of the two cases —
+  # a MISSING gitleaks blocks loudly at the `else` below, a BROKEN one waves
+  # everything through. So make it prove liveness before trusting its verdict.
+  #
+  # `[[ =~ ]]` is a bash BUILTIN on purpose. Piping to grep here would make the
+  # liveness check itself depend on a second external tool — and a missing grep
+  # would then be reported as a broken gitleaks, which is the same "cannot tell
+  # which control failed" problem one level up. Caught while re-running this
+  # ticket's own reproduction, whose stub PATH had no grep on it.
+  gl_version=$(gitleaks version 2>/dev/null) || gl_version=""
+  if [[ ! $gl_version =~ [0-9]+\.[0-9]+ ]]; then
+    fail "gitleaks is on PATH but does not work — it is a broken guard, not a scanner.
+  'gitleaks version' should print something like 8.28.0. It printed: '${gl_version}'
+  Reinstall it (https://github.com/gitleaks/gitleaks/releases). Nothing has been
+  committed. If you have genuinely considered the risk: git commit --no-verify"
+  fi
   if ! gitleaks protect --staged --redact --no-banner; then
     fail "gitleaks found a secret in staged content (above, redacted).
   Nothing has been committed. Unstage it, remove the secret, and try again.
@@ -30,8 +55,29 @@ PATTERNS=(
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'
   'xox[baprs]-[A-Za-z0-9-]+'
 )
-staged=$(git diff --cached --name-only --diff-filter=ACM)
-# Nothing staged is not a pass to hurry through — it is simply nothing to scan.
+# CHECK THE EXIT STATUS, not just the output (ticket 0137 §1). `staged=$(git ...)`
+# discards it, and a git that CANNOT ANSWER then produces a byte-identical result
+# to a staging area that is EMPTY: the empty string. This hook treated both as
+# "nothing to scan" and exited 0, skipping layers 2 and 3 in silence. `git diff`
+# failing is routine — dubious repository ownership (containers, shared volumes,
+# sudo), a corrupt index, a missing safe.directory entry, an unreadable HOME.
+#
+# stderr is merged into $staged on purpose, so the block message can quote git's
+# own words. On success this command prints nothing on stderr; if some future git
+# did emit a warning it would be treated as a filename, which layer 2 skips via
+# `[ -f ]` and layer 3 could at worst over-trigger on — both fail CLOSED.
+if ! staged=$(git diff --cached --name-only --diff-filter=ACM 2>&1); then
+  fail "git could not list the staged files, so the checks below never ran.
+  git said:
+    ${staged}
+
+  This is a broken guard, not a clean scan — the same reasoning applied to a
+  missing gitleaks above. Fix git (often: git config --global --add
+  safe.directory \"\$PWD\") and commit again. Nothing has been committed."
+fi
+# Nothing staged is not a pass to hurry through — it is simply nothing to scan,
+# and it is now distinguishable from the failure handled directly above.
+#
 # NOTE: a bare `[ -z "$staged" ] && exit 0` here is what broke this hook once
 # (ticket 0125). A scripted edit replaced the FIRST `exit 0` in the file, which
 # was this one, and in doing so swallowed the next check into the && and left
@@ -71,6 +117,10 @@ fi
 # ── 3. skill frontmatter ───────────────────────────────────────────────────
 # A SKILL.md whose frontmatter does not parse is skipped by Claude Code with no
 # error shown anywhere (ticket 0123). Cheap to check, invisible to debug.
+#
+# check-skills.mjs no longer exits 0 when it cannot find .claude/skills (0137):
+# reaching here means a SKILL.md is STAGED, so an absent skills directory would
+# mean the scanner resolved the wrong root, not that there is nothing to check.
 if echo "$staged" | grep -q 'SKILL\.md$'; then
   if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
     node scripts/check-skills.mjs >&2 || true

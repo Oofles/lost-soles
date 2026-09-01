@@ -3156,10 +3156,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T19:32:45Z",
+    "started": "2026-09-01T22:22:14Z",
     "path": "tickets/open/0137-pre-commit-hook-fails-open-when-git-diff-cached-errors-and-i.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 9
     }
   },
@@ -3197,6 +3198,46 @@
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "path": "tickets/open/0139-validate-accepts-duplicate-required-sections.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 140,
+    "slug": "docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu",
+    "title": "docs/INDEX.md is stale, and the gate has been red on every push since ac977fd",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T22:29:00Z",
+    "path": "tickets/open/0140-docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 141,
+    "slug": "tickets-mjs-create-accepts-enum-values-that-validate-then-re",
+    "title": "tickets.mjs create accepts enum values that validate then rejects",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T22:29:42Z",
+    "path": "tickets/open/0141-tickets-mjs-create-accepts-enum-values-that-validate-then-re.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

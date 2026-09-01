@@ -50,7 +50,18 @@ const problems = (block, label) => {
   return errs;
 };
 
-if (!existsSync(SKILLS)) { console.log("no .claude/skills/ — nothing to check"); process.exit(0); }
+// Ticket 0137. This used to `console.log("nothing to check")` and exit 0, which
+// made "there are no skills" indistinguishable from "I resolved the wrong root
+// and looked in the wrong place" — a scanner reporting a pass on a directory it
+// never read. The pre-commit hook only invokes this when a SKILL.md is STAGED,
+// so an absent skills directory at that moment is self-contradictory. Fail closed.
+if (!existsSync(SKILLS)) {
+  console.error(`  FAIL  no skills directory at ${SKILLS}`);
+  console.error(`        Nothing was scanned, so this is not a pass. Either the`);
+  console.error(`        scan root is wrong, or this script is being run from a`);
+  console.error(`        tree that does not carry .claude/skills/.`);
+  process.exit(1);
+}
 
 for (const name of readdirSync(SKILLS)) {
   const f = join(SKILLS, name, "SKILL.md");

@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-01T19:32:45Z
+started: 2026-09-01T22:22:14Z
 ---
 ## Description
 
@@ -169,17 +170,17 @@ test, DEPLOY and VERIFY are cancelled.
 
 ## Acceptance criteria
 
-- [ ] `git diff --cached` failing is distinguished from an empty staging area, and the failure
+- [x] `git diff --cached` failing is distinguished from an empty staging area, and the failure
       **blocks** with a message naming git's own error. Apply the reasoning already written into
       lines 17–22 for a missing gitleaks.
-- [ ] `scripts/check-skills.mjs` no longer exits 0 on an absent `.claude/skills/`. Either it
+- [x] `scripts/check-skills.mjs` no longer exits 0 on an absent `.claude/skills/`. Either it
       blocks, or the caller distinguishes "nothing to check" from "could not look" — decide which
       and say why in the Resolution.
-- [ ] Layer 1 verifies gitleaks **works**, not merely that it exists — e.g. it must report a
+- [x] Layer 1 verifies gitleaks **works**, not merely that it exists — e.g. it must report a
       version — and blocks with a distinct message when a present binary is non-functional.
-- [ ] A test covers that: a stub `gitleaks` on PATH that exits 0 for everything must NOT allow a
+- [x] A test covers that: a stub `gitleaks` on PATH that exits 0 for everything must NOT allow a
       staged credential through.
-- [ ] A test covers the fail-open path directly: a stub `git` that errors on `diff`, asserting the
+- [x] A test covers the fail-open path directly: a stub `git` that errors on `diff`, asserting the
       hook exits **non-zero**. This is the test whose absence let the defect survive `0125`.
 - [ ] `scripts/pre-commit-hook.test.mjs` passes **20 consecutive runs** in the Amplify build
       container, not only locally. Local stability is already established and proves nothing here.
@@ -192,6 +193,28 @@ test, DEPLOY and VERIFY are cancelled.
 - [ ] Five consecutive green `main` builds before this closes.
 
 ## Notes
+
+### 1c. The test harness manufactures the same fail-open  (found 2026-09-01 while fixing 1)
+
+`makeBin()` builds the hook's stripped PATH from `command -v <bin>`, and symlinks whatever comes
+back. **`command -v` also answers for shell FUNCTIONS, aliases and builtins, and for those it
+returns the bare NAME, not a path.** `symlinkSync("grep", dir + "/grep")` then creates a dangling
+relative link; the hook prints `grep: command not found`, layer 2 finds nothing, layer 3's
+`echo "$staged" | grep -q 'SKILL\.md$'` is false, and it **exits 0**.
+
+Found by running this ticket's own reproduction in a shell where `grep` is a wrapper function. The
+harness was silently producing the exact result it exists to detect, and it presents as — of course
+— `expected +0 to be 1` on a layer-3 test.
+
+**This is a live candidate for defect 2 and should be checked against the build log before anything
+else.** `bash -c` sources no rcfile, but it *does* source `$BASH_ENV` when that is set, which is
+the kind of thing a build container sets and a laptop does not. It fits three of the four
+observations: container-only, invisible locally, and produces exactly this assertion. It does not
+obviously explain "only one of the two per run" — see below.
+
+`which()` now returns "" for anything not starting with `/`, and `makeBin` **throws by name** when
+a tool the hook shells out to did not resolve, rather than omitting it.
+
 
 **Why `high`.** Two independent reasons, either sufficient. It is a secret-scanning control that
 can pass silently — the O-005 failure mode that `08-security-privacy.md` §7.3 and ticket `0125`

@@ -956,3 +956,42 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **This is not `deferred` (D-174).** `deferred` is for work waiting on the world. This waits on
     us, on a schedule we chose, which `depends_on` and a capability slot already express. Using the
     new status here would have been its first abuse.
+
+---
+
+## A guard must be able to prove it ran  (2026-09-01, ticket 0137)
+
+- **D-176** **Every automated control must be able to distinguish "I ran and found nothing" from
+  "I never ran", and must fail CLOSED on the second.** Settled while fixing three fail-open paths
+  found in one file on one day. Each was a different spelling of the same mistake, and none of them
+  was reported by anything: `staged=$(git diff --cached …)` discarded the exit status, so a git that
+  could not answer and an empty staging area were the same empty string; `check-skills.mjs` printed
+  "nothing to check" and exited 0 when its scan root did not exist, which is also what a root
+  resolved to the wrong place looks like; and layer 1 asked `command -v gitleaks`, which answers
+  *"is there a file called gitleaks"* and not *"is there a working scanner"* — a 19-byte `exit 0`
+  stub satisfied it for a whole session in complete silence.
+  - **This is D-169/D-171/D-172's rule one level down.** Those say the audit RECORD must distinguish
+    "found nothing" from "did not look". D-176 says the CONTROL must, at runtime, or the record is
+    faithfully recording a lie. A green tick over an unscanned commit is worse than no tick.
+  - **The dangerous failure is the quiet one.** A missing gitleaks blocks loudly and gets installed
+    within a minute. A *broken* gitleaks waves everything through and is discovered by accident, if
+    at all. So presence is never the question — liveness is: the scanner must report a version.
+  - **A guard's own liveness check may not depend on another external tool.** The version check is
+    a bash `[[ =~ ]]` builtin, not a pipe into `grep`. Piping made a missing `grep` report as a
+    broken `gitleaks`, which is this same defect displaced one level: the operator is told which
+    control failed, and told wrong.
+  - **`0125` fixed the syntax of this and left the semantics.** That ticket rewrote a bare
+    `[ -z "$staged" ] && exit 0` into an explicit `if` block so no scripted edit could strand the
+    layers below it, and wrote a comment saying so — three lines above the line where `git failed`
+    and `nothing staged` remained the same value. A structural fix to a semantic bug reads as done.
+    The test that would have caught it — a stub `git` that errors on `diff` — is the one 0125 did
+    not write, and is now in the suite.
+  - **The test harness is held to the same standard.** `command -v` in the hook's test also answers
+    for shell functions and returns a bare NAME for them; symlinking that produced a dangling link,
+    so the hook printed `grep: command not found` and exited 0 — the harness manufacturing the exact
+    fail-open it exists to detect. It now requires an absolute path and throws by name when a tool
+    the hook needs did not resolve.
+  - **Blocking is the default even where it is inconvenient.** `check-skills.mjs` now exits 1 on an
+    absent `.claude/skills/` with no escape flag. The pre-commit hook only invokes it when a
+    `SKILL.md` is staged, so an absent skills directory at that moment is self-contradictory, and
+    the one CI workflow that calls it runs on a tree that carries the directory.
