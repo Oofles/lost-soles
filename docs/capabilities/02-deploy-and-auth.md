@@ -163,6 +163,52 @@ invoking the smoke-test Lambda after the redeploy: it reported `length: 32` and
 sandbox held no accounts and no map. Once any environment holds a Cognito `sub` that partitions
 real data, the D-020 warning above applies to it in full.
 
+### The throwaway agent account  (ticket 0130, 2026-09-01)
+
+**It lives in the sandbox pool and nowhere else.** That placement is the whole design, not a
+convenience. `08-security-privacy.md` §2.4 Trigger A fires the moment a **second production
+account** exists: it makes D-123's premise ("the map is shown only to the owner") *false*, not
+merely weaker, and demands a seven-item gate of which four are build items — owner-scoped access
+tests, a fidelity field on the user record, a consent screen, and a delete path executed once
+against a test account. A sandbox account trips none of that, has zero production blast radius,
+and leaves nothing to revoke later.
+
+| | |
+|---|---|
+| Email (username) | `agent@lost-soles.invalid` |
+| Pool | **sandbox** `us-east-1_RV7QIiViX` — confirmed absent from production |
+| Cognito `sub` | `f4688488-5081-7055-3ae9-db0b8a3237e4` |
+| Password | SSM SecureString `/amplify/lostsoles/root-sandbox-bcc61467ba/AGENT_SANDBOX_PASSWORD` |
+
+**The `.invalid` TLD is deliberate** (RFC 2606, reserved and permanently unresolvable). The account
+is created with `--message-action SUPPRESS` and given a permanent password directly, so Cognito
+never attempts delivery. An address that *cannot* receive mail is the correct choice for an account
+that must never participate in a password reset or an email-based recovery flow.
+
+**The password is in SSM, not in this repo and not in any file.** It sits beside the sandbox's
+other secrets, under the same path prefix, so it is destroyed by the same teardown and is reachable
+only with AWS credentials that already grant far more than this account does.
+
+**Proof it actually signs in, via SRP — the same flow the browser uses:**
+
+```
+isSignedIn: true | nextStep: DONE
+pool used:   us-east-1_RV7QIiViX
+identityId:  us-east-1:42ba0661-92d9-c6c1-2d53-260c782f9752
+sub:         f4688488-5081-7055-3ae9-db0b8a3237e4
+idToken:     present
+signOut ok
+```
+
+Note the app client enables `ALLOW_USER_SRP_AUTH` but **not** `ADMIN_USER_PASSWORD_AUTH`. An
+`admin-initiate-auth` attempt therefore fails with `Auth flow not enabled for this client`, which
+is correct and was left alone — enabling the admin flow to make a test easier would have widened
+the pool's auth surface to buy nothing, since SRP is what the app uses anyway.
+
+**What this account is and is not for.** The agent already holds AWS admin CLI access to this
+account, which covers nearly all troubleshooting. The one thing the CLI cannot produce is a
+*browser session as a signed-in user*. That gap, and only that gap, is what this closes.
+
 ### The two holes that were actually open, and the proof they are shut
 
 Both settings `08-security-privacy.md` §5.1 calls "the two lines that carry almost the entire
