@@ -2792,13 +2792,16 @@
     "capability": "01-ticket-system",
     "depends_on": [
       9,
-      10
+      10,
+      133,
+      134,
+      135
     ],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0121-tickets-audit-subcommand.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -3038,6 +3041,70 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "id": 133,
+    "slug": "audit-mechanical-checks",
+    "title": "tickets.mjs audit <capability>: the mechanical half of the close audit",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T04:18:14Z",
+    "path": "tickets/open/0133-audit-mechanical-checks.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 134,
+    "slug": "audit-record-and-drift-budget",
+    "title": "The audit record: a parseable result block, the explicit divergence list, and the drift budget",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      133
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T04:18:14Z",
+    "path": "tickets/open/0134-audit-record-and-drift-budget.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 135,
+    "slug": "next-refuses-across-capability-boundary",
+    "title": "next refuses to start a ticket in a new capability until the previous audit passed",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [
+      134
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T04:18:14Z",
+    "path": "tickets/open/0135-next-refuses-across-capability-boundary.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
     }
   },
   {
