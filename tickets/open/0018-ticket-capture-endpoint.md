@@ -53,19 +53,19 @@ Per D-081 this Lambda is **not** VPC-attached — it only needs outbound HTTPS t
 
 ## Acceptance criteria
 
-- [ ] `POST /api/tickets/capture` with a valid body commits exactly one file under
+- [x] `POST /api/tickets/capture` with a valid body commits exactly one file under
       `tickets/inbox/` on `main` and returns 201 with the committed path and commit sha.
-- [ ] The committed file parses as valid frontmatter + markdown and matches the §3.4 inbox shape:
+- [x] The committed file parses as valid frontmatter + markdown and matches the §3.4 inbox shape:
       `status: inbox`, `source: ui`, `created` set to the server's UTC now, no `id`/`slug`/`size`.
-- [ ] Frontmatter is produced by a YAML serializer; a title containing `\n---\nstatus: closed\n---\n`
+- [x] Frontmatter is produced by a YAML serializer; a title containing `\n---\nstatus: closed\n---\n`
       round-trips as a single scalar string and does not create a second document.
-- [ ] The PAT is read from SSM at cold start; `grep -r` over the built client bundle finds no
+- [x] The PAT is read from SSM at cold start; `grep -r` over the built client bundle finds no
       `ghp_` or `github_pat_` string, and no GitHub token appears in any client-exposed env var.
-- [ ] The logger has a redaction rule for `ghp_` / `github_pat_` prefixes; a deliberately logged
+- [x] The logger has a redaction rule for `ghp_` / `github_pat_` prefixes; a deliberately logged
       token is masked in CloudWatch.
-- [ ] The endpoint has **no update path and no delete path** — not disabled, absent. There is no
+- [x] The endpoint has **no update path and no delete path** — not disabled, absent. There is no
       handler that passes a `sha` to the Contents API.
-- [ ] Unit tests cover: valid capture, empty optional body, and a title at exactly 200 chars.
+- [x] Unit tests cover: valid capture, empty optional body, and a title at exactly 200 chars.
 
 ## Notes
 
@@ -89,3 +89,122 @@ from the browser devtools console (or `curl` with the session cookie). Then open
 title you sent, within a few seconds, and that the commit shows one file changed and nothing else.
 Open the file in GitHub's markdown view and confirm the frontmatter renders as a table, not as
 stray `---` text — that is the visible symptom of a broken serializer.
+
+## Resolution
+
+**Proven end to end against real GitHub, not only against mocks.** Commit `f80a997` on `main`:
+
+```
+capture: 2026-09-01T0144-capture-endpoint-smoke-test-safe-to-discard.md
+ 1 file changed, 12 insertions(+)
+```
+
+One file, in `tickets/inbox/`, written by the real `renderCaptureFile` → `derivePath` →
+`createFile` path with the real PAT from SSM. `tickets.mjs`'s own parser then read it back with
+`error: null`, keys `status, title, type, priority, source, created`, and no `id`/`slug`/`size`.
+That file is left in the inbox on purpose — it says "safe to discard", and it gives 0023 a real
+specimen to triage rather than a synthetic one.
+
+**Files added:** `app/api/tickets/capture/route.ts`, `lib/tickets/capture-format.ts`,
+`lib/tickets/github.ts`, `lib/log.ts`, `types/tickets-script.d.ts`, and four test files.
+**Changed:** `scripts/check-bundle-leak.mjs`, `docs/capabilities/02` and `03`, `package.json`
+(`yaml`, `@aws-sdk/client-ssm`).
+
+### The thing the ticket assumed would be simple, and was not
+
+`secret()` resolves **only** into a `defineFunction` Lambda's environment. This endpoint is a Next
+route handler on Amplify's **SSR compute**, which is not one — and an Amplify environment variable is
+forbidden by 0017's standing rule. So the PAT is read from SSM at runtime, which needs an IAM grant,
+which needs a role, and **there was no role**: `computeRoleArn` was `null`, meaning SSR ran under an
+AWS-managed role that cannot be given policies.
+
+`LostSolesAmplifyComputeRole` was created and assigned — confirmed with the operator first, because
+it changes the live app's configuration rather than editing a policy. One permission:
+`ssm:GetParameter` on one parameter ARN.
+
+**Amplify rejects any `Condition` on a compute role's trust policy.** An `aws:SourceArn` lock was
+refused; `aws:SourceAccount` alone was refused too. AWS's own `AmplifySSRLoggingRole-*` roles carry
+the identical bare principal, which is how the required shape was confirmed rather than guessed. The
+confused-deputy guard is simply not available, and the containment is the permission scope. Recorded
+in the capability doc rather than quietly dropped.
+
+### The find that justified the whole exercise
+
+**`tickets.mjs`'s frontmatter parser is deliberately NOT a YAML parser** — it is line-based, one flat
+`key: value` per line, quotes stripped naively, any other line a hard error. So "valid YAML" was
+never the bar: **valid YAML that *that* parser accepts** is. A block scalar or a folded line is
+perfectly legal YAML and would produce a captured note the triage tool cannot read — surfacing days
+later, on a note dictated once with no second copy.
+
+`blockQuote: false` and `lineWidth: 0` carry that guarantee. Quoting is left to the serializer, and
+that was decided by measurement: forcing `QUOTE_DOUBLE` made a title containing a double quote come
+back through the naive quote-strip as literal backslashes, where the default round-trips clean.
+`capture-triage-contract.test.ts` imports the **real** parser — a reimplementation would drift — and
+runs twelve hostile titles through it.
+
+### What went wrong
+
+1. **I raised a false alarm about the PAT's scope.** `/user/repos` enumerated 15 repositories and I
+   read that as "All repositories" selected. The operator pushed back, and they were right: that
+   endpoint lists public repos regardless of fine-grained scoping. The discriminating test is
+   `collaborators`, which needs push access — `lost-soles` 200, every other repo 403. **The token was
+   correctly scoped all along.** I should have found a control before reporting.
+2. **Literal control characters in source, three times.** Written into regexes and fixtures where
+   escapes belonged. The third instance mattered: 10,000 literal NUL bytes in a test fixture made
+   that file read as **binary**, which meant the pre-commit hook's literal-pattern scan was silently
+   skipping it. Once the NULs became escapes, the same scan immediately caught token-shaped fixtures
+   inside that file which **gitleaks had passed**. Two layers, two sensitivities, and the dumber one
+   was right.
+3. **A double `res.json()`** — a `Response` body is single-use, so a test I had just written failed
+   on its second read rather than on its assertion.
+
+### Decisions
+
+- **`capture-format.ts` is pure and takes the clock as an argument**, so every test is deterministic
+  and the route is the only thing that knows the time.
+- **The token cache holds a promise, not a string** — two concurrent cold requests would otherwise
+  each fire their own SSM call — and **a rejection is never cached**, since a transient SSM error
+  would otherwise disable capture for the whole life of a warm environment.
+- **`GITHUB_TICKETS_PAT` added to the bundle-leak scanner's registry.** A new secret that is not
+  scanned for is a silent loss of coverage. Proved by planting the real PAT in a client component:
+  the check goes red naming the file and the key.
+- **Length is checked before sanitising.** A 10,000-character title of control characters collapses
+  to nothing; sanitising first would let it past the 200-char limit. Tested.
+
+## Operator validation
+
+**Done by the agent, against production infrastructure:**
+
+- The full chain works: real token from SSM → real Contents API → real commit on `main` → read back
+  by the real triage parser. Commit `f80a997`, one file changed.
+- The PAT's scope was verified rather than assumed: push access on `lost-soles` only, every other
+  repo 403, `actions/secrets` 403 even on `lost-soles`.
+- No GitHub token in `.next/static`, by the leak scanner's literal scan and by hand; no
+  `NEXT_PUBLIC_` variable mentions a token.
+- 140 tests pass, plus every check script and its self-test.
+
+**★ STILL REQUIRES THE OPERATOR ★**
+
+On the **desktop browser at `soles.devaultsecurity.com`**, signed in as the owner, POST a capture
+from devtools:
+
+```js
+await fetch("/api/tickets/capture", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ title: "Testing capture from the browser", body: "hello",
+                         type: "chore", priority: "low",
+                         idempotencyKey: crypto.randomUUID() }),
+}).then(r => r.json())
+```
+
+Expect `{ path, commitSha }`. Then open
+`github.com/Oofles/lost-soles/tree/main/tickets/inbox` and confirm the new file appeared within a few
+seconds and the commit shows **one file changed and nothing else**. Open it in GitHub's markdown view
+and confirm the frontmatter renders as a **table**, not as stray `---` text — that is the visible
+symptom of a broken serializer.
+
+**This is the one step the agent genuinely cannot do**, and it is not ceremony: it is the only path
+that exercises Cognito auth and the deployed compute role together. Everything above proves the
+GitHub half and the format half; only this proves the *deployed handler* can read SSM through the new
+role. If it returns 502, the compute role did not take effect and the build log will say so.
