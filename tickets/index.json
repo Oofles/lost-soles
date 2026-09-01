@@ -2989,17 +2989,19 @@
     "title": "Sandbox environment and a throwaway agent account for troubleshooting",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T15:31:47Z",
-    "path": "tickets/open/0130-sandbox-environment-and-a-throwaway-agent-account-for-troubl.md",
-    "ready": true,
+    "started": "2026-09-01T19:12:13Z",
+    "closed": "2026-09-01T19:14:40Z",
+    "path": "tickets/closed/0130-sandbox-environment-and-a-throwaway-agent-account-for-troubl.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
