@@ -50,6 +50,11 @@ export const REGISTRY = [
   { key: "STRAVA_CLIENT_SECRET", store: "ssm" },
   { key: "STRAVA_WEBHOOK_VERIFY_TOKEN", store: "ssm" },
   { key: "INGEST_BEARER_TOKEN", store: "ssm" },
+  // Added by ticket 0018. A secret introduced without being added here would be a
+  // silent loss of coverage: the generic `github_pat_` pattern would still catch a
+  // verbatim leak, but the LITERAL scan — the one that catches a value reaching the
+  // bundle by some route the patterns do not describe — would not know to look.
+  { key: "GITHUB_TICKETS_PAT", store: "ssm" },
   { key: "TILES_BASE_URL", store: "env" },
 ]
 const SSM_KEYS = REGISTRY.filter((r) => r.store === "ssm").map((r) => r.key)
@@ -92,7 +97,7 @@ export const PATTERNS = [
   {
     name: "AWS access key id",
     re: /AKIA[0-9A-Z]{16}/g,
-    // AKIA…EXAMPLE is AWS's published placeholder convention (AKIAIOSFODNN7EXAMPLE
+    // AKIA…EXAMPLE is AWS's published placeholder convention (AKIAIOSFODNN7EXAMPLE  gitleaks:allow
     // and friends). AWS does not issue key ids ending in EXAMPLE.
     documented: (m) => m.endsWith("EXAMPLE"),
   },
@@ -102,7 +107,7 @@ export const PATTERNS = [
     name: "private key block",
     re: /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/g,
     // A header with no key material after it is prose. botocore's examples show
-    // `-----BEGIN RSA PRIVATE KEY-----<a very long private key string>`. A real
+    // `-----BEGIN RSA PRIVATE KEY-----<a very long private key string>`. A real  gitleaks:allow
     // block is followed by base64; require some before calling it a key.
     documented: (m, text, i) =>
       !/[A-Za-z0-9+/=\s]{100,}/.test(text.slice(i + m.length, i + m.length + 400)),

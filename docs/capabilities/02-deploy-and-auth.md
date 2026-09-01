@@ -197,7 +197,29 @@ application config in SSM; per-user rotating credentials in DynamoDB.
 | `STRAVA_CLIENT_SECRET` | SSM `secret()` | callback + token refresh | **Never leaves a Lambda** |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM `secret()` | `strava-webhook` GET handshake | Compared in constant time |
 | `INGEST_BEARER_TOKEN` | SSM `secret()` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
+| `GITHUB_TICKETS_PAT` | SSM, read by the **SSR compute role** | `/api/tickets/capture` | Added by ticket **0018**, and it does NOT use `secret()` — see the note below. Fine-grained PAT, `lost-soles` only, Contents read/write, **90-day expiry** |
 | `NEXT_PUBLIC_TILES_BASE_URL` | **plain env var** | client build (ticket 0052) | **Not a secret.** A public URL the browser fetches tiles from; it is in the client bundle by necessity. It appears in the §7 registry only because it VARIES BY ENVIRONMENT, which is a different problem from being sensitive |
+
+**`GITHUB_TICKETS_PAT` reaches its consumer differently from every other secret here,
+and the difference is structural.** `secret()` resolves only into a `defineFunction`
+Lambda's environment. `/api/tickets/capture` is a **Next.js route handler on Amplify's SSR
+compute**, which is not one of those — so `secret()` cannot reach it, and an Amplify
+environment variable must not (the standing rule above). It is therefore read from SSM at
+cold start via the AWS SDK, over a dedicated **compute role**.
+
+That role did not exist: `computeRoleArn` was `null`, meaning SSR ran under an AWS-managed
+role that cannot be given policies. Ticket 0018 created `LostSolesAmplifyComputeRole`, whose
+**only** permission is `ssm:GetParameter` on the single parameter
+`/amplify/shared/d14fhvl4rp79nn/GITHUB_TICKETS_PAT` — one action, one resource, no wildcard.
+
+**Amplify rejects any `Condition` on a compute role's trust policy.** Both an `aws:SourceArn`
+lock and an `aws:SourceAccount` lock were attempted and both were refused with *"The compute
+role provided cannot be assumed by Amplify"*; AWS's own generated `AmplifySSRLoggingRole-*`
+roles carry the same bare `amplify.amazonaws.com` principal. So the usual confused-deputy
+guard is **not available here**, and the actual containment is the permission scope: the worst
+this role can do is read one GitHub PAT. Recorded rather than glossed, because a future reader
+comparing this to the `check-auth-posture.mjs` grant will notice the missing condition and
+should not have to re-derive why.
 
 **One deviation from §7's spelling, forced by Next.js:** §7 names the tiles variable
 `TILES_BASE_URL`. Next only inlines an environment variable into the client bundle if it is prefixed
