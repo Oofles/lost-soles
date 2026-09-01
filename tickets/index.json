@@ -3009,7 +3009,7 @@
     "title": "Sandbox stack is UPDATE_FAILED — its Cognito pool predates 0014 and cannot be updated in place",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
@@ -3017,10 +3017,11 @@
     "source": "agent",
     "created": "2026-08-31T20:10:12Z",
     "started": "2026-09-01T19:03:04Z",
-    "path": "tickets/open/0131-sandbox-stack-is-update-failed-its-cognito-pool-predates-001.md",
-    "ready": true,
+    "closed": "2026-09-01T19:11:48Z",
+    "path": "tickets/closed/0131-sandbox-stack-is-update-failed-its-cognito-pool-predates-001.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
