@@ -44,7 +44,7 @@ account's current architecture entirely.
 
 ## Acceptance criteria
 
-- [ ] `get-access-key-last-used` is run against the 2022 key and its `LastUsedDate` recorded.
+- [x] `get-access-key-last-used` is run against the 2022 key and its `LastUsedDate` recorded.
       This supersedes the CloudTrail window and is the deciding evidence. Get the full id from
       `aws iam list-access-keys --profile devault` — it is deliberately **not written out here**,
       because the pre-commit hook (0004) rejects a full key id in a tracked file and it is right
@@ -55,15 +55,15 @@ account's current architecture entirely.
             --query "AccessKeyMetadata[?ends_with(AccessKeyId,'EHYC')].AccessKeyId" --output text)
       aws iam get-access-key-last-used --access-key-id "$ID" --profile devault
       ```
-- [ ] A decision is made and written down, one of:
+- [x] A decision is made and written down, one of:
       - **Deactivate** (`--status Inactive`), soak 24-48h, then delete. Preferred if last-used is
         absent or old.
       - **Keep**, with the consumer named explicitly and a rotation date set. "Might be used by
         something" is not a reason to keep it; naming the something is.
-- [ ] If deactivated: nothing breaks over the soak, then the key is deleted and
+- [x] If deactivated: nothing breaks over the soak, then the key is deleted and
       `aws iam list-access-keys` shows exactly **one** key on `cli-user`.
-- [ ] The outcome is recorded in `docs/capabilities/00-preflight-and-repo.md`.
-- [ ] Consider whether `cli-user` should exist at all once Lost Soles deploys — an IAM Identity
+- [x] The outcome is recorded in `docs/capabilities/00-preflight-and-repo.md`.
+- [x] Consider whether `cli-user` should exist at all once Lost Soles deploys — an IAM Identity
       Center session would remove the standing-key question permanently rather than answering it
       once. Record the decision either way.
 
@@ -119,3 +119,84 @@ Noted while deciding whether to publish the repo: this ticket describes the weak
 remediation, so publishing it discloses a fixed problem, not a live one. That is a reasonable thing
 to have in public. The two remaining criteria — whether `cli-user` should exist at all once Lost
 Soles deploys, and the IAM Identity Center question — are untouched and still open.
+
+## Resolution
+
+**The 2022 key is deleted. `cli-user` carries exactly one access key.**
+
+Closed 2026-09-01, two days after the deactivation, which is what the ticket's own criterion
+asked for. Nothing about this ticket was hard; the discipline was in not rushing it.
+
+### What was done
+
+| Step | When | Result |
+|---|---|---|
+| `get-access-key-last-used` on `…EHYC` | 2026-08-30 | `2022-12-06T04:49Z`, s3, us-east-1 |
+| Deactivate (`--status Inactive`) | 2026-08-30 | Reversible. `devault` verified working after |
+| Soak | 2026-08-30 → 09-01 | ~48h. Nothing broke. Re-verified mid-soak during the 0013 session |
+| Re-check last-used **at the moment of delete** | 2026-09-01 | **Still `2022-12-06`** — unchanged |
+| `delete-access-key` | 2026-09-01 | Irreversible. Done |
+| Verify | 2026-09-01 | One key (`…WPBV`, Active); `sts get-caller-identity` still resolves |
+
+### Decisions and rationale
+
+- **`AccessKeyLastUsed` settled what CloudTrail could not.** The ticket flagged the 90-day
+  retention window as making "no events" mean "absence of evidence". IAM's own record showed the
+  key was created 2022-12-06T03:03, used once at 04:49 against s3, and never again — **106 minutes
+  of life, then 3 years 8 months 25 days of nothing.** That is evidence of absence, and it is why
+  no hunt for consumers was needed. One API call replaced a speculative investigation.
+- **The soak earned its place, and the re-check is the reason.** Running
+  `get-access-key-last-used` again immediately before deleting turned the soak from a superstition
+  into a measurement: if anything had been quietly depending on the key, deactivation would have
+  produced a failure or a fresh `LastUsedDate`. It produced neither. Without that second call the
+  soak would only have proved "the operator did not notice a problem", which is much weaker.
+- **`cli-user` stays; IAM Identity Center declined → D-168.** Operator-directed. Short-lived
+  credentials are genuinely better, but the ceremony (SSO setup, `aws sso login` before every
+  deploy) is permanent and the account has one human, one workstation and a ~$3/mo budget. The
+  decision records the three conditions that should reverse it — a second human, CI outside GitHub
+  Actions, or the key needing to live off that workstation — and a **rotation date of 2027-08-31**,
+  written down precisely because an unwritten rotation date is how the 2022 key happened.
+- **Framed as hygiene, not architecture.** The dormant key existed because nobody ever ran
+  `list-access-keys`, not because standing keys are unworkable. D-168 keeps the standing key **on
+  the condition that it stays singular**: a second key appearing on `cli-user` is itself the alarm.
+
+### Files touched
+
+- `docs/capabilities/00-preflight-and-repo.md` — new **Standing credentials** section with the
+  evidence table and the post-delete verification; the close-audit **Verdict** updated to mark its
+  one carry-forward closed. Capability `00` now has no open tickets.
+- `docs/decisions/DECISIONS.md` — **D-168**.
+- This ticket. No code changed — 0122 is account-level, the second and last out-of-repo ticket.
+
+### What went wrong / worth recording
+
+- **Nothing broke, but the ticket was nearly closed a day early.** During the 0013 session on
+  08-31 the state looked finished — one Active key, one Inactive, soak holding — and the only thing
+  stopping a close was the ticket having written its own delete date down. A criterion with a date
+  in it is what made "it looks fine" insufficient. Worth keeping as a pattern for irreversible
+  steps.
+- **The key id could not be written in the ticket.** 0004's pre-commit hook rejects a full AWS key
+  id in a tracked file, and 0122 was one of the two files it caught on the project's first commit.
+  Both the ticket and the new capability-doc section therefore identify keys by **suffix only**
+  (`…EHYC`, `…WPBV`) and recover the full id at runtime via `--query ends_with(...)`. The guard
+  shaped how its own remediation had to be documented, which is the right way round.
+
+## Operator validation
+
+Performed 2026-09-01 by the agent against the live account `286588821906` (profile `devault`),
+from the WSL2 workstation shell — this is infrastructure with no UI surface, so there is no screen
+or device to name for the work itself.
+
+```
+$ aws iam list-access-keys --profile devault
+…WPBV   2026-08-31T01:50:32+00:00   Active   cli-user     # exactly one key, and it is the live one
+
+$ aws sts get-caller-identity --profile devault
+arn:aws:iam::286588821906:user/cli-user                    # the profile still authenticates
+```
+
+**★ Still to be confirmed by the operator, in a browser:** IAM console → Users → `cli-user` →
+Security credentials. Exactly **one** access key should be listed, Active, ending `WPBV`, created
+2026-08-31. No Inactive key should remain. This is the check the ticket asked for and the console
+is the independent view — the CLI reading its own credential's account is the less convincing of
+the two.

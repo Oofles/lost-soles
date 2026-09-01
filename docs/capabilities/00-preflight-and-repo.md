@@ -283,6 +283,49 @@ already clean, so a validator that finds nothing proves nothing.
 > ✅ **Capability `00` passes**, with one carry-forward: **0122 remains open**, awaiting a 24-48h
 > soak before the dormant key is deleted. That is elapsed time, not work. Capability `01` may start.
 
+**Carry-forward closed 2026-09-01.** The soak elapsed, the key was deleted, and `cli-user` is down
+to one access key — see [Standing credentials](#standing-credentials--2026-09-01-ticket-0122)
+below. Capability `00` now has no open tickets.
+
+## Standing credentials — 2026-09-01 (ticket 0122)
+
+The carry-forward from the close audit is resolved. `cli-user` now carries **exactly one** access
+key.
+
+**The dormant 2022 key is deleted.** Identified by suffix `…EHYC`, created 2022-12-06. IAM's own
+`AccessKeyLastUsed` was the deciding evidence and it was unambiguous:
+
+| | |
+|---|---|
+| Created | 2022-12-06T03:03:45Z |
+| Last used | 2022-12-06T04:49:00Z — s3, us-east-1 |
+| Gap | **1h 46m of use, then 3 years 8 months 25 days of nothing** |
+
+This supersedes the 90-day CloudTrail lookback entirely. "No events in 90 days" is absence of
+evidence; a `LastUsedDate` four years in the past is evidence of absence, and it is the reason this
+did not need a hunt for consumers.
+
+**Deactivate-then-delete, and the soak did real work.** Deactivated 2026-08-30, deleted
+2026-09-01 — a 48h+ soak in which nothing broke. `get-access-key-last-used` was re-run at the
+moment of deletion and `LastUsedDate` was **still** 2022-12-06: had anything been quietly depending
+on the key, deactivation would have produced either a failure or a fresh timestamp, and it produced
+neither. The reversible step is what made the irreversible one safe to take, which is the whole
+argument for the two-step.
+
+**`cli-user` stays, and IAM Identity Center is declined** — recorded as **D-168**. The ticket asked
+whether a standing key should exist at all once Lost Soles deploys. It should, here: see the
+decision for the reasoning and the conditions that would reverse it.
+
+### Verified after deletion
+
+```
+$ aws iam list-access-keys --profile devault
+…WPBV        2026-08-31   Active   cli-user       # exactly one, and it is the live one
+
+$ aws sts get-caller-identity --profile devault
+arn:aws:iam::286588821906:user/cli-user                     # profile still authenticates
+```
+
 ## Design notes
 
 _Filled in at the DESIGN step, before TICKET-WRITE._

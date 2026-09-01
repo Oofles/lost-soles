@@ -661,3 +661,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     corrected **in the contract and in `01-architecture.md` §3 first**; only then was the domain
     file written. A domain that quietly disagrees with its contract is worse than either being
     wrong, because the disagreement is invisible.
+
+---
+
+## Standing credentials  (2026-09-01, ticket 0122)
+
+- **D-168** **`cli-user` keeps its single standing access key; IAM Identity Center is declined for
+  now.** Settled while closing 0122, which asked whether the user should exist at all once Lost
+  Soles deploys. Operator-directed.
+  - **What Identity Center would buy:** short-lived credentials, so a leaked key expires on its own
+    rather than needing to be noticed. That is a real advantage and it is the reason the question
+    was asked rather than assumed away.
+  - **What it costs here:** account-level SSO setup, an `aws sso login` in the path of every deploy,
+    and a re-pointed `devault` profile — permanent ceremony on a single-operator hobby account with
+    exactly one human, one workstation and a ~$3/mo budget. The threat it defends against is a key
+    leaking; the defences already in place against *that* are the ones that have actually fired —
+    the pre-commit hook and CI gitleaks (D-159 layers), which caught a real key id on the project's
+    first commit.
+  - **The dormant-key problem was a hygiene failure, not an architecture failure.** A key created
+    in 2022, used for 106 minutes and forgotten is what happens when nobody ever lists the keys.
+    Identity Center would have prevented it; so does looking. The standing key is kept **on the
+    condition that it stays singular** — `cli-user` has one key, and a second one appearing is
+    itself the signal that something is wrong.
+  - **Reverse this if any of these become true:** a second human needs account access; a CI system
+    outside GitHub Actions needs AWS credentials; or the key needs to live anywhere other than
+    `~/.aws/credentials` on the one workstation. Any of the three makes a standing key the wrong
+    shape, and this decision should be superseded rather than stretched.
+  - **Rotation:** the live key was created 2026-08-31. Rotate on or before **2027-08-31**, or
+    immediately on any suspected exposure. Recorded here because a rotation date nobody wrote down
+    is how the 2022 key happened.
