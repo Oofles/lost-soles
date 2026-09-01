@@ -4,7 +4,7 @@ slug: next-refuses-across-capability-boundary
 title: next refuses to start a ticket in a new capability until the previous audit passed
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: [134]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T04:18:14Z
 started: 2026-09-01T04:36:31Z
+closed: 2026-09-01T04:39:18Z
 ---
 
 ## Description

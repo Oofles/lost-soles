@@ -2801,7 +2801,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0121-tickets-audit-subcommand.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -3095,7 +3095,7 @@
     "title": "next refuses to start a ticket in a new capability until the previous audit passed",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -3105,10 +3105,11 @@
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
     "started": "2026-09-01T04:36:31Z",
-    "path": "tickets/open/0135-next-refuses-across-capability-boundary.md",
-    "ready": true,
+    "closed": "2026-09-01T04:39:18Z",
+    "path": "tickets/closed/0135-next-refuses-across-capability-boundary.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
