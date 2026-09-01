@@ -4,7 +4,7 @@ slug: a-ticket-status-for-work-waiting-on-a-third-party-excluded-f
 title: A ticket status for work waiting on a third party, excluded from the capability close gate
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T19:04:02Z
 started: 2026-09-01T20:25:19Z
+closed: 2026-09-01T20:34:55Z
 ---
 ## Description
 
