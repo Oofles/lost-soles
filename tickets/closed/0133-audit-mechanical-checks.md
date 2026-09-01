@@ -4,7 +4,7 @@ slug: audit-mechanical-checks
 title: tickets.mjs audit <capability>: the mechanical half of the close audit
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T04:18:14Z
 started: 2026-09-01T04:20:34Z
+closed: 2026-09-01T04:26:16Z
 ---
 
 ## Description

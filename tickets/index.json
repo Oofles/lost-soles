@@ -3049,7 +3049,7 @@
     "title": "tickets.mjs audit <capability>: the mechanical half of the close audit",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3057,10 +3057,11 @@
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
     "started": "2026-09-01T04:20:34Z",
-    "path": "tickets/open/0133-audit-mechanical-checks.md",
-    "ready": true,
+    "closed": "2026-09-01T04:26:16Z",
+    "path": "tickets/closed/0133-audit-mechanical-checks.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -3080,7 +3081,7 @@
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
     "path": "tickets/open/0134-audit-record-and-drift-budget.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6
