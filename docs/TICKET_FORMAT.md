@@ -107,6 +107,9 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
   A criterion only a human can check is prefixed `(operator)` — see §3.3.1.
 - `## Notes`
 
+**`validate` enforces these on every ticket in `open/` and `closed/`** (D-170), together with each
+type's extra sections. Inbox captures are exempt — triage supplies their structure.
+
 **`bug` additionally:**
 
 - `## Steps to reproduce`

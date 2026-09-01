@@ -725,3 +725,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     across 121 existing tickets with `validate` clean. `0010` is deliberately **not** amended:
     rewriting a closed ticket to satisfy a rule invented afterwards makes the record look better
     than the history was, and `0123`'s Resolution is more useful intact.
+
+---
+
+## Required body sections  (2026-09-01, ticket 0126)
+
+- **D-170** **`07-ticketsmith.md` §4.7 gains the body-section rules; §3 governs, and the validator
+  now enforces what it says.** Settled while closing 0126, which was filed by 0011's
+  deliberate-error injection pass.
+  - **The disagreement.** §3.3 makes `## Description`, `## Acceptance criteria`, `## Notes` and
+    `## Operator validation` normative for *every* ticket. §4.7's validation-rule list carried no
+    rule for them — body structure was checked only on `closed` tickets and on `type: bug`. Both
+    halves were implemented faithfully; they simply disagreed. A ticket file with valid frontmatter
+    and **no body at all** validated clean, and so did an open ticket with `## Operator validation`
+    renamed away.
+  - **§3 wins**, because it is the half that describes what a ticket *is*. The rule list is
+    downstream of the format, not a second opinion on it. Recorded as an amendment to §4.7 rather
+    than a silent extension of the validator — the validator implementing more than the doc
+    authorises is the same class of drift in the other direction.
+  - **Expressed as a table, not another branch.** `SECTION_RULES` in `tickets.mjs` maps a condition
+    (always / `type: bug` / `type: design` / `folder: closed`) to the sections it requires. `create`
+    already emitted sections per type; the validator not requiring them is how the two drifted
+    apart unnoticed, and there is now a test asserting that everything `create` emits, `validate`
+    accepts, for all six types.
+  - **Inbox items are exempt from every section rule** (§2.3). This fixed a live trap rather than a
+    theoretical one: the `bug` rule previously ran in *every* folder, so capturing "fog flickers
+    when panning" as a `type: bug` from the phone — the single most likely thing to capture on a
+    run — turned the whole backlog red. Proven against the current code before the change.
+  - **A ticket promoted by `triage-move` now fails `validate` until its sections are written, and
+    that is kept deliberately.** Operator-directed, and the alternative was considered: appending a
+    `- [ ] TODO` skeleton the way `create` does would keep the workflow green, at the cost of an
+    unfinished triage validating clean. A green tick on an empty criterion is D-169's failure in
+    another costume. A promoted capture is not yet a ticket; the error is the gate, and the cost is
+    that triage must be finished before committing rather than abandoned halfway.
+  - **No ticket in the backlog needed fixing.** All 133 validated clean immediately, as 0011's audit
+    predicted — the rule formalises what hand-authoring already did.

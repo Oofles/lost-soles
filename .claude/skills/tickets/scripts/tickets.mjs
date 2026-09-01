@@ -128,6 +128,43 @@ function acceptance(body) {
 
 const hasSection = (body, name) => new RegExp(`^##\\s+${name}\\s*$`, "im").test(body);
 
+/**
+ * Which `## sections` a ticket body must carry, and under what condition.
+ *
+ * One table rather than a rule per condition: `07-ticketsmith.md` §3 makes the
+ * four base sections normative for every ticket, and until 0126 §4.7's rule
+ * list carried no check for them — so a frontmatter-only file with no body at
+ * all validated clean (D-170). A table is also how `create` already thinks, and
+ * the generator writing sections the validator does not require is the drift
+ * that let the two halves of the spec disagree unnoticed.
+ *
+ * Rule names stay distinct rather than collapsing to one: 'this bug has no
+ * repro steps' and 'this ticket has no body' want different reactions.
+ *
+ * Inbox items are exempt entirely (§2.3) — they are free-form captures typed
+ * on a phone, and triage is what supplies structure. Before 0126 the `bug`
+ * check ran in every folder, so capturing "fog flickers when panning" as a bug
+ * from the phone turned the whole backlog red.
+ */
+const SECTION_RULES = [
+  { rule: "missing-section", applies: () => true,
+    sections: ["Description", "Acceptance criteria", "Notes", "Operator validation"] },
+  { rule: "bug-section", applies: (fm) => fm.type === "bug",
+    sections: ["Steps to reproduce", "Expected vs actual"] },
+  { rule: "design-section", applies: (fm) => fm.type === "design",
+    sections: ["Options considered", "Open questions"] },
+  { rule: "closed-section", applies: (fm, folder) => folder === "closed",
+    sections: ["Resolution"] },
+];
+
+/** Every required section a ticket is missing, as [{rule, section}]. */
+function missingSections(fm, body, folder) {
+  if (folder === "inbox") return [];
+  return SECTION_RULES
+    .filter((r) => r.applies(fm, folder))
+    .flatMap((r) => r.sections.filter((s) => !hasSection(body, s)).map((s) => ({ rule: r.rule, section: s })));
+}
+
 // ──────────────────────────────────────────────────────────────── loading ────
 
 function load() {
@@ -247,21 +284,16 @@ function validate(tickets) {
       E("operator-unsigned", `operator criterion is ticked with no '— verified <date>: <result>': "${c}"`);
     }
 
+    for (const { rule, section } of missingSections(fm, body, folder)) {
+      E(rule, `missing '## ${section}'`);
+    }
+
     if (folder === "closed") {
       if (!("closed" in fm)) E("closed-stamp", "closed ticket has no 'closed:' timestamp");
-      for (const s of ["Resolution", "Operator validation"]) {
-        if (!hasSection(body, s)) E("closed-section", `closed ticket is missing '## ${s}'`);
-      }
       const { unchecked } = acceptance(body);
       if (unchecked.length) E("closed-unchecked", `closed with ${unchecked.length} unchecked acceptance criteria`);
     } else if ("closed" in fm) {
       E("closed-stamp", `'closed:' is present on a ticket in ${folder}/`);
-    }
-
-    if (fm.type === "bug") {
-      for (const s of ["Steps to reproduce", "Expected vs actual"]) {
-        if (!hasSection(body, s)) E("bug-section", `bug ticket is missing '## ${s}'`);
-      }
     }
 
     // warnings
@@ -625,4 +657,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, FIELD_ORDER };
+export { parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, FIELD_ORDER };

@@ -146,9 +146,15 @@ A non-empty `blocked_by` is **never** ready, regardless of `depends_on`.
 `id`/`slug` not matching the filename · duplicate id · status disagreeing with the folder ·
 `blocked_by` non-empty without `status: blocked` (or vice versa) · dangling `depends_on`/`blocked_by`
 id · self-edge · dependency cycle · `closed:` present when open or absent when closed · closed
-ticket missing `## Resolution` or `## Operator validation` · closed ticket with an unchecked
-criterion · an `(operator)` criterion ticked with no dated sign-off (any folder) · `bug` missing its
-extra sections.
+ticket missing `## Resolution` · closed ticket with an unchecked criterion · an `(operator)`
+criterion ticked with no dated sign-off (any folder) · **any `open/` or `closed/` ticket missing one
+of the four required body sections** · `bug` missing its extra sections · `design` missing its extra
+sections. **Inbox items are exempt from every section rule** — they are free-form captures (§2.3),
+so a `type: bug` captured on a phone never fails validation.
+
+A ticket promoted by `triage-move` therefore fails `validate` until its sections are written. That
+is deliberate (D-170): a promoted capture is not yet a ticket, and the error is the gate. Finish the
+triage before committing.
 
 **Warnings (exit 0):** `capability: null` on a `feature` · `size: l` in the ready set · a
 `capability` with no matching doc · inbox item older than 14 days · unknown frontmatter key

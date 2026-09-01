@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -150,6 +150,8 @@ describe("0007 — validate flags exactly the right rule", () => {
     // wrong where it is written, not only where it lands (0124).
     ["operator-unsigned", (d) => ticket(d, "open", FM(), "\n## Acceptance criteria\n\n- [x] (operator) ran it on the phone\n")],
     ["bug-section", (d) => ticket(d, "open", FM({ type: "bug" }))],
+    ["design-section", (d) => ticket(d, "open", FM({ type: "design" }))],
+    ["missing-section", (d) => ticket(d, "open", FM(), "\n## Description\n\nx\n")],
     ["required-field", (d) => { const { size, ...rest } = FM(); writeFileSync(join(d, "tickets/open/0001-a-ticket.md"), serialize(rest, BODY)); }],
   ];
   for (const [rule, setup] of cases) {
@@ -588,6 +590,106 @@ describe("0124 — operator-verifiable criteria block a close", () => {
     ticket(d, "open", FM(), AC("- [x] an ordinary criterion, ticked by the agent that did the work"));
     commitAll(d);
     assert.equal(run(d, "close", "1").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ────────────────────────────────────── 0126 required body sections, everywhere ────
+
+describe("0126 — validate enforces required body sections on every non-inbox ticket", () => {
+  const BASE = ["Description", "Acceptance criteria", "Notes", "Operator validation"];
+  const sections = (...names) => "\n" + names.map((n) => `## ${n}\n\nx\n`).join("\n");
+
+  test("each of the four base sections is required on its own", () => {
+    // One at a time: a rule that only fires when all four are absent would pass
+    // a single-section test and miss every realistic case.
+    for (const omitted of BASE) {
+      const d = repo();
+      ticket(d, "open", FM(), sections(...BASE.filter((n) => n !== omitted)));
+      const { errors } = withRoot(d, () => validateIn(d));
+      assert.ok(
+        errors.some((e) => e.rule === "missing-section" && e.msg.includes(omitted)),
+        `omitting '${omitted}' must be an error, got: ${errors.map((e) => e.msg).join(" | ") || "none"}`,
+      );
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  test("a frontmatter-only ticket names all four missing sections, not just the first", () => {
+    // The probe that motivated the ticket: valid frontmatter, no body at all,
+    // and validate used to call the backlog clean.
+    const d = repo();
+    ticket(d, "open", FM(), "\n");
+    const { errors } = withRoot(d, () => validateIn(d));
+    const missing = errors.filter((e) => e.rule === "missing-section").map((e) => e.msg);
+    assert.equal(missing.length, 4, `expected all four, got: ${missing.join(" | ")}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a design ticket needs Options considered and Open questions", () => {
+    const d = repo();
+    ticket(d, "open", FM({ type: "design" }), sections(...BASE));
+    const { errors } = withRoot(d, () => validateIn(d));
+    const msgs = errors.filter((e) => e.rule === "design-section").map((e) => e.msg).join(" | ");
+    assert.match(msgs, /Options considered/);
+    assert.match(msgs, /Open questions/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("inbox captures are exempt — including a bug typed on a phone", () => {
+    // Live before 0126, not hypothetical: the bug rule ran in every folder, so
+    // capturing "fog flickers when panning" as a bug turned the backlog red.
+    const d = repo();
+    writeFileSync(join(d, "tickets/inbox/2026-09-01T0100-fog-flickers.md"), serialize({
+      status: "inbox", title: "fog flickers when panning", type: "bug",
+      priority: "med", source: "ui", created: "2026-09-01T01:00:00Z",
+    }, "\n## Description\n\nNoticed at mile six.\n"));
+    const r = run(d, "validate");
+    assert.equal(r.code, 0, `an inbox capture must never fail validation:\n${r.out}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("missingSections returns nothing for inbox, whatever the body", () => {
+    assert.deepEqual(missingSections({ type: "bug" }, "", "inbox"), []);
+    assert.ok(missingSections({ type: "bug" }, "", "open").length > 0);
+  });
+
+  test("a closed ticket still needs ## Resolution, and it is still 'closed-section'", () => {
+    const d = repo();
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n");
+    const { errors } = withRoot(d, () => validateIn(d));
+    assert.ok(errors.some((e) => e.rule === "closed-section" && e.msg.includes("Resolution")));
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("everything `create` emits, `validate` accepts — for every type", () => {
+    // The drift this ticket closes: the generator wrote sections the validator
+    // did not require. Asserting them against each other keeps them married.
+    for (const type of ["feature", "bug", "design", "chore", "refactor", "docs"]) {
+      const d = repo();
+      const r = run(d, "create", "--title", `A ${type}`, "--type", type, "--priority", "med", "--capability", "00-x");
+      assert.equal(r.code, 0, r.out);
+      const v = run(d, "validate");
+      assert.equal(v.code, 0, `create --type ${type} produced a ticket validate rejects:\n${v.out}`);
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  test("triage-move leaves a promoted capture failing validate, deliberately", () => {
+    // D-170: a promoted capture is not yet a ticket. The error IS the gate —
+    // triage supplies the criteria (§2.3), and a TODO skeleton would validate
+    // green while meaning nothing, which is 0124's failure in another costume.
+    const d = repo();
+    writeFileSync(join(d, "tickets/inbox/2026-09-01T0100-streak-freeze.md"), serialize({
+      status: "inbox", title: "streak freeze", type: "feature",
+      priority: "med", source: "ui", created: "2026-09-01T01:00:00Z",
+    }, "\n## Description\n\nIdea from the 10k.\n"));
+    commitAll(d);
+    assert.equal(run(d, "triage-move", "tickets/inbox/2026-09-01T0100-streak-freeze.md", "--slug", "streak-freeze").code, 0);
+    const r = run(d, "validate");
+    assert.notEqual(r.code, 0, "an unfinished triage must not validate clean");
+    assert.match(r.out, /Acceptance criteria/);
     rmSync(d, { recursive: true, force: true });
   });
 });

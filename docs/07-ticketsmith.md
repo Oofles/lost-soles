@@ -818,8 +818,12 @@ Errors (exit 1):
 - A `depends_on` / `blocked_by` id that does not exist.
 - A dependency cycle.
 - `closed:` present on an open ticket, or absent on a closed one.
-- A closed ticket missing `## Resolution` or `## Operator validation`.
+- A ticket in `open/` or `closed/` missing any of `## Description`, `## Acceptance criteria`,
+  `## Notes` or `## Operator validation` (§3.3). **Inbox items are exempt** — they are free-form
+  captures and triage supplies the structure (§2.3).
+- A closed ticket missing `## Resolution`.
 - A `bug` missing `## Steps to reproduce` or `## Expected vs actual`.
+- A `design` missing `## Options considered` or `## Open questions`.
 - A closed ticket with an unchecked acceptance criterion.
 - An `(operator)` criterion ticked with no `— verified YYYY-MM-DD: <result>` sign-off, in any
   folder (§3.3.1).
@@ -831,6 +835,13 @@ Warnings (exit 0, reported):
 - A `capability` value with no matching `docs/capabilities/NN-name.md`.
 - An inbox item older than 14 days.
 - An unknown frontmatter key.
+
+**The body-section rules were added by ticket `0126` (D-170).** Until then §3 made the four
+sections normative for every ticket while this list carried no rule for them — so a file with valid
+frontmatter and **no body at all** validated clean. That was a disagreement between two sections of
+this document rather than a defect in the implementation, which is why it was settled here first and
+in the code second. The rules are expressed in `tickets.mjs` as a single `type`/folder → sections
+table, so adding a type's required sections is a row rather than another branch.
 
 TicketSmith explicitly ships no validator, noting the format is "intentionally simple enough that
 a script could validate it." We ship the script. This is a deviation in tooling, not in method —
