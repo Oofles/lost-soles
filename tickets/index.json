@@ -2800,6 +2800,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-01T04:39:56Z",
     "path": "tickets/open/0121-tickets-audit-subcommand.md",
     "ready": true,
     "acceptance": {

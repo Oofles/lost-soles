@@ -323,3 +323,82 @@ real application code, and the first where the audit's automated half actually r
    the checks genuinely had no subject. From `02` onward most of them have one, and an "n/a" that
    should have been a "fail" is precisely the drift D-153 exists to catch.
 
+
+## Retroactive audit — 2026-09-01 (ticket 0121)
+
+The §2 reading above was done by hand on 2026-08-30, before `/tickets audit` existed. `0121` closes
+that bootstrap gap. What follows is the delta since; the earlier reading stands.
+
+### §2 — the two original divergences are resolved, and one is added
+
+1. **§3 and §4.7 disagreed about whether a ticket body may be empty** — carried forward from the
+   hand audit. **Resolved 2026-09-01 as design-was-wrong**: `0126` amended §4.7 to carry the
+   body-section rules, recorded **D-170**, and made the validator enforce them. §3 governs, because
+   it is the half that says what a ticket *is*.
+2. **`create` could not derive a valid slug from a long title** — carried forward. **Resolved as
+   code-was-wrong**: fixed and closed as `0127`.
+3. **A closed ticket carried an operator-verifiable criterion that was ticked without verification**
+   (`0010`, found by `0123`). The format had no way to express "only a human can check this", so
+   §3.5's insistence that operator validation is non-negotiable had nothing enforcing it at close
+   time, and `/tickets` shipped inert for days. **Resolution: the design was wrong**, amended in
+   §3.3.1 and §4.6 with **D-169** — a `(operator)` criterion now blocks a close and its tick must
+   carry a dated result.
+
+**Not counted as a divergence: `0123`'s invalid `SKILL.md` frontmatter.** This is the load-bearing
+judgement in this audit and it is stated plainly so it can be disagreed with. `SKILL.md`'s
+frontmatter reproduced §4.2's example **byte-for-byte** — `0010`'s criterion required exactly that,
+and a programmatic check confirmed it. The implementation did not differ from the design; the design
+shipped invalid YAML as its own example. That is a design defect found by other means, not
+implementation drift, and both halves were corrected in one commit (§4.2 carries the correction
+note; the skill was fixed; `check-skills.mjs` now runs in CI and the pre-commit hook).
+
+**If you judge otherwise, this capability is at four divergences and owes a DESIGN session on
+`07-ticketsmith.md`.** That is a real call, not a formality — four defects in one spec is the signal
+the budget exists to raise.
+
+**Total as recorded: 3 divergences, exactly at the budget of three.**
+
+### §3 — operator validation across the capability
+
+Every closed ticket carries a substantive `## Operator validation` result. Two were run by a human
+and are recorded as such rather than as agent observations: `0123`'s (`/tickets` registers and
+routes — the criterion `0010` pre-ticked) and `0124`'s (`/tickets` still registers after the
+`SKILL.md` edit, signed off inline as `— verified 2026-09-01`). **USE-step n/a** — this capability
+touches neither map, run log nor XP.
+
+`0124` is the first ticket in the project to close through the mechanism it added: its `(operator)`
+criterion blocked `close` four times until a human ran it.
+
+### §5 — hygiene
+
+No `blocked_by` points at a closed ticket. Discovered scope was filed, never absorbed: `0126`,
+`0127`, and the `0133`/`0134`/`0135` split of `0121` itself. **AWS spend n/a** — this capability
+created no AWS resources.
+
+## Reflection — addendum, 2026-09-01
+
+The reflection above was written on 2026-08-30 and predates seven closed tickets. What that session
+could not see:
+
+**The same bug arrived four times in four costumes, and it is the finding of this capability.**
+An absence and a negative result rendering identically:
+
+- a criterion nobody checked, ticked exactly like one that was checked (`0010` → D-169);
+- a body section the format required and the validator never looked for (`0126` → D-170);
+- an audit check that could not run, reported exactly like one that passed (`0133` → D-171);
+- a divergence list nobody wrote, indistinguishable from one that found nothing (`0134` → D-172).
+
+Each was caught by *running* something rather than reading it, and three of the four were caught by
+the tooling built one ticket earlier. That is the argument for building the ticket system before the
+product, and it is the strongest evidence this capability produced.
+
+**What the next capability should do differently.** Every check written from here should be asked
+one question before it is accepted: *what does it report when the thing it checks does not exist
+yet?* If the answer is "it passes", it is not a check. Capability `02` onward has real application
+code, where the same failure is cheaper to write and far more expensive to find.
+
+**Estimate vs actual.** `0121` was estimated `size: m` and was `size: l` — ten criteria spanning a
+check runner, a record format, a gate and two retroactive audits. Split into `0133`/`0134`/`0135`
+rather than pushed through, on the reasoning that building the anti-rubber-stamping tool by
+rubber-stamping would have been self-defeating. The split was the right call and the three tickets
+each landed cleanly inside a session.

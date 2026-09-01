@@ -338,3 +338,79 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 _Filled in at the REFLECT step, after USE._
 
+
+## Retroactive audit — 2026-09-01 (ticket 0121)
+
+`/tickets audit` did not exist when this capability closed, so its close audit above was run by
+hand on 2026-08-30. Ticket `0121` closes that bootstrap gap by running the command against `00` and
+`01` — the two capabilities that would otherwise be the only ones in the project never audited by
+the tool, and the ones everything else rests on.
+
+**This is not a re-audit from scratch.** The 2026-08-30 §2 reading stands; what follows is the
+delta since, plus the two items that were left open.
+
+### §2 — one divergence added since 2026-08-30
+
+Two tickets closed in this capability after the hand audit: `0125` and `0122`.
+
+3. **The `.githooks/pre-commit` hook had no test, and a silent edit had disabled a layer**
+   (`0125`). D-155 replaced husky with a version-controlled hook and D-159 made it one of the two
+   secret-scanning layers; the shipped hook could be — and had been — quietly edited into
+   ineffectiveness with nothing to notice. **Resolution: the code was wrong**, filed and fixed as
+   `0125`, which added 18 tests including two proofs against real historical breakage.
+
+`0122` (the dormant 2022 access key) is **not** counted as a divergence. Nothing in the design said
+anything about it; it was a hygiene failure surfaced by looking, filed as a ticket, and settled with
+D-168. §5 is where it belongs, and it is recorded there.
+
+**Total: 3 divergences, exactly at the budget of three.** Being *at* the budget is worth saying out
+loud rather than reading as a pass — one more and this capability would owe a DESIGN session.
+
+### §3 — the outstanding item from 2026-08-30, resolved
+
+The hand audit recorded ticket `0004`'s operator validation as **⏳ outstanding**: the operator had
+not opened the repository in a browser to confirm the tree. It was still outstanding today, and its
+`## Operator validation` section is still the *instruction* rather than a result.
+
+Resolved here rather than left open, because the check as written is now partly moot and partly
+better done another way:
+
+- **"Confirm it is private" is superseded by D-165** — the repository is deliberately public as of
+  2026-08-31. That clause cannot be satisfied and should not be.
+- **The tree contents are verified objectively** against `origin/main`, which is stronger evidence
+  than reading a rendered file list: `docs/`, `tickets/` and `.githooks/` are present;
+  `.claude/settings.local.json` appears **zero** times anywhere in the tree; `.env.example` contains
+  only placeholders and a pointer to `08-security-privacy.md` §7.2.
+
+Unlike `0017`'s bundle check — where the browser showed what a *user* actually receives and no agent
+could stand in for it — nothing here is visible to a browser that `git ls-tree` does not show more
+precisely. Recorded as an agent verification, deliberately and with the reasoning exposed, rather
+than as an operator result that did not happen.
+
+The hook probe in `0004`'s instructions is covered by `0125`'s 18 automated tests; the operator
+separately waived the manual run of it while closing `0017`.
+
+## Audit — 2026-09-01 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 8 passed, 0 failed, 4 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `D-155` — husky + lint-staged replaced by a version-controlled .githooks/pre-commit — husky needs a package.json that does not exist until 0012
+2. **design-was-wrong** — `D-156` — GitHub secret scanning and push protection are unavailable on this repo; the compensating control was pushed into 0019, whose endpoint commits via the API and bypasses the local hook
+3. **code-was-wrong** — `0125` — the .githooks/pre-commit hook had no test and a silent edit had disabled a secret-scanning layer
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **na** — 30 invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — all 9 tickets closed
+
+<!-- audit-record {"capability":"00-preflight-and-repo","audited":"2026-09-01T04:42:06Z","verdict":"pass","mechanical":{"pass":8,"fail":0,"na":4},"divergences":3} -->
