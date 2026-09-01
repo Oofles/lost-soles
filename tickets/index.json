@@ -3071,7 +3071,7 @@
     "title": "The audit record: a parseable result block, the explicit divergence list, and the drift budget",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [
@@ -3081,10 +3081,11 @@
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
     "started": "2026-09-01T04:29:05Z",
-    "path": "tickets/open/0134-audit-record-and-drift-budget.md",
-    "ready": true,
+    "closed": "2026-09-01T04:35:31Z",
+    "path": "tickets/closed/0134-audit-record-and-drift-budget.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -3104,7 +3105,7 @@
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
     "path": "tickets/open/0135-next-refuses-across-capability-boundary.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5

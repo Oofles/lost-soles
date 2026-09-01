@@ -4,7 +4,7 @@ slug: audit-record-and-drift-budget
 title: The audit record: a parseable result block, the explicit divergence list, and the drift budget
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: [133]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T04:18:14Z
 started: 2026-09-01T04:29:05Z
+closed: 2026-09-01T04:35:31Z
 ---
 
 ## Description
