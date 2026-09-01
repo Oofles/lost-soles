@@ -166,6 +166,14 @@ order: priority (high > med > low) → id ascending
 ```
 A non-empty `blocked_by` is **never** ready, regardless of `depends_on`.
 
+**The capability gate is a `next` refusal, not a readiness rule** (D-173) — same placement as the
+`size: l` refusal (D-161). A ticket in capability `C` (where `C ≥ 02`) is **gated** while any
+lower-numbered capability that has tickets has not recorded a passing or forced audit. `next` hands
+over the best *ungated* ticket and says how many were gated; if every ready ticket is gated it
+refuses and names the **earliest** unaudited capability, which is the one that can actually be
+audited next. `next --all` lists everything, gated entries marked — the gate refuses to hand over
+work, it does not hide the backlog.
+
 ---
 
 ## Validation rules

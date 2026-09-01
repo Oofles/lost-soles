@@ -829,3 +829,34 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`--force` records `verdict: forced`, never `pass`**, with its reason in the doc. Skipping is
     made visible rather than impossible (0121's note). A forced audit that recorded as a pass would
     be worse than no audit, because it would satisfy `0135`'s gate.
+
+---
+
+## The capability gate  (2026-09-01, ticket 0135)
+
+- **D-173** **`next` refuses to advance into a capability whose predecessors have not passed their
+  audit.** Settled while building 0135, the last of the three tickets 0121 was split into. This is
+  the criterion 0121's own notes call the one that gives the audit teeth: *"without it the audit is
+  advisory and will be skipped precisely when it matters most."*
+  - **A `next` refusal, not a readiness rule.** Same placement as the `size: l` refusal (D-161):
+    enforcement goes where the operator is already paying attention. A backlog that failed
+    `validate` because an audit was outstanding would train everyone to ignore `validate`.
+  - **"Every lower capability", not "the immediately previous one"** — so skipping a capability
+    cannot launder the gap. It also yields the "never blocked from finishing" property for free: a
+    capability is never below itself, so work *inside* the capability you are in is never gated. You
+    are blocked from advancing, never from finishing.
+  - **The blocker reported is the EARLIEST gap, not the nearest.** Capabilities are built in order
+    and audited in order, so the earliest outstanding audit is the one that can actually be done
+    next. The first implementation reported the nearest — which sends you to audit `02` while `01`
+    is still outstanding, and lands you back at the same refusal one capability later. Changed on
+    reading the output rather than the code.
+  - **A `forced` verdict lifts the gate exactly as `pass` does.** `--force` exists to make skipping
+    *visible*, not impossible (0121, D-172); a force that still blocked would be a refusal with
+    extra steps. The record says which it was, and `verdict: forced` is never written as `pass`.
+  - **A capability with a doc but no tickets does not gate.** There is nothing to audit.
+  - **`next --all` still lists the whole backlog**, gated entries marked. The gate refuses to hand
+    over work; it does not hide the backlog, because an operator who cannot see what is waiting will
+    reach around the gate rather than through it.
+  - **Enforcement begins at capability `02`.** `00` and `01` predate the command that audits them;
+    that bootstrap gap is closed by 0121's retroactive run rather than by pretending they were
+    gated all along.

@@ -887,6 +887,45 @@ function cmdAllocate() {
   console.log(pad(ids.length ? Math.max(...ids) + 1 : 1));
 }
 
+/**
+ * The capability gate (0135, D-153's teeth).
+ *
+ * A ticket in capability C is gated while any capability numbered below C — that
+ * actually has tickets — has not recorded a passing audit. The blocker reported
+ * is the LOWEST-numbered one: capabilities are built in order and audited in
+ * order, so the earliest gap is the one that can actually be closed next.
+ * Reporting the nearest gap instead sends you to audit 02 while 01 is still
+ * outstanding, and you arrive back here one capability later.
+ *
+ * Expressed as "every lower capability", not "the immediately previous one", so
+ * that skipping a capability cannot launder the gap. It also gives criterion 2
+ * for free: work *inside* the capability you are in is never gated, because a
+ * capability is never below itself. You are blocked from advancing, never from
+ * finishing.
+ *
+ * Enforcement begins at capability 02 (0121): `00` and `01` predate the command
+ * that audits them, and that bootstrap gap is closed by 0121's retroactive run
+ * rather than by pretending they were gated all along.
+ *
+ * A `forced` verdict lifts the gate exactly as `pass` does. --force is meant to
+ * make skipping *visible*, not impossible (0121); a force that still blocked
+ * would just be a refusal with extra steps, and the record says which it was.
+ */
+const capNumber = (cap) => (typeof cap === "string" && /^\d\d-/.test(cap) ? Number(cap.slice(0, 2)) : null);
+const GATE_BEGINS_AT = 2;
+
+function auditBlockers(capability, tickets) {
+  const n = capNumber(capability);
+  if (n === null || n < GATE_BEGINS_AT) return [];
+  const lower = [...new Set(tickets.map((t) => t.fm?.capability).filter((c) => {
+    const m = capNumber(c);
+    return m !== null && m < n;
+  }))].sort();
+  return lower.filter((c) => !["pass", "forced"].includes(latestAuditRecord(c)?.verdict));
+}
+
+const isGated = (t, tickets) => auditBlockers(t.fm?.capability, tickets).length > 0;
+
 function cmdNext(flags) {
   const ts = load();
   const ready = readySet(ts);
@@ -896,18 +935,46 @@ function cmdNext(flags) {
     die(`nothing is ready. ${open.length} ticket(s) are open, but all are blocked or waiting on\n` +
         `  unclosed dependencies. Run 'tickets.mjs list --status blocked' to see why.`);
   }
+
+  const gate = new Map(ready.map((t) => [t.fm.id, auditBlockers(t.fm.capability, ts)]));
+  const open_ = ready.filter((t) => !gate.get(t.fm.id).length);
+
   if (flags.all) {
-    for (const t of ready) console.log(`  ${pad(t.fm.id)}  ${t.fm.priority.padEnd(5)}${t.fm.size === "l" ? "[SIZE:L — SPLIT] " : ""}${t.fm.title}`);
-    return console.log(`\n  ${ready.length} ready`);
+    // The gate refuses to hand over work; it does not hide the backlog.
+    for (const t of ready) {
+      const blockers = gate.get(t.fm.id);
+      const mark = blockers.length ? `[GATED on ${blockers[0]}] ` : "";
+      console.log(`  ${pad(t.fm.id)}  ${t.fm.priority.padEnd(5)}${t.fm.size === "l" ? "[SIZE:L — SPLIT] " : ""}${mark}${t.fm.title}`);
+    }
+    console.log(`\n  ${ready.length} ready${ready.length - open_.length ? `, ${ready.length - open_.length} gated on an unaudited capability` : ""}`);
+    return;
   }
-  const t = ready[0];
+
+  if (!open_.length) {
+    const blocker = gate.get(ready[0].fm.id)[0];
+    die(`every ready ticket is gated on capability '${blocker}', whose audit has not passed (D-153).\n\n` +
+        `  A capability is not done when its tickets are closed. It is done when its audit passes,\n` +
+        `  and the audit is worth most exactly when there is pressure to skip it.\n\n` +
+        `    tickets.mjs audit ${blocker}              the mechanical half\n` +
+        `    tickets.mjs audit ${blocker} --sections   the §2 reading list\n` +
+        `    tickets.mjs audit ${blocker} --record …   record the result\n\n` +
+        `  'tickets.mjs next --all' still lists the whole backlog, gated entries marked.`);
+  }
+
+  const t = open_[0];
   if (t.fm.size === "l") {
     die(`next ready ticket is ${pad(t.fm.id)} "${t.fm.title}" — but it is size: l.\n` +
         `  'l' is a smell recorded honestly, not a valid plan. Split it into two tickets\n` +
         `  before starting, or pick another with 'tickets.mjs next --all'.`);
   }
-  if (flags.json) return console.log(JSON.stringify({ ...t.fm, path: t.path }, null, 2));
+  if (flags.json) return console.log(JSON.stringify({ ...t.fm, path: t.path, gated: ready.length - open_.length }, null, 2));
   console.log(`  ${pad(t.fm.id)}  ${t.fm.title}\n  ${t.path}`);
+  const gated = ready.length - open_.length;
+  if (gated) {
+    const blocker = gate.get(ready.find((r) => gate.get(r.fm.id).length).fm.id)[0];
+    console.log(`\n  ${gated} higher-priority ticket(s) are gated on capability '${blocker}' —`);
+    console.log(`  its audit has not passed. 'tickets.mjs audit ${blocker}' to start it.`);
+  }
 }
 
 function rewrite(t, fm, body = t.body) {
@@ -1118,4 +1185,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { auditChecks, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

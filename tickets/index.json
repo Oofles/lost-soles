@@ -3104,6 +3104,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
+    "started": "2026-09-01T04:36:31Z",
     "path": "tickets/open/0135-next-refuses-across-capability-boundary.md",
     "ready": true,
     "acceptance": {

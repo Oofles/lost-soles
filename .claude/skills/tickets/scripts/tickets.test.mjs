@@ -1025,3 +1025,121 @@ describe("0134 — the audit record, the divergence list and the drift budget", 
     rmSync(d, { recursive: true, force: true });
   });
 });
+
+// ─────────────────────────────────────── 0135 the capability gate in `next` ────
+
+describe("0135 — next refuses to advance into a new capability until the previous audit passed", () => {
+  const BODY_OK = "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n";
+
+  /** A repo with one open ticket per named capability, and a doc for each. */
+  function caps(d, ...names) {
+    names.forEach((cap, i) => {
+      writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n`);
+      ticket(d, "open", FM({ id: i + 1, slug: `t${i + 1}`, capability: cap, priority: "high" }), BODY_OK);
+    });
+  }
+  const recordPass = (d, cap, verdict = "pass") =>
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`),
+      readFileSync(join(d, "docs/capabilities", `${cap}.md`), "utf8") +
+      `\n<!-- audit-record ${JSON.stringify({ capability: cap, verdict })} -->\n`);
+
+  test("a ticket past capability 01 is gated, and the blocker named is the EARLIEST gap", () => {
+    // Not the nearest one: capabilities are audited in order, so naming 02 while
+    // 01 is outstanding sends you back here one capability later.
+    const d = repo();
+    caps(d, "00-a", "01-b", "02-c", "03-d");
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /gated on capability '00-a'/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("enforcement begins at capability 02 — an 00 or 01 ticket is never gated", () => {
+    const d = repo();
+    caps(d, "00-a", "01-b");
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /0001/);
+    assert.ok(!/gated/i.test(r.out), `nothing below 02 may be gated:\n${r.out}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("work inside the capability you are in is never blocked — only advancing is", () => {
+    // 02's own audit has not passed, and that must not stop 02's tickets.
+    const d = repo();
+    caps(d, "00-a", "01-b", "02-c");
+    recordPass(d, "00-a");
+    recordPass(d, "01-b");
+    // Assert against --all: `next` picks by priority then id, so which ticket it
+    // returns says nothing about the gate. What matters is that none is gated.
+    const all = run(d, "next", "--all");
+    assert.equal(all.code, 0, all.out);
+    assert.match(all.out, /0003/);
+    assert.ok(!/GATED/.test(all.out), `02's own audit being unrecorded must not gate 02's tickets:\n${all.out}`);
+    assert.match(all.out, /3 ready$/m, "and none of the three counted as gated");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the gate lifts once a record says passed, and a forced verdict lifts it too", () => {
+    // --force exists to make skipping visible, not impossible (0121). A force
+    // that still blocked would be a refusal with extra steps.
+    for (const verdict of ["pass", "forced"]) {
+      const d = repo();
+      caps(d, "00-a", "01-b", "02-c");
+      assert.match(run(d, "next", "--all").out, /GATED/, "precondition: 02 is gated");
+      recordPass(d, "00-a", verdict);
+      recordPass(d, "01-b", verdict);
+      assert.ok(!/GATED/.test(run(d, "next", "--all").out), `verdict '${verdict}' must lift the gate`);
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  test("when every ready ticket is gated, next refuses and names the audit commands", () => {
+    const d = repo();
+    // 01-b's ticket is closed, so the only READY ticket is the gated 02-c one.
+    writeFileSync(join(d, "docs/capabilities/01-b.md"), "# 01-b\n");
+    writeFileSync(join(d, "docs/capabilities/02-c.md"), "# 02-c\n");
+    ticket(d, "closed", FM({ id: 1, slug: "done", capability: "01-b", status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    ticket(d, "open", FM({ id: 2, slug: "next-up", capability: "02-c", priority: "high" }), BODY_OK);
+    const r = run(d, "next");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /01-b/);
+    assert.match(r.out, /--sections/);
+    assert.match(r.out, /--record/);
+    assert.match(r.out, /next --all/, "the refusal must point at the way to still see the backlog");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--all lists the whole backlog with gated entries marked — the gate hides nothing", () => {
+    const d = repo();
+    caps(d, "00-a", "01-b", "02-c", "03-d");
+    const r = run(d, "next", "--all");
+    assert.equal(r.code, 0);
+    for (const id of ["0001", "0002", "0003", "0004"]) assert.match(r.out, new RegExp(id));
+    assert.match(r.out, /4 ready, 2 gated/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("an ungated ticket is preferred over a gated higher-priority one, and it says so", () => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities/01-b.md"), "# 01-b\n");
+    writeFileSync(join(d, "docs/capabilities/02-c.md"), "# 02-c\n");
+    ticket(d, "open", FM({ id: 1, slug: "gated-high", capability: "02-c", priority: "high" }), BODY_OK);
+    ticket(d, "open", FM({ id: 2, slug: "open-low", capability: "01-b", priority: "low" }), BODY_OK);
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /0002/, "the ungated low-priority ticket is the one that can be worked");
+    assert.match(r.out, /1 higher-priority ticket\(s\) are gated/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a ticket with no capability is never gated", () => {
+    const d = repo();
+    caps(d, "00-a");
+    ticket(d, "open", FM({ id: 9, slug: "loose", capability: "null", type: "chore", priority: "high" }), BODY_OK);
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    rmSync(d, { recursive: true, force: true });
+  });
+});

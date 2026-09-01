@@ -50,6 +50,10 @@ subcommand dispatch, so this table is the dispatch.
 `SCRIPT next --json` picks the ticket — highest priority in the ready set, ties by lowest id. Do not
 second-guess it; if it picked something surprising, `SCRIPT show <id>` explains why.
 
+If it refuses because every ready ticket is **gated on an unaudited capability**, that is D-153
+working: run the audit it names (see `## audit` below). Do not route around it by starting a ticket
+by hand — the gate exists because the audit is skipped exactly when it matters most.
+
 Then: summarize the ticket in two or three sentences, **state the approach you intend to take**, and
 **wait for a go before touching anything.** This is the operator's cheapest chance to redirect.
 
