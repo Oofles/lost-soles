@@ -486,6 +486,24 @@ external trust dependency to buy nothing for six known humans), no SAML/OIDC fed
 SMS MFA — SMS costs real SNS money and is the weakest second factor available. If a second
 factor is ever wanted beyond passkeys, it is **TOTP**, which is free.
 
+> **Superseded in part by D-175 (2026-09-01, ticket 0129) — read this before re-litigating.**
+> The clause "to buy nothing for six known humans" is **wrong**, and the error is worth naming: it
+> weighed a social IdP in isolation and never considered **one sign-in across the operator's own
+> suite of apps on `devaultsecurity.com`**, because at the time nothing else was on that domain.
+> `school-hub` now is. That is a real benefit to the actual and only user.
+>
+> The decided end state is **Auth.js with Google, displacing Cognito**, scheduled after
+> `15-two-map-modes-and-cold-territory` and before `16-rebuild-drill` (ticket `0138`). Adding Google
+> as a federated IdP *on this Cognito pool* is rejected permanently — it buys the external trust
+> dependency and still requires two sign-ins, since `school-hub` uses Auth.js cookies, not Cognito.
+>
+> **Nothing in the paragraph above changes today**, and the rest of §5.1 is untouched:
+> `selfSignUpEnabled: false` and `allowUnauthenticatedIdentities: false` are not what D-175
+> supersedes. When Cognito goes, `selfSignUpEnabled: false` maps to Auth.js's
+> `AUTH_ALLOWED_EMAILS` allowlist — Google sign-in without one is a public registration endpoint
+> wearing a different hat, which is the very thing the bullet above calls the single most important
+> line in the auth config.
+
 **Verification gate on the pool itself:** self-signup and unauthenticated identities are two
 booleans that a console click or a careless `defineAuth` edit can flip back. A one-line
 post-deploy check — `aws cognito-idp describe-user-pool` asserting the admin-only signup policy

@@ -907,3 +907,52 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`resume` renames the `## Deferred` heading rather than deleting the section.** What was waited
     on, and why, is worth keeping. The rename is also load-bearing: without it a second deferral
     would parse the first one's stale fenced block and `recheck` would run the wrong test.
+
+---
+
+## Auth: Auth.js with Google is the final state; Cognito until the game is complete  (2026-09-01, ticket 0129)
+
+- **D-175** **Lost Soles will move from Cognito to Auth.js with Google sign-in, for real
+  cross-subdomain SSO across `devaultsecurity.com` — after `15-two-map-modes-and-cold-territory`
+  and before `16-rebuild-drill`. Until then Cognito stays, unchanged, with no identity provider.**
+  Decided by the operator on 2026-09-01, on the costing in 0129.
+  - **This supersedes `08-security-privacy.md` §5.1's reasoning on social IdPs, and does not
+    re-affirm it.** §5.1 ruled them out as adding "an external trust dependency to buy nothing for
+    six known humans." The premise was wrong in one specific way: it never weighed **one sign-in
+    across the operator's own suite of apps on one domain**, because at the time nothing else was
+    on that domain. That is a real benefit to the actual and only user, and it is named here rather
+    than dismissed. §5.1 is annotated in place — the original reasoning stays visible.
+  - **What is superseded is the *conclusion*, not the *posture*.** §5.1's actual subject —
+    `selfSignUpEnabled: false`, `allowUnauthenticatedIdentities: false`, no anonymous principal —
+    is untouched and non-negotiable. See the allowlist mapping below.
+  - **Option 1 — Google as a federated IdP on Lost Soles' own Cognito pool — is rejected outright,
+    permanently.** It takes on the external trust dependency §5.1 warned about and delivers **no
+    SSO at all**, because `school-hub` authenticates with Auth.js cookies rather than Cognito: the
+    operator would still sign in twice. It is the worst of the three options and should not be
+    revisited.
+  - **Why not now.** The migration's difficulty is concentrated in two places — browser access to
+    S3 (`allow.entity("identity")` has no meaning without an identity pool) and the browser's
+    AppSync subscriptions (`01-architecture.md` §4 step 17; a cookie does not sign a WebSocket
+    handshake). Both are decisions that cannot be made well before the data model exists at all:
+    capability `04` is where `Activity`, `XpLedgerEntry` and `ExploredCell` are defined. Migrating
+    first means designing an authorization story against a schema nobody has written.
+  - **Why not later, either.** `16-rebuild-drill` and `18-mvp-hardening` are the capabilities a
+    later auth swap would invalidate — hardening and drilling a stack about to be deleted is work
+    done twice. Slotting the migration before them is what makes the ordering forced rather than
+    arbitrary.
+  - **`selfSignUpEnabled: false` maps to `AUTH_ALLOWED_EMAILS`.** This is the load-bearing sentence
+    for whoever does the migration. Google sign-in with no allowlist is a public registration
+    endpoint wearing a different hat — the exact hole §5.1 calls the single most important line in
+    the auth config. `school-hub`'s Auth.js config already carries the allowlist; it is not
+    optional here.
+  - **Three constraints on every capability built in between**, so the door stays open cheaply:
+    the session is read in the `(app)/layout.tsx` gate and nowhere else; model authorization stays
+    uniform `allow.owner()` with no bespoke per-model rules; and the two known migration costs are
+    flagged on the tickets that create them (S3 client access in `07`/`08`, subscriptions in `14`).
+  - **`scripts/check-auth-posture.mjs` keeps asserting `no federated identity providers`.** It is
+    still true and still worth enforcing until the migration commit rewrites it against the new
+    posture. It is rewritten, never deleted — and 0014's criterion 3 is annotated as superseded in
+    that same commit, not before.
+  - **This is not `deferred` (D-174).** `deferred` is for work waiting on the world. This waits on
+    us, on a schedule we chose, which `depends_on` and a capability slot already express. Using the
+    new status here would have been its first abuse.

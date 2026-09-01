@@ -2980,8 +2980,8 @@
     "path": "tickets/open/0129-cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 6
+      "checked": 5,
+      "total": 5
     }
   },
   {
@@ -3160,6 +3160,46 @@
     "acceptance": {
       "checked": 0,
       "total": 9
+    }
+  },
+  {
+    "id": 138,
+    "slug": "authjs-with-google-replaces-cognito-design-the-migration",
+    "title": "Auth.js with Google replaces Cognito — design the migration capability",
+    "type": "design",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "null",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T21:31:18Z",
+    "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 139,
+    "slug": "validate-accepts-duplicate-required-sections",
+    "title": "validate accepts duplicate required sections, so a stub block can hide a phantom unchecked criterion",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T21:31:18Z",
+    "path": "tickets/open/0139-validate-accepts-duplicate-required-sections.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   },
   {
