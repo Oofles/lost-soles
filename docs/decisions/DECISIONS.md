@@ -690,3 +690,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Rotation:** the live key was created 2026-08-31. Rotate on or before **2027-08-31**, or
     immediately on any suspected exposure. Recorded here because a rotation date nobody wrote down
     is how the 2022 key happened.
+
+---
+
+## Operator-verifiable criteria  (2026-09-01, ticket 0124)
+
+- **D-169** **A criterion prefixed `(operator)` blocks a close until a human has run it, and its
+  tick must carry a dated result.** Settled while closing 0124, which was itself filed by 0123.
+  - **The failure it answers.** Ticket `0010` carried the criterion *"typing `/tickets` shows the
+    skill"*, identified it in `## Notes` as operator-verifiable only, **ticked it anyway**, and
+    closed. The skill's frontmatter was invalid YAML; it never registered and shipped inert for days
+    until `0123` found it. Nothing in the format or the tooling could tell the two kinds of tick
+    apart — a box the agent ticked because it did the work, and a box the agent ticked because only
+    a human could have, are the same character in the same file.
+  - **The mechanism.** `(operator)` in the criterion text, bare or bolded, any case. `close` refuses
+    while such a criterion is unchecked and names the legitimate path — leave the ticket open,
+    commit the work, close in a later session. `close` and `validate` both refuse one ticked without
+    `— verified YYYY-MM-DD: <result>`. `validate` applies that in **every** folder, so a pre-tick is
+    an error where it is written rather than a post-mortem after the close.
+  - **Why the marker lives in the text, not in frontmatter.** An `operator_criteria: [2, 3]` index
+    list rots silently the first time a criterion is reordered — the numbers still resolve, just to
+    the wrong lines. Text survives reordering, quoting and copy-paste, and reads correctly in any
+    markdown viewer.
+  - **Why the refusal message differs from the ordinary one.** "Do the work, or amend the criterion
+    and say why" is advice an agent can act on alone. For an operator criterion, acting on it alone
+    means ticking the box — the exact `0010` failure. The refusal therefore names a different path,
+    the one `0123` actually took and which worked.
+  - **What this does not buy, stated so nobody relies on it.** It does not make a false tick
+    impossible; an agent willing to tick a box is willing to type a date. It makes the claim
+    explicit, dated and permanent, next to the criterion it concerns — the same standard
+    `## Operator validation` prose is already held to (D-153, §3.5). This is a legibility mechanism,
+    not a security boundary.
+  - **Opt-in by construction.** No ticket written before this carries the marker, so the rule landed
+    across 121 existing tickets with `validate` clean. `0010` is deliberately **not** amended:
+    rewriting a closed ticket to satisfy a rule invented afterwards makes the record look better
+    than the history was, and `0123`'s Resolution is more useful intact.

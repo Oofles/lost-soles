@@ -73,19 +73,57 @@ function serialize(fm, body) {
   return `---\n${lines.join("\n")}\n---\n${body}`;
 }
 
-/** Checkboxes under "## Acceptance criteria" only, stopping at the next "##". */
+/**
+ * A criterion prefixed `(operator)` — bare or bolded, any case — is one only a
+ * human at a device can check. Ticket 0010 marked such a criterion in prose,
+ * ticked it anyway, and shipped a skill that never registered (0123, 0124).
+ * The marker exists so the two kinds of tick stop being the same character.
+ */
+const OPERATOR_MARK = /^\*{0,2}\((?:operator)\)\*{0,2}[:\s]\s*/i;
+
+/**
+ * A ticked operator criterion must carry its evidence inline: a dated result,
+ * next to the claim it supports. The dash may be em, en or hyphen and the
+ * wording of the result is free — only the shape is checked, because the point
+ * is to force an explicit dated statement, not to parse one.
+ */
+const SIGN_OFF = /[—–-]\s*verified\s+(\d{4}-\d{2}-\d{2})\s*:\s*\S/i;
+
+/**
+ * Checkboxes under "## Acceptance criteria" only, stopping at the next "##".
+ *
+ * Continuation lines (indented, not themselves a checkbox) fold into the
+ * criterion above them. Without that, a sign-off would go unseen on exactly
+ * the criteria long enough to wrap — the rule would fail open where it is
+ * needed most.
+ */
 function acceptance(body) {
   const lines = body.split("\n");
-  let inSec = false, checked = 0, total = 0, unchecked = [];
+  let inSec = false;
+  const items = [];
   for (const l of lines) {
     if (/^##\s/.test(l)) { inSec = /^##\s+Acceptance criteria\s*$/i.test(l); continue; }
     if (!inSec) continue;
     const m = /^\s*-\s+\[( |x|X)\]\s*(.*)$/.exec(l);
-    if (!m) continue;
-    total++;
-    if (m[1] === " ") unchecked.push(m[2].trim()); else checked++;
+    if (m) { items.push({ checked: m[1] !== " ", text: m[2].trim() }); continue; }
+    if (items.length && /^\s+\S/.test(l)) items[items.length - 1].text += " " + l.trim();
   }
-  return { checked, total, unchecked };
+
+  const criteria = items.map(({ checked, text }) => {
+    const operator = OPERATOR_MARK.test(text);
+    return { checked, text, operator, signed: operator && SIGN_OFF.test(text) };
+  });
+
+  return {
+    criteria,
+    total: criteria.length,
+    checked: criteria.filter((c) => c.checked).length,
+    unchecked: criteria.filter((c) => !c.checked).map((c) => c.text),
+    // Operator criteria still awaiting a human — the ones that must block a close.
+    pendingOperator: criteria.filter((c) => c.operator && !c.checked).map((c) => c.text),
+    // Ticked, but with no dated result: the 0010 failure, now machine-visible.
+    unsignedOperator: criteria.filter((c) => c.operator && c.checked && !c.signed).map((c) => c.text),
+  };
 }
 
 const hasSection = (body, name) => new RegExp(`^##\\s+${name}\\s*$`, "im").test(body);
@@ -199,6 +237,14 @@ function validate(tickets) {
         if (!index.has(d)) E("dangling-ref", `${field} references ticket ${d}, which does not exist`);
         if (d === fm.id) E("self-edge", `${field} references itself`);
       }
+    }
+
+    // Folder-independent on purpose: a ticked operator criterion with no dated
+    // result is wrong the moment it is written, not merely once the ticket
+    // closes. Catching it in open/ is the difference between a refusal and a
+    // post-mortem (0124).
+    for (const c of acceptance(body).unsignedOperator) {
+      E("operator-unsigned", `operator criterion is ticked with no '— verified <date>: <result>': "${c}"`);
     }
 
     if (folder === "closed") {
@@ -329,6 +375,10 @@ function cmdShow(id, flags) {
     }
   }
   console.log(`\n  ready: ${isReady(t, index)}`);
+  const { pendingOperator } = acceptance(t.body);
+  if (pendingOperator.length && t.folder !== "closed") {
+    console.log(`  awaiting operator: ${pendingOperator.length} criteri${pendingOperator.length === 1 ? "on" : "a"} — this ticket cannot close until a human runs them`);
+  }
 }
 
 function cmdValidate(flags) {
@@ -450,12 +500,31 @@ function cmdClose(id, flags) {
   requireCleanTree("close", flags["allow-dirty"], t.path);
   if (t.folder === "closed") die(`${pad(t.fm.id)} is already closed.`);
 
-  const { unchecked } = acceptance(t.body);
+  const { unchecked, pendingOperator, unsignedOperator } = acceptance(t.body);
   if (unchecked.length) {
+    // Two different refusals, because the right answer differs. "Do the work or
+    // amend it" is advice an agent can act on alone — which for an operator
+    // criterion means ticking it, the exact failure 0010 shipped.
+    const tail = pendingOperator.length
+      ? `\n\n  ${pendingOperator.length} of these can only be checked by a human at a device:\n` +
+        pendingOperator.map((u) => `    - [ ] ${u}`).join("\n") +
+        `\n\n  Do NOT tick these. Leave the ticket open, commit the work, and close it in a\n` +
+        `  later session once the operator has actually run them — recording the result as\n` +
+        `  '— verified YYYY-MM-DD: <what happened>' on the criterion itself. Ticket 0123 did\n` +
+        `  exactly this and it worked; 0010 pre-ticked and shipped a skill that never ran.`
+      : `\n\n  There is no --force. Either do the work, or edit the criterion and say why in\n` +
+        `  ## Resolution. A criterion quietly ticked is a criterion that never existed.`;
     die(`${pad(t.fm.id)} has ${unchecked.length} unchecked acceptance criteria:\n` +
-        unchecked.map((u) => `    - [ ] ${u}`).join("\n") +
-        `\n\n  There is no --force. Either do the work, or edit the criterion and say why in\n` +
-        `  ## Resolution. A criterion quietly ticked is a criterion that never existed.`);
+        unchecked.map((u) => `    - [ ] ${u}`).join("\n") + tail);
+  }
+  if (unsignedOperator.length) {
+    die(`${pad(t.fm.id)} has ${unsignedOperator.length} operator criteria ticked with no sign-off:\n` +
+        unsignedOperator.map((u) => `    - [x] ${u}`).join("\n") +
+        `\n\n  An operator criterion is ticked by recording what the operator saw, not by\n` +
+        `  marking it done. Append the result to the criterion:\n` +
+        `    - [x] (operator) … — verified ${new Date().toISOString().slice(0, 10)}: <what happened>\n\n` +
+        `  If the operator has not run it yet, the ticket is not closeable yet. That is the\n` +
+        `  rule working, not an obstacle to route around.`);
   }
   const missing = ["Resolution", "Operator validation"].filter((s) => !hasSection(t.body, s));
   if (missing.length) die(`${pad(t.fm.id)} cannot close: missing ${missing.map((m) => `'## ${m}'`).join(" and ")}.`);

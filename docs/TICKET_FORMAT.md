@@ -104,6 +104,7 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
 
 - `## Description`
 - `## Acceptance criteria` — markdown checkboxes. Vague criteria produce vague implementations.
+  A criterion only a human can check is prefixed `(operator)` — see §3.3.1.
 - `## Notes`
 
 **`bug` additionally:**
@@ -120,6 +121,22 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
 
 - `## Resolution` — files touched, tests added, design decisions and rationale, commit links.
 - `## Operator validation` — see below.
+
+### 3.3.1 `(operator)` criteria
+
+A criterion prefixed **`(operator)`** needs a human, a device and eyes — no agent can check it.
+
+```markdown
+- [ ] (operator) Typing `/tickets` shows the skill with its `argument-hint`
+- [x] (operator) Ran it on the Pixel — verified 2026-08-31: passed, no restart needed
+```
+
+Ticking one requires the inline dated result. `close` refuses while one is unchecked (leave the
+ticket open and close it later, once a human has run it) and refuses one ticked without a sign-off;
+`validate` errors on the latter in every folder.
+
+`0010` ticked such a criterion in advance and shipped a skill that never registered (`0123`, `0124`).
+Full rules in `07-ticketsmith.md` §3.3.1, which is normative.
 
 ### 3.4 Inbox capture format
 

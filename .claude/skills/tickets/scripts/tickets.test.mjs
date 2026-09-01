@@ -146,6 +146,9 @@ describe("0007 — validate flags exactly the right rule", () => {
     ["closed-section", (d) => ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z" }), "\n## Acceptance criteria\n\n- [x] a\n")],
     ["closed-unchecked", (d) => ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z" }), "\n## Acceptance criteria\n\n- [ ] a\n\n## Resolution\n\nx\n\n## Operator validation\n\nx\n")],
     ["closed-stamp", (d) => ticket(d, "open", FM({ closed: "2026-08-30T00:00:00Z" }))],
+    // Deliberately in open/: an operator criterion ticked with no dated result is
+    // wrong where it is written, not only where it lands (0124).
+    ["operator-unsigned", (d) => ticket(d, "open", FM(), "\n## Acceptance criteria\n\n- [x] (operator) ran it on the phone\n")],
     ["bug-section", (d) => ticket(d, "open", FM({ type: "bug" }))],
     ["required-field", (d) => { const { size, ...rest } = FM(); writeFileSync(join(d, "tickets/open/0001-a-ticket.md"), serialize(rest, BODY)); }],
   ];
@@ -482,6 +485,109 @@ describe("0008 — create emits the sections its type requires", () => {
     const body = readFileSync(join(d, "tickets/open/0001-a-feature.md"), "utf8");
     assert.ok(!/## Steps to reproduce/.test(body));
     assert.equal(run(d, "validate").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ─────────────────────────────────────────── 0124 operator-verifiable criteria ────
+
+describe("0124 — operator-verifiable criteria block a close", () => {
+  const AC = (...items) => `\n## Acceptance criteria\n\n${items.join("\n")}\n\n## Resolution\n\nx\n\n## Operator validation\n\nx\n`;
+  const only = (body) => acceptance(body);
+
+  test("recognises the marker bare, bolded, and in any case; ignores it mid-text", () => {
+    const { criteria } = only(AC(
+      "- [ ] (operator) ran it on the phone",
+      "- [ ] **(Operator)** bolded and capitalised",
+      "- [ ] (OPERATOR): with a colon",
+      "- [ ] a criterion mentioning the (operator) halfway through",
+      "- [ ] an ordinary criterion",
+    ));
+    assert.deepEqual(criteria.map((c) => c.operator), [true, true, true, false, false]);
+  });
+
+  test("a sign-off needs a date AND a result — a bare 'verified' is not one", () => {
+    const { criteria } = only(AC(
+      "- [x] (operator) checked \u2014 verified 2026-08-31: passed on the Pixel",
+      "- [x] (operator) checked - verified 2026-08-31: passed",
+      "- [x] (operator) checked \u2013 verified 2026-08-31: passed",
+      "- [x] (operator) checked \u2014 verified: passed",
+      "- [x] (operator) checked \u2014 verified 2026-08-31:",
+      "- [x] (operator) checked, honest",
+    ));
+    assert.deepEqual(criteria.map((c) => c.signed), [true, true, true, false, false, false]);
+  });
+
+  test("a criterion wrapped across lines is one criterion, and its sign-off counts", () => {
+    // The rule must not fail open on exactly the criteria long enough to wrap.
+    const body = AC(
+      "- [x] (operator) typing /tickets shows the skill with its argument-hint",
+      "      \u2014 verified 2026-08-31: registered, no session restart needed",
+    );
+    const { total, criteria, unsignedOperator } = only(body);
+    assert.equal(total, 1, "continuation lines must fold, not count as criteria");
+    assert.equal(criteria[0].signed, true);
+    assert.deepEqual(unsignedOperator, []);
+  });
+
+  test("an unchecked operator criterion is not itself an error — it is a wait", () => {
+    const { unsignedOperator, pendingOperator } = only(AC("- [ ] (operator) go for a run with the build"));
+    assert.deepEqual(unsignedOperator, []);
+    assert.equal(pendingOperator.length, 1);
+  });
+
+  test("close refuses an unchecked operator criterion, and says to leave it open", () => {
+    const d = repo();
+    ticket(d, "open", FM(), AC("- [x] done", "- [ ] (operator) typing /tickets shows the skill"));
+    commitAll(d);
+    const r = run(d, "close", "1");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /only be checked by a human/i);
+    assert.match(r.out, /Do NOT tick these/);
+    assert.match(r.out, /Leave the ticket open/i);
+    assert.ok(existsSync(join(d, "tickets/open/0001-a-ticket.md")), "file must not move");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("close refuses an operator criterion ticked with no sign-off", () => {
+    const d = repo();
+    ticket(d, "open", FM(), AC("- [x] (operator) typing /tickets shows the skill"));
+    commitAll(d);
+    const r = run(d, "close", "1");
+    assert.notEqual(r.code, 0, "this is the 0010 failure: every box ticked, nothing verified");
+    assert.match(r.out, /ticked with no sign-off/i);
+    assert.ok(existsSync(join(d, "tickets/open/0001-a-ticket.md")), "file must not move");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("close accepts a signed operator criterion", () => {
+    const d = repo();
+    ticket(d, "open", FM(), AC("- [x] (operator) typing /tickets shows the skill \u2014 verified 2026-08-31: it did"));
+    commitAll(d);
+    const r = run(d, "close", "1");
+    assert.equal(r.code, 0, r.out);
+    assert.ok(existsSync(join(d, "tickets/closed/0001-a-ticket.md")));
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--allow-dirty does not launder an unsigned operator criterion", () => {
+    // --allow-dirty exists for the tree, not for the criteria. Worth asserting:
+    // the nearest available flag is the first thing anyone reaches for.
+    const d = repo();
+    ticket(d, "open", FM(), AC("- [x] (operator) checked it"));
+    commitAll(d);
+    assert.notEqual(run(d, "close", "1", "--allow-dirty").code, 0);
+    assert.ok(existsSync(join(d, "tickets/open/0001-a-ticket.md")));
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("tickets written before the marker existed are untouched by it", () => {
+    // The rule is opt-in. If an unmarked ticket could trip it, landing this
+    // would have turned 121 closed tickets red.
+    const d = repo();
+    ticket(d, "open", FM(), AC("- [x] an ordinary criterion, ticked by the agent that did the work"));
+    commitAll(d);
+    assert.equal(run(d, "close", "1").code, 0);
     rmSync(d, { recursive: true, force: true });
   });
 });

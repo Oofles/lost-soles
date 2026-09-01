@@ -82,6 +82,10 @@ Refuse first, then act:
    and there is no `--force`. **Do not tick a box on the ticket's behalf to make the close pass.**
    If a criterion turned out to be wrong or unbuildable, say so in `## Resolution`, amend the
    criterion, and explain why — that is a finding worth recording, not an obstacle to route around.
+   **A criterion prefixed `(operator)` is one only a human can check, and is never yours to tick.**
+   Unchecked, it means the ticket does not close today: leave it open, commit the work, and close it
+   in a later session once the operator reports what they saw — recorded on the criterion itself as
+   `— verified YYYY-MM-DD: <result>`. Amending it away is the same failure as ticking it.
 2. Append `## Resolution` — files touched, tests added, decisions and their rationale. **The honest
    record of what happened, not what was planned.** Include what went wrong; a Resolution that reads
    as though everything worked first time is a Resolution nobody will trust later.

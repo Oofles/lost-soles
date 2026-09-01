@@ -31,11 +31,31 @@ closed: …                   # stamped by `close`, omitted while open
 
 **Required body sections, all tickets:** `## Description` · `## Acceptance criteria` (checkboxes) ·
 `## Notes` · `## Operator validation`.
+**A criterion only a human can check is prefixed `(operator)`** — see below.
 **`bug` also needs:** `## Steps to reproduce` · `## Expected vs actual`.
 **`design` also needs:** `## Options considered` · `## Open questions` — and its acceptance criteria
 read *"a capability doc exists at `docs/capabilities/NN-x.md` with no open questions"*, never "the
 feature works".
 **Appended at close:** `## Resolution` · `## Operator validation` result.
+
+### `(operator)` criteria (§3.3.1)
+
+```markdown
+- [ ] (operator) Typing `/tickets` shows the skill with its `argument-hint`
+- [x] (operator) Ran it on the Pixel — verified 2026-08-31: passed, no restart needed
+```
+
+The marker means *no agent can check this*. Two refusals hang off it:
+
+- **Unchecked** → `close` refuses and tells you to leave the ticket open, commit the work, and close
+  it in a later session once the operator has run it. **Do not tick it to make the close pass.**
+  Ticket `0123` did it the honest way and closed a session later; `0010` pre-ticked and shipped a
+  skill that never registered.
+- **Ticked with no `— verified YYYY-MM-DD: <result>`** → `close` refuses, and `validate` errors in
+  every folder. The evidence lives on the criterion, not only in `## Operator validation` prose.
+
+Relaying an operator's reported result *is* the sign-off — write what they saw, dated, in their
+words where you have them. Inventing one is the failure this whole mechanism exists to prevent.
 
 ### `depends_on` vs `blocked_by`
 
@@ -71,6 +91,9 @@ time, and degrades silently as the backlog grows. That is why `depends_on` is a 
    - If a criterion is genuinely unbuildable or turned out wrong: amend it, mark it with a
      strikethrough and the reason, and explain in `## Resolution`. A criterion that was silently
      ticked is a criterion that never existed.
+   - **`(operator)` criteria are not yours to tick.** An unchecked one means the ticket does not
+     close today — that is the rule working, not an obstacle. Amending it away is the same failure
+     as ticking it.
 2. **`## Resolution`** — files touched, tests added, decisions and rationale, what went wrong.
    The honest record of what happened, not what was planned.
 3. **`## Operator validation`** — concrete checks. **Name a screen and a device** for anything
@@ -124,7 +147,8 @@ A non-empty `blocked_by` is **never** ready, regardless of `depends_on`.
 `blocked_by` non-empty without `status: blocked` (or vice versa) · dangling `depends_on`/`blocked_by`
 id · self-edge · dependency cycle · `closed:` present when open or absent when closed · closed
 ticket missing `## Resolution` or `## Operator validation` · closed ticket with an unchecked
-criterion · `bug` missing its extra sections.
+criterion · an `(operator)` criterion ticked with no dated sign-off (any folder) · `bug` missing its
+extra sections.
 
 **Warnings (exit 0):** `capability: null` on a `feature` · `size: l` in the ready set · a
 `capability` with no matching doc · inbox item older than 14 days · unknown frontmatter key

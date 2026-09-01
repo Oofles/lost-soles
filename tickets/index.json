@@ -2863,11 +2863,12 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T02:59:11Z",
+    "started": "2026-09-01T03:43:03Z",
     "path": "tickets/open/0124-operator-verifiable-criteria-block-close.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 1
+      "checked": 9,
+      "total": 10
     }
   },
   {

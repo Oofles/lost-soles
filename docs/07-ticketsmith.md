@@ -393,6 +393,7 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
 
 - `## Description`
 - `## Acceptance criteria` — markdown checkboxes. Vague criteria produce vague implementations.
+  A criterion only a human can check is prefixed `(operator)` — see §3.3.1.
 - `## Notes`
 
 **`bug` additionally:**
@@ -409,6 +410,50 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
 
 - `## Resolution` — files touched, tests added, design decisions and rationale, commit links.
 - `## Operator validation` — see below.
+
+### 3.3.1 `(operator)` criteria — the ones a human must run
+
+A criterion prefixed **`(operator)`** is one no agent can check: it needs a human, a device, and
+eyes. Bare or bolded, any case, optionally followed by a colon.
+
+```markdown
+## Acceptance criteria
+
+- [x] `SKILL.md` frontmatter parses as YAML (`check-skills.mjs`)
+- [ ] (operator) Typing `/tickets` shows the skill with its `argument-hint`
+```
+
+**A ticked `(operator)` criterion must carry its evidence inline** — a dated result, next to the
+claim it supports:
+
+```markdown
+- [x] (operator) Typing `/tickets` shows the skill
+      — verified 2026-08-31: registered, no session restart needed
+```
+
+Em dash, en dash or hyphen; the date shape is checked, the wording of the result is not. A
+criterion may wrap across lines — continuation lines fold into it, so the sign-off can live on its
+own line.
+
+**Two refusals are built on the marker:**
+
+- `close` refuses while an `(operator)` criterion is **unchecked**, and says what to do instead:
+  leave the ticket open, commit the work, close in a later session once a human has run it. This is
+  the whole point — the generic "do the work or amend the criterion" advice is one an agent can act
+  on alone, and acting on it alone means ticking the box.
+- `close` and `validate` both refuse an `(operator)` criterion **ticked with no sign-off**.
+  `validate` applies this in every folder, so a pre-tick is an error where it is written rather
+  than a post-mortem after the ticket has closed.
+
+**Why this exists.** Ticket `0010` marked "typing `/tickets` shows the skill" as operator-verifiable
+in its notes, ticked it in advance, and closed. The frontmatter was invalid YAML; the skill never
+registered and shipped inert for days until `0123` found it. Prose in `## Notes` enforces nothing —
+a box the agent ticked because it did the work and a box the agent ticked because only a human could
+have is the same character in the same file. The marker makes the difference machine-visible.
+
+**What it does not buy.** It does not make a false tick impossible; an agent willing to tick a box
+is willing to type a date. It makes the claim **explicit, dated and permanent**, held to the same
+standard as `## Operator validation` prose. Do not mistake it for a tamper-proof gate.
 
 ### 3.4 Inbox capture format
 
@@ -664,6 +709,8 @@ Refuse first, then act.
 
 1. **Verify every acceptance criterion is checked.** If any is not, stop, name the unmet ones,
    leave the ticket open. Do not check a box on the ticket's behalf to make this pass.
+   A `(operator)` criterion (§3.3.1) is never yours to tick: leave the ticket open, commit the
+   work, and close it in a later session once the operator has run it and reported a result.
 2. Append `## Resolution` — files touched, tests added, design decisions and their rationale,
    commit links. The honest record of what happened, not what was planned.
 3. Append `## Operator validation` — concrete manual checks, naming screen and device for
@@ -774,6 +821,8 @@ Errors (exit 1):
 - A closed ticket missing `## Resolution` or `## Operator validation`.
 - A `bug` missing `## Steps to reproduce` or `## Expected vs actual`.
 - A closed ticket with an unchecked acceptance criterion.
+- An `(operator)` criterion ticked with no `— verified YYYY-MM-DD: <result>` sign-off, in any
+  folder (§3.3.1).
 
 Warnings (exit 0, reported):
 
