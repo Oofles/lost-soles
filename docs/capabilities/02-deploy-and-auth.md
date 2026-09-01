@@ -98,12 +98,18 @@ production had the same hole — but the evidence pointed at the wrong resource 
 
 | | Production (`main`) | Sandbox |
 |---|---|---|
-| User pool | `us-east-1_3lreDA1d1` | `us-east-1_ortrz27yR` |
-| Identity pool | `us-east-1:8738715f-f93b-4aab-acc8-3f714a782a75` | `us-east-1:d30ffb7f-0669-4fd5-b424-a4b0e2f2e43a` |
-| App client | `5vc5e8t2ljv1hg3doau5mp0m00` | — |
+| User pool | `us-east-1_3lreDA1d1` | `us-east-1_RV7QIiViX` |
+| Identity pool | `us-east-1:8738715f-f93b-4aab-acc8-3f714a782a75` | `us-east-1:fcfbad08-f483-4bbb-94cc-050f74126c70` |
+| App client | `5vc5e8t2ljv1hg3doau5mp0m00` | `mvld8ja1nrdmmi9n9ji7j217v` |
 | CFN stack | `amplify-d14fhvl4rp79nn-main-branch-843f54c241-auth179371D7-…` | `amplify-lostsoles-root-sandbox-bcc61467ba-auth179371D7-…` |
-| Created | 2026-08-31T13:54:01Z | 2026-08-31T03:42:03Z |
-| Posture after 0014 | **fixed** | **still open** — no sandbox deploy since (ticket 0130) |
+| Created | 2026-08-31T13:54:01Z | 2026-09-01T15:06Z (**recreated**, ticket 0131) |
+| Posture | **fixed** by 0014 | **fixed** by the 0131 recreation — all five assertions pass |
+
+**Both pool ids in that row have changed at least once.** Production was replaced during 0014;
+the sandbox was destroyed and recreated during 0131. Neither id is stable, which is exactly why
+`scripts/check-auth-posture.mjs`'s IAM policy is pinned to a wildcard pool ARN and why this table
+carries a date column. **Read the ids from `amplify_outputs.json` or this table, never from
+memory or from an older section of this document.**
 
 **Owner account** — created by hand 2026-08-31 via `admin-create-user`, default email invite, no
 password shared over any chat:
@@ -115,6 +121,47 @@ That `sub` is the partition key for everything the user owns — DynamoDB rows, 
 prefix, the `entity('identity')` storage path (§5.4 step 6). **Rebuilding a user pool without
 preserving it orphans a permanent map, and D-020 has no restore button.** Note the production pool
 was itself replaced once already, on 2026-08-31 — pool replacement is not hypothetical here.
+
+### The sandbox was destroyed and recreated  (ticket 0131, 2026-09-01)
+
+**Recorded next to the production pool replacement above on purpose:** both environments have now
+had their user pool replaced, for different reasons, and reading the two histories together is the
+only way the id churn makes sense.
+
+**What was wrong.** The sandbox pool was created by 0012's skeleton deploy and never took 0014's
+changes. 0014 fixed production by *replacing* the pool; the sandbox was simply never redeployed. So
+when 0017 added the `secret-smoke-test` function — any new resource forces a full stack update —
+CloudFormation tried to update the auth stack in place and Cognito refused:
+
+```
+UPDATE_FAILED | AWS::Cognito::UserPool | auth/amplifyAuth/UserPool
+  Resource handler returned message: "Invalid AttributeDataType input, consider using the
+  provided AttributeDataType enum."
+[CFNUpdateNotSupportedError] User pool attributes cannot be changed after a user pool has
+been created.
+```
+
+That left `amplify-lostsoles-root-sandbox-bcc61467ba` and its `auth179371D7` nested stack both in
+`UPDATE_FAILED`, which meant **every subsequent sandbox deploy would fail**. It was a latent block
+on every future ticket needing a sandbox, not a cosmetic error.
+
+**What it cost to fix.** Nothing recoverable. Before deleting, the sandbox pool was confirmed to
+hold **zero users** (`aws cognito-idp list-users` → `{"Users": []}`), so no account was lost, and
+the owner's real account has only ever existed in the production pool. The sandbox S3 buckets and
+the `DeploySmokeTest` table went with the stack; both are placeholder fixtures that the redeploy
+recreates empty.
+
+**The secrets survived, and that is worth knowing.** The three sandbox secrets at
+`/amplify/lostsoles/root-sandbox-bcc61467ba/…` live in **SSM Parameter Store, outside
+CloudFormation**, so `ampx sandbox delete` did not touch them. The stack also came back under the
+**same name** — the sandbox identifier derives from the OS user, not from a fresh random suffix —
+so the recreated environment resolved the *same* secret paths with nothing to re-set. Verified by
+invoking the smoke-test Lambda after the redeploy: it reported `length: 32` and
+`sha256Prefix: e5a6d6a0cde8`, matching an independently computed SHA-256 of the stored SSM value.
+
+**Do not generalise that into "deleting a sandbox is free."** It was free *here* because the
+sandbox held no accounts and no map. Once any environment holds a Cognito `sub` that partitions
+real data, the D-020 warning above applies to it in full.
 
 ### The two holes that were actually open, and the proof they are shut
 
