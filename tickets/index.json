@@ -2810,7 +2810,7 @@
     "title": "Deactivate the dormant 2022 access key on cli-user, or document why it stays",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "00-preflight-and-repo",
     "depends_on": [
@@ -2820,10 +2820,11 @@
     "source": "agent",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-08-31T14:44:14Z",
-    "path": "tickets/open/0122-dormant-2022-iam-access-key.md",
-    "ready": true,
+    "closed": "2026-09-01T03:31:17Z",
+    "path": "tickets/closed/0122-dormant-2022-iam-access-key.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

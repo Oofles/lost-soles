@@ -4,7 +4,7 @@ slug: dormant-2022-iam-access-key
 title: Deactivate the dormant 2022 access key on cli-user, or document why it stays
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: [2]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-08-30T00:00:00Z
 started: 2026-08-31T14:44:14Z
+closed: 2026-09-01T03:31:17Z
 ---
 
 ## Description
