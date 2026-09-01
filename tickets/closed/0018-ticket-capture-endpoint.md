@@ -209,3 +209,33 @@ symptom of a broken serializer.
 that exercises Cognito auth and the deployed compute role together. Everything above proves the
 GitHub half and the format half; only this proves the *deployed handler* can read SSM through the new
 role. If it returns 502, the compute role did not take effect and the build log will say so.
+
+## Operator validation performed — 2026-09-01
+
+**The browser POST worked.** The operator ran it from devtools at
+`soles.devaultsecurity.com`, signed in as the owner, and it returned `{ path, commitSha }`.
+
+Verified independently against the repository afterwards:
+
+```
+4670092 capture: 2026-09-01T0316-testing-capture-from-the-browser.md
+ 1 file changed
+```
+
+and `tickets.mjs`'s own parser reads it with `error: null`:
+
+```json
+{"status":"inbox","title":"Testing capture from the browser","type":"chore",
+ "priority":"low","source":"ui","created":"2026-09-01T03:16:19.053Z"}
+```
+
+**This is the criterion the agent could not check, and it is the one that mattered.** Everything
+proven before it exercised the GitHub half and the format half from a laptop. Only this path runs
+Cognito auth and the **deployed SSR compute role** together — so it is the sole evidence that
+`LostSolesAmplifyComputeRole` actually took effect and that the handler can read SSM in production.
+A 502 here would have meant the IAM change did not apply, and 0019 would have been building on
+sand.
+
+Two real captures now sit in `tickets/inbox/`: the agent's smoke test and the operator's browser
+test. Both are genuine inbox items and both are for **0023** to triage — deliberately left rather
+than cleaned up, so triage is developed against real specimens instead of synthetic ones.

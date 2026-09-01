@@ -86,6 +86,19 @@ overwrite, and an endpoint reachable from a phone that can overwrite arbitrary r
 different thing entirely from one that can only add. `route.ts` exports only `POST`, so every other
 method is a 405 by construction. Both are asserted by tests rather than promised in a comment.
 
+### Proof the deployed compute role works
+
+Every check the agent could run proved the GitHub half and the format half from a laptop. None of
+them touched the deployed handler, because reaching it requires a Cognito session.
+
+The operator ran the browser POST on 2026-09-01 and it returned `{ path, commitSha }`. Verified
+against the repository afterwards: commit `4670092`, **one file changed**, and `tickets.mjs`'s own
+parser reads the result with `error: null`.
+
+That is the only evidence that `LostSolesAmplifyComputeRole` actually took effect — that the SSR
+compute can assume it, and read the one SSM parameter it is permitted, in production. A 502 would
+have meant the IAM change had not applied.
+
 ### What is deliberately NOT here
 
 Owner-only auth, server-side rate limits, idempotency, reject-unknown-keys, CORS, and the second and
