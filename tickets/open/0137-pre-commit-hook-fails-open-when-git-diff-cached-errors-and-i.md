@@ -14,8 +14,10 @@ created: 2026-09-01T19:32:45Z
 ---
 ## Description
 
-**Two defects in one file, found 2026-09-01 while diagnosing why Amplify build 38 failed.** They
-are filed together because the second is how the first stayed invisible.
+**Three fail-open defects in one file, found 2026-09-01 while diagnosing why Amplify build 38
+failed.** They are filed together because they share one root pattern: *the hook cannot tell a
+control that passed from a control that never ran.* Defect 2 is the CI symptom that led to all of
+them.
 
 ### 1. The hook fails OPEN when `git diff --cached` errors  (the security defect)
 
@@ -64,6 +66,40 @@ wrong root.
 blast radius is layers 2 and 3, not the whole hook. That is the honest scope: this weakens
 belt-and-braces, it does not remove all protection.
 
+### 1b. Layer 1 trusts `command -v`, so a BROKEN gitleaks passes silently
+
+Found by accident on 2026-09-01, and it is the same defect class as 1 rather than a separate
+concern. Lines 11–22 decide whether the scanner exists:
+
+```bash
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --redact --no-banner; then
+```
+
+`command -v` answers *"is there a file on PATH called gitleaks"*, not *"is there a working secret
+scanner"*. The real binary at `/usr/local/bin/gitleaks` was accidentally replaced with a 19-byte
+stub (`#!/bin/bash` / `exit 0`) during this session's debugging — a `cat >` that followed a symlink
+into the real binary. Every subsequent commit passed layer 1 in complete silence, because the stub
+satisfies `command -v` and returns 0.
+
+**The hook's own comment at lines 18–21 states the correct principle** — *"a missing scanner is a
+broken guard, not an absent one"* — and then implements only the *missing* half. A scanner that is
+present but non-functional is the case it does not consider, and it is the more dangerous one: a
+missing gitleaks blocks loudly, a broken one waves everything through.
+
+**How it presents:** identical to defects 1 and 2 — `expected +0 to be 1` on
+`layer 1 — gitleaks > the real gitleaks blocks a real-shaped GitHub PAT`. Three separate causes now
+produce that same assertion failure, which is itself worth noting: the test is a good detector and a
+poor discriminator.
+
+**Detection is cheap.** `gitleaks version` on the stub printed nothing and exited 0; on the real
+binary it prints `8.28.0`. A one-line sanity check — the scanner must report a version — separates a
+working guard from a present one.
+
+**One real commit went unscanned** (`924485d`). Re-scanned after restoring the binary: no leaks, and
+a full-history scan of all 79 commits is also clean. Recorded because "it turned out fine" is the
+outcome, not the control.
+
 ### 2. The layer-3 tests are intermittently red on `main`  (the CI defect)
 
 Three of the last five `main` builds failed, on **two different tests**, with identical assertion
@@ -86,8 +122,11 @@ Build 38's commit touched only `docs/capabilities/02-deploy-and-auth.md` and two
 no source, no config — which is what makes it certain this is environmental rather than a
 regression.
 
-**Not reproducible locally: 15 consecutive runs, 15 passes.** So it is specific to the Amplify
-build container, and the exact trigger there is NOT yet identified. Both fail-open paths in defect
+**Not reproducible locally: 15 consecutive runs, 15 passes** (measured with a verified-working
+gitleaks, before and after the defect-1b incident — later local failures during that window were
+the stub, not this). So defect 2 is specific to the Amplify build container, and the exact
+trigger there is NOT yet identified. **Note that CI has no gitleaks installed at all** — the
+layer-1 real-gitleaks test self-skips there — so 1b is NOT the CI cause either. Both fail-open paths in defect
 1 produce exactly this symptom (`expected 1, got 0`), which makes them the leading candidates, but
 that is a hypothesis and the ticket should not close on it being assumed.
 
@@ -136,6 +175,10 @@ test, DEPLOY and VERIFY are cancelled.
 - [ ] `scripts/check-skills.mjs` no longer exits 0 on an absent `.claude/skills/`. Either it
       blocks, or the caller distinguishes "nothing to check" from "could not look" — decide which
       and say why in the Resolution.
+- [ ] Layer 1 verifies gitleaks **works**, not merely that it exists — e.g. it must report a
+      version — and blocks with a distinct message when a present binary is non-functional.
+- [ ] A test covers that: a stub `gitleaks` on PATH that exits 0 for everything must NOT allow a
+      staged credential through.
 - [ ] A test covers the fail-open path directly: a stub `git` that errors on `diff`, asserting the
       hook exits **non-zero**. This is the test whose absence let the defect survive `0125`.
 - [ ] `scripts/pre-commit-hook.test.mjs` passes **20 consecutive runs** in the Amplify build
