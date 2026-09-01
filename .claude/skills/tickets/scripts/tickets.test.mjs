@@ -882,13 +882,146 @@ describe("0133 — audit runs AUDIT.md's mechanical half and is honest about wha
     rmSync(d, { recursive: true, force: true });
   });
 
-  test("the table names §2, §3 and §6 as not run, so a green table is not mistaken for a pass", () => {
+  test("the table says a green table is not a passed audit, and names the way to one", () => {
+    // Updated in 0134: the footer used to point at ticket 0134 as the missing
+    // half. Naming a ticket in output that outlives the ticket is the stale
+    // part — it now names the commands and the AUDIT.md sections instead.
     const d = repo();
     const cap = withCap(d);
     const out = run(d, "audit", cap).out;
-    assert.match(out, /mechanical half/i);
-    assert.match(out, /§2/);
-    assert.match(out, /0134/);
+    assert.match(out, /not a passed audit/i);
+    for (const s of [/§2/, /§3/, /§6/, /--sections/, /--record/]) assert.match(out, s);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ──────────────────────────────────────── 0134 the audit record + drift budget ────
+
+describe("0134 — the audit record, the divergence list and the drift budget", () => {
+  const REFLECT = "\n## Reflection\n\n" + "The design got the validator's flat rule list right, which is why conformance could be checked line by line rather than argued about. ".repeat(3) + "\n";
+  const STUB = "\n## Reflection\n\n_Filled in at the REFLECT step, after USE._\n";
+
+  /** A repo whose capability doc is ready to be recorded against. */
+  const ready = (reflect = REFLECT, cap = "00-x") => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n${reflect}`);
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    return [d, cap];
+  };
+  const docOf = (d, cap) => readFileSync(join(d, "docs/capabilities", `${cap}.md`), "utf8");
+  const records = (d, cap) => [...docOf(d, cap).matchAll(/<!--\s*audit-record\s+(\{.*?\})\s*-->/g)].map((m) => JSON.parse(m[1]));
+
+  test("an omitted divergence list is refused — an empty one must be asserted", () => {
+    // The heart of the ticket: a skipped §2 and a §2 that found nothing must not
+    // look the same from outside.
+    const [d, cap] = ready();
+    const r = run(d, "audit", cap, "--record");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /never assumed by omission/i);
+    assert.equal(records(d, cap).length, 0, "nothing may be recorded on a refusal");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--no-divergences records a clean audit, and says the assertion was made", () => {
+    const [d, cap] = ready();
+    const r = run(d, "audit", cap, "--record", "--no-divergences");
+    assert.equal(r.code, 0, r.out);
+    assert.match(docOf(d, cap), /Divergences: none.*Asserted explicitly/s);
+    const [rec] = records(d, cap);
+    assert.equal(rec.verdict, "pass");
+    assert.equal(rec.divergences, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--no-divergences alongside a --divergence is refused rather than guessed at", () => {
+    const [d, cap] = ready();
+    const r = run(d, "audit", cap, "--record", "--no-divergences", "--divergence", "code-was-wrong|0127|x");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /Pick one/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a divergence must resolve one way or the other — 'neither' is not an outcome", () => {
+    const [d, cap] = ready();
+    for (const bad of ["we-will-remember|x|y", "code-was-wrong||no ref", "code-was-wrong|0127|"]) {
+      const r = run(d, "audit", cap, "--record", "--divergence", bad);
+      assert.notEqual(r.code, 0, `'${bad}' must be refused`);
+      assert.equal(records(d, cap).length, 0);
+    }
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("three divergences pass; a fourth fails and calls for a DESIGN session", () => {
+    const div = (n) => ["--divergence", `code-was-wrong|01${n}0|divergence number ${n}`];
+    const [d, cap] = ready();
+    assert.equal(run(d, "audit", cap, "--record", ...div(1), ...div(2), ...div(3)).code, 0);
+    assert.equal(records(d, cap)[0].divergences, 3);
+
+    const [e, ecap] = ready();
+    const r = run(e, "audit", ecap, "--record", ...div(1), ...div(2), ...div(3), ...div(4));
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /budget of three/i);
+    assert.match(r.out, /DESIGN session/);
+    assert.equal(records(e, ecap).length, 0);
+    rmSync(d, { recursive: true, force: true });
+    rmSync(e, { recursive: true, force: true });
+  });
+
+  test("a placeholder REFLECT section fails — the heading existing is not enough", () => {
+    // Every capability doc ships with `## Reflection` already present, holding
+    // the template line. Checking the heading exists would pass every capability
+    // from the day its doc was created.
+    const [d, cap] = ready(STUB);
+    const r = run(d, "audit", cap, "--record", "--no-divergences");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /placeholder/i);
+    assert.match(r.out, /§6/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a REFLECT section under any heading depth counts — capability 00 keeps its at §6", () => {
+    const [d, cap] = ready("\n## Close audit\n\n### §6 Reflection\n\n" + "Real content about what the design got wrong and why it mattered. ".repeat(6) + "\n");
+    assert.equal(run(d, "audit", cap, "--record", "--no-divergences").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--force needs a reason, and records the override rather than hiding it", () => {
+    const [d, cap] = ready(STUB);
+    assert.notEqual(run(d, "audit", cap, "--record", "--no-divergences", "--force").code, 0,
+      "a bare --force must be refused");
+
+    const r = run(d, "audit", cap, "--record", "--no-divergences", "--force", "shipping before the retro, agreed with the operator");
+    assert.equal(r.code, 0, r.out);
+    const [rec] = records(d, cap);
+    assert.equal(rec.verdict, "forced", "a forced audit must never record as a pass");
+    assert.match(docOf(d, cap), /Overridden with/);
+    assert.match(docOf(d, cap), /shipping before the retro/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("records are append-only — a re-audit adds a line and keeps the old one", () => {
+    const [d, cap] = ready();
+    run(d, "audit", cap, "--record", "--no-divergences");
+    run(d, "audit", cap, "--record", "--divergence", "code-was-wrong|0127|found on the second pass");
+    const rs = records(d, cap);
+    assert.equal(rs.length, 2, "the first record must survive the second audit");
+    assert.equal(rs[0].divergences, 0);
+    assert.equal(rs[1].divergences, 1);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("--sections lists design docs with their §refs, and no ticket filenames", () => {
+    // `0121-tickets-audit-subcommand.md` reads as `21-tickets-audit-subcommand.md`
+    // from the middle, and capability docs share the naming scheme entirely.
+    const [d, cap] = ready();
+    writeFileSync(join(d, "docs/07-ticketsmith.md"), "# spec\n");
+    ticket(d, "open", FM({ id: 2, slug: "b", capability: cap }),
+      "\n## Description\n\nSee `07-ticketsmith.md` §3 and §4.7, plus 0121-tickets-audit-subcommand.md and 00-x.md.\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n");
+    const out = run(d, "audit", cap, "--sections").out;
+    assert.match(out, /07-ticketsmith\.md\s+§3, §4\.7/);
+    assert.ok(!/21-tickets-audit/.test(out), `a ticket filename leaked into the reading list:\n${out}`);
+    assert.ok(!/00-x\.md/.test(out), `a capability doc leaked into the reading list:\n${out}`);
     rmSync(d, { recursive: true, force: true });
   });
 });

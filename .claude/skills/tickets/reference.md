@@ -128,6 +128,8 @@ SCRIPT unblock <id> --on <id>
 SCRIPT close <id> [--allow-dirty]
 SCRIPT triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
 SCRIPT audit <capability>             AUDIT.md mechanical checks; exit 1 on any failure
+SCRIPT audit <capability> --sections  design-doc sections this capability's tickets cite (§2 reading list)
+SCRIPT audit <capability> --record [--divergence "res|ref|desc"]... [--no-divergences] [--force "reason"]
 ```
 
 `--json` on `index`, `list`, `show`, `validate`, `next`, `create`, `audit`.
@@ -139,10 +141,23 @@ make it applicable** (D-171). Most of `AUDIT.md` targets code that does not exis
 test, no fog blob, no ledger — and an `n/a` is how the audit says *could not check* without it
 reading as *checked*. `n/a` never fails the run; a missing reason is a bug.
 
-**It runs the mechanical half only.** §2 design conformance, §3 operator validation and §6 REFLECT
-are the judgement half and are yours (`0134` wires them into this skill); the audit does not yet
-gate `next` (`0135`). A green table is not a passed audit, and the command says so in its own
-output.
+**The bare form runs the mechanical half only** and records nothing. §2 design conformance and §3
+operator validation are yours — `SKILL.md`'s audit procedure drives them.
+
+**`--record` writes the result** to `docs/capabilities/NN-name.md` as a human-readable write-up plus
+a one-line `<!-- audit-record {…} -->` comment the script reads back (D-172). It refuses unless:
+
+- every mechanical check passed;
+- the divergence list is **asserted** — one `--divergence "<code-was-wrong|design-was-wrong>|<ref>|<description>"`
+  per finding, or `--no-divergences`. Omitting it is refused: a §2 that found nothing and a §2 that
+  never ran must not be indistinguishable;
+- there are **no more than three** divergences (over budget ⇒ the design is stale, run a DESIGN
+  session);
+- the capability's REFLECT section has actual substance — the heading alone is not enough, since
+  every capability doc ships with it holding a placeholder.
+
+`--force "<reason>"` overrides and records `verdict: forced`, never `pass`, with the reason in the
+doc. Records are append-only; a re-audit adds a line and the last one stands.
 
 **Ready set:**
 ```

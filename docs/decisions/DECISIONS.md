@@ -793,3 +793,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     divergence list, the drift budget) and 0135 (`next` refusing across a capability boundary). A
     green table from 0133 is explicitly **not** a passed audit, and the command prints that in its
     own output so the distinction cannot be lost by someone reading only the table.
+
+---
+
+## The audit record  (2026-09-01, ticket 0134)
+
+- **D-172** **An audit result is recorded in the capability doc as a one-line
+  `<!-- audit-record {json} -->` comment, and the record is append-only.** Settled while building
+  0134, the second of the three tickets 0121 was split into.
+  - **Why a JSON comment and not a parsed prose section.** `0135` has to answer *"did capability N
+    pass its audit?"* with no human in the loop, and the answer gates work. Parsing prose for it is
+    how the record starts lying: someone rewords a heading and a capability silently becomes
+    unaudited — or worse, silently becomes audited. The comment renders invisibly in markdown,
+    cannot collide with the write-up around it, and survives any amount of editing to the prose it
+    sits under. The human-readable write-up is still written; it is just not the machine's source
+    of truth.
+  - **Append-only.** A re-audit adds a line and the last one stands. The project's instincts are
+    append-only everywhere it matters (D-020 cells, D-135 XP), and an audit history that can be read
+    backwards is worth more than a current-value field — *when* a capability started passing is
+    exactly the question asked after drift is found.
+  - **The divergence list must be asserted, never omitted.** `--record` refuses without either at
+    least one `--divergence` or an explicit `--no-divergences`. A §2 that found nothing and a §2
+    that never happened produce the same empty output, and the whole value of the audit is that
+    those two must not be indistinguishable. Same shape as D-169 and D-171: **the record must
+    preserve the difference between a negative finding and no finding.**
+  - **Every divergence carries a resolution and a reference** — `code-was-wrong` with the ticket id,
+    or `design-was-wrong` with the `D-xxx`. AUDIT.md's governing rule allows no third option, so an
+    unreferenced divergence is refused: it is the "we'll remember" the rule exists to forbid.
+  - **REFLECT is checked for substance, not for a heading.** Every capability doc ships with
+    `## Reflection` already present, holding `_Filled in at the REFLECT step, after USE._` —
+    checking the heading exists would have passed every capability from the day its doc was created.
+    The check strips italic placeholder lines and requires real content, and it accepts the section
+    at any heading depth because capability `00` keeps its real reflection at `### §6 Reflection`
+    inside its hand-run audit.
+  - **`--force` records `verdict: forced`, never `pass`**, with its reason in the doc. Skipping is
+    made visible rather than impossible (0121's note). A forced audit that recorded as a pass would
+    be worse than no audit, because it would satisfy `0135`'s gate.

@@ -3080,6 +3080,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T04:18:14Z",
+    "started": "2026-09-01T04:29:05Z",
     "path": "tickets/open/0134-audit-record-and-drift-budget.md",
     "ready": true,
     "acceptance": {

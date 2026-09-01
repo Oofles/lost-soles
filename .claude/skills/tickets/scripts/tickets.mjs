@@ -525,6 +525,137 @@ function auditChecks(capability, tickets) {
   return checks;
 }
 
+// ──────────────────────────────────────────────────────── the audit record ────
+
+/**
+ * An audit result is recorded in `docs/capabilities/NN-name.md` as ONE line:
+ *
+ *   <!-- audit-record {"capability":"01-…","verdict":"pass",…} -->
+ *
+ * A single-line HTML comment carrying JSON, not a parsed prose section (D-172).
+ * `0135` has to answer "did capability N pass its audit?" without a human, and
+ * parsing prose for that answer is how the record starts lying — a heading
+ * someone reworded silently becomes a capability that never passed, or worse,
+ * one that did. The comment renders invisibly, cannot collide with prose, and
+ * sits underneath the human-readable write-up rather than replacing it.
+ *
+ * Records are append-only. A re-audit adds a line; the last one wins. The
+ * project's instincts everywhere else are append-only (D-020, D-135) and an
+ * audit history you can read backwards is worth more than a current-value field.
+ */
+const RECORD_RE = /<!--\s*audit-record\s+(\{.*?\})\s*-->/g;
+
+function auditRecords(capability) {
+  const doc = join(ROOT, `docs/capabilities/${capability}.md`);
+  if (!existsSync(doc)) return [];
+  const out = [];
+  for (const m of readFileSync(doc, "utf8").matchAll(RECORD_RE)) {
+    try { out.push(JSON.parse(m[1])); } catch { /* a malformed record is not a passing one */ }
+  }
+  return out;
+}
+
+/** The audit standing for a capability right now, or null if it has never passed. */
+function latestAuditRecord(capability) {
+  const rs = auditRecords(capability);
+  return rs.length ? rs[rs.length - 1] : null;
+}
+
+/**
+ * Has the capability got a REFLECT section with something actually in it?
+ *
+ * Every capability doc ships with `## Reflection` already present and holding
+ * the template line `_Filled in at the REFLECT step, after USE._`. Checking
+ * that the heading exists would therefore pass every capability from the day
+ * its doc was created — a green light that means nothing, which is exactly what
+ * D-171 exists to prevent. So: find every heading matching /reflect/i (capability
+ * 00 keeps its real one at `### §6 Reflection` inside the hand-run audit), strip
+ * italic placeholder lines, and require substance in what is left.
+ */
+function reflectSection(capability) {
+  const doc = join(ROOT, `docs/capabilities/${capability}.md`);
+  if (!existsSync(doc)) return { found: false, filled: false, chars: 0 };
+  const lines = readFileSync(doc, "utf8").split("\n");
+  let depth = 0, body = [], found = false;
+  for (const l of lines) {
+    const h = /^(#{2,6})\s+(.*)$/.exec(l);
+    if (h) {
+      if (/reflect/i.test(h[2])) { found = true; depth = h[1].length; continue; }
+      if (depth && h[1].length <= depth) depth = 0;
+      continue;
+    }
+    if (depth) body.push(l);
+  }
+  const substantive = body
+    .filter((l) => l.trim())
+    .filter((l) => !/^_.*_$/.test(l.trim()))          // `_Filled in at the REFLECT step_`
+    .filter((l) => !/^<!--.*-->$/.test(l.trim()));
+  const chars = substantive.join(" ").length;
+  return { found, filled: chars >= 200, chars };
+}
+
+const DIVERGENCE_RESOLUTIONS = ["code-was-wrong", "design-was-wrong"];
+
+/**
+ * `--divergence "code-was-wrong|0127|create could not derive a valid slug"`
+ *
+ * The resolution and the reference are both mandatory, because AUDIT.md's
+ * governing rule is that a divergence resolves one way or the other and
+ * "neither" is not an outcome. A divergence with no ticket and no `D-xxx` is
+ * the "we'll remember" that the rule exists to forbid.
+ */
+function parseDivergence(raw) {
+  const parts = String(raw).split("|").map((x) => x.trim());
+  const [resolution, ref, ...rest] = parts;
+  const description = rest.join(" | ");
+  if (!DIVERGENCE_RESOLUTIONS.includes(resolution)) {
+    die(`divergence '${raw}'\n` +
+        `  must start with one of: ${DIVERGENCE_RESOLUTIONS.join(", ")}\n` +
+        `  format: --divergence "<resolution>|<ref>|<description>"\n\n` +
+        `  'code-was-wrong' means a ticket was filed; 'design-was-wrong' means the doc was\n` +
+        `  amended and a D-xxx recorded. AUDIT.md allows no third option — "we'll remember"\n` +
+        `  is the drift, not a resolution of it.`);
+  }
+  if (!ref) die(`divergence '${raw}' has no reference.\n` +
+                `  code-was-wrong needs the ticket id it was filed as; design-was-wrong needs\n` +
+                `  the D-xxx that records the amendment. An unreferenced divergence is unresolved.`);
+  if (!description) die(`divergence '${raw}' has no description. Say what actually diverged.`);
+  return { resolution, ref, description };
+}
+
+/**
+ * Design-doc sections this capability's tickets cite — the reading list for §2.
+ *
+ * Line-wise rather than one regex over the body, because a citation reads
+ * "`07-ticketsmith.md` §3, §4.1–§4.8" and the backticks sit between the two
+ * halves. Two constraints keep the list honest:
+ *
+ *  - `(?<!\d)` so `0121-tickets-audit-subcommand.md` does not yield a phantom
+ *    `21-tickets-audit-subcommand.md`; ticket filenames look exactly like
+ *    design-doc names from the middle.
+ *  - the doc must actually exist at `docs/NN-name.md`. Capability docs share the
+ *    naming scheme but live in `docs/capabilities/`, and they are the audit's
+ *    output, not its reading list.
+ */
+function citedSections(capability, tickets) {
+  const isDesignDoc = (f) => existsSync(join(ROOT, "docs", f));
+  const cites = new Map();
+  for (const t of tickets.filter((x) => x.fm?.capability === capability)) {
+    for (const line of t.raw.split("\n")) {
+      const docs = [...line.matchAll(/(?<!\d)(\d\d-[a-z0-9-]+\.md)/g)].map((m) => m[1]).filter(isDesignDoc);
+      if (!docs.length) continue;
+      const secs = [...line.matchAll(/§\s*[\d]+(?:\.[\d]+)*/g)].map((m) => m[0].replace(/\s+/g, ""));
+      for (const d of docs) {
+        if (!cites.has(d)) cites.set(d, new Set());
+        for (const sec of secs) cites.get(d).add(sec);
+      }
+    }
+  }
+  return [...cites.entries()]
+    .map(([doc, secs]) => ({ doc, sections: [...secs].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) }))
+    .sort((a, b) => a.doc.localeCompare(b.doc));
+}
+
 function cmdAudit(capability, flags) {
   const tickets = load();
   const caps = existsSync(join(ROOT, "docs/capabilities"))
@@ -535,26 +666,127 @@ function cmdAudit(capability, flags) {
     die(`no capability '${capability}'. These exist:\n${caps.map((c) => `    ${c}`).join("\n")}`);
   }
 
+  // --sections: the reading list for AUDIT.md §2. Mechanical (which docs did
+  // this capability's tickets cite) in service of the judgemental half.
+  if (flags.sections) {
+    const cited = citedSections(capability, tickets);
+    if (flags.json) return console.log(JSON.stringify({ capability, cited }, null, 2));
+    if (!cited.length) return console.log(`\n  ${capability} cites no design-doc sections.\n`);
+    console.log(`\n  Design sections cited by ${capability}'s tickets — re-read each for §2:\n`);
+    for (const { doc, sections } of cited) {
+      console.log(`    docs/${doc}${sections.length ? "  " + sections.join(", ") : "  (no § given)"}`);
+    }
+    console.log(`\n  For each: list every place the implementation differs. An empty list is a`);
+    console.log(`  finding to assert with --no-divergences, never an omission.\n`);
+    return;
+  }
+
   const checks = auditChecks(capability, tickets);
   const failed = checks.filter((c) => c.status === "fail");
   const na = checks.filter((c) => c.status === "na");
 
-  if (flags.json) {
-    console.log(JSON.stringify({ capability, checks, passed: !failed.length }, null, 2));
-  } else {
-    console.log(`\n  audit ${capability} — AUDIT.md mechanical half (0133)\n`);
-    let section = null;
-    for (const c of checks) {
-      if (c.section !== section) { section = c.section; console.log(`  §${section}`); }
-      const mark = { pass: "  ok  ", fail: " FAIL ", na: "  n/a " }[c.status];
-      console.log(`   ${mark} ${c.id.padEnd(26)} ${c.detail}`);
+  if (!flags.record) {
+    if (flags.json) {
+      console.log(JSON.stringify({ capability, checks, passed: !failed.length }, null, 2));
+    } else {
+      printAuditTable(capability, checks, failed, na);
     }
-    console.log(`\n  ${checks.length - failed.length - na.length} passed, ${failed.length} failed, ${na.length} n/a`);
-    console.log(`\n  This is the mechanical half only. AUDIT.md §2 (design conformance), §3`);
-    console.log(`  (operator validation) and §6 (REFLECT) are judgement and are not run here;`);
-    console.log(`  the recorded result and drift budget are ticket 0134.`);
+    if (failed.length) process.exit(1);
+    return;
   }
-  if (failed.length) process.exit(1);
+
+  // ── --record: the full audit, mechanical + the judgemental half's outcome ──
+  const force = flags.force;
+  if (force === true) die(`--force needs a reason: --force "why this is being overridden".\n` +
+                          `  The override is recorded in the capability doc. Skipping is visible, not silent.`);
+
+  const asserted = "no-divergences" in flags;
+  const raw = flags.divergence ? [].concat(flags.divergence) : [];
+  if (!asserted && !raw.length) {
+    die(`${capability}: no divergence assertion.\n\n` +
+        `  AUDIT.md §2 asks for every place the implementation differs from the design.\n` +
+        `  Pass each as --divergence "<code-was-wrong|design-was-wrong>|<ref>|<description>",\n` +
+        `  or assert there were none with --no-divergences.\n\n` +
+        `  An empty list must be asserted, never assumed by omission — omission is what a\n` +
+        `  skipped §2 also looks like, and the two must not be indistinguishable.`);
+  }
+  if (asserted && raw.length) die(`--no-divergences was passed alongside ${raw.length} --divergence flag(s). Pick one.`);
+  const divergences = raw.map(parseDivergence);
+
+  const problems = [];
+  if (failed.length) problems.push(`${failed.length} mechanical check(s) failed: ${failed.map((c) => c.id).join(", ")}`);
+  if (divergences.length > 3) {
+    problems.push(`${divergences.length} divergences, over the budget of three — the design is stale, not the code.\n` +
+                  `    Stop shipping tickets and run a DESIGN session on the affected doc (AUDIT.md §2).`);
+  }
+  const reflect = reflectSection(capability);
+  if (!reflect.filled) {
+    problems.push(reflect.found
+      ? `the REFLECT section is still a placeholder (${reflect.chars} substantive chars) — AUDIT.md §6`
+      : `there is no REFLECT section in docs/capabilities/${capability}.md — AUDIT.md §6`);
+  }
+
+  if (problems.length && !force) {
+    printAuditTable(capability, checks, failed, na);
+    die(`${capability} does not pass its audit:\n` +
+        problems.map((p) => `  - ${p}`).join("\n") +
+        `\n\n  Nothing was recorded. Fix these, or override with --force "<reason>" — which\n` +
+        `  records the override and its reason in the capability doc rather than hiding it.`);
+  }
+
+  const record = {
+    capability,
+    audited: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+    verdict: problems.length ? "forced" : "pass",
+    mechanical: { pass: checks.length - failed.length - na.length, fail: failed.length, na: na.length },
+    divergences: divergences.length,
+  };
+  if (problems.length) record.forced = String(force);
+
+  const lines = [
+    ``,
+    `## Audit — ${record.audited.slice(0, 10)} (\`tickets.mjs audit --record\`)`,
+    ``,
+    `**Verdict: ${record.verdict.toUpperCase()}.** Mechanical half: ${record.mechanical.pass} passed, ` +
+      `${record.mechanical.fail} failed, ${record.mechanical.na} n/a. See AUDIT.md §1, §4, §5.`,
+    ``,
+  ];
+  if (problems.length) {
+    lines.push(`> **Overridden with \`--force\`.** Reason: ${force}`, ``,
+               ...problems.map((p) => `> - ${p.split("\n")[0]}`), ``);
+  }
+  lines.push(divergences.length
+    ? `**Divergences (${divergences.length} of a budget of 3):**`
+    : `**Divergences: none.** Asserted explicitly at audit time, not left blank.`);
+  lines.push(``);
+  for (const [i, d] of divergences.entries()) {
+    lines.push(`${i + 1}. **${d.resolution}** — \`${d.ref}\` — ${d.description}`);
+  }
+  if (divergences.length) lines.push(``);
+  for (const c of checks) lines.push(`- \`${c.id}\` — **${c.status}** — ${c.detail}`);
+  lines.push(``, `<!-- audit-record ${JSON.stringify(record)} -->`, ``);
+
+  const doc = join(ROOT, `docs/capabilities/${capability}.md`);
+  writeFileSync(doc, readFileSync(doc, "utf8").replace(/\s*$/, "\n") + lines.join("\n"));
+
+  printAuditTable(capability, checks, failed, na);
+  console.log(`  recorded → docs/capabilities/${capability}.md  (verdict: ${record.verdict})`);
+  if (problems.length) console.log(`  the override and its reason are in the doc.`);
+}
+
+function printAuditTable(capability, checks, failed, na) {
+  console.log(`\n  audit ${capability} — AUDIT.md mechanical half (0133)\n`);
+  let section = null;
+  for (const c of checks) {
+    if (c.section !== section) { section = c.section; console.log(`  §${section}`); }
+    const mark = { pass: "  ok  ", fail: " FAIL ", na: "  n/a " }[c.status];
+    console.log(`   ${mark} ${c.id.padEnd(26)} ${c.detail}`);
+  }
+  console.log(`\n  ${checks.length - failed.length - na.length} passed, ${failed.length} failed, ${na.length} n/a`);
+  console.log(`\n  Mechanical only — a green table is not a passed audit. AUDIT.md §2 (design`);
+  console.log(`  conformance) and §3 (operator validation) are judgement: run`);
+  console.log(`  'audit ${capability} --sections' for the reading list, then --record, which`);
+  console.log(`  also requires an explicit divergence assertion and a written §6 REFLECT.\n`);
 }
 
 // ────────────────────────────────────────────────────────────────────  git ────
@@ -842,7 +1074,9 @@ for (let i = 1; i < argv.length; i++) {
   if (!argv[i].startsWith("--")) continue;
   const k = argv[i].slice(2);
   const v = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : true;
-  flags[k] = v;
+  // Repeats accumulate rather than overwrite: `--divergence a --divergence b`
+  // is a list. Every other flag is passed once, so this changes nothing for them.
+  flags[k] = k in flags ? [].concat(flags[k], v) : v;
 }
 
 if (isMain) try {
@@ -884,4 +1118,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { auditChecks, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { auditChecks, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

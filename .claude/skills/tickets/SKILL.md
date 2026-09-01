@@ -42,7 +42,7 @@ subcommand dispatch, so this table is the dispatch.
 | `close` | **Read `reference.md` first**, then the close procedure | See below |
 | `validate` | `SCRIPT validate` | Report errors verbatim; fix or file, do not silence |
 | `sync` | `git pull --rebase`, then `SCRIPT index`, then `SCRIPT validate` | Report new inbox items by title, with a count |
-| `audit` | `SCRIPT audit $2` | Report the table verbatim. **A green table is not a passed audit** — say which halves did not run |
+| `audit` | `SCRIPT audit $2` | The audit procedure, below. **A green table is not a passed audit** |
 | anything else | `SCRIPT` (prints usage) | Say which actions exist |
 
 ## `next`
@@ -102,6 +102,41 @@ Refuse first, then act:
 6. **Commit on its own**: `tickets(#NNNN): <title>`, then push (D-150).
 7. The script reports which tickets just became ready. **Say so** — that is the handoff to the next
    session.
+
+## `audit`
+
+`AUDIT.md`'s split, same as everywhere else: the script runs what can be run, **you do §2 and §3**,
+and the script refuses to record a result until you have.
+
+1. `SCRIPT audit <capability>` — the mechanical half. Report the table verbatim. Read every `n/a`
+   reason and say whether you believe it; an `n/a` you cannot justify is a finding, not a row.
+2. `SCRIPT audit <capability> --sections` — the reading list. **Re-read each section listed** and,
+   for each, name every place the implementation differs from it. This is the part that catches
+   drift and the part no script can do.
+3. **§3** — check every closed ticket in the capability has a real `## Operator validation` result,
+   not a restatement of the instruction and not "None" where the ticket was operator-visible. For a
+   capability touching the map, the run log or XP, the USE step means **an actual run with the build
+   on the phone**; if that did not happen, say so and stop.
+4. **Resolve each divergence, explicitly.** `code-was-wrong` → file a ticket (`SCRIPT create …
+   --source agent`). `design-was-wrong` → amend the doc **now** and record a `D-xxx`. There is no
+   third option; "we'll remember" is the drift.
+5. **§6** — write the REFLECT section in `docs/capabilities/NN-name.md` before recording. The script
+   checks it has substance, not just a heading — every capability doc ships with the heading already
+   there, holding a placeholder.
+6. Record it:
+   ```
+   SCRIPT audit <capability> --record \
+     --divergence "design-was-wrong|D-170|§4.7 carried no body-section rule" \
+     --divergence "code-was-wrong|0127|create could not derive a valid slug"
+   ```
+   or, if there genuinely were none, `--record --no-divergences`. **Omitting the assertion is
+   refused** — a §2 that found nothing and a §2 that never happened must not look the same.
+7. More than three divergences fails the audit and means **the design is stale, not the code**. Run
+   a DESIGN session on the affected doc rather than arguing the budget.
+
+**`--force "<reason>"`** overrides a failing audit and records the override, with its reason, in the
+capability doc. It records `verdict: forced`, never `pass`. Use it for a genuine emergency and say
+in the session summary that it was used.
 
 ## Bare `/tickets` — the default loop
 
