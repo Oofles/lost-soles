@@ -121,7 +121,7 @@ SCRIPT show <id>                      raw markdown + deps resolved to title/stat
 SCRIPT validate                       exit 1 on errors, 0 on warnings only
 SCRIPT next [--all]                   ready set; single form refuses size:l
 SCRIPT allocate                       next free id
-SCRIPT create --title "…" --type … --priority … [--size --capability --slug --depends --source]
+SCRIPT create --title "…" --type … --priority … [--size --capability --slug --depends --source --body]
 SCRIPT start <id>
 SCRIPT block <id> --on <id> [--reason "…"]      refuses cycles and unknown ids
 SCRIPT unblock <id> --on <id>

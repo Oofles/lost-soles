@@ -39,6 +39,20 @@ const ENUMS = {
 const PRIO_RANK = { high: 0, med: 1, low: 2 };
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+/**
+ * Title → slug, for `create` when no --slug is given.
+ *
+ * The trim runs AFTER the truncation, and the order is the entire point (0127).
+ * Trimming first and slicing second lets the 60-character cut land on a word
+ * boundary and reintroduce the exact hyphen the trim just removed — SLUG_RE
+ * then rejects it and `create` dies, so any title long enough to truncate on a
+ * boundary could not be created without passing --slug by hand.
+ *
+ * A title with no alphanumerics yields "", which SLUG_RE rejects. That is
+ * deliberate: better a loud refusal than a ticket with an empty slug.
+ */
+const slugify = (title) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60).replace(/^-+|-+$/g, "");
+
 // ─────────────────────────────────────────────────────────── frontmatter ────
 // Deliberately NOT a YAML library: the frontmatter is a fixed, flat schema, and
 // a real YAML parser would happily accept nested structures the format does not
@@ -462,7 +476,7 @@ function cmdCreate(flags) {
   const ts = load();
   const ids = ts.map((t) => t.fm?.id).filter((n) => typeof n === "number");
   const id = ids.length ? Math.max(...ids) + 1 : 1;
-  const slug = flags.slug ?? flags.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const slug = flags.slug ?? slugify(flags.title);
   if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
   const fm = {
     id, slug, title: flags.title, type: flags.type, priority: flags.priority,
@@ -643,7 +657,7 @@ if (isMain) try {
   validate                    exit 1 on errors, 0 on warnings only
   next [--all]                highest-priority ready ticket; refuses size:l
   allocate                    next free id
-  create --title --type --priority [--size --capability --slug --depends]
+  create --title --type --priority [--size --capability --slug --depends --source --body]
   start <id>
   block <id> --on <id> [--reason "..."]
   unblock <id> --on <id>
@@ -657,4 +671,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, FIELD_ORDER };
+export { parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

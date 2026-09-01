@@ -10,13 +10,13 @@
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -690,6 +690,66 @@ describe("0126 — validate enforces required body sections on every non-inbox t
     const r = run(d, "validate");
     assert.notEqual(r.code, 0, "an unfinished triage must not validate clean");
     assert.match(r.out, /Acceptance criteria/);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ──────────────────────────────────────────── 0127 slug derivation in `create` ────
+
+describe("0127 — create derives a valid slug from a title long enough to truncate", () => {
+  const LONG = "validate: enforce required body sections on every ticket, not just closed ones";
+
+  test("the reported title now yields the slug the ticket predicted", () => {
+    assert.equal(slugify(LONG), "validate-enforce-required-body-sections-on-every-ticket-not");
+  });
+
+  test("no truncation point can produce a trailing hyphen", () => {
+    // The bug was an ordering one, so a single example proves little. Every
+    // prefix of a hyphen-rich title is a candidate cut point; none may end in
+    // a hyphen, and each must satisfy the same regex `create` checks against.
+    const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    for (let i = 1; i <= LONG.length; i++) {
+      const out = slugify(LONG.slice(0, i));
+      if (out === "") continue;
+      assert.ok(!out.endsWith("-"), `slugify(title[0..${i}]) ended in a hyphen: '${out}'`);
+      assert.ok(SLUG_RE.test(out), `slugify(title[0..${i}]) is not kebab-case: '${out}'`);
+      assert.ok(out.length <= 60, `slugify(title[0..${i}]) is ${out.length} chars`);
+    }
+  });
+
+  test("a title with no alphanumerics yields an empty slug, not a hyphen", () => {
+    assert.equal(slugify("!!! ???"), "");
+  });
+
+  test("create succeeds on the reported title with no --slug, and the result validates", () => {
+    const d = repo();
+    const r = run(d, "create", "--title", LONG, "--type", "chore", "--priority", "med",
+                  "--size", "s", "--capability", "00-x");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /0001-validate-enforce-required-body-sections-on-every-ticket-not\.md/);
+    assert.equal(run(d, "validate").code, 0, "a ticket create makes must validate");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("create still refuses a punctuation-only title rather than writing an empty slug", () => {
+    const d = repo();
+    const r = run(d, "create", "--title", "!!! ???", "--type", "chore", "--priority", "med");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /not kebab-case/);
+    assert.equal(readdirSync(join(d, "tickets/open")).length, 0, "no file may be written");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the usage text lists every flag create actually accepts", () => {
+    // --source and --body were both accepted and both undocumented. A usage
+    // line that omits a working flag is how the next person concludes it does
+    // not exist.
+    const d = repo();
+    const usage = run(d).out;
+    const createLine = usage.split("\n").find((l) => l.trim().startsWith("create "));
+    for (const flag of ["--size", "--capability", "--slug", "--depends", "--source", "--body"]) {
+      assert.ok(createLine.includes(flag), `usage omits ${flag}: ${createLine}`);
+    }
     rmSync(d, { recursive: true, force: true });
   });
 });
