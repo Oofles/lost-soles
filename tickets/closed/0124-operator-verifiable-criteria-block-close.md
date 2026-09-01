@@ -4,7 +4,7 @@ slug: operator-verifiable-criteria-block-close
 title: Operator-verifiable criteria should block a close, not be pre-ticked
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-08-31T02:59:11Z
 started: 2026-09-01T03:43:03Z
+closed: 2026-09-01T04:00:50Z
 ---
 
 ## Description
@@ -56,9 +57,10 @@ in the same file. The distinction exists only in prose, in `## Notes`, where not
       describe the marker, and move in the same commit as the code.
 - [x] The rule is **opt-in**: no ticket that predates it carries the marker, so `validate` stays
       clean across the existing 121 tickets.
-- [ ] (operator) In a real Claude Code session, `/tickets` still registers and routes after this
+- [x] (operator) In a real Claude Code session, `/tickets` still registers and routes after this
       ticket's `SKILL.md` edit. This is `0123`'s exact failure mode — an edit to `SKILL.md` that
       passes every programmatic check and leaves the skill inert — and no agent can check it.
+      — verified 2026-09-01: the operator ran it and reported it good.
 
 ## Notes
 
@@ -156,3 +158,16 @@ The `(operator)` criterion is unchecked, so `tickets.mjs close 0124` refuses. Th
 obstacle encountered while closing — it is the acceptance criterion demonstrating itself on the
 first ticket that carries the marker. `0123` set the precedent: fix, commit, leave open, close a
 session later once a human has actually run it.
+
+## Operator validation — 2026-09-01
+
+**Passed.** The operator ran `/tickets` in a real Claude Code session after this ticket's `SKILL.md`
+edit and reported it good: the skill registers and routes.
+
+Recorded as the operator's result, not an agent observation. That distinction is the entire subject
+of this ticket, so overstating it here would be a poor start — the operator reported it working and
+did not report a session restart being needed, and nothing beyond that is claimed.
+
+This is the first criterion in the project to be signed off through the mechanism it was added by:
+the tick carries its dated result inline, `close` accepted it, and until the operator ran it
+`close` had refused four times.

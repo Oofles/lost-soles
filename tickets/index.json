@@ -2856,7 +2856,7 @@
     "title": "Operator-verifiable criteria should block a close, not be pre-ticked",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -2864,10 +2864,11 @@
     "source": "agent",
     "created": "2026-08-31T02:59:11Z",
     "started": "2026-09-01T03:43:03Z",
-    "path": "tickets/open/0124-operator-verifiable-criteria-block-close.md",
-    "ready": true,
+    "closed": "2026-09-01T04:00:50Z",
+    "path": "tickets/closed/0124-operator-verifiable-criteria-block-close.md",
+    "ready": false,
     "acceptance": {
-      "checked": 9,
+      "checked": 10,
       "total": 10
     }
   },
