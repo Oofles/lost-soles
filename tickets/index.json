@@ -3140,6 +3140,26 @@
     }
   },
   {
+    "id": 137,
+    "slug": "pre-commit-hook-fails-open-when-git-diff-cached-errors-and-i",
+    "title": "Pre-commit hook fails OPEN when git diff --cached errors, and its layer-3 test is intermittently red on main",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-01T19:32:45Z",
+    "path": "tickets/open/0137-pre-commit-hook-fails-open-when-git-diff-cached-errors-and-i.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
     "title": "Capture endpoint smoke test — safe to discard",
     "type": "chore",
     "priority": "low",
