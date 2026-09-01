@@ -4,13 +4,14 @@ slug: cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in
 title: Cross-app SSO on devaultsecurity.com — evaluate Google sign-in against 08 section 5.1
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 02-deploy-and-auth
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-08-31T15:31:42Z
+closed: 2026-09-01T21:32:40Z
 ---
 
 ## Description

@@ -2970,15 +2970,16 @@
     "title": "Cross-app SSO on devaultsecurity.com — evaluate Google sign-in against 08 section 5.1",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-08-31T15:31:42Z",
-    "path": "tickets/open/0129-cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in.md",
-    "ready": true,
+    "closed": "2026-09-01T21:32:40Z",
+    "path": "tickets/closed/0129-cross-app-sso-on-devaultsecurity-com-evaluate-google-sign-in.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
@@ -3179,7 +3180,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 7
     }
   },
   {
@@ -3199,7 +3200,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   },
   {
