@@ -4,13 +4,14 @@ slug: create-slug-trailing-hyphen
 title: tickets.mjs create: slug derivation truncates mid-word and emits a trailing hyphen
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-08-31T03:12:50Z
+closed: 2026-09-01T04:11:29Z
 ---
 
 ## Description
