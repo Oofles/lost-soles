@@ -524,7 +524,7 @@
     "title": "/tickets triage handles inbox files end to end",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -535,10 +535,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-02T15:27:52Z",
-    "path": "tickets/open/0023-tickets-triage-inbox-end-to-end.md",
-    "ready": true,
+    "closed": "2026-09-02T15:38:19Z",
+    "path": "tickets/closed/0023-tickets-triage-inbox-end-to-end.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
