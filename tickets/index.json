@@ -3211,7 +3211,7 @@
     "title": "docs/INDEX.md is stale, and the gate has been red on every push since ac977fd",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3219,8 +3219,9 @@
     "source": "agent",
     "created": "2026-09-01T22:29:00Z",
     "started": "2026-09-02T02:02:14Z",
-    "path": "tickets/open/0140-docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu.md",
-    "ready": true,
+    "closed": "2026-09-02T02:09:17Z",
+    "path": "tickets/closed/0140-docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
@@ -3323,7 +3324,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   },
   {

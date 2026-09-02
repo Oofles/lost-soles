@@ -4,7 +4,7 @@ slug: docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu
 title: docs/INDEX.md is stale, and the gate has been red on every push since ac977fd
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T22:29:00Z
 started: 2026-09-02T02:02:14Z
+closed: 2026-09-02T02:09:17Z
 ---
 
 ## Description
