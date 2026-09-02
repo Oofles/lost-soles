@@ -48,22 +48,22 @@ or by revoking that token, which is a materially better story than a static secr
 
 ## Acceptance criteria
 
-- [ ] `middleware.ts` admits a request carrying a valid `Authorization: Bearer <IdToken>` with no
+- [x] `middleware.ts` admits a request carrying a valid `Authorization: Bearer <IdToken>` with no
       session cookie, and continues to 404 one carrying neither.
-- [ ] The token is verified against the **production** pool's JWKS — signature, `iss`, `aud` or
+- [x] The token is verified against the **production** pool's JWKS — signature, `iss`, `aud` or
       `client_id`, `token_use: id`, and `exp`. A token failing any of these is treated as
       signed out, not as an error.
-- [ ] JWKS is fetched once and cached in module scope; a fetch failure is **not** cached, matching
+- [x] JWKS is fetched once and cached in module scope; a fetch failure is **not** cached, matching
       the SSM-token reasoning in `lib/tickets/github.ts`.
-- [ ] `sub` is read from the verified payload only. There is no code path that reads an identity
+- [x] `sub` is read from the verified payload only. There is no code path that reads an identity
       from an unverified token, a body field, a query string or any other header.
-- [ ] A token issued by the **sandbox** pool is rejected, and there is a test asserting it — the
+- [x] A token issued by the **sandbox** pool is rejected, and there is a test asserting it — the
       two pools are distinguishable only by tags, and `0019`'s capability-doc section explains why
       this is the realistic mistake.
-- [ ] A non-owner's valid token gets the same byte-identical 404 as a signed-out request.
-- [ ] An expired token gets that same 404, so a stale device credential is indistinguishable from
+- [x] A non-owner's valid token gets the same byte-identical 404 as a signed-out request.
+- [x] An expired token gets that same 404, so a stale device credential is indistinguishable from
       no credential.
-- [ ] The refresh-token exchange is documented in the capability doc with the exact request shape,
+- [x] The refresh-token exchange is documented in the capability doc with the exact request shape,
       so `0020`'s task can be built from it without re-deriving it from AWS documentation.
 - [ ] Smoke test: a `curl` with a bearer IdToken obtained via `REFRESH_TOKEN_AUTH` commits a file
       to `tickets/inbox/`, and the same `curl` with ~~the token's last character~~ **a character in
@@ -76,7 +76,7 @@ or by revoking that token, which is a materially better story than a static secr
       **The positive half is the operator's, and the negative half is the agent's.** Committing a
       file needs a *production* ID token, which needs a production sign-in the agent must not have
       (`08-security-privacy.md` §2.4 Trigger A). The rejection half needs no credential at all.
-- [ ] A `D-xxx` records that non-browser clients authenticate by verified bearer IdToken, and that
+- [x] A `D-xxx` records that non-browser clients authenticate by verified bearer IdToken, and that
       a shared-secret header was rejected and why.
 
 ## Notes
@@ -108,3 +108,97 @@ then confirm a capture posted from the device lands in `tickets/inbox/`. This is
 needing a human, because the agent must not hold a production browser session
 (`08-security-privacy.md` §2.4 Trigger A, and the `0130` throwaway exists precisely so it never
 needs one).
+
+---
+
+## Progress — 2026-09-02 (not closed)
+
+Nine of ten criteria are met and the code is deployed (Amplify build **58**, commit `4247cd3`).
+**Criterion 9 is outstanding and only the operator can finish it**, so the ticket stays open per
+the close rule: committing the work and closing it later is correct; ticking the box is not.
+
+### What was verified, and how
+
+`lib/auth/bearer.ts` verifies against real RSA signatures in test — a keypair is generated, tokens
+are signed with it, and the JWKS endpoint is stubbed to serve the matching public key, so "a
+tampered token is rejected" is asserted by the actual signature check. 20 tests cover acceptance,
+expiry, wrong pool, wrong client, access-vs-ID token, unknown `kid`, a swapped payload, `alg:none`,
+JWKS caching, and that a failed JWKS fetch is not cached. 6 more in `middleware.test.ts` cover the
+routing decision. Full suite: **270 pass**, typecheck and lint clean.
+
+**Criterion 5 was proven with a real token, not a synthetic one.** A valid, unexpired, correctly
+signed ID token was minted for `agent@lost-soles.invalid` in the sandbox pool (SRP, via the `0130`
+throwaway) and fed to the production verifier: rejected, `issuer not configured`. The sandbox
+verifier accepted the same token, so the rejection is about the pool rather than a broken token.
+
+**Criterion 8 was proven by running the exchange.** `REFRESH_TOKEN_AUTH` over plain `curl` — no
+SigV4, no SDK, no client secret — returned a fresh ID token, `ExpiresIn: 3600`, `TokenType: Bearer`.
+The request shape is in the capability doc verbatim.
+
+### Deployed smoke test — the rejection half of criterion 9
+
+Against `https://soles.devaultsecurity.com/api/tickets/capture` on build 58, every one returned a
+byte-identical `404 {"error":"not found"}` and committed nothing:
+
+| Sent | Result |
+|---|---|
+| no credential at all | 404 |
+| `Bearer not-a-jwt` | 404 |
+| `Bearer ` (empty) | 404 |
+| a **real, valid** sandbox-pool ID token | 404 |
+| that token with a middle signature character altered | 404 |
+
+**An honest limit on what that proves.** By design these are indistinguishable from what a
+deployment *without* the bearer branch would return — §6.5 spends a 404-instead-of-403 precisely so
+no probe can tell the cases apart, and that denies it to the agent too. A timing probe (a token with
+correct production claims and an unknown `kid`, which can only be rejected after a JWKS fetch) was
+inconclusive: the first request was slower, later ones were not. So the branch's *presence* rests on
+the unit tests plus inspection of the built edge bundle — six `crypto.subtle` references and zero
+Node `crypto`, from the same commit build 58 deployed — not on the deployed probe.
+
+### ★ What the operator needs to do, once ★
+
+This finishes criterion 9's positive half and the ticket. The agent must not hold a production
+browser session (`08-security-privacy.md` §2.4 Trigger A), which is why this step exists.
+
+1. Sign in to `https://soles.devaultsecurity.com` in a browser as the owner.
+2. In DevTools → Application → Local Storage, find the key ending
+   `...5vc5e8t2ljv1hg3doau5mp0m00.<sub>.refreshToken` and copy its value.
+3. Exchange it for an ID token — nothing here is secret except the refresh token itself:
+
+   ```sh
+   RT='<the refresh token>'
+   ID=$(curl -s -X POST https://cognito-idp.us-east-1.amazonaws.com/ \
+     -H 'Content-Type: application/x-amz-json-1.1' \
+     -H 'X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth' \
+     -d "{\"AuthFlow\":\"REFRESH_TOKEN_AUTH\",\"ClientId\":\"5vc5e8t2ljv1hg3doau5mp0m00\",\"AuthParameters\":{\"REFRESH_TOKEN\":\"$RT\"}}" \
+     | sed -n 's/.*"IdToken":"\([^"]*\)".*/\1/p')
+   echo "got a token of ${#ID} chars"
+   ```
+
+4. Capture with it, and confirm a **201** with a `path` and `commitSha`:
+
+   ```sh
+   curl -i -X POST https://soles.devaultsecurity.com/api/tickets/capture \
+     -H "Authorization: Bearer $ID" -H 'Content-Type: application/json' \
+     -d '{"title":"bearer auth works","type":"chore","priority":"low",
+          "idempotencyKey":"'"$(uuidgen)"'"}'
+   ```
+
+5. Then confirm the rejection half with the *same* token, one character of the signature altered
+   **in the middle, not at the end** — the last character carries only padding bits and altering it
+   changes nothing:
+
+   ```sh
+   BAD="${ID:0:${#ID}-40}$([ "${ID: -40:1}" = A ] && echo B || echo A)${ID: -39}"
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+     https://soles.devaultsecurity.com/api/tickets/capture \
+     -H "Authorization: Bearer $BAD" -H 'Content-Type: application/json' \
+     -d '{"title":"should not appear","type":"chore","priority":"low",
+          "idempotencyKey":"'"$(uuidgen)"'"}'
+   ```
+
+   Expect `404`, and confirm no second file appeared in `tickets/inbox/`.
+
+Report the two results and the ticket closes. The `tickets/inbox/` file from step 4 is a real
+capture — decline it at the next triage rather than deleting it.
