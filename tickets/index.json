@@ -3222,7 +3222,7 @@
     "path": "tickets/open/0140-docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -3304,6 +3304,26 @@
     "acceptance": {
       "checked": 0,
       "total": 5
+    }
+  },
+  {
+    "id": 145,
+    "slug": "build-index-mjs-has-no-tests-so-check-being-read-only-is-ass",
+    "title": "build-index.mjs has no tests, so --check being read-only is asserted by nothing",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-02T02:08:41Z",
+    "path": "tickets/open/0145-build-index-mjs-has-no-tests-so-check-being-read-only-is-ass.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   },
   {
