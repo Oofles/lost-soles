@@ -353,12 +353,55 @@ characters carrying 2052 bits — so the final character contributes 2 significa
 padding, and `A` and `B` decode to byte-identical signatures. The criterion was amended to alter a
 character in the middle, and a test pins the property so the trap is not re-laid.
 
-#### The refresh token expires in 30 days
+#### The refresh token expires in a year
 
-`RefreshTokenValidity` is 43200 minutes. After that the task's `REFRESH_TOKEN_AUTH` returns
-`NotAuthorizedException`, it gets no ID token, and **capture dies silently until the operator
-re-pairs the phone**. Filed as `0151` to raise it to a year; `0022`'s retry queue must treat a
+`RefreshTokenValidity` was 43200 minutes (30 days) when this was written; **ticket `0151` raised it
+to 525600 minutes — one year**, and the section below records that change. After it expires the
+task's `REFRESH_TOKEN_AUTH` returns `NotAuthorizedException`, it gets no ID token, and **capture
+dies silently until the operator re-pairs the phone**. `0022`'s retry queue must therefore treat a
 failed refresh as fatal-until-re-paired rather than retrying a dead credential forever.
+
+### The refresh token is a year, and the deploy gate needed a grant  (ticket 0151, 2026-09-02)
+
+`refreshTokenValidity` was 43200 minutes — 30 days — and that number was reasoned for a **browser**
+("long enough a phone stays signed in between runs, short enough a stolen device goes stale"). D-183
+changed what it governs: the capture task holds a refresh token, so at 30 days the tile stops
+working monthly, and it stops **silently** — the tile still takes the dictation and the note is
+simply never committed, which is the failure capability `03` exists to prevent. Now 525600 minutes.
+
+The ID token is deliberately **unchanged at 60 minutes**. That short half is where the protection
+lives; lengthening both would be a different and much worse change. Revocation was already on, and
+is what makes a year defensible rather than lazy.
+
+**Verified on the sandbox before touching production.** Raising `RefreshTokenValidity` on the
+sandbox client left the client id byte-identical and a **pre-existing refresh token still
+exchanged successfully** — so the operator's current session survives the change and no immediate
+re-pairing is needed. The sandbox client was restored afterwards. On production, exactly one field
+differs from the pre-change capture: `43200 → 525600`. Units, flows, revocation and the owner's
+`sub` are all unchanged, so `OWNER_USER_IDS` and `lib/auth/bearer.ts` keep working untouched.
+
+#### The build failed first, and the failure was the check working
+
+`check-auth-posture.mjs` gained three token-lifetime assertions, because raising the lifetime is
+what creates the need for them: a year-long credential whose duration nothing verifies is weaker
+than a 30-day one. The unit is asserted **separately from the value**, since CloudFormation reads a
+missing `TokenValidityUnits` as **days** — dropping it turns 525600 minutes into 525600 days
+without changing a digit anyone would notice in review.
+
+Build **60** then failed with `AccessDeniedException ... cognito-idp:ListUserPoolClients`. The check
+had failed closed exactly as designed; what was missing was a permission. The build role
+`AmplifySSRLoggingRole-bcad2fbf-…` carries a hand-made inline policy,
+**`LostSolesAuthPostureCheckReadOnly`**, which already granted `DescribeUserPool` and
+`ListIdentityProviders`; it now also grants `ListUserPoolClients` and `DescribeUserPoolClient`, both
+read-only, on `userpool/*` in this account — the resource shape the existing statement already used.
+
+**Note the ordering this exposed.** The backend deploy runs BEFORE the posture check in the same
+build phase, so build 60 applied the Cognito change and then failed the gate. The gate is a
+post-deploy assertion, not a pre-deploy one: it can fail a build *after* the configuration it is
+checking has already landed. Worth knowing before reading a red build as "nothing happened".
+
+Like `LostSolesAmplifyComputeRole` (ticket `0018`), this role is not in any CloudFormation stack, so
+the policy is applied by hand and recorded here rather than in `backend.ts`.
 
 ## Audit
 
