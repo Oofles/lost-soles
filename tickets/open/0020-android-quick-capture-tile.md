@@ -4,11 +4,11 @@ slug: android-quick-capture-tile
 title: Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile
 type: feature
 priority: high
-status: open
+status: blocked
 size: m
 capability: 03-ticket-capture-endpoint
 depends_on: [19]
-blocked_by: []
+blocked_by: [149]
 source: operator
 created: 2026-08-30T00:00:00Z
 ---
@@ -55,6 +55,9 @@ reproducible after a phone wipe without reverse-engineering it from memory.
 - [ ] The capability doc contains no reference to iOS Shortcuts or Siri (D-124).
 
 ## Notes
+
+
+**Blocked 2026-09-02 on 0149:** 0020 step 3 assumes a shared auth header that 0019 never built; the endpoint is cookie-only and unreachable from Tasker until 0149 lands
 
 Credential on the device is a header value, not the GitHub PAT — the phone must never hold a
 GitHub credential (§6.1). If lock-screen tiles are restricted by the device's settings, record

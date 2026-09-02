@@ -455,17 +455,19 @@
     "title": "Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
       19
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      149
+    ],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0020-android-quick-capture-tile.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -3389,7 +3391,29 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
+    }
+  },
+  {
+    "id": 149,
+    "slug": "capture-bearer-token-auth",
+    "title": "Bearer-token auth so a non-browser client can reach the capture endpoint",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      19
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-02T15:26:07Z",
+    "path": "tickets/open/0149-capture-bearer-token-auth.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
     }
   },
   {
