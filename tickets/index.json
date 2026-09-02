@@ -455,19 +455,18 @@
     "title": "Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile",
     "type": "feature",
     "priority": "high",
-    "status": "blocked",
+    "status": "open",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
       19
     ],
-    "blocked_by": [
-      149
-    ],
+    "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-02T20:14:20Z",
     "path": "tickets/open/0020-android-quick-capture-tile.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8

@@ -403,6 +403,31 @@ checking has already landed. Worth knowing before reading a red build as "nothin
 Like `LostSolesAmplifyComputeRole` (ticket `0018`), this role is not in any CloudFormation stack, so
 the policy is applied by hand and recorded here rather than in `backend.ts`.
 
+### The capture tile is specified, not exported  (ticket 0020, 2026-09-02)
+
+The phone build lives in **[`03-capture-tile.md`](03-capture-tile.md)** — trigger, dictation,
+idempotency key, the two HTTP calls, and the vibration table that makes success and failure
+distinguishable on a locked screen. **MacroDroid** is the recommended app (a first-class Quick
+Settings Tile trigger and a Voice Input action, where Tasker needs extra plumbing for the same
+thing); Tasker equivalents are given per step.
+
+**No `.macro` / `.tsk.xml` is committed yet, deliberately.** Those formats encode actions as numeric
+codes, and an export hand-written by an agent with no device to import it on imports cleanly and
+then misbehaves — a failure that surfaces at mile six on the one note that mattered. The export is
+produced by the phone once the macro works, and `0020`'s criterion 7 is amended to say so.
+
+What exists instead is **[`tools/capture/capture.sh`](../../tools/capture/capture.sh)**, a runnable
+reference implementation doing exactly what the macro must, in the same order. It is the definition
+the macro transcribes, and the diagnostic to reach for when the tile misbehaves: run it from a
+laptop with the same refresh token and it says whether the problem is the phone or the endpoint.
+`tools/capture/capture.test.mjs` covers the three things that can silently corrupt a note — the
+200-character split, the JSON escaping, and the single generation of the idempotency key.
+
+Both failure paths were exercised against the live services: a dead refresh token exits 3 with
+"re-pair the phone" and never attempts a capture, and a **real** refresh token from the wrong pool
+gets a successful token exchange followed by a 404 from the endpoint — which also re-proves `0149`'s
+rejection through a second, independent client.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
