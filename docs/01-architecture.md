@@ -201,6 +201,7 @@ Every resource, what it does, and what would make it cost money.
 | 18 | ACM certificate | Amplify-managed | Domain association | TLS for `soles.devaultsecurity.com` | Free |
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
 | 20 | Cloudflare R2 bucket | `lost-soles-tiles` | Outside AWS | pmtiles basemap, fetched by HTTP range from the browser | **$0 egress** — that is the entire reason it exists |
+| 21 | DynamoDB (CDK) | `LostSolesCaptureGuard` | `backend.createStack` | Capture-endpoint rate-limit counters and idempotency records. `PK = pk`, TTL 2 h / 2 d / 24 h. Read and written by the **SSR compute**, not by a Lambda (ticket 0019, D-180) | Negligible |
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
 WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always-on compute.

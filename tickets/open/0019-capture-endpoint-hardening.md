@@ -11,6 +11,7 @@ depends_on: [18]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-09-02T03:50:40Z
 ---
 
 ## Description
@@ -56,24 +57,32 @@ Also in scope:
 
 ## Acceptance criteria
 
-- [ ] A request body containing a `path` key is rejected **400 unknown key**; the path is never
+- [x] A request body containing a `path` key is rejected **400 unknown key**; the path is never
       read from input under any key name.
-- [ ] A title of `../../.github/workflows/pwn.yml` produces a path of the form
+- [x] A title of `../../.github/workflows/pwn.yml` produces a path of the form
       `tickets/inbox/<ts>-github-workflows-pwn-yml.md` and nothing outside `tickets/inbox/`.
-- [ ] A unit test calls the prefix guard directly with `tickets/open/x.md`, `../x.md`,
+- [x] A unit test calls the prefix guard directly with `tickets/open/x.md`, `../x.md`,
       `tickets/inbox/../../x.md`, `tickets/inbox/a/b.md`, a leading-dot name, a backslash and an
       embedded null byte — every one is rejected.
-- [ ] A title that slugifies to the empty string (e.g. all emoji) fails the regex and returns
+- [x] A title that slugifies to the empty string (e.g. all emoji) fails the regex and returns
       500, not a file at a fallback path.
-- [ ] A signed-in **non-owner** receives **404**, not 403, and no commit is made.
-- [ ] An unauthenticated request receives 404 and no commit is made.
-- [ ] A 201-byte title, an 8.1 KB body, and a 17 KB request each return 400 and make no commit.
-- [ ] The 31st create within one hour returns 429; the counter row carries a TTL.
-- [ ] Replaying an identical request with the same `idempotencyKey` returns the **original**
+- [x] A signed-in **non-owner** receives **404**, not 403, and no commit is made.
+- [x] An unauthenticated request receives 404 and no commit is made.
+- [x] A 201-byte title, an 8.1 KB body, and a 17 KB request each return 400 and make no commit.
+- [x] The 31st create within one hour returns 429; the counter row carries a TTL.
+- [x] Replaying an identical request with the same `idempotencyKey` returns the **original**
       path and commit sha and creates **no second commit**.
-- [ ] Two captures with the same title in the same minute produce two files, the second with a
+- [x] Two captures with the same title in the same minute produce two files, the second with a
       `-2` suffix; a third in the same minute fails cleanly rather than overwriting.
-- [ ] The `Access-Control-Allow-Origin` header names the app origin only.
+- [x] The `Access-Control-Allow-Origin` header names the app origin only.
+- [x] **Added by 0019.** The endpoint scans `title` and `body` for the five `08-security-privacy.md`
+      §7.3 patterns and rejects with a clear message naming the SHAPE, never the value — the
+      requirement this ticket's own Notes carry from `0004`, which had no criterion.
+- [ ] (operator) A capture sent from the **Android phone, in Chrome, signed in as the owner**
+      returns `{ path, commitSha }`, and the file appears in `tickets/inbox/` — proving the
+      deployed handler can reach `LostSolesCaptureGuard` through the new IAM grant.
+- [ ] (operator) Signed out, the same request returns **404** — not a redirect to `/` and not a
+      permission error.
 
 ## Notes
 
@@ -108,6 +117,108 @@ let `/tickets sync` merge it. Deliberately **not** taken: checks 2-4 already con
 single-operator project. Revisit if the credential ever broadens or if branch protection lands
 on `main` for another reason.
 
+## Resolution
+
+**Status: the code is complete and green; the ticket stays OPEN.** Two `(operator)` criteria are
+unchecked, and one hard blocker sits behind them — see *What is still missing* below.
+
+**Added:** `lib/tickets/capture-guard.ts` (the pure guards), `lib/tickets/capture-store.ts` (the
+DynamoDB rate-limit and idempotency store), `lib/auth/owner.ts`, `lib/amplify-server.ts`, and four
+test files including `middleware.test.ts`.
+**Changed:** `app/api/tickets/capture/route.ts` (rewritten around the check order),
+`middleware.ts`, `lib/tickets/github.ts` (a typed `GithubApiError`), `lib/tickets/capture-format.ts`
+(the fallback removed — see below), `amplify/backend.ts` (the table and its grant),
+`package.json` (`@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`), `docs/01-architecture.md`
+(resource row 21), `docs/decisions/DECISIONS.md` (D-179, D-180), the capability doc, `docs/INDEX.md`.
+
+243 tests pass (up from 176), typecheck and lint clean, `npm run build` succeeds, and
+`check-boundaries`, `check-design-tokens` and `check-bundle-leak --self-test` are green.
+
+### The defect criterion 4 found in already-closed work
+
+`derivePath` shipped in `0018` as `${slug || "untitled"}`. It reads as a sensible guard and is the
+precise failure §6.4/2 forbids: **"untitled" is a legal slug**, so the re-validation regex this
+ticket adds would have *passed* it and a file would have landed at a name derived from nothing. The
+triggering input is not adversarial — an all-emoji title is one tap on a phone keyboard.
+
+The fallback is gone; an empty slug now yields `tickets/inbox/<stamp>-.md`, which fails the regex,
+and the route answers 500. This meant amending a passing `0018` test that asserted every hostile
+title produced a regex-valid path — it passed *because* of the fallback. It is now two tests, one
+per outcome, with the amendment explained in place rather than quietly rewritten.
+
+Worth naming the pattern: 0018 could not have caught this, because the guard that makes the
+fallback wrong did not exist yet. Splitting plumbing from hardening has this cost, and the
+hardening ticket re-reading the plumbing is what pays it.
+
+### What went wrong while building it
+
+1. **I wrote literal NUL bytes into source three times** — `capture-guard.ts`, its test, and
+   `route.test.ts` — which is the exact mistake `0018`'s Resolution records, repeated in the very
+   session that cites it. The first announced itself: `grep 'null byte' capture-guard.ts` returned
+   nothing, because a single NUL makes GNU grep treat the whole file as binary. That is the same
+   mechanism that silently disabled the pre-commit scanner in 0018. The third survived until the
+   commit itself, and was only found by explicitly counting NULs across every staged file rather
+   than by anything automatic.
+   **All three are now `\u0000` escapes**, but the honest conclusion is that writing a comment
+   saying "use an escape" does not prevent this — the byte is invisible at the point of writing.
+   Detecting it does: `git show ":$f" | tr -dc '\000' | wc -c` over the staged set is two seconds
+   and would have caught all three. Not built here, because it belongs in `.githooks/pre-commit`
+   next to the layer whose sensitivity it protects, not in this ticket.
+2. **The pre-commit hook blocked the commit** on a PEM private-key header sitting as a literal in
+   a test fixture. It was right to. Resolved by assembling that string at runtime like
+   the other fixtures rather than by adding a `gitleaks:allow` marker: a value the file only needs
+   at runtime has no business existing in source, and a suppression would have been the weaker of
+   the two answers.
+3. **`check-design-tokens.mjs` failed the build on a DynamoDB key.** `RATE#<uid>#H#2026-09-02T14`
+   contains `#2026`, which its `/#[0-9a-f]{3,8}\b/i` reads as a hex colour — correctly, by its own
+   rule. I moved this ticket's separator to `#hour:` rather than edit a control mid-ticket, and
+   filed **`0146`**, because the clash is structural rather than incidental: `01-architecture.md`
+   §2 specifies `PK = U#<uid>#C#<res6parent>` and **an H3 cell id is a hex string**, so every
+   realistic cell-key fixture in capability `07` will trip it. A guard that fires on ordinary
+   correct code is a guard someone eventually deletes.
+4. **The `no-explicit-any` rule caught a lazy test stub**, and the fix was an improvement rather
+   than a concession: the stub now declares the command fields it asserts on, so a rename in
+   `capture-store.ts` fails the typecheck instead of asserting `undefined` against `undefined`.
+
+### Decisions, both recorded as `D-xxx`
+
+- **D-179 — the guards fail closed.** DynamoDB unreachable means neither the rate limiter nor the
+  idempotency check can report a verdict, so the endpoint answers **503, no commit**, rather than
+  committing with the limits switched off. This was put to the operator with its cost stated — a
+  capture is a note dictated once with no second copy, and this bounces it during an outage — and
+  chosen deliberately. 503 is retryable; `0022`'s queue is what retries it. `releaseIdempotencyKey`
+  is the one deliberate exception: it swallows its own errors, because it runs on a path already
+  returning a failure and turning a useful 429 into an opaque 500 would be strictly worse.
+- **D-180 — the guard table is named by a literal on both sides, asserted equal by a test.** The
+  SSR compute is not a `defineFunction` Lambda, so it has no CloudFormation output, no `secret()`
+  and no permitted env var (0017's standing rule) — the same structural gap that sent 0018's PAT to
+  SSM. The cost is stated rather than hidden: an explicit table name is account-and-region unique,
+  so **`ampx sandbox` cannot coexist with `main`'s stack**.
+
+### Two criteria added, and why that is not scope creep
+
+- The **secret-scan criterion** implements a requirement this ticket's own Notes carry from `0004`
+  and that the criteria list simply never encoded. Without it the endpoint has **no** secret
+  scanner: it commits through the GitHub API, so `.githooks/pre-commit` never runs, and push
+  protection needs Advanced Security a private repo does not have.
+- The two **`(operator)` criteria** formalise the `## Operator validation` prose this ticket
+  already carried, so the close gate enforces it (`0124`).
+
+### What is still missing — the blocker
+
+**`OWNER_USER_IDS` in `lib/auth/owner.ts` is empty.** This session had no AWS credentials
+(`aws sts get-caller-identity` → *Unable to locate credentials*), so unlike 0018 I could not read
+the operator's Cognito `sub` from the pool, and it is hard-coded per §6.4/1.
+
+An empty allowlist **fails closed: every request 404s, including the owner's.** That is the correct
+default — an allowlist that defaults to permitting is not an allowlist — but it means the deployed
+endpoint is inert until the value lands, and both `(operator)` criteria are unverifiable until then.
+`0020`, `0021` and `0022` remain correctly blocked: nothing on the phone may point at this URL yet.
+
+Everything else deploys on the next push: the CDK table, the IAM grant, the middleware change and
+the route. The deploy itself is unverified from here for the same reason.
+
+
 ## Operator validation
 
 On the Android phone, in Chrome, signed in: send a capture whose title is
@@ -115,3 +226,54 @@ On the Android phone, in Chrome, signed in: send a capture whose title is
 `.github/workflows/` directory on GitHub and confirm it is unchanged, and open `tickets/inbox/`
 and confirm the file landed there with a mangled-but-harmless name. Then sign out and re-send —
 you should get a 404 page, not a permission error.
+
+### Step 0 — the blocker, before any of the above can work
+
+The allowlist is empty, so the endpoint currently 404s **everyone**. Get the owner's Cognito `sub`
+and put it in `OWNER_USER_IDS` in `lib/auth/owner.ts`:
+
+```
+aws cognito-idp list-users --user-pool-id us-east-1_RV7QIiViX --region us-east-1 \
+  --query 'Users[].Attributes[?Name==`sub`].Value' --output text
+```
+
+or, in devtools at `soles.devaultsecurity.com` while signed in:
+
+```js
+(await (await import("aws-amplify/auth")).fetchAuthSession()).tokens.idToken.payload.sub
+```
+
+### Step 1 — the deploy landed
+
+The Amplify build creates `LostSolesCaptureGuard` and attaches a `grantReadWriteData` policy to
+`LostSolesAmplifyComputeRole`. Confirm both, because the policy attaches to a role CloudFormation
+does not own and that is the part most likely to fail:
+
+```
+aws dynamodb describe-table --table-name LostSolesCaptureGuard --query 'Table.TableStatus'
+aws dynamodb describe-time-to-live --table-name LostSolesCaptureGuard
+aws iam list-role-policies --role-name LostSolesAmplifyComputeRole
+```
+
+A 502 or 503 from the endpoint after a successful build means the grant did not take effect.
+
+### Step 2 — the happy path, then the rate limit
+
+From devtools, signed in as the owner, send a capture and confirm `{ path, commitSha }`. Send the
+**same body again unchanged** — the same `idempotencyKey` — and confirm it returns **200 with the
+identical path and sha**, and that GitHub shows **no second commit**. That is the guarantee
+`0022` is built on and the one that cannot be proven from a laptop.
+
+### Step 3 — the traversal case (the original instruction, unchanged)
+
+On the Android phone, in Chrome, signed in: send a capture whose title is
+`../../.github/workflows/pwn.yml`. Then on the desktop, open the repo's
+`.github/workflows/` directory on GitHub and confirm it is unchanged, and open `tickets/inbox/`
+and confirm the file landed there with a mangled-but-harmless name. Then sign out and re-send —
+you should get a **404**, not a redirect to `/` and not a permission error.
+
+### Step 4 — the secret scan, which no test can prove end to end
+
+Send a capture whose body contains a token-shaped string (any `ghp_` followed by 36 characters).
+Expect a **400** naming the shape, and **no commit** — check `tickets/inbox/` to be sure nothing
+landed and was cleaned up afterwards. This is the only scanner on this path.

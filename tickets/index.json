@@ -440,6 +440,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-02T03:50:40Z",
     "path": "tickets/open/0019-capture-endpoint-hardening.md",
     "ready": true,
     "acceptance": {
@@ -3327,6 +3328,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 146,
+    "slug": "check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a",
+    "title": "check-design-tokens.mjs reads a DynamoDB composite key as a hex colour",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-02T04:04:46Z",
+    "path": "tickets/open/0146-check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   },
   {

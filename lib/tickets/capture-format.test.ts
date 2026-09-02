@@ -151,7 +151,39 @@ describe("the path is derived server-side", () => {
       expect(p.startsWith("tickets/inbox/")).toBe(true)
       expect(p).not.toContain("..")
       expect(p.split("/")).toHaveLength(3)
-      expect(p).toMatch(/^tickets\/inbox\/\d{4}-\d{2}-\d{2}T\d{4}-[a-z0-9-]+\.md$/)
+    }
+  })
+
+  /**
+   * AMENDED BY 0019. This block used to assert that every title above produced a
+   * path matching §6.4/2's regex — and it passed only because `derivePath`
+   * substituted "untitled" for an empty slug. That substitution was the defect
+   * 0019's criterion 4 forbids: "untitled" is a legal slug, so the regex would have
+   * waved through a file named after nothing.
+   *
+   * The two groups are now separated, because they are two different outcomes: a
+   * hostile-but-sluggable title produces a valid path, and a title that slugifies to
+   * nothing produces a path the guard rejects and the route answers 500 for.
+   */
+  it("produces a §6.4/2-valid path for any title that slugifies to something", () => {
+    for (const title of [
+      "../../.github/workflows/pwn",
+      "/etc/passwd",
+      "..\\..\\windows",
+      "....//....//escape",
+      "a/b/c",
+    ]) {
+      expect(derivePath(title, NOW)).toMatch(
+        /^tickets\/inbox\/\d{4}-\d{2}-\d{2}T\d{4}-[a-z0-9-]+\.md$/,
+      )
+    }
+  })
+
+  it("produces a path that FAILS §6.4/2 when the slug is empty, rather than a fallback", () => {
+    for (const title of ["....", "🏃🏔️", ""]) {
+      const p = derivePath(title, NOW)
+      expect(p).toBe("tickets/inbox/2026-08-31T1904-.md")
+      expect(p).not.toMatch(/^tickets\/inbox\/\d{4}-\d{2}-\d{2}T\d{4}-[a-z0-9-]+\.md$/)
     }
   })
 

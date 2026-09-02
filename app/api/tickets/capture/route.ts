@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { currentUserId, isOwner } from "@/lib/auth/owner"
 import { log } from "@/lib/log"
 import {
   BODY_MAX,
@@ -10,43 +11,103 @@ import {
   renderCaptureFile,
   TITLE_MAX,
 } from "@/lib/tickets/capture-format"
-import { createFile, getToken } from "@/lib/tickets/github"
+import {
+  inboxPathViolation,
+  isDerivedPath,
+  secretInPayload,
+  unknownKeys,
+  withCollisionSuffix,
+} from "@/lib/tickets/capture-guard"
+import {
+  claimIdempotencyKey,
+  consumeRateBudget,
+  recordIdempotentResult,
+  releaseIdempotencyKey,
+} from "@/lib/tickets/capture-store"
+import { createFile, getToken, GithubApiError } from "@/lib/tickets/github"
 
 /**
- * POST /api/tickets/capture — ticket 0018.
+ * POST /api/tickets/capture — tickets 0018 (the plumbing) and 0019 (the hardening).
  *
- * Closes the D-092 gap: until this exists, a thought at mile six goes into a notes
- * app and gets hand-carried into the repository later, which in practice means it
- * does not. One authenticated POST becomes one new file in `tickets/inbox/` on
- * `main`, and triage turns it into a ticket later (0023).
+ * This is a **write primitive pointed at the source repository**, reachable from a
+ * phone. `07-ticketsmith.md` §6.4 and §6.5 are applied here in full, and §6.5's
+ * abuse table is this file's test plan.
  *
- * SCOPE. This is the plumbing only. **Ticket 0019 is a hard prerequisite before
- * anything on the phone points at this URL** — owner-only auth (not merely
- * "authenticated"), server-side rate limits, idempotency, reject-unknown-keys, CORS,
- * and the second and third path-validation layers all live there. What exists today:
+ * THE ORDER OF THE CHECKS BELOW IS PART OF THE DESIGN, not an accident of writing.
+ * Owner authorization runs FIRST, before the body is read, parsed or validated.
+ * Validating first would make the endpoint an oracle: a stranger who can tell a
+ * 400 "unknown key: path" from a 400 "title too long" has learned the schema, and
+ * one who can tell any 400 from a 404 has learned the route exists — which is the
+ * exact thing §6.5 spends a 404-instead-of-403 to deny them.
  *
- *   - the request never reaches this handler unauthenticated, because `middleware.ts`
- *     gates every non-static route and 307s a signed-out request to `/`;
- *   - the path is derived ENTIRELY server-side and no key of the body can influence
- *     it — the property 0019 then double-checks;
- *   - there is no update and no delete path, here or in the GitHub client.
- *
- * NO `export async function PUT/PATCH/DELETE`. Their absence is the control
- * (criterion 6). A route file that exports only POST returns 405 for everything else
- * by construction, with nothing to misconfigure.
+ * NO `export async function PUT/PATCH/DELETE`. Their absence is the control (0018,
+ * criterion 6). A route file exporting only POST and OPTIONS returns 405 for
+ * everything else by construction, with nothing to misconfigure.
  */
 
-/** SSR, never statically evaluated: this reads SSM and commits to a repository. */
+/** SSR, never statically evaluated: this reads SSM and DynamoDB and commits to a repository. */
 export const dynamic = "force-dynamic"
 
 type Json = Record<string, unknown>
 
+/**
+ * §6.4/8. Locked to the app's own origin.
+ *
+ * The route is same-origin anyway and the Android capture task (0020) is not a
+ * browser, so nothing legitimate depends on this header. It is defence against a
+ * FUTURE subdomain mistake — the day something else lands on
+ * `*.devaultsecurity.com` and a wildcard would have handed it a write primitive.
+ */
+const APP_ORIGIN = "https://soles.devaultsecurity.com"
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": APP_ORIGIN,
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Credentials": "true",
+} as const
+
+/**
+ * §6.4/5. The whole-request cap, above and beyond the per-field caps.
+ *
+ * 8 KB of body plus 200 characters of title cannot reach 16 KB, so this only ever
+ * fires on something that is not a well-formed capture: a huge unknown key, deep
+ * JSON nesting, or the "endpoint as an exfiltration channel" row of §6.5's table.
+ * Checked in BYTES, not characters — `Content-Length` is bytes, and a limit that
+ * counted UTF-16 units would be a third larger than it claims for ASCII and wrong
+ * in the other direction for emoji.
+ */
+const REQUEST_MAX_BYTES = 16 * 1024
+
+function json(body: unknown, status: number) {
+  return NextResponse.json(body, { status, headers: CORS_HEADERS })
+}
+
 /** 400s carry a reason; nothing here echoes the submitted value back. */
-function badRequest(reason: string) {
-  return NextResponse.json({ error: reason }, { status: 400 })
+const badRequest = (reason: string) => json({ error: reason }, 400)
+
+/**
+ * §6.5, row 1. **404, not 403.** A 403 confirms the route exists and that the
+ * caller merely lacks permission, which is a free finding for anyone poking at the
+ * app. Byte-identical to what middleware returns for a signed-out request, so the
+ * two cases are indistinguishable from outside.
+ */
+const notFound = () => json({ error: "not found" }, 404)
+
+export function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: { ...CORS_HEADERS, "Access-Control-Max-Age": "86400" },
+  })
 }
 
 function validate(raw: Json): { ok: true; input: CaptureInput } | { ok: false; reason: string } {
+  // §6.4: reject unknown keys, do not strip them. Runs before anything else is
+  // read so a body carrying `path` is rejected for CARRYING it, not for whatever
+  // else happened to be wrong — which is what criterion 1 actually asserts.
+  const extra = unknownKeys(raw)
+  if (extra.length > 0) return { ok: false, reason: `unknown key: ${extra.sort().join(", ")}` }
+
   const { title, body, type, priority, idempotencyKey } = raw
 
   if (typeof title !== "string") return { ok: false, reason: "title must be a string" }
@@ -71,6 +132,19 @@ function validate(raw: Json): { ok: true; input: CaptureInput } | { ok: false; r
     return { ok: false, reason: "idempotencyKey must be a non-empty string" }
   }
 
+  // Ticket 0004's requirement, recorded in 0019's Notes. This endpoint bypasses
+  // `.githooks/pre-commit` entirely — it commits through the GitHub API — and
+  // GitHub push protection is unavailable on a private repo without Advanced
+  // Security. Without this line there is NO secret scanner on this path, and a
+  // secret committed and later removed is still in history.
+  const secret = secretInPayload(title, typeof body === "string" ? body : undefined)
+  if (secret) {
+    return {
+      ok: false,
+      reason: `this capture looks like it contains ${secret}, so it was not committed. Remove it and resend.`,
+    }
+  }
+
   return {
     ok: true,
     input: {
@@ -83,10 +157,50 @@ function validate(raw: Json): { ok: true; input: CaptureInput } | { ok: false; r
   }
 }
 
+/**
+ * §6.4/2 and §6.4/3 together, applied to one candidate path. Both layers, every
+ * time — including on the `-2` collision retry, which is a path this function has
+ * not seen before and must not be trusted merely because its parent passed.
+ *
+ * A violation is a SERVER fault (500), not a client one: the client cannot
+ * influence this value, so a path that fails here means `derivePath` is broken,
+ * and the honest answer is to say so rather than to write to a fallback.
+ */
+function pathIsSafe(path: string): boolean {
+  if (!isDerivedPath(path)) {
+    log.error("derived path failed re-validation", { path })
+    return false
+  }
+  const violation = inboxPathViolation(path)
+  if (violation) {
+    log.error("derived path failed the prefix guard", { path, violation })
+    return false
+  }
+  return true
+}
+
 export async function POST(request: Request) {
+  // ── 1. Owner, before anything else (§6.4/1, §6.5 row 1) ──────────────────
+  const userId = await currentUserId()
+  if (!isOwner(userId)) return notFound()
+
+  // ── 2. Size, before parsing (§6.4/5) ─────────────────────────────────────
+  // Content-Length first so an oversized body can be refused without buffering it,
+  // then the actual byte count, because the header is client-supplied and a client
+  // that lies about it must not thereby skip the check.
+  const declared = Number(request.headers.get("content-length") ?? "")
+  if (Number.isFinite(declared) && declared > REQUEST_MAX_BYTES) {
+    return badRequest(`request must be at most ${REQUEST_MAX_BYTES} bytes`)
+  }
+  const text = await request.text()
+  if (Buffer.byteLength(text, "utf8") > REQUEST_MAX_BYTES) {
+    return badRequest(`request must be at most ${REQUEST_MAX_BYTES} bytes`)
+  }
+
+  // ── 3. Shape (§6.4) ──────────────────────────────────────────────────────
   let raw: unknown
   try {
-    raw = await request.json()
+    raw = JSON.parse(text)
   } catch {
     return badRequest("body must be JSON")
   }
@@ -96,29 +210,97 @@ export async function POST(request: Request) {
 
   const checked = validate(raw as Json)
   if (!checked.ok) return badRequest(checked.reason)
+  const input = checked.input
 
+  // ── 4. Idempotency, before the rate budget (§6.4/9) ──────────────────────
+  // This order is load-bearing: a replayed key must NOT spend quota. Otherwise a
+  // retry queue doing its job — resending after a timeout it never saw answered —
+  // burns the operator's hourly budget on captures that were already committed.
+  //
+  // Every store call below is inside one try. DynamoDB being unreachable means the
+  // guards cannot answer, and a guard that cannot run has not passed (D-176), so
+  // the answer is 503 and no commit rather than a commit with the limits switched
+  // off. 503 is retryable and 0022's queue is what retries it.
+  let claimed = false
+  try {
+    const claim = await claimIdempotencyKey(userId!, input.idempotencyKey, new Date())
+    if (claim.kind === "replay") {
+      // The original path and sha, and NO second commit. This is the whole point.
+      return json(claim.result, 200)
+    }
+    if (claim.kind === "in-flight") {
+      return json({ error: "a capture with this idempotencyKey is already in flight" }, 409)
+    }
+    claimed = true
+
+    // ── 5. Rate limits (§6.4/5) ────────────────────────────────────────────
+    const budget = await consumeRateBudget(userId!, new Date())
+    if (!budget.ok) {
+      await releaseIdempotencyKey(userId!, input.idempotencyKey)
+      return json({ error: `rate limit exceeded for the current ${budget.window}` }, 429)
+    }
+  } catch (err) {
+    log.error("capture guard store unavailable", {}, err)
+    if (claimed) await releaseIdempotencyKey(userId!, input.idempotencyKey)
+    return json({ error: "capture temporarily unavailable, retry" }, 503)
+  }
+
+  // ── 6. Derive, guard, commit (§6.4/2, /3, /4) ────────────────────────────
   // ONE clock read, shared by the path and the frontmatter, so a capture that
   // straddles a minute boundary cannot disagree with its own filename.
   const now = new Date()
-  const path = derivePath(checked.input.title, now)
-  const content = renderCaptureFile(checked.input, now)
+  const path = derivePath(input.title, now)
+  const content = renderCaptureFile(input, now)
+
+  if (!pathIsSafe(path)) {
+    await releaseIdempotencyKey(userId!, input.idempotencyKey)
+    return json({ error: "could not derive a safe path for this title" }, 500)
+  }
 
   try {
     const token = await getToken()
-    const result = await createFile({
-      path,
-      content,
-      message: `capture: ${path.split("/").pop()}`,
-      token,
-    })
-    return NextResponse.json(
-      { path: result.path, commitSha: result.commitSha },
-      { status: 201 },
-    )
+    const result = await commitWithCollisionRetry(path, content, token)
+    await recordIdempotentResult(userId!, input.idempotencyKey, result, new Date())
+    return json(result, 201)
   } catch (err) {
+    // The claim is released so the SAME key can be retried. Without this, one
+    // transient GitHub failure would make a note dictated once un-resendable under
+    // its own idempotency key for a full 24 hours — turning a recoverable error
+    // into permanent loss of the thing the endpoint exists to preserve.
+    await releaseIdempotencyKey(userId!, input.idempotencyKey)
     // The note is the user's, dictated once, with no second copy — so a failure is
     // logged loudly rather than swallowed into a generic 500. `log` redacts.
     log.error("capture failed", { path }, err)
-    return NextResponse.json({ error: "capture failed" }, { status: 502 })
+    return json({ error: "capture failed" }, 502)
+  }
+}
+
+/**
+ * §6.4/4. Create-only, and on a 422 retry ONCE with `-2`, then fail.
+ *
+ * A 422 from a `sha`-less create means the path exists. That is a same-minute
+ * collision — two captures whose titles slugify identically inside one minute —
+ * and not a reason to overwrite. **`-3` is deliberately not attempted.** A third
+ * identical title in the same minute is a retry loop or a stuck client, and the
+ * §6.5 answer to that is the rate limiter, not an ever-growing suffix; failing
+ * cleanly is what criterion 10 asks for.
+ *
+ * The retry path re-runs BOTH guards on the new name. It is a path the caller has
+ * not seen validated, and inheriting trust from its parent is how a validated
+ * system acquires an unvalidated corner.
+ */
+async function commitWithCollisionRetry(path: string, content: string, token: string) {
+  const commit = (p: string) =>
+    createFile({ path: p, content, message: `capture: ${p.split("/").pop()}`, token })
+
+  try {
+    return await commit(path)
+  } catch (err) {
+    if (!(err instanceof GithubApiError) || err.status !== 422) throw err
+
+    const retry = withCollisionSuffix(path)
+    if (!pathIsSafe(retry)) throw err
+    log.warn("capture path collided, retrying once with a -2 suffix", { path, retry })
+    return await commit(retry)
   }
 }

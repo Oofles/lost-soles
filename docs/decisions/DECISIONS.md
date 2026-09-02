@@ -1077,3 +1077,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   Nothing is lost: the comparison is built in memory and never needed the sidecar on disk. Raised in
   `0140`'s own Notes as "worth deciding"; decided.
 
+
+---
+
+## The capture endpoint's guards fail closed  (2026-09-02, ticket 0019)
+
+- **D-179** **When the capture endpoint's guard store cannot answer, the capture is refused with a
+  503 and no commit.** The rate limiter and the idempotency check both live in DynamoDB
+  (`LostSolesCaptureGuard`), and if DynamoDB is unreachable neither can report a verdict. The
+  endpoint does **not** commit anyway with the limits switched off.
+  - **This is D-176 applied to a live request path.** "The counter says you are under the limit" and
+    "the counter could not be read" are different facts, and a control that produces the same
+    outcome for both has failed open on exactly the burst it exists to stop. Same for idempotency:
+    "this key is unused" and "the store could not say" must not both mean "commit it".
+  - **The cost is real and was weighed, not overlooked.** A capture is a note dictated once at mile
+    six with no second copy, and this decision says a DynamoDB outage bounces it. The counter-
+    argument — prefer the note, log loudly, accept a duplicate file at triage — was put to the
+    operator and rejected. 503 is a *retryable* status, ticket `0022`'s queue is what retries it,
+    and the failure is loud rather than silent.
+  - **What is NOT fail-closed, deliberately.** `releaseIdempotencyKey` swallows its own errors. It
+    runs on a path that is already returning a failure, and replacing a useful 429 with an opaque
+    500 because the cleanup failed would be strictly worse for the operator. The 24-hour TTL is the
+    backstop.
+  - **The same reasoning already governs the pre-commit hook** (`0137`, D-176) and
+    `check-auth-posture.mjs`. This is that rule reaching the first control that runs while a user is
+    waiting on it, which is where the temptation to fail open is strongest.
+
+- **D-180** **A resource the Next.js SSR compute reads is named by a LITERAL on both sides, and the
+  two are asserted equal by a test.** `LostSolesCaptureGuard` is given an explicit `tableName` in
+  `amplify/backend.ts` and the identical literal in `lib/tickets/capture-store.ts`.
+  - **Because the SSR compute has no configuration channel.** It is not a `defineFunction` Lambda,
+    so it has no CloudFormation output, no `secret()` resolution and no env var it may use — 0017's
+    standing rule forbids Amplify environment variables, and 0018 hit the same wall and answered it
+    with SSM. A CDK-generated table name cannot reach the reader at all.
+  - **Generalises beyond this table.** Every machine-only resource in `01-architecture.md` §2 that
+    the SSR compute (rather than a `defineFunction` Lambda) must reach inherits this: name it
+    explicitly, state the literal once per side, and assert the agreement in a test. A drift between
+    the two is a runtime `ResourceNotFoundException` on a request that mattered — cheap to catch in
+    the suite, expensive to discover in production.
+  - **The cost, stated because it will bite someone.** An explicit table name is unique per account
+    and region, so **`ampx sandbox` cannot coexist with the `main` branch's stack** for any table
+    named this way. Acceptable at one branch and one operator (and `0131` already has the sandbox
+    stack broken for unrelated reasons), but it is a real constraint on ever running two
+    environments, and the answer then is a name suffixed per environment plus a way to tell the
+    reader which it is — which is the configuration channel that does not exist today.

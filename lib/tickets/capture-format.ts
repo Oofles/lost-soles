@@ -67,14 +67,26 @@ export function slugify(title: string): string {
  * The client never supplies any part of this. A client-supplied path is a
  * path-traversal bug that writes arbitrary files into the repository — including
  * `.github/workflows/` or `.claude/`, either of which is remote code execution
- * against CI or the operator's machine. Ticket 0019 adds the belt-and-braces
+ * against CI or the operator's machine. `capture-guard.ts` adds the belt-and-braces
  * validation; this is the braces.
+ *
+ * NO FALLBACK NAME (ticket 0019, criterion 4). This shipped as
+ * `${slug || "untitled"}`, and that was wrong in a way only the hardening ticket's
+ * criterion made visible: an all-emoji title — a realistic one-tap capture from a
+ * phone keyboard — slugifies to the empty string, and "untitled" is a perfectly
+ * legal slug, so the re-validation regex §6.4/2 relies on would have PASSED it and
+ * a file would have landed at a name derived from nothing.
+ *
+ * An empty slug now yields `tickets/inbox/<stamp>-.md`, which fails that regex, and
+ * the route turns the failure into a 500. §6.4/2 says exactly this: "anything
+ * failing that regex is a 500, **not a fallback**." A guard whose only job is to
+ * catch a bad name cannot be handed a good one first.
  */
 export function derivePath(title: string, now: Date): string {
   // "2026-08-31T19:04:12.000Z" -> "2026-08-31T1904"
   const stamp = now.toISOString().slice(0, 16).replace(/:/g, "")
   const slug = slugify(title).slice(0, 60).replace(/-+$/, "")
-  return `tickets/inbox/${stamp}-${slug || "untitled"}.md`
+  return `tickets/inbox/${stamp}-${slug}.md`
 }
 
 /**

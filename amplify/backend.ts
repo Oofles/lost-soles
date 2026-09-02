@@ -1,4 +1,7 @@
 import { defineBackend } from "@aws-amplify/backend"
+import { RemovalPolicy } from "aws-cdk-lib"
+import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb"
+import { Role } from "aws-cdk-lib/aws-iam"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
@@ -12,7 +15,8 @@ import { storage } from "./storage/resource"
  *
  * The CDK escape hatch (01-architecture.md §2) is used in exactly four places
  * later on — machine-only DynamoDB tables, the SQS queue and DLQ, the webhook
- * Function URL, and the scheduled token refresh. None of them are here yet.
+ * Function URL, and the scheduled token refresh. The first of those arrives at
+ * the bottom of this file in ticket 0019.
  */
 const backend = defineBackend({
   auth,
@@ -94,3 +98,82 @@ cfnUserPoolClient.tokenValidityUnits = {
   idToken: "minutes",
   refreshToken: "minutes",
 }
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE CAPTURE GUARD TABLE  (ticket 0019, 07-ticketsmith.md §6.4/5 and §6.4/9)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Rate-limit counters and idempotency records for /api/tickets/capture. The first
+ * machine-only table, through the CDK escape hatch as 01-architecture.md §2 says
+ * they arrive — it is written and read by the SSR compute alone and has no business
+ * in AppSync, where every model is a thing the client is allowed to ask about.
+ *
+ * WHY IT CANNOT LIVE IN MODULE MEMORY: a Lambda scales out, so an in-memory counter
+ * is per-container and "30 per hour" quietly becomes "30 per hour per warm
+ * container" under exactly the burst it exists to stop. The reasoning is in full in
+ * lib/tickets/capture-store.ts.
+ */
+const guardStack = backend.createStack("CaptureGuard")
+
+const captureGuardTable = new Table(guardStack, "CaptureGuardTable", {
+  /**
+   * NAMED EXPLICITLY, and that is a trade-off worth stating rather than hiding.
+   *
+   * The reader is a Next.js route handler on Amplify's SSR compute, which is not a
+   * `defineFunction` Lambda and therefore has no CloudFormation output, no env var
+   * and no way to be handed a generated name — the same structural gap that made
+   * 0018's PAT come from SSM rather than `secret()`. A literal both sides can state
+   * is the only thing available, so `lib/tickets/capture-store.ts` states the same
+   * one and a test asserts the two agree.
+   *
+   * THE COST: an explicit name is account-and-region unique, so a `ampx sandbox`
+   * deploy cannot coexist with the `main` branch's stack. Acceptable at one branch
+   * and one operator, and recorded in the capability doc so the next person to run
+   * a sandbox is not surprised by a CREATE_FAILED with an unhelpful message.
+   */
+  tableName: "LostSolesCaptureGuard",
+  partitionKey: { name: "pk", type: AttributeType.STRING },
+  /**
+   * On demand. This table takes a handful of writes per capture and nothing at all
+   * between runs; provisioned capacity would bill for idle to save nothing (D-083).
+   */
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * DynamoDB deletes expired items for free. Every item here is a counter for a
+   * window that has closed or an idempotency record past its 24 hours, so without a
+   * TTL this table grows forever to hold nothing anyone will read.
+   */
+  timeToLiveAttribute: "ttl",
+  /**
+   * DESTROY, unusually for a table. Everything in it is disposable guard state with
+   * a TTL measured in hours — losing it costs one hour of rate-limit history, not
+   * data. RETAIN would leave an orphan holding the explicit name above and block the
+   * next deploy, which is a worse failure than the one it guards against.
+   */
+  removalPolicy: RemovalPolicy.DESTROY,
+})
+
+/**
+ * The grant. `LostSolesAmplifyComputeRole` was created BY HAND in ticket 0018 —
+ * Amplify's `computeRoleArn` was null, so SSR was running under an AWS-managed role
+ * that cannot be given policies, and there was nothing to attach anything to. See
+ * docs/capabilities/03-ticket-capture-endpoint.md for that history, including why
+ * the usual `aws:SourceArn` confused-deputy condition is not available on it.
+ *
+ * `mutable: true` is what lets CDK attach a policy to a role it does not own. The
+ * import is by ARN because the role is not in any stack here and never will be.
+ *
+ * `grantReadWriteData` on ONE table — not on the account's DynamoDB, not with a
+ * wildcard. The role's total reach after this is: read one SSM parameter, read and
+ * write one guard table. That narrowness IS the containment, since the trust-policy
+ * condition that would normally provide it was refused by Amplify.
+ */
+const computeRole = Role.fromRoleArn(
+  guardStack,
+  "AmplifyComputeRole",
+  "arn:aws:iam::286588821906:role/LostSolesAmplifyComputeRole",
+  { mutable: true },
+)
+
+captureGuardTable.grantReadWriteData(computeRole)

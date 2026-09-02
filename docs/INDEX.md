@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,070 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,071 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,482 lines
+**01 — System Architecture** — 1,483 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -71,52 +71,52 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 1. Stack decision | `37-110` |  |
 | &nbsp;&nbsp;↳ Why Next.js and not Astro | `52-70` | The house stack at devaultsecurity is Astro 4 + SolidJS, static output, no SSR adapter. |
 | &nbsp;&nbsp;↳ This is the user's first Gen 2 backend — what that means | `71-110` | phase, no appRoot, no headers/redirects block. |
-| 2. AWS topology | `111-350` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
+| 2. AWS topology | `111-351` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
 | &nbsp;&nbsp;↳ Hard constraints this topology exists to satisfy | `113-126` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
 | &nbsp;&nbsp;↳ Component diagram | `127-177` | ┌──────────────────┐ |
-| &nbsp;&nbsp;↳ Resource table | `178-207` | Every resource, what it does, and what would make it cost money. |
-| &nbsp;&nbsp;↳ Why the cell store is not an Amplify Data model | `208-224` | session and does every query in memory (§5). |
-| &nbsp;&nbsp;↳ The CDK escape hatch — where and why | `225-299` | Amplify Gen 2 backends are AWS CDK. |
-| &nbsp;&nbsp;↳ Strava's 2-second deadline — the precise design | `300-338` | Strava requires the subscription POST be acknowledged within 2 seconds or it retries |
-| &nbsp;&nbsp;↳ The 15-minute wall | `339-350` | R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of |
-| 3. The adapter architecture | `351-716` | The rationale is not aesthetic. |
-| &nbsp;&nbsp;↳ Module layout — the boundary is a directory boundary | `373-399` | domain/ ← NO source-specific type may appear anywhere in here. |
-| &nbsp;&nbsp;↳ The domain contract | `400-497` | / Which adapter produced this. |
-| &nbsp;&nbsp;↳ The adapter interface | `498-569` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
-| &nbsp;&nbsp;↳ How each source plugs into the same contract | `570-627` | job from {ownerid, objectid, aspecttype}. |
-| &nbsp;&nbsp;↳ The test that proves the boundary is right | `628-684` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
-| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `685-716` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
-| 4. Data flow — one activity, end to end | `717-823` |  |
-| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `742-775` | D-120 is final and supersedes the provisional D-022. |
-| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `776-808` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
-| &nbsp;&nbsp;↳ Failure handling | `809-823` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `824-1000` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ The fact that drives the whole design | `826-850` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ App Router structure | `851-934` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `935-989` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `990-1000` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `1001-1171` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `1003-1020` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `1021-1038` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1039-1101` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1102-1149` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1150-1171` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1172-1277` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1177-1210` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1211-1244` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1245-1262` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1263-1277` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1278-1356` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1309-1324` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1325-1338` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1339-1356` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1357-1408` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1362-1384` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1385-1397` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1398-1408` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1409-1430` |  |
-| 11. Known tensions the decision log creates | `1431-1471` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1472-1482` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ Resource table | `178-208` | Every resource, what it does, and what would make it cost money. |
+| &nbsp;&nbsp;↳ Why the cell store is not an Amplify Data model | `209-225` | session and does every query in memory (§5). |
+| &nbsp;&nbsp;↳ The CDK escape hatch — where and why | `226-300` | Amplify Gen 2 backends are AWS CDK. |
+| &nbsp;&nbsp;↳ Strava's 2-second deadline — the precise design | `301-339` | Strava requires the subscription POST be acknowledged within 2 seconds or it retries |
+| &nbsp;&nbsp;↳ The 15-minute wall | `340-351` | R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of |
+| 3. The adapter architecture | `352-717` | The rationale is not aesthetic. |
+| &nbsp;&nbsp;↳ Module layout — the boundary is a directory boundary | `374-400` | domain/ ← NO source-specific type may appear anywhere in here. |
+| &nbsp;&nbsp;↳ The domain contract | `401-498` | / Which adapter produced this. |
+| &nbsp;&nbsp;↳ The adapter interface | `499-570` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
+| &nbsp;&nbsp;↳ How each source plugs into the same contract | `571-628` | job from {ownerid, objectid, aspecttype}. |
+| &nbsp;&nbsp;↳ The test that proves the boundary is right | `629-685` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
+| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `686-717` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
+| 4. Data flow — one activity, end to end | `718-824` |  |
+| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `743-776` | D-120 is final and supersedes the provisional D-022. |
+| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `777-809` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
+| &nbsp;&nbsp;↳ Failure handling | `810-824` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
+| 5. Frontend architecture | `825-1001` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ The fact that drives the whole design | `827-851` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ App Router structure | `852-935` | layout.tsx root: fonts, theme, <AmplifyProvider> |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `936-990` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `991-1001` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1002-1172` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1004-1021` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1022-1039` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1040-1102` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1103-1150` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1151-1172` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1173-1278` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1178-1211` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1212-1245` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1246-1263` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1264-1278` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1279-1357` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1310-1325` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1326-1339` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1340-1357` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1358-1409` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1363-1385` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1386-1398` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1399-1409` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1410-1431` |  |
+| 11. Known tensions the decision log creates | `1432-1472` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1473-1483` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 

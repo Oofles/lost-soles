@@ -1,8 +1,7 @@
-import { createServerRunner } from "@aws-amplify/adapter-nextjs"
 import { fetchAuthSession } from "aws-amplify/auth/server"
 import { NextResponse, type NextRequest } from "next/server"
 
-import outputs from "@/amplify_outputs.json"
+import { runWithAmplifyServerContext } from "@/lib/amplify-server"
 
 /**
  * Server-side auth (ticket 0016, criterion 2; 08-security-privacy.md §5.3).
@@ -20,8 +19,22 @@ import outputs from "@/amplify_outputs.json"
  *
  * The session is read here and NEVER trusted from a request body, query string or
  * header — the same rule §5.3 states for API routes and §4 states for the webhook.
+ *
+ * The runner itself moved to `lib/amplify-server.ts` in ticket 0019, so route
+ * handlers read the session through the same configuration this does.
  */
-const { runWithAmplifyServerContext } = createServerRunner({ config: outputs })
+
+/**
+ * An API route answers a fetch, not a browser navigation, so the 307 below is the
+ * wrong answer for one: a client following it gets 200 and the HTML of `/`, which
+ * is a signed-out capture silently reported as a success. 0019's criterion is
+ * **404, and no commit** — the same status §6.5 requires for a signed-in non-owner,
+ * so that neither an outsider nor a redirect-following retry queue can distinguish
+ * "you may not" from "there is nothing here".
+ */
+function isApiPath(pathname: string): boolean {
+  return pathname === "/api" || pathname.startsWith("/api/")
+}
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
@@ -41,6 +54,10 @@ export async function middleware(request: NextRequest) {
   })
 
   if (authenticated) return response
+
+  if (isApiPath(request.nextUrl.pathname)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 })
+  }
 
   // `/` is the signed-out landing as well as the home screen, so it must not
   // redirect to itself — that is an infinite loop, not a gate.

@@ -101,6 +101,9 @@ have meant the IAM change had not applied.
 
 ### What is deliberately NOT here
 
+*(Written at 0018's close; **superseded by the 0019 sections below**, which is where each of these
+landed. Left in place because the reasoning for splitting the ticket is still worth reading.)*
+
 Owner-only auth, server-side rate limits, idempotency, reject-unknown-keys, CORS, and the second and
 third path-validation layers are all **ticket 0019**, which is a hard prerequisite before anything on
 the phone points at this URL. What exists today: `middleware.ts` gates every non-static route so the
@@ -109,6 +112,109 @@ request body can influence where the write lands.
 
 The PAT expires in 90 days (~2026-11-29). **Ticket 0024** owns the rotation runbook; nothing new was
 filed for it.
+
+
+### The hardening, and the order the checks run in  (ticket 0019, 2026-09-02)
+
+`07-ticketsmith.md` §6.4 lists nine requirements and §6.5 an abuse table. Both are now
+implemented, and the one thing worth writing down that neither document states is **the order**.
+
+Owner authorization runs FIRST, before the body is read, parsed or validated. Validating first
+makes the endpoint an oracle: a stranger who can tell a 400 `unknown key: path` from a 400
+`title must be 1..200 characters` has learned the schema, and one who can tell any 400 from a
+404 has learned the route exists — which is exactly what §6.5 spends a 404-instead-of-403 to
+deny them. The 404 a non-owner gets is byte-identical to the one `middleware.ts` returns to a
+signed-out request, and there is a test asserting that equality rather than a comment promising
+it.
+
+Idempotency is claimed BEFORE the rate budget is spent, for a different reason: a replayed key
+must not consume quota. Otherwise `0022`'s retry queue doing its job — resending after a timeout
+it never saw answered — burns the operator's hourly allowance on captures that already committed.
+
+### The bug criterion 4 found in `0018`
+
+`derivePath` shipped as `${slug || "untitled"}`. That looked like a sensible guard and was in
+fact the exact failure §6.4/2 forbids: **"untitled" is a legal slug**, so the re-validation regex
+would have passed it and a file would have landed at a name derived from nothing. The realistic
+input is not adversarial — it is an all-emoji title, one tap from a phone keyboard.
+
+The fallback is gone. An empty slug now produces `tickets/inbox/<stamp>-.md`, which fails the
+regex, and the route answers 500. §6.4/2 said this plainly — *"anything failing that regex is a
+500, **not a fallback**"* — and the fallback existed anyway, because 0018 wrote it before there
+was a regex to fail. A guard whose only job is to catch a bad name must not be handed a good one
+first. `capture-format.test.ts` was amended and the amendment is explained in place.
+
+### Three path layers, and how they are kept independent
+
+`derivePath` (unreachable from input) → `isDerivedPath` (anchored regex) → `inboxPathViolation`
+(character-by-character prefix check). Layer 3 deliberately does **not** reuse layer 2's regex: a
+guard sharing an implementation with the guard it backs up is one guard written twice. There is a
+test asserting the two disagree on `tickets/inbox/not-a-timestamp.md` — layer 2 rejects it, layer
+3 accepts it — because agreement everywhere would be the observable signature of a single check
+wearing two names.
+
+The `-2` collision retry re-runs both layers on the new name. It is a path nothing has validated,
+and inheriting trust from its parent is how a validated system acquires an unvalidated corner.
+There is no `-3`: a third identical title inside one minute is a stuck client, and §6.5's answer
+to a stuck client is the rate limiter.
+
+### The guard table, and what it cost to reach
+
+Rate-limit counters and idempotency records live in `LostSolesCaptureGuard`, the first
+machine-only DynamoDB table, added through the CDK escape hatch (`01-architecture.md` §2, row 21).
+Module memory was the tempting alternative and is wrong: a Lambda scales out, so an in-memory
+counter is per-container and *"30 per hour"* silently becomes *"30 per hour per warm container"*
+under precisely the burst it exists to stop.
+
+Two decisions came out of it, both recorded:
+
+- **D-179 — the guards fail closed.** DynamoDB unreachable means neither control can report a
+  verdict, and the endpoint answers **503 with no commit** rather than committing with the limits
+  off. The cost is real: a capture is a note dictated once with no second copy, and this bounces
+  it during an outage. The operator was asked and chose this. 503 is retryable and `0022` is what
+  retries it.
+- **D-180 — the table is named by a literal on both sides.** The SSR compute is not a
+  `defineFunction` Lambda, so it has no CloudFormation output, no `secret()` and no permitted env
+  var (0017's standing rule) — the same structural gap that sent 0018's PAT to SSM. `backend.ts`
+  and `capture-store.ts` state the same literal and a test asserts they agree. **The cost: an
+  explicit table name is account-and-region unique, so `ampx sandbox` cannot coexist with `main`'s
+  stack.** Recorded here so the next person to run a sandbox does not have to diagnose a
+  `CREATE_FAILED` from first principles.
+
+The IAM grant is `grantReadWriteData` on that one table, attached to `LostSolesAmplifyComputeRole`
+imported by ARN with `mutable: true` — CDK attaching a policy to a role it does not own, because
+that role was created by hand in 0018 and is in no stack. The role's total reach is now: read one
+SSM parameter, read and write one table.
+
+### The scanner that fired on a database key
+
+`scripts/check-design-tokens.mjs` failed the build on `RATE#<uid>#H#2026-09-02T14`: its
+`/#[0-9a-f]{3,8}\b/i` reads `#2026` as a hex colour, correctly by its own rule. 0019 moved its
+separator (`#hour:` rather than `#H#`) rather than touch a control mid-ticket.
+
+**That is a workaround, and the clash is structural.** `01-architecture.md` §2 specifies
+`PK = U#<uid>#C#<res6parent>` and an H3 cell id *is* a hex string, so every realistic cell-key
+fixture in capability `07` will trip this. Filed as **`0146`**, with the three candidate fixes and
+the reason the cheapest one (exclude test files) is wrong.
+
+### Two things §6.4 asks for that are deliberately NOT here
+
+- **§6.4/7, the webhook HMAC.** It protects the browse cache, and the cache does not exist. It
+  belongs with it in capability `17`. Building a webhook route here that nothing reads would be a
+  security control guarding nothing, which ages into a security control nobody remembers the
+  purpose of.
+- **§6.6, the `tickets-inbox` branch variant.** Checks 2–4 already confine writes to
+  `tickets/inbox/` and make them create-only, which makes direct-to-`main` defensible for one
+  operator. Revisit if the credential ever broadens, or if branch protection lands on `main`.
+
+### The payload secret scan (ticket 0004's requirement)
+
+Worth restating because it is easy to read as redundant and is not. Every other write to this
+repository passes `.githooks/pre-commit`. **This one does not** — it commits through the GitHub
+API from a Lambda, so the hook never runs — and GitHub push protection needs Advanced Security,
+which a private personal repo does not have. Without `secretInPayload` there is **no** scanner on
+this path at all. The five patterns are kept in step across three surfaces now: the hook, the
+logger's redactions, and this.
 
 
 ## Audit

@@ -69,6 +69,22 @@ export interface CommitResult {
 }
 
 /**
+ * Carries the HTTP status, because the caller must tell 422 from everything else
+ * (ticket 0019). A 422 from a `sha`-less create means **the path already exists**,
+ * which is the same-minute collision §6.4/4 handles with a `-2` retry; any other
+ * status is a genuine failure and must not be retried into a second file.
+ *
+ * Matching on the message text of a plain Error would have worked and would have
+ * broken the first time the message was reworded.
+ */
+export class GithubApiError extends Error {
+  constructor(readonly status: number) {
+    super(`GitHub Contents API returned ${status}`)
+    this.name = "GithubApiError"
+  }
+}
+
+/**
  * Create ONE file. Never updates: no `sha` is sent, so GitHub returns 422 if the path
  * already exists rather than silently overwriting. 0019 adds the collision retry.
  */
@@ -100,7 +116,7 @@ export async function createFile(
     // are. Logged at error because a failed capture is silent data loss otherwise:
     // the note was dictated at mile six and there is no second copy.
     log.error("github contents create failed", { status: res.status, path: args.path, detail })
-    throw new Error(`GitHub Contents API returned ${res.status}`)
+    throw new GithubApiError(res.status)
   }
 
   const json = (await res.json()) as { commit?: { sha?: string }; content?: { path?: string } }
