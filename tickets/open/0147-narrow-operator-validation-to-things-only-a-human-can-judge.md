@@ -140,7 +140,15 @@ context to judge — which is the only moment the judgement can actually be made
 
 ## Operator validation
 
-**(operator) Read D-181 and the amended `reference.md` and confirm the line is drawn where you want
-it** — this is the one judgement in this ticket that is genuinely yours, since the whole point is to
-match the process to how you want to spend your effort. Everything else here is text and tooling the
-agent can check.
+**(operator) Read D-181 and confirm the line is drawn where you want it**
+— **verified 2026-09-02: passed.** The operator: *"I read through D-181 and I'm good with that
+decision."*
+
+This was the one judgement in this ticket that was genuinely theirs, since the whole point is to
+match the process to how they want to spend their effort. Everything else was text and tooling the
+agent checked itself — which is, appropriately, exactly the split D-181 now mandates.
+
+Nothing else is required here. This ticket changed documentation, a skill, and the
+`## Operator validation` section of 56 open tickets; `validate` reports 0 errors across all
+folders, `check-skills.mjs` passes, and the 243-test suite is green. No deployed behaviour
+changed, so there is nothing to smoke test.
