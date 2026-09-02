@@ -3373,6 +3373,26 @@
     }
   },
   {
+    "id": 148,
+    "slug": "one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm",
+    "title": "One NUL byte in a staged file silently disables the pre-commit literal secret scan",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-02T14:48:30Z",
+    "path": "tickets/open/0148-one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
     "title": "Capture endpoint smoke test — safe to discard",
     "type": "chore",
     "priority": "low",
