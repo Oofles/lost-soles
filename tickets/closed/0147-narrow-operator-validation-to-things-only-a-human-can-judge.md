@@ -4,13 +4,14 @@ slug: narrow-operator-validation-to-things-only-a-human-can-judge
 title: Narrow operator validation to things only a human can judge
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: []
 blocked_by: []
 source: operator
 created: 2026-09-02T13:54:36Z
+closed: 2026-09-02T14:43:52Z
 ---
 
 ## Description

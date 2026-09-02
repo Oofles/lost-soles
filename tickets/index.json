@@ -3357,17 +3357,18 @@
     "title": "Narrow operator validation to things only a human can judge",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-09-02T13:54:36Z",
-    "path": "tickets/open/0147-narrow-operator-validation-to-things-only-a-human-can-judge.md",
-    "ready": true,
+    "closed": "2026-09-02T14:43:52Z",
+    "path": "tickets/closed/0147-narrow-operator-validation-to-things-only-a-human-can-judge.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
