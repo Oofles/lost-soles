@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-02T01:55:50Z
+started: 2026-09-02T02:13:25Z
 ---
 
 ## Description
@@ -39,13 +40,20 @@ the third instance of the same class.
 
 ## Acceptance criteria
 
-- [ ] `check-design-tokens.mjs` scans `src/` in addition to `app/`, `components/` and `lib/`.
-- [ ] The header comment no longer claims `src/` does not exist; it names what is scanned and why.
-- [ ] `--self-test` gains a case proving a raw hex **in `src/`** is a hit — the check must be shown
+- [x] `check-design-tokens.mjs` scans `src/` in addition to `app/`, `components/` and `lib/`.
+      It now derives ten roots from disk: `amplify, app, components, docs, lib, prompts, scripts,
+      src, tickets, types`.
+- [x] The header comment no longer claims `src/` does not exist; it names what is scanned and why,
+      and keeps the history as the argument for deriving rather than listing.
+- [x] `--self-test` gains a case proving a raw hex **in `src/`** is a hit — the check must be shown
       to fire there, not merely configured to look there.
-- [ ] The root list cannot silently go stale again: either it is derived from what is on disk, or a
+      `src/domain/leak.ts` must fire, `src/domain/fine.ts` must pass. Also proven against the real
+      tree: a planted `src/domain/__leak-proof.ts` exits 1 naming the file and line, and the tree
+      was restored.
+- [x] The root list cannot silently go stale again: either it is derived from what is on disk, or a
       test asserts every top-level source directory in the repo is covered. Pick one and say which
       in the Resolution; a hand-maintained list is this bug with a longer fuse (see `0141`).
+      **Chose: derived from disk.** Reasoning in the Resolution.
 
 ## Steps to reproduce
 
@@ -69,8 +77,76 @@ Recorded as divergence 3 of 4 in that audit and in **D-176**.
 Related: `0141` (a hand-maintained list drifting from the checker that reads it) is the same shape
 one layer over. If a general fix suggests itself for both, say so rather than fixing them twice.
 
+## Resolution
+
+**Criterion 4's choice: derived from disk, not a list plus a coverage test.**
+
+Both options close the hole. Deriving is better here for a reason specific to this check: a coverage
+test still requires someone to define "top-level source directory", and that definition is the same
+judgement call that went stale the first time — it would just move the staleness from
+`check-design-tokens.mjs` into a test file. Deriving removes the judgement entirely. A new directory
+is scanned because it is on disk, not because anyone remembered.
+
+```js
+const EXCLUDED = new Set(["node_modules"])
+function rootsFor(base) {
+  return readdirSync(base, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !EXCLUDED.has(e.name))
+    .map((e) => e.name).sort()
+}
+```
+
+**What is excluded, and the deliberate refusal to exclude more.** Dot-directories go by the leading
+dot — `.next`, `.amplify`, `.git`, `.github`, `.claude`, `.githooks` are build output and tooling.
+`node_modules` needs naming because it has no dot and walking it is pointless and slow.
+
+**Nothing else is excluded**, and that is the load-bearing decision. The tempting version excludes
+`docs/`, `tickets/` and `scripts/` because they "obviously have no colours in them" — but that is
+exactly the judgement that goes stale, and it is what this ticket is about. They are scanned and
+cost a `readdir`: `docs/` and `tickets/` hold `.md`, `scripts/` holds `.mjs`, and none of those
+extensions are in `EXTS`. The check now derives ten roots and still passes on the real tree.
+
+That `.mjs` is not in `EXTS` is load-bearing in one direction worth stating: `scripts/` contains the
+checkers, and `check-design-tokens.mjs` holds `/#(?:000000|ffffff|000|fff)\b/i` as a **pattern**. If
+`.mjs` were ever added to `EXTS`, this check would flag itself. That is a live trap for whoever
+extends `EXTS`, and it is now the reason `scripts/` can be scanned rather than exempted.
+
+**`scan()` derives per-call**, from the base directory it is given rather than from the repo root.
+That is what lets `--self-test` exercise the *same* derivation against its fixture instead of a
+stubbed list — a self-test that hard-codes what the real code derives proves less than it appears to.
+
+**The self-test case that actually guards this.** Beyond `src/domain/leak.ts` (criterion 3), the
+fixture carries `packages/ui/button.tsx` — a directory named in **no list anywhere**, not in the
+script and not in this project. It fires because it is on disk. If someone reverts to a hand-written
+`ROOTS`, that is the case that goes red, and it goes red with a name that explains why. The
+self-test also asserts the derivation directly, printing the roots it found.
+
+**Nothing was actually leaking.** `src/` held five files and zero hex, as the audit reported. This
+closes a latent gap before capability `04` fills `src/domain/` and `src/pipeline/`.
+
+**Files touched:** `scripts/check-design-tokens.mjs` only. 11 self-test cases (was 8) plus 5
+derivation assertions.
+
+**Not done, and deliberately.** The same hand-maintained-list shape exists in
+`check-boundaries.mjs`, which pins `roots: ["src/domain", "src/pipeline"]`. It is **not** the same
+bug — those two are named by D-100 as the specific directories that must stay source-agnostic, so
+the list is the specification rather than an approximation of one. Widening it to whatever is on
+disk would change what D-100 means, which is a decision, not a fix. Left alone on purpose; noted
+here so the next reader does not have to re-derive that it was considered.
+
 ## Operator validation
 
-None expected — this is a CI check with no user-visible surface, and the meaningful proof is the
-`--self-test` case required by criterion 3 rather than anything on a screen. If that turns out to be
-wrong when the ticket is worked, say so in the Resolution instead of writing "None" by reflex.
+None — this is a CI check with no user-visible surface, and the original ticket's prediction was
+right. The meaningful proof is mechanical and was performed here, 2026-09-02:
+
+- **`--self-test`: 11 cases plus 5 derivation assertions, all pass.** `src/domain/leak.ts` fires,
+  `src/domain/fine.ts` passes, `packages/ui/button.tsx` fires from a directory in no list.
+- **Proven against the real tree, not only a fixture.** A planted
+  `src/domain/__leak-proof.ts` containing `"#0B1020"` made the check exit 1 naming the file, the
+  line and the rule; removing it returned exit 0, and `git status` confirmed the tree was restored.
+  This is the ticket's own reproduction step 3, run in reverse.
+- **The whole gate is green locally** — typecheck, lint, `npm test`, both boundary checks, both
+  token checks, the index check and `bash -n` on the hook.
+
+The observable result for the operator is the same as `0140`'s: `gate.yml` staying green on the
+Actions tab for this commit, with the `design tokens` steps passing.

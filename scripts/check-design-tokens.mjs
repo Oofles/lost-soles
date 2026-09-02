@@ -15,10 +15,20 @@
 // the Amplify build container, which has no rg (D-163: a check that runs in only
 // one of the two is half a control).
 //
-// NOTE ON THE TICKET: 0016's criterion 8 specifies `grep -rn ... src/`. There is
-// no src/ directory in this project — the layout is app/, components/, lib/ — so
-// that grep would have scanned nothing and passed vacuously, which is exactly the
-// decorative-gate failure 0013 found in the lint script. Amended to the real dirs.
+// WHAT IS SCANNED, and why it is not a list (0142). Every top-level directory is
+// scanned except build output, tooling and node_modules. The scan roots are
+// DERIVED FROM DISK on every run, so a new source directory is covered the moment
+// it exists and nobody has to remember to add it.
+//
+// This replaces a hand-written ["app", "components", "lib"], and the history is
+// the argument for deriving. 0016's criterion 8 specified `grep -rn ... src/`;
+// there was no src/ at the time, so the grep would have scanned nothing and passed
+// vacuously — the decorative-gate failure 0013 found in the lint script — and it
+// was amended to the three directories that then existed. Ticket 0025 later created
+// src/domain/, and the check went blind to it silently, with a comment still
+// asserting src/ did not exist. A hand-maintained scan list is a vacuous grep with
+// a longer fuse: it is correct on the day it is written and nothing tells you when
+// it stops being.
 //
 //   node scripts/check-design-tokens.mjs             check
 //   node scripts/check-design-tokens.mjs --self-test prove the rules FIRE
@@ -28,7 +38,27 @@ import { join, relative, sep } from "node:path"
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 
-const ROOTS = ["app", "components", "lib"]
+/**
+ * Excluded from the derived roots. Dot-directories (.next, .amplify, .git,
+ * .github, .claude, .githooks) are excluded by the leading dot — they are build
+ * output and tooling, never rendered UI. Only node_modules needs naming, because
+ * it has no dot and walking it is both pointless and slow.
+ *
+ * NOTHING ELSE IS EXCLUDED, deliberately. docs/ and tickets/ hold prose, and
+ * scripts/ holds .mjs — none of which are in EXTS, so scanning them costs a
+ * readdir and finds nothing. Excluding a directory because it "obviously has no
+ * colours in it" is the judgement call that goes stale; not making it is the point.
+ */
+const EXCLUDED = new Set(["node_modules"])
+
+/** The scan roots, read from disk rather than remembered. See the header. */
+function rootsFor(base) {
+  return readdirSync(base, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !EXCLUDED.has(e.name))
+    .map((e) => e.name)
+    .sort()
+}
+
 const SKIP_DIRS = new Set(["node_modules", ".next", ".amplify", ".git"])
 const EXTS = [".ts", ".tsx", ".js", ".jsx", ".css", ".scss"]
 
@@ -53,7 +83,9 @@ function walk(dir, out = []) {
 
 export function scan(base) {
   const hits = []
-  for (const root of ROOTS) {
+  // Derived per-call from the tree being scanned, which is what lets the self-test
+  // exercise the SAME derivation against its fixture rather than a stubbed list.
+  for (const root of rootsFor(base)) {
     for (const file of walk(join(base, root))) {
       const rel = relative(base, file).split(sep).join("/")
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
@@ -88,6 +120,18 @@ if (process.argv.includes("--self-test")) {
     "app/page.tsx": ["style={{ color: 'var(--text-primary)' }}", false],
     "components/note.tsx": ["// --gold-500 is #C9A227, fills only", false],
     "lib/util.ts": ["export const id = 'abc123'", false],
+
+    // ── 0142: the directories a hand-written list missed ────────────────────
+    // src/ exists (ticket 0025 created src/domain/) and was unscanned for two
+    // days while a comment in this file asserted it did not exist. The check must
+    // be SEEN to fire there, not merely configured to look there.
+    "src/domain/leak.ts": ["export const FOG = '#0B1020'", true],
+    "src/domain/fine.ts": ["export type Cell = { id: string }", false],
+    // The load-bearing case for the whole change: a directory that appears in NO
+    // list anywhere — not in this file, not in this fixture's expectations by
+    // name. It is scanned because it is on disk. If someone reverts to a
+    // hand-written ROOTS, this is the case that goes red.
+    "packages/ui/button.tsx": ["const bg = '#F5EDD9'", true],
   }
   const base = mkdtempSync(join(tmpdir(), "tokens-"))
   try {
@@ -110,7 +154,19 @@ if (process.argv.includes("--self-test")) {
       console.error(`\n${failed} self-test case(s) failed — the token check is broken.`)
       process.exit(1)
     }
-    console.log(`\nself-test: ${Object.keys(FIXTURE).length} cases passed — including that even the palette file may not hold #FFFFFF.`)
+    // Prove the derivation itself, not just its consequences: the fixture's roots
+    // must have been discovered from disk, including ones this file never names.
+    const derived = rootsFor(base)
+    for (const expected of ["app", "components", "lib", "src", "packages"]) {
+      const ok = derived.includes(expected)
+      if (!ok) failed++
+      console.log(`  ${ok ? "ok" : "FAIL"}  root derived  ${expected}`)
+    }
+    if (failed) {
+      console.error(`\n${failed} self-test case(s) failed — the token check is broken.`)
+      process.exit(1)
+    }
+    console.log(`\nself-test: ${Object.keys(FIXTURE).length} cases passed across roots [${derived.join(", ")}] — including that even the palette file may not hold #FFFFFF, and that a directory named in no list is still scanned.`)
   } finally {
     rmSync(base, { recursive: true, force: true })
   }
