@@ -119,8 +119,9 @@ on `main` for another reason.
 
 ## Resolution
 
-**Status: the code is complete and green; the ticket stays OPEN.** Two `(operator)` criteria are
-unchecked, and one hard blocker sits behind them — see *What is still missing* below.
+**Status: the code is complete, deployed and partly verified against live AWS; the ticket stays
+OPEN** on two `(operator)` criteria that need a real browser session. The blocker this Resolution
+originally described — an empty owner allowlist — is resolved; see *The blocker, and the trap in it*.
 
 **Added:** `lib/tickets/capture-guard.ts` (the pure guards), `lib/tickets/capture-store.ts` (the
 DynamoDB rate-limit and idempotency store), `lib/auth/owner.ts`, `lib/amplify-server.ts`, and four
@@ -204,19 +205,59 @@ hardening ticket re-reading the plumbing is what pays it.
 - The two **`(operator)` criteria** formalise the `## Operator validation` prose this ticket
   already carried, so the close gate enforces it (`0124`).
 
-### What is still missing — the blocker
+### The blocker, and the trap in it
 
-**`OWNER_USER_IDS` in `lib/auth/owner.ts` is empty.** This session had no AWS credentials
-(`aws sts get-caller-identity` → *Unable to locate credentials*), so unlike 0018 I could not read
-the operator's Cognito `sub` from the pool, and it is hard-coded per §6.4/1.
+The first pass shipped `OWNER_USER_IDS` **empty**, because this session had no AWS credentials and
+the Cognito `sub` is hard-coded per §6.4/1. The operator supplied them (`--profile devault`, now
+recorded in `CLAUDE.md`), and the allowlist is filled.
 
-An empty allowlist **fails closed: every request 404s, including the owner's.** That is the correct
-default — an allowlist that defaults to permitting is not an allowlist — but it means the deployed
-endpoint is inert until the value lands, and both `(operator)` criteria are unverifiable until then.
-`0020`, `0021` and `0022` remain correctly blocked: nothing on the phone may point at this URL yet.
+**The lookup had a trap in it, and it is the interesting part of this ticket.** The obvious move is
+to read the pool id out of `amplify_outputs.json` and list its users. Doing exactly that returned
+**one** user — `agent@lost-soles.invalid`, the throwaway from `0130` whose password lives in SSM.
+Allowlisting it would have handed a write primitive aimed at the repository to a disposable account.
 
-Everything else deploys on the next push: the CDK table, the IAM grant, the middleware change and
-the route. The deploy itself is unverified from here for the same reason.
+`amplify_outputs.json` is generated per-environment and is rewritten by `ampx sandbox`, so on this
+laptop it names the **sandbox** pool. The pools are only distinguishable by their tags:
+
+| pool | `amplify:deployment-type` | sole user |
+|---|---|---|
+| `us-east-1_3lreDA1d1` | `branch` (branch-name `main`) | `amazingbrandon@gmail.com` ← the owner |
+| `us-east-1_RV7QIiViX` | `sandbox` | `agent@lost-soles.invalid` ← never |
+
+`0130`'s Resolution is correct that the agent account is in the sandbox — the confusion is entirely
+that the local outputs file points there too. The reasoning is now in a comment on
+`OWNER_USER_IDS` itself, including the consequence nobody would guess from a 404: **a sub is
+pool-scoped, so recreating the production pool silently 404s the owner** with no error mentioning
+auth. `0131` recreated the sandbox pool once already, so that is a real sequence.
+
+### Verified against live AWS, not only against mocks
+
+Amplify build **49** (commit `90714af`) **SUCCEEDED**, so the CDK stack deployed. The step flagged
+as most likely to fail was the IAM grant, because CDK attaches a policy to a role CloudFormation
+does not own. It worked:
+
+```
+LostSolesCaptureGuard   TableStatus ACTIVE   PK pk (HASH)   PAY_PER_REQUEST
+TimeToLive              ENABLED    AttributeName: ttl
+LostSolesAmplifyComputeRole  inline policies:
+  AmplifyComputeRolePolicy4423B23B   ← CDK, this ticket
+  ReadTicketsCapturePat              ← 0018
+```
+
+The policy resolves to **one table ARN, no wildcard**, which is the containment D-180 claims:
+`arn:aws:dynamodb:us-east-1:286588821906:table/LostSolesCaptureGuard`. The role's total reach is now
+one SSM parameter and one DynamoDB table.
+
+**The allowlist change is NOT in build 49** — it needs the next deploy. Until that build goes green
+the deployed endpoint still 404s everyone, which is the fail-closed default doing its job.
+
+### What the agent still cannot do
+
+The three remaining operator steps need a signed-in browser session against the **production** pool.
+The agent account is sandbox-only and deliberately stays that way: a second production account fires
+`08-security-privacy.md` §2.4 Trigger A, a seven-item gate of which four are build items, and `0130`
+exists precisely so troubleshooting does not require it. So this is not a gap to be engineered
+around — it is the design working.
 
 
 ## Operator validation
@@ -227,35 +268,19 @@ On the Android phone, in Chrome, signed in: send a capture whose title is
 and confirm the file landed there with a mangled-but-harmless name. Then sign out and re-send —
 you should get a 404 page, not a permission error.
 
-### Step 0 — the blocker, before any of the above can work
+### Steps 0 and 1 — DONE BY THE AGENT on 2026-09-02, nothing for you here
 
-The allowlist is empty, so the endpoint currently 404s **everyone**. Get the owner's Cognito `sub`
-and put it in `OWNER_USER_IDS` in `lib/auth/owner.ts`:
+Recorded so the remaining steps are not read as the whole list.
 
-```
-aws cognito-idp list-users --user-pool-id us-east-1_RV7QIiViX --region us-east-1 \
-  --query 'Users[].Attributes[?Name==`sub`].Value' --output text
-```
+- **The owner allowlist is filled** with the `main` branch pool's sub, verified by pool TAGS rather
+  than by `amplify_outputs.json` — which points at the sandbox and would have supplied the
+  `0130` throwaway account instead. See the Resolution.
+- **The deploy landed.** Build 49 (`90714af`) SUCCEEDED; `LostSolesCaptureGuard` is ACTIVE with TTL
+  enabled on `ttl`, and CDK successfully attached `AmplifyComputeRolePolicy4423B23B` to the
+  hand-made compute role, scoped to one table ARN with no wildcard.
 
-or, in devtools at `soles.devaultsecurity.com` while signed in:
-
-```js
-(await (await import("aws-amplify/auth")).fetchAuthSession()).tokens.idToken.payload.sub
-```
-
-### Step 1 — the deploy landed
-
-The Amplify build creates `LostSolesCaptureGuard` and attaches a `grantReadWriteData` policy to
-`LostSolesAmplifyComputeRole`. Confirm both, because the policy attaches to a role CloudFormation
-does not own and that is the part most likely to fail:
-
-```
-aws dynamodb describe-table --table-name LostSolesCaptureGuard --query 'Table.TableStatus'
-aws dynamodb describe-time-to-live --table-name LostSolesCaptureGuard
-aws iam list-role-policies --role-name LostSolesAmplifyComputeRole
-```
-
-A 502 or 503 from the endpoint after a successful build means the grant did not take effect.
+**Wait for the build of the allowlist commit to go green before starting Step 2** — until it does,
+the endpoint fail-closes and 404s you too, which looks identical to a broken deploy.
 
 ### Step 2 — the happy path, then the rate limit
 

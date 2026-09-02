@@ -217,6 +217,59 @@ this path at all. The five patterns are kept in step across three surfaces now: 
 logger's redactions, and this.
 
 
+### `amplify_outputs.json` names the SANDBOX pool on a laptop  (ticket 0019, 2026-09-02)
+
+Filing this where the next person hard-codes a pool-scoped identifier will look for it.
+
+The owner allowlist (§6.4/1) needs the operator's Cognito `sub`. The obvious lookup — read
+`auth.user_pool_id` out of `amplify_outputs.json`, list its users — is **wrong on a development
+machine**, and it fails in the worst possible way: it succeeds, and returns exactly one user.
+
+That user is `agent@lost-soles.invalid`, the throwaway from `0130`. `amplify_outputs.json` is
+generated per-environment (`.gitignore` says so explicitly, and says it is ignored because it is
+environment-specific rather than because it is sensitive), and `ampx sandbox` rewrites it — `0131`
+did, on 2026-09-01. So it names the sandbox. Allowlisting what it returns would have granted a
+repository write primitive to a disposable account whose password sits in SSM.
+
+**The pools are distinguishable only by their tags**, never by their ids or their names:
+
+| pool | `amplify:deployment-type` | sole user |
+|---|---|---|
+| `us-east-1_3lreDA1d1` | `branch`, branch-name `main` | `amazingbrandon@gmail.com` — the owner |
+| `us-east-1_RV7QIiViX` | `sandbox` | `agent@lost-soles.invalid` — never allowlist |
+
+```
+aws cognito-idp describe-user-pool --user-pool-id <id> --query 'UserPool.UserPoolTags'
+```
+
+Two consequences that outlive this ticket:
+
+1. **A `sub` is pool-scoped.** Recreating the production pool changes every sub in it and silently
+   404s the owner, with no error anywhere that mentions authentication. `0131` has already
+   recreated a pool once. Anything hard-coding a sub inherits this.
+2. **The agent cannot hold a production browser session, and must not get one.** A second
+   production account fires `08-security-privacy.md` §2.4 Trigger A — a seven-item gate, four of
+   them build items. `0130` exists so troubleshooting never needs it. Operator validation steps
+   that require a signed-in production session are therefore genuinely operator-only, not a gap to
+   be engineered around later.
+
+### What the deploy actually produced  (ticket 0019)
+
+Amplify build 49 (`90714af`) succeeded. The part worth recording is the IAM grant, because CDK is
+attaching a policy to a role CloudFormation **does not own** — `LostSolesAmplifyComputeRole` was
+created by hand in `0018` and lives in no stack. `Role.fromRoleArn(..., { mutable: true })` handled
+it, and the role now carries two inline policies:
+
+```
+AmplifyComputeRolePolicy4423B23B   ← 0019, DynamoDB, one table ARN, no wildcard
+ReadTicketsCapturePat              ← 0018, ssm:GetParameter, one parameter ARN
+```
+
+`LostSolesCaptureGuard` is ACTIVE, `PK = pk`, on-demand, TTL enabled on `ttl`. The role's total
+reach is one SSM parameter and one DynamoDB table — which is the whole of the containment, since
+the trust-policy condition that would normally provide it is refused by Amplify (see above).
+
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

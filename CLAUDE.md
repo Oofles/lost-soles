@@ -92,6 +92,24 @@ The methodology works with no tooling — that is the point of it.
 - **`activity:read_all`, never `activity:read`**, and the full `latlng` stream, never
   `summary_polyline` (D-121). A degraded trace permanently corrupts a map that cannot re-fog.
 
+## AWS credentials
+
+**Every AWS call in this project uses the `devault` profile.** The default profile is not
+configured, so a bare `aws sts get-caller-identity` returns *"Unable to locate credentials"* — which
+reads as "no AWS access" and is wrong. That misreading cost a session: ticket `0019` shipped with an
+empty owner allowlist because the Cognito `sub` looked unreadable.
+
+`.claude/settings.json` sets `AWS_PROFILE=devault`, so an interactive session normally needs nothing.
+That file is **gitignored** (`.claude/*`, D-154 — agent config is where the O-005 credential leak
+happened), so it does not survive a fresh clone. If AWS says it cannot locate credentials, either
+recreate it:
+
+```json
+{ "env": { "AWS_PROFILE": "devault" } }
+```
+
+or pass `--profile devault` on the command. Account `286588821906`, region `us-east-1`.
+
 ## Layout notes — do not "fix" these
 
 Two deliberate divergences from TicketSmith's expected layout (`docs/07-ticketsmith.md` §7.2):
