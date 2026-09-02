@@ -3253,7 +3253,7 @@
     "title": "check-design-tokens.mjs does not scan src/, and its comment asserts src/ does not exist",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
@@ -3261,10 +3261,11 @@
     "source": "agent",
     "created": "2026-09-02T01:55:50Z",
     "started": "2026-09-02T02:13:25Z",
-    "path": "tickets/open/0142-check-design-tokens-mjs-does-not-scan-src-and-its-comment-as.md",
-    "ready": true,
+    "closed": "2026-09-02T02:15:56Z",
+    "path": "tickets/closed/0142-check-design-tokens-mjs-does-not-scan-src-and-its-comment-as.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },

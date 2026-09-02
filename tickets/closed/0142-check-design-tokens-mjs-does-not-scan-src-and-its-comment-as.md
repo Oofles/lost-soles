@@ -4,7 +4,7 @@ slug: check-design-tokens-mjs-does-not-scan-src-and-its-comment-as
 title: check-design-tokens.mjs does not scan src/, and its comment asserts src/ does not exist
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T01:55:50Z
 started: 2026-09-02T02:13:25Z
+closed: 2026-09-02T02:15:56Z
 ---
 
 ## Description
