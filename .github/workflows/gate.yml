@@ -90,12 +90,6 @@ jobs:
       - name: design tokens — no raw colour outside app/tokens.css
         run: node scripts/check-design-tokens.mjs
 
-      # Folded in from docs-index.yml, per the note that file carried naming 0013
-      # as its owner. A section index whose line numbers are wrong is worse than no
-      # index: it sends you to the wrong place confidently.
-      - name: docs/INDEX.md is up to date
-        run: node scripts/build-index.mjs --check
-
       # 0125. The suite that exercises .githooks/pre-commit rides in `npm test`
       # above, so it runs on both CI surfaces. This is the separate, cheaper
       # assertion the ticket asks for: a syntax check that holds even if vitest
@@ -131,3 +125,24 @@ jobs:
 
       - name: no secret in built output (patterns; literals are the deploy path's job)
         run: node scripts/check-bundle-leak.mjs
+
+      # ── hygiene, and it runs LAST on purpose (D-177, ticket 0140) ────────────
+      #
+      # Folded in from docs-index.yml, per the note that file carried naming 0013
+      # as its owner. A section index whose line numbers are wrong is worse than no
+      # index: it sends you to the wrong place confidently. So it still FAILS the
+      # job — it is not `continue-on-error`, which would let the index rot silently
+      # and is the opposite of what D-151 needs.
+      #
+      # But it sits at the END now. It used to run before the build, and because
+      # Actions steps are fail-fast, a stale docs index meant `npm run build` and
+      # BOTH bundle-leak scans never ran — fifteen consecutive pushes where this
+      # capability's own security check was dark behind a documentation nit.
+      #
+      # THE RULE: order this job by SEVERITY, not by cost. Cheapest-first is the
+      # normal instinct and it is wrong here, because it lets the least serious
+      # check mask the most serious one. Anything whose failure means "something
+      # unsafe shipped" runs before anything whose failure means "a document is
+      # untidy". New checks go above this line unless they are hygiene.
+      - name: docs/INDEX.md is up to date
+        run: node scripts/build-index.mjs --check

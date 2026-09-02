@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 13,824 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,070 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 555 sections · regenerated 2026-09-01
+13 documents · 557 sections · regenerated 2026-09-02
 
 
 ## `docs/00-vision.md`
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,423 lines
+**01 — System Architecture** — 1,482 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -90,33 +90,33 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `742-775` | D-120 is final and supersedes the provisional D-022. |
 | &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `776-808` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
 | &nbsp;&nbsp;↳ Failure handling | `809-823` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `824-961` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| 5. Frontend architecture | `824-1000` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
 | &nbsp;&nbsp;↳ The fact that drives the whole design | `826-850` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ App Router structure | `851-895` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `896-950` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `951-961` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `962-1112` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `964-981` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `982-999` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1000-1042` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1043-1090` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1091-1112` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1113-1218` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1118-1151` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1152-1185` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1186-1203` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1204-1218` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1219-1297` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1250-1265` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1266-1279` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1280-1297` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1298-1349` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1303-1325` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1326-1338` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1339-1349` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1350-1371` |  |
-| 11. Known tensions the decision log creates | `1372-1412` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1413-1423` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ App Router structure | `851-934` | layout.tsx root: fonts, theme, <AmplifyProvider> |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `935-989` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `990-1000` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1001-1171` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1003-1020` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1021-1038` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1039-1101` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1102-1149` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1150-1171` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1172-1277` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1177-1210` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1211-1244` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1245-1262` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1263-1277` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1278-1356` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1309-1324` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1325-1338` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1339-1356` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1357-1408` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1362-1384` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1385-1397` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1398-1408` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1409-1430` |  |
+| 11. Known tensions the decision log creates | `1431-1471` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1472-1482` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 
@@ -451,7 +451,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/07-ticketsmith.md`
 
-**07 — Ticket System ("TicketSmith, adapted")** — 1,235 lines
+**07 — Ticket System ("TicketSmith, adapted")** — 1,341 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -466,48 +466,49 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.3 Triage is a gate, not overhead | `187-204` | The obvious objection to inbox/ is that it adds a step. |
 | &nbsp;&nbsp;↳ 2.4 Data flow | `205-232` | Phone ──POST /api/dev/tickets──▶ capture endpoint ──GitHub Contents API──▶ commit to |
 | &nbsp;&nbsp;↳ 2.5 Rejected alternatives | `233-293` | Tickets live in a Lost Soles DynamoDB table; the repo has no tickets/. |
-| 3. Ticket schema | `294-528` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
-| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `300-355` |  |
-| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `356-387` | thing: they move information out of prose that the agent must re-infer every session and into |
-| &nbsp;&nbsp;↳ 3.3 Body sections | `388-412` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
-| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `413-435` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
-| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `436-452` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
-| &nbsp;&nbsp;↳ 3.6 Complete example | `453-528` | slug: half-xp-on-explored-ground |
-| 4. The `/tickets` command | `529-831` | Required by D-091. |
-| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `533-555` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
-| &nbsp;&nbsp;↳ 4.2 Frontmatter | `556-595` | name: tickets |
-| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `596-616` |  |
-| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `617-637` | starting work. Note the path difference from TicketSmith: this project uses a |
-| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `638-660` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
-| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `661-678` | Refuse first, then act. |
-| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `679-797` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
-| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `798-831` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
-| 5. The in-app ticket UI | `832-949` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
-| &nbsp;&nbsp;↳ 5.1 Placement | `837-848` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
-| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `849-878` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
-| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `879-892` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
-| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `893-904` | Read-only list from the cached mirror. |
-| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `905-911` | Tap a row → rendered markdown detail view. |
-| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `912-917` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
-| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `918-949` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
-| 6. Auth and security | `950-1079` | The capture endpoint is a write primitive pointed at your source repository. |
-| &nbsp;&nbsp;↳ 6.1 Absolute rule | `955-960` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
-| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `961-977` | Fastest to stand up, and adequate for a single-operator project. |
-| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `978-992` | Recommended once the endpoint is stable. |
-| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `993-1052` | { "title": "string, 1..200", |
-| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1053-1066` |  |
-| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1067-1079` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
-| 7. Bootstrapping | `1080-1224` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1082-1098` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1099-1153` | ├── CLAUDE.md # orientation. |
-| &nbsp;&nbsp;↳ 7.3 Seeding | `1154-1197` | Ordered, and each step is usable before the next exists. |
-| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1198-1205` | Do not pre-populate tickets/inbox/ with ideas. |
-| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1206-1224` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
-| Open questions | `1225-1235` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
+| 3. Ticket schema | `294-616` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
+| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `300-389` |  |
+| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `390-421` | thing: they move information out of prose that the agent must re-infer every session and into |
+| &nbsp;&nbsp;↳ 3.3 Body sections | `422-456` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
+| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria — the ones a human must run | `457-500` | A criterion prefixed (operator) is one no agent can check: it needs a human, a device, and |
+| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `501-523` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
+| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `524-540` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
+| &nbsp;&nbsp;↳ 3.6 Complete example | `541-616` | slug: half-xp-on-explored-ground |
+| 4. The `/tickets` command | `617-937` | Required by D-091. |
+| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `621-643` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
+| &nbsp;&nbsp;↳ 4.2 Frontmatter | `644-683` | name: tickets |
+| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `684-707` |  |
+| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `708-728` | starting work. Note the path difference from TicketSmith: this project uses a |
+| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `729-751` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
+| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `752-771` | Refuse first, then act. |
+| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `772-903` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
+| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `904-937` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
+| 5. The in-app ticket UI | `938-1055` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
+| &nbsp;&nbsp;↳ 5.1 Placement | `943-954` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
+| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `955-984` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
+| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `985-998` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
+| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `999-1010` | Read-only list from the cached mirror. |
+| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1011-1017` | Tap a row → rendered markdown detail view. |
+| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1018-1023` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
+| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1024-1055` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
+| 6. Auth and security | `1056-1185` | The capture endpoint is a write primitive pointed at your source repository. |
+| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1061-1066` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
+| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1067-1083` | Fastest to stand up, and adequate for a single-operator project. |
+| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1084-1098` | Recommended once the endpoint is stable. |
+| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1099-1158` | { "title": "string, 1..200", |
+| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1159-1172` |  |
+| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1173-1185` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
+| 7. Bootstrapping | `1186-1330` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1188-1204` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1205-1259` | ├── CLAUDE.md # orientation. |
+| &nbsp;&nbsp;↳ 7.3 Seeding | `1260-1303` | Ordered, and each step is usable before the next exists. |
+| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1304-1311` | Do not pre-populate tickets/inbox/ with ideas. |
+| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1312-1330` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
+| Open questions | `1331-1341` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,034 lines
+**08 — Security & Privacy** — 1,052 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -530,30 +531,30 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 4.3 Replay and idempotency | `382-400` | Strava retries up to three times and has no dead-letter mechanism, so duplicates are normal |
 | &nbsp;&nbsp;↳ 4.4 Rate limiting and cost-DoS | `401-430` | An attacker cannot read anything here. |
 | &nbsp;&nbsp;↳ 4.5 What the endpoint must never do | `431-453` | The 2-second budget is a security control as much as a performance one: the smaller this |
-| 5. Authentication and account provisioning | `454-593` | The whole auth surface serves one person today and at most six ever (D-014). |
-| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `460-494` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
-| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `495-518` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
-| &nbsp;&nbsp;↳ 5.3 Session handling | `519-534` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
-| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `535-574` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
-| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `575-593` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
-| 6. Data lifecycle, retention, and deletion | `594-727` |  |
-| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `596-612` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
-| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `613-638` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
-| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `639-676` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
-| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `677-714` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
-| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `715-727` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `728-882` | The repository is the most likely place a secret in this project actually escapes. |
-| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `735-776` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `777-787` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in two places | `788-806` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `807-865` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `866-882` | control, not a convenience. |
-| 8. Incident playbook | `883-997` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `901-926` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `927-944` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `945-970` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `971-997` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `998-1034` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| 5. Authentication and account provisioning | `454-611` | The whole auth surface serves one person today and at most six ever (D-014). |
+| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `460-512` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
+| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `513-536` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
+| &nbsp;&nbsp;↳ 5.3 Session handling | `537-552` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
+| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `553-592` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
+| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `593-611` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
+| 6. Data lifecycle, retention, and deletion | `612-745` |  |
+| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `614-630` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
+| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `631-656` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
+| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `657-694` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
+| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `695-732` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
+| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `733-745` | Removing the Strava connection deletes SourceAccount and stops ingest. |
+| 7. Repo hygiene — and one live finding (O-005) | `746-900` | The repository is the most likely place a secret in this project actually escapes. |
+| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `753-794` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `795-805` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in two places | `806-824` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `825-883` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `884-900` | control, not a convenience. |
+| 8. Incident playbook | `901-1015` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `919-944` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `945-962` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `963-988` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `989-1015` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1016-1052` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 
@@ -637,16 +638,17 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/TICKET_FORMAT.md`
 
-**Ticket format** — 240 lines
+**Ticket format** — 303 lines
 
 | Section | Lines | Settles |
 |---|---|---|
-| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `11-66` |  |
-| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `67-98` | thing: they move information out of prose that the agent must re-infer every session and into |
-| &nbsp;&nbsp;↳ 3.3 Body sections | `99-123` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
-| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `124-146` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
-| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `147-163` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
-| &nbsp;&nbsp;↳ 3.6 Complete example | `164-240` | slug: half-xp-on-explored-ground |
+| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `11-100` |  |
+| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `101-132` | thing: they move information out of prose that the agent must re-infer every session and into |
+| &nbsp;&nbsp;↳ 3.3 Body sections | `133-170` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
+| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria | `171-186` | A criterion prefixed (operator) needs a human, a device and eyes — no agent can check it. |
+| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `187-209` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
+| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `210-226` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
+| &nbsp;&nbsp;↳ 3.6 Complete example | `227-303` | slug: half-xp-on-explored-ground |
 
 ## `docs/contracts/ingestion-contract.md`
 

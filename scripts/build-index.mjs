@@ -120,8 +120,13 @@ for (const d of docs) {
   }
 }
 
-writeFileSync(SIDECAR, JSON.stringify(nextSidecar, null, 1) + "\n");
-
+// --check IS READ-ONLY, and the ordering here is the whole reason (ticket 0140).
+// The sidecar write used to sit ABOVE this branch, so `--check` wrote
+// docs/.index-summaries.json every time it ran — a checker that mutates the thing
+// it checks. It left a dirty tree behind an apparently read-only command, which on
+// CI means a verification step is also a mutation step. Both writes now happen only
+// on the regenerate path. Nothing is lost: `nextSidecar` is built in memory above
+// and the comparison never needed it on disk.
 if (process.argv.includes("--check")) {
   const current = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
   // ignore the regeneration date when comparing
@@ -134,6 +139,7 @@ if (process.argv.includes("--check")) {
   process.exit(0);
 }
 
+writeFileSync(SIDECAR, JSON.stringify(nextSidecar, null, 1) + "\n");
 writeFileSync(OUT, out);
 console.log(
   `docs/INDEX.md: ${docs.length} documents, ` +

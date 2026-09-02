@@ -1040,3 +1040,40 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     audit actually found — `01-architecture.md` is otherwise sound and its §3, §4 and §7 have all
     been re-read and confirmed against the code in this audit.
 
+---
+
+## CI ordering: severity, not cost  (2026-09-02, ticket 0140)
+
+- **D-177** **`gate.yml` is ordered by SEVERITY, not by cost, and the docs-index check runs last.**
+  It stays **blocking** — `continue-on-error` was considered and rejected.
+  - **The failure this fixes.** `build-index.mjs --check` sat before `npm run build`. GitHub Actions
+    steps are fail-fast, so from `ac977fd` (2026-09-01 03:48) a stale `docs/INDEX.md` turned the
+    whole job red and **`npm run build` and both bundle-leak scans never ran** — fifteen consecutive
+    pushes with capability `02`'s own secret-in-bundle check dark behind a documentation nit. The
+    alarm was red the entire time, which is worse than it being off: a red build that always means
+    the same trivial thing is a red build nobody reads. That is exactly the reflex **D-172** (0137)
+    names as more dangerous than the flake itself.
+  - **Why not `continue-on-error: true`.** It would make the job green on a stale index, which lets
+    the index rot silently. `docs/INDEX.md` exists so a session can `sed -n` straight to a section
+    (**D-151**) and its own header says a stale index is worse than none, because it sends you to
+    the wrong lines *confidently*. Non-blocking is the wrong direction: the check is correct, its
+    **position** was wrong.
+  - **The rule, stated so new checks inherit it.** Anything whose failure means *"something unsafe
+    shipped"* runs before anything whose failure means *"a document is untidy."* Cheapest-first is
+    the normal instinct and it is wrong here, precisely because the cheapest checks tend to be the
+    least serious, and fail-fast then lets them mask the most serious. New steps go above the
+    hygiene block unless they are hygiene.
+  - **This does not weaken the gate.** A stale index still fails the job. What changed is that the
+    checks that matter now report their own verdict first, which is the property `0137` established
+    for guards generally: a guard that cannot be seen to have run is not a guard.
+  - **Scope.** `amplify.yml` is untouched — it never carried the index check, and the LOCK
+    (**D-163**) should not start failing deploys over documentation. The index is an alarm concern.
+
+- **D-178** **`build-index.mjs --check` is read-only.** It wrote `docs/.index-summaries.json` on
+  every run, including `--check`, because the sidecar write sat above the `--check` branch. A
+  checker that mutates the thing it checks left a dirty tree behind an apparently read-only command
+  — which on CI means a verification step is also a mutation step, and locally means `--check`
+  reports on a file it has just rewritten. Both writes now happen only on the regenerate path.
+  Nothing is lost: the comparison is built in memory and never needed the sidecar on disk. Raised in
+  `0140`'s own Notes as "worth deciding"; decided.
+

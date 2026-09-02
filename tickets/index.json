@@ -3218,6 +3218,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T22:29:00Z",
+    "started": "2026-09-02T02:02:14Z",
     "path": "tickets/open/0140-docs-index-md-is-stale-and-the-gate-has-been-red-on-every-pu.md",
     "ready": true,
     "acceptance": {
@@ -3302,7 +3303,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   },
   {
