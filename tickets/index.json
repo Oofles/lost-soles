@@ -431,7 +431,7 @@
     "title": "Harden the capture endpoint - owner auth, server-derived path, size and rate limits, idempotency",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -441,8 +441,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-02T03:50:40Z",
-    "path": "tickets/open/0019-capture-endpoint-hardening.md",
-    "ready": true,
+    "closed": "2026-09-02T13:56:13Z",
+    "path": "tickets/closed/0019-capture-endpoint-hardening.md",
+    "ready": false,
     "acceptance": {
       "checked": 13,
       "total": 13
@@ -464,7 +465,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0020-android-quick-capture-tile.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -3367,7 +3368,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 8
     }
   },
   {

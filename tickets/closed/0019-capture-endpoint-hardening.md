@@ -4,7 +4,7 @@ slug: capture-endpoint-hardening
 title: Harden the capture endpoint - owner auth, server-derived path, size and rate limits, idempotency
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 03-ticket-capture-endpoint
 depends_on: [18]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-02T03:50:40Z
+closed: 2026-09-02T13:56:13Z
 ---
 
 ## Description
