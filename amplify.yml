@@ -35,16 +35,6 @@ frontend:
         - npm run typecheck  # tsc --noEmit — REAL, not the dead script pattern
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
-        # ── TEMPORARY, ticket 0137 ────────────────────────────────────────────
-        # The pre-commit hook suite is intermittently red HERE and nowhere else:
-        # three of builds 34-38 failed on it, while the GitHub Actions gate ran
-        # the same suite on the same commits and passed. It is not reproducible
-        # locally (20 runs of the file, 10 full-suite runs on two cores, all
-        # green), so the only instrument that can see it is this container.
-        #
-        # ~1.5s per run, so ~30s. REMOVE IT in the commit that closes 0137 — a
-        # loop left behind after the bug it was hunting is how build time rots.
-        - for i in $(seq 1 20); do echo "--- hook suite run $i/20"; npx vitest run scripts/pre-commit-hook.test.mjs || exit 1; done
         - npm run build
         # AFTER the build, and the only place the LITERAL scan can run: this
         # container holds AWS credentials, so the real secret values come from
