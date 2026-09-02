@@ -88,12 +88,43 @@ Process every file in `tickets/inbox/` end to end.
 need about all of them in a single message. Interrogating item by item is what makes triage feel
 like a chore, and a triage that feels like a chore stops happening — which is how the inbox rots.
 
-For each item decide, with the operator: promote (→ `SCRIPT triage-move <path> --slug <kebab>
---capability <NN-name> --size <s|m|l>`), merge into an existing ticket, or discard. A thought at
-mile six is a note; it becomes a ticket when someone decides it should.
+Work **oldest first** — `SCRIPT list --status inbox --json` is already in `created` order. The
+oldest note is the one most likely to have gone stale, and triaging newest-first is how an inbox
+grows a permanent sediment at the bottom.
+
+**There are FOUR outcomes, and every one of them is a script command** (§4.5/7). A thought at mile
+six is a note; it becomes a ticket when someone decides it should:
+
+| Outcome | Command | What happens |
+|---|---|---|
+| **Promote** | `SCRIPT triage-move <path> --slug <kebab> --capability <NN-name> --size <s\|m\|l>` | → `tickets/open/NNNN-slug.md`, body byte-identical |
+| **Merge** | `SCRIPT triage-merge <path> --into <id> [--reason "…"]` | dated note appended to that ticket's `## Notes`; the capture closes pointing at it |
+| **Decline** | `SCRIPT triage-decline <path> --reason "…"` | → `tickets/closed/NNNN-slug.md` with a `## Resolution` |
+| **Defer** | `SCRIPT triage-defer <path> --reason "…"` | stays in `tickets/inbox/`, dated note, **no id** |
+
+**Never delete a capture, and no command here can.** A declined idea re-captured three months
+later should meet its own previous rejection — which is why decline spends a real id and writes a
+real `## Resolution` rather than dropping a loose file into `closed/`. Merging into a *closed*
+ticket is refused: a closed ticket's Notes are not re-read, so the idea would land where nobody
+sees it while the inbox reported it as handled.
+
+**Deferral is not free.** The capture keeps ageing and `validate` warns once it passes 14 days.
+Deferring the same note twice appends a second dated line rather than overwriting the first —
+a note deferred three times is telling you to decline it.
+
+**Promotion leaves the ticket failing `validate` until you write its body** (D-170). That is the
+gate, not a bug: a promoted capture is not yet a ticket. Finish the sections before committing.
+
+**Commit once for the whole batch**: `tickets: triage inbox (N items)`. The commands deliberately
+do not commit, and they tolerate other *ticket* changes in the tree so a batch is possible without
+`--allow-dirty` (D-182) — but uncommitted work outside `tickets/` still refuses.
+
+Afterwards, `SCRIPT validate` must be clean.
 
 **Only the agent allocates ids.** The phone never does. That is what keeps numbering single-writer
-and merge conflicts structurally impossible — do not hand-number anything.
+and merge conflicts structurally impossible — do not hand-number anything. There is exactly one
+allocator inside the script and every outcome shares it; a second one is how two tickets end up
+with the same id.
 
 ## `close`
 

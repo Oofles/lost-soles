@@ -534,6 +534,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-02T15:27:52Z",
     "path": "tickets/open/0023-tickets-triage-inbox-end-to-end.md",
     "ready": true,
     "acceptance": {

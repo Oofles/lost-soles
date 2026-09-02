@@ -1167,3 +1167,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     accepts it. A reserved word used without an `ExpressionAttributeName` passes every unit test and
     fails in production. That is the class of bug this trade buys, and it is a better class than the
     one it gives up.
+
+---
+
+## A triage batch is one commit, so the clean-tree guard excepts tickets/  (2026-09-02, ticket 0023)
+
+- **D-182** **The `triage-*` commands relax D-158's clean-tree guard for paths under `tickets/`,
+  and only there.** Uncommitted work anywhere else still refuses.
+  - **The conflict.** D-158 makes every file-moving command refuse a dirty tree, so a ticket
+    transition cannot be committed on top of unrelated work in flight. `07-ticketsmith.md` §4.5/8
+    requires a triage batch to land as **one** commit — `tickets: triage inbox (N items)`. Those two
+    rules are incompatible as literally written: by construction the second capture in a batch runs
+    with the first already written to disk, so it sees a dirty tree and refuses.
+  - Before this, `triage-move` excepted only the single file it was itself moving. That is right for
+    `close`, which transitions one ticket, and wrong for triage, which transitions N. The batch was
+    therefore impossible without `--allow-dirty` on every item after the first — and a guard reached
+    for routinely has stopped being a guard, which is the failure D-158's own comment warns about.
+  - **The relaxation is faithful to what D-158 protects.** Its stated concern is a commit that
+    "mixes a ticket transition with whatever else was in flight." The other transitions in a triage
+    batch are not *whatever else* — they are the same unit of work, going into the same commit by
+    design. An edit sitting uncommitted in `src/` or a design doc still blocks, and there is a test
+    asserting exactly that.
+  - **Scope, stated narrowly.** This applies to `triage-move`, `triage-merge`, `triage-decline` and
+    `triage-defer`. `close` keeps the strict per-file guard: closing two tickets in one commit is
+    not a thing the workflow does, and D-150 says each close is its own commit.
+  - The cost, accepted: a triage batch *can* now sweep an unrelated stray edit to a ticket file into
+    its commit. Ticket files are the things triage is editing, the diff is reviewed before the
+    commit either way, and the alternative was a routine `--allow-dirty` that suppresses the guard
+    entirely rather than narrowing it.

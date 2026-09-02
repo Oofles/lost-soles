@@ -1373,3 +1373,271 @@ describe("0136 — deferred: work that is correct, specified, and waiting on a t
     rmSync(d, { recursive: true, force: true });
   });
 });
+
+// ─────────────────────────── 0023 — triage's four outcomes, end to end ────
+
+/**
+ * §4.5/7 and ticket 0023. The point of this suite is that triage has FOUR
+ * outcomes and that **none of them deletes a capture** — the last test asserts
+ * that directly, across all four, because "never delete a ticket" is the one
+ * TicketSmith rule a triage implementation is most tempted to break.
+ */
+describe("0023 — triage: promote, merge, decline, defer", () => {
+  const capture = (d, name, o = {}, body = "\n## Description\n\nStreak freeze after 7 days?\n") => {
+    writeFileSync(join(d, "tickets/inbox", name), serialize({
+      status: "inbox", title: "streak freeze after 7 days?", type: "feature",
+      priority: "med", source: "ui", created: "2026-08-30T14:32:00Z", ...o,
+    }, body));
+    return `tickets/inbox/${name}`;
+  };
+
+  test("decline closes the capture with a real id and a Resolution, and validate stays clean", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    const r = run(d, "triage-decline", p, "--reason", "Superseded by the rest-day rule.");
+    assert.equal(r.code, 0, r.out);
+
+    const dest = join(d, "tickets/closed/0001-streak-freeze-after-7-days.md");
+    assert.ok(existsSync(dest), r.out);
+    const t = parse(readFileSync(dest, "utf8"));
+    assert.equal(t.fm.status, "closed");
+    assert.equal(t.fm.id, 1);
+    assert.ok(t.fm.closed, "a closed ticket must carry a closed: stamp");
+    assert.equal(t.fm.source, "ui", "provenance survives a decline");
+    assert.equal(t.fm.created, "2026-08-30T14:32:00Z", "the idea's age is real information");
+    assert.match(t.body, /## Resolution/);
+    assert.match(t.body, /Superseded by the rest-day rule\./);
+    // The operator's own words survive; a declined idea rewritten in the
+    // agent's voice is not the idea that was declined.
+    assert.match(t.body, /Streak freeze after 7 days\?/);
+
+    // The whole reason decline allocates an id rather than dropping a loose
+    // file into closed/: closed/ is validated like everywhere else.
+    assert.equal(run(d, "validate").code, 0, run(d, "validate").out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("decline refuses without a reason — that would be a delete with extra steps", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    const r = run(d, "triage-decline", p);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /--reason/);
+    assert.ok(existsSync(join(d, p)), "a refused decline leaves the capture untouched");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("merge appends a dated note to the target's ## Notes and closes the capture pointing at it", () => {
+    const d = repo();
+    ticket(d, "open", FM({ id: 7, slug: "streaks", title: "Streaks" }));
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    const r = run(d, "triage-merge", p, "--into", "7");
+    assert.equal(r.code, 0, r.out);
+
+    const target = parse(readFileSync(join(d, "tickets/open/0007-streaks.md"), "utf8"));
+    assert.match(target.body, /Merged from a capture/);
+    assert.match(target.body, /Streak freeze after 7 days\?/);
+    // Inside ## Notes, not appended to the end of the file — otherwise it would
+    // land under ## Operator validation and read as a validation step.
+    const notes = target.body.split(/^##\s+/m).find((s) => s.startsWith("Notes"));
+    assert.match(notes, /Merged from a capture/);
+
+    const dest = join(d, "tickets/closed/0008-streak-freeze-after-7-days.md");
+    assert.ok(existsSync(dest), r.out);
+    assert.match(readFileSync(dest, "utf8"), /Merged at triage.*into 0007/s);
+    assert.equal(run(d, "validate").code, 0, run(d, "validate").out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("merge into a CLOSED ticket is refused — the note would land where nobody reads it", () => {
+    const d = repo();
+    ticket(d, "closed", FM({ id: 7, slug: "done", status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    const r = run(d, "triage-merge", p, "--into", "7");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /closed/i);
+    assert.ok(existsSync(join(d, p)), "the capture survives a refused merge");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("defer leaves the capture in the inbox with a dated note and no id", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    const r = run(d, "triage-defer", p, "--reason", "Wants the XP engine to exist first.");
+    assert.equal(r.code, 0, r.out);
+
+    assert.ok(existsSync(join(d, p)), "a deferred capture does not move");
+    const t = parse(readFileSync(join(d, p), "utf8"));
+    assert.equal(t.fm.status, "inbox");
+    assert.equal(t.fm.id, undefined, "deferring must not allocate an id");
+    assert.match(t.body, /## Triage deferred/);
+    assert.match(t.body, /Wants the XP engine to exist first\./);
+    assert.match(t.body, /\d{4}-\d{2}-\d{2}/, "the note is dated");
+    assert.equal(run(d, "validate").code, 0, run(d, "validate").out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("deferring twice appends a second dated line rather than overwriting the first", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    run(d, "triage-defer", p, "--reason", "First reason.");
+    run(d, "triage-defer", p, "--reason", "Second reason.");
+    const body = readFileSync(join(d, p), "utf8");
+    assert.match(body, /First reason\./);
+    assert.match(body, /Second reason\./);
+    // One heading, two entries: the history of putting something off IS the
+    // signal that it should be declined.
+    assert.equal(body.match(/## Triage deferred/g).length, 1);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("every triage command refuses a file outside tickets/inbox/", () => {
+    const d = repo();
+    ticket(d, "open", FM({ id: 5, slug: "already" }));
+    commitAll(d);
+    for (const cmd of ["triage-move", "triage-merge", "triage-decline", "triage-defer"]) {
+      const r = run(d, cmd, "tickets/open/0005-already.md", "--slug", "x", "--into", "5", "--reason", "r");
+      assert.notEqual(r.code, 0, `${cmd} accepted a non-capture`);
+      assert.match(r.out, /tickets\/inbox/, cmd);
+    }
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a batch of three runs without --allow-dirty and lands as one commit (D-182)", () => {
+    const d = repo();
+    ticket(d, "open", FM({ id: 7, slug: "streaks", title: "Streaks" }));
+    const a = capture(d, "2026-08-30T1400-a.md", { title: "alpha idea" }, "\n## Description\n\nalpha\n");
+    const b = capture(d, "2026-08-30T1500-b.md", { title: "beta idea" }, "\n## Description\n\nbeta\n");
+    const c = capture(d, "2026-08-30T1600-c.md", { title: "gamma idea" }, "\n## Description\n\ngamma\n");
+    commitAll(d);
+
+    // Three outcomes back to back. The second and third run with the first
+    // already written — which is exactly what a batch means, and what the
+    // per-file clean-tree exemption could not express.
+    assert.equal(run(d, "triage-move", a, "--slug", "alpha-idea", "--capability", "00-x").code, 0);
+    assert.equal(run(d, "triage-merge", b, "--into", "7").code, 0);
+    assert.equal(run(d, "triage-decline", c, "--reason", "Out of scope.").code, 0);
+
+    commitAll(d, "tickets: triage inbox (3 items)");
+    const log = execFileSync("git", ["log", "--oneline"], { cwd: d, encoding: "utf8" }).trim().split("\n");
+    assert.equal(log.length, 2, "one commit for the batch, on top of the fixture commit");
+    assert.match(log[0], /tickets: triage inbox \(3 items\)/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a triage command still refuses when NON-ticket work is in flight", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    mkdirSync(join(d, "src"), { recursive: true });
+    writeFileSync(join(d, "src/thing.ts"), "export const x = 1\n");
+    const r = run(d, "triage-decline", p, "--reason", "no");
+    assert.notEqual(r.code, 0, "D-182 relaxes the guard for tickets/, not for src/");
+    assert.match(r.out, /D-158/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("git log --follow reaches the capture from a PROMOTED ticket (0023 criterion 6)", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    run(d, "triage-move", p, "--slug", "streak-freeze", "--capability", "00-x");
+    commitAll(d, "tickets: triage inbox (1 item)");
+    const log = execFileSync("git",
+      ["log", "--follow", "--name-only", "--format=%h", "--", "tickets/open/0001-streak-freeze.md"],
+      { cwd: d, encoding: "utf8" });
+    assert.match(log, /tickets\/inbox\/2026-08-30T1432-streak\.md/, "history must survive the move");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  /**
+   * An honest limitation, asserted so it is recorded rather than discovered.
+   *
+   * `--follow` is a SIMILARITY heuristic, not a recorded fact — git stores no
+   * rename. `triage-move` keeps the body byte-identical, so a promoted ticket
+   * follows at git's default 50% threshold. Decline and merge cannot: `closed/`
+   * requires four body sections plus a `## Resolution`, and adding those to a
+   * two-line capture changes most of the file, so the pair falls below 50%.
+   *
+   * The file still moved with `git mv` and the content is still in history —
+   * only the default-threshold heuristic misses it. `-M20%` finds it. Written
+   * down here because the natural reaction to `--follow` coming up empty is to
+   * assume the move was done wrong.
+   */
+  test("a DECLINED capture follows only at a lower rename threshold, and that is expected", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    run(d, "triage-decline", p, "--reason", "Out of scope.");
+    commitAll(d, "tickets: triage inbox (1 item)");
+    const dest = "tickets/closed/0001-streak-freeze-after-7-days.md";
+    const follow = (...extra) => execFileSync("git",
+      ["log", "--follow", ...extra, "--name-only", "--format=%h", "--", dest], { cwd: d, encoding: "utf8" });
+    assert.doesNotMatch(follow(), /tickets\/inbox\//, "default -M50% does not span the rewrite");
+    assert.match(follow("-M20%"), /tickets\/inbox\/2026-08-30T1432-streak\.md/, "-M20% does");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("NO triage outcome deletes a capture — it is always moved or left in place", () => {
+    const d = repo();
+    ticket(d, "open", FM({ id: 7, slug: "streaks", title: "Streaks" }));
+    const outcomes = [
+      ["triage-move", ["--slug", "one-idea", "--capability", "00-x"], "tickets/open/0008-one-idea.md"],
+      ["triage-merge", ["--into", "7"], "tickets/closed/0009-two-idea.md"],
+      ["triage-decline", ["--reason", "no"], "tickets/closed/0010-three-idea.md"],
+    ];
+    const paths = ["one idea", "two idea", "three idea"].map((t, i) =>
+      capture(d, `2026-08-30T140${i}-x.md`, { title: t }, `\n## Description\n\n${t}\n`));
+    const deferred = capture(d, "2026-08-30T1409-d.md", { title: "four idea" }, "\n## Description\n\nfour\n");
+    commitAll(d);
+
+    outcomes.forEach(([cmd, args, dest], i) => {
+      assert.equal(run(d, cmd, paths[i], ...args).code, 0, cmd);
+      assert.ok(existsSync(join(d, dest)), `${cmd} must land the capture at ${dest}`);
+      assert.ok(!existsSync(join(d, paths[i])), `${cmd} moves the file out of the inbox`);
+    });
+    assert.equal(run(d, "triage-defer", deferred, "--reason", "later").code, 0);
+    assert.ok(existsSync(join(d, deferred)), "defer leaves it exactly where it was");
+
+    // The real assertion: four captures in, four files still on disk.
+    const surviving = [...readdirSync(join(d, "tickets/inbox")), ...readdirSync(join(d, "tickets/open")),
+      ...readdirSync(join(d, "tickets/closed"))].filter((f) => f.endsWith(".md"));
+    assert.equal(surviving.length, 5, "4 captures + 1 fixture ticket, none deleted");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a declined capture leaves no standing warning — closed features skip no-capability", () => {
+    const d = repo();
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    assert.equal(run(d, "triage-decline", p, "--reason", "Out of scope.").code, 0);
+    const r = run(d, "validate");
+    assert.equal(r.code, 0);
+    // The warning asks "where does this feature belong in the roadmap?" — a
+    // question nobody will answer about an idea that was rejected. Left
+    // unscoped, every decline adds a permanent line to validate's output.
+    assert.doesNotMatch(r.out, /no-capability/, r.out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the id allocator is singular — create and every triage outcome share it", () => {
+    const d = repo();
+    ticket(d, "closed", FM({ id: 40, slug: "z", status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    const p = capture(d, "2026-08-30T1432-streak.md");
+    commitAll(d);
+    assert.match(run(d, "allocate").out, /0041/);
+    assert.equal(run(d, "triage-decline", p, "--reason", "no").code, 0);
+    assert.ok(existsSync(join(d, "tickets/closed/0041-streak-freeze-after-7-days.md")));
+    // Max-plus-one, never gap-filling: 41 is spent, so create gets 42.
+    assert.match(run(d, "create", "--title", "Next", "--type", "chore", "--priority", "low").out, /0042/);
+    rmSync(d, { recursive: true, force: true });
+  });
+});

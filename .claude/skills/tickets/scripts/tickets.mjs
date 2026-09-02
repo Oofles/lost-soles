@@ -412,7 +412,14 @@ function validate(tickets) {
     }
 
     // warnings
-    if (fm.type === "feature" && (fm.capability === "null" || fm.capability == null)) W("no-capability", "feature ticket has no capability");
+    // Scoped to work that might still be DONE. The warning's job is "this
+    // feature has no home in the roadmap, decide where it goes" — which is not
+    // a question anyone will answer about a capture that was declined or merged
+    // at triage (0023). Without this, every decline leaves a permanent warning,
+    // and a warning list that only grows is one people stop reading.
+    if (folder !== "closed" && fm.type === "feature" && (fm.capability === "null" || fm.capability == null)) {
+      W("no-capability", "feature ticket has no capability");
+    }
     if (fm.capability && fm.capability !== "null" && !caps.has(fm.capability)) W("missing-capability-doc", `no docs/capabilities/${fm.capability}.md`);
     if (fm.size === "l" && isReady(t, index)) W("size-l-ready", "size:l ticket is in the ready set — split it");
     if (folder === "inbox" && Date.now() - t.mtime.getTime() > 14 * 864e5) W("stale-inbox", "inbox item older than 14 days");
@@ -999,9 +1006,26 @@ function cmdValidate(flags) {
   process.exit(errors.length ? 1 : 0);
 }
 
+/**
+ * THE id allocator. Singular, deliberately.
+ *
+ * 0023's Notes name the failure this prevents: "triage logic must not
+ * re-implement id allocation — a second allocator is how two tickets end up
+ * with the same id." Before this, `create` and `triage-move` each carried their
+ * own `Math.max(...) + 1`, and the four triage outcomes would have made six
+ * copies of one rule. Every caller goes through here.
+ *
+ * Max-plus-one, never count-plus-one and never gap-filling: ids are permanent
+ * and never renumbered, so a closed 0042 must not be reissued to a note
+ * captured next week.
+ */
+function nextId(tickets = load()) {
+  const ids = tickets.map((t) => t.fm?.id).filter((n) => typeof n === "number");
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
 function cmdAllocate() {
-  const ids = load().map((t) => t.fm?.id).filter((n) => typeof n === "number");
-  console.log(pad(ids.length ? Math.max(...ids) + 1 : 1));
+  console.log(pad(nextId()));
 }
 
 /**
@@ -1119,9 +1143,7 @@ function rewrite(t, fm, body = t.body) {
 
 function cmdCreate(flags) {
   if (!flags.title || !flags.type || !flags.priority) die("create requires --title, --type and --priority");
-  const ts = load();
-  const ids = ts.map((t) => t.fm?.id).filter((n) => typeof n === "number");
-  const id = ids.length ? Math.max(...ids) + 1 : 1;
+  const id = nextId();
   const slug = flags.slug ?? slugify(flags.title);
   if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
   const fm = {
@@ -1343,27 +1365,256 @@ function cmdClose(id, flags) {
   }
 }
 
+// ───────────────────────────────────────────────────────────────  triage ────
+/**
+ * §4.5 / ticket 0023. Triage has FOUR legitimate outcomes, not one:
+ *
+ *   promote  → tickets/open/NNNN-slug.md      `triage-move`
+ *   merge    → the idea joins an existing ticket's ## Notes   `triage-merge`
+ *   decline  → tickets/closed/NNNN-slug.md with a ## Resolution   `triage-decline`
+ *   defer    → stays in tickets/inbox/ with a dated note   `triage-defer`
+ *
+ * **No path here deletes a capture.** TicketSmith's "never delete a ticket"
+ * applies to captures too (§4.5/7): a declined idea re-captured three months
+ * later should meet its own previous rejection, which requires the rejection to
+ * still be somewhere findable. `git rm` appears in none of these functions, and
+ * a test asserts the source file survives every outcome.
+ */
+
+/**
+ * Resolve and validate an inbox path, shared by all four outcomes.
+ *
+ * Refuses a file outside `tickets/inbox/` outright. Triage is defined over
+ * captures; pointing it at `tickets/open/0042-....md` would allocate a second id
+ * for a ticket that already has one, and the error is much cheaper than the
+ * duplicate.
+ */
+function readCapture(path, cmd, flags) {
+  const rel = path.startsWith("tickets/") ? path : relative(ROOT, path);
+  if (!rel.startsWith(`${DIRS.inbox}/`)) {
+    die(`${cmd} operates on captures in ${DIRS.inbox}/, but got '${rel}'.\n` +
+        `  A file that has already been triaged has an id; giving it a second one is the\n` +
+        `  duplicate-id failure 0023's Notes warn about.`);
+  }
+  if (!existsSync(join(ROOT, rel))) die(`no such file: ${rel}`);
+  requireCleanTreeForTriage(cmd, flags["allow-dirty"], rel);
+  const p = parse(readFileSync(join(ROOT, rel), "utf8"), rel);
+  if (!p.fm) die(`${rel}: ${p.error}`);
+  return { rel, fm: p.fm, body: p.body };
+}
+
+/**
+ * D-182. The clean-tree guard, relaxed for triage — and ONLY for triage.
+ *
+ * D-158 stops a ticket transition being committed on top of unrelated work in
+ * flight. A triage batch's other transitions are not unrelated work: §4.5/8
+ * requires a batch of N captures to land as ONE commit, `tickets: triage inbox
+ * (N items)`, so by construction the second item runs with the first already
+ * written to disk. Excepting only its own file — which is what `triage-move`
+ * did before 0023 — makes that batch impossible without a routine
+ * `--allow-dirty`, and a rule reached for routinely stops being a rule.
+ *
+ * So `tickets/` is excepted and everything else still blocks. An edit to
+ * `src/` or a design doc sitting uncommitted still refuses, which is the case
+ * D-158 was actually written about.
+ */
+function requireCleanTreeForTriage(cmd, allowDirty, _rel) {
+  if (allowDirty) return;
+  const dirty = git("status", "--porcelain").split("\n").filter(Boolean)
+    .filter((l) => !l.includes("tickets/"));
+  if (dirty.length) {
+    die(`'${cmd}' refuses to run with non-ticket changes in the working tree (D-158/D-182).\n` +
+        `  ${dirty.length} uncommitted path(s) outside tickets/. A triage batch commits once as\n` +
+        `  'tickets: triage inbox (N items)'; running it over unrelated changes folds them into\n` +
+        `  that commit.\n` +
+        `  Commit or stash first, or pass --allow-dirty if you have considered it.`);
+  }
+}
+
+/**
+ * The frontmatter every triaged capture carries out of the inbox.
+ *
+ * §4.5/4 is explicit about the two fields that are PRESERVED rather than reset:
+ * `source` stays `ui` (the idea came from the phone, and rewriting that erases
+ * where the backlog actually comes from) and `created` stays byte-identical
+ * (the idea's age is real information — a note that sat for six weeks is a
+ * different signal from one captured this morning).
+ */
+function triagedFrontmatter(cap, { id, slug, status, size, capability }) {
+  return {
+    id, slug, title: cap.fm.title, type: cap.fm.type ?? "feature",
+    priority: cap.fm.priority ?? "med", status, size: size ?? "m",
+    capability: capability ?? "null", depends_on: [], blocked_by: [],
+    source: cap.fm.source ?? "ui", created: cap.fm.created,
+  };
+}
+
+/** ISO date, for the dated notes §4.5 requires on merge and defer. */
+const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * A capture's body, padded out to the sections `validate` requires of a file in
+ * `closed/` — used by both decline and merge, which each land there.
+ *
+ * The Description is the capture's own text, untouched. That is the operator's
+ * wording, dictated once, and §4.5/4 says keep it; a declined idea rewritten in
+ * the agent's voice is not the idea that was declined.
+ *
+ * `## Acceptance criteria` is emitted EMPTY, deliberately. A closed ticket with
+ * an unchecked criterion is a validation error, and inventing criteria for an
+ * idea nobody is going to build would be inventing a plan in order to reject
+ * it. Zero criteria is zero unchecked criteria, and it validates.
+ */
+function closedCaptureBody(cap, resolution) {
+  const has = (name) => new RegExp(`^##\\s+${name}\\s*$`, "im").test(cap.body);
+  let body = cap.body.replace(/\s*$/, "\n");
+  if (!has("Description")) body += `\n## Description\n\n${cap.fm.title}\n`;
+  if (!has("Acceptance criteria")) {
+    body += `\n## Acceptance criteria\n\nNone — this capture was closed at triage, not built.\n`;
+  }
+  if (!has("Notes")) body += `\n## Notes\n\nCaptured ${cap.fm.created}, closed at triage.\n`;
+  if (!has("Operator validation")) {
+    body += `\n## Operator validation\n\nNone — nothing was built, so there is nothing to check.\n`;
+  }
+  body += `\n## Resolution\n\n${resolution}\n`;
+  return body;
+}
+
 function cmdTriageMove(path, flags) {
   if (!flags.slug) die("triage-move requires --slug");
   if (!SLUG_RE.test(flags.slug)) die(`slug '${flags.slug}' is not kebab-case (^[a-z0-9]+(-[a-z0-9]+)*$)`);
-  const rel = path.startsWith("tickets/") ? path : relative(ROOT, path);
-  if (!existsSync(join(ROOT, rel))) die(`no such file: ${rel}`);
-  requireCleanTree("triage-move", flags["allow-dirty"], rel);
-  const p = parse(readFileSync(join(ROOT, rel), "utf8"), rel);
-  if (!p.fm) die(`${rel}: ${p.error}`);
-  const ids = load().map((t) => t.fm?.id).filter((n) => typeof n === "number");
-  const id = ids.length ? Math.max(...ids) + 1 : 1;
-  const fm = {
-    id, slug: flags.slug, title: p.fm.title, type: p.fm.type ?? "feature",
-    priority: p.fm.priority ?? "med", status: "open", size: flags.size ?? "m",
-    capability: flags.capability ?? "null", depends_on: [], blocked_by: [],
-    source: p.fm.source ?? "ui", created: p.fm.created,
-  };
-  const dest = `${DIRS.open}/${pad(id)}-${flags.slug}.md`;
-  writeFileSync(join(ROOT, rel), serialize(fm, p.body));   // body byte-identical
-  git("mv", rel, dest);
+  const cap = readCapture(path, "triage-move", flags);
+  const fm = triagedFrontmatter(cap, {
+    id: nextId(), slug: flags.slug, status: "open", size: flags.size, capability: flags.capability,
+  });
+  const dest = `${DIRS.open}/${pad(fm.id)}-${flags.slug}.md`;
+  writeFileSync(join(ROOT, cap.rel), serialize(fm, cap.body));   // body byte-identical
+  git("mv", cap.rel, dest);
   writeIndex();
   console.log(dest);
+}
+
+/**
+ * DECLINE — the idea is not going to be built, and that judgement is recorded
+ * where the idea is.
+ *
+ * It becomes a real, closed ticket with a real id rather than a loose file,
+ * because `closed/` is validated like everywhere else: id matching the filename
+ * prefix, a matching slug, a `closed:` stamp, the four body sections and a
+ * `## Resolution`. 0023's criterion said only "moves to closed/ with a
+ * ## Resolution", which as literally written produced a file `validate` rejects
+ * — the criterion and the validator contradicted each other and the operator
+ * settled it this way on 2026-09-02.
+ *
+ * Spending an id on a rejected idea is the point, not the cost. Ids are cheap
+ * and permanent, and "a declined idea re-captured three months later should
+ * meet its own previous rejection" only works if the rejection is a findable,
+ * numbered thing.
+ */
+function cmdTriageDecline(path, flags) {
+  if (!flags.reason || flags.reason === true) {
+    die("triage-decline requires --reason \"...\" — a decline with no recorded reason is a delete\n" +
+        "  with extra steps, and §4.5/7 exists so a re-captured idea meets its own rejection.");
+  }
+  const cap = readCapture(path, "triage-decline", flags);
+  const slug = flags.slug ?? slugify(cap.fm.title ?? "");
+  if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
+  const id = nextId();
+  const fm = {
+    ...triagedFrontmatter(cap, { id, slug, status: "closed", size: flags.size, capability: flags.capability }),
+    closed: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+  };
+  const body = closedCaptureBody(cap, `**Declined at triage, ${today()}.** ${flags.reason}`);
+  const dest = `${DIRS.closed}/${pad(id)}-${slug}.md`;
+  writeFileSync(join(ROOT, cap.rel), serialize(fm, body));
+  git("mv", cap.rel, dest);
+  writeIndex();
+  console.log(dest);
+}
+
+/**
+ * MERGE — the idea already has a home, so it joins that ticket's ## Notes and
+ * the capture is closed pointing at it.
+ *
+ * Two files change, which is why this needs D-182's relaxed tree guard even for
+ * a single item.
+ *
+ * Merging into a CLOSED ticket is refused. It looks harmless and quietly loses
+ * the idea: nobody re-reads a closed ticket's Notes, so the note lands where it
+ * will never be seen and the inbox reports the capture as handled. Promote or
+ * decline it instead — both leave something a person will actually encounter.
+ */
+function cmdTriageMerge(path, flags) {
+  const into = Number(flags.into);
+  if (!Number.isInteger(into)) die("triage-merge requires --into <id>");
+  const cap = readCapture(path, "triage-merge", flags);
+  const target = byId(load()).get(into);
+  if (!target || !target.fm) die(`no ticket ${pad(into)} to merge into`);
+  if (target.folder === "closed") {
+    die(`${pad(into)} is closed. Merging into it files the idea where nobody will read it —\n` +
+        `  a closed ticket's Notes are not re-read, and the inbox would report this capture as\n` +
+        `  handled. Promote it or decline it instead.`);
+  }
+
+  // Appended at the END of ## Notes, not the top: Notes read chronologically,
+  // and a merged idea is the newest thing known about the ticket.
+  const note = `\n**Merged from a capture, ${today()}** (captured ${cap.fm.created}):\n` +
+    `${cap.body.replace(/^##\s+Description\s*$/im, "").trim()}\n`;
+  const secRe = /^##\s+Notes\s*$/im;
+  if (!secRe.test(target.body)) die(`${pad(into)} has no '## Notes' section to merge into`);
+  const lines = target.body.split("\n");
+  const start = lines.findIndex((l) => secRe.test(l));
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s/.test(lines[i])) { end = i; break; }
+  }
+  const merged = [...lines.slice(0, end), ...note.split("\n"), ...lines.slice(end)].join("\n");
+  writeFileSync(join(ROOT, target.path), serialize(target.fm, merged));
+
+  const slug = flags.slug ?? slugify(cap.fm.title ?? "");
+  if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
+  const id = nextId();
+  const fm = {
+    ...triagedFrontmatter(cap, { id, slug, status: "closed", size: flags.size, capability: flags.capability }),
+    closed: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+  };
+  const body = closedCaptureBody(cap,
+    `**Merged at triage, ${today()}, into ${pad(into)} — ${target.fm.title}.** ` +
+    `${flags.reason && flags.reason !== true ? flags.reason : "The idea is recorded in that ticket's ## Notes."}`);
+  const dest = `${DIRS.closed}/${pad(id)}-${slug}.md`;
+  writeFileSync(join(ROOT, cap.rel), serialize(fm, body));
+  git("mv", cap.rel, dest);
+  writeIndex();
+  console.log(`${dest}  →  merged into ${target.path}`);
+}
+
+/**
+ * DEFER — the idea is worth keeping and cannot be decided today, so it stays a
+ * capture. No id, no move, still in the inbox.
+ *
+ * Distinct from `status: deferred`, which is for a TICKET waiting on something
+ * outside the project and carries a runnable re-check (D-174). This is a note
+ * nobody has decided about yet, so the heading is `## Triage deferred` and the
+ * status stays `inbox`.
+ *
+ * The capture therefore keeps ageing, and `validate` will warn once it passes 14
+ * days. That is correct and deliberate: a deferred idea should get louder, not
+ * quieter. Deferring the same note twice appends a second dated line rather than
+ * overwriting the first — the history of putting something off IS the signal
+ * that it should be declined.
+ */
+function cmdTriageDefer(path, flags) {
+  if (!flags.reason || flags.reason === true) {
+    die("triage-defer requires --reason \"...\" — an undated, unexplained deferral is\n" +
+        "  indistinguishable from an inbox nobody has looked at.");
+  }
+  const cap = readCapture(path, "triage-defer", flags);
+  let body = cap.body.replace(/\s*$/, "\n");
+  if (!/^##\s+Triage deferred\s*$/im.test(body)) body += `\n## Triage deferred\n`;
+  body += `\n- **${today()}** — ${flags.reason}\n`;
+  writeFileSync(join(ROOT, cap.rel), serialize(cap.fm, body));   // no id, no move
+  writeIndex();
+  console.log(`${cap.rel}  (still in the inbox, deferred ${today()})`);
 }
 
 // ──────────────────────────────────────────────────────────────────── main ────
@@ -1403,6 +1654,9 @@ if (isMain) try {
     case "recheck": cmdRecheck(positional[0], flags); break;
     case "close": cmdClose(positional[0], flags); break;
     case "triage-move": cmdTriageMove(positional[0], flags); break;
+    case "triage-merge": cmdTriageMerge(positional[0], flags); break;
+    case "triage-decline": cmdTriageDecline(positional[0], flags); break;
+    case "triage-defer": cmdTriageDefer(positional[0], flags); break;
     case "audit": cmdAudit(positional[0], flags); break;
     default:
       console.log(`tickets.mjs <command>
@@ -1422,6 +1676,9 @@ if (isMain) try {
   recheck [<id>]              run deferred tickets' re-checks and REPORT; never un-defers
   close <id> [--allow-dirty]
   triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
+  triage-merge <path> --into <id> [--slug --reason]      capture joins a ticket's ## Notes
+  triage-decline <path> --reason "..." [--slug]          closed with a ## Resolution
+  triage-defer <path> --reason "..."                     stays in the inbox, dated
   audit <capability>          AUDIT.md mechanical checks; exit 1 on any failure
 
   --json works on index, list, show, validate, next, create, audit, recheck.`);

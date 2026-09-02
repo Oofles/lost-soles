@@ -158,7 +158,10 @@ SCRIPT defer <id> --reason "…" --recheck "<shell>"   external wait; --recheck-
 SCRIPT resume <id> [--reason "…"]                    leaves the state; never automatic
 SCRIPT recheck [<id>]                                runs deferred re-checks and REPORTS; exits 0 either way
 SCRIPT close <id> [--allow-dirty]
-SCRIPT triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]
+SCRIPT triage-move <path> --slug <kebab> [--capability --size] [--allow-dirty]   promote
+SCRIPT triage-merge <path> --into <id> [--slug --reason "…"]     idea joins a ticket's ## Notes
+SCRIPT triage-decline <path> --reason "…" [--slug]               closed, with a ## Resolution
+SCRIPT triage-defer <path> --reason "…"                          stays in the inbox, dated, no id
 SCRIPT audit <capability>             AUDIT.md mechanical checks; exit 1 on any failure
 SCRIPT audit <capability> --sections  design-doc sections this capability's tickets cite (§2 reading list)
 SCRIPT audit <capability> --record [--divergence "res|ref|desc"]... [--no-divergences] [--force "reason"]
@@ -255,3 +258,39 @@ No `id`, no `slug`, no `size`, no `capability`, no acceptance criteria. **Triage
 Filename: `2026-08-30T1432-streak-freeze-after-7-days.md`.
 
 **Never seed the inbox.** An inbox that starts full teaches the operator to ignore it.
+
+---
+
+## Triage's four outcomes
+
+§4.5/7, implemented in ticket `0023`. Each is a command, because each maintains `index.json` and
+`git mv`s so history follows the file — the things hand-editing silently skips.
+
+| Outcome | Lands at | `id`? | Notes |
+|---|---|---|---|
+| **Promote** | `tickets/open/NNNN-slug.md` | new | Body byte-identical. Fails `validate` until its sections are written (D-170) — that is the gate. |
+| **Merge** | target's `## Notes` + capture → `closed/` | new | Refused into a closed ticket. |
+| **Decline** | `tickets/closed/NNNN-slug.md` | new | Needs `--reason`. |
+| **Defer** | stays in `tickets/inbox/` | **none** | Needs `--reason`. Appends, never overwrites. |
+
+**`source: ui` and `created` are preserved by every outcome.** Provenance says where the backlog
+actually comes from; `created` is the idea's age, which is real information. Neither is reset.
+
+**Why decline spends an id.** `closed/` is validated like everywhere else — id matching the
+filename prefix, matching slug, a `closed:` stamp, the four body sections and a `## Resolution`.
+A loose capture dropped in there fails `validate`, so `triage-decline` promotes it properly and
+then closes it. Its `## Acceptance criteria` is deliberately **empty**: inventing criteria for an
+idea nobody will build would be inventing a plan in order to reject it, and zero criteria is zero
+*unchecked* criteria, which validates.
+
+**`git log --follow` and the rename heuristic.** Git records no rename; `--follow` infers one from
+similarity. A **promoted** ticket keeps its body byte-identical, so it follows at the default 50%
+threshold. A **declined or merged** one gains four sections plus a `## Resolution`, which for a
+two-line capture is most of the file — below the threshold. Use `git log --follow -M20%` there.
+The move was still a `git mv` and the content is still in history; only the default heuristic
+misses it.
+
+**Clean-tree behaviour (D-182).** The triage commands except `tickets/` from the D-158 guard,
+because a batch is required to land as **one** commit (`tickets: triage inbox (N items)`) and so
+by construction the second item runs with the first already on disk. Uncommitted work *outside*
+`tickets/` still refuses — that is the case D-158 was written about.

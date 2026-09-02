@@ -772,13 +772,35 @@ For each file in `tickets/inbox/`, oldest first:
    wording in the Description where it is usable.
 5. `tickets.mjs allocate` for the next `NNNN`; derive the immutable slug from the final title.
 6. `git mv tickets/inbox/<file> tickets/open/NNNN-slug.md`.
-7. Legitimate triage outcomes are not only "becomes a ticket": a note may be **merged** into an
-   existing open ticket's `## Notes`, **deferred** (left in the inbox with a dated note saying
-   why), or **declined** — in which case it is still moved to `closed/` with a `## Resolution`
-   explaining the decline. Never delete it. TicketSmith's "never delete a ticket" applies to
-   captures too; a declined idea that gets re-captured three months later should meet its own
-   previous rejection.
-8. Commit once for the batch: `tickets: triage inbox (N items)`.
+7. Legitimate triage outcomes are not only "becomes a ticket". There are **four**, and each is a
+   `tickets.mjs` command rather than a hand edit, so that `index.json` and `git mv` are maintained:
+
+   | Outcome | Command | Result |
+   |---|---|---|
+   | Promote | `triage-move` | `tickets/open/NNNN-slug.md`, body byte-identical |
+   | Merge | `triage-merge --into <id>` | dated note in that ticket's `## Notes`; the capture closes pointing at it |
+   | Decline | `triage-decline --reason` | `tickets/closed/NNNN-slug.md` with a `## Resolution` |
+   | Defer | `triage-defer --reason` | stays in `tickets/inbox/`, dated note, **no id** |
+
+   Never delete it. TicketSmith's "never delete a ticket" applies to captures too; a declined idea
+   that gets re-captured three months later should meet its own previous rejection.
+
+   **A declined capture is allocated a real id and closed properly** (ticket `0023`, 2026-09-02).
+   Files in `closed/` are validated like everywhere else — id matching the filename prefix, a
+   matching slug, a `closed:` stamp, the four body sections and a `## Resolution` — so a loose
+   capture moved there fails validation, and the earlier wording of this step ("still moved to
+   `closed/` with a `## Resolution`") described a file the validator rejects. Spending an id on a
+   rejected idea is the point rather than the cost: the rejection has to be a findable, numbered
+   thing for the re-capture case above to work. Its `## Acceptance criteria` is emitted empty —
+   inventing criteria for an idea nobody will build would be inventing a plan in order to reject it.
+
+   **Merging into a closed ticket is refused.** A closed ticket's `## Notes` are not re-read, so the
+   idea would land where nobody encounters it while the inbox reported the capture as handled.
+   Promote or decline instead.
+8. Commit once for the batch: `tickets: triage inbox (N items)`. The triage commands do not
+   commit, and they except `tickets/` from D-158's clean-tree guard (**D-182**) precisely so a
+   batch is possible — the second item necessarily runs with the first already written. Work
+   uncommitted *outside* `tickets/` still refuses. Afterwards, `validate` must be clean.
 
 ### 4.6 `/tickets close 0042`
 
@@ -844,6 +866,14 @@ node scripts/tickets.mjs <command> [args] [--json]
                              acceptance checkbox is unchecked (--force is NOT provided).
   triage-move <inbox-file> --slug S
                              Allocate NNNN, rewrite frontmatter, git mv to open/.
+  triage-merge <inbox-file> --into <id> [--reason R]
+                             Append a dated note to that ticket's ## Notes; close the
+                             capture pointing at it. Refused if the target is closed.
+  triage-decline <inbox-file> --reason R
+                             Allocate NNNN, close it with a ## Resolution, git mv to
+                             closed/. --reason is mandatory.
+  triage-defer <inbox-file> --reason R
+                             Append a dated ## Triage deferred note. No id, no move.
   validate                   Full validation pass; exit 1 on any error.
 ```
 
