@@ -4,7 +4,7 @@ slug: refresh-token-lifetime
 title: Raise the Cognito refresh token lifetime from 30 days to a year
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 03-ticket-capture-endpoint
 depends_on: [149]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T19:32:20Z
 started: 2026-09-02T19:45:24Z
+closed: 2026-09-02T20:05:00Z
 ---
 
 ## Description
