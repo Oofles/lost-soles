@@ -3418,13 +3418,20 @@
     }
   },
   {
+    "id": 150,
+    "slug": "capture-endpoint-smoke-test",
     "title": "Capture endpoint smoke test — safe to discard",
     "type": "chore",
     "priority": "low",
-    "status": "inbox",
+    "status": "closed",
+    "size": "m",
+    "capability": "null",
+    "depends_on": [],
+    "blocked_by": [],
     "source": "ui",
     "created": "2026-09-01T01:44:47.182Z",
-    "path": "tickets/inbox/2026-09-01T0144-capture-endpoint-smoke-test-safe-to-discard.md",
+    "closed": "2026-09-02T15:35:12Z",
+    "path": "tickets/closed/0150-capture-endpoint-smoke-test.md",
     "ready": false,
     "acceptance": {
       "checked": 0,
