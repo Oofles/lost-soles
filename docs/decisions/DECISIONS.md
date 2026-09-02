@@ -1005,3 +1005,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     absent `.claude/skills/` with no escape flag. The pre-commit hook only invokes it when a
     `SKILL.md` is staged, so an absent skills directory at that moment is self-contradictory, and
     the one CI workflow that calls it runs on a tree that carries the directory.
+
+---
+
+## Capability `02` close audit — divergences  (2026-09-02, D-153)
+
+- **D-176** **`01-architecture.md` §5 and §6 are amended to match what shipped; the code stands.**
+  The capability `02` close audit found four divergences, one over the drift budget of three, and
+  the operator reviewed all four and accepted the implementation in every case. Two were the design
+  doc being stale, and both are in the same document for the same reason: **§5 and §6 were written
+  before any code existed and were never re-annotated once it did**, while §7 and §6's own
+  branch-model bullet *were* (the "Corrected …" convention is used three times elsewhere in that
+  file). A section that is confidently wrong is worse than one that is absent, which is the same
+  argument `docs/INDEX.md` makes about itself.
+  - **§6's `amplify.yml` block** specified `npm ci` and omitted six guards that are actually on the
+    deploy path. `npm ci` is D-162, already recorded, with revert ticket `0128`; the guards arrived
+    with 0014/0016/0017/0132. Amended with a correction block, and — the load-bearing part —
+    **`amplify.yml` itself is now named as the authority on the deploy path**, because it is the
+    LOCK (D-163) and it is commented per-command.
+  - **§5's App Router tree** described `(public)`/`(app)` route groups, a `/sign-in` route, `/map`,
+    `/activities` and `settings/sources/`. None shipped. `06-ui-ux.md` §1.2 is now stated as
+    **normative for the IA**, since it is the document that reasoned about it and §4.1 settles the
+    largest difference ("there is no map screen"). §5 also wrote `lib/domain/` while **§3 of the
+    same document** wrote `src/domain/`; §3 is right, it is what `0025` built, and it is what
+    `check-boundaries.mjs` enforces.
+  - **The other two divergences were the code being wrong** and are filed rather than fixed here,
+    so neither is absorbed into an audit: `0142` (the design-token gate does not scan `src/`) and
+    `0143` (08 §5.3's security headers are in no ticket in the backlog).
+  - **On the budget.** Four is over three, so the audit records `forced`, not `pass` — the script
+    permits no other outcome and that is correct. It is recorded honestly rather than argued down
+    to three by folding §5 and §6 into one finding: they are two wrong statements a reader would
+    act on separately. The prescribed remedy for a busted budget is a DESIGN session on the
+    affected doc, and the amendments above **are** that session, scoped to the two sections the
+    audit actually found — `01-architecture.md` is otherwise sound and its §3, §4 and §7 have all
+    been re-read and confirmed against the code in this audit.
+

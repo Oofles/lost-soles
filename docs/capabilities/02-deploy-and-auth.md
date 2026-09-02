@@ -4,7 +4,9 @@
 > `#### \`02-deploy-and-auth\`` section of [`../09-roadmap.md`](../09-roadmap.md). This file is where the
 > DESIGN step's output belongs, and where [`AUDIT.md`](AUDIT.md) results are appended at close.
 
-## Tickets (6)
+## Tickets (11)
+
+Planned as six. Five more were filed `source: agent` while the six were worked — see the Reflection.
 
 - `0012` — Next.js 15 App Router project and Amplify Gen 2 backend skeleton
 - `0013` — GitHub Actions PR gate — tsc --noEmit, ESLint, vitest, mirrored in amplify.yml
@@ -12,6 +14,13 @@
 - `0015` — Domain association for soles.devaultsecurity.com
 - `0016` — App shell, the seven route stubs, and the design-token file
 - `0017` — Secrets via SSM secret() and a client-bundle leak test in CI
+- `0128` — Restore `npm ci` once the Gen 2 bundled-dependency defect is fixed upstream — **deferred** (D-162, upstream)
+- `0129` — Cross-app SSO — evaluate Google sign-in against 08 §5.1 (→ D-175)
+- `0130` — Sandbox environment and a throwaway agent account
+- `0131` — Sandbox stack was `UPDATE_FAILED`; its Cognito pool predated 0014
+- `0132` — Bundle-leak SSM path and error truncation
+- `0142` — `check-design-tokens.mjs` does not scan `src/` — filed by the close audit
+- `0143` — 08 §5.3 security headers are in no ticket — filed by the close audit, capability `18`
 
 ## Design notes
 
@@ -643,5 +652,131 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+### What the design got right, and it was not obvious
 
+**The alarm/lock split (D-163) earned itself within the capability.** Branch protection turned out
+to be unavailable on this account, which would ordinarily mean the gate is decorative. Because
+`amplify.yml` carries the same checks on the deploy path, the checks kept their teeth when the
+mechanism that was supposed to enforce them evaporated. That is not luck — it was designed for
+exactly the case where the enforcement layer is missing, and the case arrived immediately. It is
+also what keeps the currently-red `gate.yml` (see below) from being a production risk.
+
+**Putting the guards in before there was anything to guard.** `check-boundaries.mjs` shipped while
+`src/domain/` was empty and `check-design-tokens.mjs` shipped while there were three components.
+Both looked like ceremony at the time. The design-token check caught a real leak in 0016 within the
+same ticket, and the D-100 check is the reason the domain is still clean at capability `04`. A
+palette rule added after the palette has leaked has already failed.
+
+**§5.1's insistence that two booleans carry the posture.** Both were live-WRONG on the deployed pool
+from 0012's skeleton onward — `AllowAdminCreateUserOnly: false` and
+`AllowUnauthenticatedIdentities: true`. Source code could not see it, and would not have. The
+post-deploy `check-auth-posture.mjs` assertion that §5.1 asked for is the only thing that would ever
+have found it, and it found it immediately.
+
+### What the design got wrong
+
+**Sections written before the code, never revisited once it existed.** Both design-side divergences
+(D-176) are this, in one document. `01-architecture.md` §5 sketched an App Router tree that
+`06-ui-ux.md` later superseded wholesale, and §6 froze an `amplify.yml` that six tickets then
+changed. Meanwhile §7 of the same file *was* corrected in place when 0132 found it wrong, and §6's
+own branch-model bullet *was* annotated for D-150. The convention existed and was applied
+inconsistently — which is worse than not having it, because a reader learns to trust the correction
+blocks and then meets a section that has none.
+
+**The lesson for every capability after this one:** when a ticket's implementation contradicts the
+section it cites, amend the section *in that ticket*, not at the audit. The audit found these four
+months' worth of confidence-in-the-wrong-place in twenty minutes; the cost was that the wrong text
+sat there for two days being read. `0132` and `0123` both got this right in-ticket. `0016` did not,
+and `0016` is the one that diverged most.
+
+### Divergences, and how each resolved
+
+Four, one over the budget of three, so the audit records **`forced`**, not `pass`. All four were
+reviewed by the operator, who accepted the implementation in every case; the resolutions are
+therefore doc amendments and new tickets, never code changes. Full reasoning in **D-176**.
+
+1. `design-was-wrong` — **D-162/D-176** — §6's `amplify.yml` specified `npm ci` and omitted six
+   guards. Amended; `amplify.yml` itself now named as the authority on the deploy path.
+2. `design-was-wrong` — **D-176** — §5's App Router tree, and its `lib/domain/` contradicting §3's
+   `src/domain/`. Amended; `06-ui-ux.md` §1.2 named normative for the IA.
+3. `code-was-wrong` — **`0142`** — the design-token gate does not scan `src/`. Latent only: no hex
+   there today.
+4. `code-was-wrong` — **`0143`** — 08 §5.3's HSTS/nosniff/frame-ancestors/CSP are in no ticket.
+   Filed against capability `18`.
+
+On not arguing the budget down: folding 1 and 2 into a single "01-architecture.md is stale" finding
+would have bought a `pass`, and was rejected. They are two wrong statements a reader would act on
+separately. The prescribed remedy for a busted budget is a DESIGN session on the affected doc, and
+the amendments above are that session, scoped to the two sections the audit actually found.
+
+### Estimate vs actual
+
+**Planned six tickets; ran eleven.** The five extra were all `source: agent`, all filed rather than
+absorbed, and none of them was scope creep — they were the environment being different from the
+plan's assumptions:
+
+- `0128`/D-162 — `npm ci` is broken upstream for the entire Amplify Gen 2 dependency set. Nothing in
+  the plan could have anticipated this and no amount of care avoids it.
+- `0130`/`0131` — the sandbox needed to exist and then needed rebuilding, because its Cognito pool
+  predated 0014's posture fix and would have taught false lessons.
+- `0132` — the documented SSM secret path was simply wrong (it was the `resource_reference` path),
+  found because the build failed and the error was too truncated to say why.
+- `0129` — a genuine product question surfaced by having auth in front of the operator for the first
+  time, answered with D-175 rather than deferred.
+
+**The pattern worth carrying forward:** four of the five came from *deploying*, not from designing.
+This was the first capability where the plan met a real AWS account, and the plan's error rate
+against that account was much higher than its error rate against itself. Capability `05`
+(Strava adapter) is the next one that meets a third party, and it should be budgeted the same way —
+assume roughly one filed-not-planned ticket per two planned ones.
+
+### What the next capability should do differently
+
+1. **Amend the cited section in the ticket that contradicts it.** The single highest-value change,
+   and it costs minutes. See D-176.
+2. **Fix `gate.yml` before starting `03`.** `gate.yml` has been red on every push since
+   2026-09-01 03:48 on a stale `docs/INDEX.md` (**`0140`**), and because Actions steps are
+   fail-fast, the four steps after it have not run — including `npm run build` and **both
+   bundle-leak scans**, which are this capability's own controls. Production is not at risk:
+   `amplify.yml` is the lock and runs the literal scan under real credentials (build 18 green).
+   But half of `02`'s alarm has been dark for fifteen runs, and a red build that means nothing is
+   the exact reflex `0137` calls more dangerous than a flake. **`0140` should be the next ticket
+   worked**, and its fourth criterion — whether a docs index should be able to mask the checks
+   below it — is the one that matters.
+3. **Capability `03` inherits `middleware.ts` as its auth layer.** `/api/tickets/capture` is
+   unauthenticated on its own and relies entirely on the middleware matcher covering `/api/*`.
+   That is deliberate and documented in the route file, but it means a change to the matcher is a
+   security change to a different capability. `0019` is where that stops being true.
+
+## Audit — 2026-09-02 (`tickets.mjs audit --record`)
+
+**Verdict: FORCED.** Mechanical half: 7 passed, 1 failed, 4 n/a. See AUDIT.md §1, §4, §5.
+
+> **Overridden with `--force`.** Reason: Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-176), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140.
+
+> - 1 mechanical check(s) failed: capability-tickets-closed
+> - 4 divergences, over the budget of three — the design is stale, not the code.
+
+**Deferred, and therefore excluded from `capability-tickets-closed`:** `0128` Restore npm ci in amplify.yml once the Amplify Gen 2 bundled-dependency defect is fixed upstream. This capability passed with work outstanding — waiting on something outside the project, not forgotten. `tickets.mjs recheck` reports whether any wait is over.
+
+**Divergences (4 of a budget of 3):**
+
+1. **design-was-wrong** — `D-176` — 01-architecture.md §6's amplify.yml specified npm ci (D-162) and omitted six guards now on the deploy path; amended, and amplify.yml itself named as the authority
+2. **design-was-wrong** — `D-176` — 01-architecture.md §5's App Router tree never shipped and its lib/domain contradicted §3's src/domain; amended, 06-ui-ux.md §1.2 named normative for the IA
+3. **code-was-wrong** — `0142` — check-design-tokens.mjs does not scan src/, and its comment asserts src/ does not exist
+4. **code-was-wrong** — `0143` — 08 §5.3's HSTS, nosniff, frame-ancestors and CSP are in no ticket in the backlog
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **na** — 30 invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **fail** — 1 still open: 0142; 1 deferred (0128)
+
+<!-- audit-record {"capability":"02-deploy-and-auth","audited":"2026-09-02T01:59:29Z","verdict":"forced","mechanical":{"pass":7,"fail":1,"na":4},"divergences":4,"deferred":["0128"],"forced":"Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-176), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140."} -->
