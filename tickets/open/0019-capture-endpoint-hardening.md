@@ -251,6 +251,37 @@ one SSM parameter and one DynamoDB table.
 **The allowlist change is NOT in build 49** — it needs the next deploy. Until that build goes green
 the deployed endpoint still 404s everyone, which is the fail-closed default doing its job.
 
+### Verified against the DEPLOYED endpoint (build 50, `4cc01cb`)
+
+Two things that were previously only unit-tested are now observed in production:
+
+```
+POST /api/tickets/capture  (no session)  ->  404  {"error":"not found"}   no `location` header
+OPTIONS /api/tickets/capture             ->  404  {"error":"not found"}
+```
+
+The first is **criterion 6 proven on the deployed app**, and the absent `location` header is the
+part that matters: the old 307 would have been followed by a client into a 200 and the HTML of `/`.
+
+The second is a finding rather than a pass. **`middleware.ts` 404s every CORS preflight before the
+route's `OPTIONS` handler runs**, because a preflight never carries credentials — that is the CORS
+spec, not a quirk — so the gate always sees it signed out. Consequences, stated plainly:
+
+- **Nothing legitimate breaks.** The app's own POST is same-origin and so is never preflighted, and
+  the Android capture task (`0020`) is not a browser and does not implement CORS.
+- The behaviour is **stricter** than the policy it implements: a cross-origin caller is refused at
+  the gate rather than by a header.
+- It is **left alone deliberately.** Excluding `OPTIONS` from the middleware matcher would make the
+  preflight "work" at the cost of a new unauthenticated path through the gate — a real widening
+  bought for no functional gain.
+- The `OPTIONS` handler is kept, and both it and its test now say in place that they assert
+  correctness for a future gate change and are **not** evidence of production behaviour. A test
+  asserting something that cannot occur is worse than no test, and this one would have read as
+  proof of criterion 11 to anyone who did not check.
+
+Criterion 11 itself stands: `Access-Control-Allow-Origin` names the app origin on every response
+the route itself produces, and no wildcard is emitted anywhere.
+
 ### What the agent still cannot do
 
 The three remaining operator steps need a signed-in browser session against the **production** pool.

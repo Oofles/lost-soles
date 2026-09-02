@@ -94,6 +94,27 @@ const badRequest = (reason: string) => json({ error: reason }, 400)
  */
 const notFound = () => json({ error: "not found" }, 404)
 
+/**
+ * IN PRODUCTION THIS HANDLER IS NEVER REACHED, and that is fine — but it must be
+ * written down, because a test asserting behaviour that cannot occur is worse than
+ * no test. Verified against the deployed app on 2026-09-02: an `OPTIONS` to this
+ * route returns `404 {"error":"not found"}` from `middleware.ts`.
+ *
+ * The reason is structural. A CORS preflight NEVER carries credentials — that is in
+ * the spec, not a quirk — so the middleware gate always sees it as signed out and
+ * 404s it before routing. Nothing legitimate is lost: the app's own POST is
+ * same-origin and so is never preflighted, and the Android capture task (0020) is
+ * not a browser and does not implement CORS at all.
+ *
+ * The effect is STRICTER than the CORS policy it implements — a cross-origin caller
+ * is refused at the gate rather than by a header — so it is left alone deliberately.
+ * Excluding `OPTIONS` from the middleware matcher would make the preflight "work" at
+ * the cost of a new unauthenticated path through the gate, which is a real widening
+ * bought for no functional gain.
+ *
+ * Kept, rather than deleted, for the day the gate changes: the correct preflight
+ * response should exist in the route that owns the policy, not be re-derived then.
+ */
 export function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
