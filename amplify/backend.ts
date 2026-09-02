@@ -90,9 +90,33 @@ cfnUserPoolClient.enableTokenRevocation = true
 /** 1 hour, the default, not extended (§5.3). Units must be set or CFN assumes days. */
 cfnUserPoolClient.accessTokenValidity = 60
 cfnUserPoolClient.idTokenValidity = 60
-/** 30 days, sliding: long enough a phone stays signed in between runs, short
- *  enough a stolen device goes stale on its own (§5.3). */
-cfnUserPoolClient.refreshTokenValidity = 43200
+/**
+ * ONE YEAR, raised from 30 days in ticket 0151. Sliding.
+ *
+ * The original 30 days was reasoned for a BROWSER — "long enough a phone stays
+ * signed in between runs, short enough a stolen device goes stale on its own".
+ * D-183 changed what this number governs. The Android capture task (0020) holds a
+ * refresh token and exchanges it for a 1-hour ID token per capture, so at 30 days
+ * the quick-settings tile stops working every month — and it stops SILENTLY. The
+ * tile still exists, still listens, still takes the dictation; the note is simply
+ * never committed. That is the exact failure capability 03 is built to prevent: a
+ * thought captured once, with no second copy.
+ *
+ * The short-lived half of the pair is unchanged and is where the protection
+ * actually lives: the ID token above is still 60 minutes, so a token intercepted
+ * in transit is worthless within the hour. Lengthening BOTH would be a different
+ * and much worse change.
+ *
+ * What makes a year defensible rather than lazy is that revocation is real and
+ * immediate: `enableTokenRevocation` above is true, so a lost phone is one
+ * `AdminUserGlobalSignOut` away from being cut off, and §5.3's "untested
+ * revocation is not revocation" is why that line is not decorative.
+ *
+ * Cognito's ceiling is 10 years. A year was chosen over the maximum because
+ * re-pairing the phone annually is a cheap forcing function that proves the
+ * recovery path still works before it is needed in anger.
+ */
+cfnUserPoolClient.refreshTokenValidity = 525600
 cfnUserPoolClient.tokenValidityUnits = {
   accessToken: "minutes",
   idToken: "minutes",

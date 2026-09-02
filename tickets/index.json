@@ -3414,7 +3414,7 @@
     "path": "tickets/open/0149-capture-bearer-token-auth.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 10
     }
   },
@@ -3454,11 +3454,12 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T19:32:20Z",
+    "started": "2026-09-02T19:45:24Z",
     "path": "tickets/open/0151-refresh-token-lifetime.md",
     "ready": false,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]

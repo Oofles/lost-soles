@@ -76,6 +76,57 @@ export const ASSERTIONS = [
       return sms ? `SMS MFA is configured (MfaConfiguration=${pool.MfaConfiguration})` : null
     },
   },
+  /**
+   * Ticket 0151. These three are about TOKEN LIFETIMES, which became a posture
+   * concern the day D-183 put a refresh token on a phone: it is now a year-long
+   * credential on a device that lives in a pocket, and the only things standing
+   * behind it are a short ID token and working revocation. Both are asserted here.
+   *
+   * The units matter as much as the numbers. `RefreshTokenValidity: 525600` means
+   * a year in minutes and a millennium in days, and CloudFormation assumes DAYS
+   * when the unit is absent — so a dropped `TokenValidityUnits` is not a cosmetic
+   * slip, it is a thousand-year credential. The unit is asserted separately from
+   * the value for exactly that reason.
+   */
+  {
+    name: "refresh token is one year, in MINUTES",
+    why: "0151/§5.3 — the capture tile dies silently when this expires; and a missing unit means CFN reads it as DAYS",
+    check: ({ client }) => {
+      const unit = client?.TokenValidityUnits?.RefreshToken
+      const value = client?.RefreshTokenValidity
+      if (unit !== "minutes") {
+        return `TokenValidityUnits.RefreshToken is ${JSON.stringify(unit)}, expected "minutes" — ` +
+          `without it CloudFormation reads ${JSON.stringify(value)} as DAYS`
+      }
+      return value === 525600
+        ? null
+        : `RefreshTokenValidity is ${JSON.stringify(value)} minutes, expected 525600 (one year)`
+    },
+  },
+  {
+    name: "ID token is still 60 minutes",
+    why: "§5.3 — the short-lived half of the pair; a long refresh token is only safe behind it",
+    check: ({ client }) => {
+      const unit = client?.TokenValidityUnits?.IdToken
+      const value = client?.IdTokenValidity
+      if (unit !== "minutes") {
+        return `TokenValidityUnits.IdToken is ${JSON.stringify(unit)}, expected "minutes"`
+      }
+      return value === 60
+        ? null
+        : `IdTokenValidity is ${JSON.stringify(value)} minutes, expected 60 — a long refresh ` +
+          `token behind a long ID token is not the trade 0151 made`
+    },
+  },
+  {
+    name: "token revocation is enabled",
+    why: "§5.3 — 'untested revocation is not revocation'; it is what makes a year-long refresh token defensible",
+    check: ({ client }) =>
+      client?.EnableTokenRevocation === true
+        ? null
+        : `EnableTokenRevocation is ${JSON.stringify(client?.EnableTokenRevocation)}, expected true — ` +
+          `a lost phone could not be cut off`,
+  },
   {
     name: "Essentials tier",
     why: "D-083 — 10,000 MAU free and non-expiring; a silent tier change is a silent bill",
@@ -158,7 +209,35 @@ function read(userPoolId, identityPoolId, source) {
       "cognito-idp", "list-identity-providers",
       "--user-pool-id", userPoolId, ...R,
     ]).Providers,
+    client: readClient(userPoolId, R),
   }
+}
+
+/**
+ * The app client, for 0151's token-lifetime assertions.
+ *
+ * The id is DERIVED from the pool rather than taken from a flag or from
+ * amplify_outputs.json, so it cannot disagree with the pool being checked — the
+ * mismatch this file's banner already warns about, one level down.
+ *
+ * More than one client is a FAILURE, not a guess. Amplify creates exactly one; a
+ * second means something this check does not understand has been added, and
+ * silently asserting against whichever came back first would be a green tick that
+ * means nothing.
+ */
+function readClient(userPoolId, R) {
+  const clients = aws([
+    "cognito-idp", "list-user-pool-clients", "--user-pool-id", userPoolId, ...R,
+  ]).UserPoolClients ?? []
+  if (clients.length !== 1) {
+    console.error(`Expected exactly 1 app client on ${userPoolId}, found ${clients.length}.`)
+    console.error("This check fails closed rather than picking one.")
+    process.exit(1)
+  }
+  return aws([
+    "cognito-idp", "describe-user-pool-client",
+    "--user-pool-id", userPoolId, "--client-id", clients[0].ClientId, ...R,
+  ]).UserPoolClient
 }
 
 if (process.argv.includes("--self-test")) {
@@ -172,6 +251,12 @@ if (process.argv.includes("--self-test")) {
     },
     identityPool: { AllowUnauthenticatedIdentities: false },
     providers: [],
+    client: {
+      RefreshTokenValidity: 525600,
+      IdTokenValidity: 60,
+      TokenValidityUnits: { RefreshToken: "minutes", IdToken: "minutes" },
+      EnableTokenRevocation: true,
+    },
   }
   const CASES = [
     ["correct posture", GOOD, 0],
@@ -181,8 +266,19 @@ if (process.argv.includes("--self-test")) {
     ["a Google IdP appears", { ...GOOD, providers: [{ ProviderName: "Google" }] }, 1],
     ["SMS MFA switched on", { ...GOOD, pool: { ...GOOD.pool, MfaConfiguration: "ON", SmsConfiguration: { SnsCallerArn: "arn:…" } } }, 1],
     ["tier silently downgraded", { ...GOOD, pool: { ...GOOD.pool, UserPoolTier: "LITE" } }, 1],
-    ["both holes open at once", { pool: { ...GOOD.pool, AdminCreateUserConfig: { AllowAdminCreateUserOnly: false } }, identityPool: { AllowUnauthenticatedIdentities: true }, providers: [] }, 2],
-    ["an empty response fails closed", {}, 3],
+    // Carries a GOOD client so it still asserts what its name says — two holes,
+    // not two holes plus every 0151 assertion firing on an absent fixture field.
+    ["both holes open at once", { pool: { ...GOOD.pool, AdminCreateUserConfig: { AllowAdminCreateUserOnly: false } }, identityPool: { AllowUnauthenticatedIdentities: true }, providers: [], client: GOOD.client }, 2],
+    // 0151. The refresh-token cases are the point of this block: the two that
+    // matter most are the silent ones — a shortened lifetime, which kills capture
+    // a month later, and a dropped unit, which turns 525600 minutes into 525600
+    // DAYS without changing a single digit anyone would notice in a diff.
+    ["refresh token silently back to 30 days", { ...GOOD, client: { ...GOOD.client, RefreshTokenValidity: 43200 } }, 1],
+    ["refresh token unit dropped — CFN would read DAYS", { ...GOOD, client: { ...GOOD.client, TokenValidityUnits: { IdToken: "minutes" } } }, 1],
+    ["refresh unit changed to days", { ...GOOD, client: { ...GOOD.client, TokenValidityUnits: { ...GOOD.client.TokenValidityUnits, RefreshToken: "days" } } }, 1],
+    ["ID token stretched to match the refresh token", { ...GOOD, client: { ...GOOD.client, IdTokenValidity: 525600 } }, 1],
+    ["revocation switched off", { ...GOOD, client: { ...GOOD.client, EnableTokenRevocation: false } }, 1],
+    ["an empty response fails closed", {}, 6],
   ]
   let failed = 0
   for (const [label, state, expected] of CASES) {
