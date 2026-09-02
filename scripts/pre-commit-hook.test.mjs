@@ -1,5 +1,15 @@
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync, symlinkSync } from "node:fs"
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  copyFileSync,
+  symlinkSync,
+} from "node:fs"
 import { join, dirname } from "node:path"
 import { tmpdir } from "node:os"
 import { afterEach, describe, expect, it } from "vitest"
@@ -124,10 +134,20 @@ function makeBin(gitleaks) {
  * attach to still names which guard tripped.
  */
 const why = (r) =>
-  `hook exited ${r.status}\n--- stdout ---\n${r.out}\n--- stderr ---\n${r.err}\n`
+  `hook exited ${r.status}\n` +
+  `--- stdout ---\n${r.out}\n` +
+  `--- stderr ---\n${r.err}\n` +
+  // The three things that turned out to matter when this failed in a container
+  // nobody could attach to: what git actually reported as staged, and whether
+  // every tool the hook shells out to really resolved.
+  `--- git diff --cached --name-only --diff-filter=ACM ---\n${r.staged}\n` +
+  `--- hook PATH contents ---\n${r.bin}\n`
 
 /** Stage `files` in a fresh repo and run the hook exactly as git would. */
-function runHook(files, { gitleaks = "pass", withSkillChecker = false, brokenGit = false } = {}) {
+function runHook(
+  files,
+  { gitleaks = "pass", withSkillChecker = false, brokenGit = false, stagedOnly = {} } = {},
+) {
   const repo = mkdtempSync(join(tmpdir(), "hookrepo-"))
   tmps.push(repo)
   const bin = makeBin(gitleaks)
@@ -166,17 +186,51 @@ function runHook(files, { gitleaks = "pass", withSkillChecker = false, brokenGit
     // so a copy here scans the temp repo's .claude/skills.
     copyFileSync(join(ROOT, "scripts/check-skills.mjs"), join(repo, "scripts/check-skills.mjs"))
   }
+  // Written, staged, then removed from the WORKTREE. `git diff --cached` compares
+  // HEAD to the index and does not consult the worktree, so these still appear in
+  // $staged — while layer 2's `[ -f "$f" ] || continue` skips them for free. That
+  // is what makes a staged list bigger than a pipe buffer affordable to test:
+  // 900 real files would be 13,500 grep processes and a timeout.
+  for (const [rel, body] of Object.entries(stagedOnly)) {
+    const full = join(repo, rel)
+    mkdirSync(dirname(full), { recursive: true })
+    writeFileSync(full, body)
+  }
   execFileSync("git", ["add", "-A"], { cwd: repo })
+  for (const rel of Object.keys(stagedOnly)) rmSync(join(repo, rel))
 
+  // Captured for the failure message, not used by any assertion — see why().
+  const staged = execFileSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACM"], {
+    cwd: repo,
+  })
+    .toString()
+    .trim()
+  const listing = readdirSync(bin)
+    .sort()
+    .map((n) => {
+      try {
+        return `${n} -> ${realpathSync(join(bin, n))}`
+      } catch (e) {
+        return `${n} -> UNRESOLVABLE (${e.code})`
+      }
+    })
+    .join("\n")
+
+  const meta = { staged, bin: listing }
   try {
     const stdout = execFileSync(BASH, [HOOK], {
       cwd: repo,
       env: { PATH: bin, HOME: repo },
       stdio: ["ignore", "pipe", "pipe"],
     })
-    return { status: 0, out: stdout.toString(), err: "" }
+    return { status: 0, out: stdout.toString(), err: "", ...meta }
   } catch (e) {
-    return { status: e.status, out: (e.stdout ?? "").toString(), err: (e.stderr ?? "").toString() }
+    return {
+      status: e.status,
+      out: (e.stdout ?? "").toString(),
+      err: (e.stderr ?? "").toString(),
+      ...meta,
+    }
   }
 }
 
@@ -330,6 +384,45 @@ describe("fail-closed — a guard that could not run must not report a pass", ()
     const r = runHook({ "a.txt": "ordinary\n" }, { gitleaks: "broken" })
     expect(r.status, why(r)).toBe(1)
     expect(r.err).toMatch(/does not work/)
+  })
+})
+
+/**
+ * `set -o pipefail` + `grep -q` is a fail-open, not a style question. `-q` exits
+ * at the first match and SIGPIPEs whatever is still writing into it; pipefail
+ * then reports 141 for the pipeline, so `if` reads FALSE having actually
+ * MATCHED. It needs more data after the match than the 64KB pipe buffer holds,
+ * which is why it never showed on a small fixture — so these fixtures are big.
+ *
+ *   set -o pipefail; big=$(seq 1 200000); echo "$big" | grep -q '^1$'   # -> 141
+ */
+describe("a match is never lost to the shape of the pipeline (0137)", () => {
+  const FILLER = `${"filler line, entirely innocent\n".repeat(60000)}`
+
+  it("blocks a credential on line 1 of a file far larger than the pipe buffer", () => {
+    const r = runHook({ "big.py": `k = "${AKIA}"\n${FILLER}` })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toContain("big.py")
+  })
+
+  // 250KB, not 64KB. Measured: at ~68KB the miss rate is 0/200 — grep drains
+  // enough of the buffer that the writer never blocks — and at 250KB it is
+  // 200/200. A fixture sized to the buffer would be a test that passes against
+  // the very bug it names, which is worse than no test.
+  const PADDING = {}
+  for (let i = 0; i < 1100; i++) {
+    PADDING[`padding/${String(i).padStart(4, "0")}-${"n".repeat(230)}.txt`] = "x\n"
+  }
+
+  it("runs layer 3 when the SKILL.md line is followed by 250KB of other paths", () => {
+    // `.claude/...` sorts first, so the old `echo "$staged" | grep -q` matched on
+    // line 1 and exited with a quarter of a megabyte still unwritten.
+    const r = runHook(
+      { ".claude/skills/demo/SKILL.md": BAD_SKILL },
+      { withSkillChecker: true, stagedOnly: PADDING },
+    )
+    expect(r.staged.length, "fixture too small to force the writer to block").toBeGreaterThan(250_000)
+    expect(r.status, why(r)).toBe(1)
   })
 })
 

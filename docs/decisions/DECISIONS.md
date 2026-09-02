@@ -991,6 +991,16 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     so the hook printed `grep: command not found` and exited 0 — the harness manufacturing the exact
     fail-open it exists to detect. It now requires an absolute path and throws by name when a tool
     the hook needs did not resolve.
+  - **A shell PIPELINE is not a predicate.** `if cmd | grep -q PAT` was used as the layer-3 gate
+    and inside layer 2, and under `set -o pipefail` it answers "false" for four different reasons,
+    only one of which is "no match": `grep -q` exits at the FIRST match and SIGPIPEs whatever is
+    still writing into it, so pipefail reports 141 *having matched*; a fork may not be taken; the
+    grep may not exec. Measured, not theorised — `set -o pipefail; echo "$(seq 1 200000)" | grep -q
+    '^1$'` returns 141, and the layer-3 gate misses 200/200 with a 250KB input. **In layer 2 this
+    was a live miss**: a credential on line 1 of any file bigger than the pipe buffer went
+    unreported. Where a check can be a builtin (`case`, `[[ =~ ]]`, a here-string), it must be — and
+    where a pipeline is genuinely needed, the last stage must consume all of its input and the
+    stages' statuses must be read individually from `PIPESTATUS`.
   - **Blocking is the default even where it is inconvenient.** `check-skills.mjs` now exits 1 on an
     absent `.claude/skills/` with no escape flag. The pre-commit hook only invokes it when a
     `SKILL.md` is staged, so an absent skills directory at that moment is self-contradictory, and

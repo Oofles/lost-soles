@@ -101,7 +101,21 @@ while IFS= read -r f; do
     # and a scanner that cannot tell documentation from a secret gets disabled
     # by whoever it blocks at 11pm. Deny by default, allow by VISIBLE exception:
     # the marker sits on the line, in the diff, where a reviewer sees it.
-    if git show ":$f" 2>/dev/null | grep -vF 'gitleaks:allow' | grep -qE -- "$p"; then
+    #
+    # NOT `grep -q` (ticket 0137). `-q` exits at the FIRST match, which SIGPIPEs
+    # whatever is still writing into it, and `set -o pipefail` then reports 141
+    # for the whole pipeline — so the `if` reads FALSE having actually MATCHED,
+    # and the hit is discarded in silence. Demonstrated:
+    #     set -o pipefail; big=$(seq 1 200000); echo "$big" | grep -q '^1$'
+    # returns 141. Plain `grep -E >/dev/null` consumes all of its input, so
+    # nothing upstream is ever SIGPIPEd and PIPESTATUS means what it says.
+    git show ":$f" 2>/dev/null | grep -vF 'gitleaks:allow' | grep -E -- "$p" >/dev/null
+    st=("${PIPESTATUS[@]}")
+    # git failing to read a file it just told us is staged is a broken guard, not
+    # a clean scan (D-176). `2>/dev/null` used to hide exactly that.
+    [ "${st[0]}" -eq 0 ] || fail "git could not read the staged content of '${f}',
+  so that file was never scanned. Nothing has been committed."
+    if [ "${st[2]}" -eq 0 ]; then
       hits="${hits}
     ${f}  matches  ${p}"
     fi
@@ -121,7 +135,27 @@ fi
 # check-skills.mjs no longer exits 0 when it cannot find .claude/skills (0137):
 # reaching here means a SKILL.md is STAGED, so an absent skills directory would
 # mean the scanner resolved the wrong root, not that there is nothing to check.
-if echo "$staged" | grep -q 'SKILL\.md$'; then
+#
+# THE GATE IS PURE BASH — no pipeline, no subprocess (ticket 0137, defect 2).
+# It used to be `echo "$staged" | grep -q 'SKILL\.md$'`, and in the Amplify build
+# container that returned FALSE with a non-empty $staged that DID contain a
+# SKILL.md line. The build log proves it: the failing run spent the full layer-2
+# cost on three files (149ms, more than the 144ms two-file negative control) and
+# then ran check-skills.mjs zero times, while the very same suite passed the
+# same check twice on two-file repos moments earlier.
+#
+# A two-process pipeline can answer "false" for reasons that have nothing to do
+# with the string: `pipefail` turning a SIGPIPEd writer into 141 after a
+# successful match, a fork that could not be taken, a grep that could not exec.
+# All three are "I never ran" wearing "I ran and found nothing" — D-176 — and
+# `case` in a builtin loop removes every one of them at once, because it depends
+# on nothing but $staged.
+skill_staged=0
+while IFS= read -r f; do
+  case "$f" in *SKILL.md) skill_staged=1; break ;; esac
+done <<< "$staged"
+
+if [ "$skill_staged" -eq 1 ]; then
   if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
     node scripts/check-skills.mjs >&2 || true
     fail "a staged SKILL.md has unparseable frontmatter — Claude Code would skip it silently."

@@ -189,10 +189,83 @@ test, DEPLOY and VERIFY are cancelled.
       else, that is a separate finding worth its own record. **Do not close this by fixing
       defect 1 and observing the flake stopped** — a flake that stops for an unexplained reason
       has not been fixed, and this one is guarding a security control.
-- [ ] Specifically explain why only one of the two exit-1 layer-3 tests fails per run.
+- [x] Specifically explain why only one of the two exit-1 layer-3 tests fails per run.
 - [ ] Five consecutive green `main` builds before this closes.
 
 ## Notes
+
+### Defect 2, from build 38's full log (2026-09-01)
+
+**The log settles two things and kills three hypotheses.**
+
+It is **not** a whole-hook fall-through. Layer 2 passed on all four blocking tests, and layer 3's
+other two tests passed in the SAME run — including `blocks a staged SKILL.md whose frontmatter
+would not parse`, which exercises the identical machinery. So `git diff --cached` did not fail,
+`grep` was on PATH, `check-skills.mjs` resolved its root, and defect 1c did not fire. Defects 1,
+1b and 1c are **not** the cause of defect 2.
+
+**The timings locate it precisely:**
+
+| test | files staged | `check-skills.mjs` runs | time |
+|---|---|---|---|
+| negative control — ordinary file | 2 | 0 | 144ms |
+| layer 3 — permits a good SKILL.md | 2 | 1 | 180ms |
+| layer 3 — blocks a bad SKILL.md | 2 | 2 (quiet, then to stderr) | 218ms |
+| **layer 3 — runs when files ARE staged (FAILED)** | **3** | **0** | **149ms** |
+| negative control — empty staging area | 0 | 0 | 83ms |
+
+149ms is *more* than the 144ms two-file negative control, so layer 2 ran in full over three files —
+the early `exit 0` on an empty `$staged` would have landed near 83ms. And it is far below the
+180ms/218ms of the runs that invoked node. **`$staged` was non-empty and contained the SKILL.md
+line, and `echo "$staged" | grep -q 'SKILL\.md$'` still evaluated FALSE.**
+
+A two-process pipeline can answer "false" for four different reasons, only one of which is "the
+string does not match": `pipefail` converting a SIGPIPEd writer into 141 *after* a successful
+match, a fork that could not be taken, or a grep that could not exec. All are "I never ran"
+wearing "I ran and found nothing" — D-176 — and the gate could not tell them apart. **The gate is
+now pure bash** (`case` in a `while read` loop), so it depends on `$staged` and nothing else, and
+all four collapse.
+
+**On the `pipefail` + `grep -q` mechanism specifically.** It is real and was measured, not
+theorised: `set -o pipefail; big=$(seq 1 200000); echo "$big" | grep -q '^1$'` returns **141 having
+matched**. Miss rate against the layer-3 gate: 0/200 at a 68KB staged list, **200/200 at 250KB**.
+The container's staged list was three short paths, ~70 bytes — far below where the writer can ever
+block — so **SIGPIPE is excluded as the trigger for this particular failure**, and the honest
+remaining answer is a fork or exec that did not happen under the build container's process
+pressure. That is narrowed and named but **not proven**, and the ticket should not close on it.
+What IS proven is that the gate's answer was not derived from the string.
+
+**The same bug was live in layer 2, and there it was a genuine miss.** `git show ":$f" | grep -vF |
+grep -qE` had the identical shape, and `grep -q` exits at the first match — so a credential on line
+1 of any file larger than the pipe buffer was silently not reported. There is now a deterministic
+regression test for it (`blocks a credential on line 1 of a file far larger than the pipe buffer`),
+and it fails against the old pipeline. **This is a real fail-open found by chasing a CI flake**, and
+it is the more serious of the two.
+
+### Why only one of the two exit-1 layer-3 tests failed per run
+
+Confirmed real from build 38 — one failure, not a truncated record. The event is **per hook
+invocation**, and in the old suite exactly **two** tests could observe it: the two that stage a bad
+`SKILL.md` and expect a block. `permits a staged SKILL.md that parses` expects 0 and is blind to it;
+every layer-2 test stages a credential but the two layer-3 tests do not, so a layer-2 pipeline
+failing in those runs leaves no trace either. With an independent per-invocation probability p,
+P(both) = p² against P(exactly one) = 2p(1−p) — at p ≈ 0.2 that is 1 in 8 versus 1 in 3. Three
+observations of "exactly one" is the expected shape, not evidence of a finer mechanism. There was
+never a second thing to explain.
+
+### 1c. The test harness manufactures the same fail-open  (found 2026-09-01 while fixing 1)
+
+`makeBin()` builds the hook's stripped PATH from `command -v <bin>`, and symlinks whatever comes
+back. **`command -v` also answers for shell FUNCTIONS, aliases and builtins, and for those it
+returns the bare NAME, not a path.** `symlinkSync("grep", dir + "/grep")` then creates a dangling
+relative link; the hook prints `grep: command not found`, layer 2 finds nothing, layer 3's gate is
+false, and it **exits 0**.
+
+Found by running this ticket's own reproduction in a shell where `grep` is a wrapper function. Ruled
+OUT as the cause of defect 2 by build 38's log — layer 2 blocked correctly there, so `grep` ran.
+`which()` now returns "" for anything not starting with `/`, and `makeBin` **throws by name** when a
+tool the hook shells out to did not resolve.
+
 
 ### 1c. The test harness manufactures the same fail-open  (found 2026-09-01 while fixing 1)
 
