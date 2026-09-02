@@ -2,6 +2,7 @@ import { fetchAuthSession } from "aws-amplify/auth/server"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { runWithAmplifyServerContext } from "@/lib/amplify-server"
+import { verifiedBearerSub } from "@/lib/auth/bearer"
 
 /**
  * Server-side auth (ticket 0016, criterion 2; 08-security-privacy.md §5.3).
@@ -54,6 +55,23 @@ export async function middleware(request: NextRequest) {
   })
 
   if (authenticated) return response
+
+  /**
+   * No cookie session — so this may be a NON-BROWSER client (ticket 0149).
+   * A Tasker HTTP task cannot hold a Cognito session cookie, and without this
+   * branch the capture endpoint is unreachable from the phone it exists for.
+   *
+   * Checked SECOND, deliberately. The app's own requests are the overwhelming
+   * majority and carry cookies, so this costs them nothing; and a request that
+   * sends both gets the cookie's answer, which keeps the browser's behaviour
+   * exactly as it was before this branch existed.
+   *
+   * This is a real verification, not a presence check: `verifiedBearerSub`
+   * validates the signature against the production pool's JWKS and returns a
+   * `sub` only from a verified payload. A malformed, expired, wrong-pool or
+   * wrong-client token falls through to the same 404 as no credential at all.
+   */
+  if (await verifiedBearerSub(request.headers.get("authorization"))) return response
 
   if (isApiPath(request.nextUrl.pathname)) {
     return NextResponse.json({ error: "not found" }, { status: 404 })

@@ -1195,3 +1195,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     its commit. Ticket files are the things triage is editing, the diff is reviewed before the
     commit either way, and the alternative was a routine `--allow-dirty` that suppresses the guard
     entirely rather than narrowing it.
+
+---
+
+## A non-browser client authenticates with a verified bearer ID token  (2026-09-02, ticket 0149)
+
+- **D-183** **A client that cannot hold a Cognito session cookie authenticates with
+  `Authorization: Bearer <Cognito ID token>`, verified server-side against the production pool's
+  JWKS.** The `sub` is read from the verified payload and checked against `OWNER_USER_IDS`, exactly
+  as the cookie path does.
+  - **The gap.** `0019` satisfied §6.4/1 ("a valid Lost Soles session") with cookies, and
+    `08-security-privacy.md` §5.3 forbids taking a uid from a body, query string or header. Neither
+    document said what a **non-browser** client does, and a Tasker HTTP task cannot hold a session
+    cookie — so the capture endpoint was unreachable from the phone that is the entire point of
+    capability `03` (roadmap §4.1). This is a gap in the design, not a defect in `0019`.
+  - **Why this satisfies §5.3 rather than bending it.** §5.3's rule is about trusting an *asserted*
+    identity. A signature verified against a public key fetched from the issuer is not an
+    assertion — the identity still comes from Cognito, and the header is merely how it travels.
+    The route re-derives `sub` from a verified JWT, which is what §5.3 actually asks for.
+  - **A shared-secret header was considered and REJECTED.** It would have been trivial for the
+    device, and it is the wrong trade three ways: it is a second auth path to a repository write
+    primitive; the server would trust a header value outright, which is the thing §5.3 names; and
+    it cannot be revoked for one device without rotating it for every client. A Cognito refresh
+    token is revocable per token (`EnableTokenRevocation` is on) and per user
+    (`AdminUserGlobalSignOut`).
+  - **The trust anchor is hard-coded**, like `OWNER_USER_IDS` and for the same two reasons: these
+    are identifiers, not credentials, and a fail-closed control should not depend on something that
+    can be unavailable at runtime. `amplify_outputs.json` must **never** be the source — on a
+    development machine it names the sandbox pool, whose only user is a throwaway whose password is
+    in SSM.
+  - **Verification runs in both the middleware and the route.** The duplicate is a JWKS cache hit
+    and it is deliberate: one more exclusion in the middleware matcher would otherwise turn the
+    endpoint's authorization off silently. A check whose correctness depends on a regex somewhere
+    else is not a check.
+  - The cost, accepted: a 1-hour ID token means the device re-runs `REFRESH_TOKEN_AUTH` before a
+    capture that was queued offline for longer, rather than replaying a stale token. `0022` owns
+    that, and the 30-day refresh token behind it is `0151`.

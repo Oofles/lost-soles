@@ -1,8 +1,9 @@
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 
 import { fetchAuthSession } from "aws-amplify/auth/server"
 
 import { runWithAmplifyServerContext } from "@/lib/amplify-server"
+import { verifiedBearerSub } from "@/lib/auth/bearer"
 
 /**
  * Owner-only authorization. Ticket 0019, `07-ticketsmith.md` §6.4/1.
@@ -79,16 +80,30 @@ export function isOwner(userId: string | undefined): boolean {
  * `check-auth-posture.mjs` both take.
  */
 export async function currentUserId(): Promise<string | undefined> {
-  try {
-    return await runWithAmplifyServerContext({
-      nextServerContext: { cookies },
-      operation: async (contextSpec) => {
-        const session = await fetchAuthSession(contextSpec)
-        const sub = session.tokens?.idToken?.payload?.sub
-        return typeof sub === "string" ? sub : undefined
-      },
-    })
-  } catch {
-    return undefined
-  }
+  const fromCookie = await runWithAmplifyServerContext({
+    nextServerContext: { cookies },
+    operation: async (contextSpec) => {
+      const session = await fetchAuthSession(contextSpec)
+      const sub = session.tokens?.idToken?.payload?.sub
+      return typeof sub === "string" ? sub : undefined
+    },
+  }).catch(() => undefined)
+  if (fromCookie) return fromCookie
+
+  /**
+   * Ticket 0149. The non-browser path, re-derived here rather than trusted from
+   * middleware.
+   *
+   * `middleware.ts` already verified this token, and this verifies it AGAIN. That
+   * is deliberate and it is not redundant: the route must be correct on its own
+   * terms, because a future change to the middleware matcher — one more exclusion
+   * in that regex — would otherwise silently turn the endpoint's authorization
+   * off. §6.4/1's check runs in the handler, so its input must be established in
+   * the handler. The second verification is a JWKS cache hit.
+   *
+   * Note this function still takes NO parameter carrying an identity. It reads
+   * the header itself, and the value it reads is a signature to be checked, not
+   * a uid to be believed — §8's §5.3 rule is intact.
+   */
+  return verifiedBearerSub((await headers()).get("authorization"))
 }

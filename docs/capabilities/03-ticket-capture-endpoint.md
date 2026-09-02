@@ -270,6 +270,96 @@ reach is one SSM parameter and one DynamoDB table — which is the whole of the 
 the trust-policy condition that would normally provide it is refused by Amplify (see above).
 
 
+### How a phone authenticates, and why it is not a shared secret  (ticket 0149, 2026-09-02)
+
+`0019` shipped an endpoint that only a browser can reach. `route.ts` reads the identity from a
+**Cognito session cookie** and `middleware.ts` 404s anything without one, which is correct for the
+app and useless for the thing capability `03` exists to serve. `0020` assumed "the shared auth
+header 0019 accepts"; no such header was ever built, and `08-security-privacy.md` §5.3 forbids the
+shape it implies — *never take a uid from a request body, query string or header.*
+
+**The resolution is that the header carries a Cognito-signed ID token, not an identity.** §5.3's
+rule is about trusting an *assertion*. A signature this server checked against a public key it
+fetched from the issuer is not an assertion; the `sub` still comes from Cognito. See **D-183**.
+
+#### The exchange, verified end to end on 2026-09-02
+
+`USER_PASSWORD_AUTH` and `ADMIN_USER_PASSWORD_AUTH` are **both disabled** on both app clients —
+only `ALLOW_CUSTOM_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH` and `ALLOW_USER_SRP_AUTH` are enabled. So the
+device cannot exchange a password for a token, and SRP is not something to implement in Tasker.
+The split is therefore:
+
+1. **Once, by the operator, in a browser.** Sign in normally; Amplify does SRP. Take the
+   **refresh token** out of the Cognito storage and paste it into the Tasker task's variable.
+2. **Per capture, by the task.** One plain POST — no SigV4, no client secret, no SDK:
+
+```http
+POST https://cognito-idp.us-east-1.amazonaws.com/
+Content-Type: application/x-amz-json-1.1
+X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth
+
+{"AuthFlow":"REFRESH_TOKEN_AUTH",
+ "ClientId":"5vc5e8t2ljv1hg3doau5mp0m00",
+ "AuthParameters":{"REFRESH_TOKEN":"<the pasted token>"}}
+```
+
+   → `{"AuthenticationResult":{"IdToken":"…","ExpiresIn":3600,"TokenType":"Bearer"}}`
+
+3. **Then the capture**, with `Authorization: Bearer <IdToken>`.
+
+The production app client has **no client secret** (`ClientSecret: null`), which is what makes step
+2 a bare POST rather than something needing `SECRET_HASH`. Verified with `curl` against the sandbox
+client, which has the identical flow configuration.
+
+#### The trust anchor is hard-coded, for the same reason the owner allowlist is
+
+`lib/auth/bearer.ts` states `us-east-1_3lreDA1d1` and `5vc5e8t2ljv1hg3doau5mp0m00` as literals.
+They are identifiers rather than credentials, and a control whose failure must be closed should not
+have a runtime dependency that can be unavailable. **Do not replace them with
+`amplify_outputs.json`** — on a laptop that file names the sandbox pool, and a verifier pointed at
+the sandbox pool trusts the `0130` throwaway account, whose password is in SSM. This is the same
+trap `0019` documented for `OWNER_USER_IDS`, one layer down.
+
+Proven rather than asserted: a **real, unexpired, correctly-signed** ID token minted for
+`agent@lost-soles.invalid` in the sandbox pool was fed to the production verifier and rejected
+(`issuer not configured`), while the sandbox verifier accepted the same token — so the rejection is
+about the pool, not a broken token.
+
+#### Verification runs twice, and that is deliberate
+
+`middleware.ts` verifies, and `lib/auth/owner.ts` verifies again. The second is a JWKS cache hit and
+it exists because the route must be correct on its own terms: one more exclusion in the middleware
+matcher regex would otherwise silently switch the endpoint's authorization off. §6.4/1's check runs
+in the handler, so its input has to be established in the handler.
+
+Note the two run on **different runtimes**. `middleware.ts` is Next's edge runtime, where
+`aws-jwt-verify` resolves its `browser` condition and verifies with `crypto.subtle`; the route is
+Amplify's Node SSR compute, which gets the Node build and `https.request`. The built edge bundle was
+checked for this — six `crypto.subtle` references, zero Node `crypto` — because picking the wrong
+one is a runtime failure that builds cleanly.
+
+**This also bit the tests.** Vitest's default node resolution loaded the Node build, so a suite that
+stubbed global `fetch` stubbed nothing, the verifier reached the *real* Cognito JWKS over the
+network, and fourteen rejection assertions passed for the wrong reason while the two acceptance
+tests failed. `vitest.config.ts` now runs `lib/auth/bearer.test.ts` as a separate project with
+`browser` conditions and `aws-jwt-verify` inlined — externalised dependencies are resolved by Node,
+which ignores Vite's conditions.
+
+#### A tamper test that does not tamper
+
+`0149`'s criterion 9 proposed proving rejection by altering **the token's last character**. That
+check can pass a forged token. An RSA-2048 signature is 2048 bits, which base64url encodes in 342
+characters carrying 2052 bits — so the final character contributes 2 significant bits and 4 bits of
+padding, and `A` and `B` decode to byte-identical signatures. The criterion was amended to alter a
+character in the middle, and a test pins the property so the trap is not re-laid.
+
+#### The refresh token expires in 30 days
+
+`RefreshTokenValidity` is 43200 minutes. After that the task's `REFRESH_TOKEN_AUTH` returns
+`NotAuthorizedException`, it gets no ID token, and **capture dies silently until the operator
+re-pairs the phone**. Filed as `0151` to raise it to a year; `0022`'s retry queue must treat a
+failed refresh as fatal-until-re-paired rather than retrying a dead credential forever.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

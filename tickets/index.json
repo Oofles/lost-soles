@@ -3438,5 +3438,27 @@
       "checked": 0,
       "total": 0
     }
+  },
+  {
+    "id": 151,
+    "slug": "refresh-token-lifetime",
+    "title": "Raise the Cognito refresh token lifetime from 30 days to a year",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [
+      149
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-02T19:32:20Z",
+    "path": "tickets/open/0151-refresh-token-lifetime.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

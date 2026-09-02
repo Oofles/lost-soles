@@ -66,7 +66,16 @@ or by revoking that token, which is a materially better story than a static secr
 - [ ] The refresh-token exchange is documented in the capability doc with the exact request shape,
       so `0020`'s task can be built from it without re-deriving it from AWS documentation.
 - [ ] Smoke test: a `curl` with a bearer IdToken obtained via `REFRESH_TOKEN_AUTH` commits a file
-      to `tickets/inbox/`, and the same `curl` with the token's last character altered returns 404.
+      to `tickets/inbox/`, and the same `curl` with ~~the token's last character~~ **a character in
+      the middle of the signature** altered returns 404.
+      **Amended 2026-09-02 — the check as written can pass a forged token.** An RSA-2048 signature
+      is 2048 bits, which base64url encodes in 342 characters carrying 2052 bits; the final
+      character therefore contributes 2 significant bits and 4 bits of padding, so `A` and `B`
+      decode to byte-identical signatures. Found by the test suite, which failed on exactly this.
+      A test now pins the property so the trap is not re-laid.
+      **The positive half is the operator's, and the negative half is the agent's.** Committing a
+      file needs a *production* ID token, which needs a production sign-in the agent must not have
+      (`08-security-privacy.md` §2.4 Trigger A). The rejection half needs no credential at all.
 - [ ] A `D-xxx` records that non-browser clients authenticate by verified bearer IdToken, and that
       a shared-secret header was rejected and why.
 
