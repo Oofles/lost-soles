@@ -1121,3 +1121,49 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     stack broken for unrelated reasons), but it is a real constraint on ever running two
     environments, and the answer then is a name suffixed per environment plus a way to tell the
     reader which it is — which is the configuration channel that does not exist today.
+
+---
+
+## Operator validation is for judgement, not for verification  (2026-09-02, tickets 0019, 0147)
+
+- **D-181** **A criterion earns the `(operator)` prefix only when a human eye or hand is the ONLY
+  instrument that can answer it.** Anything reachable with AWS credentials, `curl`, or a script —
+  deployed infrastructure state, HTTP status codes, IAM and DynamoDB and GitHub behaviour, whether a
+  build deployed — is the agent's job and must not be routed to a human.
+  - **This NARROWS D-169; it does not repeal it.** The mechanism stands exactly as written:
+    `(operator)` still blocks a close, is still never the agent's to tick, and still requires a
+    dated result recorded on the criterion itself. What changes is the test for *earning the
+    prefix*, which was never stated and so defaulted to "anything the agent could not personally
+    confirm."
+  - **The diagnosis, because it explains why this got out of hand.** Operator validation did not
+    grow from a judgement that backend correctness needs a human. It grew because the agent had **no
+    AWS credentials**, so every infrastructure question had one available answer: ask the operator.
+    `0019` is the clean case — it shipped demanding four manual steps, and once the operator supplied
+    `--profile devault` the agent ran all four in about ninety seconds. Two of them proved things no
+    unit test could: a real DynamoDB conditional refusal at exactly the cap, and GitHub's actual
+    `422 "sha" wasn't supplied`. The manual steps were a workaround for a constraint, mistaken for a
+    control.
+  - **The operator's stated position**, which is a product decision and not a concession: *"If you
+    can do a smoke test, I'm willing to accept the risk that the production system will work.
+    Operator validation should encompass design functions and things that you legitimately need my
+    manual effort on."* The cost being paid down is real — *"I've barely got a functional web
+    page"* — and it is the right thing to optimise, because a fitness app nobody can look at is not
+    safer for having been triple-checked at the API layer.
+  - **THE BURDEN MOVES, IT DOES NOT DISAPPEAR.** This is the failure mode to guard against: an agent
+    that verifies less because it is no longer required to write a manual step. A ticket closing
+    with neither an operator check nor a smoke test is strictly worse than what this replaces. The
+    evidence still gets written down, in `## Operator validation`, naming what was run and what it
+    proves — see `0019` for the shape.
+  - **What keeps the prefix.** Anything visual or experiential: fog legibility (**D-051**), the
+    post-run moment, the plinth, map performance on a real phone over real cell data. And anything
+    needing a **production** Cognito session, which the agent must not have — a second production
+    account fires `08-security-privacy.md` §2.4 Trigger A, and `0130` exists so troubleshooting
+    never requires one.
+  - **`docs/capabilities/AUDIT.md` §3 keeps its real-run requirement** for `08-map-and-fog-renderer`,
+    `09-xp-engine-and-ledger` and `12-post-run-moment`, where "load the map and import a run" is the
+    only honest check. It stops being a blanket rule everywhere else.
+  - **A smoke test is not a weaker unit test — it reaches strictly further.** A stubbed client
+    asserts the right `ConditionExpression` *string* was sent; only the real table proves DynamoDB
+    accepts it. A reserved word used without an `ExpressionAttributeName` passes every unit test and
+    fails in production. That is the class of bug this trade buys, and it is a better class than the
+    one it gives up.

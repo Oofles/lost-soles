@@ -444,8 +444,8 @@
     "path": "tickets/open/0019-capture-endpoint-hardening.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 11
+      "checked": 13,
+      "total": 13
     }
   },
   {
@@ -3348,6 +3348,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 147,
+    "slug": "narrow-operator-validation-to-things-only-a-human-can-judge",
+    "title": "Narrow operator validation to things only a human can judge",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-09-02T13:54:36Z",
+    "path": "tickets/open/0147-narrow-operator-validation-to-things-only-a-human-can-judge.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   },
   {

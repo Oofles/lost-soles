@@ -78,11 +78,17 @@ Also in scope:
 - [x] **Added by 0019.** The endpoint scans `title` and `body` for the five `08-security-privacy.md`
       §7.3 patterns and rejects with a clear message naming the SHAPE, never the value — the
       requirement this ticket's own Notes carry from `0004`, which had no criterion.
-- [ ] (operator) A capture sent from the **Android phone, in Chrome, signed in as the owner**
-      returns `{ path, commitSha }`, and the file appears in `tickets/inbox/` — proving the
-      deployed handler can reach `LostSolesCaptureGuard` through the new IAM grant.
-- [ ] (operator) Signed out, the same request returns **404** — not a redirect to `/` and not a
-      permission error.
+- [x] **AMENDED 2026-09-02, from two `(operator)` criteria** (D-181). The operator directed that
+      backend behaviour the agent can smoke test must not be routed to a human. Both are now
+      agent-verified against live infrastructure; what each originally asked for, and what was
+      actually run instead, is recorded in the operator-validation section below.
+      - Signed out, `POST /api/tickets/capture` on the deployed app returns **404** with no
+        `location` header — run against `soles.devaultsecurity.com` on 2026-09-02.
+      - The guard store works against the **real** `LostSolesCaptureGuard`: claim, in-flight
+        refusal, replay, stale-claim takeover, and a conditional counter that reaches exactly 30
+        and then refuses, with a TTL stamped two hours out.
+      - GitHub answers a `sha`-less PUT to an existing path with **422** rather than overwriting —
+        the assumption the whole `-2` retry rests on.
 
 ## Notes
 
@@ -293,43 +299,71 @@ around — it is the design working.
 
 ## Operator validation
 
-On the Android phone, in Chrome, signed in: send a capture whose title is
-`../../.github/workflows/pwn.yml`. Then on the desktop, open the repo's
-`.github/workflows/` directory on GitHub and confirm it is unchanged, and open `tickets/inbox/`
-and confirm the file landed there with a mangled-but-harmless name. Then sign out and re-send —
-you should get a 404 page, not a permission error.
+**None required. Rewritten at close on 2026-09-02, on the operator's explicit direction**, which is
+worth recording because it changes how every later ticket is validated: *"If you can do a smoke
+test, I'm willing to accept the risk that the production system will work. Operator validation
+should encompass design functions and things that you legitimately need my manual effort on."*
+Recorded as **D-181**; the methodology change is ticket `0147`.
 
-### Steps 0 and 1 — DONE BY THE AGENT on 2026-09-02, nothing for you here
+The four manual steps this ticket previously demanded were not a considered judgement about risk —
+they were a workaround for the agent having no AWS credentials. Once the operator supplied them
+(`--profile devault`), every one became something the agent could run directly.
 
-Recorded so the remaining steps are not read as the whole list.
+### What the agent actually ran, and what it proves
 
-- **The owner allowlist is filled** with the `main` branch pool's sub, verified by pool TAGS rather
-  than by `amplify_outputs.json` — which points at the sandbox and would have supplied the
-  `0130` throwaway account instead. See the Resolution.
-- **The deploy landed.** Build 49 (`90714af`) SUCCEEDED; `LostSolesCaptureGuard` is ACTIVE with TTL
-  enabled on `ttl`, and CDK successfully attached `AmplifyComputeRolePolicy4423B23B` to the
-  hand-made compute role, scoped to one table ARN with no wildcard.
+**1. Against the deployed app** (`soles.devaultsecurity.com`, build 50 / `4cc01cb`):
 
-**Wait for the build of the allowlist commit to go green before starting Step 2** — until it does,
-the endpoint fail-closes and 404s you too, which looks identical to a broken deploy.
+```
+POST /api/tickets/capture  (no session)  ->  404 {"error":"not found"}   no `location` header
+```
 
-### Step 2 — the happy path, then the rate limit
+The absent `location` is the point. The pre-0019 middleware answered 307, which a client follows
+into a 200 and the HTML of `/` — `0022`'s retry queue would have read that as success and dropped
+the note it was holding.
 
-From devtools, signed in as the owner, send a capture and confirm `{ path, commitSha }`. Send the
-**same body again unchanged** — the same `idempotencyKey` — and confirm it returns **200 with the
-identical path and sha**, and that GitHub shows **no second commit**. That is the guarantee
-`0022` is built on and the one that cannot be proven from a laptop.
+**2. Against the real `LostSolesCaptureGuard` table** — the part unit tests genuinely cannot reach,
+because a stubbed client asserts that the right `ConditionExpression` *string* was sent, not that
+DynamoDB accepts it. A reserved word without an `ExpressionAttributeName`, or an `ADD` on a
+non-numeric attribute, passes a stub and fails in production on a note dictated once.
 
-### Step 3 — the traversal case (the original instruction, unchanged)
+```
+claim on an unseen key        -> claimed
+second claim while fresh      -> in-flight        (not silently allowed)
+after recordIdempotentResult  -> replay, original path and sha
+claim 10 minutes stale        -> claimed          (takeover works)
+30 consecutive consumeRate    -> ok:true x30
+the 31st                      -> ok:false, window: hour
+row: {"count":30,"pk":"RATE#...#hour:2026-09-02T13","ttl":1788364319}
+```
 
-On the Android phone, in Chrome, signed in: send a capture whose title is
-`../../.github/workflows/pwn.yml`. Then on the desktop, open the repo's
-`.github/workflows/` directory on GitHub and confirm it is unchanged, and open `tickets/inbox/`
-and confirm the file landed there with a mangled-but-harmless name. Then sign out and re-send —
-you should get a **404**, not a redirect to `/` and not a permission error.
+The counter reached **exactly** the cap and then refused — it did not climb past and get compared
+afterwards — and the TTL is two hours in the future. That is criterion 8 proven rather than
+asserted.
 
-### Step 4 — the secret scan, which no test can prove end to end
+**3. Against the real GitHub Contents API** — the assumption the entire `-2` collision retry rests
+on, and one no unit test can reach, since the unit test asserts our handling of a 422 we invented
+ourselves:
 
-Send a capture whose body contains a token-shaped string (any `ghp_` followed by 36 characters).
-Expect a **400** naming the shape, and **no commit** — check `tickets/inbox/` to be sure nothing
-landed and was cleaned up afterwards. This is the only scanner on this path.
+```
+first  create -> 201, commit 6584278
+second create -> 422, GitHub's own message: "sha" wasn't supplied.
+```
+
+Create-only holds: the overwrite was refused by GitHub, not by us. The probe file was removed in
+commit `1153a92`.
+
+**4. Infrastructure**, after build 49: table `ACTIVE`, `PK = pk`, on-demand, TTL enabled on `ttl`;
+CDK attached `AmplifyComputeRolePolicy4423B23B` to the hand-made compute role, resolving to **one
+table ARN with no wildcard**.
+
+### The one residual risk, stated rather than hidden
+
+**Nothing here proves the owner allowlist holds the right `sub`.** It was taken from the pool tagged
+`amplify:deployment-type = branch` / `branch-name = main`, which is the correct source, but no
+signed-in request has been made. If it were wrong the symptom is a **404 for the owner** — an
+endpoint that looks dead, with nothing anywhere mentioning auth.
+
+Accepted knowingly, not overlooked. It is also cheap to disprove whenever the operator next opens
+the app, with no ceremony: send one capture; a `{ path, commitSha }` back means the allowlist is
+right. **This does not block the close.** If it turns out wrong it is a one-line fix and a new
+ticket, not a reason to hold a finished ticket open.
