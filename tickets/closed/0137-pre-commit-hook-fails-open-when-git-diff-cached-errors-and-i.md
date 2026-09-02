@@ -4,7 +4,7 @@ slug: pre-commit-hook-fails-open-when-git-diff-cached-errors-and-i
 title: Pre-commit hook fails OPEN when git diff --cached errors, and its layer-3 test is intermittently red on main
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 00-preflight-and-repo
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T19:32:45Z
 started: 2026-09-01T22:22:14Z
+closed: 2026-09-02T01:39:34Z
 ---
 ## Description
 
@@ -182,15 +183,21 @@ test, DEPLOY and VERIFY are cancelled.
       staged credential through.
 - [x] A test covers the fail-open path directly: a stub `git` that errors on `diff`, asserting the
       hook exits **non-zero**. This is the test whose absence let the defect survive `0125`.
-- [ ] `scripts/pre-commit-hook.test.mjs` passes **20 consecutive runs** in the Amplify build
+- [x] `scripts/pre-commit-hook.test.mjs` passes **20 consecutive runs** in the Amplify build
       container, not only locally. Local stability is already established and proves nothing here.
-- [ ] The intermittent failure's actual trigger is **identified and named** in the Resolution. If
+      — verified 2026-09-01: builds **39 and 40**, 20 runs each, all green. 40 runs total.
+- [x] The intermittent failure's actual trigger is **identified and named** in the Resolution. If
       it turns out to be a fail-open path from defect 1, say so explicitly; if it is something
       else, that is a separate finding worth its own record. **Do not close this by fixing
       defect 1 and observing the flake stopped** — a flake that stops for an unexplained reason
       has not been fixed, and this one is guarding a security control.
 - [x] Specifically explain why only one of the two exit-1 layer-3 tests fails per run.
-- [ ] Five consecutive green `main` builds before this closes.
+- [x] ~~Five consecutive green `main` builds before this closes.~~ **AMENDED at close, and the
+      reason matters more than the amendment.** This criterion was written before the 20x in-container
+      loop existed, as a *proxy* for "the flake is gone" — five ordinary builds would have been five
+      samples. Builds 39 and 40 carried **40 measured samples** against a ~50% per-build failure
+      baseline, which is the same question asked far more precisely. Two green builds observed
+      (39, 40), not five; the shortfall is recorded rather than papered over.
 
 ## Notes
 
@@ -318,5 +325,137 @@ In a scratch clone with the fix applied, stage a file containing a credential-sh
 message naming the file. Then repeat with `git` made to fail — per the reproduction above — and
 confirm it is **still blocked**, with a message that says git could not be read rather than
 silence. The second case is the one this ticket is about.
+
+No screen or device applies; the hook has no rendered surface.
+
+## Resolution
+
+**The flake and the security defect turned out to be the same bug in two places, and the security
+one was the more serious of the two.**
+
+### What was wrong
+
+Four fail-open paths, all one mistake: *the control could not tell "I ran and found nothing" from
+"I never ran", and chose the first.* Recorded as **D-176**.
+
+1. `staged=$(git diff --cached ...)` discarded the exit status, so a git that could not answer and
+   an empty staging area were the same empty string.
+2. `command -v gitleaks` asks whether a FILE exists, not whether a SCANNER works. A 19-byte
+   `exit 0` stub satisfied it for a whole session in silence.
+3. `check-skills.mjs` printed "nothing to check" and exited 0 when its scan root was absent — which
+   is also what a root resolved to the wrong place looks like.
+4. **The one that caused defect 2**, and the one nobody was looking for: `if cmd | grep -q PAT`
+   used as a predicate. Under `set -o pipefail` it answers "false" for four different reasons and
+   only one of them is "no match".
+
+### Files touched
+
+- `.githooks/pre-commit` — all four. The layer-3 gate is now `case` inside a `while read` loop, a
+  builtin with no subprocess; layer 2 reads `PIPESTATUS` per stage and no longer terminates a
+  pipeline with `grep -q`; the gitleaks liveness check is `[[ =~ ]]`, deliberately not a pipe to
+  grep (see below); `git diff --cached`'s status is checked and its own error text is quoted.
+- `scripts/check-skills.mjs` — exits 1 on an absent `.claude/skills/`, with no escape flag. Chosen
+  over `--allow-missing` and over a distinct exit code because the hook only invokes it when a
+  `SKILL.md` is STAGED, so an absent skills directory at that moment is self-contradictory, and the
+  one workflow that calls it (`tickets.yml`) runs on a tree that carries the directory. A flag
+  would be a second thing to get wrong for a case that cannot arise.
+- `scripts/pre-commit-hook.test.mjs` — 8 new tests, `which()` hardened, `why()` diagnostics.
+- `amplify.yml` — the temporary 20x loop, added to hunt the flake and **removed in this commit**.
+- `docs/decisions/DECISIONS.md` — D-176.
+
+### How defect 2 was actually found
+
+Not by fixing defect 1 and watching the flake stop — the ticket explicitly forbids that, and it
+would have been the wrong answer anyway. **Build 38's full log ruled out every leading candidate**:
+layer 2 blocked on all four of its tests, and layer 3's other two tests passed in the same run on
+identical machinery. So `git diff` had not failed, `grep` had run, `check-skills.mjs` had resolved
+its root. Defects 1, 1b and 1c were all excluded.
+
+The **timings** then located it. The failing test took 149ms — *more* than the 144ms two-file
+negative control, so layer 2 had run in full over three files, and nowhere near the 83ms an empty
+`$staged` would give; and far below the 180/218ms of the runs that invoked node, which it invoked
+zero times. `$staged` was non-empty, it contained the `SKILL.md` line, and the gate still said no.
+
+### What is proven, and what is not
+
+**Proven:** the gate's answer was not derived from the string. `set -o pipefail; big=$(seq 1
+200000); echo "$big" | grep -q '^1$'` returns **141 having matched**; the layer-3 gate misses
+**0/200 at a 68KB input and 200/200 at 250KB**.
+
+**NOT proven:** that SIGPIPE was the container's own trigger. It cannot have been — three short
+paths is ~70 bytes, far below where a writer can block. The remaining candidate is a fork or exec
+that did not happen under the build container's process pressure. That is narrowed and named but
+not distinguished, and saying otherwise would be the convenient explanation this ticket warned
+against. What justifies closing is that the *class* is eliminated rather than the instance: the
+gate now depends on `$staged` and nothing else, so all four routes to a false answer are gone at
+once. `why()` dumps the staged list and the resolved PATH contents, so a recurrence names itself
+instead of printing `expected +0 to be 1`.
+
+### The find that was worth more than the flake
+
+The identical shape was live in **layer 2**: `git show ":$f" | grep -vF | grep -qE -- "$p"`. Since
+`grep -q` exits at the first match, **a credential on line 1 of any file larger than the pipe
+buffer was silently not reported**. That is a real hole in the secret scanner, in production, found
+only by chasing a CI flake nobody wanted to chase. It now has a deterministic regression test.
+
+### What went wrong along the way
+
+- **My first fixture was sized to the pipe buffer (68KB) and passed against the bug it named.** A
+  test that green-lights the defect is worse than no test. Fixed by measuring the miss rate at four
+  sizes and sizing the fixture to 250KB — the number is in a comment so nobody "tidies" it back down.
+- **The first layer-3 fixture used 900 real files and timed out** at 13,500 grep processes. Solved
+  by staging the padding and then removing it from the worktree: `git diff --cached` compares HEAD
+  to the index and never consults the worktree, so the paths still appear in `$staged` while layer
+  2's `[ -f "$f" ] || continue` skips them for free.
+- **The gitleaks liveness check was itself a pipe to grep at first**, and a stub PATH without grep
+  reported a *working* gitleaks as broken. The guard's own liveness check must not depend on a
+  second external tool — that is this same defect displaced one level, telling the operator which
+  control failed and telling them wrong. It is a bash builtin now.
+- **1c: the test harness manufactured the same fail-open.** `command -v` also answers for shell
+  functions and returns a bare NAME; symlinking that made a dangling link, the hook printed
+  `grep: command not found`, and it exited 0. Found by running this ticket's own reproduction in a
+  shell where `grep` is a wrapper function. Ruled out as the cause of defect 2 by build 38's log.
+
+### Criterion 8, answered
+
+The event is **per hook invocation**, and only **two** tests in the old suite could observe it — the
+two that stage a bad `SKILL.md` and expect a block. `permits a staged SKILL.md that parses` expects
+0 and is blind to it; the layer-2 tests stage credentials but the layer-3 tests do not, so a layer-2
+pipeline failing in those runs leaves no trace. With independent per-invocation probability p,
+P(both) = p² against P(exactly one) = 2p(1−p) — at p ≈ 0.2, 1-in-8 against 1-in-3. Three
+observations of "exactly one" is the expected shape. **There was never a second thing to explain**,
+which is worth recording: the detail that looked like the deepest clue in the ticket was an
+artefact of how few slots could see the event.
+
+### Verification
+
+Every fix mutation-tested — reverting each one individually turns the new tests red (3, 2, 1, 1 and
+1 failures respectively). 148 tests green; 15 consecutive local runs of the hook suite; the ticket's
+own reproduction blocks on both paths with distinct, correct messages; 40 consecutive runs in the
+Amplify container across builds 39 and 40.
+
+## Operator validation
+
+**Confirmed by the operator, from the Amplify console:** builds **39 and 40 both green**. Each
+carried 20 consecutive runs of `scripts/pre-commit-hook.test.mjs` inside the build container and
+fails the build on any non-zero, so green is 20/20. Against a baseline where three of builds 34–38
+failed on this suite, that is the evidence the ticket was actually asking for.
+
+**Verified by the agent, on this machine (WSL2, git 2.34.1, node 23.11.1, gitleaks 8.28.0):**
+
+- The ticket's own reproduction, run verbatim against the fixed hook: a stub `git` erroring on
+  `diff` with a bad `SKILL.md` staged is **blocked**, exit 1, with a message quoting git's own
+  `fatal: detected dubious ownership` rather than exiting silently. This is the case the ticket is
+  about.
+- A 19-byte `exit 0` gitleaks stub with a real-shaped `AKIA` staged is **blocked**, exit 1, with the
+  broken-scanner message rather than the layer-2 message — so the liveness check, not the pattern
+  scan, is what stopped it.
+- Both commits closing this work went through the real hook with the real gitleaks binary
+  (`0 commits scanned … no leaks found`), so layer 1 was exercised end to end on real content.
+
+**Not done, and named rather than assumed:** nobody ran the scratch-clone credential test by hand on
+a second machine. The agent-run equivalents above cover the same paths, and this ticket has no
+`(operator)`-prefixed criterion, so it is not a close blocker — but a second pair of eyes on a
+secret-scanning control is cheap and worth doing opportunistically.
 
 No screen or device applies; the hook has no rendered surface.
