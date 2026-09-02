@@ -94,6 +94,14 @@ replay. Building the drill properly means that path is already built and already
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 From the laptop, run the full drill against the CI fixture into a scratch stack and read the
 printed step-8 table: six rows, all PASS. Then deliberately corrupt one fixture cells file and
 re-run — assertion 3 must fail and the run must stop before step 7 writes `manifest.json`. On the

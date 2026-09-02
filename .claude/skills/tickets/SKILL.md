@@ -113,9 +113,13 @@ Refuse first, then act:
 2. Append `## Resolution` — files touched, tests added, decisions and their rationale. **The honest
    record of what happened, not what was planned.** Include what went wrong; a Resolution that reads
    as though everything worked first time is a Resolution nobody will trust later.
-3. Append `## Operator validation` — concrete manual checks, naming **a screen and a device** for
-   anything visual. "None" is permitted only for genuinely invisible infrastructure, and even then
-   say why.
+3. Append `## Operator validation` — evidence of verification, **by whoever could actually perform
+   it** (D-181). Visual or experiential work names **a screen and a device**. Everything else —
+   deployed infrastructure, status codes, IAM, DynamoDB, GitHub — **you verify yourself with a smoke
+   test** and write down what it proved; you have AWS credentials and must not route those to the
+   operator. "None" is permitted only for genuinely invisible work with nothing to poke, and even
+   then say why. A close with neither an operator check nor a smoke test is the failure this
+   section exists to prevent.
 4. If a real architectural decision was made, add a `D-xxx` to `docs/decisions/DECISIONS.md`.
    **Never edit an existing settled decision to make a ticket easier.** Supersede it explicitly,
    with the reasoning, so the change is visible.

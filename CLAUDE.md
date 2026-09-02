@@ -59,6 +59,12 @@ Read `docs/decisions/DECISIONS.md` in full at the **start of a capability**, not
   settle a question, or implementation shows the design is wrong, **stop and ask**. Never widen a
   ticket's scope — file a new one with `source: agent`. A wrong design doc is a finding, not an
   obstacle: surface it, get a decision, record a new `D-xxx`.
+- **Operator validation is for JUDGEMENT, not verification** (D-181). A criterion earns `(operator)`
+  only when a human eye or hand is the *only* instrument that can answer it — does the fog read,
+  does the card land, did a real run appear on the map. **Everything reachable with AWS credentials,
+  `curl` or a script is yours to run**, and the result goes in `## Operator validation` as a smoke
+  test. You have AWS access; see *AWS credentials* above. The burden did not shrink, it **moved** —
+  a close with neither an operator check nor a smoke test is worse than what this replaced.
 - **Every capability closes with a drift audit** (D-153) — `docs/capabilities/AUDIT.md`.
   The rule: *if the code diverged from the design, either the code changes or the doc changes —
   never neither.* Capabilities `00` and `01` are audited by hand; from `02` onward

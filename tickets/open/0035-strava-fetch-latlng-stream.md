@@ -99,6 +99,14 @@ will hit them.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 **Desktop, the browser devtools Network tab (or a CloudWatch log of the outgoing request).** Sync
 one real outdoor run and inspect the actual request URL to `/streams`: confirm it carries only
 `keys` and `key_by_type`, and confirm the response's `original_size` matches the point count the

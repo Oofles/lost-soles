@@ -87,6 +87,14 @@ ticket against 0028, exactly as D-141 was raised against `04-game-design.md` §1
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 **Desktop, the GitHub Actions run page for a PR.** Open a throwaway PR that adds a single row to
 `rules/xp-rules-v1.yaml` and changes nothing else. Confirm the build is **green** and that the
 diff view shows one changed file. Then push a second commit adding the string `"wayfaring"` to a

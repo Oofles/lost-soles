@@ -93,6 +93,14 @@ the write path, this ticket has failed regardless of the tests passing.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 On the **`/skills` panel** on the **Pixel 8 Pro**, with the app open and the panel visible: run
 a replay against a deliberately stingier v2 ruleset from your laptop while watching the phone.
 **No tile's level or bar may visibly decrease at any point**, including during the run. When it

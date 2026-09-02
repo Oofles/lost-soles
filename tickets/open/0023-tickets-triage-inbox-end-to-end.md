@@ -72,6 +72,14 @@ turns it into a numbered open ticket.*
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 **Desktop, Claude Code terminal.** After a real run with two or three captures sitting in the
 inbox, run `/tickets triage`. Confirm you are asked all your clarifying questions **once**, not
 one at a time. Then open the resulting files in `tickets/open/` and check that the Description

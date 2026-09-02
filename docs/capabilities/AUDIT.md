@@ -44,16 +44,21 @@ not that the code is sloppy. Stop shipping tickets and run a DESIGN session on t
 
 ## 3. Operator validation — did it actually happen
 
-- [ ] Every closed ticket has a real `## Operator validation` result, not a restatement of the
-      instruction and not "None" where the ticket is operator-visible.
-- [ ] For capabilities touching the map, the run log, or XP: **the USE step happened — you went
-      for an actual run with this build on your phone.** For this project USE is not a metaphor.
+- [ ] Every closed ticket has a real `## Operator validation` result — an operator's dated report,
+      or **the agent's smoke test against real infrastructure** (D-181), not a restatement of the
+      instruction and not "None" where something was observable.
+- [ ] **The real-run requirement applies to `08-map-and-fog-renderer`, `09-xp-engine-and-ledger`
+      and `12-post-run-moment`** — for those, the USE step means *you went for an actual run with
+      this build on your phone*, and it is not a metaphor. It is **not** a blanket rule: a
+      backend capability with no screen has no run to go for, and demanding one there is the
+      ceremony D-181 removes.
 - [ ] Anything that looked wrong but passed its tests is filed as a ticket, not tolerated.
 
 ## 4. Regression against earlier capabilities
 
 - [ ] Did this capability change anything an earlier one depends on? If so, that earlier
-      capability's operator validation is re-run — at minimum, load the map and import a run.
+      capability's validation is re-run — for a visual capability, at minimum load the map and
+      import a run; for a backend one, re-run its smoke test.
 - [ ] `explored-r10.bin` still regenerates and no cell has re-fogged (D-020, `I-7`).
 - [ ] Total XP is unchanged or higher, never lower (D-135, `I-16`).
 

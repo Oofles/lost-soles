@@ -105,6 +105,14 @@ rename must be an edit to one attribute.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 **Desktop, a text editor, on `rules/xp-rules-v1.yaml` itself.** Read the seven rows top to bottom
 and answer, from the YAML alone with no code open, the question "which skill does a treadmill run
 train, and which does an outdoor run train?" If you cannot answer it from the file, the `match`

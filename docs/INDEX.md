@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,071 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,102 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -451,7 +451,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/07-ticketsmith.md`
 
-**07 — Ticket System ("TicketSmith, adapted")** — 1,341 lines
+**07 — Ticket System ("TicketSmith, adapted")** — 1,372 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -466,45 +466,45 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.3 Triage is a gate, not overhead | `187-204` | The obvious objection to inbox/ is that it adds a step. |
 | &nbsp;&nbsp;↳ 2.4 Data flow | `205-232` | Phone ──POST /api/dev/tickets──▶ capture endpoint ──GitHub Contents API──▶ commit to |
 | &nbsp;&nbsp;↳ 2.5 Rejected alternatives | `233-293` | Tickets live in a Lost Soles DynamoDB table; the repo has no tickets/. |
-| 3. Ticket schema | `294-616` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
+| 3. Ticket schema | `294-647` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
 | &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `300-389` |  |
 | &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `390-421` | thing: they move information out of prose that the agent must re-infer every session and into |
 | &nbsp;&nbsp;↳ 3.3 Body sections | `422-456` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
-| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria — the ones a human must run | `457-500` | A criterion prefixed (operator) is one no agent can check: it needs a human, a device, and |
-| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `501-523` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
-| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `524-540` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
-| &nbsp;&nbsp;↳ 3.6 Complete example | `541-616` | slug: half-xp-on-explored-ground |
-| 4. The `/tickets` command | `617-937` | Required by D-091. |
-| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `621-643` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
-| &nbsp;&nbsp;↳ 4.2 Frontmatter | `644-683` | name: tickets |
-| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `684-707` |  |
-| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `708-728` | starting work. Note the path difference from TicketSmith: this project uses a |
-| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `729-751` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
-| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `752-771` | Refuse first, then act. |
-| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `772-903` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
-| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `904-937` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
-| 5. The in-app ticket UI | `938-1055` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
-| &nbsp;&nbsp;↳ 5.1 Placement | `943-954` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
-| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `955-984` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
-| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `985-998` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
-| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `999-1010` | Read-only list from the cached mirror. |
-| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1011-1017` | Tap a row → rendered markdown detail view. |
-| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1018-1023` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
-| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1024-1055` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
-| 6. Auth and security | `1056-1185` | The capture endpoint is a write primitive pointed at your source repository. |
-| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1061-1066` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
-| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1067-1083` | Fastest to stand up, and adequate for a single-operator project. |
-| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1084-1098` | Recommended once the endpoint is stable. |
-| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1099-1158` | { "title": "string, 1..200", |
-| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1159-1172` |  |
-| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1173-1185` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
-| 7. Bootstrapping | `1186-1330` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1188-1204` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1205-1259` | ├── CLAUDE.md # orientation. |
-| &nbsp;&nbsp;↳ 7.3 Seeding | `1260-1303` | Ordered, and each step is usable before the next exists. |
-| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1304-1311` | Do not pre-populate tickets/inbox/ with ideas. |
-| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1312-1330` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
-| Open questions | `1331-1341` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
+| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria — the ones a human must run | `457-520` | A criterion prefixed (operator) is one no agent can check: it needs a human, a device, and |
+| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `521-543` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
+| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `544-571` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
+| &nbsp;&nbsp;↳ 3.6 Complete example | `572-647` | slug: half-xp-on-explored-ground |
+| 4. The `/tickets` command | `648-968` | Required by D-091. |
+| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `652-674` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
+| &nbsp;&nbsp;↳ 4.2 Frontmatter | `675-714` | name: tickets |
+| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `715-738` |  |
+| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `739-759` | starting work. Note the path difference from TicketSmith: this project uses a |
+| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `760-782` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
+| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `783-802` | Refuse first, then act. |
+| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `803-934` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
+| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `935-968` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
+| 5. The in-app ticket UI | `969-1086` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
+| &nbsp;&nbsp;↳ 5.1 Placement | `974-985` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
+| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `986-1015` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
+| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `1016-1029` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
+| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `1030-1041` | Read-only list from the cached mirror. |
+| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1042-1048` | Tap a row → rendered markdown detail view. |
+| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1049-1054` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
+| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1055-1086` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
+| 6. Auth and security | `1087-1216` | The capture endpoint is a write primitive pointed at your source repository. |
+| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1092-1097` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
+| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1098-1114` | Fastest to stand up, and adequate for a single-operator project. |
+| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1115-1129` | Recommended once the endpoint is stable. |
+| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1130-1189` | { "title": "string, 1..200", |
+| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1190-1203` |  |
+| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1204-1216` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
+| 7. Bootstrapping | `1217-1361` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1219-1235` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1236-1290` | ├── CLAUDE.md # orientation. |
+| &nbsp;&nbsp;↳ 7.3 Seeding | `1291-1334` | Ordered, and each step is usable before the next exists. |
+| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1335-1342` | Do not pre-populate tickets/inbox/ with ideas. |
+| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1343-1361` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
+| Open questions | `1362-1372` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
 
 ## `docs/08-security-privacy.md`
 

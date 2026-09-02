@@ -84,6 +84,14 @@ killed at any point. That job is out of scope here; this ticket must not make it
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 None directly — `listSince` has no screen of its own; it is exercised through the Sync button in
 capability `06`. Its behaviour is verified here by tests against checked-in fixtures. The operator
 sees it at the milestone: pressing Sync and having a run that Strava's webhook would have dropped

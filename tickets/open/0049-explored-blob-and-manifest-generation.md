@@ -90,6 +90,14 @@ without a version bump, but it is a lever for later. If it is ever enabled, the 
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 1. Sync a run. In the S3 console, `users/<uid>/explored/` gains a new `explored-r10.<gen>.bin`
    whose `<gen>` is one higher than the previous, and the old file is still there.
 2. Open `manifest.json` in the browser — `generation`, `cellCount` and `updatedAt` reflect the run

@@ -82,6 +82,14 @@ resources rather than categories.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 On the laptop with the AWS console and the GitHub repo open, work the checklist and record each
 result in `docs/capabilities/18-mvp-hardening.md`. Then, on the Android phone specifically:
 trigger the poisoned-message test and confirm the notification actually arrives on the phone

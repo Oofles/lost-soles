@@ -459,6 +459,26 @@ Unchanged from TicketSmith, and this matters more than the frontmatter.
 A criterion prefixed **`(operator)`** is one no agent can check: it needs a human, a device, and
 eyes. Bare or bolded, any case, optionally followed by a colon.
 
+**WHAT EARNS THE PREFIX (D-181).** A human eye or hand must be the *only* instrument that can answer
+the question. Apply the test honestly, because the prefix is expensive — it stops a close and parks
+work on someone who is not at their desk:
+
+| Earns `(operator)` | Does NOT — this is the agent's job |
+|---|---|
+| Does the fog read as legible on a real phone screen? | Did the table deploy, and is its TTL enabled? |
+| Does the level-up card land, or feel cheap? | Does an unauthenticated POST return 404? |
+| Is the tally readable in sunlight, one-handed, after a run? | Did the IAM policy attach, and is it scoped? |
+| Did a **real run** appear on the map? | Does the rate limiter refuse at exactly the cap? |
+
+Anything reachable with AWS credentials, `curl`, or a script is **verified by the agent and written
+up in `## Operator validation` as a smoke test** — not handed to a human. This was not always true:
+the rule was written when the agent had no AWS credentials, so "the agent cannot personally confirm
+it" and "a human must check it" collapsed into the same thing. They are not the same thing.
+
+**A step that rides along with something the operator already does is not a tax.** "Go for a run and
+confirm it appears" costs nothing extra — they were going for a run. "Open the AWS console and check
+a DynamoDB row" is pure overhead. Prefer the first shape; delete the second.
+
 ```markdown
 ## Acceptance criteria
 
@@ -529,10 +549,21 @@ banner renders 4px off on a small Android screen" or "the fog edge shimmers when
 exactly the class of bug that passes every test and that only the operator can catch. D-051
 makes map legibility non-negotiable, and no automated test asserts legibility.
 
-Every UI ticket's validation section names **a screen, a device, and what to look at.** "None"
-is permitted but push back hard: TicketSmith's `WORKFLOW.md` lists "closing tickets without
-honest operator validation" as an anti-pattern — *"If the validation section is always 'None,'
-nobody is checking the work. That's not validation; that's hope."*
+Every UI ticket's validation section names **a screen, a device, and what to look at.** Note the
+word **UI**: it was there from the start, and ignoring it is how this section turned into a tax.
+A ticket with no screen has no screen to name, and inventing one is ceremony.
+
+**"None" is permitted, and the anti-pattern it guards against has a better answer now (D-181).**
+TicketSmith's `WORKFLOW.md` warns that *"if the validation section is always 'None,' nobody is
+checking the work. That's not validation; that's hope."* That is correct and still binding — but the
+fix is **not** to invent a manual step for a human. It is for the agent to run a smoke test against
+real infrastructure and record what it proved. `0019` is the worked example: four manual steps
+became four agent-run checks, two of which caught things no unit test could reach (a DynamoDB
+conditional refusing at exactly the cap; GitHub's real `422 "sha" wasn't supplied`).
+
+So the section is still non-negotiable and still must not be empty. What it contains changes:
+**evidence of verification, by whoever could actually perform it.** A close with neither an operator
+check nor a recorded smoke test is the thing this section exists to prevent.
 
 The capability lifecycle's **USE** step fits this project unusually well: for Lost Soles, "USE"
 means *actually going for a run with the build on your phone.* That is a real, unskippable

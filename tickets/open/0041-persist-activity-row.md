@@ -60,6 +60,14 @@ and as the derived polyline object; T3 does not carry point arrays.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 1. Sync a run. In the DynamoDB console, `Activity` shows one row whose id is the sha256 form, not
    a ULID.
 2. Check the three time fields on a run you started in the evening: the local field must read the

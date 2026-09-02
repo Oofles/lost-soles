@@ -95,6 +95,14 @@ is written as an audit rather than a backlog.
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 On the laptop, open a scratch PR that adds a file named `share-my-map.md` with the word "export"
 in it, and confirm CI fails with a message naming the §2.4 gate. Then run the prerender check
 against a real build and read its output — it should list every prerendered route and assert none

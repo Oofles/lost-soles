@@ -45,7 +45,14 @@ feature works".
 - [x] (operator) Ran it on the Pixel — verified 2026-08-31: passed, no restart needed
 ```
 
-The marker means *no agent can check this*. Two refusals hang off it:
+**Before using the marker, check it is earned (D-181).** It means *a human eye or hand is the ONLY
+instrument that can answer this* — not merely *"the agent has not checked it"*. Deployed
+infrastructure, HTTP status codes, IAM/DynamoDB/GitHub state, anything reachable with AWS
+credentials or `curl`: **the agent runs it and records the result as a smoke test.** The prefix is
+expensive — it stops a close and parks work on someone who is not at their desk — so spend it only
+on judgement: does the fog read, does the card land, did a real run appear on the map.
+
+Two refusals hang off it:
 
 - **Unchecked** → `close` refuses and tells you to leave the ticket open, commit the work, and close
   it in a later session once the operator has run it. **Do not tick it to make the close pass.**
@@ -110,10 +117,18 @@ time, and degrades silently as the backlog grows. That is why `depends_on` is a 
      as ticking it.
 2. **`## Resolution`** — files touched, tests added, decisions and rationale, what went wrong.
    The honest record of what happened, not what was planned.
-3. **`## Operator validation`** — concrete checks. **Name a screen and a device** for anything
-   visual. For Lost Soles this frequently means *going for an actual run with the build on the
-   phone*; the defects that matter (a shimmering fog edge, a banner 4px off, a map unreadable in
-   sunlight) pass every automated test.
+3. **`## Operator validation`** — evidence of verification, **by whoever could actually perform
+   it** (D-181). Two shapes, and picking the wrong one is the common mistake:
+   - **Visual or experiential** → name a screen and a device. For Lost Soles this frequently means
+     *going for an actual run with the build on the phone*; the defects that matter (a shimmering
+     fog edge, a banner 4px off, a map unreadable in sunlight) pass every automated test.
+   - **Everything else** → **you run it, and write down what it proved.** You have AWS credentials
+     (`AWS_PROFILE=devault`; see `CLAUDE.md`). Do not route a table, a status code or an IAM policy
+     to the operator. A smoke test against real infrastructure reaches strictly further than a unit
+     test — a stub proves the right `ConditionExpression` string was *sent*, only the real table
+     proves DynamoDB *accepts* it.
+   - **"None" is allowed** for genuinely invisible work with nothing deployed to poke — say why.
+     What is never allowed is a close with neither an operator check nor a smoke test.
 4. **New decisions** → append `D-xxx` to `docs/decisions/DECISIONS.md`.
    **Never edit a settled decision to make a ticket easier.** Supersede it visibly.
 5. **`tickets.mjs close <id>`** — status, `closed:` stamp, `git mv`, index regenerated.

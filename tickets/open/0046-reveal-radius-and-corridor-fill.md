@@ -75,6 +75,14 @@ expensive to change once XP has been awarded against it, so change it before shi
 
 ## Operator validation
 
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
 1. After 0059 lands, open the map at zoom 16 over a street you have run exactly once, on the
    Android phone.
 2. The revealed corridor should be about one street wide plus front gardens — roughly 130 m across.
