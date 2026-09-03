@@ -1062,6 +1062,14 @@ Connectivity is flaky outdoors, and the capture must never fail in a way the use
 5. Duplicate protection: each capture carries a client-generated UUID sent as an idempotency key
    so a retried flush cannot create two files.
 
+> **Capability `17` owns this outright, and inherits a bound with it (D-184, ticket `0022`).** The
+> phone-task queue that would have covered the offline case before `17` shipped is declined, so this
+> IndexedDB queue supersedes nothing — it is the only queue there will be. The bound: the endpoint's
+> idempotency key has a **24-hour TTL**, so a capture that has been retrying for longer than a day
+> may duplicate if it finally succeeds after the key expires. That is acceptable — a capture stuck
+> for 24 hours is a bug worth noticing — but **`17` must not present the exactly-once guarantee as
+> unconditional.**
+
 ### 5.4 Screen 2 — Browse
 
 Read-only list from the cached mirror. Default filter `status != closed`, **grouped by
@@ -1184,6 +1192,15 @@ strip-unknown-keys, so a future client bug surfaces as a 400 instead of silently
 1. **Owner-only auth.** Require a valid Lost Soles session **and** check the user id against a
    hard-coded allowlist. Not "is logged in" — "is the owner." Even after D-014 adds friends,
    this route stays owner-only.
+
+   **A non-browser client authenticates with `Authorization: Bearer <Cognito ID token>`**, verified
+   server-side against the production pool's JWKS, with `sub` taken from the verified payload and
+   checked against the same allowlist (**D-183**, ticket `0149`). *Added by the capability `03`
+   audit, 2026-09-03: this clause said only "a valid Lost Soles session", `0019` implemented it as
+   cookies, and the endpoint was therefore unreachable by anything that cannot hold one — which was
+   the whole point of the capability. The decision existed in `DECISIONS.md`; this document never
+   caught up.* Verification runs in **both** the middleware and the route, deliberately: a check
+   whose correctness depends on a regex in a matcher somewhere else is not a check.
 2. **The client never supplies the file path. This is the critical one.** The server derives it:
 
    ```

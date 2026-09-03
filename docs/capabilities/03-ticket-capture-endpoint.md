@@ -502,3 +502,112 @@ instructions someone follows under pressure and cannot easily sanity-check:
   its original diagram.
 - **`/dev/tickets`** — the UI *page* in capability `17`, which is a different thing from the API
   route and is correct as written.
+
+---
+
+## REFLECT — capability `03` close audit  (2026-09-03, D-153)
+
+### What the design got right, non-obviously
+
+**Absence as a control.** §6.4/4's "create-only, no `sha`, no update path — not disabled, *absent*"
+is the single best decision in this capability. An endpoint reachable from outside that can only
+*add* files to one directory has a blast radius you can state in a sentence. A flag would have been
+one boolean away from being flipped.
+
+**Deriving the path server-side, and then checking it again** (§6.4/2 + /3). Two independent guards
+where one would have "worked" — and the second exists precisely so a future refactor of the first
+fails closed. That is the shape a guard should have.
+
+**Idempotency ordering.** Checking the key *before* spending rate budget was not in the design; it
+came out of building it. A retry queue resending after a timeout it never saw answered would
+otherwise burn the hourly budget on captures already committed.
+
+### What the design got wrong
+
+**It specified a client it had never priced.** Roadmap §4.1 and the capability's tickets `0020`,
+`0021` and `0022` were built on **MacroDroid, a paid app**, and no document — not the roadmap, not
+`DECISIONS.md` — recorded that. The operator found out at install time, on a project with a ~$3/mo
+infrastructure budget (D-081). All three are declined (**D-184**). The lesson is narrow and
+actionable: *a plan that names a third-party dependency must price it in the same sentence.*
+
+**It let a scoped claim escape its scope.** §4.1's "the endpoint, not the UI, is the real product"
+is a comparison of `03` against `17`. Quoted into `0020` without its paragraph, it read as a claim
+about Lost Soles and directly contradicted `00-vision.md`. Both copies are fixed and §4.1 now
+carries a do-not-re-shorten note.
+
+**It named a route nobody built.** `/api/dev/tickets`, 13 times across three design documents,
+against a shipped `/api/tickets/capture` (`0154`). Two of the thirteen were operational
+instructions, and one — checklist item **A-6** — was a security control that would have *passed
+because the route did not exist*, since 404 is also what the owner allowlist returns by design.
+
+### Divergences found, and how each resolved
+
+**Three. At the drift budget, not over it.**
+
+1. **`08` §5.3 said the refresh token TTL was 30 days; it has been 1 year since `0151` shipped on
+   2026-09-02.** The design was wrong (superseded by its own later ticket) → **doc amended**, with
+   the reasoning and the note that the ID token deliberately stays at 1 hour.
+2. **`07` §6.4/1 and `08` §5.3 described cookie sessions only; the endpoint also accepts a verified
+   `Authorization: Bearer` ID token.** The decision (**D-183**, `0149`) existed in `DECISIONS.md`
+   and was never written into either design doc → **both amended**. This is the most instructive of
+   the three: *a decision recorded only in the register is invisible to whoever reads the design
+   doc next*, and this one had already caused `0019` to ship an endpoint the phone could not reach.
+3. **`07` §6.4/7 (webhook HMAC verification) is unbuilt.** Not drift: it belongs to capability
+   `17`'s `0110`, and §5.7's route is now marked *not built; `0110` names it* rather than carrying
+   an invented path.
+
+**`DECISIONS.md` scan for quietly falsified decisions:** one. **D-092** ("manual ticket creation
+from the app UI is required") was claimed satisfied at `03` by roadmap §4.1. It never was — a
+MacroDroid macro is not an app UI — and with `0020` declined the claim is withdrawn. D-092 is
+satisfied at `17`, which the operator confirmed is still wanted, scoped to **read + create**
+(D-093's write-set disjointness holds: the UI only ever creates into `inbox/`, the agent only ever
+edits and moves).
+
+**Canonical contract** (`docs/contracts/ingestion-contract.md`): unaffected. Nothing in this
+capability touches `Activity`, `Trace` or `SourceAdapter` — verified by grep over `lib/tickets/`
+and `app/api/tickets/`.
+
+### Estimate vs actual
+
+Planned as **7 tickets**. Actual: **10 closed, 3 of them declined**, plus 6 unplanned tickets
+(`0149`–`0154`) that the capability generated for itself. The overrun driver was `0019`'s auth
+assumption — cookie-only, which no document had contradicted because no document had considered a
+non-browser client. That single gap produced `0149` (bearer auth), `0150` (smoke test), `0151`
+(refresh lifetime) and `0152` (verification), and it is the direct ancestor of divergence 2 above.
+
+### What the next capability should do differently
+
+**When a decision is recorded in `DECISIONS.md`, amend the design section it changes in the same
+commit.** Divergence 2 sat undetected for a day only because this audit ran; a longer-lived one
+would have been read as current by the next session. `DECISIONS.md` is the *register*, not the
+*specification* — a reader who goes to the design doc must not get the pre-decision answer.
+
+Second, smaller: **`0139` reproduced twice** in this capability — `tickets.mjs create --body`
+appends its template after the supplied body, and the duplicate section's phantom `- [ ] TODO` is
+invisible to `validate` and only surfaces at `close`. It is cheap to clean up and easy to miss.
+Worth fixing before the next capability files anything.
+
+## Audit — 2026-09-03 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 8 passed, 0 failed, 4 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `docs/08-security-privacy.md §5.3` — Refresh token TTL documented as 30 days; shipped as 1 year by ticket 0151 on 2026-09-02 and this table was never updated. Doc amended in this commit; ID token deliberately stays at 1 hour.
+2. **design-was-wrong** — `docs/07-ticketsmith.md §6.4(1) and docs/08-security-privacy.md §5.3` — Both described cookie sessions only; the endpoint also accepts a verified Authorization: Bearer Cognito ID token (D-183, ticket 0149). The decision existed in DECISIONS.md and was never written into either design doc — which is why 0019 shipped an endpoint the phone could not reach. Both amended in this commit.
+3. **design-was-wrong** — `docs/07-ticketsmith.md §6.4(7) and §5.7` — Webhook HMAC verification and the cache-refresh route are unbuilt. Not drift in 03: they belong to capability 17's ticket 0110, which should name them. Marked 'not built; 0110 names it' rather than carrying the invented /api/dev/tickets path.
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **na** — 30 invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 10 closed
+
+<!-- audit-record {"capability":"03-ticket-capture-endpoint","audited":"2026-09-03T20:22:41Z","verdict":"pass","mechanical":{"pass":8,"fail":0,"na":4},"divergences":3} -->
