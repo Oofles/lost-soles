@@ -503,6 +503,16 @@ export interface NormalizedIngest {
 ```ts
 import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity"
 
+// SUPERSEDED 2026-09-03 by ticket 0026 / D-187. The built shapes are in
+// contracts/ingestion-contract.md §3. Two changes, both recorded there:
+//   - `adapter: AdapterId` / `payload` became `source: SourceId` / `meta`, and the job
+//     gained `command`, following the contract's conflict-1 resolution.
+//   - `jobs: IngestJob[]` became `commands: IngestCommand[]`, because a delete webhook and
+//     a deauthorisation both arrive at accept() and NEITHER IS A JOB. Classifying an
+//     inbound payload is exactly what phase 1 is for, and the old return type could not
+//     carry the result. See D-187.
+// Retained below for its surrounding reasoning, per this document's banner.
+
 /** What the webhook/endpoint layer produces and the queue carries. Serialisable. */
 export interface IngestJob {
   ingestKey: string          // idempotency key, computed at accept()

@@ -145,7 +145,50 @@ export interface NormalizedIngest {
 
 ## 3. `src/adapters/types.ts` — the adapter interface
 
+> **Amended 2026-09-03 (ticket `0026`, D-187).** §3 originally specified `SourceAdapter` and
+> `IngestCommand` in full but only *referenced* `InboundRequest`, `AckResult` and `IngestJob`.
+> Their shapes are settled below. The one substantive change to a previously-written shape is
+> `AckResult`, which carried `jobs: IngestJob[]` in `01-architecture.md` §3 and could not express
+> a deletion — see D-187.
+
 ```ts
+/** What the public endpoint hands accept(). Transport-agnostic.
+ *  rawBody is BYTES, never parsed JSON: a webhook signature is computed over the exact
+ *  bytes sent, and a JSON.parse + stringify round trip destroys the ability to verify it. */
+export interface InboundRequest {
+  source: SourceId
+  method: string
+  headers: Readonly<Record<string, string>>   // lower-cased keys
+  query: Readonly<Record<string, string>>
+  rawBody: Buffer
+}
+
+/** Which of the two job-carrying intents a job represents. NOT IngestCommand: that type's
+ *  ingest/reingest variants carry an IngestJob, so a job holding one would nest for ever. */
+export type IngestCommandKind = "ingest" | "reingest"
+
+/** What the endpoint layer produces and the queue carries. Serialisable.
+ *  NOTHING VENDOR-SPECIFIC — `meta` is the opaque pressure valve. A field here named after
+ *  something only one source has has moved the D-100 boundary into the queue. */
+export interface IngestJob {
+  ingestKey: string        // idempotency key, computed at accept(), before anything is fetched
+  userId: string
+  source: SourceId
+  externalId: string       // ALWAYS a string — int64 ids corrupt past 2^53 in JSON.parse
+  command: IngestCommandKind
+  meta: unknown            // adapter-private hints: an aspect type, an S3 key, a page cursor
+  enqueuedAt: string
+}
+
+/** What accept() returns: the immediate response, plus the intents to enqueue.
+ *  `commands`, not `jobs` (D-187) — a delete webhook and a deauthorisation both arrive here
+ *  and neither is a job. An empty array is valid: accepted and intentionally dropped. */
+export interface AckResult {
+  status: number
+  body?: unknown
+  commands: IngestCommand[]
+}
+
 export interface SourceAdapter<TCreds = unknown> {
   readonly id: SourceId
 

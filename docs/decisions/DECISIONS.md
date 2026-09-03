@@ -1301,3 +1301,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Related but explicitly NOT declined: capability `17-tickets-ui`.** The operator confirmed on
     2026-09-03 that a ticket-management page in the web UI is wanted — see D-186. This decision is
     about push delivery alone.
+
+---
+
+## `AckResult` carries intents, not jobs  (2026-09-03, ticket 0026)
+
+- **D-187** **`accept()` returns `commands: IngestCommand[]`, not `jobs: IngestJob[]`.**
+  `01-architecture.md` §3 specified the latter. It cannot express a deletion.
+  - **The defect.** Phase 1's entire job is to *classify an inbound payload* and hand back what
+    should happen. Two of the four things that can happen are not jobs: a source-side delete
+    (`retract`) and a revoked authorisation (`disconnect`) have nothing to fetch and nothing to
+    archive. `IngestCommand` was defined with exactly those four variants in the same section of
+    the same contract that gave `accept()` a return type able to carry only two of them.
+  - **Why it was invisible.** `contracts/ingestion-contract.md` §3 specified `SourceAdapter` and
+    `IngestCommand` in full but only *referenced* `AckResult`, `InboundRequest` and `IngestJob`.
+    D-140's reconciliation compared the two docs where they overlapped; this gap was in neither
+    doc's overlap, so nothing was there to conflict. **A type that only one document defines is
+    not thereby agreed — it is unreviewed.**
+  - `commands` subsumes the old field: `ingest` and `reingest` each wrap an `IngestJob`. An empty
+    array keeps its old meaning — accepted and intentionally dropped.
+  - **Also settled by this decision**, all recorded in contract §3 rather than left to be
+    re-derived per adapter:
+    1. **`InboundRequest` carries `rawBody: Buffer`, never parsed JSON.** A webhook signature is
+       computed over the exact bytes sent; a `JSON.parse` + `stringify` round trip reorders keys
+       and drops whitespace, so a body parsed before verification can never be verified. Parsing
+       is the adapter's job, *after* the signature check.
+    2. **`IngestJob` uses `source: SourceId` and `meta`**, not `01`'s `adapter: AdapterId` and
+       `payload`. `AdapterId` does not exist in the built domain — conflict 1 settled on
+       `SourceId`. `ingestKey` and `enqueuedAt` are kept from `01`: both are source-agnostic and
+       load-bearing (`02-data-model.md` §8 reconstructs an `IngestJob` from an S3 key during the rebuild drill).
+    3. **`IngestJob.command` is the narrow `"ingest" | "reingest"`, not `IngestCommand`.** As
+       specified the two types were mutually recursive through a value: `IngestCommand`'s
+       job-carrying variants hold an `IngestJob`, so a job holding a full command nests without
+       end. `retract` and `disconnect` carry no job and cannot appear there.
+  - **Supersedes nothing settled.** D-140 reconciled `Activity`/`Trace`/`SourceAdapter`; these
+    three types were outside its scope. `01-architecture.md` §3 is marked SUPERSEDED in place,
+    with the reasoning, rather than edited to look as though it had been right.

@@ -31,7 +31,16 @@ const config = [
     //
     // src/pipeline is included pre-emptively, for the same reason the D-100 grep landed
     // while the domain was empty: a rule added after the leak has already failed.
-    files: ["src/domain/**/*.ts", "src/domain/**/*.tsx", "src/pipeline/**/*.ts"],
+    // src/adapters added by ticket 0026, whose criterion 9 requires zero `any` in
+    // types.ts and registry.ts. Scoped to the whole directory rather than those two
+    // files: an `any` in a concrete adapter is how a vendor's shape escapes untyped,
+    // and the boundary is only worth what its weakest member is typed as.
+    files: [
+      "src/domain/**/*.ts",
+      "src/domain/**/*.tsx",
+      "src/pipeline/**/*.ts",
+      "src/adapters/**/*.ts",
+    ],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
     },
