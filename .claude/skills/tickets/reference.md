@@ -285,10 +285,21 @@ idea nobody will build would be inventing a plan in order to reject it, and zero
 
 **`git log --follow` and the rename heuristic.** Git records no rename; `--follow` infers one from
 similarity. A **promoted** ticket keeps its body byte-identical, so it follows at the default 50%
-threshold. A **declined or merged** one gains four sections plus a `## Resolution`, which for a
-two-line capture is most of the file — below the threshold. Use `git log --follow -M20%` there.
-The move was still a `git mv` and the content is still in history; only the default heuristic
-misses it.
+threshold and is reliable.
+
+**For a declined or merged capture, do NOT use `--follow`** — not even with a lowered threshold.
+Such a capture gains four sections plus a `## Resolution`, so the generated boilerplate dominates a
+short note and every declined capture ends up resembling every other one. Lowering the threshold to
+span the rewrite is exactly what lets git match the wrong sibling: on 2026-09-03, `-M20%` reported
+`0152`'s ancestor as `0150` — a different capture, from a different day. A confident wrong trail is
+worse than no trail. Filed as `0153`.
+
+Use the original path's own history instead. No heuristic, no ambiguity:
+
+```sh
+git log --full-history -- 'tickets/inbox/<original-capture-name>.md'
+git show <the capture: commit>:tickets/inbox/<original-capture-name>.md
+```
 
 **Clean-tree behaviour (D-182).** The triage commands except `tickets/` from the D-158 guard,
 because a batch is required to land as **one** commit (`tickets: triage inbox (N items)`) and so

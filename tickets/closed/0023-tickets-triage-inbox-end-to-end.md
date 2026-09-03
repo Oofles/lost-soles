@@ -54,7 +54,13 @@ later should meet its own previous rejection.
 - [x] The move is a `git mv` — `git log --follow` on the open ticket reaches the inbox capture.
       **Amended 2026-09-02:** true as written for the *promote* path, which is what this names.
       Decline and merge rewrite most of a short capture (four sections plus a Resolution), so they
-      fall below git's default 50% rename threshold and need `git log --follow -M20%`. `--follow`
+      fall below git's default 50% rename threshold and need `git log --follow -M20%`.
+      **SUPERSEDED 2026-09-03 by `0153` — `-M20%` is unsafe advice.** Every declined capture
+      carries the same generated boilerplate, so at a lowered threshold git matches the wrong
+      sibling: `0152` followed to `0150`, a different capture from a different day. Use
+      `git log --full-history -- 'tickets/inbox/<original-name>.md'`, which uses no heuristic. The
+      text below is left as written because what was believed at close is part of the record.
+      `--follow`
       is a similarity heuristic, not a recorded fact; the move is still a `git mv` and the content
       is still in history. Asserted in both directions by a test, so the limitation is recorded
       rather than rediscovered later as a suspected broken move.
@@ -145,7 +151,7 @@ first, which suppresses the guard entirely rather than narrowing it. The triage 
 The `git log --follow` criterion failed on first run, and the failure was real rather than a test
 artifact: decline rewrites most of a short capture, so rename detection misses it at the default
 threshold. Rather than weaken the assertion or delete it, both behaviours are now asserted —
-promote follows by default, decline needs `-M20%`.
+promote follows by default, decline needs `-M20%`. (Superseded — see `0153`.)
 
 Editing this ticket's own criteria block corrupted it twice. `## Acceptance criteria`, `## Notes`
 and `## Resolution` all appear inside this ticket's Description as quoted prose, so an unanchored
@@ -190,6 +196,7 @@ left unwritten — the gate working, not a failure.
 `created: 2026-09-01T01:44:47.182Z` byte-identical to the capture, `source: ui` preserved,
 `closed:` stamped, all four required sections plus a Resolution present, and the operator's
 original sentence intact. `validate` → 0 errors, 0 warnings. `git log --follow -M20%` on the closed
-file reaches back through `tickets: triage inbox (1 item)` to commit `f80a997`
+file reached back — correctly, but by luck, with only one declined capture in the repository at the
+time; see `0153` — through `tickets: triage inbox (1 item)` to commit `f80a997`
 `capture: 2026-09-01T0144-…` — the deployed endpoint's own commit — so history survives the whole
 path from the Lambda's write to the closed ticket.

@@ -3483,5 +3483,25 @@
       "checked": 0,
       "total": 0
     }
+  },
+  {
+    "id": 153,
+    "slug": "decline-boilerplate-false-ancestry",
+    "title": "Declined captures are near-identical, so git log --follow finds a FALSE ancestor",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-03T01:20:57Z",
+    "path": "tickets/open/0153-decline-boilerplate-false-ancestry.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

@@ -1567,7 +1567,9 @@ describe("0023 — triage: promote, merge, decline, defer", () => {
    * two-line capture changes most of the file, so the pair falls below 50%.
    *
    * The file still moved with `git mv` and the content is still in history —
-   * only the default-threshold heuristic misses it. `-M20%` finds it. Written
+   * only the default-threshold heuristic misses it. `-M20%` finds it HERE — but do not
+   * generalise from that: this repo holds exactly one declined capture, so there is no
+   * sibling to mismatch against. With two, `-M20%` matches the WRONG one (0153). Written
    * down here because the natural reaction to `--follow` coming up empty is to
    * assume the move was done wrong.
    */
