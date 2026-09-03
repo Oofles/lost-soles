@@ -3381,7 +3381,7 @@
     "title": "One NUL byte in a staged file silently disables the pre-commit literal secret scan",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "00-preflight-and-repo",
     "depends_on": [],
@@ -3389,10 +3389,11 @@
     "source": "agent",
     "created": "2026-09-02T14:48:30Z",
     "started": "2026-09-03T01:26:20Z",
-    "path": "tickets/open/0148-one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm.md",
-    "ready": true,
+    "closed": "2026-09-03T01:33:31Z",
+    "path": "tickets/closed/0148-one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },

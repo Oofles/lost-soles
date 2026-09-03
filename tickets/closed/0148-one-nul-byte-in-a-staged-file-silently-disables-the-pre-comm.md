@@ -4,7 +4,7 @@ slug: one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm
 title: One NUL byte in a staged file silently disables the pre-commit literal secret scan
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T14:48:30Z
 started: 2026-09-03T01:26:20Z
+closed: 2026-09-03T01:33:31Z
 ---
 
 ## Description
