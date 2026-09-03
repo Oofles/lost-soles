@@ -27,8 +27,19 @@ reaches the phone** (`07-ticketsmith.md` §6.1) — the PAT lives in SSM and is 
 endpoint. If a step below seems to want a GitHub token, the step is wrong.
 
 Obtain the refresh token once, per `0149`: sign in at `https://soles.devaultsecurity.com` in a
-browser, then read the value of the Local Storage key ending
-`...5vc5e8t2ljv1hg3doau5mp0m00.<sub>.refreshToken`. It lasts **one year** (`0151`).
+browser, then read it out of **cookies** — not Local Storage, which is empty because
+`Amplify.configure(outputs, { ssr: true })` stores the session where the server can read it. In the
+Console tab:
+
+```js
+decodeURIComponent(
+  document.cookie.split('; ')
+    .find(c => /^CognitoIdentityServiceProvider\..*\.refreshToken=/.test(c))
+    .split('=').slice(1).join('=')
+)
+```
+
+It lasts **one year** (`0151`).
 
 ## The macro, step by step
 

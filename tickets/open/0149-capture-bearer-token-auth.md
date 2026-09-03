@@ -162,8 +162,32 @@ This finishes criterion 9's positive half and the ticket. The agent must not hol
 browser session (`08-security-privacy.md` §2.4 Trigger A), which is why this step exists.
 
 1. Sign in to `https://soles.devaultsecurity.com` in a browser as the owner.
-2. In DevTools → Application → Local Storage, find the key ending
-   `...5vc5e8t2ljv1hg3doau5mp0m00.<sub>.refreshToken` and copy its value.
+2. Get the refresh token out of the browser. **It is in COOKIES, not Local Storage** — corrected
+   2026-09-02 after the first attempt found an empty Local Storage.
+
+   `components/auth-gate.tsx` calls `Amplify.configure(outputs, { ssr: true })`, and `ssr: true`
+   puts the tokens in cookies so that `middleware.ts` can read the session server-side. An empty
+   Local Storage is the system working, not a broken sign-in. (`amplify/backend.ts` says "token
+   storage stays Amplify's default (localStorage)" — that comment is about the plain browser SDK
+   and does not survive the Next.js adapter. It is corrected in place.)
+
+   Easiest, in the **Console** tab — this avoids having to know the username segment of the key:
+
+   ```js
+   decodeURIComponent(
+     document.cookie.split('; ')
+       .find(c => /^CognitoIdentityServiceProvider\..*\.refreshToken=/.test(c))
+       .split('=').slice(1).join('=')
+   )
+   ```
+
+   Or by hand: **Application → Cookies → `https://soles.devaultsecurity.com`**, the cookie named
+   `CognitoIdentityServiceProvider.5vc5e8t2ljv1hg3doau5mp0m00.<username>.refreshToken`. The key
+   template is `${prefix}.${clientId}.${lastAuthUser}.${authKey}`
+   (`@aws-amplify/auth` `TokenStore.mjs:132,161`), and the username segment is whatever
+   `CognitoIdentityServiceProvider.5vc5e8t2ljv1hg3doau5mp0m00.LastAuthUser` holds.
+
+   Expect roughly 1,700 characters.
 3. Exchange it for an ID token — nothing here is secret except the refresh token itself:
 
    ```sh

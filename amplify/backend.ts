@@ -77,10 +77,17 @@ cfnUserPool.userPoolTier = "ESSENTIALS"
 cfnIdentityPool.allowUnauthenticatedIdentities = false
 
 /**
- * Session handling, §5.3. Token storage stays Amplify's default (localStorage) —
- * that is an accepted, reasoned decision there, not an oversight: an XSS in this
- * app could equally just read the map, which is the asset, so cookie storage buys
- * complexity and no defence.
+ * Session handling, §5.3. Token storage is left at Amplify's default, and §5.3
+ * reasons about that as localStorage — an accepted decision there rather than an
+ * oversight, since an XSS in this app could equally just read the map, which is
+ * the asset.
+ *
+ * IN PRACTICE IT IS COOKIES, NOT localStorage. `components/auth-gate.tsx` calls
+ * `Amplify.configure(outputs, { ssr: true })`, and the Next.js adapter stores the
+ * tokens in cookies so `middleware.ts` can read the session server-side. Noted
+ * here because the sentence above sent ticket 0149's operator to an empty Local
+ * Storage panel; the reasoning is unchanged, the storage medium is not what §5.3
+ * says it is.
  *
  * Revocation is enabled so `globalSignOut` actually invalidates outstanding
  * refresh tokens. §5.3 is pointed that "untested revocation is not revocation".
