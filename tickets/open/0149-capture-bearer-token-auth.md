@@ -65,9 +65,12 @@ or by revoking that token, which is a materially better story than a static secr
       no credential.
 - [x] The refresh-token exchange is documented in the capability doc with the exact request shape,
       so `0020`'s task can be built from it without re-deriving it from AWS documentation.
-- [ ] Smoke test: a `curl` with a bearer IdToken obtained via `REFRESH_TOKEN_AUTH` commits a file
+- [x] Smoke test: a `curl` with a bearer IdToken obtained via `REFRESH_TOKEN_AUTH` commits a file
       to `tickets/inbox/`, and the same `curl` with ~~the token's last character~~ **a character in
       the middle of the signature** altered returns 404.
+      — verified 2026-09-03: the capture committed `tickets/inbox/2026-09-03T0114-bearer-auth-works.md`
+      in commit `1927a7e`, 1 file changed, 12 insertions; the tampered token returned **404** and
+      committed nothing — the repository holds exactly one capture commit for the pair.
       **Amended 2026-09-02 — the check as written can pass a forged token.** An RSA-2048 signature
       is 2048 bits, which base64url encodes in 342 characters carrying 2052 bits; the final
       character therefore contributes 2 significant bits and 4 bits of padding, so `A` and `B`
@@ -96,133 +99,97 @@ inherit this dependency through `0020`.
 The 1-hour IdToken lifetime interacts with `0022`: a capture queued offline for longer than an
 hour must re-run the refresh exchange before resending, not replay a stale token. Worth stating in
 `0022` rather than assuming the retry is a plain resend.
+## Resolution
+
+**What was wrong, and what was built.** `0019` shipped an endpoint only a browser could reach:
+`currentUserId()` read the identity from a Cognito session cookie and `middleware.ts` 404'd
+anything without one. A Tasker task cannot hold that cookie, so the capture endpoint was
+unreachable from the phone that is the whole of capability `03`'s value. `0020` had assumed "the
+shared auth header `0019` accepts", which was never built and which `08-security-privacy.md` §5.3
+forbids in the form it implies.
+
+`lib/auth/bearer.ts` now verifies an `Authorization: Bearer <Cognito ID token>` against the
+production pool's JWKS and returns the `sub` from the verified payload; `middleware.ts` and
+`lib/auth/owner.ts` both consult it. **D-183** records why that satisfies §5.3 rather than bending
+it — a signature checked against a key fetched from the issuer is not an asserted identity — and
+why a shared-secret header was rejected: a second auth path to a repository write primitive, a
+header trusted outright, and no per-device revocation.
+
+**Files touched:** `lib/auth/bearer.ts` (new), `lib/auth/bearer.test.ts` (new, 20 tests),
+`middleware.ts`, `middleware.test.ts` (+6), `lib/auth/owner.ts`, `vitest.config.ts`,
+`docs/decisions/DECISIONS.md` (D-183), `docs/capabilities/03-ticket-capture-endpoint.md`,
+`package.json` (`aws-jwt-verify@5.2.1`).
+
+**Verification runs twice, deliberately.** The middleware verifies and the route verifies again —
+a JWKS cache hit — because the route must be correct on its own terms: one more exclusion in the
+middleware matcher regex would otherwise switch the endpoint's authorization off silently. The two
+run on different runtimes: the edge bundle resolves `aws-jwt-verify`'s `browser` build
+(`crypto.subtle`, confirmed by inspecting the built output) and the route gets the Node build.
+
+**Three things went wrong, all now pinned by tests or corrected in place.**
+
+1. **The test suite was passing for the wrong reason.** Vitest's default node resolution loaded the
+   Node build, whose HTTP client is `https.request` — so a suite stubbing global `fetch` stubbed
+   nothing, the verifier reached the *real* Cognito JWKS over the network, and fourteen rejection
+   assertions were green while the two acceptance tests failed. That shape — rejections passing,
+   acceptances failing — is the signature of a suite proving nothing. `bearer.test.ts` now runs as
+   its own vitest project with `browser` conditions and the package inlined, because externalised
+   dependencies are resolved by Node and ignore Vite's conditions.
+2. **This ticket's own criterion 9 proposed a tamper test that does not tamper.** Altering "the
+   token's last character" cannot change an RSA-2048 signature: 2048 bits encode into 342 base64url
+   characters carrying 2052 bits, so the final character contributes 2 significant bits and 4 bits
+   of padding, and `A` and `B` decode identically. The criterion is amended and a test pins the
+   arithmetic.
+3. **The operator handoff sent them to the wrong storage.** It said Local Storage; the tokens are
+   in cookies, because `components/auth-gate.tsx` configures Amplify with `ssr: true` so
+   `middleware.ts` can read the session server-side. The root of the error is the §5.3 comment in
+   `amplify/backend.ts` asserting localStorage — true of the plain browser SDK, not of this app
+   under the Next.js adapter. Corrected in all three places rather than just in the handoff.
+
+**Scope held.** The 30-day refresh token this exposed became `0151` rather than growing this
+ticket; it is closed, and the lifetime is now a year.
 
 ## Operator validation
 
-> **D-181 — most of this is the AGENT's to run.** The JWKS verification, the pool-mismatch
-> rejection, the 404 equivalence and the `curl` round trip are all reachable with AWS credentials
-> and a shell, and belong here as smoke tests at close.
+> **D-181.** Everything reachable from a shell was the agent's and was run. Exactly one step needed
+> a human — a production ID token requires a production sign-in the agent must not hold
+> (`08-security-privacy.md` §2.4 Trigger A) — and that step is recorded below with its result.
 
-**Operator, once:** sign in on the phone's browser and hand the refresh token to the capture task,
-then confirm a capture posted from the device lands in `tickets/inbox/`. This is the only step
-needing a human, because the agent must not hold a production browser session
-(`08-security-privacy.md` §2.4 Trigger A, and the `0130` throwaway exists precisely so it never
-needs one).
+**Automated.** 270 tests pass (20 new in `bearer.test.ts`, 6 in `middleware.test.ts`), typecheck and
+lint clean. The bearer suite generates an RSA keypair and signs real tokens, so "a tampered token is
+rejected" is asserted by an actual signature check rather than a mock: acceptance, expiry, wrong
+pool, wrong client, access-vs-ID token, unknown `kid`, a swapped payload, `alg:none`, JWKS caching,
+and that a failed JWKS fetch is **not** cached.
 
----
+**A real cross-pool token, not a synthetic one.** A valid, unexpired, correctly signed ID token was
+minted for `agent@lost-soles.invalid` in the sandbox pool (SRP, via the `0130` throwaway) and fed to
+the production verifier: rejected, `issuer not configured`. The sandbox verifier accepted the same
+token, proving the rejection is about the pool rather than a broken token.
 
-## Progress — 2026-09-02 (not closed)
-
-Nine of ten criteria are met and the code is deployed (Amplify build **58**, commit `4247cd3`).
-**Criterion 9 is outstanding and only the operator can finish it**, so the ticket stays open per
-the close rule: committing the work and closing it later is correct; ticking the box is not.
-
-### What was verified, and how
-
-`lib/auth/bearer.ts` verifies against real RSA signatures in test — a keypair is generated, tokens
-are signed with it, and the JWKS endpoint is stubbed to serve the matching public key, so "a
-tampered token is rejected" is asserted by the actual signature check. 20 tests cover acceptance,
-expiry, wrong pool, wrong client, access-vs-ID token, unknown `kid`, a swapped payload, `alg:none`,
-JWKS caching, and that a failed JWKS fetch is not cached. 6 more in `middleware.test.ts` cover the
-routing decision. Full suite: **270 pass**, typecheck and lint clean.
-
-**Criterion 5 was proven with a real token, not a synthetic one.** A valid, unexpired, correctly
-signed ID token was minted for `agent@lost-soles.invalid` in the sandbox pool (SRP, via the `0130`
-throwaway) and fed to the production verifier: rejected, `issuer not configured`. The sandbox
-verifier accepted the same token, so the rejection is about the pool rather than a broken token.
-
-**Criterion 8 was proven by running the exchange.** `REFRESH_TOKEN_AUTH` over plain `curl` — no
+**The refresh exchange, run rather than described.** `REFRESH_TOKEN_AUTH` over plain `curl` — no
 SigV4, no SDK, no client secret — returned a fresh ID token, `ExpiresIn: 3600`, `TokenType: Bearer`.
-The request shape is in the capability doc verbatim.
+The request shape is in the capability doc verbatim, which is what let `0020`'s task be specified
+without re-deriving it.
 
-### Deployed smoke test — the rejection half of criterion 9
+**Deployed rejection sweep** (build 58). Five shapes against
+`https://soles.devaultsecurity.com/api/tickets/capture` — no credential, garbage bearer, empty
+bearer, a real sandbox-pool token, and that token with a middle signature character altered — all
+returned a byte-identical `404 {"error":"not found"}` and committed nothing. An honest limit was
+recorded at the time: by design those are indistinguishable from a deployment without the bearer
+branch, so the branch's *presence* rested on the unit tests and the built bundle. **The operator
+step below is what removed that gap.**
 
-Against `https://soles.devaultsecurity.com/api/tickets/capture` on build 58, every one returned a
-byte-identical `404 {"error":"not found"}` and committed nothing:
+**Operator, 2026-09-03 — the positive path, which only a production session could reach.**
+Signed in, took the refresh token from cookies, exchanged it via `REFRESH_TOKEN_AUTH`, and captured.
 
-| Sent | Result |
-|---|---|
-| no credential at all | 404 |
-| `Bearer not-a-jwt` | 404 |
-| `Bearer ` (empty) | 404 |
-| a **real, valid** sandbox-pool ID token | 404 |
-| that token with a middle signature character altered | 404 |
+- **201.** Committed `tickets/inbox/2026-09-03T0114-bearer-auth-works.md`, commit
+  `1927a7e1eb29c664f7382d5901c1b74c9739bdcc`, **1 file changed, 12 insertions**. Frontmatter
+  correct: `status: inbox`, `source: ui`, `created: 2026-09-03T01:14:48.907Z`. Authored as the
+  operator's identity, which is expected — §6.2 states the v1 PAT acts as the user.
+- **404** for the same token with a middle signature character altered, and **no second file**.
+  Verified against the repository rather than taken on trust: it holds exactly one capture commit
+  for the pair.
 
-**An honest limit on what that proves.** By design these are indistinguishable from what a
-deployment *without* the bearer branch would return — §6.5 spends a 404-instead-of-403 precisely so
-no probe can tell the cases apart, and that denies it to the agent too. A timing probe (a token with
-correct production claims and an unknown `kid`, which can only be rejected after a JWKS fetch) was
-inconclusive: the first request was slower, later ones were not. So the branch's *presence* rests on
-the unit tests plus inspection of the built edge bundle — six `crypto.subtle` references and zero
-Node `crypto`, from the same commit build 58 deployed — not on the deployed probe.
-
-### ★ What the operator needs to do, once ★
-
-This finishes criterion 9's positive half and the ticket. The agent must not hold a production
-browser session (`08-security-privacy.md` §2.4 Trigger A), which is why this step exists.
-
-1. Sign in to `https://soles.devaultsecurity.com` in a browser as the owner.
-2. Get the refresh token out of the browser. **It is in COOKIES, not Local Storage** — corrected
-   2026-09-02 after the first attempt found an empty Local Storage.
-
-   `components/auth-gate.tsx` calls `Amplify.configure(outputs, { ssr: true })`, and `ssr: true`
-   puts the tokens in cookies so that `middleware.ts` can read the session server-side. An empty
-   Local Storage is the system working, not a broken sign-in. (`amplify/backend.ts` says "token
-   storage stays Amplify's default (localStorage)" — that comment is about the plain browser SDK
-   and does not survive the Next.js adapter. It is corrected in place.)
-
-   Easiest, in the **Console** tab — this avoids having to know the username segment of the key:
-
-   ```js
-   decodeURIComponent(
-     document.cookie.split('; ')
-       .find(c => /^CognitoIdentityServiceProvider\..*\.refreshToken=/.test(c))
-       .split('=').slice(1).join('=')
-   )
-   ```
-
-   Or by hand: **Application → Cookies → `https://soles.devaultsecurity.com`**, the cookie named
-   `CognitoIdentityServiceProvider.5vc5e8t2ljv1hg3doau5mp0m00.<username>.refreshToken`. The key
-   template is `${prefix}.${clientId}.${lastAuthUser}.${authKey}`
-   (`@aws-amplify/auth` `TokenStore.mjs:132,161`), and the username segment is whatever
-   `CognitoIdentityServiceProvider.5vc5e8t2ljv1hg3doau5mp0m00.LastAuthUser` holds.
-
-   Expect roughly 1,700 characters.
-3. Exchange it for an ID token — nothing here is secret except the refresh token itself:
-
-   ```sh
-   RT='<the refresh token>'
-   ID=$(curl -s -X POST https://cognito-idp.us-east-1.amazonaws.com/ \
-     -H 'Content-Type: application/x-amz-json-1.1' \
-     -H 'X-Amz-Target: AWSCognitoIdentityProviderService.InitiateAuth' \
-     -d "{\"AuthFlow\":\"REFRESH_TOKEN_AUTH\",\"ClientId\":\"5vc5e8t2ljv1hg3doau5mp0m00\",\"AuthParameters\":{\"REFRESH_TOKEN\":\"$RT\"}}" \
-     | sed -n 's/.*"IdToken":"\([^"]*\)".*/\1/p')
-   echo "got a token of ${#ID} chars"
-   ```
-
-4. Capture with it, and confirm a **201** with a `path` and `commitSha`:
-
-   ```sh
-   curl -i -X POST https://soles.devaultsecurity.com/api/tickets/capture \
-     -H "Authorization: Bearer $ID" -H 'Content-Type: application/json' \
-     -d '{"title":"bearer auth works","type":"chore","priority":"low",
-          "idempotencyKey":"'"$(uuidgen)"'"}'
-   ```
-
-5. Then confirm the rejection half with the *same* token, one character of the signature altered
-   **in the middle, not at the end** — the last character carries only padding bits and altering it
-   changes nothing:
-
-   ```sh
-   BAD="${ID:0:${#ID}-40}$([ "${ID: -40:1}" = A ] && echo B || echo A)${ID: -39}"
-   curl -s -o /dev/null -w '%{http_code}\n' -X POST \
-     https://soles.devaultsecurity.com/api/tickets/capture \
-     -H "Authorization: Bearer $BAD" -H 'Content-Type: application/json' \
-     -d '{"title":"should not appear","type":"chore","priority":"low",
-          "idempotencyKey":"'"$(uuidgen)"'"}'
-   ```
-
-   Expect `404`, and confirm no second file appeared in `tickets/inbox/`.
-
-Report the two results and the ticket closes. The `tickets/inbox/` file from step 4 is a real
-capture — decline it at the next triage rather than deleting it.
+That closes the loop end to end — a bearer token minted on a device path, verified by the deployed
+middleware and route, committing one file to the repository, with a forged variant of the same
+token refused.
