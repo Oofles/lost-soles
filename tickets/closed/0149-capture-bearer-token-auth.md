@@ -4,13 +4,14 @@ slug: capture-bearer-token-auth
 title: Bearer-token auth so a non-browser client can reach the capture endpoint
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 03-ticket-capture-endpoint
 depends_on: [19]
 blocked_by: []
 source: agent
 created: 2026-09-02T15:26:07Z
+closed: 2026-09-03T01:18:27Z
 ---
 
 ## Description

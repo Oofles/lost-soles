@@ -468,7 +468,7 @@
     "path": "tickets/open/0020-android-quick-capture-tile.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 8
     }
   },
@@ -3401,7 +3401,7 @@
     "title": "Bearer-token auth so a non-browser client can reach the capture endpoint",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -3410,10 +3410,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T15:26:07Z",
-    "path": "tickets/open/0149-capture-bearer-token-auth.md",
-    "ready": true,
+    "closed": "2026-09-03T01:18:27Z",
+    "path": "tickets/closed/0149-capture-bearer-token-auth.md",
+    "ready": false,
     "acceptance": {
-      "checked": 9,
+      "checked": 10,
       "total": 10
     }
   },
@@ -3460,6 +3461,20 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "title": "bearer auth works",
+    "type": "chore",
+    "priority": "low",
+    "status": "inbox",
+    "source": "ui",
+    "created": "2026-09-03T01:14:48.907Z",
+    "path": "tickets/inbox/2026-09-03T0114-bearer-auth-works.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 0
     }
   }
 ]
