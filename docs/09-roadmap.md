@@ -416,10 +416,12 @@ thing is skippable and nothing about it is required.
 | 3 | ▸ **Verification, replay protection, rate limiting and cost-DoS defence** | §4.1, §4.3, §4.4. The endpoint must never do the work inline (§4.5) — it enqueues. |
 | 4 | ▸ **`token-refresh` scheduled Lambda (every 4 h)** | Refresh before expiry, not on failure. |
 | 5 | ▸ **`nightly-reconcile` — `listSince` backstop** | Covers silently dropped webhooks. This is *why* `listSince` is mandatory (D-140). |
-| 6 | **Push/plinth notification "your run is on the map"** | Deep-links to `/run/:id`. |
+| 6 | ~~**Push/plinth notification "your run is on the map"**~~ | **DECLINED 2026-09-03, D-185.** Web push was the last MVP item needing the phone *configured* rather than opened. `0087`'s plinth line `1 new run — tap to open` carries the signal; the ticket's own criterion 10 already required the app to work identically with push denied. |
 
 **Depends on:** `06`, `12`. **Done when:** a run finished on the phone appears on the map with no
-user action; killing the webhook for a day and running the reconcile recovers the missed runs.
+user action *(unchanged — D-185 dropped the push, not the automatic path; you learn about the run
+from the plinth on next open)*; killing the webhook for a day and running the reconcile recovers the
+missed runs.
 
 #### `15-two-map-modes-and-cold-territory` — 5 tickets
 

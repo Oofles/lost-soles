@@ -1273,3 +1273,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     auth path (D-183) and a working reference client all survive. Rebuilding the tile means
     re-filing one ticket against `docs/capabilities/03-capture-tile.md`, which is kept, banner and
     all, for exactly that reason.
+
+---
+
+## The one push notification is declined; the plinth carries it  (2026-09-03, ticket 0096)
+
+- **D-185** **`0096`, the "your run is on the map" push notification, is DECLINED.** Capability `14`
+  ships webhook ingest, subscription management, token refresh and the nightly reconcile — the
+  automatic path is unaffected. What is dropped is the *push* on the end of it.
+  - **The ticket made this case itself and it is worth quoting rather than paraphrasing:** *"The
+    plinth is the fallback, not the notification's backup singer. Everything that works with push
+    must work identically without it."* One of its own acceptance criteria required an end-to-end
+    run of the whole flow **with push disabled**, working identically. A feature whose spec mandates
+    a fully-supported path without it is a feature the MVP can ship without.
+  - **What replaces it: nothing, because `0087` already does the job.** The home plinth's
+    `1 new run — tap to open` line is the same signal on the same tap, one app-open later. The cost
+    is that you find out when you open the app rather than being told — which for a *reporting*
+    notification (D-013 permits reporting, forbids asking) is a small delay, not a lost capability.
+  - **What it saves.** Web push is the only remaining piece of the MVP that needs the phone
+    *configured* rather than merely *opened*: a PWA install, a notification permission grant, a
+    service worker, VAPID keys and a delivery path whose behaviour — as `0096` itself notes — "is
+    the only part whose behaviour is outside our control." Against an operator goal of using the app
+    sooner with less setup, that is the worst ratio left in the plan.
+  - **The D-013 reasoning survives the decline and still binds.** If a notification is ever revived
+    it must *report*, never *ask*: no streaks, no "you haven't logged today", no "unclaimed ground
+    near you". The frontier line's exclusion (`06-ui-ux.md` §3.2, beat 5) stands regardless.
+  - **Related but explicitly NOT declined: capability `17-tickets-ui`.** The operator confirmed on
+    2026-09-03 that a ticket-management page in the web UI is wanted — see D-186. This decision is
+    about push delivery alone.

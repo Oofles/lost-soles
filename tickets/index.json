@@ -2208,7 +2208,7 @@
     "title": "\"Your run is on the map\" — the one notification, deep-linking to /run/:id",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [
@@ -2219,11 +2219,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0096-your-run-is-on-the-map-notification.md",
+    "closed": "2026-09-03T20:02:27Z",
+    "path": "tickets/closed/0096-your-run-is-on-the-map-notification.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 11
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -2661,7 +2662,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0115-secrets-dependency-audit-incident-playbook.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
