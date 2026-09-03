@@ -3,14 +3,19 @@ import { execFileSync } from "node:child_process"
 import { describe, expect, it } from "vitest"
 
 /**
- * Ticket 0020. Tests for `capture.sh`, which is the reference implementation the
- * phone macro transcribes.
+ * Tests for `capture.sh`, the capture endpoint's non-browser client.
  *
- * The macro itself cannot be tested from here — it lives on a device and is built
- * in a GUI. That is exactly why the logic is written down as a script first: the
- * truncation rule, the JSON escaping and the single-generation of the idempotency
- * key are the three things that can silently corrupt a note, and all three are
- * assertable here instead of being discovered at mile six.
+ * Originally ticket 0020, where this script was the reference implementation a
+ * phone macro would transcribe. **That macro was declined (D-184); 0020, 0021 and
+ * 0022 are closed as declined.** The script and these tests are retained because
+ * the three things they assert — the 200-character title/body split, the JSON
+ * escaping, and the single generation of the idempotency key per capture — are
+ * requirements of *any* client of POST /api/tickets/capture, including the
+ * /dev/tickets UI in capability 17. They are the three ways a captured note can be
+ * silently corrupted, and they are cheaper to assert here than to discover later.
+ *
+ * The `0020 —` prefixes on the describe blocks below are left as written: they are
+ * the provenance of each test, not a claim that the tile exists.
  */
 
 const SCRIPT = new URL("./capture.sh", import.meta.url).pathname

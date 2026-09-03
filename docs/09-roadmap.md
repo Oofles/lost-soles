@@ -230,9 +230,12 @@ authenticated page; a red test blocks a merge; no secret appears in `.next/stati
 | 6 | **`/tickets triage` handles inbox files end to end** | Assign `id`, `slug`, `size`, `capability`, `depends_on`; `git mv` to `open/` (07 §2.3, §4.5). |
 | 7 | **Runbook: rotating the PAT** | `08-security-privacy.md` §8.2. |
 
-**Depends on:** `01`, `02`. **Done when:** an idea dictated to the phone at the end of a run
+**Depends on:** `01`, `02`. ~~**Done when:** an idea dictated to the phone at the end of a run
 appears as a file in `tickets/inbox/` on GitHub within 5 seconds, without unlocking the phone, and
-`/tickets triage` turns it into a numbered open ticket. **D-092 is satisfied here**, not at `17`.
+`/tickets triage` turns it into a numbered open ticket. **D-092 is satisfied here**, not at `17`.~~
+**Revised 2026-09-03, D-184 — rows 3, 4 and 5 are declined. Done when:** an authenticated
+`POST /api/tickets/capture` appears as a file in `tickets/inbox/` on GitHub within 5 seconds, and
+`/tickets triage` turns it into a numbered open ticket. **D-092 is satisfied at `17`**, not here.
 
 #### `04-domain-contract-and-rules` — 7 tickets
 *The boundary, and the rules file. Nothing that touches an activity may be written before this.*
@@ -509,10 +512,16 @@ ships**, and between sign-off and that point, post-run ideas go to a notes app a
 into `tickets/inbox/`. That is a real gap of days to weeks, and it is the strongest argument for
 building the endpoint early. Two further reasons:
 
-- **The endpoint, not the UI, is the real product.** A Tasker/MacroDroid HTTP task on a
-  quick-settings tile — or a Google Assistant routine — captures a thought *without unlocking the
-  phone*. The `/dev/tickets` sheet requires opening the app, navigating, and typing. The tile is
-  likely to remain the fastest path even after `17` ships.
+- **Of the two ticket-capture interfaces, the endpoint — not the `/dev/tickets` UI — is the one
+  that carries the load.** A Tasker/MacroDroid HTTP task on a quick-settings tile, or a Google
+  Assistant routine, captures a thought *without unlocking the phone*; the `/dev/tickets` sheet
+  requires opening the app, navigating, and typing. The tile is likely to remain the fastest path
+  even after `17` ships.
+  **This sentence is about `03` versus `17` and nothing else.** It is emphatically *not* a claim
+  about Lost Soles, whose real product is the map and the skill system — see `00-vision.md`. An
+  earlier phrasing ("the endpoint, not the UI, is the real product") was quoted into ticket `0020`
+  without this paragraph around it and read there as exactly the claim it is not. Do not re-shorten
+  it. D-184.
 - **D-124 fixes the platform.** Android. Tasker/MacroDroid HTTP tasks, Assistant routines, PWA
   `share_target`. **Not iOS Shortcuts, not Siri.** Any design that assumes an iOS capture path is
   wrong for this user and must be rejected on sight.
@@ -521,6 +530,17 @@ building the endpoint early. Two further reasons:
 is the best return in the plan. It is *not* on the critical path to the first-usable milestone,
 and it is scheduled anyway — deliberately, and this is the only place in Phase 1 where a
 non-critical-path capability is admitted.
+
+> **Superseded in part, 2026-09-03 — D-184.** The endpoint shipped and stands. **The phone half of
+> this argument did not survive contact with the phone**: `0020` (the tile), `0021` (the Assistant
+> routine) and `0022` (the task-side retry queue) are **declined**. Two reasons, both faults in this
+> section rather than in the tickets: it recommended a **paid** automation app without ever pricing
+> it against the D-081 budget, and the bullet above was quotable out of its scope. So the "seven
+> tickets" above is now four, and the claim below that **D-092 is satisfied at `03`** is withdrawn —
+> D-092 says *"from the app UI"*, and a macro is not an app UI. **D-092 is satisfied at `17`.**
+> Until then a post-run idea goes to a notes app and is hand-carried, or is sent from a laptop with
+> `tools/capture/capture.sh`. Reversing this costs one re-filed ticket against
+> `docs/capabilities/03-capture-tile.md`, which is kept for the purpose.
 
 ### 4.2 D-141: `match` lands before the first line of the scorer
 

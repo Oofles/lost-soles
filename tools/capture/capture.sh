@@ -1,17 +1,22 @@
 #!/bin/sh
-# capture.sh — the reference implementation of the Lost Soles quick-capture task.
-# Ticket 0020. See docs/capabilities/03-capture-tile.md for the phone build.
+# capture.sh — the Lost Soles capture endpoint's non-browser client.
 #
-# WHY THIS EXISTS. The thing that actually runs is a MacroDroid macro (or a Tasker
-# task) on a phone, which cannot be unit-tested from a laptop and cannot be read
-# in a diff. This script does exactly what that macro must do, in the same order,
-# with the same two HTTP calls — so the LOGIC has one written-down, runnable,
-# testable definition, and the macro is a transcription of it rather than the only
-# copy of it.
+# WHY THIS EXISTS, as of 2026-09-03 (D-184). It was written as the reference
+# implementation of a phone quick-capture task (ticket 0020). THAT TASK WAS
+# DECLINED — 0020, 0021 and 0022 are closed as declined and there is no macro.
+# This script is RETAINED, with two jobs that outlived the tile:
 #
-# It is also the thing to reach for when the tile misbehaves: run this from a
-# laptop with the same refresh token, and it tells you whether the problem is the
-# phone or the endpoint.
+#   1. It is the only client of POST /api/tickets/capture outside a browser, and
+#      therefore the practical way to file an idea from a laptop until the
+#      /dev/tickets UI ships in capability 17. That is the reopened D-092 gap.
+#   2. It is the diagnostic for the endpoint itself: a full REFRESH_TOKEN_AUTH
+#      exchange plus a real capture POST, with a distinct exit code per failure,
+#      exercising the D-183 bearer path end to end from outside CI.
+#
+# Its logic (title/body split at 200 chars, JSON escaping, one idempotency key
+# per capture) is covered by capture.test.mjs and is what any future client —
+# phone or app — has to reproduce. See docs/capabilities/03-capture-tile.md for
+# the declined phone build and, still current, how to obtain a refresh token.
 #
 #   ./capture.sh "some dictated sentence"
 #   ./capture.sh --dry-run "some dictated sentence"     # print the request, send nothing

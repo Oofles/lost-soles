@@ -1231,3 +1231,45 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - The cost, accepted: a 1-hour ID token means the device re-runs `REFRESH_TOKEN_AUTH` before a
     capture that was queued offline for longer, rather than replaying a stale token. `0022` owns
     that, and the 30-day refresh token behind it is `0151`.
+
+---
+
+## The phone capture path is declined; the endpoint stands alone  (2026-09-03, tickets 0020, 0021, 0022)
+
+- **D-184** **The Android quick-capture tile, the Assistant routine and the task-side offline retry
+  queue are DECLINED.** `POST /api/tickets/capture` stays exactly as built (`0018`, `0019`, `0149`,
+  `0150`, `0151`, `0152`). What is dropped is the *phone automation client in front of it*, not the
+  endpoint. Capability `03` closes with three declines named in its audit record.
+  - **The trigger.** The operator, reading `0020` cold, could not tell what capability `03` was for
+    and asked whether it displaced the Strava import. It does not — `03` captures *development
+    ideas about Lost Soles*, and run data is capability `05` — but two things made that unreadable,
+    and both are real findings rather than a misreading.
+  - **Finding 1: `0020` quoted roadmap §4.1 out of its scope.** §4.1's "the endpoint, not the UI, is
+    the real product" is a claim about *two ticket-capture interfaces* — the HTTP endpoint beats the
+    `/dev/tickets` sheet that arrives in capability `17`. Lifted into a ticket with none of the
+    surrounding paragraph it reads as a claim about **Lost Soles**, which directly contradicts
+    `00-vision.md`. Both copies are corrected.
+  - **Finding 2: the plan named a paid dependency and never priced it.** `0020` and
+    `docs/capabilities/03-capture-tile.md` recommend MacroDroid. Neither the ticket, the roadmap nor
+    this register records that it is not free. A project on a ~$3/mo infrastructure budget (D-081)
+    does not take a recurring subscription for a convenience feature, and the plan should have
+    surfaced that when it was authored rather than at install time on the operator's phone.
+  - **Why decline rather than defer.** `deferred` (D-174) is for work waiting on the *world* to
+    change. Nothing here is waiting: a free client exists (HTTP Shortcuts — open source, quick
+    settings tiles, arbitrary HTTP requests). The operator's judgement is that a phone-automation
+    client is not worth its setup, maintenance and phone-wipe-reproduction cost for a channel that
+    already works from a laptop. That is a decision, not a wait, and `deferred` would have misfiled
+    it as one — leaving three tickets to re-litigate at every `recheck`.
+  - **What this costs, stated plainly.** Between now and capability `17`, a post-run idea goes to a
+    notes app and is hand-carried into `tickets/inbox/`, or is sent with `tools/capture/capture.sh`
+    from a laptop. That is the D-092 gap §4.1 scheduled `03` early to close, and it is reopened
+    until `17`. **D-092 reverts to being satisfied at `17`, not at `03`** — which is what D-092's own
+    wording ("from the app UI") said in the first place. §4.1's claim to satisfy it at `03` was
+    always a stretch: a MacroDroid macro is not an app UI.
+  - **The endpoint was not wasted and is not orphaned.** It is the write path `17`'s sheet will POST
+    to, it is exercised on every push by `0150`'s smoke test, and `tools/capture/capture.sh` is
+    retained as its only non-browser client and its "is it the phone or the endpoint?" diagnostic.
+  - **Reversing this is cheap, and the door is left open deliberately.** The endpoint, the bearer
+    auth path (D-183) and a working reference client all survive. Rebuilding the tile means
+    re-filing one ticket against `docs/capabilities/03-capture-tile.md`, which is kept, banner and
+    all, for exactly that reason.

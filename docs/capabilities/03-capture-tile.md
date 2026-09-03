@@ -1,5 +1,27 @@
 # The quick-capture tile — building it on the phone
 
+> # ⛔ DECLINED — 2026-09-03, D-184
+>
+> **Nothing in this document is scheduled work.** Tickets `0020` (this tile), `0021` (the Assistant
+> routine) and `0022` (the offline retry queue) are closed as **declined**. Two reasons: the plan
+> recommended **MacroDroid without ever pricing it** against the ~$3/mo D-081 budget, and the
+> operator's judgement is that a phone-automation client is not worth its setup, maintenance and
+> phone-wipe-reproduction cost for a channel that already works from a laptop.
+>
+> **The endpoint is unaffected and live** — `0018`, `0019`, `0149`–`0152`, smoke-tested on every
+> push. What was dropped is the client in front of it.
+>
+> **Why this file is kept rather than deleted.** Two things in it are still load-bearing:
+> the **refresh-token extraction procedure** below, which `tools/capture/capture.sh` still needs,
+> and the action-by-action build, which is what a re-file would start from. Reviving the tile costs
+> one new ticket against this document — but **do not use the MacroDroid recommendation as-is**;
+> re-evaluate against a free client such as
+> [HTTP Shortcuts](https://github.com/waboodoo/http-shortcuts) (open source, quick-settings tiles,
+> arbitrary HTTP requests) before spending anything.
+>
+> Idea capture until capability `17` ships: a notes app, hand-carried into `tickets/inbox/`, or
+> `tools/capture/capture.sh` from a laptop. That is the reopened D-092 gap, stated plainly.
+
 Ticket `0020`. **Android only (D-124).** There is no iOS path here and there will not be one.
 
 The runnable definition of this task is [`tools/capture/capture.sh`](../../tools/capture/capture.sh),
@@ -15,6 +37,9 @@ whether the problem is the phone or the endpoint. Its logic is covered by
 > once the macro works** and committed then. See `0020`'s amended criterion 7.
 
 ## Which app
+
+**Superseded by the banner above — MacroDroid is no longer a recommendation, it is the dependency
+that got this declined.** The paragraph is kept as the record of what was originally chosen and why.
 
 **MacroDroid** is the recommendation. It has a first-class *Quick Settings Tile* trigger and a
 *Voice Input* action, where Tasker needs the AutoTools/QuickTile plumbing for the same thing.
