@@ -551,7 +551,7 @@
     "title": "Runbook - rotating and revoking the GitHub PAT",
     "type": "docs",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -560,10 +560,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0024-runbook-rotating-the-github-pat.md",
-    "ready": true,
+    "closed": "2026-09-03T20:12:07Z",
+    "path": "tickets/closed/0024-runbook-rotating-the-github-pat.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -3504,6 +3505,26 @@
     "source": "agent",
     "created": "2026-09-03T01:20:57Z",
     "path": "tickets/open/0153-decline-boilerplate-false-ancestry.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 154,
+    "slug": "docs-say-post-api-dev-tickets-the-built-endpoint-is-api-tick",
+    "title": "Docs say POST /api/dev/tickets; the built endpoint is /api/tickets/capture",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "03-ticket-capture-endpoint",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-03T20:09:43Z",
+    "path": "tickets/open/0154-docs-say-post-api-dev-tickets-the-built-endpoint-is-api-tick.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

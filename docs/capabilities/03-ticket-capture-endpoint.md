@@ -8,11 +8,18 @@
 
 - `0018` — POST /api/tickets/capture commits a new file to tickets/inbox/
 - `0019` — Harden the capture endpoint - owner auth, server-derived path, size and rate limits, idempotency
-- `0020` — Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile
-- `0021` — Google Assistant routine as a second capture path
-- `0022` — Capture-queue semantics for offline - retry lives in the Android task, not the app
+- ~~`0020` — Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile~~ **DECLINED, D-184**
+- ~~`0021` — Google Assistant routine as a second capture path~~ **DECLINED, D-184**
+- ~~`0022` — Capture-queue semantics for offline - retry lives in the Android task~~ **DECLINED, D-184**
 - `0023` — /tickets triage handles inbox files end to end
 - `0024` — Runbook - rotating and revoking the GitHub PAT
+
+## Runbooks
+
+- **[Rotating and revoking the GitHub PAT](../runbooks/github-pat-rotation.md)** — ticket `0024`.
+  Scheduled 90-day rotation and the S5 leak response. **Read §0 first**: it carries the SSM
+  parameter path, the exact PAT settings, and the current token's issue and expiry dates, which are
+  updated on every rotation.
 
 ## Design notes
 
@@ -436,3 +443,32 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 _Filled in at the REFLECT step, after USE._
 
+
+### The PAT rotation runbook, and what writing it found  (ticket 0024, 2026-09-03)
+
+The runbook lives at [`docs/runbooks/github-pat-rotation.md`](../runbooks/github-pat-rotation.md) —
+a new `docs/runbooks/` directory rather than an inline section here, because two more runbooks are
+already scheduled (`0106` account deletion, `0115` incident playbook dry-read) and they should share
+a home the operator can find under pressure.
+
+**The step the runbook exists to stop you skipping: the cold start.** `lib/tickets/github.ts` caches
+the token in module scope for the life of the execution environment — deliberately, so only a cold
+start pays the SSM call. An SSM write therefore does nothing to a warm environment; it keeps serving
+the old token until it is recycled. A rotation that stops after `put-parameter` looks complete and
+then 401s at an unpredictable time later, which is the worst possible failure shape for a credential
+change: delayed, intermittent, and disconnected from the action that caused it.
+
+**Ordering that is not arbitrary.** Verify the new token with a live capture *before* revoking the
+old one. If verification fails you still have a working system on the old credential; revoke first
+and you have an outage plus a debugging session.
+
+**Two things writing it turned up.**
+
+- The docs name the endpoint `/api/dev/tickets` in ten places across four files; the built route is
+  `/api/tickets/capture`. Two of those are operational instructions — `08-security-privacy.md`
+  §8.2's leak-response Verify step and checklist item A-6 — so a checklist could pass because the
+  path 404s for the wrong reason. Filed as **`0154`** under D-152 rather than fixed inline.
+- The token has **never been rotated** (SSM parameter version 1, written 2026-08-31). Its expiry has
+  never been confirmed against GitHub, only derived from the 90-day policy. The runbook's §0 marks
+  that derived figure as unconfirmed and gives the one-line command to check it, rather than
+  presenting an inference as a fact.
