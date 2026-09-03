@@ -3464,13 +3464,20 @@
     }
   },
   {
+    "id": 152,
+    "slug": "bearer-auth-works-capture",
     "title": "bearer auth works",
     "type": "chore",
     "priority": "low",
-    "status": "inbox",
+    "status": "closed",
+    "size": "m",
+    "capability": "null",
+    "depends_on": [],
+    "blocked_by": [],
     "source": "ui",
     "created": "2026-09-03T01:14:48.907Z",
-    "path": "tickets/inbox/2026-09-03T0114-bearer-auth-works.md",
+    "closed": "2026-09-03T01:19:55Z",
+    "path": "tickets/closed/0152-bearer-auth-works-capture.md",
     "ready": false,
     "acceptance": {
       "checked": 0,
