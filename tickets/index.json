@@ -455,7 +455,7 @@
     "title": "Android quick-capture - Tasker/MacroDroid HTTP task on a quick-settings tile",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -465,11 +465,12 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-02T20:14:20Z",
-    "path": "tickets/open/0020-android-quick-capture-tile.md",
-    "ready": true,
+    "closed": "2026-09-03T19:48:28Z",
+    "path": "tickets/closed/0020-android-quick-capture-tile.md",
+    "ready": false,
     "acceptance": {
-      "checked": 2,
-      "total": 8
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -478,7 +479,7 @@
     "title": "Google Assistant routine as a second capture path",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -487,11 +488,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0021-google-assistant-capture-route.md",
+    "closed": "2026-09-03T19:48:32Z",
+    "path": "tickets/closed/0021-google-assistant-capture-route.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 5
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -500,7 +502,7 @@
     "title": "Capture-queue semantics for offline - retry lives in the Android task, not the app",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [
@@ -510,11 +512,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0022-offline-capture-retry-queue.md",
+    "closed": "2026-09-03T19:48:32Z",
+    "path": "tickets/closed/0022-offline-capture-retry-queue.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 8
+      "checked": 1,
+      "total": 1
     }
   },
   {
