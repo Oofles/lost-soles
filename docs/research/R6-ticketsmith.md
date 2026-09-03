@@ -534,6 +534,11 @@ That's it. Two taps and a sentence, done in under fifteen seconds. Resist every 
 
 **How it stays in sync:**
 
+> **Route names below are the 2026-08 proposal, not what shipped** — annotated, not rewritten,
+> because this is a research record (ticket `0154`). The capture endpoint shipped as
+> **`POST /api/tickets/capture`** (`0018`). The `GET` read route is still unbuilt; capability `17`'s
+> `0110` names it. See `07-ticketsmith.md` §2.4.
+
 ```
  Phone ──POST /api/dev/tickets──▶ server endpoint ──Contents API──▶ commits
                                                                     tickets/inbox/…

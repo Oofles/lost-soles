@@ -204,13 +204,18 @@ information about the backlog. Ten half-formed tickets sitting in `open/` would 
 
 ### 2.4 Data flow
 
+> **Route names, corrected 2026-09-03 (ticket `0154`).** The capture endpoint shipped as
+> **`POST /api/tickets/capture`** (`0018`); this document had called it `/api/dev/tickets`
+> throughout, which never existed. The **read** route and the **webhook** below are *not built* —
+> they are capability `17`'s `0110`, which names them. `/dev/tickets` (no `/api`) is the UI page.
+
 ```
- Phone ──POST /api/dev/tickets──▶ capture endpoint ──GitHub Contents API──▶ commit to
-   ▲                              (server-side, owner-only)                 tickets/inbox/
+ Phone ──POST /api/tickets/capture──▶ capture endpoint ──GitHub Contents API──▶ commit to
+   ▲                                   (server-side, owner-only)              tickets/inbox/
    │                                                                             │
    │                                                        GitHub push webhook  │
    │                                                                             ▼
-   └──── GET /api/dev/tickets ◀──── read cache (DynamoDB; disposable, rebuildable)
+   └──── GET <0110's read route> ◀──── read cache (DynamoDB; disposable, rebuildable)
 
  Claude Code ── git pull ──▶ files ── /tickets triage ──▶ tickets/open/ ── git push ──▶
                                                                              │
@@ -1049,7 +1054,7 @@ Connectivity is flaky outdoors, and the capture must never fail in a way the use
 
 1. On Save, write to **IndexedDB immediately** and render the new item optimistically at the top
    of the browse list with a "pending" marker.
-2. Flush to `POST /api/dev/tickets` via a background-sync queue with exponential-backoff retry.
+2. Flush to `POST /api/tickets/capture` via a background-sync queue with exponential-backoff retry.
 3. On a 2xx, mark the local row `submitted` and keep it visible until the webhook-refreshed cache
    confirms it, then drop the local copy.
 4. Show a small **"N pending"** badge whenever the queue is non-empty. That badge is the only
@@ -1089,7 +1094,8 @@ markdown for the detail view. Keyed by path.
 
 **Refresh path:**
 
-1. A GitHub **push webhook** on the repo hits `POST /api/dev/tickets/webhook`.
+1. A GitHub **push webhook** on the repo hits the cache-refresh route — **not built; `0110` names it**
+   (this document previously called it `POST /api/dev/tickets/webhook`, a path that never existed).
 2. The handler verifies the `X-Hub-Signature-256` HMAC (§6) and returns 202 immediately.
 3. Asynchronously it walks the repo's `tickets/` subtree via the **Git Trees API**
    (`?recursive=1` on the pushed commit sha), fetches changed blobs, parses frontmatter, and
@@ -1159,7 +1165,8 @@ Recommended once the endpoint is stable. Not required for v1.
 
 ### 6.4 Endpoint hardening
 
-`POST /api/dev/tickets`
+**`POST /api/tickets/capture`** — the route as built and deployed by `0018`. *(Corrected from
+`/api/dev/tickets` by ticket `0154`; that path never existed.)*
 
 **Request body — the complete accepted schema:**
 
@@ -1221,7 +1228,7 @@ strip-unknown-keys, so a future client bug surfaces as a 400 instead of silently
 
 | Case | Mitigation |
 |---|---|
-| Non-owner discovers `/api/dev/tickets` | (1) session + owner allowlist. Route returns 404, not 403 — do not confirm it exists. |
+| Non-owner discovers `/api/tickets/capture` | (1) session + owner allowlist. Route returns 404, not 403 — do not confirm it exists. |
 | Client sends `path: "../../.github/workflows/pwn.yml"` | (2) the field is rejected as an unknown key; the path is never read from input; (3) rejects it again if it somehow were. |
 | Title crafted as `x\n---\nid: 1\nstatus: closed\n---\n` | (6) real YAML serializer + newline stripping. |
 | Overwriting an existing ticket | (4) create-only, no `sha` passed. |

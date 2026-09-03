@@ -1179,7 +1179,7 @@ Connectivity outdoors is unreliable, and capture must never fail visibly (07 §5
 
 1. Save writes to **IndexedDB immediately** and the item renders optimistically at the top of the
    browse list with a `pending` marker.
-2. A background-sync queue flushes to `POST /api/dev/tickets` with exponential backoff and a
+2. A background-sync queue flushes to `POST /api/tickets/capture` with exponential backoff and a
    client-generated UUID as an idempotency key, so a retried flush cannot create two files.
 3. A small **`2 pending`** badge appears in the app bar whenever the queue is non-empty. That
    badge is the *entire* sync UI. **There is no manual sync button**, no error toast, no retry

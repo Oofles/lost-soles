@@ -3517,18 +3517,19 @@
     "title": "Docs say POST /api/dev/tickets; the built endpoint is /api/tickets/capture",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "03-ticket-capture-endpoint",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-03T20:09:43Z",
-    "path": "tickets/open/0154-docs-say-post-api-dev-tickets-the-built-endpoint-is-api-tick.md",
-    "ready": true,
+    "closed": "2026-09-03T20:19:16Z",
+    "path": "tickets/closed/0154-docs-say-post-api-dev-tickets-the-built-endpoint-is-api-tick.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 5
+      "checked": 4,
+      "total": 4
     }
   }
 ]

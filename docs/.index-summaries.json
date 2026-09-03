@@ -394,7 +394,7 @@
  "docs/07-ticketsmith.md#2.1 The problem D-092 creates": "TicketSmith assumes one operator, at one keyboard, in one repo.",
  "docs/07-ticketsmith.md#2.2 Why it works: the write sets are not symmetric": "Look at the table again. The phone almost only creates. The agent almost only edits and",
  "docs/07-ticketsmith.md#2.3 Triage is a gate, not overhead": "The obvious objection to inbox/ is that it adds a step.",
- "docs/07-ticketsmith.md#2.4 Data flow": "Phone ──POST /api/dev/tickets──▶ capture endpoint ──GitHub Contents API──▶ commit to",
+ "docs/07-ticketsmith.md#2.4 Data flow": "Route names corrected 2026-09-03 (0154): capture shipped as POST /api/tickets/capture; the read route and webhook are 0110's, unbuilt",
  "docs/07-ticketsmith.md#2.5 Rejected alternatives": "Tickets live in a Lost Soles DynamoDB table; the repo has no tickets/.",
  "docs/07-ticketsmith.md#3. Ticket schema": "Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the",
  "docs/07-ticketsmith.md#3.1 Frontmatter fields": "",

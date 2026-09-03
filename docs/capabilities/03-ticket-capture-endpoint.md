@@ -464,11 +464,41 @@ and you have an outage plus a debugging session.
 
 **Two things writing it turned up.**
 
-- The docs name the endpoint `/api/dev/tickets` in ten places across four files; the built route is
-  `/api/tickets/capture`. Two of those are operational instructions — `08-security-privacy.md`
-  §8.2's leak-response Verify step and checklist item A-6 — so a checklist could pass because the
-  path 404s for the wrong reason. Filed as **`0154`** under D-152 rather than fixed inline.
+- The docs name the endpoint `/api/dev/tickets`; the built route is `/api/tickets/capture`. Two of
+  those are operational instructions — `08-security-privacy.md` §8.2's leak-response Verify step and
+  checklist item A-6 — so a checklist could pass because the path 404s for the wrong reason. Filed
+  as **`0154`** under D-152 rather than fixed inline, and closed the same day: the real count was
+  **13 across four design docs**, not the ten this note first estimated.
 - The token has **never been rotated** (SSM parameter version 1, written 2026-08-31). Its expiry has
   never been confirmed against GitHub, only derived from the 90-day policy. The runbook's §0 marks
   that derived figure as unconfirmed and gives the one-line command to check it, rather than
   presenting an inference as a fact.
+
+### The route the design documents never had  (ticket 0154, 2026-09-03)
+
+`0018` shipped `POST /api/tickets/capture`. Every design document called it `/api/dev/tickets` —
+**13 occurrences across `07-ticketsmith.md`, `08-security-privacy.md` and `06-ui-ux.md`**, plus the
+generated `INDEX.md` line and two in the `R6` research record. No decision ever chose
+`/api/dev/tickets`; it is a name that only ever existed on paper, and nothing in code or CI compares
+a documented route against a real one, so nothing caught it for two weeks.
+
+**Why it was worth a ticket rather than a silent find-and-replace.** Two of the thirteen are
+instructions someone follows under pressure and cannot easily sanity-check:
+
+- `08` §8.2's leak-response **Verify** step — run during an incident, when you are least likely to
+  question why a `curl` came back 404.
+- `08` §2.4 checklist item **A-6**, *"`/api/dev/tickets` remains owner-only"* — a security checklist
+  box that would pass because the route does not exist. A control that passes for the wrong reason
+  is worse than one that fails, because it stops anyone looking again.
+
+**Three things were deliberately *not* renamed.**
+
+- **The read route and the cache-refresh webhook** (`07` §2.4, §5.7; `08`'s S6 row). Neither is
+  built. They belong to capability `17`'s `0110`, which gets to name them — pre-naming them here
+  would just be the same mistake with a different string. They are marked *not built, `0110` names
+  it* instead.
+- **`R6-ticketsmith.md`.** It is a research record of the 2026-08 proposal. Rewriting it would
+  falsify what was actually proposed, so it carries a note pointing at the shipped name and keeps
+  its original diagram.
+- **`/dev/tickets`** — the UI *page* in capability `17`, which is a different thing from the API
+  route and is correct as written.

@@ -176,8 +176,10 @@ login, which is the same thing with worse accountability.
       unmaskable, full-fidelity trace archive, in plain words, before their first ingest.
       They are not the owner; they cannot be assumed to have accepted D-123.
 - [ ] **A-5. Deletion works for them** (§6.4), and has been executed once against a test account.
-- [ ] **A-6. `/api/dev/tickets` remains owner-only** — already required by
+- [ ] **A-6. `POST /api/tickets/capture` remains owner-only** — already required by
       `07-ticketsmith.md` §6.4(1), restated here because it becomes load-bearing at this moment.
+      *(Path corrected from `/api/dev/tickets` by ticket `0154`; that route never existed, so this
+      box could have been ticked by curling a 404 for entirely the wrong reason.)*
 - [ ] **A-7. D-123 reopened and a successor decision recorded.**
 
 **What must be BUILT before Trigger A:** A-1 (owner-scoping tests), A-3 (a fidelity field on the
@@ -287,8 +289,8 @@ unused at $0.40/secret/month (§9).
 | S2 | `STRAVA_CLIENT_SECRET` | SSM, via `secret()` | callback + token refresh Lambdas only. **Never leaves a Lambda** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM, via `secret()` | `strava-webhook` GET handshake only | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
 | S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly three principals | `process-activity`, `token-refresh`, `/api/strava/callback` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/deauthorize`, then delete the row. Rotation is a *feature* here, not a chore |
-| S5 | **GitHub fine-grained PAT** (ticket commits) | SSM, via `secret()`; read by the `/api/dev/tickets` Lambda only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
-| S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | `/api/dev/tickets/webhook` HMAC verification | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
+| S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
+| S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM, via `secret()` | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
 | S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, Cognito, billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
 | S9 | **Map tile access** | *None.* pmtiles on Cloudflare R2, fetched by HTTP range from the browser (`01-architecture.md` §8) | the browser | **No credential exists.** The bucket is public-read by design and contains a generic basemap identical for every user, with zero Lost Soles data in it | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
@@ -599,7 +601,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
   authorization on `Activity`, `Trace`, `ExploredCell`, and `SourceAccount`; `entity('identity')`
   on the storage paths. No model is `authenticated`-readable, because `authenticated` will one
   day mean six people.
-- **There is exactly one privileged role: the owner.** It gates `/api/dev/tickets`
+- **There is exactly one privileged role: the owner.** It gates `POST /api/tickets/capture`
   (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6) and nothing else. It is a single `sub`
   compared against an SSM parameter — not a roles table, not RBAC. Six users do not need a
   permission system, and building one would create a second thing to get wrong.
@@ -955,7 +957,7 @@ disclosure, not a service outage.
   expiry** (`07-ticketsmith.md` §6.2). Update SSM, redeploy. **Then seriously consider doing
   §6.3 of that document instead** — the GitHub App with 1-hour installation tokens is the
   structural fix, and an incident is the moment its cost stops looking theoretical.
-- **Verify** — the old token 401s against the API; `/api/dev/tickets` still commits a test
+- **Verify** — the old token 401s against the API; `/api/tickets/capture` still commits a test
   capture; review the full commit log since the leak, not just the tip; confirm branch
   protection and push protection are on. If anything was committed by the attacker, the repo is
   the source of a deployment — treat 8.3 as also in scope.
@@ -1033,7 +1035,7 @@ that protects six people who are already behind Cognito.
 | **Customer-managed KMS keys** | ~$1/month plus per-request charges to defend against a threat (AWS-internal access to raw storage) that §1 explicitly excludes. SSE-S3 is on and free (§6.2) |
 | **AWS Secrets Manager** | $0.40/secret/month × 6–7 secrets ≈ $2.80/month, against SSM Parameter Store at $0 for the same job (§3). Secrets Manager's rotation automation is what you pay for, and our highest-value credential (S4) already rotates itself on every refresh |
 | **MFA beyond passkeys; SMS MFA specifically** | Passkeys are already phishing-resistant and hardware-bound (§5.2). SMS costs real SNS money and is the weakest available second factor |
-| **A roles/permissions system** | One privileged action exists (`/api/dev/tickets`), gated by a single `sub` comparison (§5.5). RBAC for six users creates a second thing to misconfigure |
+| **A roles/permissions system** | One privileged action exists (`POST /api/tickets/capture`), gated by a single `sub` comparison (§5.5). RBAC for six users creates a second thing to misconfigure |
 | **Field-level or client-side encryption of coordinates** | The app must render the map, so the key would have to reach the client, and the threat model's highest-ranked actor is an accident, not a cryptanalyst. It would break every server-side aggregate (D-115, D-120) to defend against nothing in §1 |
 | **Home-location masking / privacy zones** | **D-123, and it is the one item on this list with a live tripwire under it.** Not a permanent dismissal: §2.4's Triggers A, B and C each force it back open. See §2 — it is the most important section in this document, and this row is a pointer, not a decision |
 | **Anonymised analytics, error tracking SaaS, session replay** | A third party in the request path of a lifetime GPS history, for product insight into a userbase of one who can simply be asked. CloudWatch is sufficient and stays inside the account |
