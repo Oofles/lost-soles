@@ -3388,6 +3388,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T14:48:30Z",
+    "started": "2026-09-03T01:26:20Z",
     "path": "tickets/open/0148-one-nul-byte-in-a-staged-file-silently-disables-the-pre-comm.md",
     "ready": true,
     "acceptance": {
@@ -3501,7 +3502,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   }
 ]

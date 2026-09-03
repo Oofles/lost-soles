@@ -109,7 +109,25 @@ while IFS= read -r f; do
     #     set -o pipefail; big=$(seq 1 200000); echo "$big" | grep -q '^1$'
     # returns 141. Plain `grep -E >/dev/null` consumes all of its input, so
     # nothing upstream is ever SIGPIPEd and PIPESTATUS means what it says.
-    git show ":$f" 2>/dev/null | grep -vF 'gitleaks:allow' | grep -E -- "$p" >/dev/null
+    #
+    # `-a` ON BOTH GREPS, and the reason it must be both is the whole of ticket
+    # 0148. A single NUL byte anywhere in the file puts GNU grep into binary
+    # mode, where it writes "binary file matches" to STDERR and the matching
+    # lines NOWHERE. The FIRST grep is where the content is therefore lost: the
+    # second grep reads an empty stream and exits 1, and this hook reads that
+    # as "scanned, clean". Verified on GNU grep 3.7 with an AKIA-shaped key:
+    #
+    #   -a on NEITHER  -> PIPESTATUS[2]=1   the key is NOT detected
+    #   -a on SECOND   -> PIPESTATUS[2]=1   STILL not detected  <-- the trap
+    #   -a on BOTH     -> PIPESTATUS[2]=0   detected
+    #
+    # The one-character fix that looks right is the middle line, which is why
+    # it is spelled out here rather than left to whoever next tidies this up.
+    # It is D-176's failure class again — "I never ran" wearing "I ran and
+    # found nothing" — and ticket 0018 records a real day on which it fired:
+    # NULs in a fixture disabled this layer while gitleaks passed token-shaped
+    # strings in that same file. Both layers off, nobody aware.
+    git show ":$f" 2>/dev/null | grep -a -vF 'gitleaks:allow' | grep -a -E -- "$p" >/dev/null
     st=("${PIPESTATUS[@]}")
     # git failing to read a file it just told us is staged is a broken guard, not
     # a clean scan (D-176). `2>/dev/null` used to hide exactly that.

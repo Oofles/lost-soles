@@ -310,6 +310,60 @@ describe("gitleaks:allow exempts its own line and no other", () => {
   })
 })
 
+describe("a NUL byte cannot blind the literal scan (0148)", () => {
+  // Written as an ESCAPE, never as a literal NUL in this source. A fixture that
+  // itself contains a real NUL would be the bug testing itself: this very file
+  // would then be the binary one, and whatever regression arrived next would be
+  // invisible to the suite meant to catch it.
+  const NUL = "\u0000"
+
+  it("blocks a credential in a file that also contains a NUL", () => {
+    // The defect: GNU grep switches to binary mode on NUL input and writes the
+    // matching lines nowhere, so the second grep read an empty stream, exited 1,
+    // and the hook recorded "scanned, clean" on a file holding an AWS key.
+    const r = runHook({ "fixture.bin.ts": `const k = "${AKIA}"\nnul: ${NUL}\n` })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/matches a known credential pattern/)
+    expect(r.err).toContain("fixture.bin.ts")
+  })
+
+  it("still exempts a gitleaks:allow line in a file containing a NUL", () => {
+    // The fix must not be bought by breaking the exemption: the security docs
+    // quote credential patterns deliberately, and a hook that blocks its own
+    // documentation gets bypassed with --no-verify and stays bypassed.
+    const r = runHook({ "docs.md": `An AWS key looks like ${AKIA}  gitleaks:allow\nnul: ${NUL}\n` })
+    expect(r.status, why(r)).toBe(0)
+  })
+
+  it("still commits an innocent file that happens to contain a NUL", () => {
+    // `-a` makes the scanner read such a file; it must not make it suspicious of
+    // one. A fix that turns every binary-ish file into a block is a new failure,
+    // not a smaller one.
+    const r = runHook({ "fixture.bin.ts": `const x = 1\nnul: ${NUL}\n` })
+    expect(r.status, why(r)).toBe(0)
+    expect(r.err).toBe("")
+  })
+
+  it("carries -a on BOTH greps of the layer-2 pipeline", () => {
+    // Structural because NO behavioural test can reach this. `-a` on the first
+    // grep alone already produces the right exit status, and the second grep's
+    // "binary file matches" diagnostic — the one remaining observable — is
+    // SUPPRESSED by GNU grep when stdout is /dev/null, which is precisely how
+    // the hook invokes it. A stderr assertion here was written, and passed
+    // against all three broken variants before being deleted: a permanently
+    // green check, the exact failure this file exists to prevent.
+    //
+    // So the contract is pinned as text. Both greps carry -a; dropping either
+    // is caught here and nowhere else. See the comment in the hook for why.
+    const src = readFileSync(HOOK, "utf8")
+    const line = src.split("\n").find((l) => l.trim().startsWith("git show "))
+    expect(line, "the layer-2 scan pipeline was not found in the hook").toBeTruthy()
+    const greps = line.split("|").filter((seg) => /(^|\s)grep\s/.test(seg))
+    expect(greps).toHaveLength(2)
+    for (const g of greps) expect(g, `missing -a: ${line.trim()}`).toMatch(/(^|\s)-a(\s|$)/)
+  })
+})
+
 describe("layer 3 — skill frontmatter", () => {
   const good = GOOD_SKILL
   const bad = BAD_SKILL
