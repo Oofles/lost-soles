@@ -629,3 +629,80 @@ function isConditionalCheckFailure(err: unknown): boolean {
     (err as { name: unknown }).name === "ConditionalCheckFailedException"
   )
 }
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE RECONCILIATION WATERMARK  (ticket 0034, T7 `listSinceWatermark`)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * WHERE THIS ATTRIBUTE SHOULD SIT is decided by `lib/sources/list-since-watermark.ts`,
+ * which is pure and holds the whole argument. This is only the read and the write.
+ *
+ * The split is not tidiness. The advance rule is the part that can be catastrophically
+ * wrong — a watermark that moves too far forward loses a run permanently on a map that
+ * never re-fogs — and it is testable as arithmetic only if it is separated from a table.
+ */
+
+/**
+ * The sweep's starting point. `null` when a connection has never been swept, which the
+ * caller must distinguish from "swept and found nothing": the first sweep of a new
+ * connection is the backfill boundary decision, not a routine incremental read.
+ */
+export async function readListSinceWatermark(
+  userId: string,
+  sourceId: string,
+): Promise<string | null> {
+  const res = await doc().send(
+    new GetCommand({
+      TableName: SOURCE_ACCOUNT_TABLE,
+      Key: { pk: accountPk(userId), sk: accountSk(sourceId) },
+      ProjectionExpression: "listSinceWatermark",
+    }),
+  )
+
+  const value = res.Item?.listSinceWatermark
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+/**
+ * Moves the watermark, and stamps when a sweep last got all the way through.
+ *
+ * CALLED ONLY BY A CONSUMER THAT HAS CONFIRMED ITS ENQUEUES. `listSince` itself must
+ * never call this: it knows what the source returned and has no idea what reached the
+ * queue, so a watermark advanced from inside the producer would be advanced on the
+ * strength of a list call succeeding — which is precisely the thing that is not evidence.
+ * The callers are the manual Sync (ticket 0043) and the scheduled sweep (ticket 0095).
+ *
+ * THE WRITE IS UNCONDITIONAL, unlike every other write in this file. A watermark is not a
+ * credential: two sweeps racing here produce a value that is one sweep stale at worst, and
+ * a stale watermark costs a re-list, which is the cheap half of the asymmetry the pure
+ * module describes. Adding a condition would buy nothing and would give the caller a
+ * failure mode to handle for no reason.
+ *
+ * `lastSuccessfulSyncAt` (T7) is written in the same update, because "the watermark moved"
+ * and "a sweep completed" are the same event and storing them separately would let them
+ * disagree.
+ */
+export async function advanceListSinceWatermark(input: {
+  userId: string
+  sourceId: string
+  watermark: string
+  now?: Date
+}): Promise<void> {
+  const now = input.now ?? new Date()
+
+  await doc().send(
+    new UpdateCommand({
+      TableName: SOURCE_ACCOUNT_TABLE,
+      Key: { pk: accountPk(input.userId), sk: accountSk(input.sourceId) },
+      UpdateExpression: "SET listSinceWatermark = :w, lastSuccessfulSyncAt = :now",
+      /**
+       * The row must exist. Without this, a sweep racing a disconnect would CREATE a bare
+       * row holding a watermark and no credentials — a connection that looks half-present
+       * to anything reading the table and belongs to nothing.
+       */
+      ConditionExpression: "attribute_exists(pk)",
+      ExpressionAttributeValues: { ":w": input.watermark, ":now": now.toISOString() },
+    }),
+  )
+}

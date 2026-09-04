@@ -5,10 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   acquireRefreshLease,
+  advanceListSinceWatermark,
   EXTERNAL_OWNER_INDEX,
   getSourceAccountSummary,
   loadCredentials,
   markNeedsReauth,
+  readListSinceWatermark,
   resolveUserByExternalOwner,
   rotateTokens,
   markDisconnected,
@@ -505,5 +507,56 @@ describe("marking a connection as needing re-authorization", () => {
     await expect(
       markNeedsReauth({ userId: USER, sourceId: "acme", detail: "x", now: NOW }),
     ).resolves.toBeUndefined()
+  })
+})
+
+/** Ticket 0034 — the reconciliation watermark on T7. */
+describe("the listSince watermark", () => {
+  it("reads null for a connection that has never been swept", async () => {
+    /**
+     * Distinguished from "swept and found nothing" on purpose: the FIRST sweep of a new
+     * connection is a backfill boundary decision, not a routine incremental read, and a
+     * caller that cannot tell them apart would silently backfill nothing.
+     */
+    stubClient([{ Item: {} }])
+    await expect(readListSinceWatermark(USER, "acme")).resolves.toBeNull()
+  })
+
+  it("does not request the token attributes to read a cursor", async () => {
+    const { sent } = stubClient([{ Item: { listSinceWatermark: "2026-09-01T00:00:00.000Z" } }])
+    await expect(readListSinceWatermark(USER, "acme")).resolves.toBe("2026-09-01T00:00:00.000Z")
+    expect(sent[0].input.ProjectionExpression).toBe("listSinceWatermark")
+  })
+
+  it("writes the watermark and the sync stamp in one update", async () => {
+    // "The watermark moved" and "a sweep completed" are the same event. Two writes would
+    // let them disagree, and a lastSuccessfulSyncAt that is not backed by a watermark is
+    // a connection that looks healthy and is not.
+    const { sent } = stubClient([{}])
+    await advanceListSinceWatermark({
+      userId: USER,
+      sourceId: "acme",
+      watermark: "2026-09-08T12:00:00.000Z",
+      now: NOW,
+    })
+
+    expect(sent[0].input.UpdateExpression).toBe(
+      "SET listSinceWatermark = :w, lastSuccessfulSyncAt = :now",
+    )
+    expect(sent[0].input.ExpressionAttributeValues[":w"]).toBe("2026-09-08T12:00:00.000Z")
+    expect(sent[0].input.ExpressionAttributeValues[":now"]).toBe(NOW.toISOString())
+  })
+
+  it("refuses to create a row, so a sweep racing a disconnect cannot resurrect one", async () => {
+    // Without the condition this would write a bare row holding a cursor and no
+    // credentials — a connection that looks half-present and belongs to nothing.
+    const { sent } = stubClient([{}])
+    await advanceListSinceWatermark({
+      userId: USER,
+      sourceId: "acme",
+      watermark: "2026-09-08T12:00:00.000Z",
+      now: NOW,
+    })
+    expect(sent[0].input.ConditionExpression).toBe("attribute_exists(pk)")
   })
 })
