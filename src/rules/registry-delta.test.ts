@@ -47,6 +47,29 @@ const withRow = (base: { skills: RuleSkill[]; curve: unknown }, row: RuleSkill) 
   skills: [...base.skills, row],
 })
 
+/**
+ * The registry with any row claiming the SAME selection space as `row` removed.
+ *
+ * A delta means "add something that is not there". If the baseline already contains an
+ * equivalent row, adding one more is not a delta — it is a genuine ambiguity, and the
+ * validator is right to reject it and the matcher right to drop the loser on the tie-break.
+ * 0030's own operator proof adds a real pool-swim row to the YAML and hit exactly that.
+ *
+ * Removing by MATCH rather than by id, because a clashing row need not share an id to clash.
+ */
+function withoutSameSelection(row: RuleSkill): { skills: RuleSkill[]; curve: unknown } {
+  const m = row.match!
+  return {
+    curve: v1.curve,
+    skills: v1.skills.filter((s) => {
+      if (s.kind !== "activity" || !s.match) return true
+      const o = s.match
+      const sameKinds = JSON.stringify(o.kinds ?? []) === JSON.stringify(m.kinds ?? [])
+      return !(o.measure === m.measure && o.requiresTrace === m.requiresTrace && sameKinds)
+    }),
+  }
+}
+
 const activity = (
   kind: MatchableActivity["kind"],
   hasTrace: boolean,
@@ -160,7 +183,8 @@ describe("the Vigil delta — a skill added as DATA behaves as one that was alwa
 describe("...and the property GENERALISES — the same delta with a row nobody has heard of", () => {
   // The adversarial case. If only Vigil is ever proven, what has been proven is that Vigil
   // works, which is a special case wearing the costume of a property.
-  const delta = withRow(v1, POOL_SWIM)
+  const baseline = withoutSameSelection(POOL_SWIM)
+  const delta = withRow(baseline, POOL_SWIM)
 
   it("validates clean", () => {
     expect(validateRuleSet(delta), WHY_IT_MATTERS).toEqual([])
@@ -177,7 +201,7 @@ describe("...and the property GENERALISES — the same delta with a row nobody h
   it("closes the traced-`other` distance gap it was always going to close (D-190)", () => {
     // D-190 exempted `other` from the totality check precisely because a row like this had not
     // been written yet. Adding it fills the gap — with no code change, which is the point.
-    const before = selectActivitySkills(activity("other", false), v1)
+    const before = selectActivitySkills(activity("other", false), baseline)
     const after = selectActivitySkills(activity("other", false), delta)
     const distanceOf = (ss: RuleSkill[]) => ss.filter((s) => s.match!.measure === "distanceKm")
     // Stated as a DELTA, not as absolute sets, so it still holds once a real pool-swim row
@@ -192,7 +216,7 @@ describe("...and the property GENERALISES — the same delta with a row nobody h
     // registry would not be composable and every future row would need a regression sweep.
     for (const kind of ["run", "walk", "hike", "ride", "strength", "other"] as const) {
       for (const hasTrace of [true, false]) {
-        const before = ids(selectActivitySkills(activity(kind, hasTrace), v1))
+        const before = ids(selectActivitySkills(activity(kind, hasTrace), baseline))
         const after = ids(selectActivitySkills(activity(kind, hasTrace), delta))
         expect(after.filter((id) => id !== UNHEARD_OF_ID), `${kind}/${hasTrace}`).toEqual(before)
       }
