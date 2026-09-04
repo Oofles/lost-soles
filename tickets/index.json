@@ -622,7 +622,7 @@
     "title": "The four boundary CI tests (T1-T4) that prove the D-100 adapter boundary holds",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "04-domain-contract-and-rules",
     "depends_on": [
@@ -633,10 +633,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-04T00:48:52Z",
-    "path": "tickets/open/0027-boundary-ci-tests.md",
-    "ready": true,
+    "closed": "2026-09-04T01:11:56Z",
+    "path": "tickets/closed/0027-boundary-ci-tests.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
