@@ -75,6 +75,7 @@ export async function GET(
       log.warn("oauth callback refused: required scope missing", {
         source: ctx.sourceId,
         missing: granted.check.missing,
+        granted: granted.scopes,
       })
       return NextResponse.redirect(settings("scope-refused"), 302)
     }
@@ -109,9 +110,19 @@ export async function GET(
        * A revocation failure is logged and swallowed: the user's answer is the same
        * either way, and the token is unstored and unreachable regardless.
        */
+      /**
+       * WHAT WAS FOUND, not only what was missing. Ticket 0166: the first version
+       * logged `missing` alone, so two very different causes — a genuinely reduced
+       * grant, and a scope list this code could not parse — produced an identical
+       * line, and telling them apart cost the operator a second failed connect.
+       *
+       * Scope names are not credentials; there is nothing here to redact.
+       */
       log.warn("oauth grant refused after exchange: required scope missing", {
         source: ctx.sourceId,
         missing: check.missing,
+        granted: grant.scopes,
+        scopeSource: grant.scopeSource,
       })
       try {
         await ctx.connector.revoke({ accessToken: grant.accessToken, credentials })

@@ -126,6 +126,39 @@ describe("authorizeUrl", () => {
   })
 })
 
+describe("scope lists arrive on two surfaces with two conventions — ticket 0166", () => {
+  /**
+   * The callback query string is comma-delimited; RFC 6749 §5.1 makes the token
+   * endpoint's `scope` space-delimited. Parsing only the first form turned a fully
+   * authorised grant into a downgrade and revoked it, and no test caught it because
+   * every fixture used the comma form.
+   */
+  it("reads a COMMA-delimited list — the callback's form", () => {
+    expect(stravaOAuth.readCallbackScopes(`read,${READ_ALL}`).scopes).toEqual(["read", READ_ALL])
+  })
+
+  it("reads a SPACE-delimited list — the token response's form", () => {
+    expect(stravaOAuth.readCallbackScopes(`read ${READ_ALL}`).scopes).toEqual(["read", READ_ALL])
+    expect(stravaOAuth.readCallbackScopes(`read ${READ_ALL}`).check.ok).toBe(true)
+  })
+
+  it("reads a mixed or untidily spaced list", () => {
+    expect(stravaOAuth.readCallbackScopes(`read, ${READ_ALL}`).scopes).toEqual(["read", READ_ALL])
+    expect(stravaOAuth.readCallbackScopes(`  read ,, ${READ_ALL}  `).scopes).toEqual([
+      "read",
+      READ_ALL,
+    ])
+  })
+
+  it("does not become lenient about the scope NAME itself", () => {
+    // Accepting two separators must not accept two spellings. No scope token in any
+    // of these grants contains a comma or a space, so the separators cannot be
+    // confused with content — which is exactly why accepting both is safe.
+    expect(stravaOAuth.readCallbackScopes("activity read_all").check.ok).toBe(false)
+    expect(stravaOAuth.readCallbackScopes(`${LESSER} _all`).check.ok).toBe(false)
+  })
+})
+
 describe("the callback scope check — before any exchange", () => {
   it("accepts a scope list containing the full scope, in any position", () => {
     expect(stravaOAuth.readCallbackScopes("read,activity:read_all").check.ok).toBe(true)
@@ -266,6 +299,17 @@ describe("exchangeCode", () => {
 
     expect(grant.scopes).toEqual(["read", READ_ALL])
     expect(grant.scopeSource).toBe("response")
+  })
+
+  it("accepts the token response's SPACE-delimited scope — ticket 0166", async () => {
+    // The live shape per RFC 6749 §5.1, and the one that refused a good grant and
+    // revoked it while every comma-delimited fixture stayed green.
+    stubFetch(withScope(`read ${READ_ALL}`))
+    const grant = await exchange()
+
+    expect(grant.scopes).toEqual(["read", READ_ALL])
+    expect(grant.scopeSource).toBe("response")
+    expect(stravaOAuth.checkGrant(grant).ok).toBe(true)
   })
 
   it("still REFUSES when the response states a scope that falls short", async () => {

@@ -48,10 +48,28 @@ const SCOPE_CONSEQUENCE =
   "every run near your home and work. The map will have a permanent hole around home " +
   "— it can never be filled in later, because the map never re-fogs."
 
-/** Strava sends its scope list comma-separated, both on the callback and in the token response. */
+/**
+ * Splits a scope list on COMMAS OR WHITESPACE. Ticket 0166.
+ *
+ * This split on commas alone, because that is what Strava's callback query string
+ * uses and the design doc only ever showed that form. The token response is a
+ * different surface with a different convention: RFC 6749 §5.1 defines the token
+ * endpoint's `scope` as SPACE-delimited, and a space-delimited list run through a
+ * comma split comes back as ONE element — `"read activity:read_all"` — which matches
+ * no required scope and therefore reads as a downgrade.
+ *
+ * The consequence was not a parse error. It was a fully-authorised connection being
+ * refused and its credential revoked, which is the loudest possible failure produced
+ * by the quietest possible cause.
+ *
+ * Accepting both is not leniency papering over an unknown: no scope token defined by
+ * any of these grants contains a comma or a space, so the two separators cannot be
+ * confused with content, and a parser that handles both is correct on either surface
+ * rather than correct on the one it was tested against.
+ */
 function parseScopes(raw: string): string[] {
   return raw
-    .split(",")
+    .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
 }

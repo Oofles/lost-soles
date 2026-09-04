@@ -98,6 +98,11 @@ with full jitter**. A single global backfill worker with a per-user FIFO is the 
 > revoked it, and nothing in the suite could have caught that. **A fixture derived from a design
 > doc is not a fixture; it is the design doc asserted twice.** That is the fidelity floor this
 > ticket is for.
+>
+> **Ticket `0166` then found the same class again**, one string away: the callback spells its
+> scope list with commas and the token response with spaces (RFC 6749 §5.1), and the parser was
+> written for the one surface the document illustrated. Two bugs, two operator connects, one
+> missing recorded response.
 
 
 Fixture 6 (the >2^53 id) is the cheapest insurance in the capability. `upload_id` and
