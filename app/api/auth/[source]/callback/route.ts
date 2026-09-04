@@ -70,11 +70,11 @@ export async function GET(
     }
 
     /** STEP 3 — judge the scope BEFORE the exchange, so no token is ever minted. */
-    const preCheck = ctx.connector.checkCallbackScopes(query.get("scope"))
-    if (!preCheck.ok) {
+    const granted = ctx.connector.readCallbackScopes(query.get("scope"))
+    if (!granted.check.ok) {
       log.warn("oauth callback refused: required scope missing", {
         source: ctx.sourceId,
-        missing: preCheck.missing,
+        missing: granted.check.missing,
       })
       return NextResponse.redirect(settings("scope-refused"), 302)
     }
@@ -86,10 +86,16 @@ export async function GET(
 
     /** STEP 4 — exchange, then judge the authoritative scope list. */
     const credentials = await getOAuthClientCredentials(ctx.connector)
+    /**
+     * The verified callback scopes are carried in, and become the grant's scopes if
+     * the token response does not restate them. Ticket 0165: reading an absent
+     * `scope` as "nothing was granted" refused every good grant and revoked it.
+     */
     const grant = await ctx.connector.exchangeCode({
       code,
       redirectUri: callbackUri(ctx.sourceId),
       credentials,
+      grantedScopes: granted.scopes,
     })
 
     const check = ctx.connector.checkGrant(grant)
@@ -126,10 +132,16 @@ export async function GET(
       scopes: grant.scopes,
     })
 
+    /**
+     * `scopeSource` is logged because it is the evidence that settles what the
+     * provider actually does, and `03-integrations.md` §2.2 step 3 is annotated as
+     * unverified until a real connect prints it (ticket 0165).
+     */
     log.info("source connected", {
       source: ctx.sourceId,
       externalOwnerId: grant.externalOwnerId,
       scopes: grant.scopes,
+      scopeSource: grant.scopeSource,
     })
 
     return NextResponse.redirect(settings("connected"), 302)

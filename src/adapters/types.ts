@@ -194,6 +194,20 @@ export interface OAuthGrant {
   refreshToken: string
   expiresAt: number
   scopes: readonly string[]
+
+  /**
+   * WHERE `scopes` CAME FROM. Ticket 0165.
+   *
+   * Not diagnostics for their own sake. A provider may state the granted scopes in
+   * its token response, or only on the callback that preceded it, and the two are
+   * different levels of evidence: `"response"` is the grant describing itself,
+   * `"callback"` is the authorization describing what it was about to become.
+   *
+   * It exists because assuming the first is what broke the connect flow in 0032, and
+   * a value carried on the grant is a fact the next real connect can settle — as
+   * against a design doc corrected on an inference.
+   */
+  scopeSource: "response" | "callback"
 }
 
 /**
@@ -261,26 +275,39 @@ export interface OAuthConnector {
   }): string
 
   /**
-   * PURE. Judges the scope string the provider put on the CALLBACK URL, before any
-   * code has been exchanged.
+   * PURE. Reads and judges the scope string the provider put on the CALLBACK URL,
+   * before any code has been exchanged.
    *
-   * This is the check that matters, and it is the one that is easy to leave out. A
-   * refusal here means no token is ever minted, so there is nothing to store by
-   * mistake and nothing to revoke on the way out. `checkGrant` re-runs the same
-   * judgement on the exchanged grant, because the callback parameter is a hint and
-   * the token response is the authority — but by then a live credential exists.
+   * THIS IS THE CHECK THAT MATTERS, and the one that is easy to leave out. A refusal
+   * here means no token is ever minted, so there is nothing to store by mistake and
+   * nothing to revoke on the way out.
+   *
+   * It returns the parsed list as well as the verdict because the caller needs both:
+   * the verdict decides whether to continue, and the list is carried into
+   * `exchangeCode` as the scopes this authorization is known to have granted. Two
+   * separate calls would be two chances for them to disagree.
    *
    * The parameter is the RAW string, or null when the provider sent none, because
    * how a source spells a scope list (comma-separated, space-separated, absent) is
    * the source's business and not the route's.
    */
-  checkCallbackScopes(rawScope: string | null): GrantCheck
+  readCallbackScopes(rawScope: string | null): { scopes: string[]; check: GrantCheck }
 
-  /** NETWORK. Exchanges an authorization code for a grant. */
+  /**
+   * NETWORK. Exchanges an authorization code for a grant.
+   *
+   * `grantedScopes` is what `readCallbackScopes` verified a moment earlier. A
+   * provider that restates the scopes in its token response is believed over it —
+   * that is the grant describing itself, and it is the only thing that could catch a
+   * downgrade between the callback and the token. A provider that says nothing there
+   * does not get read as having granted nothing (ticket 0165: that assumption
+   * refused every good grant and revoked it).
+   */
   exchangeCode(input: {
     code: string
     redirectUri: string
     credentials: OAuthClientCredentials
+    grantedScopes: readonly string[]
   }): Promise<OAuthGrant>
 
   /** PURE. Is this grant good enough to store? See `GrantCheck`. */

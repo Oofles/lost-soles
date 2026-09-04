@@ -102,7 +102,7 @@ interface TokenResponse {
   athlete?: { id?: unknown }
 }
 
-function grantFromTokenResponse(body: TokenResponse): OAuthGrant {
+function grantFromTokenResponse(body: TokenResponse, grantedScopes: readonly string[]): OAuthGrant {
   const { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt } = body
 
   if (typeof accessToken !== "string" || accessToken.length === 0) {
@@ -120,12 +120,34 @@ function grantFromTokenResponse(body: TokenResponse): OAuthGrant {
     throw new Error("Strava token response carried no usable expires_at")
   }
 
+  /**
+   * TICKET 0165 — THE LINE THAT BROKE THE CONNECT FLOW, and what it now does.
+   *
+   * This read `scopes: typeof body.scope === "string" ? parseScopes(body.scope) : []`.
+   * An absent field became an empty grant, `checkGrant` found the required scope
+   * missing, and the route dutifully revoked a credential that was perfectly good.
+   * Every test passed, because every fixture was built from `03-integrations.md`
+   * §2.2 step 3's example response — which carries a `scope` key the live service
+   * did not send. The suite proved the code matched the document.
+   *
+   * An absent `scope` is the provider DECLINING TO RESTATE what it already told us on
+   * the callback, not a claim that nothing was granted. Those are opposite meanings
+   * and only one of them is a refusal.
+   *
+   * What is deliberately NOT done: skipping the check when the field is present. If
+   * the response does state a scope, it is believed over the callback and judged, so
+   * a provider that downgrades a grant between the two is still caught. That is the
+   * only thing this second check was ever able to catch, and it survives.
+   */
+  const statesItsOwnScope = typeof body.scope === "string" && body.scope.length > 0
+
   return {
     externalOwnerId: athleteIdToString(body.athlete?.id),
     accessToken,
     refreshToken,
     expiresAt,
-    scopes: typeof body.scope === "string" ? parseScopes(body.scope) : [],
+    scopes: statesItsOwnScope ? parseScopes(body.scope as string) : [...grantedScopes],
+    scopeSource: statesItsOwnScope ? "response" : "callback",
   }
 }
 
@@ -170,14 +192,20 @@ export const stravaOAuth: OAuthConnector = {
     return url.toString()
   },
 
-  checkCallbackScopes(rawScope) {
+  readCallbackScopes(rawScope) {
     // No scope parameter at all is a refusal, not an unknown. Strava always sends one
     // on a successful authorization, and treating "absent" as "probably fine" is the
     // shape of every fail-open bug.
-    return judge(rawScope === null ? [] : parseScopes(rawScope))
+    //
+    // Note this is the OPPOSITE reading from the token response's absent `scope`
+    // (see `grantFromTokenResponse`), and deliberately so. Here nothing has been said
+    // yet, so silence is a refusal. There, the callback has already spoken, so silence
+    // is the provider not repeating itself.
+    const scopes = rawScope === null ? [] : parseScopes(rawScope)
+    return { scopes, check: judge(scopes) }
   },
 
-  async exchangeCode({ code, redirectUri, credentials }) {
+  async exchangeCode({ code, redirectUri, credentials, grantedScopes }) {
     const res = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
@@ -194,7 +222,7 @@ export const stravaOAuth: OAuthConnector = {
 
     if (!res.ok) throw new StravaOAuthError("code exchange", res.status)
 
-    return grantFromTokenResponse((await res.json()) as TokenResponse)
+    return grantFromTokenResponse((await res.json()) as TokenResponse, grantedScopes)
   },
 
   checkGrant(grant) {

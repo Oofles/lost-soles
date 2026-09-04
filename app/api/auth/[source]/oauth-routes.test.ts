@@ -86,15 +86,20 @@ const disconnect = (headers: Record<string, string> = { origin: APP_ORIGIN }, so
     params(source),
   )
 
-/** The token response, in the documented shape (03-integrations.md §2.2 step 3). */
-const tokenResponse = (scope: string) => ({
+/**
+ * The token response IN THE SHAPE THE LIVE SERVICE SENDS — no `scope` key by default.
+ * Ticket 0165: this file used to build it from `03-integrations.md` §2.2 step 3's
+ * example, which carries a `scope` the provider does not, and that is why every test
+ * here was green while the deployed connect flow refused every good grant.
+ */
+const tokenResponse = (scope?: string) => ({
   token_type: "Bearer",
   expires_at: 1794700000,
   expires_in: 21600,
   refresh_token: REFRESH,
   access_token: ACCESS,
   athlete: { id: 134815 },
-  scope,
+  ...(scope === undefined ? {} : { scope }),
 })
 
 const FULL_SCOPE = CONNECTOR.requiredScopes.join(",")
@@ -112,7 +117,7 @@ beforeEach(() => {
   markDisconnected.mockResolvedValue(undefined)
   readAccessTokenForRevocation.mockResolvedValue(ACCESS)
 
-  fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => tokenResponse(FULL_SCOPE) }))
+  fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => tokenResponse() }))
   vi.stubGlobal("fetch", fetchMock)
 })
 
@@ -253,6 +258,8 @@ describe("the callback — the scope refusal, which is the point of the ticket",
   it("refuses AND REVOKES when the token response disagrees with the callback", async () => {
     // The callback parameter is a hint; the token response is the authority. When
     // they differ a live credential exists, and it must not simply be dropped.
+    // The response must STATE a short scope for this to be a disagreement. A response
+    // that states nothing is not a downgrade, and 0165 is the bug of confusing them.
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -302,6 +309,17 @@ describe("the callback — a good grant", () => {
       expiresAt: 1794700000,
       scopes: CONNECTOR.requiredScopes.slice(),
     })
+  })
+
+  it("connects on the LIVE response shape, which restates no scope at all", async () => {
+    // The regression 0165 exists for. The default fixture above is already this
+    // shape, so this test names it rather than adding to it — an unnamed default is
+    // how the original bug hid in a green suite.
+    const res = await callback(`?code=the-code&state=s&scope=${FULL_SCOPE}`)
+
+    expect(outcome(res)).toBe("connected")
+    // Nothing was revoked on the way through.
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/oauth/revoke"))).toBe(false)
   })
 
   it("stores nothing when the exchange fails", async () => {

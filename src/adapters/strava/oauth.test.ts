@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { stravaOAuth, StravaOAuthError } from "./oauth"
 
+/** Spelled once, the way the connector spells it. */
+const READ_ALL = "activity:read_all"
+
 /**
  * Ticket 0032. The connector is pure everywhere it can be, so most of this file
  * stubs nothing at all — which is the point of `authorizeUrl`, `checkCallbackScopes`
@@ -125,13 +128,13 @@ describe("authorizeUrl", () => {
 
 describe("the callback scope check — before any exchange", () => {
   it("accepts a scope list containing the full scope, in any position", () => {
-    expect(stravaOAuth.checkCallbackScopes("read,activity:read_all").ok).toBe(true)
-    expect(stravaOAuth.checkCallbackScopes("activity:read_all,read_all").ok).toBe(true)
-    expect(stravaOAuth.checkCallbackScopes("activity:read_all").ok).toBe(true)
+    expect(stravaOAuth.readCallbackScopes("read,activity:read_all").check.ok).toBe(true)
+    expect(stravaOAuth.readCallbackScopes("activity:read_all,read_all").check.ok).toBe(true)
+    expect(stravaOAuth.readCallbackScopes("activity:read_all").check.ok).toBe(true)
   })
 
   it("REFUSES the lesser scope, and names the consequence", () => {
-    const check = stravaOAuth.checkCallbackScopes(`read,${LESSER}`)
+    const { check } = stravaOAuth.readCallbackScopes(`read,${LESSER}`)
     expect(check.ok).toBe(false)
     if (check.ok) return
     expect(check.missing).toEqual(["activity:read_all"])
@@ -141,13 +144,13 @@ describe("the callback scope check — before any exchange", () => {
 
   it("refuses an absent scope parameter rather than assuming the best", () => {
     // "Absent, so probably fine" is the shape of every fail-open bug.
-    expect(stravaOAuth.checkCallbackScopes(null).ok).toBe(false)
-    expect(stravaOAuth.checkCallbackScopes("").ok).toBe(false)
+    expect(stravaOAuth.readCallbackScopes(null).check.ok).toBe(false)
+    expect(stravaOAuth.readCallbackScopes("").check.ok).toBe(false)
   })
 
   it("is not fooled by a prefix match", () => {
-    expect(stravaOAuth.checkCallbackScopes("activity:read_allx").ok).toBe(false)
-    expect(stravaOAuth.checkCallbackScopes("xactivity:read_all").ok).toBe(false)
+    expect(stravaOAuth.readCallbackScopes("activity:read_allx").check.ok).toBe(false)
+    expect(stravaOAuth.readCallbackScopes("xactivity:read_all").check.ok).toBe(false)
   })
 
   it("agrees with checkGrant, which judges the authoritative list", () => {
@@ -157,6 +160,7 @@ describe("the callback scope check — before any exchange", () => {
       refreshToken: REFRESH,
       expiresAt: 1794700000,
       scopes: ["read", LESSER],
+      scopeSource: "response" as const,
     }
     expect(stravaOAuth.checkGrant(grant).ok).toBe(false)
     expect(stravaOAuth.checkGrant({ ...grant, scopes: ["activity:read_all"] }).ok).toBe(true)
@@ -164,6 +168,18 @@ describe("the callback scope check — before any exchange", () => {
 })
 
 describe("exchangeCode", () => {
+  /**
+   * THE LIVE SHAPE — no `scope` key. Ticket 0165.
+   *
+   * This fixture used to carry `scope: "read,activity:read_all"`, copied from
+   * `03-integrations.md` §2.2 step 3's example, and that is exactly why the suite was
+   * green while the connect flow refused every good grant in production. A fixture
+   * built from a design document tests that the code matches the document.
+   *
+   * The default is now the shape the operator's own connect attempts produced. A
+   * response that DOES restate its scope is a separate, named fixture below, because
+   * it is the less common case and it should look like the exception it is.
+   */
   const body = {
     token_type: "Bearer",
     expires_at: 1794700000,
@@ -171,8 +187,9 @@ describe("exchangeCode", () => {
     refresh_token: REFRESH,
     access_token: ACCESS,
     athlete: { id: 134815, username: "someone" },
-    scope: "read,activity:read_all",
   }
+
+  const withScope = (scope: string) => ({ ...body, scope })
 
   const stubFetch = (payload: unknown, ok = true, status = 200) => {
     const fetchMock = vi.fn(async () => ({
@@ -189,6 +206,7 @@ describe("exchangeCode", () => {
       code: "the-code",
       redirectUri: "https://soles.devaultsecurity.com/api/auth/strava/callback",
       credentials: CREDS,
+      grantedScopes: ["read", READ_ALL],
     })
 
   it("posts the four documented fields to the token endpoint", async () => {
@@ -230,9 +248,43 @@ describe("exchangeCode", () => {
     await expect(exchange()).rejects.toThrow(/cannot be represented exactly/)
   })
 
-  it("splits the scope string into the list the store will hold", async () => {
+  it("falls back to the CALLBACK scopes when the response does not restate them", async () => {
+    // The bug 0165 fixes. An absent `scope` is the provider declining to repeat what
+    // it already said on the callback, not a claim that nothing was granted — and
+    // reading it as the latter refused every good grant and revoked it.
     stubFetch(body)
-    expect((await exchange()).scopes).toEqual(["read", "activity:read_all"])
+    const grant = await exchange()
+
+    expect(grant.scopes).toEqual(["read", READ_ALL])
+    expect(grant.scopeSource).toBe("callback")
+    expect(stravaOAuth.checkGrant(grant).ok).toBe(true)
+  })
+
+  it("BELIEVES the response over the callback when it does state a scope", async () => {
+    stubFetch(withScope(`read,${READ_ALL}`))
+    const grant = await exchange()
+
+    expect(grant.scopes).toEqual(["read", READ_ALL])
+    expect(grant.scopeSource).toBe("response")
+  })
+
+  it("still REFUSES when the response states a scope that falls short", async () => {
+    // The (B) case, and the only thing this second check was ever able to catch: a
+    // provider that downgrades a grant between the callback and the token. The 0165
+    // fallback must not have turned that into fail-open.
+    stubFetch(withScope(`read,${LESSER}`))
+    const grant = await exchange()
+
+    expect(grant.scopeSource).toBe("response")
+    expect(stravaOAuth.checkGrant(grant).ok).toBe(false)
+  })
+
+  it("treats an EMPTY scope string as not stated, rather than as an empty grant", async () => {
+    stubFetch(withScope(""))
+    const grant = await exchange()
+
+    expect(grant.scopeSource).toBe("callback")
+    expect(grant.scopes).toEqual(["read", READ_ALL])
   })
 
   it("throws on a non-2xx, without carrying the response body", async () => {

@@ -297,6 +297,18 @@ webhook events for them (§2.3).
      "scope": "activity:read_all" }
    ```
 
+   > **The `scope` key above is UNVERIFIED, and ticket `0165` exists because it was trusted.**
+   > `0032` built a post-exchange re-check on it; on the first real connect the check refused a
+   > fully-ticked grant and revoked it, four times, which is only possible if the live response
+   > did not carry `activity:read_all` in a `scope` field. **The authority for what was granted is
+   > the callback query string** (step 2), which did carry it.
+   >
+   > The adapter now judges `scope` when the response states one and falls back to the
+   > callback-verified list when it does not — correct whether the field is absent or genuinely
+   > short. Each successful connect logs `scopeSource: "response" | "callback"`, and **this
+   > paragraph is replaced with the observed value the first time a real connect prints one.**
+   > Nobody should re-derive this from the example above until then.
+
 **Token lifetime and refresh — the single most common integration bug.**
 
 - Access tokens expire **6 hours** after creation. Use the returned `expires_at`, never a

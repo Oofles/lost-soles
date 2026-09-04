@@ -91,6 +91,15 @@ with full jitter**. A single global backfill worker with a per-user FIFO is the 
 
 ## Notes
 
+> **2026-09-04, ticket `0165`.** This ticket's value went up sharply and the reason should be on
+> it. `0032` shipped 76 green tests whose token-response fixtures were copied from
+> `03-integrations.md` §2.2 step 3's example — so the suite proved the code matched the DOCUMENT,
+> and the document was wrong about the live service. The connect flow refused every good grant and
+> revoked it, and nothing in the suite could have caught that. **A fixture derived from a design
+> doc is not a fixture; it is the design doc asserted twice.** That is the fidelity floor this
+> ticket is for.
+
+
 Fixture 6 (the >2^53 id) is the cheapest insurance in the capability. `upload_id` and
 `activity.id` are int64s that `JSON.parse` **silently corrupts** — no error, just a wrong number —
 and a wrong `externalId` breaks the deterministic `activityId`, which breaks idempotency, which
