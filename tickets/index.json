@@ -3701,6 +3701,26 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 162,
+    "slug": "doc-tables-match-ruleset",
+    "title": "Extend the doc-vs-ruleset assertion from 04 §1.3's example to the prose tables that restate rows",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T17:05:22Z",
+    "path": "tickets/open/0162-doc-tables-match-ruleset.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
       "total": 1
     }
   }

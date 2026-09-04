@@ -46,7 +46,7 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 |---|---|---|---|
 | **Wayfaring** | Running / walking / hiking with a trace | kilometre | Ground covered. The distance skill. **The only skill that opens the map** (D-189). |
 | **Vigil** | Running without a trace — treadmill, track, dead watch | kilometre | Full Wayfaring XP, no ground (D-132). |
-| **Roving** | Cycling with a trace | kilometre | 35 XP/km. Earns no map (D-189). |
+| **Roving** | Cycling with a trace | kilometre | 60 XP/km (D-189, rescaled by `0158`). Earns no map. |
 | **Cadence** | Cycling without a trace — stationary bike | kilometre | The pedalling rate, and a rhythm that goes nowhere. |
 | **Might** | Pushups | rep | Pressing strength. |
 | **Fortitude** | Situps | rep | The core. Endurance of the trunk. |
@@ -688,6 +688,9 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 | Skill | Unit | XP per unit | A typical session |
 |---|---|---|---|
 | Wayfaring | km | **100** | 8.85 km fully new = 885 |
+| Vigil | km | **100** | identical to Wayfaring, deliberately — D-132 |
+| Roving | km | **60** | 15 km = 900 (`0158`) |
+| Cadence | km | **60** | identical to Roving, as Vigil is to Wayfaring |
 | Might | pushup | **4** | 75 = 300 |
 | Fortitude | situp | **3** | 90 = 270 |
 | Endurance | plank-second | **1.5** (90/min) | 180 s = 270 |

@@ -6,15 +6,18 @@
 > [`contracts/ingestion-contract.md`](contracts/ingestion-contract.md) — **that file wins.**
 > The text here is retained for its surrounding reasoning.
 
-**Status:** design, pre-implementation. No code exists.
+**Status:** §1's contract is IMPLEMENTED as of capability `04` — see the banner above for where
+the canonical types live. Sections 2 and 4 remain design, pre-implementation.
 **Authority:** `docs/decisions/DECISIONS.md`. Every `D-xxx` below is settled and user-confirmed.
 **Research:** `docs/research/R1-strava.md`, `R8-statshunters-strava-recheck.md`,
 `R10-android-ingestion.md`, `R9-devices-and-vendor-apis.md`, `R2-wearables.md`.
 
-> **Note on `01-architecture.md`:** at the time this document was written, `docs/01-architecture.md`
-> did not exist. The `Activity` / `Trace` interfaces in §1 are therefore **defined here** and the
-> architecture document **must match them exactly** when it is written. If they diverge, this
-> document's §1 is the one to change — but change both, in the same commit.
+> **Note on `01-architecture.md`, now HISTORICAL and superseded by the banner above.** When this
+> document was written `docs/01-architecture.md` did not exist, so §1 defined `Activity` / `Trace`
+> and claimed the architecture document must match it. Both were then written in parallel anyway
+> and conflicted in eight places, which is what forced the reconciliation. **Do not follow the
+> instruction below to change this document's §1 on a divergence** — the canonical contract wins,
+> and `src/domain/contract-drift.test.ts` asserts the code is byte-identical to it.
 
 ## Contents
 
@@ -56,8 +59,19 @@ type SourceId =
   | 'suunto'          // §4.4 (D-117), contingent on hardware
   | 'polar';          // §4.4 (D-117), contingent on hardware
 
-/** 1:1 with the activity skills of D-031. Adding a workout type adds a member. */
-type ActivitySkill = 'wayfaring' | 'might' | 'fortitude' | 'endurance';
+/** STRUCK 2026-09-04 (capability 04 audit). This type must never exist.
+ *
+ *  It read: `type ActivitySkill = 'wayfaring' | 'might' | 'fortitude' | 'endurance'`, with the
+ *  comment "adding a workout type adds a member" — the exact inverse of D-031/D-141, which say
+ *  adding a workout type is a row in `rules/xp-rules-vN.yaml` and ZERO code. A skill id is an
+ *  OPAQUE STRING everywhere (02 §3.2); the registry is the authority and is read, never
+ *  enumerated in a union. `02` §3.8 check 6 fails the build on a skill id appearing in `src/`.
+ *
+ *  The banner at the top of this file supersedes `Activity`/`Trace`/`SourceAdapter` and did not
+ *  reach this type, because the canonical contract has none — so it stood uncontradicted on a
+ *  page the ticket backlog cites. Struck here rather than deleted so a reader who remembers it
+ *  meets the reason.
+ */
 
 // ---- the contract ---------------------------------------------------------
 

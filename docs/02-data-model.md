@@ -641,7 +641,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `enabled` | BOOL | J1/J5 | `false` hides the skill and stops it matching. Slayer ships `false` (D-122). A disabled skill's historical ledger rows stay valid. **Required on every row, with NO DEFAULT** (ticket `0160`) — the matcher filters on `!enabled`, so an omitted flag is `undefined`, which is falsy, and the skill would silently stop matching. Same argument as `revealsGround` below, and stronger: here the dangerous default is the one the language already supplies. |
 | `displayOrder` | N | J5 | sparse (10, 20, 30 …) so an insert is a row, not a renumber |
 | `logMode` | S | J2 | `trace \| reps \| duration \| derived` — see §3.7 |
-| `unit` | S | J2/J5 | `km \| rep \| second \| cell` — a display noun *and* the unit the rate is quoted in |
+| `unit` | S | J2/J5 | `km \| rep \| second \| cell \| share` — a display noun *and* the unit the rate is quoted in. `share` is what a `feeds` recipient counts (Constitution); the set is §3.7's, and this row follows it. |
 | **`match`** | M | **J1** | **the new part. §3.4.** Absent/null on `kind: meta`. |
 | `matchPriority` | N | J1 | higher wins; ties break on `skillId` ascending (determinism, 04 §7.4) |
 | `xpPerUnit` | N | J3 | |
@@ -874,8 +874,16 @@ Validation, run in CI and again in the seeder, failing the build on any violatio
 1. `skillId` unique within a version; `feeds[].skill` resolves to an existing `kind: meta` row.
 2. `feeds` has no cycles (Constitution feeds nothing — 04 §1.1).
 3. **Totality:** for a fixture set of activities covering every `ActivityKind` × `hasTrace`
-   combination, `selectActivitySkills` returns **exactly one** skill per `measure`. Zero matches
-   for measurable work, or two at equal `matchPriority` with the same `measure`, fails the build.
+   combination, `selectActivitySkills` returns **exactly one** skill per `measure`. Two candidates
+   at equal `matchPriority` with the same `measure` fails the build, always.
+   **Zero matches is enforced for `run`, `walk`, `hike` and `ride` — and NOT for `other`
+   (D-190).** `other` is the catch-all kind and no distance skill claims it, deliberately: §3.7
+   says an open-water swim gets its own row when somebody adds one. Read literally this check
+   would have failed the build on the correct, shipped ruleset from the day it was written, and
+   requiring a skill for `other` means requiring one for every activity nobody has classified
+   yet. `strength` is excluded separately, by nature. The exemption is named in
+   `validate.ts` and asserted by a test, never achieved by weakening the rule until it stops
+   complaining.
 4. **Determinism:** the matcher is called with the clock and RNG stubbed to throw (mirrors the
    contract §5 check on `normalize()`).
 5. **The D-132 regression test, permanently:** seed the v1 registry, add *only* the Vigil row from

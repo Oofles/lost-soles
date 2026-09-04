@@ -1507,3 +1507,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - Knock-on, recorded rather than fixed: the Total Level milestone ladder (§4.3) was designed
     against a 594 ceiling and ends at 500, leaving a 391-point gap at the top. Adding rungs is a
     pacing decision and belongs to `0063`.
+
+---
+
+## A design doc cites the ruleset; it never restates a row  (2026-09-04, capability `04` audit)
+
+- **D-193** **No design document may restate a per-row value from `rules/xp-rules-vN.yaml` —
+  a rate, a unit, a flag, a skill count, or a total derived from them — as a bare fact. It
+  cites the file, states the arithmetic, or carries a dated snapshot that says it is one.
+  Generalises D-192 from the Total Level ceiling to every value the ruleset owns.**
+  - **The evidence is that D-192 was not enough.** `0031` fixed the ceiling three weeks after
+    it had been wrong three times, and reasoned the general case correctly. Six hours later the
+    capability `04` drift audit found the *same failure* in three more places, all missed
+    because `0031` was scoped to a number rather than to the pattern: `04` §1.1 still advertised
+    Roving at **35 XP/km** after `0158` rescaled it to 60; `04` §3.2 — the session-parity table
+    `0158` reasoned *from* — had no Vigil, Roving or Cadence row at all; `02` §3.2 listed `unit`
+    as a closed set of four that omitted `share`, contradicting §3.7 of its own document and the
+    shipped file.
+  - **Every one of those was introduced by a change D-031 promises is free.** Vigil (`0028`),
+    the cycling pair (`0157`) and the rescale (`0158`) were each a row or a number in one YAML
+    file. If each also silently invalidates a table in a design doc, then "a workout type is a
+    data row and nothing else" is false in practice while remaining true in the code — the
+    worst of both, because the code keeps passing its tests while the documentation quietly
+    rots into a trap for the next reader.
+  - **Four divergences in one capability, over the budget of three**, and all four were the same
+    shape. That is the signal AUDIT.md's budget exists to raise: the design is stale, not the
+    code. The code was correct in every single case.
+  - **What this permits, so the rule is usable.** Naming a skill and what it trains on is fine —
+    that is the *design*, and it changes when the design changes. Quoting its `xpPerUnit` is not,
+    unless the passage is arguing about that number, in which case it is dated and marked as a
+    snapshot the way `04` §1.2's ceiling table now is. The test: *if a one-line YAML edit would
+    falsify this sentence, it must not be a bare assertion.*
+  - **Not enforceable by a script today, and that is recorded rather than papered over.**
+    `doc-schema.test.ts` already asserts `04` §1.3's example matches the shipped file field by
+    field — the mechanism exists and covers exactly one passage. Extending it to prose tables is
+    a real ticket, not a line in a decision; until it is written this holds by review, which is
+    the weakest kind of enforcement and the reason the failure recurred in the first place.
