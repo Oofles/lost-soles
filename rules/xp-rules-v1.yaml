@@ -174,6 +174,31 @@ skills:
       - skill: constitution
         rate: 0.3333
 
+  # PROOF ONLY, DO NOT MERGE — ticket 0030's operator validation. A new workout type added as
+  # ONE ROW and nothing else, to show the gate stays green on a data-only change (D-031).
+  - id: aquatics
+    name: Aquatics
+    kind: activity
+    enabled: true
+    displayOrder: 26
+    logMode: trace
+    unit: km
+    match:
+      kinds: [other]
+      requiresTrace: false
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 220
+    softCapUnits: null
+    sanityCeilingUnits: 10
+    minUnitsForCredit: 0.1
+    groundMultipliers: null
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
   - id: might
     name: Might
     kind: activity
