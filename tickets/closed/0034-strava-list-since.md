@@ -4,7 +4,7 @@ slug: strava-list-since
 title: strava listSince(since) - the mandatory reconciliation sweep and the manual-sync producer
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 05-strava-adapter
 depends_on: [33]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-04T21:54:13Z
+closed: 2026-09-04T22:05:30Z
 ---
 
 ## Description

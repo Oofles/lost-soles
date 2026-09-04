@@ -792,7 +792,7 @@
     "title": "strava listSince(since) - the mandatory reconciliation sweep and the manual-sync producer",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -802,10 +802,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-04T21:54:13Z",
-    "path": "tickets/open/0034-strava-list-since.md",
-    "ready": true,
+    "closed": "2026-09-04T22:05:30Z",
+    "path": "tickets/closed/0034-strava-list-since.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -826,7 +827,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0035-strava-fetch-latlng-stream.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
