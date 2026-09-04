@@ -3675,6 +3675,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T15:32:58Z",
+    "started": "2026-09-04T16:59:18Z",
     "path": "tickets/open/0160-enabled-must-be-explicit.md",
     "ready": true,
     "acceptance": {

@@ -206,6 +206,68 @@ describe("D-189 — revealsGround is required, never defaulted", () => {
   })
 })
 
+describe("0160 — `enabled` is required, never defaulted", () => {
+  /**
+   * THE CASE NOTHING CAUGHT. A distance skill losing `enabled` was reported by 0029's
+   * totality check, but only incidentally — it noticed that no skill measured distance, not
+   * that a field was missing. A strength skill has no such downstream symptom: the ruleset
+   * validated clean and pushups scored zero.
+   */
+  it("rejects a STRENGTH row that omits it", () => {
+    const errs = broken((r) => {
+      delete find(r, "might").enabled
+    })
+    expect(paths(errs)).toContain(`skills[${at("might")}].enabled`)
+  })
+
+  it("...and NOTHING ELSE reports that mutation, which is why the field check had to exist", () => {
+    // The regression assertion, written as the ticket describes the defect rather than as
+    // "some error appears". Strip the new error and the ruleset is once again completely
+    // clean — so before 0160 this mutation shipped, and `might` silently stopped matching.
+    const errs = broken((r) => {
+      delete find(r, "might").enabled
+    })
+    expect(errs.filter((e) => !e.path.endsWith(".enabled"))).toEqual([])
+  })
+
+  it("says WHY there is no default — an omitted flag is falsy, so silence would mean off", () => {
+    const errs = broken((r) => {
+      delete find(r, "might").enabled
+    })
+    const msg = errs.find((e) => e.path.endsWith(".enabled"))!.message
+    expect(msg).toContain("undefined")
+    expect(msg).toContain("falsy")
+    expect(msg).toContain("no default")
+  })
+
+  it("rejects a DISTANCE row that omits it, by the field rule rather than by inference", () => {
+    // Previously this produced three "no skill measures distance" errors from a check
+    // looking for a different problem. Now it names the row and the field.
+    const errs = broken((r) => {
+      delete find(r, "wayfaring").enabled
+    })
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].enabled`)
+  })
+
+  it("rejects a non-boolean — `enabled: \"false\"` is a YAML quoting slip that reads as TRUE", () => {
+    const errs = broken((r) => {
+      find(r, "might").enabled = "false"
+    })
+    expect(paths(errs)).toContain(`skills[${at("might")}].enabled`)
+  })
+
+  it("requires it on META rows too — Slayer ships `enabled: false` (D-122)", () => {
+    const errs = broken((r) => {
+      delete find(r, "slayer").enabled
+    })
+    expect(paths(errs)).toContain(`skills[${at("slayer")}].enabled`)
+  })
+
+  it("still accepts the shipped file, which carries `enabled` on all ten rows", () => {
+    expect(validateRuleSet(valid)).toEqual([])
+  })
+})
+
 describe("structural rules the schema depends on", () => {
   it("requires a match block on every activity row (D-141)", () => {
     const errs = broken((r) => {

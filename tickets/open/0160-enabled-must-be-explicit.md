@@ -11,6 +11,7 @@ depends_on: [29]
 blocked_by: []
 source: agent
 created: 2026-09-04T15:32:58Z
+started: 2026-09-04T16:59:18Z
 ---
 
 ## Description
@@ -65,14 +66,14 @@ incidentally, by a check looking for a different problem; a strength skill is no
 
 ## Acceptance criteria
 
-- [ ] The validator rejects any skill row without a boolean `enabled`, naming the row's path.
-- [ ] The message says why there is no default: an omitted flag reads as `undefined`, which is
+- [x] The validator rejects any skill row without a boolean `enabled`, naming the row's path.
+- [x] The message says why there is no default: an omitted flag reads as `undefined`, which is
       falsy, so silence would mean "off".
-- [ ] A test deletes `enabled` from a **strength** row — the case nothing currently catches — and
+- [x] A test deletes `enabled` from a **strength** row — the case nothing currently catches — and
       asserts the validator now fails.
-- [ ] A test asserts the shipped `rules/xp-rules-v1.yaml` still validates clean.
-- [ ] `02-data-model.md` §3.2's `enabled` row states that it is required and has no default.
-- [ ] The registry-delta harness (`0030`) still passes — a delta row must carry `enabled` too.
+- [x] A test asserts the shipped `rules/xp-rules-v1.yaml` still validates clean.
+- [x] `02-data-model.md` §3.2's `enabled` row states that it is required and has no default.
+- [x] The registry-delta harness (`0030`) still passes — a delta row must carry `enabled` too.
 
 ## Notes
 
@@ -87,6 +88,68 @@ doc change together (D-153).
 
 ## Operator validation
 
-None. A validator rule with no rendered surface. Verify by agent: the shipped file still validates
-clean, and a strength row with `enabled` deleted now fails where it previously passed — record
-both, since "previously passed" is the whole reason the ticket exists.
+**None required of the operator** — a validator rule with no rendered surface. The ticket asked
+for two things to be recorded by the agent, and the second is the one that matters: *"a strength
+row with `enabled` deleted now fails **where it previously passed**"*. Both were run on this
+machine (Node 22, WSL2).
+
+**The "previously passed" half, demonstrated rather than asserted.** The `validateEnabled` call
+was commented out and the new suite re-run:
+
+| | with the check disabled | with it enabled |
+|---|---|---|
+| `validate.test.ts` | **5 failed**, 32 passed | 37 passed |
+| a strength row missing `enabled` | **zero errors** | `skills[6].enabled`, named |
+| a distance row missing `enabled` | 3 errors, none about the field | `skills[0].enabled`, named |
+
+The two 0160 tests that stayed **green with the check disabled are supposed to** — one is the
+shipped-file baseline, and the other is the assertion that *nothing else* reports the mutation.
+That second one is the defect written down as a test: strip the `.enabled` errors and the mutated
+ruleset is completely clean, which is exactly why field validation had to exist rather than
+extending a downstream check.
+
+**Smoke tests, all from a clean tree:**
+
+| Check | Command | Result |
+|---|---|---|
+| Rules tests | `npx vitest run src/rules` | 7 files, 134 passed |
+| Full suite | `npm test` | 27 files, 446 passed, 1 skipped |
+| Typecheck | `npm run typecheck` | exit 0 |
+| Lint at `--max-warnings 0` | `npm run lint` | exit 0 |
+| D-100 boundary | `node scripts/check-boundaries.mjs` | exit 0 |
+| Registry-delta harness (criterion 6) | `npx vitest run src/rules/registry-delta.test.ts` | 14 passed |
+| Backlog | `tickets.mjs validate` | 0 errors, 0 warnings |
+
+## Resolution
+
+**Files touched** — `src/rules/validate.ts` (`validateEnabled`, called from the per-row loop),
+`src/rules/validate.test.ts` (+7 tests), `docs/02-data-model.md` §3.2 (the `enabled` row).
+
+The fix is the one the ticket specified and nothing more: require `enabled` explicitly on **every**
+row rather than defaulting it. Not only activity rows — Slayer is `kind: meta` and ships
+`enabled: false` (D-122), so the flag is meaningful on meta rows too and a check that skipped them
+would have left the same hole one row along.
+
+**The rejected alternative stays rejected, and the reason got stronger while writing it.**
+Defaulting to `true` removes the hazard but relocates the file's meaning into code. The asymmetry
+that settles it is that the dangerous default here is the one JavaScript already supplies:
+`selectActivitySkills` filters on `!skill.enabled`, so `undefined` is falsy and **silence means
+off**. A field whose omission disables a skill must not be omittable.
+
+**One side effect worth naming.** `validateSelection` runs only when the shape checks are clean, so
+a distance row missing `enabled` now reports one precise error instead of three vague ones. That is
+a strict improvement — the three said *"no skill measures distance for a run with hasTrace=true"*,
+which describes a symptom two inferential steps from the missing field — but it does mean the old
+messages no longer appear for this input, and a reader looking for them should look here.
+
+**What went wrong: the skill-name grep caught my own docstring.** The first version of
+`validateEnabled`'s comment used a real skill id to explain the defect, and §3.8 check 6
+(`no-skill-names.test.ts`) failed the build on it, correctly. Reworded to describe the row by its
+`logMode` rather than name it — **not exempted**. Worth recording because this is now the third
+time in this project a check has been tripped by prose *about* the check rather than an instance of
+it (0126's probe, 0133's own fixture, and now this), and each time the right move was to change the
+text rather than widen the exemption.
+
+**No `D-xxx` filed.** This implements the D-189 principle on a second field; it does not decide
+anything new. The reasoning lives on the `enabled` row in §3.2, next to `revealsGround`, which is
+where a reader meets the question.

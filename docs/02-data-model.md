@@ -638,7 +638,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `skillId` | S | — | opaque. Appears verbatim in `SkillState.skillId` and `XpLedgerEntry.skillId`. |
 | `name` | S | J5 | display name. **Renaming Vigil is an edit to this field and nothing else** — D-132 says the name is provisional, so it must not be an identifier. |
 | `kind` | S | J5 | `activity \| meta` |
-| `enabled` | BOOL | J1/J5 | `false` hides the skill and stops it matching. Slayer ships `false` (D-122). A disabled skill's historical ledger rows stay valid. |
+| `enabled` | BOOL | J1/J5 | `false` hides the skill and stops it matching. Slayer ships `false` (D-122). A disabled skill's historical ledger rows stay valid. **Required on every row, with NO DEFAULT** (ticket `0160`) — the matcher filters on `!enabled`, so an omitted flag is `undefined`, which is falsy, and the skill would silently stop matching. Same argument as `revealsGround` below, and stronger: here the dangerous default is the one the language already supplies. |
 | `displayOrder` | N | J5 | sparse (10, 20, 30 …) so an insert is a row, not a renumber |
 | `logMode` | S | J2 | `trace \| reps \| duration \| derived` — see §3.7 |
 | `unit` | S | J2/J5 | `km \| rep \| second \| cell` — a display noun *and* the unit the rate is quoted in |

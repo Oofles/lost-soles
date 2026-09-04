@@ -149,6 +149,40 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
 }
 
 /**
+ * `enabled` is required on every row, and there is deliberately NO DEFAULT — ticket 0160.
+ *
+ * The same argument as `revealsGround` (D-189), and stronger here, because the dangerous
+ * default is the one JavaScript already supplies. `selectActivitySkills` filters on
+ * `!skill.enabled`, so an omitted flag is `undefined`, which is falsy, which means the skill
+ * SILENTLY STOPS MATCHING. Silence would mean "off".
+ *
+ * The symptom is an absence: nothing throws, nothing logs, a skill simply never appears in a
+ * tally. And because XP never decreases (D-135), a period of silent under-award is corrected
+ * only by adding — a replay job (04 §4.4), not an edit.
+ *
+ * A DISTANCE skill was caught before this check existed, but only incidentally: 0029's
+ * totality check reports "no skill measures distance for a run with hasTrace=true". A
+ * STRENGTH skill was caught by nothing at all — drop the flag from one and the ruleset
+ * validated clean while its exercise quietly scored zero. Field validation is the right
+ * instrument for a missing field; inferring it from a downstream absence is not.
+ *
+ * Considered and rejected: defaulting to `true`. It removes the hazard but makes the file's
+ * meaning depend on a rule written in code rather than on what the row says, and `02` §3.2
+ * describes `enabled` as a real attribute of the item, not an optional annotation.
+ */
+function validateEnabled(skill: RuleSkill, i: number, errs: RuleError[]): void {
+  if (typeof skill.enabled !== "boolean") {
+    errs.push({
+      path: `skills[${i}].enabled`,
+      message:
+        "required on every row: true or false. There is no default, because an omitted flag " +
+        "reads as `undefined`, which is falsy, so silence would mean \"off\" — the skill would " +
+        "stop matching with nothing raised anywhere.",
+    })
+  }
+}
+
+/**
  * D-189 — `revealsGround` is required on every activity row, and forbidden on meta rows.
  *
  * Required rather than defaulted, deliberately. A default would make "opens the map" the
@@ -349,6 +383,7 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
         message: `${JSON.stringify(s.logMode)} is not a logMode (${LOG_MODES.join(", ")})`,
       })
     }
+    validateEnabled(s, i, errs)
     validateMatch(s, i, errs)
     validateRevealsGround(s, i, errs)
 
