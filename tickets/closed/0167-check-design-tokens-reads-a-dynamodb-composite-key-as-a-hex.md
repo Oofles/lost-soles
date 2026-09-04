@@ -4,13 +4,14 @@ slug: check-design-tokens-reads-a-dynamodb-composite-key-as-a-hex
 title: check-design-tokens reads a DynamoDB composite key as a hex colour
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-04T20:50:43Z
+closed: 2026-09-04T21:22:13Z
 ---
 
 ## Description
