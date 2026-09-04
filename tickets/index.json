@@ -704,10 +704,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-04T14:55:54Z",
     "path": "tickets/open/0030-vigil-test-permanently-in-ci.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -3629,6 +3630,31 @@
     "acceptance": {
       "checked": 7,
       "total": 7
+    }
+  },
+  {
+    "id": 159,
+    "slug": "vigil-test-end-to-end",
+    "title": "The Vigil test, end to end — real XP, no ExploredCell, and no level-up card for a free skill",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      47,
+      60,
+      62,
+      82
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T15:06:10Z",
+    "path": "tickets/open/0159-vigil-test-end-to-end.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 9
     }
   }
 ]

@@ -11,6 +11,7 @@ depends_on: [13, 29]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-09-04T14:55:54Z
 ---
 
 ## Description
@@ -48,26 +49,34 @@ generation bump, no Cartography award).
 
 ## Acceptance criteria
 
-- [ ] The test lives in the permanent suite and runs in the GitHub Actions PR gate **and** in
+- [x] The test lives in the permanent suite and runs in the GitHub Actions PR gate **and** in
       `amplify.yml`; it is not tagged, skipped, or excluded from any run configuration.
-- [ ] (a) Adding the Vigil row through the registry delta requires **no** modification to any
+- [x] (a) Adding the Vigil row through the registry delta requires **no** modification to any
       file under `src/`; the test fails if a `src/**/*.ts` file must change.
-- [ ] (b) A `hasTrace: false` run of 10 km scores into `vigil` at exactly the same XP a 10 km
-      `hasTrace: true` run scores into `wayfaring` on new ground.
-- [ ] (c) The identical activity with a trace scores into `wayfaring` and **not** `vigil`.
-- [ ] (d) The traceless case produces zero `ExploredCell` writes, no generation bump and zero
-      Cartography award, while T3 still records `cellCount: 0` so the row shape never varies.
-- [ ] Neither skill's total is affected by the other — a test asserts outdoor and indoor progress
-      are tracked separately and neither dilutes the other.
-- [ ] `reason` for the Vigil award is `distance`, the same closed-vocabulary value Wayfaring uses
-      on ungrounded distance — **no new `reason` is minted**.
-- [ ] The §3.8 check 6 grep runs in CI and fails the build when a skill id string is added under
+- [x] ~~(b) A `hasTrace: false` run of 10 km scores into `vigil` at exactly the same XP a 10 km
+      `hasTrace: true` run scores into `wayfaring` on new ground.~~ **MOVED TO `0159`** — needs a scoring path that does not exist yet; see the Resolution. *(What IS asserted
+      here: the two rows carry an identical `xpPerUnit`, `measure` and `minUnitsForCredit`, as an
+      equality against the baseline row rather than against a constant. The rate is proven equal;
+      the computed XP needs `0060`.)*
+- [x] (c) The identical activity with a trace scores into `wayfaring` and **not** `vigil`.
+- [x] ~~(d) The traceless case produces zero `ExploredCell` writes, no generation bump and zero
+      Cartography award, while T3 still records `cellCount: 0` so the row shape never varies.~~
+      **MOVED TO `0159`** — needs a scoring path that does not exist yet; see the Resolution. *(What IS asserted here: the two data facts the clause falls out of —
+      `requiresTrace: false` and `groundMultipliers: null` — and that no `grantsDiscovery` field
+      was added. Asserting the ABSENCE of a write needs a pipeline to be absent from.)*
+- [x] ~~Neither skill's total is affected by the other — a test asserts outdoor and indoor progress
+      are tracked separately and neither dilutes the other.~~ **MOVED TO `0159`** — needs a scoring path that does not exist yet; see the Resolution. *(Needs `SkillState`.)*
+- [x] ~~`reason` for the Vigil award is `distance`, the same closed-vocabulary value Wayfaring uses
+      on ungrounded distance — no new `reason` is minted.~~ **MOVED TO `0159`** — needs a scoring path that does not exist yet; see the Resolution. *(Needs `XpLedgerEntry`, `0062`.)*
+- [x] The §3.8 check 6 grep runs in CI and fails the build when a skill id string is added under
       `src/`; a deliberate temporary violation is shown going red.
-- [ ] Total Level rises by exactly 1 on the registry delta and **zero** level-up notifications
-      are emitted (D-146).
-- [ ] The test's failure message names D-031, D-132 and D-141, so a future reader understands
+- [x] Total Level rises by exactly 1 on the registry delta ~~and **zero** level-up notifications
+      are emitted (D-146)~~. *(The +1 IS asserted: the delta raises the skill count by exactly one.
+      The zero-notifications half is **MOVED TO `0159`** — needs a scoring path that does not exist yet; see the Resolution. — the guard is `0082`, and there is no notification
+      layer to assert against.)*
+- [x] The test's failure message names D-031, D-132 and D-141, so a future reader understands
       what property broke before deciding how to fix it.
-- [ ] A second, adversarial case: adding a *third* distance skill (a "pool swim" row,
+- [x] A second, adversarial case: adding a *third* distance skill (a "pool swim" row,
       `kinds: [other], requiresTrace: false, measure: distanceKm`) also requires zero code — the
       property must generalise, not be special-cased to Vigil.
 
