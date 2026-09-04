@@ -3580,5 +3580,29 @@
       "checked": 0,
       "total": 7
     }
+  },
+  {
+    "id": 157,
+    "slug": "cycling-skills-and-reveals-ground",
+    "title": "Roving and Cadence — two cycling skills, and the revealsGround field that keeps the map running-only",
+    "type": "feature",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      28
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-09-04T14:14:07Z",
+    "started": "2026-09-04T14:14:48Z",
+    "closed": "2026-09-04T14:20:31Z",
+    "path": "tickets/closed/0157-cycling-skills-and-reveals-ground.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 12,
+      "total": 12
+    }
   }
 ]

@@ -57,6 +57,11 @@ skills:
       new: 1.0
       rearmed: 0.5
       recent: 0.5
+    # THE ONLY `true` IN THIS FILE (D-189). Running is what opens the map — the vision's
+    # first sentence, and the operator's stated motivation. Every other skill earns its own
+    # XP and leaves the fog alone, so ground you cycle through keeps its FULL discovery
+    # value for the day you run it.
+    revealsGround: true
     feeds:
       - skill: constitution
         rate: 0.3333             # Constitution's 1/3 lives HERE, never as a constant in code
@@ -93,6 +98,72 @@ skills:
     # claim from {new: 1, rearmed: 1, recent: 1}, which would assert that ground exists and
     # every kind of it scores the same. The two must never be conflated (02 §3.2).
     groundMultipliers: null
+    # Redundant here, and stated anyway. A traceless run has no cells to write, so this
+    # could be inferred — but a reader should not have to reason about tracelessness to
+    # learn whether a skill opens the map, and a validator that requires the field on every
+    # activity row is what stops a future row omitting it silently.
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  # ── The cycling pair (D-189) ───────────────────────────────────────────────────────────
+  # The same construction as Wayfaring/Vigil one level down: `match.kinds` separates cycling
+  # from running, and `match.requiresTrace` separates outdoors from indoors. All four share
+  # `measure: distanceKm` and are pairwise mutually exclusive, so the matcher returns exactly
+  # one distance skill for any activity.
+  #
+  # NEITHER OPENS THE MAP. Running is the motivation the app is built around and the map is
+  # its reward; a bike covers three times the ground for the same effort, so letting rides
+  # reveal would have made cycling the dominant way to train Cartography — roughly 3:1 over
+  # running — and the map can never re-fog. See D-189 for the rejected middle option.
+
+  - id: roving
+    name: Roving
+    kind: activity
+    enabled: true
+    displayOrder: 20
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: true
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    # 100/3, the speed-ratio anchor: cycling covers roughly 3x the distance of running for
+    # comparable effort. A ~25 km ride is ~875 XP, alongside a typical run (885) and strength
+    # session (840) — 04 §3.2's session-parity principle, applied to a third discipline.
+    xpPerUnit: 35
+    softCapUnits: null
+    sanityCeilingUnits: 200        # a flag, never a block (D-123) — 200 km is a long day out
+    minUnitsForCredit: 0.5
+    groundMultipliers: null        # not ground-scored: it does not reveal ground to score
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  - id: cadence
+    name: Cadence                  # the pedalling rate — and a rhythm that goes nowhere,
+                                   # which is the joke Vigil makes about the treadmill
+    kind: activity
+    enabled: true
+    displayOrder: 25
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: false         # <-- the discriminator, exactly as for Vigil
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 35                  # identical to Roving, as D-132 gave Vigil Wayfaring's rate
+    softCapUnits: null
+    sanityCeilingUnits: 200
+    minUnitsForCredit: 0.5
+    groundMultipliers: null
+    revealsGround: false
     feeds:
       - skill: constitution
         rate: 0.3333
@@ -115,6 +186,7 @@ skills:
     sanityCeilingUnits: 600
     minUnitsForCredit: 1
     groundMultipliers: null       # not ground-scored: a pushup happens nowhere on the map
+    revealsGround: false       # a pushup happens nowhere on the map
     feeds:
       - skill: constitution
         rate: 0.3333
@@ -142,6 +214,7 @@ skills:
     sanityCeilingUnits: 720
     minUnitsForCredit: 1
     groundMultipliers: null
+    revealsGround: false       # a situp happens nowhere on the map
     feeds:
       - skill: constitution
         rate: 0.3333
@@ -169,6 +242,7 @@ skills:
     sanityCeilingUnits: 1800
     minUnitsForCredit: 5
     groundMultipliers: null
+    revealsGround: false       # a plank happens nowhere on the map
     feeds:
       - skill: constitution
         rate: 0.3333
@@ -199,6 +273,7 @@ skills:
     sanityCeilingUnits: null
     minUnitsForCredit: 0
     groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
     feeds: []
 
   - id: constitution
@@ -214,6 +289,7 @@ skills:
     sanityCeilingUnits: null
     minUnitsForCredit: 0
     groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
     feeds: []                     # Constitution feeds nothing — 04 §1.1, and 02 §3.8 check 2
 
   - id: slayer
@@ -231,4 +307,5 @@ skills:
     sanityCeilingUnits: null
     minUnitsForCredit: 0
     groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
     feeds: []

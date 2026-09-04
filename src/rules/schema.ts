@@ -76,6 +76,22 @@ export interface RuleSkill {
   sanityCeilingUnits: number | null
   minUnitsForCredit: number
   groundMultipliers: Multipliers | null
+  /**
+   * Does an activity matching this skill OPEN THE MAP? (D-189, ticket 0157.)
+   *
+   * `true` writes the activity's cells to `ExploredCell` and therefore earns Cartography.
+   * `false` archives and can still draw the trace, but writes no cells, bumps no generation
+   * and awards nothing — the ground stays fogged and keeps its full discovery value for
+   * whenever a revealing activity covers it.
+   *
+   * Required on every `kind: activity` row; null on meta rows, which never match.
+   *
+   * NOT the `grantsDiscovery` flag `04-game-design.md` §1.3 refuses. That refusal is about
+   * Vigil, where the answer already falls out of `hasTrace: false` and a field would be a
+   * second statement of the same fact. Roving is the case it does not cover: a road ride has
+   * a real trace and real cells, and nothing else in the data says whether they count.
+   */
+  revealsGround: boolean | null
   /** D-120 discovery credit, scored per CELL rather than per km of ground. */
   unitMultipliers?: Multipliers | null
   feeds: RuleFeed[]

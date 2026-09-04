@@ -646,6 +646,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `matchPriority` | N | J1 | higher wins; ties break on `skillId` ascending (determinism, 04 §7.4) |
 | `xpPerUnit` | N | J3 | |
 | `groundMultipliers` | M/NULL | J3 | `{new, rearmed, recent}` per D-120. **`null` means "this skill is not ground-scored"** — distinct from `{1,1,1}`, which would be a claim about ground. |
+| **`revealsGround`** | BOOL/NULL | **J1** | **D-189, ticket 0157.** Does an activity matching this skill open the map? `true` writes its cells to `ExploredCell` and therefore earns Cartography; `false` archives and may draw the trace but writes nothing, so the ground keeps its full discovery value. **Required on every `kind: activity` row and null on meta rows — there is deliberately NO DEFAULT**, because the map never re-fogs (D-020) and a cell revealed by an omitted line is permanent. Only `wayfaring` is `true` in v1. |
 | `softCapUnits` | N/NULL | J3 | per-session diminishing returns (04 §3.5) |
 | `sanityCeilingUnits` | N/NULL | J3 | flag-only; never blocks (D-123) |
 | `minUnitsForCredit` | N | J3 | |
@@ -707,6 +708,13 @@ subsystem's own derived award (Cartography, 05 §8.2).
 activity + same `rulesVersion` ⇒ same skills, always, with no clock and no RNG. Zero matches for
 an activity that carries measurable work is a **hard seed-time error**, not a runtime surprise
 (§3.8, check 3).
+
+**Selection is not revelation.** Matching a skill decides which XP an activity earns; whether it
+opens the map is a separate question answered by that skill's `revealsGround` (§3.2, D-189). A
+road ride matches `roving` and earns full XP, and writes no cells. Keeping the two apart is what
+lets cycling be a first-class skill without cycling becoming the dominant way to train
+Cartography — a bike covers roughly three times the ground of a run for the same effort, and
+because the map never re-fogs, ground revealed from a saddle could never be re-earned on foot.
 
 ### 3.5 THE VIGIL TEST (D-132)
 

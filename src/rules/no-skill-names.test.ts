@@ -49,8 +49,10 @@ describe("no code names a skill (02 §3.8 check 6, D-031)", () => {
     .map((f) => posix(relative(ROOT, f)))
 
   it("reads the skill list from the rules file, so it cannot go stale", () => {
-    expect(skillIds.length).toBe(8)
-    expect(skillIds).toContain("vigil")
+    // No literal count: 0157 added two rows and a hardcoded 8 here failed, which is the
+    // staleness this test exists to avoid reproducing in itself.
+    expect(skillIds.length).toBeGreaterThanOrEqual(8)
+    expect(new Set(skillIds).size).toBe(skillIds.length)
   })
 
   it("scans a non-trivial number of files, so an empty sweep cannot pass silently", () => {

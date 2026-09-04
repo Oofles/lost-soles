@@ -81,6 +81,18 @@ now; there is no later.
 `discoveryCount` is not incremented here — it is a classification output and belongs to 0048.
 This ticket writes the timestamps and counts visits.
 
+**2026-09-04 (D-189, ticket `0157`) — this ticket must honour `revealsGround`.**
+`rules/xp-rules-v1.yaml` now carries `revealsGround` on every activity skill row, and
+**`wayfaring` is the only `true`**. An activity whose matched skill is `false` — a road ride
+under `roving`, say — has a real trace and real cells and **must write NONE of them**: no
+`ExploredCell` item, no generation bump, and therefore no Cartography award.
+
+Read it off the matched skill row; do not branch on `ActivityKind`, which is the `switch` D-031
+forbids. If this ticket ships without reading the field, D-189 silently does not happen and —
+because the map never re-fogs (D-020) — every cell wrongly written before it is noticed is
+permanent. Worth an acceptance criterion of its own: a traced `ride` fixture produces zero
+`ExploredCell` writes.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

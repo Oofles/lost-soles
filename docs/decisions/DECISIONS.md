@@ -1367,3 +1367,56 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     cannot express a dependency (an SSM parameter name; a bare union member). This decision refuses
     a *widening* on the same test, and the test is the same one: can the exempted shape express a
     dependency? A test file can.
+
+---
+
+## Cycling is a first-class skill that does not open the map  (2026-09-04, ticket 0157)
+
+- **D-189** **Two cycling skills ship in `v1` — `roving` (with a trace) and `cadence` (without) —
+  at 35 XP/km, and NEITHER reveals ground or earns Cartography. `revealsGround` is a new required
+  field on every activity skill row, and `wayfaring` is the only `true` in the file.**
+  - **The operator's reasoning, in their words:** *"The main motivation is still running, so while
+    I want extra exercise skills when I do bike, the only skill that should count for Cartography
+    is currently running."* The map is the reward for running; a bike must not be able to collect it.
+  - **The numbers that make it a real question, not a preference.** Cartography is tuned to parity
+    with Wayfaring on purpose (04 §3.2): 6.5 cells/km × 15 XP ≈ 97.5 against running's 100, so *a
+    kilometre of new ground is worth roughly double*. A bike covers about three times the distance
+    for comparable effort, so a typical ride would have yielded **~2,900 Cartography XP against a
+    run's ~870** — cycling would have become the dominant way to train the novelty skill, which
+    D-012 names as the core motivator for running.
+  - **P1 was checked and does not settle this.** *"Any distance covered with a trace attached
+    reveals ground and earns XP"* rules out gating on **shape, minimum or GPS quality**, and rules
+    out distinguishing runs from walks. It was written about not silently discarding effort, not
+    about which disciplines own the map. D-189 is a deliberate, recorded narrowing of it, and P1's
+    actual prohibitions all stand.
+  - **THE REJECTED MIDDLE OPTION, and why it is worse than either end: reveal the ground but award
+    no Cartography.** Because the map never re-fogs (D-020), cycling through a neighbourhood would
+    **permanently destroy that ground's discovery value** — running the same streets later earns
+    nothing, because the ground is no longer new. It eats the map without paying for it. Either
+    cycling counts fully or it does not touch the map at all; anything between is strictly worse
+    than both ends. Recorded because it is the option that sounds most reasonable.
+  - **Why a field and not code.** "Only `[run, walk, hike]` reveal" is a hardcoded list of kinds —
+    the `switch` D-031 forbids and D-141 was written to remove. Selection became data; revelation
+    had to as well. `revealsGround` is a property of the **skill**, so a future skill that should
+    open the map — rucking, trail running, a walking skill split out of Wayfaring — sets one field
+    and needs no code. A test asserts a second `true` row validates cleanly, so the field cannot
+    degrade into a disguised special case for running.
+  - **It does not contradict 04 §1.3's refusal of `grantsDiscovery`.** That refusal is about Vigil,
+    where the answer already falls out of `hasTrace: false` and the flag would restate it. Roving
+    is the case it does not cover: a real trace, real cells, and a decision that exists nowhere
+    else in the data. §1.3 is amended in place with this distinction rather than left to read as a
+    contradiction.
+  - **No default, deliberately.** Required on every activity row. The map never re-fogs, so a cell
+    revealed because a line was forgotten is revealed for ever — and whichever way a default fell
+    it would be wrong for half the rows.
+  - **Rate: 35 XP/km**, the operator's choice of the speed-ratio anchor (100/3, cycling covering
+    ~3× the distance for comparable effort). A ~25 km ride is ~875 XP, alongside a typical run
+    (885) and strength session (840) under §3.2's session-parity principle. `cadence` takes the
+    identical rate, exactly as D-132 gave Vigil full Wayfaring XP rather than half.
+  - **Consequences elsewhere:** `kind: ride` matched no skill at all before this, so a recorded
+    bike ride scored zero — this closes a live gap. Total Level's ceiling moves from 8 rows to 10
+    (`0031` owns §1.2's number). `0047` must honour `revealsGround` when it writes `ExploredCell`,
+    or the field is inert data and the decision silently does not happen.
+  - **Not decided here: rucking.** A ruck is a walk with a weighted pack and nothing in the
+    ingestion contract distinguishes them, so it needs a discriminator, not a row. Walking and
+    hiking already reveal and earn Cartography — they are `wayfaring`'s `match.kinds`.

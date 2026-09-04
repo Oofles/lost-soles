@@ -44,7 +44,10 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 
 | Skill | Trains on | Unit | Flavour |
 |---|---|---|---|
-| **Wayfaring** | Running / walking with a trace | kilometre | Ground covered. The distance skill. |
+| **Wayfaring** | Running / walking / hiking with a trace | kilometre | Ground covered. The distance skill. **The only skill that opens the map** (D-189). |
+| **Vigil** | Running without a trace — treadmill, track, dead watch | kilometre | Full Wayfaring XP, no ground (D-132). |
+| **Roving** | Cycling with a trace | kilometre | 35 XP/km. Earns no map (D-189). |
+| **Cadence** | Cycling without a trace — stationary bike | kilometre | The pedalling rate, and a rhythm that goes nowhere. |
 | **Might** | Pushups | rep | Pressing strength. |
 | **Fortitude** | Situps | rep | The core. Endurance of the trunk. |
 | **Endurance** | Planks | second | Holding a position against time. |
@@ -57,8 +60,15 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 | **Constitution** | 1/3 of *all* activity-skill XP | Total lifetime volume. Always high. |
 | **Slayer** | Encounter and boss damage (§5) | POST-MVP — out of MVP per D-122. |
 
-MVP ships six skills: the four activity skills plus Cartography and Constitution
-(**D-122** — Slayer is explicitly out because combat is out).
+MVP ships **nine enabled skills**: seven activity skills — Wayfaring, Vigil, Roving, Cadence,
+Might, Fortitude, Endurance — plus Cartography and Constitution (**D-122** — Slayer ships
+`enabled: false` because combat is out). Six was the count before D-132 added Vigil (ticket
+`0028`) and D-189 added the cycling pair (ticket `0157`); `rules/xp-rules-v1.yaml` is the
+authority and this list follows it, never the other way round.
+
+**Only Wayfaring opens the map** (D-189). Vigil and Cadence have no trace to project; Roving has
+one and deliberately does not use it, so a bike ride earns full XP and leaves the fog intact for
+the day the same ground is run.
 
 **Constitution's 1/3 rate is lifted directly from Runescape's Hitpoints skill**, which gains
 1/3 of all combat XP and therefore ends up as one of every player's highest levels. The effect
@@ -337,7 +347,26 @@ configured anywhere — it *falls out*:
 > no `ExploredCell` write ⇒ no generation bump ⇒ **no Cartography award** (05 §3.6).
 
 Adding a `grantsDiscovery: false` flag would be a second, redundant statement of the same fact,
-and a place for the two to disagree. There is deliberately no such field. The activity row still
+and a place for the two to disagree. There is deliberately no such field.
+
+> **AMENDED 2026-09-04 (D-189, ticket `0157`) — a `revealsGround` field now exists, and this
+> passage is still right.**
+>
+> The paragraph above refuses a flag **for Vigil**, and the reason is redundancy: a traceless
+> activity has no cells, so the flag would restate what `hasTrace: false` already settles.
+> That reasoning holds and is unchanged.
+>
+> **Roving — cycling with a trace — is the case it does not cover.** A road ride has a real
+> trace and real cells, and the decision that they must not be written is information that
+> exists **nowhere else in the data**. Nor can it live in code: "only `[run, walk, hike]`
+> reveal" is a hardcoded list of kinds, which is the `switch` this whole section outlaws.
+>
+> So the test §1.3 applies is the right test, and `revealsGround` passes it where
+> `grantsDiscovery` failed it. The field is required on every activity row — including Vigil,
+> where it is admittedly redundant — because a reader should not have to reason about
+> tracelessness to learn whether a skill opens the map, and because a validator that demands
+> it everywhere is what stops a future row omitting it silently. **It has no default**: the map
+> never re-fogs (D-020), so a cell revealed by a forgotten line is revealed for ever. The activity row still
 records `cellCount: 0` so the shape never varies. This also settles the provisional
 "treadmill = half Wayfaring XP" suggestion in `05-fog-of-war.md` §3.6/§9.1: D-132 overrides it —
 full XP into a separate skill.

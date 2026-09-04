@@ -141,6 +141,35 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
   }
 }
 
+/**
+ * D-189 — `revealsGround` is required on every activity row, and forbidden on meta rows.
+ *
+ * Required rather than defaulted, deliberately. A default would make "opens the map" the
+ * silent consequence of forgetting a line, and the map NEVER RE-FOGS (D-020) — a cell
+ * revealed by an omission is revealed for ever. Whichever way the default fell it would be
+ * wrong for half the rows, so the file must say.
+ */
+function validateRevealsGround(skill: RuleSkill, i: number, errs: RuleError[]): void {
+  const at = `skills[${i}].revealsGround`
+  const v = skill.revealsGround
+
+  if (skill.kind === "meta") {
+    if (v !== null && v !== undefined) {
+      errs.push({ path: at, message: "must be null on a `kind: meta` row — meta skills never match" })
+    }
+    return
+  }
+
+  if (typeof v !== "boolean") {
+    errs.push({
+      path: at,
+      message:
+        "required on every `kind: activity` row: true or false. There is no default, because " +
+        "the map never re-fogs (D-020) and a cell revealed by an omitted line is permanent.",
+    })
+  }
+}
+
 /** §3.8 check 2 — `feeds` has no cycles. Constitution feeds nothing (04 §1.1). */
 function findFeedCycle(skills: RuleSkill[]): string[] | null {
   const byId = new Map(skills.map((s) => [s.id, s]))
@@ -222,6 +251,7 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
       })
     }
     validateMatch(s, i, errs)
+    validateRevealsGround(s, i, errs)
 
     // §3.8 check 1b — feeds[].skill resolves to an existing `kind: meta` row.
     const feeds = s.feeds

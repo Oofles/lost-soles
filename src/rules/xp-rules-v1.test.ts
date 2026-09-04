@@ -24,12 +24,10 @@ describe("the shipped v1 registry", () => {
     expect(validateRuleSet(rules)).toEqual([])
   })
 
-  it("has the seven MVP skills plus Slayer, and one curve", () => {
-    // The ticket's criterion 1 said "seven skill rows". Seven is the count of MVP skills;
-    // Slayer is an eighth row shipping `enabled: false` (D-122), which the same Description
-    // requires. See the ticket's Resolution.
-    expect(rules.skills).toHaveLength(8)
-    expect(rules.skills.filter((s) => s.enabled)).toHaveLength(7)
+  it("has nine enabled skills plus Slayer, and one curve", () => {
+    // 0028 shipped eight rows (seven MVP + Slayer disabled); 0157 added the cycling pair.
+    expect(rules.skills).toHaveLength(10)
+    expect(rules.skills.filter((s) => s.enabled)).toHaveLength(9)
     expect(rules.curve.stepFormula).toBe("4 * L^2") // D-130; D-131 rejected per-skill curves
     expect(rules.curve.maxLevel).toBe(99)
   })
@@ -129,9 +127,7 @@ describe("groundMultipliers: null is NOT {1,1,1}", () => {
     for (const s of rules.skills) {
       expect(Object.keys(s), s.id).toContain("groundMultipliers")
     }
-    expect(rules.skills.filter((s) => s.groundMultipliers !== null).map((s) => s.id)).toEqual([
-      "wayfaring",
-    ])
+    expect(rules.skills.filter((s) => s.groundMultipliers !== null)).toHaveLength(1)
   })
 })
 
@@ -171,5 +167,69 @@ describe("the log page's exercises (D-061)", () => {
       const exerciseId = m.slice(m.indexOf(":") + 1)
       expect(s.exercises?.map((e) => e.id), s.id).toContain(exerciseId)
     }
+  })
+})
+
+describe("D-189 — only running opens the map", () => {
+  it("has exactly one row with revealsGround: true", () => {
+    // Asserted by FILTERING rather than by naming a skill: naming one here would be the
+    // string literal `no-skill-names.test.ts` forbids, and would need editing every time
+    // the registry changes. The count is the invariant.
+    const revealing = rules.skills.filter((s) => s.revealsGround === true)
+    expect(revealing).toHaveLength(1)
+    expect(revealing[0]!.match!.kinds).toContain("run")
+  })
+
+  it("requires the field on every activity row and forbids it on every meta row", () => {
+    // No default, deliberately: the map never re-fogs (D-020), so a cell revealed because a
+    // line was forgotten is revealed for ever.
+    for (const s of rules.skills) {
+      if (s.kind === "activity") expect(typeof s.revealsGround, s.id).toBe("boolean")
+      else expect(s.revealsGround, s.id).toBeNull()
+    }
+  })
+
+  it("gives the cycling pair no map access at all", () => {
+    const cycling = rules.skills.filter((s) => s.match?.kinds?.includes("ride"))
+    expect(cycling).toHaveLength(2)
+    for (const s of cycling) expect(s.revealsGround, s.id).toBe(false)
+  })
+})
+
+describe("the four distance skills are pairwise mutually exclusive", () => {
+  // The property that lets all four share measure `distanceKm` at equal matchPriority without
+  // the tie-break ever firing. 0029's matcher makes this operational; here it is asserted of
+  // the DATA, across the whole grid, so a badly-shaped row fails before any matcher exists.
+  const KINDS = ["run", "walk", "hike", "ride", "strength", "other"] as const
+
+  const distanceSkills = rules.skills.filter(
+    (s) => s.kind === "activity" && s.enabled && s.match?.measure === "distanceKm",
+  )
+
+  it("covers all four distance skills", () => {
+    expect(distanceSkills).toHaveLength(4)
+  })
+
+  for (const kind of KINDS) {
+    for (const hasTrace of [true, false]) {
+      it(`matches at most one distance skill for ${kind} / hasTrace=${hasTrace}`, () => {
+        const candidates = distanceSkills.filter((s) => {
+          const m = s.match!
+          const kindOk = !m.kinds || m.kinds.length === 0 || m.kinds.includes(kind)
+          const traceOk = m.requiresTrace === "any" || m.requiresTrace === hasTrace
+          return kindOk && traceOk
+        })
+        expect(candidates.map((s) => s.id).sort()).toHaveLength(candidates.length)
+        expect(candidates.length, `${kind}/${hasTrace} matched ${candidates.length}`).toBeLessThanOrEqual(1)
+      })
+    }
+  }
+
+  it("leaves `other` with a trace matching NO distance skill — a known gap, not a surprise", () => {
+    // Recorded rather than fixed: it was already true before the cycling pair, and closing it
+    // is a design decision about what an untyped traced activity should train. 0029's totality
+    // check is where it will surface as a hard seed-time error if it matters.
+    const candidates = distanceSkills.filter((s) => s.match!.kinds?.includes("other"))
+    expect(candidates).toHaveLength(0)
   })
 })

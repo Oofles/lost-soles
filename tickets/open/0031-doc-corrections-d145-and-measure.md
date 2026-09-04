@@ -83,6 +83,16 @@ wrong. Amending it satisfies this ticket's third and eighth criteria together �
 is the shape to copy, and the amended sample must parse with the 0028 validator, which it will
 not do while `exercises` sits at the top level.
 
+**2026-09-04 (ticket `0157`) — the Total Level ceiling has moved AGAIN, and this ticket's
+criterion 1 is stale twice over.** It asks for **693** (7 rows × 99). That was already wrong
+when `0028` added Vigil (8 rows → 792), and `0157` has since added Roving and Cadence.
+
+The registry now holds **10 rows, 9 enabled**. So: **891** for the MVP set, **990** with Slayer.
+Pick the number against `rules/xp-rules-v1.yaml` rather than against any figure written in a
+doc or a ticket — including this note, which will itself go stale the next time a row lands.
+`04-game-design.md` §1.1's skill list has already been updated by `0157`; §1.2's arithmetic
+has not.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

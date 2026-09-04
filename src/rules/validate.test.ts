@@ -32,6 +32,17 @@ const find = (r: Record<string, unknown>, id: string) => {
 }
 const paths = (errs: { path: string }[]) => errs.map((e) => e.path)
 
+/**
+ * The index of a row, computed rather than written down. 0157 inserted two rows and every
+ * hardcoded `skills[N]` in this file that sat after them broke — so the fixtures now derive
+ * the index the same way the validator reports it.
+ */
+const at = (id: string): number => {
+  const i = skills(clone()).findIndex((s) => s.id === id)
+  if (i < 0) throw new Error(`fixture lost ${id}`)
+  return i
+}
+
 describe("the real file is the baseline", () => {
   it("passes, so every failure below is caused by the mutation and nothing else", () => {
     expect(validateRuleSet(valid)).toEqual([])
@@ -43,7 +54,7 @@ describe("criterion 6 — the seven rejections", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").match as Record<string, unknown>).measure = "vibes"
     })
-    expect(paths(errs)).toContain("skills[0].match.measure")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].match.measure`)
     expect(errs[0]!.message).toContain("is not a measure")
   })
 
@@ -63,14 +74,14 @@ describe("criterion 6 — the seven rejections", () => {
     const errs = broken((r) => {
       ;(find(r, "might").match as Record<string, unknown>).measure = "reps:"
     })
-    expect(paths(errs)).toContain("skills[2].match.measure")
+    expect(paths(errs)).toContain(`skills[${at("might")}].match.measure`)
   })
 
   it("rejects a kinds entry that is not an ActivityKind", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").match as Record<string, unknown>).kinds = ["run", "teleport"]
     })
-    expect(paths(errs)).toContain("skills[0].match.kinds[1]")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].match.kinds[1]`)
     expect(errs[0]!.message).toContain("is not an ActivityKind")
   })
 
@@ -78,7 +89,7 @@ describe("criterion 6 — the seven rejections", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").match as Record<string, unknown>).sources = ["Not A Source"]
     })
-    expect(paths(errs)).toContain("skills[0].match.sources[0]")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].match.sources[0]`)
   })
 
   it("ACCEPTS an unenumerated source id, because SourceId is open (D-100)", () => {
@@ -95,7 +106,7 @@ describe("criterion 6 — the seven rejections", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").match as Record<string, unknown>).requiresTrace = "maybe"
     })
-    expect(paths(errs)).toContain("skills[0].match.requiresTrace")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].match.requiresTrace`)
   })
 
   it("rejects a duplicate skillId, naming where it was first defined", () => {
@@ -103,14 +114,14 @@ describe("criterion 6 — the seven rejections", () => {
       find(r, "vigil").id = "wayfaring"
     })
     expect(errs.some((e) => e.message.includes("duplicate skillId"))).toBe(true)
-    expect(errs.some((e) => e.message.includes("skills[0]"))).toBe(true)
+    expect(errs.some((e) => e.message.includes(`skills[${at("wayfaring")}]`))).toBe(true)
   })
 
   it("rejects a feeds[].skill that resolves to nothing", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").feeds as Record<string, unknown>[])[0]!.skill = "nonesuch"
     })
-    expect(paths(errs)).toContain("skills[0].feeds[0].skill")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].feeds[0].skill`)
     expect(errs[0]!.message).toContain("does not resolve")
   })
 
@@ -141,6 +152,43 @@ describe("criterion 6 — the seven rejections", () => {
   })
 })
 
+describe("D-189 — revealsGround is required, never defaulted", () => {
+  it("rejects an activity row that omits it", () => {
+    // The reason it is required rather than defaulted: the map never re-fogs (D-020), so a
+    // cell revealed because a line was forgotten is revealed for ever. Whichever way a
+    // default fell, it would be wrong for half the rows.
+    const errs = broken((r) => {
+      delete find(r, "wayfaring").revealsGround
+    })
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].revealsGround`)
+    expect(errs[0]!.message).toContain("no default")
+  })
+
+  it("rejects a non-boolean on an activity row", () => {
+    const errs = broken((r) => {
+      find(r, "roving").revealsGround = "sometimes"
+    })
+    expect(paths(errs)).toContain(`skills[${at("roving")}].revealsGround`)
+  })
+
+  it("rejects it being set on a meta row, which never matches", () => {
+    const errs = broken((r) => {
+      find(r, "cartography").revealsGround = true
+    })
+    expect(errs.some((e) => e.message.includes("must be null on a `kind: meta` row"))).toBe(true)
+  })
+
+  it("accepts a second revealing skill — this is data, not a hardcoded exception", () => {
+    // Rucking, trail running, a walking skill split out of Wayfaring: any of them turns the
+    // map on by setting one field. If this case failed, `revealsGround` would be a disguised
+    // special case for running rather than a property of a skill.
+    const errs = broken((r) => {
+      find(r, "roving").revealsGround = true
+    })
+    expect(errs).toEqual([])
+  })
+})
+
 describe("structural rules the schema depends on", () => {
   it("requires a match block on every activity row (D-141)", () => {
     const errs = broken((r) => {
@@ -165,21 +213,21 @@ describe("structural rules the schema depends on", () => {
     const errs = broken((r) => {
       delete find(r, "wayfaring").matchPriority
     })
-    expect(paths(errs)).toContain("skills[0].matchPriority")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].matchPriority`)
   })
 
   it("requires a feeds rate — a share is never a constant in the scorer", () => {
     const errs = broken((r) => {
       delete (find(r, "wayfaring").feeds as Record<string, unknown>[])[0]!.rate
     })
-    expect(paths(errs)).toContain("skills[0].feeds[0].rate")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].feeds[0].rate`)
   })
 
   it("rejects an unknown logMode — the four kernels are a closed set (02 §3.7)", () => {
     const errs = broken((r) => {
       find(r, "wayfaring").logMode = "vibes"
     })
-    expect(paths(errs)).toContain("skills[0].logMode")
+    expect(paths(errs)).toContain(`skills[${at("wayfaring")}].logMode`)
   })
 })
 
@@ -201,7 +249,7 @@ describe("reporting", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(RuleValidationError)
       expect((err as RuleValidationError).errors.length).toBeGreaterThan(0)
-      expect((err as Error).message).toContain("skills[0].match.measure")
+      expect((err as Error).message).toContain(`skills[${at("wayfaring")}].match.measure`)
     }
   })
 })
