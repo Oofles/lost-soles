@@ -694,7 +694,7 @@
     "title": "The Vigil test, permanently in CI - adding a skill is a YAML row and zero code",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "04-domain-contract-and-rules",
     "depends_on": [
@@ -705,8 +705,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-04T14:55:54Z",
-    "path": "tickets/open/0030-vigil-test-permanently-in-ci.md",
-    "ready": true,
+    "closed": "2026-09-04T15:20:06Z",
+    "path": "tickets/closed/0030-vigil-test-permanently-in-ci.md",
+    "ready": false,
     "acceptance": {
       "checked": 11,
       "total": 11
