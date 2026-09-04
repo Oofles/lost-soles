@@ -262,3 +262,40 @@ starts at the phone.
 5. Tap **Disconnect**, then reload. It should read *Not connected*, and re-connecting should work.
 
 **Report back**: whether step 2's message reads clearly outdoors, and the athlete id from step 4.
+
+## Operator validation — RESULT, 2026-09-04
+
+**Completed on the operator's Android phone, Chrome, at `/settings`**, after two defects found by
+this very check and fixed as `0165` and `0166`.
+
+| Step | Result |
+|---|---|
+| 1-2. Approve with *"View data about your private activities"* UNTICKED | **Refused**, correctly. `oauth callback refused` at 14:17:45 — before any exchange, so no token was ever minted. Criterion 3's live proof. |
+| 3. *Try again with all permissions* | Fresh consent screen, not a silent re-approval. `approval_prompt=force` works. |
+| 4. Approve with both ticked | **Connected.** Athlete `51449053`, `activity:read_all` stored and shown. |
+| 5. Disconnect / reconnect | **NOT run** — see below. |
+
+Read back with AWS credentials rather than asked for:
+
+```
+externalOwnerId  "51449053"      a STRING           criterion 4
+scopes           SS ["activity:read_all", "read"]   criterion 4
+status           ACTIVE                             criterion 4
+expiresAt        2026-09-05T01:28:16Z = connect + 6.0h, from the response   criterion 5
+scopeSource      "response"
+```
+
+**Step 5 was deliberately not run and stays unverified live.** Disconnect revokes at the provider,
+and running it would have destroyed the working connection the next ticket (`0033`) needs, to
+re-prove something already covered by unit tests over the command inputs. It is verified live the
+next time there is a reason to reconnect — `0089` builds the real disconnect UI and is the natural
+place.
+
+**Two process notes, recorded because they are the point of this section.**
+
+1. **The phone check found what 76 green tests could not.** Both defects were in fixtures built
+   from a design document rather than from a real response. Nothing in the suite could have
+   caught either.
+2. **This checklist asked the operator to "find the athlete id", which was a D-181 violation** —
+   it is one `aws dynamodb scan` away, as the block above shows. The burden moved to the agent
+   and this ticket moved a piece of it back by habit.

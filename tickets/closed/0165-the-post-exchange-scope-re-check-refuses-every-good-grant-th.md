@@ -189,3 +189,26 @@ Suite 526 green; lint, typecheck, `check-boundaries.mjs` and `check-design-token
 *Connected as athlete `<id>`* with `activity:read_all` beneath it. **Expect a full consent screen
 rather than a silent re-approval**, because the four failed attempts each revoked the token they
 had just been given. The agent then reads back the stored row and the `scopeSource` log line.
+
+## Correction — 2026-09-04, after the connect that worked
+
+**This ticket's diagnosis was wrong, and the field it added is what proved it.**
+
+The first successful connect logged `scopeSource: "response"`. So Strava's token response **does**
+carry `scope`. Hypothesis (A) — "the response omits it" — is refuted, the fallback branch this
+ticket added **never fires for Strava**, and the defect all along was the one `0166` found: the
+response spells its scope list with SPACES while the callback uses commas, and a comma-only
+parser turned `"read activity:read_all"` into one scope matching nothing.
+
+Under the old code `body.scope` was a string the whole time, `parseScopes` returned one useless
+element, and `checkGrant` refused. Identical symptom, different cause.
+
+**What this ticket got right is the part that mattered:** it could not tell (A) from (B) without an
+authorization code only the operator can produce, said so, shipped a fix correct under both, and
+put `scopeSource` on the grant precisely so the next real connect would settle it. It did, in one
+line, with no extra round trip. **A fix that is safe under every hypothesis you cannot rule out,
+carrying the evidence that will rule them out, is not a worse outcome than a lucky guess** — but
+the Description above should not be read as a description of what was wrong.
+
+The fallback stays. It is now dead code for Strava and correct behaviour for the next adapter
+whose provider does omit the field.

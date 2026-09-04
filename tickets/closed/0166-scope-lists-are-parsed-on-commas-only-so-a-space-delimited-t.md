@@ -150,3 +150,25 @@ is the one whose absence puts a permanent hole in the map. Expect *Connected as 
 
 **Nothing to look up afterwards.** The athlete id, the stored scopes and the `scopeSource` line
 are all read back with AWS credentials.
+
+## Operator validation — RESULT, 2026-09-04
+
+**Connected.** Operator reported success on the phone; read back with AWS credentials:
+
+```
+pk               U#5488e4b8-d081-7014-748e-edd1937f8083
+sk               SRC#strava
+externalOwnerId  "51449053"          <- a STRING (0032 criterion 4)
+scopes           SS ["activity:read_all", "read"]
+status           ACTIVE
+connectedAt      2026-09-04T19:28:16Z
+expiresAt        1788571696 = 2026-09-05T01:28:16Z   <- exactly 6.0h, from the response
+
+source connected {"source":"strava","externalOwnerId":"51449053",
+                  "scopes":["activity:read_all","read"],"scopeSource":"response"}
+```
+
+`scopeSource: "response"` is the finding: the token response **does** state its scope, so `0165`'s
+"absent field" diagnosis was wrong and this ticket's separator fix was the whole defect. Recorded
+as a correction on `0165`, and `03-integrations.md` §2.2 step 3's annotation replaced with the
+observed fact rather than the inference.

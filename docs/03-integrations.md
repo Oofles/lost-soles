@@ -297,17 +297,20 @@ webhook events for them (§2.3).
      "scope": "activity:read_all" }
    ```
 
-   > **The `scope` key above is UNVERIFIED, and ticket `0165` exists because it was trusted.**
-   > `0032` built a post-exchange re-check on it; on the first real connect the check refused a
-   > fully-ticked grant and revoked it, four times, which is only possible if the live response
-   > did not carry `activity:read_all` in a `scope` field. **The authority for what was granted is
-   > the callback query string** (step 2), which did carry it.
+   > **VERIFIED against a real connect, 2026-09-04** (tickets `0165`, `0166`). The response DOES
+   > carry `scope` — `scopeSource: "response"` on the connect that succeeded — **but it is
+   > SPACE-delimited, not comma-delimited as the example above implies.** RFC 6749 §5.1 defines
+   > the token endpoint's `scope` that way; the CALLBACK in step 2 uses commas. Two surfaces, two
+   > conventions, one document that only ever showed the first.
    >
-   > The adapter now judges `scope` when the response states one and falls back to the
-   > callback-verified list when it does not — correct whether the field is absent or genuinely
-   > short. Each successful connect logs `scopeSource: "response" | "callback"`, and **this
-   > paragraph is replaced with the observed value the first time a real connect prints one.**
-   > Nobody should re-derive this from the example above until then.
+   > That single character cost two failed operator connects. `0032`'s parser split on commas, so
+   > `"read activity:read_all"` came back as ONE scope matching nothing, a full grant read as a
+   > downgrade, and the credential was revoked. The example above is left in its original comma
+   > form deliberately, with this note beside it, because rewriting it would erase the reason
+   > anyone should distrust an unlabelled example.
+   >
+   > `expires_at` was confirmed at the same time: `2026-09-04T19:28:16Z` connect →
+   > `2026-09-05T01:28:16Z`, exactly 6.0 hours, taken from the response.
 
 **Token lifetime and refresh — the single most common integration bug.**
 

@@ -14,6 +14,51 @@
 - `0037` — Activity-kind mapping on sport_type, indoor/no-GPS handling, and trace sanitation
 - `0038` — Checked-in real-response fixtures, the fidelity floor, and rate-limit backoff
 
+## What the OAuth flow cost, and why  (tickets 0032/0165/0166, 2026-09-04)
+
+The first connect worked on the **third** attempt at deploying it. Both intervening defects were
+in the same place and had the same cause, and the capability is worth starting from that fact.
+
+`0032` implements the scope check twice: once on the callback query string before the code is
+exchanged (**the ticket's criterion 3**), and once on the exchanged grant (**nobody asked for
+this**). The pre-exchange check has been correct throughout and did its job live — the operator
+deliberately declined the permission and was refused before a token was ever minted. **Both
+defects were in the extra check.**
+
+- `0165` — an absent `scope` in the token response was read as "nothing was granted", so a good
+  grant was refused and its credential revoked. *(Diagnosis later refuted; see below.)*
+- `0166` — the real one. The callback spells its scope list with **commas**; the token endpoint
+  spells it with **spaces** (RFC 6749 §5.1). `parseScopes` split on commas only, so
+  `"read activity:read_all"` came back as one scope matching nothing and a full grant read as a
+  downgrade.
+
+**One document, one example, one surface.** `03-integrations.md` §2.2 shows a scope list exactly
+once — on the callback, comma-separated. The parser was written for the surface the document
+happened to illustrate. The document was not wrong; it was partial, which is harder to notice and
+is now annotated in place rather than quietly rewritten.
+
+**`0032` shipped 76 green tests and could not complete a single connect.** Every token-response
+fixture was built from that example, so the suite proved the code matched the document. This is
+the argument for `0038` (checked-in real-response fixtures, the fidelity floor), whose Notes now
+carry it. **In this capability a fixture derived from a design doc is not a fixture; it is the
+design doc asserted twice.**
+
+**Two things paid for themselves and should be repeated.** The two refusal paths were given
+*differently worded* log lines, so "which check fired" was answerable from CloudWatch without ever
+reproducing anything — twice. And `0165`, unable to distinguish its two hypotheses without an
+authorization code only the operator can produce, shipped a fix correct under both and put
+`scopeSource` on the grant to settle it; the first successful connect printed
+`scopeSource: "response"`, which refuted `0165`'s own diagnosis in one line and confirmed `0166`'s.
+A fix safe under every hypothesis you cannot rule out, carrying the evidence that will rule them
+out, beats a lucky guess.
+
+**What the connection actually is**, read back rather than reported:
+
+```
+externalOwnerId  "51449053"   (a string)      scopes  activity:read_all, read
+status           ACTIVE                        expiresAt  connect + 6.0h, from the response
+```
+
 ## Design notes
 
 No separate DESIGN session was held for this capability. Its seven tickets were written during
