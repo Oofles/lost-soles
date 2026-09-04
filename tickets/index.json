@@ -3794,7 +3794,7 @@
     "title": "Scope lists are parsed on commas only, so a space-delimited token response reads as a downgrade",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "05-strava-adapter",
     "depends_on": [],
@@ -3802,8 +3802,9 @@
     "source": "agent",
     "created": "2026-09-04T19:08:06Z",
     "started": "2026-09-04T19:09:34Z",
-    "path": "tickets/open/0166-scope-lists-are-parsed-on-commas-only-so-a-space-delimited-t.md",
-    "ready": true,
+    "closed": "2026-09-04T19:10:15Z",
+    "path": "tickets/closed/0166-scope-lists-are-parsed-on-commas-only-so-a-space-delimited-t.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
