@@ -4,7 +4,7 @@ slug: strava-oauth-read-all-scope
 title: Strava OAuth connect flow with activity:read_all - and a callback that refuses the lesser scope
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 05-strava-adapter
 depends_on: [14, 26]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-04T17:19:34Z
+closed: 2026-09-04T17:46:01Z
 ---
 
 ## Description

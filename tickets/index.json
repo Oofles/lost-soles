@@ -743,7 +743,7 @@
     "title": "Strava OAuth connect flow with activity:read_all - and a callback that refuses the lesser scope",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -754,10 +754,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-04T17:19:34Z",
-    "path": "tickets/open/0032-strava-oauth-read-all-scope.md",
-    "ready": true,
+    "closed": "2026-09-04T17:46:01Z",
+    "path": "tickets/closed/0032-strava-oauth-read-all-scope.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -777,7 +778,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0033-strava-client-token-storage-and-refresh.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 12
@@ -3742,7 +3743,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   },
   {
@@ -3762,7 +3763,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   }
 ]
