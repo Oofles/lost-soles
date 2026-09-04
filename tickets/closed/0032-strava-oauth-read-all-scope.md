@@ -246,13 +246,9 @@ is a script's job and not a judgement.
 
 **Device: the Android phone, Chrome, on `/settings`.**
 
-0. *(agent-runnable, once the push has deployed — run this before the rest)*
-   ```
-   aws dynamodb describe-table --table-name LostSolesSourceAccount --profile devault \
-     --query 'Table.[TableStatus,DeletionProtectionEnabled]'
-   aws dynamodb describe-table --table-name LostSolesOAuthState --profile devault \
-     --query 'Table.[TableStatus,TimeToLiveDescription]'
-   ```
+The build is deployed and the infrastructure is verified (smoke tests 4 and 5 above), so this
+starts at the phone.
+
 1. Tap **Connect Strava**. On the consent screen, **deliberately untick "View data about your
    activities"** (the `activity:read_all` permission) and approve.
 2. **The app must refuse.** Expected: the connection does not appear, and the screen explains that
