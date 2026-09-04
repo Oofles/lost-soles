@@ -16,6 +16,13 @@
  * Ticket 0028.
  */
 
+import { runWithPurityTraps } from "@/src/purity/traps"
+
+import {
+  candidatesByMeasure,
+  selectActivitySkills,
+  type MatchableActivity,
+} from "./select-activity-skills"
 import {
   ACTIVITY_KINDS,
   FIXED_MEASURES,
@@ -199,6 +206,98 @@ function findFeedCycle(skills: RuleSkill[]): string[] | null {
   return null
 }
 
+
+/**
+ * §3.8 CHECK 3 — TOTALITY, and §3.8 CHECK 4 — DETERMINISM. Ticket 0029.
+ *
+ * These fire at SEED TIME, not run time (invariant I-26): an ambiguous ruleset is a deploy
+ * failure, not a 6am-Sunday failure. A ruleset that cannot be scored unambiguously must never
+ * reach the table, because by the time it does the only symptom is XP quietly landing in the
+ * wrong skill — and D-135 says XP never decreases, so the correction can only add.
+ *
+ * The grid is GENERATED from `ACTIVITY_KINDS` rather than hand-listed, so adding a kind to the
+ * domain automatically widens the check instead of silently leaving a hole.
+ */
+function validateSelection(ruleSet: RuleSet, errs: RuleError[]): void {
+  for (const kind of ACTIVITY_KINDS) {
+    for (const hasTrace of [true, false]) {
+      const activity: MatchableActivity = {
+        kind,
+        hasTrace,
+        // A source that is deliberately NOT in any row's `sources` allowlist. Every row in a
+        // sane ruleset uses `sources: any`, so this must not change the answer — and if some
+        // row does narrow by source, the grid should exercise the general case, not a
+        // privileged one.
+        source: { source: "any-source" },
+      }
+
+      // CHECK 4 — the matcher runs with the clock and RNG stubbed to throw, mirroring the
+      // contract §5 purity check on normalize(). Same trap definition, deliberately: two
+      // implementations of "pure" would eventually trap different things.
+      const selected = runWithPurityTraps(
+        "selectActivitySkills()",
+        "  04-game-design.md §7.4 — replay soundness. A recomputation must select the SAME\n" +
+          "  skills as the original run, or it rewrites history instead of reproducing it.\n" +
+          "  Reading a clock or an RNG makes the answer depend on WHEN it ran.",
+        () => selectActivitySkills(activity, ruleSet),
+      )
+
+      // CHECK 3a — never two skills for one measure AT EQUAL PRIORITY.
+      //
+      // Inspects the CANDIDATES, not the matcher's return value. `selectActivitySkills` has
+      // already applied the tie-break by then and returns one confident-looking answer — so
+      // the first version of this check, which read the winners, found nothing. Ambiguity is
+      // only visible before it is resolved.
+      //
+      // Unequal priorities are fine: that is what `matchPriority` is FOR. Only a tie is a
+      // defect, because then which skill scores depends on alphabetical order rather than on
+      // anyone's intent.
+      for (const [measure, group] of candidatesByMeasure(activity, ruleSet)) {
+        const top = Math.max(...group.map((s) => s.matchPriority ?? 0))
+        const ids = group.filter((s) => (s.matchPriority ?? 0) === top).map((s) => s.id).sort()
+        if (ids.length > 1) {
+          errs.push({
+            path: `selection[${kind}/hasTrace=${hasTrace}]`,
+            message:
+              `ambiguous: ${ids.join(" and ")} match measure ${JSON.stringify(measure)} at the ` +
+              `same matchPriority (${top}). Which one scores would depend on alphabetical order. ` +
+              "Give one a higher matchPriority, or narrow a match block so they are mutually " +
+              "exclusive — as requiresTrace does for the running and cycling pairs.",
+          })
+        }
+      }
+
+      // CHECK 3b — never ZERO distance skills for a kind that can carry distance.
+      //
+      // NARROWED, deliberately, and this is a real divergence from §3.8's wording (D-190).
+      // §3.8 says zero matches for measurable work fails the build. Taken literally that
+      // includes `other` WITH a trace — and no distance skill claims `other`, on purpose:
+      // §3.7 says an open-water swim gets its own row when someone adds it. `other` is the
+      // catch-all kind, so requiring a skill for it means requiring a skill for every activity
+      // nobody has classified yet, which is not a property any ruleset can hold.
+      //
+      // So: strict for the five KNOWN kinds, exempt for `other`. The exemption is named here
+      // rather than achieved by weakening the rule, because a check that silently tolerates a
+      // gap is the check that stops finding them.
+      if (kind !== "other" && !DISTANCELESS_KINDS.includes(kind)) {
+        const distanceSkills = selected.filter((s) => s.match!.measure === "distanceKm")
+        if (distanceSkills.length === 0) {
+          errs.push({
+            path: `selection[${kind}/hasTrace=${hasTrace}]`,
+            message:
+              `no skill measures distance for a ${kind} with hasTrace=${hasTrace}. ` +
+              "Real distance would be recorded and score nothing. Widen a match block's " +
+              "`kinds`, or flip its `requiresTrace`.",
+          })
+        }
+      }
+    }
+  }
+}
+
+/** Kinds that carry no distance by nature, so a distance skill for them would be the bug. */
+const DISTANCELESS_KINDS: readonly string[] = ["strength"]
+
 /**
  * Validate a parsed rules file. Returns EVERY error rather than the first: a rules file
  * with three mistakes should take one edit to fix, not three build cycles.
@@ -278,6 +377,12 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
       })
     }
   })
+
+  // Selection checks run only once the shape is sound: the matcher reads `match.measure` and
+  // would report noise on a ruleset that has not yet earned a coherent one.
+  if (errs.length === 0) {
+    validateSelection(ruleSet as unknown as RuleSet, errs)
+  }
 
   const cycle = findFeedCycle(skills)
   if (cycle) {

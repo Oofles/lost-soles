@@ -1434,3 +1434,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Not decided here: rucking.** A ruck is a walk with a weighted pack and nothing in the
     ingestion contract distinguishes them, so it needs a discriminator, not a row. Walking and
     hiking already reveal and earn Cartography — they are `wayfaring`'s `match.kinds`.
+
+---
+
+## The totality check is strict for known kinds and exempt for `other`  (2026-09-04, ticket 0029)
+
+- **D-190** **`02-data-model.md` §3.8 check 3 — "zero matches for measurable work fails the build"
+  — is narrowed: it is enforced for the five KNOWN `ActivityKind` values and NOT for `other`.**
+  - **Why the literal wording could not ship.** `other` is the catch-all kind, and no distance
+    skill claims it. That is deliberate, and §3.7 says so in the same document: *"Pool swimming
+    (distance with no GPS) is not a new kernel — it is `match: { kinds: [other], requiresTrace:
+    false, measure: distanceKm }`, i.e. another Vigil."* An `other` activity gets its own row when
+    somebody adds one. Read literally, check 3 would therefore have failed the build on the
+    correct, shipped ruleset from the moment the check was written.
+  - **The deeper reason it is not a loophole.** Requiring a skill for `other` means requiring a
+    skill for *every activity nobody has classified yet*, which is not a property any ruleset can
+    hold — the kind exists precisely to absorb what the taxonomy does not cover. A check whose
+    passing condition is unreachable does not get satisfied; it gets deleted.
+  - **What is still strict, and it is the part that matters.** `run`, `walk`, `hike` and `ride`
+    must each have exactly one distance skill at every `hasTrace` value. That is the case worth
+    protecting: a broken `match` block means real runs are recorded with real distance and score
+    **nothing**, silently. `strength` is excluded separately, by nature — a distance skill for
+    strength would be the bug, not the fix.
+  - **The exemption is named in code and asserted by a test**, not achieved by weakening the rule
+    until it stops complaining. A check that silently tolerates a gap is the check that stops
+    finding them. A test asserts the shipped file validates clean *because* of the narrowing, so
+    the day someone removes it the failure is legible.
+  - **Found by writing `0157`,** not by writing this ticket: the cycling rows made it obvious that
+    `other` + trace has no distance skill, which was already true and had never been surfaced.
+    Recorded then as a known gap in a test, and settled here.

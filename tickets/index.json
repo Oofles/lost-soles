@@ -670,7 +670,7 @@
     "title": "selectActivitySkills matcher plus the seed-time totality and determinism checks",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "04-domain-contract-and-rules",
     "depends_on": [
@@ -679,10 +679,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0029-select-activity-skills-matcher.md",
-    "ready": true,
+    "started": "2026-09-04T14:39:51Z",
+    "closed": "2026-09-04T14:48:37Z",
+    "path": "tickets/closed/0029-select-activity-skills-matcher.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 13,
       "total": 13
     }
   },
@@ -703,7 +705,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0030-vigil-test-permanently-in-ci.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -1390,7 +1392,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0060-scorer-select-activity-skills.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10

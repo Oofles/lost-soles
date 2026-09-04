@@ -99,7 +99,24 @@ describe("criterion 6 — the seven rejections", () => {
     const errs = broken((r) => {
       ;(find(r, "wayfaring").match as Record<string, unknown>).sources = ["garmin"]
     })
-    expect(errs).toEqual([])
+    // Asserted as "no complaint about THIS field" rather than "no errors at all": narrowing
+    // `sources` on the only distance skill for runs legitimately trips the totality check
+    // below, and conflating the two would let a structural regression hide behind it.
+    expect(errs.filter((e) => e.path.includes(".sources"))).toEqual([])
+  })
+
+  it("...and the totality check then fires, because narrowing sources has consequences", () => {
+    // The same mutation, seen by the other check. A skill that accepts only one source means
+    // every other source's runs record real distance and score nothing — which is exactly
+    // what check 3 exists to stop reaching the table. The two checks are independent and both
+    // real; this test is here so that stays true.
+    const errs = broken((r) => {
+      ;(find(r, "wayfaring").match as Record<string, unknown>).sources = ["garmin"]
+    })
+    expect(errs.some((e) => e.path.startsWith("selection[run/"))).toBe(true)
+    expect(errs.find((e) => e.path.startsWith("selection[run/"))!.message).toContain(
+      "score nothing",
+    )
   })
 
   it("rejects requiresTrace outside {true, false, any}", () => {
@@ -228,6 +245,72 @@ describe("structural rules the schema depends on", () => {
       find(r, "wayfaring").logMode = "vibes"
     })
     expect(paths(errs)).toContain(`skills[${at("wayfaring")}].logMode`)
+  })
+})
+
+describe("02 §3.8 checks 3 and 4 — ambiguity and zero-match fail the BUILD (ticket 0029)", () => {
+  // These fire at SEED time, not run time (invariant I-26). An ambiguous ruleset must never
+  // reach the table: by the time it does, the only symptom is XP quietly landing in the wrong
+  // skill — and D-135 says XP never decreases, so the correction can only ever add.
+
+  it("rejects two rows at equal matchPriority sharing a measure, naming both", () => {
+    const errs = broken((r) => {
+      const dup = structuredClone(find(r, "wayfaring"))
+      dup.id = "wayfaring-again"
+      dup.displayOrder = 999
+      skills(r).push(dup)
+    })
+    const clash = errs.find((e) => e.message.includes("ambiguous"))
+    expect(clash).toBeDefined()
+    // Both ids named: a message saying only "ambiguous" leaves the reader grepping the YAML.
+    expect(clash!.message).toContain("wayfaring")
+    expect(clash!.message).toContain("wayfaring-again")
+    expect(clash!.path).toContain("run/hasTrace=true")
+  })
+
+  it("throws from the seeder entry point on that ruleset", () => {
+    // The criterion is "exits non-zero". `assertValidRuleSet` is what the seeder calls, so
+    // throwing here is what a non-zero exit is made of.
+    expect(() =>
+      assertValidRuleSet(
+        (() => {
+          const r = clone()
+          const dup = structuredClone(find(r, "wayfaring"))
+          dup.id = "wayfaring-again"
+          skills(r).push(dup)
+          return r
+        })(),
+      ),
+    ).toThrow(RuleValidationError)
+  })
+
+  it("rejects a ruleset where a run would score no distance at all", () => {
+    // Remove `run` from the only traced-distance row's kinds. Real runs would still be
+    // recorded, with real distance, and score nothing — silently.
+    const errs = broken((r) => {
+      const m = find(r, "wayfaring").match as Record<string, unknown>
+      m.kinds = ["walk", "hike"]
+    })
+    const gap = errs.find((e) => e.path.startsWith("selection[run/hasTrace=true]"))
+    expect(gap).toBeDefined()
+    expect(gap!.message).toContain("no skill measures distance")
+    expect(gap!.message).toContain("score nothing")
+  })
+
+  it("does NOT reject the traced `other` gap — narrowed deliberately (D-190)", () => {
+    // §3.8's wording would fail the build on `other` + trace, because no distance skill claims
+    // the catch-all kind. That is on purpose (02 §3.7: an open-water swim gets its own row),
+    // so requiring one would mean requiring a skill for every activity nobody has classified.
+    // The shipped file must validate clean; if this ever fails, the narrowing was lost.
+    expect(validateRuleSet(valid)).toEqual([])
+  })
+
+  it("does NOT demand a distance skill for `strength`", () => {
+    // A distance skill for strength would be the bug, not the fix.
+    const errs = broken((r) => {
+      find(r, "might").enabled = false
+    })
+    expect(errs.filter((e) => e.path.startsWith("selection[strength/"))).toEqual([])
   })
 })
 

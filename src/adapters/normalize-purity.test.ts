@@ -139,6 +139,7 @@ describe("T4 — and rejects every impure one", () => {
     expect(message).toContain("D-100")
     expect(message).toContain("D-121.2")
     expect(message).toContain("migration seam")
+    expect(message).toContain("normalize()") // `where`, so a failure names WHICH function broke
   })
 
   it("catches non-determinism no trap can see — a module-level counter", () => {
