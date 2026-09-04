@@ -58,8 +58,21 @@ const ids = (skills: RuleSkill[]) => skills.map((s) => s.id).sort()
  * A row nothing in the codebase has ever heard of. Deliberately NOT copied from the shipped
  * file: a delta built by cloning an existing row would inherit whatever makes that row work.
  */
+/**
+ * An id derived to be absent from whatever the registry currently holds. A fixed literal
+ * collided with 0030's own operator-validation proof, which adds a real pool-swim row to the
+ * YAML — the delta then duplicated it and this file went red for the wrong reason. A test
+ * fixture that a legitimate data change can collide with is the same brittleness it exists to
+ * forbid.
+ */
+const UNHEARD_OF_ID = (() => {
+  let id = "aquatics"
+  while (v1.skills.some((s) => s.id === id)) id = `${id}-x`
+  return id
+})()
+
 const POOL_SWIM: RuleSkill = {
-  id: "aquatics",
+  id: UNHEARD_OF_ID,
   name: "Aquatics",
   kind: "activity",
   enabled: true,
@@ -155,21 +168,23 @@ describe("...and the property GENERALISES — the same delta with a row nobody h
 
   it("is selected for the kind it claims, and for nothing else", () => {
     expect(ids(selectActivitySkills(activity("other", false), delta)), WHY_IT_MATTERS).toContain(
-      "aquatics",
+      UNHEARD_OF_ID,
     )
-    expect(ids(selectActivitySkills(activity("run", true), delta))).not.toContain("aquatics")
-    expect(ids(selectActivitySkills(activity("ride", false), delta))).not.toContain("aquatics")
+    expect(ids(selectActivitySkills(activity("run", true), delta))).not.toContain(UNHEARD_OF_ID)
+    expect(ids(selectActivitySkills(activity("ride", false), delta))).not.toContain(UNHEARD_OF_ID)
   })
 
   it("closes the traced-`other` distance gap it was always going to close (D-190)", () => {
     // D-190 exempted `other` from the totality check precisely because a row like this had not
     // been written yet. Adding it fills the gap — with no code change, which is the point.
     const before = selectActivitySkills(activity("other", false), v1)
-    expect(before.filter((s) => s.match!.measure === "distanceKm")).toEqual([])
     const after = selectActivitySkills(activity("other", false), delta)
-    expect(after.filter((s) => s.match!.measure === "distanceKm").map((s) => s.id)).toEqual([
-      "aquatics",
-    ])
+    const distanceOf = (ss: RuleSkill[]) => ss.filter((s) => s.match!.measure === "distanceKm")
+    // Stated as a DELTA, not as absolute sets, so it still holds once a real pool-swim row
+    // lands in the YAML and `before` is no longer empty.
+    expect(distanceOf(after).map((s) => s.id)).toEqual(
+      [...distanceOf(before).map((s) => s.id), UNHEARD_OF_ID].sort(),
+    )
   })
 
   it("does not disturb any existing skill's selection, anywhere on the grid", () => {
@@ -179,7 +194,7 @@ describe("...and the property GENERALISES — the same delta with a row nobody h
       for (const hasTrace of [true, false]) {
         const before = ids(selectActivitySkills(activity(kind, hasTrace), v1))
         const after = ids(selectActivitySkills(activity(kind, hasTrace), delta))
-        expect(after.filter((id) => id !== "aquatics"), `${kind}/${hasTrace}`).toEqual(before)
+        expect(after.filter((id) => id !== UNHEARD_OF_ID), `${kind}/${hasTrace}`).toEqual(before)
       }
     }
   })

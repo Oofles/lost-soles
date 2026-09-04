@@ -24,10 +24,17 @@ describe("the shipped v1 registry", () => {
     expect(validateRuleSet(rules)).toEqual([])
   })
 
-  it("has nine enabled skills plus Slayer, and one curve", () => {
-    // 0028 shipped eight rows (seven MVP + Slayer disabled); 0157 added the cycling pair.
-    expect(rules.skills).toHaveLength(10)
-    expect(rules.skills.filter((s) => s.enabled)).toHaveLength(9)
+  it("ships a non-trivial registry with exactly one disabled row, and one curve", () => {
+    // NOT an exact count. Ticket 0030's proof showed that adding a workout type as a pure data
+    // row turned this file red — which means the suite itself was violating D-031, the property
+    // it exists to enforce. An assertion that must be edited when a row is added is a code
+    // change disguised as a test.
+    //
+    // What is worth pinning is the INVARIANT: many skills, exactly one shipped disabled
+    // (Slayer, D-122), one curve. Protection against an accidental DELETION is git's job, not
+    // this file's, and it is not worth breaking D-031 to buy.
+    expect(rules.skills.length).toBeGreaterThanOrEqual(10)
+    expect(rules.skills.filter((s) => !s.enabled).map((s) => s.id)).toEqual(["slayer"])
     expect(rules.curve.stepFormula).toBe("4 * L^2") // D-130; D-131 rejected per-skill curves
     expect(rules.curve.maxLevel).toBe(99)
   })
@@ -236,8 +243,11 @@ describe("the four distance skills are pairwise mutually exclusive", () => {
     (s) => s.kind === "activity" && s.enabled && s.match?.measure === "distanceKm",
   )
 
-  it("covers all four distance skills", () => {
-    expect(distanceSkills).toHaveLength(4)
+  it("covers enough distance skills for the grid below to mean something", () => {
+    // A vacuity guard, not a content assertion: with fewer than two there is no exclusivity to
+    // test and every case below would pass trivially. Deliberately a floor, so adding a fifth
+    // distance skill needs no edit here.
+    expect(distanceSkills.length).toBeGreaterThanOrEqual(4)
   })
 
   for (const kind of KINDS) {
@@ -255,11 +265,12 @@ describe("the four distance skills are pairwise mutually exclusive", () => {
     }
   }
 
-  it("leaves `other` with a trace matching NO distance skill — a known gap, not a surprise", () => {
-    // Recorded rather than fixed: it was already true before the cycling pair, and closing it
-    // is a design decision about what an untyped traced activity should train. 0029's totality
-    // check is where it will surface as a hard seed-time error if it matters.
+  it("documents whether the traced-`other` distance gap is still open (D-190)", () => {
+    // Written to survive being CLOSED. D-190 exempted `other` from the totality check because
+    // no distance skill claimed it; the day someone adds a pool-swim row that stops being true,
+    // and this assertion must not turn red for it — closing the gap is the schema working, not
+    // a regression. So: at most one, never "exactly zero".
     const candidates = distanceSkills.filter((s) => s.match!.kinds?.includes("other"))
-    expect(candidates).toHaveLength(0)
+    expect(candidates.length).toBeLessThanOrEqual(1)
   })
 })
