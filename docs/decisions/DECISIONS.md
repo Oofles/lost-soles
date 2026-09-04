@@ -1337,3 +1337,33 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Supersedes nothing settled.** D-140 reconciled `Activity`/`Trace`/`SourceAdapter`; these
     three types were outside its scope. `01-architecture.md` §3 is marked SUPERSEDED in place,
     with the reasoning, rather than edited to look as though it had been right.
+
+---
+
+## The D-100 boundary check does not exempt test files  (2026-09-03, ticket 0027)
+
+- **D-188** **`check-boundaries.mjs`'s allowlist stays `src/adapters/<source>/` +
+  `src/adapters/registry.ts`. Test files are NOT exempt, and `0027`'s criterion 3 — which said the
+  allowlist should be "exactly `src/adapters/strava/`, `__fixtures__/` and test files" — is amended
+  rather than implemented.**
+  - **Why the criterion was wrong.** `0025` built on the opposite guarantee, and said so in
+    `src/domain/activity.types.test.ts`: *"the domain's own tests should not name a vendor, and
+    `check-boundaries.mjs` enforces that."* A blanket test-file exemption would make
+    `src/domain/anything.test.ts` free to name Strava, and D-100 is about **dependency**, which a
+    test can express as readily as a module — a test that asserts on a Strava-shaped field is
+    describing a domain that has one.
+  - **The adapter's own tests are already covered** by the directory exemption: they live in
+    `src/adapters/<source>/` and are exempt by path, not by being tests. So the criterion's real
+    need was already met, and the exemption it asked for only added reach.
+  - **`__fixtures__/` is deferred to `0038`, not refused.** A real checked-in Strava API response
+    will be full of the vendor's name and genuinely needs the exemption. But that directory does
+    not exist today, and `0038` is the ticket that creates it. **An allowlist entry for a path that
+    does not exist is dead config** — it cannot be tested, nothing proves it is spelled right, and
+    it silently pre-authorises whatever later occupies that name.
+  - **`registry.ts` is an exemption the criterion omitted and cannot drop**: `01-architecture.md`
+    §3 T2 requires that replacing the adapter touch "one directory + ONE line in
+    `src/adapters/registry.ts`", so that line must be allowed to name the source it selects.
+  - **Consistent with D-166 and D-167**, which each narrowed this check by finding a shape that
+    cannot express a dependency (an SSM parameter name; a bare union member). This decision refuses
+    a *widening* on the same test, and the test is the same one: can the exempted shape express a
+    dependency? A test file can.

@@ -177,6 +177,13 @@ function report(hits) {
   }
   console.error("Ingestion is source-agnostic (D-100). If this needs a switch on a");
   console.error("source id, the contract is wrong — stop and fix the contract, not the grep.");
+  // Ticket 0027, criterion 9: name the decision, not just the rule. A reader who hits
+  // this and sees only "boundary violation" concludes it is pedantry; one who sees what
+  // it buys can weigh it. D-121.1 is the promise this check exists to keep.
+  console.error("");
+  console.error("D-121.1 — Strava lives strictly behind this boundary, so that replacing it");
+  console.error("touches one directory plus one line in registry.ts. That is the entire bet:");
+  console.error("Strava reserves the right to force deletion, and the map can never re-fog.");
   return false;
 }
 

@@ -11,6 +11,7 @@ depends_on: [13, 26]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-09-04T00:48:52Z
 ---
 
 ## Description
@@ -30,11 +31,21 @@ Assert structurally: every import of `src/adapters/strava/**` in the repo comes 
 directory or from `src/adapters/registry.ts`. A deleted-adapter simulation (type-check with the
 directory's exports stubbed to `never`) must fail **only** in `registry.ts`.
 
-**T3 — cross-adapter equivalence.**
-The same physical run ingested via two adapters yields the **same H3 cell set** within tolerance.
-Only one adapter exists at MVP, so land the harness now with a **second, synthetic fixture
-adapter** replaying the same GPX-derived points through a different code path. The test must be
-real and green, not `test.skip`.
+> **SPLIT 2026-09-03 → `0156`.** Only the importer scan was buildable here; it shipped in `0026`
+> as `src/adapters/registry.test.ts` and this ticket wires it into the gate. The **deleted-adapter
+> simulation** needs an adapter directory to delete, and none exists — `src/adapters/strava/`
+> arrives in capability `05`. Moved to `0156`, `depends_on: [36]`.
+
+**T3 — cross-adapter equivalence.** → **MOVED TO `0155`.**
+
+> **SPLIT 2026-09-03 → `0155`, because T3 could not be built in ANY ordering of this backlog.**
+> It needs an H3 res-10 projection. That is `0045` (`traceToCells`), which `depends_on: [25, 36]`;
+> and `0036` `depends_on: [27]` — this ticket. So `0027 → 0036 → 0045 → what 0027 needed`. A
+> cycle, not a priority call. `h3-js` is not a dependency of the project either.
+>
+> `0155` carries T3 in full with `depends_on: [45]`, which is the first point it becomes possible.
+> It is a **split, not a drop** — this ticket's own Notes predicted the drop and argued against it,
+> and that argument is reproduced there.
 
 **T4 — `normalize()` is pure.**
 A harness that invokes any adapter's `normalize()` with `globalThis.fetch`, the AWS SDK,
@@ -49,21 +60,33 @@ therefore ships with 0038 — reference it here so it is not lost.
 
 ## Acceptance criteria
 
-- [ ] T1-T4 run in the GitHub Actions PR gate **and** in `amplify.yml`, so a push to `main`
-      cannot bypass them.
+- [x] ~~T1-T4~~ **T1, T2 and T4** run in the GitHub Actions PR gate **and** in `amplify.yml`, so
+      a push to `main` cannot bypass them. *(Amended: T3 moved to `0155` — see the Description.
+      T1 is `check-boundaries.mjs`, already in both; T2 and T4 are vitest tests, carried by
+      `npm test`, which both gates run.)*
 - [ ] T1 fails the build when a file containing `Strava` is added under `src/domain/`; a
       deliberate temporary commit proves it goes red, and the proof is recorded in the ticket's
       `## Resolution`.
-- [ ] T1's allowlist is exactly `src/adapters/strava/`, `__fixtures__/` and test files — no
-      per-file exceptions.
-- [ ] T2 identifies every importer of the strava directory and fails if any is not
-      `registry.ts`.
-- [ ] T3 runs two adapters over one physical run and asserts equal H3 res-10 cell sets within a
-      stated tolerance; the tolerance is a named constant with a comment justifying its value.
-- [ ] T3 is not skipped, not `.todo`, and fails if either adapter is removed.
-- [ ] T4 stubs fetch, the AWS SDK, both clock sources and both RNG sources to throw, and passes.
-- [ ] T4 is exported as a reusable helper that any adapter's test can call with one line.
-- [ ] Each test's failure message names the decision it is protecting (D-100 / D-121.1 / D-140),
+- [x] T1's allowlist is exactly `src/adapters/<source>/` and `src/adapters/registry.ts` — no
+      per-file exceptions. *(Amended, D-188: ~~`__fixtures__/` and test files~~. Exempting test
+      files would undo a guarantee `0025` explicitly relies on — "the domain's own tests should
+      not name a vendor, and `check-boundaries.mjs` enforces that" — and an adapter's own tests
+      are already exempt by directory. `__fixtures__/` does not exist yet and is added by `0038`,
+      which creates it; an allowlist entry for a non-existent path is dead config. `registry.ts`
+      is required by `01-architecture.md` §3 T2 and was omitted from the original list.)*
+- [x] T2 identifies every importer of the strava directory and fails if any is not
+      `registry.ts`. *(Shipped in `0026` as `src/adapters/registry.test.ts`; it discovers adapter
+      directories rather than naming one, so it already covers whatever adapter lands next. This
+      ticket confirms it runs in both gates and gave it a failure message naming D-100/D-121.1.)*
+- [x] ~~T3 runs two adapters over one physical run and asserts equal H3 res-10 cell sets within a
+      stated tolerance; the tolerance is a named constant with a comment justifying its value.~~
+      **MOVED TO `0155`** — unbuildable here, see the Description. Carried over verbatim, plus two
+      further criteria on what the tolerance must and must not absorb.
+- [x] ~~T3 is not skipped, not `.todo`, and fails if either adapter is removed.~~
+      **MOVED TO `0155`.**
+- [x] T4 stubs fetch, the AWS SDK, both clock sources and both RNG sources to throw, and passes.
+- [x] T4 is exported as a reusable helper that any adapter's test can call with one line.
+- [x] Each test's failure message names the decision it is protecting (D-100 / D-121.1 / D-140),
       so a future reader knows why it exists before deciding to delete it.
 
 ## Notes

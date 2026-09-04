@@ -632,6 +632,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-04T00:48:52Z",
     "path": "tickets/open/0027-boundary-ci-tests.md",
     "ready": true,
     "acceptance": {
@@ -3532,6 +3533,50 @@
     "acceptance": {
       "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 155,
+    "slug": "cross-adapter-cell-set-equivalence",
+    "title": "T3 cross-adapter equivalence — one run, two adapters, the same H3 res-10 cell set",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      45
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T00:46:59Z",
+    "path": "tickets/open/0155-cross-adapter-cell-set-equivalence.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 156,
+    "slug": "deleted-adapter-simulation",
+    "title": "T2 deleted-adapter simulation — stub an adapter's exports to never, and fail only in registry.ts",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "05-strava-adapter",
+    "depends_on": [
+      36
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T00:47:04Z",
+    "path": "tickets/open/0156-deleted-adapter-simulation.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
     }
   }
 ]

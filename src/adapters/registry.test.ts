@@ -110,7 +110,18 @@ describe("registry.ts is the only file that names a concrete adapter", () => {
       }
     }
 
-    expect(violations).toEqual([])
+    // Criterion 9 (ticket 0027): the failure names the decision it protects, so a reader
+    // who hits it knows why the rule exists before deciding it is in their way.
+    expect(
+      violations,
+      violations.length === 0
+        ? ""
+        : "T2 / D-100 / D-121.1 — replacing the primary source must produce a diff confined\n" +
+          "to src/adapters/<name>/ plus ONE line in src/adapters/registry.ts. Each file below\n" +
+          "is a second place that would have to change, and the whole D-121 bet is that the\n" +
+          "Strava adapter is replaceable in a week rather than rewritten:\n  " +
+          violations.join("\n  "),
+    ).toEqual([])
   })
 
   it("scans a non-trivial number of files, so an empty sweep cannot pass silently", () => {
