@@ -1413,6 +1413,20 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     ~3× the distance for comparable effort). A ~25 km ride is ~875 XP, alongside a typical run
     (885) and strength session (840) under §3.2's session-parity principle. `cadence` takes the
     identical rate, exactly as D-132 gave Vigil full Wayfaring XP rather than half.
+    > **AMENDED 2026-09-04 (ticket `0158`) — the rate is 60 XP/km. The 35 above is superseded and
+    > left standing so the mistake is visible.**
+    >
+    > 35 was derived from the speed ratio and sanity-checked against an **assumed** 25 km ride.
+    > At the operator's actual typical ride of **15 km** it pays 525 XP — under 60% of a run,
+    > which is not session parity by any reading. 885/15 = 59, rounded to **60** for legibility
+    > (a clean 3/5 of running; a 15 km ride lands at 900 against a run's 885).
+    >
+    > **The lesson, not the number:** the rate was chosen against a distance nobody had checked.
+    > The operator's own reading of the file caught it within a day, which is the D-181 argument
+    > for keeping a human on the legibility step rather than only on the correctness one. The
+    > test that now guards it asserts *the principle* — a typical ride within 10% of a typical
+    > run — with `TYPICAL_RIDE_KM` named as a constant, so changing the rate without revisiting
+    > the assumption fails and says why.
   - **Consequences elsewhere:** `kind: ride` matched no skill at all before this, so a recorded
     bike ride scored zero — this closes a live gap. Total Level's ceiling moves from 8 rows to 10
     (`0031` owns §1.2's number). `0047` must honour `revealsGround` when it writes `ExploredCell`,

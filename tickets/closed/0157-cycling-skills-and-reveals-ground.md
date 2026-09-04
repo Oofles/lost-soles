@@ -250,3 +250,13 @@ than a special case for running.
 **What is NOT proven here.** No cell is written by anything yet, so "a ride does not reveal" is
 asserted as data and not demonstrated as behaviour. `0047` is where it becomes real, and it now
 carries a note saying so.
+
+**— verified 2026-09-04 by the operator:** *"the xp-rules-v1.yaml file looks good to me"* —
+the four-way reading (outdoor run / treadmill / road ride / stationary bike, and which opens
+the map) answered from the file alone. **PASSED.**
+
+**The rate check did NOT pass, and that is the check earning its keep.** 35 XP/km was set
+against an assumed 25 km ride; the operator's typical ride is **15 km**, where it pays 525 XP
+against a run's 885. Rescaled to 60 XP/km under ticket `0158`, with D-189 amended in place and
+the superseded figure left visible. Had the smoke tests been the only validation, the file
+would have been internally consistent and wrong.

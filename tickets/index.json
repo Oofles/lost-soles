@@ -3604,5 +3604,29 @@
       "checked": 12,
       "total": 12
     }
+  },
+  {
+    "id": 158,
+    "slug": "rescale-cycling-xp-rate",
+    "title": "Rescale the cycling rate to 60 XP/km — a typical ride is 15 km, not 25",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "s",
+    "capability": "04-domain-contract-and-rules",
+    "depends_on": [
+      157
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-09-04T14:29:52Z",
+    "started": "2026-09-04T14:29:52Z",
+    "closed": "2026-09-04T14:31:50Z",
+    "path": "tickets/closed/0158-rescale-cycling-xp-rate.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 7,
+      "total": 7
+    }
   }
 ]

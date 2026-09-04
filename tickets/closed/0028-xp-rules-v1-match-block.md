@@ -234,3 +234,7 @@ Wayfaring for a traced run and Vigil for a traceless one. This ticket ships the 
 that decidable and asserts the two rows are mutually exclusive *as data*; nothing yet reads them.
 That is the ticket's design — the file exists five capabilities before the scorer on purpose — but
 it means the D-132 behaviour is asserted, not yet demonstrated.
+
+**— verified 2026-09-04 by the operator:** read `rules/xp-rules-v1.yaml` in a text editor and
+reported it reads well; answered the treadmill-vs-outdoor question from the file alone.
+**PASSED.** The `match` block carries its weight.

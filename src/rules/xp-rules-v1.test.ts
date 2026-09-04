@@ -196,6 +196,36 @@ describe("D-189 — only running opens the map", () => {
   })
 })
 
+describe("cycling is rated by session parity (04 §3.2, D-189 as amended by 0158)", () => {
+  const TYPICAL_RIDE_KM = 15 // the operator's actual typical ride, 2026-09-04
+  const TYPICAL_RUN_XP = 885 // 8.85 km fully new, 04 §3.2's own worked example
+
+  it("pays both cycling skills the same rate", () => {
+    // As D-132 gave Vigil full Wayfaring XP rather than half: the indoor variant is not a
+    // lesser version of the effort, it just has no ground under it.
+    const cycling = rules.skills.filter((s) => s.match?.kinds?.includes("ride"))
+    expect(cycling).toHaveLength(2)
+    expect(new Set(cycling.map((s) => s.xpPerUnit)).size).toBe(1)
+  })
+
+  it("puts a typical ride within 10% of a typical run", () => {
+    // The assertion is the PRINCIPLE, not the number. If someone changes xpPerUnit without
+    // revisiting what a typical ride is, this fails and says why — which is what 35 XP/km
+    // needed and did not have: it was set against an assumed 25 km ride and nothing caught
+    // that the real figure was 15.
+    const ride = rules.skills.find((s) => s.id === "roving")!
+    const sessionXp = ride.xpPerUnit * TYPICAL_RIDE_KM
+    const drift = Math.abs(sessionXp - TYPICAL_RUN_XP) / TYPICAL_RUN_XP
+    expect(
+      drift,
+      `a ${TYPICAL_RIDE_KM} km ride is ${sessionXp} XP against a typical run's ${TYPICAL_RUN_XP} ` +
+        `(${(drift * 100).toFixed(1)}% off). 04 §3.2's anchor is session parity: one typical hard ` +
+        "session of anything is worth about as much as one of anything else. Either the rate or " +
+        "TYPICAL_RIDE_KM is now wrong.",
+    ).toBeLessThan(0.1)
+  })
+})
+
 describe("the four distance skills are pairwise mutually exclusive", () => {
   // The property that lets all four share measure `distanceKm` at equal matchPriority without
   // the tie-break ever firing. 0029's matcher makes this operational; here it is asserted of

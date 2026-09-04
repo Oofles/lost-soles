@@ -131,10 +131,16 @@ skills:
       sources: any
       measure: distanceKm
     matchPriority: 100
-    # 100/3, the speed-ratio anchor: cycling covers roughly 3x the distance of running for
-    # comparable effort. A ~25 km ride is ~875 XP, alongside a typical run (885) and strength
-    # session (840) — 04 §3.2's session-parity principle, applied to a third discipline.
-    xpPerUnit: 35
+    # SESSION PARITY at the operator's actual ride distance (D-189, amended by ticket 0158).
+    # 04 §3.2's anchor is that one typical hard session of anything is worth about the same as
+    # one of anything else. The operator's typical ride is 15 km, so 885/15 = 59, rounded to 60
+    # for legibility — a clean 3/5 of running, and 15 km lands at 900 against a typical run's
+    # 885 and a strength session's 840.
+    #
+    # Superseded: 35 XP/km, the speed-ratio anchor (100/3, cycling covering ~3x the distance
+    # for comparable effort). It was chosen against an ASSUMED 25 km ride; at the real 15 km it
+    # paid 525 XP, well under half a run, which is not what session parity means.
+    xpPerUnit: 60
     softCapUnits: null
     sanityCeilingUnits: 200        # a flag, never a block (D-123) — 200 km is a long day out
     minUnitsForCredit: 0.5
@@ -158,7 +164,7 @@ skills:
       sources: any
       measure: distanceKm
     matchPriority: 100
-    xpPerUnit: 35                  # identical to Roving, as D-132 gave Vigil Wayfaring's rate
+    xpPerUnit: 60                  # identical to Roving, as D-132 gave Vigil Wayfaring's rate
     softCapUnits: null
     sanityCeilingUnits: 200
     minUnitsForCredit: 0.5
