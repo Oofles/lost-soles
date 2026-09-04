@@ -1,7 +1,7 @@
 import { defineBackend } from "@aws-amplify/backend"
 import { RemovalPolicy } from "aws-cdk-lib"
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb"
-import { Role } from "aws-cdk-lib/aws-iam"
+import { PolicyStatement, Role } from "aws-cdk-lib/aws-iam"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
@@ -208,3 +208,131 @@ const computeRole = Role.fromRoleArn(
 )
 
 captureGuardTable.grantReadWriteData(computeRole)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE SOURCE CONNECTION TABLES  (ticket 0032, 02-data-model.md T7)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Two tables, and they are separate on purpose: one holds credentials for as long
+ * as a connection lives, the other holds a ten-minute nonce. Nothing that can write
+ * the second needs to be able to write the first.
+ */
+const sourcesStack = backend.createStack("SourceConnections")
+
+/**
+ * T7 `SourceAccount`. OAuth access and refresh tokens, one row per (user, source).
+ *
+ * NOT IN APPSYNC, AT ANY AUTH LEVEL, EVER (I-28, I-20, I-29). Not "protected by an
+ * auth rule" — absent. No auth rule is as safe as no reachability, and a rule is one
+ * careless edit from being widened. This is the reason 01-architecture.md §2 lists
+ * machine-only tables as a CDK escape hatch rather than a `defineData` model.
+ *
+ * WHAT 0032 DOES NOT BUILD HERE, deliberately: the `byExternalOwner` GSI (KEYS_ONLY,
+ * for the webhook's owner_id → userId lookup) and the customer-managed key. Both are
+ * ticket 0033's, alongside the rotation handling they exist to serve. A GSI added
+ * now, before anything queries it, is a projection decision made without its caller.
+ */
+const sourceAccountTable = new Table(sourcesStack, "SourceAccountTable", {
+  /**
+   * NAMED EXPLICITLY, same trade-off `LostSolesCaptureGuard` records: the reader is a
+   * Next.js route handler on Amplify's SSR compute, which is not a `defineFunction`
+   * Lambda and has no CloudFormation output to be handed a generated name through.
+   * `lib/sources/source-account-store.ts` states the identical literal and a test
+   * asserts the two agree.
+   *
+   * THE COST IS SHARPER HERE THAN ON THE GUARD TABLE, because of the removal policy
+   * below: an explicit name is account-and-region unique, and RETAIN means a torn-down
+   * stack leaves the table behind still holding the name. Recreating the stack then
+   * fails with a name collision until the orphan is adopted or deleted by hand.
+   *
+   * That is the correct trade. The alternative — DESTROY, so redeploys are frictionless
+   * — makes a stack teardown silently delete the one thing in this system that cannot
+   * be rebuilt (02-data-model.md §1.1, §8, I-2). Recorded in the capability doc so the
+   * next person to hit the collision knows it is a guard rather than a defect.
+   */
+  tableName: "LostSolesSourceAccount",
+  partitionKey: { name: "pk", type: AttributeType.STRING },
+  sortKey: { name: "sk", type: AttributeType.STRING },
+  /** ≤ 24 rows in five years (T7). Provisioned capacity would bill for idle (D-083). */
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * NO TTL. Every other machine-only table in this project expires its rows; this one
+   * must not. A credential that vanishes on a schedule is a connection that dies
+   * silently, and the row survives disconnection on purpose — tokens removed, history
+   * kept, because disconnecting is not deleting an account (08 §6.5).
+   */
+  /**
+   * RETAIN, and this is the table the policy exists for. T7 is the ONE thing the
+   * rebuild drill does not restore (§8.3): tokens are not derivable from the archive
+   * and must not be backed up, so recovery from losing this table is re-authorisation.
+   * `02-data-model.md` §7 states T6/T7/T8 are RETAIN for exactly this reason.
+   */
+  removalPolicy: RemovalPolicy.RETAIN,
+  /**
+   * NO POINT-IN-TIME RECOVERY, and that is the opposite of the usual advice for a
+   * table you would hate to lose. `02-data-model.md` §1.1 lists T7's tokens as "not
+   * rebuildable, AND MUST NOT BE" — recovery is re-authorisation, by design. PITR is
+   * a continuous second copy of live credentials, restorable by anyone who can restore
+   * a table, and it would make the drill's §8.3 claim untrue. RETAIN above stops an
+   * accidental teardown; a backup of secrets is a different and worse thing to own.
+   */
+})
+
+/**
+ * The OAuth `state` nonces. Ten-minute rows, issued when a connect starts and deleted
+ * when the callback consumes one.
+ *
+ * A SEPARATE TABLE FROM T7, and the reasoning is `lib/sources/oauth-state-store.ts`'s:
+ * every item shape added to the credential table is another reason for something to
+ * hold a write grant where the tokens live. It is also not folded into
+ * `LostSolesCaptureGuard`, whose own comment argues for one table with several item
+ * shapes — correctly, for items on the SAME request path. These are not.
+ */
+const oauthStateTable = new Table(sourcesStack, "OAuthStateTable", {
+  /** Explicit for the same reason; `lib/sources/oauth-state-store.ts` states the same literal. */
+  tableName: "LostSolesOAuthState",
+  partitionKey: { name: "pk", type: AttributeType.STRING },
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * DynamoDB deletes expired items for free. Note that its sweep is LAZY — up to 48
+   * hours late — so the store checks its own `expiresAt` on consumption and this
+   * attribute is housekeeping, not the control.
+   */
+  timeToLiveAttribute: "ttl",
+  /**
+   * DESTROY. Everything in it is a nonce with a ten-minute life; losing the table
+   * costs the in-flight connect attempts and nothing else. RETAIN would leave an
+   * orphan holding the explicit name and block the next deploy — a worse failure than
+   * the one it would guard against.
+   */
+  removalPolicy: RemovalPolicy.DESTROY,
+})
+
+sourceAccountTable.grantReadWriteData(computeRole)
+oauthStateTable.grantReadWriteData(computeRole)
+
+/**
+ * The client credentials, read from SSM at cold start by
+ * `lib/sources/oauth-credentials.ts`. Ticket 0017 put them under the shared Amplify
+ * secret path; this is the grant that lets the SSR compute read them.
+ *
+ * TWO PARAMETER ARNs, NAMED. Not a path wildcard: `/amplify/shared/<app>/*` also
+ * covers `GITHUB_TICKETS_PAT`, which acts as the operator on the repository, and a
+ * grant written for convenience would have quietly widened the SSR compute's reach to
+ * it. The role's total credential reach stays "the three parameters it actually
+ * reads", which is what makes the narrowness in 0018's own grant worth keeping.
+ *
+ * The by-hand `ReadTicketsCapturePat` inline policy from 0018 is left alone. It is
+ * not managed here and re-declaring it in CDK would fight it.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "ReadSourceOAuthClientCredentials",
+    actions: ["ssm:GetParameter"],
+    resources: [
+      `arn:aws:ssm:${sourcesStack.region}:${sourcesStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID`,
+      `arn:aws:ssm:${sourcesStack.region}:${sourcesStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
+    ],
+  }),
+)

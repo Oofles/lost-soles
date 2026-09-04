@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { APP_ORIGIN } from "@/lib/app-origin"
 import { currentUserId, isOwner } from "@/lib/auth/owner"
 import { log } from "@/lib/log"
 import {
@@ -57,8 +58,10 @@ type Json = Record<string, unknown>
  * browser, so nothing legitimate depends on this header. It is defence against a
  * FUTURE subdomain mistake — the day something else lands on
  * `*.devaultsecurity.com` and a wildcard would have handed it a write primitive.
+ *
+ * The literal moved to `lib/app-origin.ts` in 0032, when the OAuth start route
+ * became a second caller that must not derive it from a request header.
  */
-const APP_ORIGIN = "https://soles.devaultsecurity.com"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": APP_ORIGIN,

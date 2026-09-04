@@ -31,6 +31,15 @@ const EXCLUDE = ["node_modules/**", ".next/**", ".amplify/**", ".claude/**"]
  */
 export default defineConfig({
   plugins: [tsconfigPaths()],
+  /**
+   * Ticket 0032, the first .tsx test in the repo. `tsconfig.json` sets
+   * `jsx: "preserve"` because Next does its own transform, which leaves esbuild
+   * falling back to the CLASSIC runtime here — `React.createElement` against a
+   * `React` that a server component never imports. The automatic runtime is what
+   * Next itself compiles with, so this makes the test transform match the build
+   * rather than introducing a second dialect.
+   */
+  esbuild: { jsx: "automatic" },
   test: {
     projects: [
       {

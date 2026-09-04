@@ -253,7 +253,7 @@ webhook events for them (§2.3).
    ```
    https://www.strava.com/oauth/authorize
      ?client_id=<id>
-     &redirect_uri=https://lostsoles.devaultsecurity.com/api/auth/strava/callback
+     &redirect_uri=https://soles.devaultsecurity.com/api/auth/strava/callback
      &response_type=code
      &scope=activity:read_all
      &state=<CSRF nonce, stored server-side with a short TTL>
@@ -261,9 +261,25 @@ webhook events for them (§2.3).
    ```
    The redirect URI's **host must match the "Authorization Callback Domain"** configured in the
    Strava app settings — that field is a bare domain, no scheme, no path, no port. Set it to
-   the app's subdomain of `devaultsecurity.com` (D-080). `localhost` is accepted as a separate
-   value for development; you cannot have both at once on one app, so register a second
-   throwaway Strava app for local dev rather than flipping the production one.
+   the app's subdomain of `devaultsecurity.com` (D-080).
+
+   > **Amended 2026-09-04, ticket `0032`.** Two claims in this paragraph were wrong, and both
+   > were corrected against the live service rather than against documentation. The probe:
+   > request the authorize URL with the production `client_id` and a candidate `redirect_uri`;
+   > Strava answers `302 -> /login` for a URI it will honour and `400` for one it refuses.
+   >
+   > 1. The host was written as `lostsoles.devaultsecurity.com`. The domain association
+   >    recorded in capability `02` is **`soles.devaultsecurity.com`** — corrected above.
+   > 2. *"`localhost` is accepted as a separate value; you cannot have both at once on one app,
+   >    so register a second throwaway Strava app for local dev"* — **not what Strava does.**
+   >    `http://localhost:3000/...` and `https://soles.devaultsecurity.com/...` were both
+   >    accepted by the same app in the same probe. Strava exempts `localhost` from the
+   >    callback-domain match. **No second app is needed**, and the two sandbox
+   >    `STRAVA_CLIENT_ID` values in SSM are not required by this constraint.
+   >
+   > The same probe also found the configured domain to be the **bare parent**
+   > `devaultsecurity.com`, so every `*.devaultsecurity.com` host is currently a legitimate
+   > destination for this app's authorization codes. Narrowing it is ticket `0163`.
 
 2. **Callback.** `?code=...&scope=activity%3Aread_all&state=...`. Verify `state`. Then
    **verify the returned `scope` string actually contains `activity:read_all`** — users can

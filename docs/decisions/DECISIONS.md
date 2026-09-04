@@ -1543,3 +1543,35 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     field — the mechanism exists and covers exactly one passage. Extending it to prose tables is
     a real ticket, not a line in a decision; until it is written this holds by review, which is
     the weakest kind of enforcement and the reason the failure recurred in the first place.
+
+- **D-194** **An adapter's OAuth routes are generic `[source]` routes; the vendor half lives on a
+  registered `OAuthConnector`.** Ticket `0032`. Supersedes nothing; it settles a question
+  `contracts/ingestion-contract.md` §3 never asked, because §3 specifies the four *ingest* phases
+  and says nothing about how a connection is made in the first place.
+  - **The forcing constraint.** `0032`'s criterion 9 said every file it added would live under
+    `src/adapters/strava/`. That is not buildable: the App Router serves routes from `app/`, and
+    an OAuth handshake is three HTTP endpoints — start, callback, disconnect. The criterion was
+    amended rather than satisfied, and this is the shape that replaced it.
+  - **What was rejected: `app/api/auth/strava/…`.** It is what the redirect URI in
+    `03-integrations.md` §2.2 reads like, and it fails D-100/D-121.1 — `check-boundaries.mjs`
+    fires on a Strava import or literal anywhere under `app/`, and it is right to. Writing the
+    route to dodge those patterns while still being about one vendor would be evasion of a gate
+    rather than compliance with it.
+  - **What was chosen.** `app/api/auth/[source]/{start,callback,disconnect}` resolve the segment
+    through `registry.ts` and hold no vendor's name. The URL still renders as
+    `/api/auth/strava/callback`, which is what the provider's app settings match against, so
+    nothing external changes. The vendor half — authorize URL, code exchange, scope judgement,
+    revocation — is an `OAuthConnector` in `src/adapters/strava/oauth.ts`.
+  - **Why a SECOND registry rather than `SourceAdapter.oauth`.** The connector ships now, because
+    nothing else in capability `05` can be tested until a real token exists; the four ingest
+    phases arrive across `0034`-`0037`. Registering a `SourceAdapter` today would mean one whose
+    `normalize`, `fetchRaw`, `accept` and `listSince` throw — `getAdapter("strava")` returning an
+    object that claims to satisfy the contract and does not. `OAUTH_CONNECTORS` lives in the same
+    blessed file, so `registry.ts` is still the only module outside an adapter's directory that
+    names a concrete adapter, and `registry.test.ts` still asserts that. Folding `oauth` onto
+    `SourceAdapter` when the real adapter registers is a refactor with the tests already green.
+  - **The rule this sets for every future adapter**: anything the vendor decides — a URL shape, a
+    scope name, a token response, an error's meaning — is on the connector. Anything the app
+    decides — the nonce, its storage, the redirect target, who is signed in — is in the generic
+    route. A file under `app/` that needs to know which provider it is talking to has found a
+    missing connector member, not an exception.

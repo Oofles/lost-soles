@@ -145,3 +145,151 @@ export interface SourceAdapter<TCreds = unknown> {
   /** The ONLY optional member. Called by token-refresh for sources with rotating credentials. */
   refreshCredentials?(creds: TCreds): Promise<TCreds>
 }
+
+/**
+ * ─── OAUTH ───────────────────────────────────────────────────────────────────
+ *
+ * Ticket 0032. Connecting a source is a DIFFERENT lifecycle from ingesting from
+ * one, and the types are separated for that reason rather than for tidiness.
+ *
+ * The four phases above run per activity, in a queue worker, forever. What follows
+ * runs three times in the life of a connection — connect, re-authorise, disconnect
+ * — from a route handler with a signed-in browser attached. `contracts/ingestion-
+ * contract.md` §3 specifies `SourceAdapter` as the four phases and says nothing
+ * about authorisation, which is the contract agreeing.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: any notion of where credentials are stored, any
+ * clock, and any HTTP framework type. A connector builds a URL, exchanges a code,
+ * judges a grant and revokes it. Everything else — the state nonce, the DynamoDB
+ * row, the redirect — belongs to the generic route and the generic store, and that
+ * is what lets `app/api/auth/[source]/` stay free of any vendor's name.
+ */
+
+/**
+ * The client credentials the app holds for a source. Read at runtime from SSM by
+ * `lib/sources/oauth-credentials.ts`; never an environment variable (0017/D-166,
+ * Amplify renders those into build artifacts in plaintext) and never sent to a
+ * browser.
+ */
+export interface OAuthClientCredentials {
+  clientId: string
+  clientSecret: string
+}
+
+/**
+ * What a code exchange yields, normalised. The vendor's response shape stays inside
+ * the adapter; this is what the store is allowed to see.
+ *
+ * `externalOwnerId` is a STRING even where the vendor sends an integer — the same
+ * rule `IngestJob.externalId` states, and for the same reason: some sources' ids are
+ * int64 and `JSON.parse` silently corrupts them past 2^53.
+ *
+ * `expiresAt` is epoch seconds FROM THE RESPONSE. There is no TTL constant anywhere
+ * in this flow, deliberately: a hardcoded six hours is right until the day it is not,
+ * and the failure is a token treated as live after it has died.
+ */
+export interface OAuthGrant {
+  externalOwnerId: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+  scopes: readonly string[]
+}
+
+/**
+ * Whether a grant is good enough to store. NOT a boolean, because the interesting
+ * case carries information the user has to be told.
+ *
+ * A consent screen lets the user untick individual scopes, and the provider will
+ * hand back a working token with less than was asked for. The resulting connection
+ * looks healthy and returns degraded data — which, for a map that never re-fogs
+ * (D-020), is a permanent defect written one run at a time. So the refusal names the
+ * consequence in words, supplied by the adapter that knows what the consequence is.
+ */
+export type GrantCheck =
+  | { ok: true }
+  | { ok: false; missing: readonly string[]; consequence: string }
+
+/**
+ * One source's OAuth handshake. Registered in `registry.ts` and reached only through
+ * it, exactly as `SourceAdapter` is.
+ */
+export interface OAuthConnector {
+  readonly source: SourceId
+
+  /** The vendor's own name, for the one screen that has to say it out loud. */
+  readonly displayName: string
+
+  /**
+   * The scopes without which this source's data is not worth storing. Named on the
+   * connector rather than inside `authorizeUrl` so the callback can check the
+   * returned grant against the same list the request was built from — the two
+   * drifting apart is how a scope downgrade goes unnoticed.
+   */
+  readonly requiredScopes: readonly string[]
+
+  /**
+   * The SSM parameter LEAF names holding this source's client credentials. The path
+   * prefix is the app's, so it lives with the generic loader; the leaf is the
+   * vendor's, so it lives here.
+   */
+  readonly credentialParameters: { clientId: string; clientSecret: string }
+
+  /**
+   * What to tell the user when a required scope is missing, in words that mean
+   * something to someone standing outside after a run. Also what `GrantCheck` carries
+   * on a refusal — one string, so the screen and the check cannot disagree about what
+   * the user was told.
+   */
+  readonly scopeConsequence: string
+
+  /**
+   * PURE. Builds the provider's authorize URL. No network, no clock, no randomness —
+   * the nonce is generated and stored by the caller and passed in, so this function
+   * is a total function of its arguments and testable as one.
+   *
+   * `force` requests a fresh consent screen rather than silently re-issuing the
+   * previous grant. It is what makes "you declined a scope, try again" actionable:
+   * without it the provider re-approves the same reduced grant without showing the
+   * user anything to change.
+   */
+  authorizeUrl(input: {
+    clientId: string
+    redirectUri: string
+    state: string
+    force: boolean
+  }): string
+
+  /**
+   * PURE. Judges the scope string the provider put on the CALLBACK URL, before any
+   * code has been exchanged.
+   *
+   * This is the check that matters, and it is the one that is easy to leave out. A
+   * refusal here means no token is ever minted, so there is nothing to store by
+   * mistake and nothing to revoke on the way out. `checkGrant` re-runs the same
+   * judgement on the exchanged grant, because the callback parameter is a hint and
+   * the token response is the authority — but by then a live credential exists.
+   *
+   * The parameter is the RAW string, or null when the provider sent none, because
+   * how a source spells a scope list (comma-separated, space-separated, absent) is
+   * the source's business and not the route's.
+   */
+  checkCallbackScopes(rawScope: string | null): GrantCheck
+
+  /** NETWORK. Exchanges an authorization code for a grant. */
+  exchangeCode(input: {
+    code: string
+    redirectUri: string
+    credentials: OAuthClientCredentials
+  }): Promise<OAuthGrant>
+
+  /** PURE. Is this grant good enough to store? See `GrantCheck`. */
+  checkGrant(grant: OAuthGrant): GrantCheck
+
+  /**
+   * NETWORK. Revokes at the provider. Called before the row is marked disconnected,
+   * so that a failure here is visible rather than leaving a live token behind a row
+   * that claims to be dead.
+   */
+  revoke(input: { accessToken: string; credentials: OAuthClientCredentials }): Promise<void>
+}
