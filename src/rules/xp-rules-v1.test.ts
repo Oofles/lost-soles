@@ -1,0 +1,175 @@
+import { describe, expect, it } from "vitest"
+
+import { loadRuleSet } from "./load"
+import { validateRuleSet } from "./validate"
+import type { RuleSkill } from "./schema"
+
+/**
+ * Assertions about the SHIPPED v1 file, ticket 0028. Separate from `validate.test.ts`,
+ * which tests the validator against deliberately broken input: one file proves the rules
+ * are right, the other proves the checker works. A single file conflates "our data is
+ * valid" with "the validator can tell", and 0123 established that a check which only ever
+ * sees good input verifies nothing.
+ */
+
+const rules = loadRuleSet(1)
+const byId = (id: string): RuleSkill => {
+  const s = rules.skills.find((x) => x.id === id)
+  if (!s) throw new Error(`no skill row ${id}`)
+  return s
+}
+
+describe("the shipped v1 registry", () => {
+  it("validates clean", () => {
+    expect(validateRuleSet(rules)).toEqual([])
+  })
+
+  it("has the seven MVP skills plus Slayer, and one curve", () => {
+    // The ticket's criterion 1 said "seven skill rows". Seven is the count of MVP skills;
+    // Slayer is an eighth row shipping `enabled: false` (D-122), which the same Description
+    // requires. See the ticket's Resolution.
+    expect(rules.skills).toHaveLength(8)
+    expect(rules.skills.filter((s) => s.enabled)).toHaveLength(7)
+    expect(rules.curve.stepFormula).toBe("4 * L^2") // D-130; D-131 rejected per-skill curves
+    expect(rules.curve.maxLevel).toBe(99)
+  })
+
+  it("gives every activity row a match block with all four keys and a priority", () => {
+    for (const s of rules.skills.filter((x) => x.kind === "activity")) {
+      expect(s.match, s.id).not.toBeNull()
+      expect(Object.keys(s.match!).sort(), s.id).toEqual([
+        "kinds",
+        "measure",
+        "requiresTrace",
+        "sources",
+      ])
+      expect(typeof s.matchPriority, s.id).toBe("number")
+    }
+  })
+
+  it("gives every meta row a null match — meta skills are never matched", () => {
+    for (const s of rules.skills.filter((x) => x.kind === "meta")) {
+      expect(s.match, s.id).toBeNull()
+    }
+  })
+
+  it("ships Slayer disabled (D-122, no combat in MVP)", () => {
+    expect(byId("slayer").enabled).toBe(false)
+  })
+})
+
+describe("D-141 — Wayfaring and Vigil are distinguishable by DATA alone", () => {
+  const wayfaring = byId("wayfaring")
+  const vigil = byId("vigil")
+
+  it("differs in requiresTrace, which is the entire discriminator", () => {
+    expect(wayfaring.match!.requiresTrace).toBe(true)
+    expect(vigil.match!.requiresTrace).toBe(false)
+    expect(wayfaring.match!.requiresTrace).not.toBe(vigil.match!.requiresTrace)
+  })
+
+  it("is no longer byte-identical: displayOrder and groundMultipliers differ too", () => {
+    expect(wayfaring.displayOrder).not.toBe(vigil.displayOrder)
+    expect(wayfaring.groundMultipliers).not.toEqual(vigil.groundMultipliers)
+  })
+
+  it("keeps the two rows MUTUALLY EXCLUSIVE, so equal matchPriority is safe", () => {
+    // This is why they may share priority 100 without the tie-break ever firing: no
+    // activity is a candidate for both. 0029's totality check asserts it across the whole
+    // ActivityKind x hasTrace grid; here it is asserted of the data itself.
+    expect(wayfaring.matchPriority).toBe(vigil.matchPriority)
+    expect(wayfaring.match!.measure).toBe(vigil.match!.measure)
+    expect([wayfaring.match!.requiresTrace, vigil.match!.requiresTrace].sort()).toEqual([
+      false,
+      true,
+    ])
+  })
+
+  it("gives Vigil FULL activity XP, identical to Wayfaring (D-132) — not half", () => {
+    // 05-fog-of-war.md §3.6/§9.1 provisionally suggested "treadmill = half Wayfaring XP".
+    // D-132 overrides it: full XP into a SEPARATE skill.
+    expect(vigil.xpPerUnit).toBe(100)
+    expect(vigil.xpPerUnit).toBe(wayfaring.xpPerUnit)
+  })
+
+  it("scores Wayfaring on ground and Vigil on none", () => {
+    expect(wayfaring.groundMultipliers).toEqual({ new: 1.0, rearmed: 0.5, recent: 0.5 }) // D-120
+    expect(vigil.groundMultipliers).toBeNull()
+  })
+
+  it("carries no grantsDiscovery flag — D-132's third clause needs no field", () => {
+    // hasTrace:false => traceRef:null => no trace => no H3 projection => no ExploredCell
+    // write => no Cartography award (05 §3.6). A flag would be a second statement of the
+    // same fact, and a place for the two to disagree.
+    for (const s of rules.skills) {
+      expect(Object.keys(s), s.id).not.toContain("grantsDiscovery")
+    }
+  })
+
+  it("keeps Vigil's name a display string, never an identifier (D-132: provisional)", () => {
+    // A rename must be an edit to one attribute. If the id were the name, it would be an
+    // edit to every ledger row and every SkillState key.
+    expect(byId("vigil").name).toBe("Vigil")
+    expect(byId("vigil").id).not.toBe(byId("vigil").name)
+  })
+})
+
+describe("groundMultipliers: null is NOT {1,1,1}", () => {
+  it("keeps them distinct — one denies ground, the other makes a claim about it", () => {
+    const neutral = { new: 1, rearmed: 1, recent: 1 }
+    expect(byId("vigil").groundMultipliers).toBeNull()
+    expect(byId("vigil").groundMultipliers).not.toEqual(neutral)
+    // ...and the difference survives a JSON round trip, which is how it reaches T5.
+    expect(JSON.stringify(byId("vigil").groundMultipliers)).not.toBe(JSON.stringify(neutral))
+  })
+
+  it("is explicit on every row that is not ground-scored, never merely absent", () => {
+    // Absent and null mean the same thing to a parser but not to a reader. A pushup
+    // happens nowhere on the map, and the file should say so.
+    for (const s of rules.skills) {
+      expect(Object.keys(s), s.id).toContain("groundMultipliers")
+    }
+    expect(rules.skills.filter((s) => s.groundMultipliers !== null).map((s) => s.id)).toEqual([
+      "wayfaring",
+    ])
+  })
+})
+
+describe("Constitution's 1/3 is data on the feeder rows", () => {
+  it("appears as feeds[].rate on every activity skill, and nowhere else", () => {
+    const activities = rules.skills.filter((s) => s.kind === "activity")
+    expect(activities.length).toBeGreaterThan(0)
+    for (const s of activities) {
+      const feed = s.feeds.find((f) => f.skill === "constitution")
+      expect(feed, s.id).toBeDefined()
+      expect(feed!.rate, s.id).toBeCloseTo(1 / 3, 3)
+    }
+  })
+
+  it("feeds nothing itself — 04 §1.1, and the acyclicity check depends on it", () => {
+    expect(byId("constitution").feeds).toEqual([])
+  })
+})
+
+describe("the log page's exercises (D-061)", () => {
+  it("nests under the skill that owns them, per 02 §3.2", () => {
+    // 04 §1.3's YAML sample shows a TOP-LEVEL `exercises:` list with a `skill:` back
+    // reference. 02 §3.2 nests them in the skill row and is named authoritative for this
+    // schema by 04 §1.3 itself. Nesting also removes the second place the mapping could
+    // disagree. Recorded as a divergence in the ticket; 0031 owns the doc amendment.
+    expect(byId("might").exercises?.map((e) => e.id)).toEqual(["pushup"])
+    expect(byId("fortitude").exercises?.map((e) => e.id)).toEqual(["situp"])
+    expect(byId("endurance").exercises?.map((e) => e.id)).toEqual(["plank"])
+    expect(rules).not.toHaveProperty("exercises")
+  })
+
+  it("names each skill's measure after an exercise it actually owns", () => {
+    // The link that makes `reps:<exerciseId>` resolvable without a lookup table in code.
+    for (const s of rules.skills) {
+      const m = s.match?.measure
+      if (typeof m !== "string" || !m.includes(":")) continue
+      const exerciseId = m.slice(m.indexOf(":") + 1)
+      expect(s.exercises?.map((e) => e.id), s.id).toContain(exerciseId)
+    }
+  })
+})

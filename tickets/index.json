@@ -647,7 +647,7 @@
     "title": "rules/xp-rules-v1.yaml WITH the match block and matchPriority - before the first line of the scorer",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "04-domain-contract-and-rules",
     "depends_on": [
@@ -656,10 +656,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0028-xp-rules-v1-match-block.md",
-    "ready": true,
+    "closed": "2026-09-04T13:18:30Z",
+    "path": "tickets/closed/0028-xp-rules-v1-match-block.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -679,7 +680,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0029-select-activity-skills-matcher.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 13
@@ -724,7 +725,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0031-doc-corrections-d145-and-measure.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8

@@ -70,6 +70,19 @@ re-introducing `activity.hasTrace ? "wayfaring" : "vigil"`.
 Do not "fix" `04-game-design.md` by rewriting its schema from scratch — copy the shape actually
 shipped in `rules/xp-rules-v1.yaml`, so the doc and the file cannot disagree from day one.
 
+**2026-09-04 (ticket `0028`) — a concrete divergence for the §1.3 amendment to settle.**
+`04-game-design.md` §1.3's YAML sample puts `exercises:` at the **top level**, each row carrying
+a `skill:` back-reference. `02-data-model.md` §3.2 **nests** `exercises` inside the skill row
+("rather than in a sibling `RuleExercise` table"), and §3.2 also says the YAML is "seeded
+verbatim into T5" — so the file's shape and the item's shape must be the same one.
+
+`rules/xp-rules-v1.yaml` shipped with them **nested**, on the authority of §1.3's own note that
+`02-data-model.md` §3 is authoritative for this schema, and because a back-reference is a second
+place the skill↔exercise mapping can disagree. The §1.3 sample is therefore the half that is
+wrong. Amending it satisfies this ticket's third and eighth criteria together — the shipped file
+is the shape to copy, and the amended sample must parse with the 0028 validator, which it will
+not do while `exercises` sits at the top level.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

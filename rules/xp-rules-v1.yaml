@@ -1,0 +1,234 @@
+# THE SKILL REGISTRY, v1 — the authority. Ticket 0028.
+#
+# Git is the source of truth; the RuleSkill table (T5) is a MATERIALISED PROJECTION of this
+# file, seeded verbatim at deploy time (02-data-model.md §3.2, §3.3). The seeder is
+# idempotent and append-only ACROSS VERSIONS: it never edits an existing rulesVersion
+# partition, because a ledger row citing v1 is meaningless if v1's rows were mutated
+# (04-game-design.md §7.6).
+#
+# ADDING A WORKOUT TYPE IS A ROW IN THIS FILE AND NOTHING ELSE (D-031, D-141). If a change
+# needs a `switch` on a skill id, the schema is wrong — stop and fix the schema.
+#
+# THE `match` BLOCK IS WHY THIS FILE EXISTS BEFORE THE SCORER DOES (D-141).
+# The schema first published in 04-game-design.md §1.3 covered measurement, rating,
+# propagation and presentation, and silently omitted SELECTION — which activities a skill
+# consumes. Under it, Wayfaring and Vigil were byte-identical, so the scorer would have had
+# to decide in code:
+#
+#     const skill = activity.hasTrace ? "wayfaring" : "vigil"   // THE FAILURE MODE
+#
+# Retrofitting selection into data after the scorer exists is a rewrite of every call site
+# plus a data migration of every ledger row's xpRulesVersion semantics. So v1 ships with
+# `match` on every activity skill from the very first seed.
+
+version: 1
+effectiveFrom: 2026-09-01T00:00:00Z
+
+# D-130. NOT per-skill: D-131 explicitly rejected per-skill curve constants, so this is one
+# RuleCurve item stored under SK = "__curve__" in the same partition (02 §3.2).
+curve:
+  stepFormula: "4 * L^2"   # XP to advance from level L to L+1
+  maxLevel: 99
+  deepMaxLevel: 120        # 04 §2.5
+
+skills:
+
+  # ── Activity skills ────────────────────────────────────────────────────────────────────
+  # Every `kind: activity` row carries an explicit `match` and `matchPriority`.
+
+  - id: wayfaring
+    name: Wayfaring
+    kind: activity
+    enabled: true
+    displayOrder: 10
+    logMode: trace
+    unit: km
+    match:                        # J1 SELECTION (D-141)
+      kinds: [run, walk, hike]    # ActivityKind values (contract §2). Absent/[] = any.
+      requiresTrace: true         # reads Activity.hasTrace
+      sources: any                # any | [<sourceId>, …] — escape hatch, rarely used
+      measure: distanceKm         # J2: which quantity off the Activity is the unit count
+    matchPriority: 100
+    xpPerUnit: 100
+    softCapUnits: null            # distance gets no diminishing returns — 04 §3.5
+    sanityCeilingUnits: 300       # flag-only, never blocks (D-123)
+    minUnitsForCredit: 0.25
+    groundMultipliers:            # D-120 — applies only to logMode: trace
+      new: 1.0
+      rearmed: 0.5
+      recent: 0.5
+    feeds:
+      - skill: constitution
+        rate: 0.3333             # Constitution's 1/3 lives HERE, never as a constant in code
+
+  # THE VIGIL ROW (D-132, D-141). GPS-less running: treadmill, track, a dead watch.
+  #
+  # ONE FIELD separates this row from Wayfaring — `match.requiresTrace` — and it is read off
+  # Activity.hasTrace, which the ingestion contract already defines and T3 already stores.
+  # No new type, no new concept, no code. That is the whole proof of D-031.
+  #
+  # Equal matchPriority with Wayfaring is SAFE and deliberate: requiresTrace true vs false
+  # makes the two rows mutually exclusive, so no activity is ever a candidate for both and
+  # the tie-break never fires. 02 §3.8 check 3 asserts that across the whole
+  # ActivityKind x hasTrace grid on every build (ticket 0029).
+  - id: vigil
+    name: Vigil                   # PROVISIONAL (D-132) — a display string, NEVER an
+                                  # identifier. A rename is an edit to this attribute alone.
+    kind: activity
+    enabled: true
+    displayOrder: 15
+    logMode: trace                # same kernel: a distance-measured effort
+    unit: km
+    match:
+      kinds: [run, walk, hike]
+      requiresTrace: false        # <-- THE ENTIRE DISCRIMINATOR
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 100                # D-132: FULL activity XP, identical to Wayfaring. Not half.
+    softCapUnits: null
+    sanityCeilingUnits: 300
+    minUnitsForCredit: 0.25
+    # `null` means THIS SKILL IS NOT GROUND-SCORED — there is no ground. That is a different
+    # claim from {new: 1, rearmed: 1, recent: 1}, which would assert that ground exists and
+    # every kind of it scores the same. The two must never be conflated (02 §3.2).
+    groundMultipliers: null
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  - id: might
+    name: Might
+    kind: activity
+    enabled: true
+    displayOrder: 30
+    logMode: reps
+    unit: rep
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "reps:pushup"
+    matchPriority: 100
+    xpPerUnit: 4
+    softCapUnits: 100             # per session, 04 §3.5
+    sanityCeilingUnits: 600
+    minUnitsForCredit: 1
+    groundMultipliers: null       # not ground-scored: a pushup happens nowhere on the map
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: pushup
+        label: Pushups
+        entry: count
+        quickValues: [10, 20, 25, 50]
+
+  - id: fortitude
+    name: Fortitude
+    kind: activity
+    enabled: true
+    displayOrder: 40
+    logMode: reps
+    unit: rep
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "reps:situp"
+    matchPriority: 100
+    xpPerUnit: 3
+    softCapUnits: 120
+    sanityCeilingUnits: 720
+    minUnitsForCredit: 1
+    groundMultipliers: null
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: situp
+        label: Situps
+        entry: count
+        quickValues: [20, 30, 50]
+
+  - id: endurance
+    name: Endurance
+    kind: activity
+    enabled: true
+    displayOrder: 50
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:plank"
+    matchPriority: 100
+    xpPerUnit: 1.5                # = 90 XP per plank-minute
+    softCapUnits: 300
+    sanityCeilingUnits: 1800
+    minUnitsForCredit: 5
+    groundMultipliers: null
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: plank
+        label: Plank
+        entry: seconds
+        quickValues: [30, 60, 90, 120]
+
+  # ── Meta skills ────────────────────────────────────────────────────────────────────────
+  # NEVER matched. They arrive through `feeds` (J4) and, for Cartography, through the fog
+  # subsystem's own derived award (02 §3.4, 05 §8.2). `match` is null on every one.
+
+  - id: cartography
+    name: Cartography
+    kind: meta
+    enabled: true
+    displayOrder: 60
+    logMode: derived
+    unit: cell                    # H3 res-10 (D-115)
+    match: null
+    xpPerUnit: 15
+    unitMultipliers:              # D-120 discovery credit. NOT groundMultipliers: this is
+      new: 1.0                    # scored per CELL, not per km of ground.
+      rearmed: 0.5
+      recent: 0.0
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    feeds: []
+
+  - id: constitution
+    name: Constitution
+    kind: meta
+    enabled: true
+    displayOrder: 70
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1                  # the share arrives pre-computed; the rate is on the FEEDER
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    feeds: []                     # Constitution feeds nothing — 04 §1.1, and 02 §3.8 check 2
+
+  - id: slayer
+    name: Slayer
+    kind: meta
+    enabled: false                # POST-MVP (D-122): no combat in the MVP. `enabled: false`
+                                  # hides the skill AND stops it matching. Its historical
+                                  # ledger rows, when it ships, stay valid.
+    displayOrder: 80
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    feeds: []
