@@ -211,6 +211,28 @@ export interface OAuthGrant {
 }
 
 /**
+ * What a REFRESH yields. Ticket 0033.
+ *
+ * Deliberately NOT `OAuthGrant`. A refresh response is a different and smaller thing
+ * than a code exchange: there is no athlete, and in Strava's case no scope either.
+ * Reusing `OAuthGrant` would force an adapter to invent an `externalOwnerId` and a
+ * `scopeSource` it was never told, and an invented identity on a credential path is
+ * how the wrong athlete's runs end up on a map that never re-fogs.
+ *
+ * `refreshToken` IS ALWAYS PRESENT AND MAY BE NEW. Strava's docs: "The refresh token
+ * may or may not be the same refresh token used to make the request." An adapter whose
+ * provider omits the field on an unchanged token echoes the one it was given, so the
+ * storage layer above never has to reason about absence — it always has the value that
+ * is now authoritative, and the conditional write does the rest.
+ */
+export interface OAuthRefresh {
+  accessToken: string
+  refreshToken: string
+  /** Epoch seconds, FROM THE RESPONSE. There is no TTL constant on this path either. */
+  expiresAt: number
+}
+
+/**
  * Whether a grant is good enough to store. NOT a boolean, because the interesting
  * case carries information the user has to be told.
  *
@@ -309,6 +331,24 @@ export interface OAuthConnector {
     credentials: OAuthClientCredentials
     grantedScopes: readonly string[]
   }): Promise<OAuthGrant>
+
+  /**
+   * NETWORK. Exchanges a refresh token for a fresh access token. Ticket 0033.
+   *
+   * THE ONE RULE THIS SIGNATURE ENFORCES: it takes a refresh token and returns a
+   * refresh token, and the caller must assume they differ. There is no "did it
+   * rotate?" flag, because a boolean invites a branch that skips the write on the
+   * common path — and the common path being right 99 times is what makes the 100th,
+   * where it did rotate and nobody persisted it, so expensive. Always persist.
+   *
+   * Throws `OAuthProviderError` (`./errors`) on a non-2xx. Its `credentialIsDead`
+   * decides whether the caller re-authorizes or retries, so an adapter must set the
+   * status faithfully rather than collapsing every failure to one code.
+   */
+  refreshTokens(input: {
+    refreshToken: string
+    credentials: OAuthClientCredentials
+  }): Promise<OAuthRefresh>
 
   /** PURE. Is this grant good enough to store? See `GrantCheck`. */
   checkGrant(grant: OAuthGrant): GrantCheck

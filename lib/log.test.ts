@@ -95,3 +95,112 @@ describe("the log functions redact before writing", () => {
     expect(spy).toHaveBeenCalled()
   })
 })
+
+/**
+ * Ticket 0033, criterion 4 — redaction by KEY NAME.
+ *
+ * The pattern list above cannot help here and no pattern could. A Strava access token
+ * is forty hexadecimal characters, which is also what a git commit id looks like; any
+ * regex loose enough to catch one catches every opaque identifier this app logs on
+ * purpose. What IS reliable is the name of the field it arrives in, because a credential
+ * reaches a log line inside an object that came from a token response, a DynamoDB item
+ * or a header bag — and all three name their fields.
+ */
+describe("credentials are redacted by the name of the field carrying them", () => {
+  // Built by concatenation so the literal never appears whole in this file, and so a
+  // secret scanner has nothing to find. Shaped like the real thing: 40 hex characters.
+  const hex = (a: string) => a.repeat(5)
+  const ACCESS = hex("a1b2c3d4")
+  const REFRESH = hex("9f8e7d6c")
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it("blanks accessToken and refreshToken, the criterion exactly", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    log.info("token state", { accessToken: ACCESS, refreshToken: REFRESH, expiresAt: 1794700000 })
+
+    const line = spy.mock.calls[0][0] as string
+    expect(line).not.toContain(ACCESS)
+    expect(line).not.toContain(REFRESH)
+    // And it still says something. A redaction that eats the whole line is a redaction
+    // that gets removed the first time someone needs to debug this path.
+    expect(line).toContain("token state")
+    expect(line).toContain("1794700000")
+  })
+
+  it("finds them nested, which is how a DynamoDB item actually arrives", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    log.error("write failed", {
+      command: { input: { Item: { pk: "U#abc", accessToken: ACCESS } } },
+    })
+
+    const line = spy.mock.calls[0][0] as string
+    expect(line).not.toContain(ACCESS)
+    expect(line).toContain("U#abc")
+  })
+
+  it("covers the snake_case spelling a provider's JSON uses", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    log.info("token response", { access_token: ACCESS, refresh_token: REFRESH, expires_in: 21600 })
+
+    const line = spy.mock.calls[0][0] as string
+    expect(line).not.toContain(ACCESS)
+    expect(line).not.toContain(REFRESH)
+    expect(line).toContain("21600")
+  })
+
+  it("covers a client secret and an authorization header", () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    log.warn("request", {
+      clientSecret: ACCESS,
+      headers: { authorization: `Bearer ${REFRESH}` },
+    })
+
+    const line = spy.mock.calls[0][0] as string
+    expect(line).not.toContain(ACCESS)
+    expect(line).not.toContain(REFRESH)
+  })
+
+  it("leaves the diagnostics that made 0165 and 0166 debuggable alone", () => {
+    // Ticket 0166's whole finding was that logging too little cost a second failed
+    // connect. Over-redacting into uselessness would undo it, so the fields that
+    // matter are asserted to survive: scope names are not credentials.
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    log.warn("grant refused", {
+      granted: ["read", "activity:read_all"],
+      scopeSource: "response",
+      tokenType: "Bearer",
+    })
+
+    const line = spy.mock.calls[0][0] as string
+    expect(line).toContain("activity:read_all")
+    expect(line).toContain("response")
+    expect(line).toContain("Bearer")
+  })
+
+  it("renders a DynamoDB string set rather than dropping it to {}", () => {
+    // `JSON.stringify(new Set([...]))` is `{}`, so before the scrub walked Sets, a
+    // logged row's scopes vanished — the exact field 0166 needed to see.
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    log.info("row", { scopes: new Set(["activity:read_all"]) })
+    expect(spy.mock.calls[0][0] as string).toContain("activity:read_all")
+  })
+
+  it("does not mutate the object it was handed", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    const creds = { accessToken: ACCESS }
+    log.info("x", creds)
+    expect(spy.mock.calls[0][0] as string).not.toContain(ACCESS)
+    // A logger that edits its argument changes program behaviour, which is a far worse
+    // bug than the one it was preventing.
+    expect(creds.accessToken).toBe(ACCESS)
+  })
+
+  it("survives a cycle inside a credential-bearing object", () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const circular: Record<string, unknown> = { refreshToken: REFRESH }
+    circular.self = circular
+    expect(() => log.warn("odd", circular)).not.toThrow()
+    expect(spy.mock.calls[0][0] as string).not.toContain(REFRESH)
+  })
+})

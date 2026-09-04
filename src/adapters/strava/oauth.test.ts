@@ -384,3 +384,108 @@ describe("revoke", () => {
     )
   })
 })
+
+/** Ticket 0033 — the refresh exchange. */
+describe("refreshTokens", () => {
+  const ROTATED = fx("cccc9999", "dddd0000", "eeee1111", "ffff2222")
+
+  /**
+   * THE REFRESH RESPONSE IS SMALLER than the code exchange's: no `athlete`, and no
+   * `scope`. That is not a downgrade — a refresh cannot change a grant's scopes, so
+   * there is nothing to restate. Judging an empty scope list here would refuse a good
+   * connection, which is the shape of the bug 0165 fixed one layer up.
+   */
+  const body = {
+    token_type: "Bearer",
+    expires_at: 1794721600,
+    expires_in: 21600,
+    refresh_token: ROTATED,
+    access_token: ACCESS,
+  }
+
+  const stubFetch = (payload: unknown, ok = true, status = 200) => {
+    const fetchMock = vi.fn(async () => ({ ok, status, json: async () => payload }))
+    vi.stubGlobal("fetch", fetchMock)
+    return fetchMock
+  }
+
+  const refresh = () => stravaOAuth.refreshTokens({ refreshToken: REFRESH, credentials: CREDS })
+
+  it("posts grant_type=refresh_token with the stored refresh token", async () => {
+    const fetchMock = stubFetch(body)
+    await refresh()
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe("https://www.strava.com/oauth/token")
+    const sent = new URLSearchParams(init.body as string)
+    expect(sent.get("grant_type")).toBe("refresh_token")
+    expect(sent.get("refresh_token")).toBe(REFRESH)
+    expect(sent.get("client_id")).toBe(CREDS.clientId)
+    // No `code` and no `redirect_uri`: this is not the authorization-code grant, and
+    // sending them would be sending fields the endpoint does not use on this path.
+    expect(sent.get("code")).toBeNull()
+  })
+
+  it("returns the ROTATED refresh token, not the one it sent", async () => {
+    stubFetch(body)
+    await expect(refresh()).resolves.toEqual({
+      accessToken: ACCESS,
+      refreshToken: ROTATED,
+      expiresAt: 1794721600,
+    })
+  })
+
+  it("returns an unchanged refresh token as itself, which is Strava's usual answer", async () => {
+    stubFetch({ ...body, refresh_token: REFRESH })
+    await expect(refresh()).resolves.toMatchObject({ refreshToken: REFRESH })
+  })
+
+  it("takes expires_at from the response, never from a six-hour constant", async () => {
+    stubFetch({ ...body, expires_at: 1800000000 })
+    await expect(refresh()).resolves.toMatchObject({ expiresAt: 1800000000 })
+  })
+
+  it("throws with the status on a 400, so the caller can tell dead from transient", async () => {
+    stubFetch({}, false, 400)
+    // `invalid_grant`. The refresh token is dead and no retry fixes it — which is what
+    // `credentialIsDead` carries across the boundary.
+    await expect(refresh()).rejects.toMatchObject({ status: 400, credentialIsDead: true })
+  })
+
+  it("marks a 503 as NOT a dead credential", async () => {
+    stubFetch({}, false, 503)
+    await expect(refresh()).rejects.toMatchObject({ status: 503, credentialIsDead: false })
+  })
+
+  it("attaches no response body to the error", async () => {
+    // An OAuth error body routinely echoes the request back, which on this endpoint
+    // means the client secret (O-005, `08-security-privacy.md` §7.4).
+    stubFetch({ message: `bad client_secret ${CREDS.clientSecret}` }, false, 400)
+    await refresh().then(
+      () => expect.unreachable(),
+      (err: Error) => {
+        expect(err).toBeInstanceOf(StravaOAuthError)
+        expect(err.message).not.toContain(CREDS.clientSecret)
+      },
+    )
+  })
+
+  it("refuses a response missing the refresh token rather than echoing the old one", async () => {
+    /**
+     * Defaulting to the token we sent would silently persist a stale credential as
+     * though it were current — the row would look healthy and the next refresh would
+     * fail with no clue why. A response of an unexpected shape is not a response to
+     * guess at.
+     */
+    stubFetch({ ...body, refresh_token: undefined })
+    await expect(refresh()).rejects.toThrow(/no refresh token/)
+  })
+
+  it("refuses a response missing the access token or a usable expires_at", async () => {
+    stubFetch({ ...body, access_token: undefined })
+    await expect(refresh()).rejects.toThrow(/no access token/)
+
+    stubFetch({ ...body, expires_at: "soon" })
+    await expect(refresh()).rejects.toThrow(/no usable expires_at/)
+  })
+})

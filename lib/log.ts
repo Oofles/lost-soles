@@ -37,6 +37,78 @@ export function redact(value: string): string {
 }
 
 /**
+ * ─── REDACTION BY KEY NAME ───────────────────────────────────────────────────
+ * Ticket 0033, criterion 4.
+ *
+ * THE PATTERNS ABOVE CANNOT CATCH AN OAUTH TOKEN, and that is not a gap in the list —
+ * it is a property of the token. A Strava access token is a bare 40-character
+ * hexadecimal string. So is a git commit id, a SHA-1, and half the opaque identifiers
+ * in any system. There is no pattern that matches one and not the others, and a
+ * pattern loose enough to try would redact the ids we log deliberately.
+ *
+ * So the second mechanism keys off the ATTRIBUTE NAME instead of the value. The name
+ * is the thing that is actually reliable: an OAuth credential reaches a log line as a
+ * field called `accessToken`, `refresh_token`, `client_secret` or `authorization` —
+ * because it is carried in an object that came from a token response, a DynamoDB item
+ * or a header bag, and every one of those names its fields.
+ *
+ * DELIBERATELY BROAD, and false positives here are cheap. Redacting a `tokenUrl` costs
+ * a debugging session a URL that is in the source anyway. Not redacting a refresh token
+ * costs a credential that lives in CloudWatch for as long as retention says, in a
+ * system where T7 is the one thing that cannot be rebuilt (`02-data-model.md` §1.1).
+ * The asymmetry is total, so the list is written to over-match.
+ */
+const SENSITIVE_KEY = /token|secret|password|passwd|credential|authorization|api[-_]?key|private[-_]?key/i
+
+/**
+ * Names that MATCH the pattern above but are not credentials, and would make a log
+ * line actively misleading if blanked. Kept as an explicit short list rather than by
+ * narrowing the pattern, so that adding a safe name is a deliberate act with a reason
+ * next to it and not a quiet loosening of the rule.
+ */
+const NOT_SENSITIVE = new Set(["tokentype", "token_type", "scopesource", "scope_source"])
+
+const REDACTED = "<redacted>"
+
+/**
+ * Walks a value and replaces anything under a credential-shaped key. Returns a NEW
+ * structure — the caller's object is never mutated, because a logger that edits what
+ * it is handed is a logger that changes program behaviour.
+ *
+ * `seen` breaks cycles, and the depth cap stops a pathological structure from turning
+ * a log call into a stack overflow. Both matter because this runs on values that came
+ * from a third party's JSON.
+ */
+function scrubKeys(value: unknown, seen: WeakSet<object>, depth = 0): unknown {
+  if (depth > 8 || value === null || typeof value !== "object") return value
+  if (seen.has(value as object)) return "<circular>"
+  seen.add(value as object)
+
+  if (Array.isArray(value)) return value.map((v) => scrubKeys(v, seen, depth + 1))
+  // A DynamoDB string set arrives as a Set, and `JSON.stringify` renders one as `{}`.
+  // Rendering it as an array is both more useful and keeps the scrub uniform.
+  if (value instanceof Set) return [...value].map((v) => scrubKeys(v, seen, depth + 1))
+  if (value instanceof Map) {
+    return Object.fromEntries(
+      [...value].map(([k, v]) => [
+        String(k),
+        isSensitiveKey(String(k)) ? REDACTED : scrubKeys(v, seen, depth + 1),
+      ]),
+    )
+  }
+
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = isSensitiveKey(k) ? REDACTED : scrubKeys(v, seen, depth + 1)
+  }
+  return out
+}
+
+function isSensitiveKey(key: string): boolean {
+  return !NOT_SENSITIVE.has(key.toLowerCase()) && SENSITIVE_KEY.test(key)
+}
+
+/**
  * Serialise then redact. Serialising first matters: a token nested three levels
  * deep in an object is invisible to a string-only scrub, and `console.log(obj)`
  * would print it via the runtime's own formatter, bypassing us entirely.
@@ -48,7 +120,9 @@ function render(parts: unknown[]): string {
         if (typeof p === "string") return p
         if (p instanceof Error) return `${p.name}: ${p.message}`
         try {
-          return JSON.stringify(p)
+          // Scrub by key BEFORE serialising. Afterwards the structure is gone and a
+          // token is indistinguishable from any other quoted string.
+          return JSON.stringify(scrubKeys(p, new WeakSet()))
         } catch {
           return String(p)
         }

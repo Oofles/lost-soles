@@ -4,7 +4,13 @@ import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  acquireRefreshLease,
+  EXTERNAL_OWNER_INDEX,
   getSourceAccountSummary,
+  loadCredentials,
+  markNeedsReauth,
+  resolveUserByExternalOwner,
+  rotateTokens,
   markDisconnected,
   putConnectedAccount,
   readAccessTokenForRevocation,
@@ -24,6 +30,8 @@ interface SentCommand {
     Key: Record<string, string>
     Item: Record<string, unknown>
     UpdateExpression: string
+    ConditionExpression: string
+    IndexName: string
     ProjectionExpression: string
     ExpressionAttributeNames: Record<string, string>
     ExpressionAttributeValues: Record<string, unknown>
@@ -180,5 +188,290 @@ describe("disconnect — criterion 7", () => {
     const { sent } = stubClient([{}])
     await markDisconnected({ userId: USER, sourceId: "acme", now: NOW })
     expect(sent[0].input).not.toHaveProperty("ConditionExpression")
+  })
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET 0033
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+const CONDITIONAL_FAILURE = () => {
+  const err = new Error("The conditional request failed")
+  err.name = "ConditionalCheckFailedException"
+  return err
+}
+
+/** Criterion 1. Not "protected by an auth rule" — ABSENT. */
+describe("T7 is absent from the AppSync schema, at any auth level", () => {
+  const dataResource = readFileSync(new URL("../../amplify/data/resource.ts", import.meta.url), "utf8")
+
+  it("declares no model named after the credential table", () => {
+    expect(dataResource).not.toMatch(/SourceAccount\s*:/)
+    expect(dataResource).not.toContain(SOURCE_ACCOUNT_TABLE)
+  })
+
+  it("exposes only models on an explicit allowlist", () => {
+    /**
+     * THE ASSERTION THAT ACTUALLY HOLDS THE LINE, rather than the two above.
+     *
+     * "Does the schema mention SourceAccount" only catches the mistake if someone
+     * spells it that way. This catches ANY new model, so adding one is a deliberate act
+     * that has to come here and say what it is — which is the point: T7 must stay out of
+     * AppSync forever (I-28, I-20, I-29), and the way that guarantee dies is a model
+     * added for a good reason by someone who never read T7.
+     *
+     * A model appearing here that holds credentials is a bug even if it is not called
+     * SourceAccount.
+     */
+    const schemaBlock = dataResource.slice(dataResource.indexOf("a.schema({"))
+    const models = [...schemaBlock.matchAll(/^\s{2}(\w+)\s*:\s*a$/gm)].map((m) => m[1])
+
+    expect(models).toEqual(["DeploySmokeTest"])
+  })
+})
+
+/** Criterion 2. */
+describe("the byExternalOwner index", () => {
+  const backend = readFileSync(new URL("../../amplify/backend.ts", import.meta.url), "utf8")
+
+  it("is declared KEYS_ONLY, and both sides spell the name the same way", () => {
+    const block = backend.slice(backend.indexOf("addGlobalSecondaryIndex"))
+    expect(block).toContain(`indexName: "${EXTERNAL_OWNER_INDEX}"`)
+    expect(block.slice(0, block.indexOf("})"))).toContain("ProjectionType.KEYS_ONLY")
+  })
+
+  it("queries the index and can return nothing but keys", async () => {
+    /**
+     * The item shape here is what a KEYS_ONLY index actually returns: the table keys
+     * and the index key, and nothing else. The assertion is that the resolver's whole
+     * output is a userId — there is no field on it through which a token could travel
+     * even if the projection were widened by mistake.
+     */
+    const { sent } = stubClient([{ Items: [{ pk: `U#${USER}`, sk: "SRC#acme", gsi1pk: "acme#134815" }] }])
+
+    const resolved = await resolveUserByExternalOwner({ sourceId: "acme", externalOwnerId: "134815" })
+
+    expect(resolved).toBe(USER)
+    expect(sent[0].input.IndexName).toBe(EXTERNAL_OWNER_INDEX)
+    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe("acme#134815")
+  })
+
+  it("qualifies the key by source, so two providers cannot collide on an id", async () => {
+    // An unqualified athlete id would let one source's webhook resolve to another
+    // source's user. On a map that never re-fogs, that is permanent.
+    const { sent } = stubClient([{ Items: [] }])
+    await resolveUserByExternalOwner({ sourceId: "other", externalOwnerId: "134815" })
+    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe("other#134815")
+  })
+
+  it("writes gsi1pk on connect, or the row is invisible to the index", async () => {
+    const { sent } = stubClient([{}])
+    await putConnectedAccount({
+      userId: USER,
+      sourceId: "acme",
+      externalOwnerId: "134815",
+      accessToken: ACCESS,
+      refreshToken: REFRESH,
+      expiresAt: 1794700000,
+      scopes: ["activity:read_all"],
+      now: NOW,
+    })
+    expect(sent[0].input.Item.gsi1pk).toBe("acme#134815")
+  })
+})
+
+/** Criterion 11. */
+describe("loading credentials", () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    Item: {
+      accessToken: ACCESS,
+      refreshToken: REFRESH,
+      expiresAt: 1794700000,
+      scopes: new Set(["read", "activity:read_all"]),
+      status: "ACTIVE",
+      ...over,
+    },
+  })
+
+  it("returns the tokens when the row is healthy", async () => {
+    stubClient([row()])
+    const load = await loadCredentials({
+      userId: USER,
+      sourceId: "acme",
+      requiredScopes: ["activity:read_all"],
+    })
+    expect(load).toEqual({
+      ok: true,
+      credentials: {
+        accessToken: ACCESS,
+        refreshToken: REFRESH,
+        expiresAt: 1794700000,
+        scopes: ["read", "activity:read_all"],
+        status: "ACTIVE",
+        leaseUntil: 0,
+      },
+    })
+  })
+
+  it("checks the required scopes on EVERY load, not only at connect", async () => {
+    // The connect check can only see the grant it was handed. This one sees the row as
+    // it is now — which is what catches a row written by an older build or edited by
+    // hand in the console.
+    const { sent } = stubClient([row({ scopes: new Set(["read"]) }), {}])
+
+    const load = await loadCredentials({
+      userId: USER,
+      sourceId: "acme",
+      requiredScopes: ["activity:read_all"],
+      now: NOW,
+    })
+
+    expect(load).toMatchObject({ ok: false, reason: "needs-reauth" })
+    // And it does not merely refuse — it writes the state, so the settings screen and
+    // the behaviour agree instead of showing a healthy connection that cannot work.
+    expect(sent[1].input.ExpressionAttributeValues![":needs"]).toBe("NEEDS_REAUTH")
+  })
+
+  it("refuses a NEEDS_REAUTH row without touching the provider — the anti-storm line", async () => {
+    stubClient([row({ status: "NEEDS_REAUTH" })])
+    const load = await loadCredentials({
+      userId: USER,
+      sourceId: "acme",
+      requiredScopes: ["activity:read_all"],
+    })
+    expect(load).toMatchObject({ ok: false, reason: "needs-reauth" })
+  })
+
+  it("distinguishes a disconnected row from a broken one", async () => {
+    stubClient([row({ status: "DISCONNECTED" })])
+    await expect(
+      loadCredentials({ userId: USER, sourceId: "acme", requiredScopes: [] }),
+    ).resolves.toMatchObject({ ok: false, reason: "not-connected" })
+  })
+
+  it("treats a missing row as not-connected", async () => {
+    stubClient([{}])
+    await expect(
+      loadCredentials({ userId: USER, sourceId: "acme", requiredScopes: [] }),
+    ).resolves.toMatchObject({ ok: false, reason: "not-connected" })
+  })
+
+  it("treats a row whose tokens were removed as not-connected", async () => {
+    // What `markDisconnected` leaves behind if the status write were ever missed.
+    stubClient([row({ accessToken: undefined, refreshToken: undefined })])
+    await expect(
+      loadCredentials({ userId: USER, sourceId: "acme", requiredScopes: [] }),
+    ).resolves.toMatchObject({ ok: false, reason: "not-connected" })
+  })
+})
+
+/** Criterion 9's mechanism. */
+describe("the refresh lease", () => {
+  it("is taken only when nobody holds one, or the holder's has expired", async () => {
+    const { sent } = stubClient([{}])
+    const got = await acquireRefreshLease({
+      userId: USER,
+      sourceId: "acme",
+      leaseSeconds: 15,
+      now: NOW,
+    })
+
+    expect(got).toBe(true)
+    const nowSeconds = Math.floor(NOW.getTime() / 1000)
+    expect(sent[0].input.ConditionExpression).toBe(
+      "attribute_exists(pk) AND (attribute_not_exists(#lease) OR #lease < :now)",
+    )
+    expect(sent[0].input.ExpressionAttributeValues![":until"]).toBe(nowSeconds + 15)
+    expect(sent[0].input.ExpressionAttributeValues![":now"]).toBe(nowSeconds)
+  })
+
+  it("reports a refusal as `false` rather than throwing — a held lease is not an error", async () => {
+    stubClient([CONDITIONAL_FAILURE()])
+    await expect(
+      acquireRefreshLease({ userId: USER, sourceId: "acme", leaseSeconds: 15, now: NOW }),
+    ).resolves.toBe(false)
+  })
+
+  it("still throws on a real failure, so an outage cannot look like contention", async () => {
+    stubClient([new Error("ProvisionedThroughputExceededException")])
+    await expect(
+      acquireRefreshLease({ userId: USER, sourceId: "acme", leaseSeconds: 15, now: NOW }),
+    ).rejects.toThrow(/Throughput/)
+  })
+})
+
+/** Criterion 7 — the conditional write, at the level of the command it issues. */
+describe("rotating the tokens", () => {
+  const rotate = (over: Record<string, unknown> = {}) =>
+    rotateTokens({
+      userId: USER,
+      sourceId: "acme",
+      previousRefreshToken: REFRESH,
+      accessToken: "new-access",
+      refreshToken: "new-refresh",
+      expiresAt: 1794721600,
+      now: NOW,
+      ...over,
+    })
+
+  it("is conditional on the PREVIOUS refresh token value", async () => {
+    const { sent } = stubClient([{}])
+    await expect(rotate()).resolves.toEqual({ won: true })
+
+    expect(sent[0].input.ConditionExpression).toBe("refreshToken = :previous")
+    expect(sent[0].input.ExpressionAttributeValues![":previous"]).toBe(REFRESH)
+    expect(sent[0].input.ExpressionAttributeValues![":refresh"]).toBe("new-refresh")
+  })
+
+  it("drops the lease in the same write that stores the tokens", async () => {
+    // Two writes would leave a window in which the tokens are current but the
+    // connection still looks locked.
+    const { sent } = stubClient([{}])
+    await rotate()
+    expect(sent[0].input.UpdateExpression).toContain("REMOVE #lease")
+  })
+
+  it("reports losing the race as `won: false`, which is not an error", async () => {
+    stubClient([CONDITIONAL_FAILURE()])
+    await expect(rotate()).resolves.toEqual({ won: false })
+  })
+
+  it("rethrows anything that is not a refused condition", async () => {
+    stubClient([new Error("ResourceNotFoundException")])
+    await expect(rotate()).rejects.toThrow(/ResourceNotFound/)
+  })
+})
+
+describe("marking a connection as needing re-authorization", () => {
+  it("keeps the tokens, unlike disconnect", async () => {
+    /**
+     * NEEDS_REAUTH is a DIAGNOSIS, not a decision. The refresh token may be perfectly
+     * good and the failure misjudged; deleting it would turn a recoverable mistake into
+     * the unrecoverable one this file exists to prevent. Disconnect removes credentials
+     * because the user asked. Nobody asked here.
+     */
+    const { sent } = stubClient([{}])
+    await markNeedsReauth({ userId: USER, sourceId: "acme", detail: "two 401s", now: NOW })
+
+    const update = sent[0].input.UpdateExpression
+    expect(update).not.toContain("accessToken")
+    expect(update).not.toContain("refreshToken")
+    expect(sent[0].input.ExpressionAttributeValues![":needs"]).toBe("NEEDS_REAUTH")
+    expect(sent[0].input.ExpressionAttributeValues![":detail"]).toBe("two 401s")
+  })
+
+  it("will not resurrect a row the operator disconnected", async () => {
+    const { sent } = stubClient([{}])
+    await markNeedsReauth({ userId: USER, sourceId: "acme", detail: "x", now: NOW })
+    expect(sent[0].input.ConditionExpression).toContain("#s <> :disconnected")
+  })
+
+  it("is idempotent — marking an already-marked row is not an error", async () => {
+    stubClient([CONDITIONAL_FAILURE()])
+    await expect(
+      markNeedsReauth({ userId: USER, sourceId: "acme", detail: "x", now: NOW }),
+    ).resolves.toBeUndefined()
   })
 })

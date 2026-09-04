@@ -1,4 +1,5 @@
-import type { GrantCheck, OAuthConnector, OAuthGrant } from "../types"
+import { OAuthProviderError } from "../errors"
+import type { GrantCheck, OAuthConnector, OAuthGrant, OAuthRefresh } from "../types"
 
 /**
  * The Strava OAuth handshake. Ticket 0032. `03-integrations.md` §2.2.
@@ -87,13 +88,10 @@ function judge(scopes: readonly string[]): GrantCheck {
  * the one place it would be most tempting to include for debugging is the one place
  * it must not be (O-005, `08-security-privacy.md` §7.4).
  */
-export class StravaOAuthError extends Error {
-  readonly status: number
-
+export class StravaOAuthError extends OAuthProviderError {
   constructor(step: string, status: number) {
-    super(`Strava ${step} failed with HTTP ${status}`)
+    super("Strava", step, status)
     this.name = "StravaOAuthError"
-    this.status = status
   }
 }
 
@@ -241,6 +239,62 @@ export const stravaOAuth: OAuthConnector = {
     if (!res.ok) throw new StravaOAuthError("code exchange", res.status)
 
     return grantFromTokenResponse((await res.json()) as TokenResponse, grantedScopes)
+  },
+
+  /**
+   * The refresh exchange. Ticket 0033.
+   *
+   * STRAVA'S RESPONSE IS SMALLER THAN THE CODE EXCHANGE'S: no `athlete`, and no
+   * `scope`. That is not a downgrade to detect — a refresh cannot change a grant's
+   * scopes, so there is nothing for the provider to restate. `checkGrant` is not
+   * called on this path and could not be: it would judge an empty list and refuse a
+   * perfectly good connection, which is precisely the shape of the bug ticket 0165
+   * fixed one layer up. The scope check on the stored row is what covers this, and it
+   * runs on every load rather than only here.
+   *
+   * `refresh_token` is REQUIRED in the response and is not defaulted to the one sent.
+   * Strava documents that it may or may not be the same value, and a missing field
+   * would mean the response is not the shape this code understands — echoing the old
+   * token there would silently persist a stale credential as though it were current.
+   */
+  async refreshTokens({ refreshToken, credentials }): Promise<OAuthRefresh> {
+    const res = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: new URLSearchParams({
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+    })
+
+    /**
+     * A 400 here is `invalid_grant` — the refresh token is dead, and the connection
+     * needs a human. `OAuthProviderError.credentialIsDead` is what carries that
+     * distinction across the boundary; nothing in this file decides what to do about
+     * it, because deciding would mean the adapter knew about the row.
+     */
+    if (!res.ok) throw new StravaOAuthError("token refresh", res.status)
+
+    const body = (await res.json()) as TokenResponse
+    const {
+      access_token: accessToken,
+      refresh_token: rotated,
+      expires_at: expiresAt,
+    } = body
+
+    if (typeof accessToken !== "string" || accessToken.length === 0) {
+      throw new Error("Strava refresh response carried no access token")
+    }
+    if (typeof rotated !== "string" || rotated.length === 0) {
+      throw new Error("Strava refresh response carried no refresh token")
+    }
+    if (typeof expiresAt !== "number" || !Number.isSafeInteger(expiresAt) || expiresAt <= 0) {
+      throw new Error("Strava refresh response carried no usable expires_at")
+    }
+
+    return { accessToken, refreshToken: rotated, expiresAt }
   },
 
   checkGrant(grant) {

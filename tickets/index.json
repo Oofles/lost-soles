@@ -777,6 +777,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-04T20:29:09Z",
     "path": "tickets/open/0033-strava-client-token-storage-and-refresh.md",
     "ready": true,
     "acceptance": {

@@ -1,6 +1,6 @@
 import { defineBackend } from "@aws-amplify/backend"
 import { RemovalPolicy } from "aws-cdk-lib"
-import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb"
+import { AttributeType, BillingMode, ProjectionType, Table } from "aws-cdk-lib/aws-dynamodb"
 import { PolicyStatement, Role } from "aws-cdk-lib/aws-iam"
 
 import { auth } from "./auth/resource"
@@ -307,6 +307,33 @@ const oauthStateTable = new Table(sourcesStack, "OAuthStateTable", {
    * the one it would guard against.
    */
   removalPolicy: RemovalPolicy.DESTROY,
+})
+
+/**
+ * GSI1 `byExternalOwner`. Ticket 0033 criterion 2, and the resolution of the conflict
+ * `02-data-model.md` T7 records in full.
+ *
+ * `01-architecture.md` §2 says both "on POST an `owner_id` → `SourceAccount` lookup
+ * that discards events for unknown athletes" AND "strava-webhook gets NO access to
+ * sourceAccount". Both cannot hold. This index is the resolution: the webhook is
+ * granted `dynamodb:Query` on the INDEX alone, and the index carries KEYS_ONLY.
+ *
+ * KEYS_ONLY IS THE WHOLE POINT AND IS NOT AN OPTIMISATION. A projection is not an
+ * access rule — it is an absence. The token attributes are not stored in this index,
+ * so a fully compromised webhook Lambda holding a valid `Query` grant on it reads a
+ * userId and cannot read a credential, because there is no credential there to read.
+ * `INCLUDE` or `ALL` would turn a structural guarantee back into an IAM policy that
+ * one careless widening undoes.
+ *
+ * Only rows that carry `gsi1pk` appear here, which is `putConnectedAccount`'s job in
+ * `lib/sources/source-account-store.ts`. A row written before this ticket has no
+ * `gsi1pk` and is simply absent from the index until it reconnects — see the ticket's
+ * Resolution for the one existing row and what was done about it.
+ */
+sourceAccountTable.addGlobalSecondaryIndex({
+  indexName: "byExternalOwner",
+  partitionKey: { name: "gsi1pk", type: AttributeType.STRING },
+  projectionType: ProjectionType.KEYS_ONLY,
 })
 
 sourceAccountTable.grantReadWriteData(computeRole)
