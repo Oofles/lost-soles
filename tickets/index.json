@@ -3359,7 +3359,7 @@
     "slug": "check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a",
     "title": "check-design-tokens.mjs reads a DynamoDB composite key as a hex colour",
     "type": "bug",
-    "priority": "med",
+    "priority": "high",
     "status": "open",
     "size": "s",
     "capability": "02-deploy-and-auth",

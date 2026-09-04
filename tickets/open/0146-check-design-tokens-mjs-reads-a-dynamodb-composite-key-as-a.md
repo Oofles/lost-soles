@@ -3,7 +3,7 @@ id: 146
 slug: check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a
 title: check-design-tokens.mjs reads a DynamoDB composite key as a hex colour
 type: bug
-priority: med
+priority: high
 status: open
 size: s
 capability: 02-deploy-and-auth
@@ -71,6 +71,40 @@ whoever picks this up, not to `0019`:
 
 Note the check is currently *correct* about severity and only wrong about scope. Do not
 weaken it into something that would miss `'#C9A227'` in a component.
+
+### 2026-09-04 — this stopped being hypothetical, and cost a deploy (ticket `0033`)
+
+Raised **med → high**. Not because the analysis above changed — it was right — but because
+the predicted failure happened, in production, on the branch that is the only deploy gate.
+
+Amplify **job 92 failed** at `check-design-tokens.mjs` while shipping `0033`. The offending
+lines were ordinary test fixtures for a KEYS_ONLY GSI:
+
+```
+lib/sources/source-account-store.test.ts:252   gsi1pk: "acme#134815"
+lib/log.test.ts:134                            pk: "U#abc"
+```
+
+`#134815` and `#abc` are both valid CSS colours. Neither is a colour.
+
+**The production key is `strava#51449053` — eight digits, and therefore a hex colour too.**
+That is the live GSI1 partition key for the one connected account, so it will appear in the
+webhook ticket's fixtures and its log lines. §2 of this ticket predicted capability `07`'s H3
+keys; capability `05` got there first.
+
+`0033` worked around it the same way `0019` did — by writing the id so a non-hex character
+follows the `#` (interpolation, `` `acme#${OWNER}` ``). That is now the SECOND file carrying a
+workaround for this, and the second time the fix was "phrase the key differently", which is
+the shape of a guard being routed around rather than satisfied. `0167` was filed as a
+duplicate before this ticket was found and is closed pointing here; its only content not
+already above is this note.
+
+**Candidate 4, not in the list above:** require the `#` not to be preceded by a word
+character — `/(?<![\w$])#[0-9a-f]{3,8}\b/i`. A real colour follows whitespace, `:`, `(` or a
+quote; a composite key always follows a letter or digit. It is a narrowing rather than a
+loosening, needs no per-line marker, and would have passed every fixture in `0019`, `0033`
+and the H3 case §2 names. It does not catch `"#134815"` standing alone as a whole string —
+which is correct, since that genuinely is indistinguishable from a colour.
 
 ## Operator validation
 

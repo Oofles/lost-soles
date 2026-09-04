@@ -45,16 +45,11 @@ keeping trustworthy is the one guarding a deploy nothing else guards.
 
 ## Acceptance criteria
 
-- [ ] A hex colour glued to a preceding word character is not reported. A real colour
-      is essentially never written that way — it follows whitespace, `:`, `(`, or a
-      quote — so requiring that is a narrowing, not a loosening.
-- [ ] `acme#134815`, `U#abc` and `strava#51449053` pass, spelled as plain literals.
-- [ ] The genuine leaks the check exists for still fail: `color: #1a2b3c`,
-      `background:#fff`, `"#134815"` as a standalone value.
-- [ ] The self-test (`--self-test`) covers both directions, and its fixture gains a
-      composite-key case — a regression test that names the id that caused it.
-- [ ] `0033`'s test files drop their interpolation workaround and state the composite
-      keys as literals, which is what the tests would have said in the first place.
+- [x] ~~Five criteria describing a fix to `check-design-tokens.mjs`.~~ **WITHDRAWN** — this
+      ticket is a DUPLICATE of `0146`, which was filed 2026-09-02 from ticket `0019` and
+      describes the same defect more completely. Its evidence has been folded into `0146`'s
+      Notes and `0146` raised med → high. The criteria are struck rather than deleted so the
+      duplication is visible rather than tidied away.
 
 ## Steps to reproduce
 
@@ -81,3 +76,36 @@ unrelated ticket**, which is why it is filed `high` rather than left as a nuisan
 None expected. The whole subject is a script with a self-test, and both directions are
 reachable by running it — the close should carry the smoke test's output rather than an
 instruction (D-181).
+
+## Resolution
+
+**Withdrawn as a duplicate of `0146`, the same day it was filed.**
+
+`0146` — *"check-design-tokens.mjs reads a DynamoDB composite key as a hex colour"* — has
+existed since 2026-09-02, filed from ticket `0019` when the same pattern rejected
+`RATE#<userId>#H#2026-09-02T14`. It is the better ticket: it also names the case this one
+missed, that capability `07`'s H3 cell ids are literally hex strings (`8a2a1072b59ffff`), so
+every realistic `ExploredCell` key fixture will fail the same check.
+
+**Why it was filed anyway, which is the part worth recording.** `0033` hit the failure
+mid-deploy, and the ticket went in from the failing build log without a search of the open
+backlog first. A `list --type bug` would have found `0146` by title in one line. That is a
+cheap habit to skip under a red build and an expensive one to skip repeatedly — a backlog
+with two tickets for one defect is a backlog nobody trusts to be the list of what is wrong.
+
+**What was carried across before closing**, so nothing is lost with this id:
+
+- Amplify **job 92**, 2026-09-04T20:49Z — the first real deploy failure from this defect.
+- The exact fixtures that tripped it, and that **`strava#51449053`**, the live GSI1 key for
+  the connected account, is itself a valid hex colour — so the webhook ticket will hit this.
+- That `0033` is now the SECOND file carrying a "phrase the key differently" workaround
+  after `0019`, which is a guard being routed around rather than satisfied.
+- A fourth candidate fix `0146` did not list: require the `#` not to follow a word character.
+
+`0146` is raised **med → high** on the strength of the first of those.
+
+## Operator validation
+
+None. Nothing was built and nothing was deployed under this id. The verification that matters
+is that `0146` now carries the evidence — visible in its `## Notes` and in its raised
+priority — and `tickets.mjs validate` reports 0 errors after the move.
