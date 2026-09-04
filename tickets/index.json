@@ -753,6 +753,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-04T17:19:34Z",
     "path": "tickets/open/0032-strava-oauth-read-all-scope.md",
     "ready": true,
     "acceptance": {
@@ -3718,6 +3719,46 @@
     "source": "agent",
     "created": "2026-09-04T17:05:22Z",
     "path": "tickets/open/0162-doc-tables-match-ruleset.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 163,
+    "slug": "narrow-the-strava-authorization-callback-domain-from-devault",
+    "title": "Narrow the Strava Authorization Callback Domain from devaultsecurity.com to the app subdomain",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "05-strava-adapter",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T17:40:35Z",
+    "path": "tickets/open/0163-narrow-the-strava-authorization-callback-domain-from-devault.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 164,
+    "slug": "check-bundle-leak-scans-only-the-first-ssm-value-per-key-so",
+    "title": "check-bundle-leak scans only the first SSM value per key, so the production secret is never searched locally",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "02-deploy-and-auth",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T17:40:35Z",
+    "path": "tickets/open/0164-check-bundle-leak-scans-only-the-first-ssm-value-per-key-so.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
