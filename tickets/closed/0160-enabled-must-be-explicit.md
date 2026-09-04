@@ -4,7 +4,7 @@ slug: enabled-must-be-explicit
 title: An omitted `enabled` silently disables a skill, and only distance skills are caught
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 04-domain-contract-and-rules
 depends_on: [29]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T15:32:58Z
 started: 2026-09-04T16:59:18Z
+closed: 2026-09-04T17:02:19Z
 ---
 
 ## Description
