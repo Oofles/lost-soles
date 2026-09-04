@@ -4,7 +4,7 @@ slug: the-post-exchange-scope-re-check-refuses-every-good-grant-th
 title: The post-exchange scope re-check refuses every good grant — the token response carries no scope
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 05-strava-adapter
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T18:21:25Z
 started: 2026-09-04T18:21:55Z
+closed: 2026-09-04T18:25:26Z
 ---
 
 ## Description
