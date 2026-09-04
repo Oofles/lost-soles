@@ -768,7 +768,7 @@
     "title": "strava/client.ts - token storage in SourceAccount (T7) and rotating-refresh-token handling",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -778,10 +778,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-04T20:29:09Z",
-    "path": "tickets/open/0033-strava-client-token-storage-and-refresh.md",
-    "ready": true,
+    "closed": "2026-09-04T21:12:57Z",
+    "path": "tickets/closed/0033-strava-client-token-storage-and-refresh.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
@@ -801,7 +802,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0034-strava-list-since.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -2187,7 +2188,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0094-token-refresh-scheduled-lambda.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
