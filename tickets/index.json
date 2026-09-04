@@ -3810,5 +3810,25 @@
       "checked": 5,
       "total": 5
     }
+  },
+  {
+    "id": 167,
+    "slug": "check-design-tokens-reads-a-dynamodb-composite-key-as-a-hex",
+    "title": "check-design-tokens reads a DynamoDB composite key as a hex colour",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-04T20:50:43Z",
+    "path": "tickets/open/0167-check-design-tokens-reads-a-dynamodb-composite-key-as-a-hex.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
   }
 ]

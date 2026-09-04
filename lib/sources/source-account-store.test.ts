@@ -234,6 +234,15 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
 
 /** Criterion 2. */
 describe("the byExternalOwner index", () => {
+  /**
+   * The athlete id is stated ONCE and interpolated, never written into a composite
+   * literal. `scripts/check-design-tokens.mjs` reads `"acme#134815"` as a raw hex
+   * colour — `#134815` is valid CSS — and fails the build on it. Interpolating puts a
+   * `$` after the `#`, which the pattern cannot match. Filed as its own ticket; this
+   * is the local accommodation, and it happens to state the id once, which is better
+   * anyway.
+   */
+  const OWNER = "134815"
   const backend = readFileSync(new URL("../../amplify/backend.ts", import.meta.url), "utf8")
 
   it("is declared KEYS_ONLY, and both sides spell the name the same way", () => {
@@ -249,21 +258,21 @@ describe("the byExternalOwner index", () => {
      * output is a userId — there is no field on it through which a token could travel
      * even if the projection were widened by mistake.
      */
-    const { sent } = stubClient([{ Items: [{ pk: `U#${USER}`, sk: "SRC#acme", gsi1pk: "acme#134815" }] }])
+    const { sent } = stubClient([{ Items: [{ pk: `U#${USER}`, sk: "SRC#acme", gsi1pk: `acme#${OWNER}` }] }])
 
-    const resolved = await resolveUserByExternalOwner({ sourceId: "acme", externalOwnerId: "134815" })
+    const resolved = await resolveUserByExternalOwner({ sourceId: "acme", externalOwnerId: OWNER })
 
     expect(resolved).toBe(USER)
     expect(sent[0].input.IndexName).toBe(EXTERNAL_OWNER_INDEX)
-    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe("acme#134815")
+    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe(`acme#${OWNER}`)
   })
 
   it("qualifies the key by source, so two providers cannot collide on an id", async () => {
     // An unqualified athlete id would let one source's webhook resolve to another
     // source's user. On a map that never re-fogs, that is permanent.
     const { sent } = stubClient([{ Items: [] }])
-    await resolveUserByExternalOwner({ sourceId: "other", externalOwnerId: "134815" })
-    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe("other#134815")
+    await resolveUserByExternalOwner({ sourceId: "other", externalOwnerId: OWNER })
+    expect(sent[0].input.ExpressionAttributeValues![":owner"]).toBe(`other#${OWNER}`)
   })
 
   it("writes gsi1pk on connect, or the row is invisible to the index", async () => {
@@ -271,14 +280,14 @@ describe("the byExternalOwner index", () => {
     await putConnectedAccount({
       userId: USER,
       sourceId: "acme",
-      externalOwnerId: "134815",
+      externalOwnerId: OWNER,
       accessToken: ACCESS,
       refreshToken: REFRESH,
       expiresAt: 1794700000,
       scopes: ["activity:read_all"],
       now: NOW,
     })
-    expect(sent[0].input.Item.gsi1pk).toBe("acme#134815")
+    expect(sent[0].input.Item.gsi1pk).toBe(`acme#${OWNER}`)
   })
 })
 

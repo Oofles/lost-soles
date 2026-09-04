@@ -131,12 +131,12 @@ describe("credentials are redacted by the name of the field carrying them", () =
   it("finds them nested, which is how a DynamoDB item actually arrives", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {})
     log.error("write failed", {
-      command: { input: { Item: { pk: "U#abc", accessToken: ACCESS } } },
+      command: { input: { Item: { pk: "U#owner", accessToken: ACCESS } } },
     })
 
     const line = spy.mock.calls[0][0] as string
     expect(line).not.toContain(ACCESS)
-    expect(line).toContain("U#abc")
+    expect(line).toContain("U#owner")
   })
 
   it("covers the snake_case spelling a provider's JSON uses", () => {
