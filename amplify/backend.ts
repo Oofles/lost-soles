@@ -1,7 +1,14 @@
 import { defineBackend } from "@aws-amplify/backend"
-import { RemovalPolicy } from "aws-cdk-lib"
-import { AttributeType, BillingMode, ProjectionType, Table } from "aws-cdk-lib/aws-dynamodb"
+import { Duration, RemovalPolicy } from "aws-cdk-lib"
+import {
+  AttributeType,
+  BillingMode,
+  ProjectionType,
+  Table,
+  TableEncryption,
+} from "aws-cdk-lib/aws-dynamodb"
 import { PolicyStatement, Role } from "aws-cdk-lib/aws-iam"
+import { Key } from "aws-cdk-lib/aws-kms"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
@@ -233,6 +240,39 @@ const sourcesStack = backend.createStack("SourceConnections")
  * ticket 0033's, alongside the rotation handling they exist to serve. A GSI added
  * now, before anything queries it, is a projection decision made without its caller.
  */
+/**
+ * THE CUSTOMER-MANAGED KEY. Ticket 0033 criterion 3; T7's attribute table says
+ * "encrypted at rest with a CMK".
+ *
+ * DynamoDB encrypts every table at rest already, with an AWS-owned key, and for most
+ * tables that is the right answer — it is free, invisible, and nothing about it is
+ * weaker cryptographically. So the reason to pay $1/month for a CMK here is not
+ * secrecy. It is CONTROL SURFACE:
+ *
+ *   1. An AWS-owned key has no key policy anyone can read, no grants to audit, and no
+ *      CloudTrail `Decrypt` events attributable to a caller. A CMK gives all three, so
+ *      "who read the tokens, and when" becomes a question with an answer.
+ *   2. It is revocable. Disabling this key makes every credential in T7 unreadable in
+ *      one action, by anyone, without touching the table — which is the containment
+ *      move if a compute role is ever suspected. Nothing equivalent exists for an
+ *      AWS-owned key.
+ *
+ * RETAIN, and `pendingWindow` at the 30-day maximum. Deleting this key destroys every
+ * token in T7 irrecoverably — the same class of loss as deleting the table, which the
+ * removal policy below exists to prevent, so guarding one and not the other would be
+ * theatre. Thirty days is the longest window AWS offers to notice and cancel.
+ *
+ * Rotation is on. It is annual and transparent: old material is retained so existing
+ * items stay readable, which is why this is safe to enable on a table nothing rewrites.
+ */
+const sourceAccountKey = new Key(sourcesStack, "SourceAccountKey", {
+  alias: "alias/lost-soles-source-account",
+  description: "Encrypts the OAuth access and refresh tokens in T7 SourceAccount",
+  enableKeyRotation: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+  pendingWindow: Duration.days(30),
+})
+
 const sourceAccountTable = new Table(sourcesStack, "SourceAccountTable", {
   /**
    * NAMED EXPLICITLY, same trade-off `LostSolesCaptureGuard` records: the reader is a
@@ -256,6 +296,17 @@ const sourceAccountTable = new Table(sourcesStack, "SourceAccountTable", {
   sortKey: { name: "sk", type: AttributeType.STRING },
   /** ≤ 24 rows in five years (T7). Provisioned capacity would bill for idle (D-083). */
   billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * CUSTOMER-MANAGED, not the default AWS-owned key. See `sourceAccountKey` above for
+   * why that is worth $1/month on a table holding twenty-four rows.
+   *
+   * `grantReadWriteData` below picks this up automatically and adds the matching
+   * `kms:Decrypt` / `kms:GenerateDataKey` to the compute role. That is worth knowing
+   * rather than discovering: without the KMS half, every read of this table fails with
+   * an AccessDenied that names DynamoDB and not the key.
+   */
+  encryption: TableEncryption.CUSTOMER_MANAGED,
+  encryptionKey: sourceAccountKey,
   /**
    * NO TTL. Every other machine-only table in this project expires its rows; this one
    * must not. A credential that vanishes on a schedule is a connection that dies

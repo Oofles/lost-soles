@@ -232,6 +232,29 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
   })
 })
 
+/** Criterion 3. */
+describe("the tokens are encrypted with a customer-managed key", () => {
+  const backend = readFileSync(new URL("../../amplify/backend.ts", import.meta.url), "utf8")
+
+  it("declares the table CUSTOMER_MANAGED, not the AWS-owned default", () => {
+    const block = backend.slice(backend.indexOf(`tableName: "${SOURCE_ACCOUNT_TABLE}"`))
+    expect(block.slice(0, block.indexOf("})"))).toContain("TableEncryption.CUSTOMER_MANAGED")
+  })
+
+  it("guards the key at least as hard as the table it protects", () => {
+    /**
+     * Deleting the key destroys every token in T7 as surely as deleting the table
+     * does, so RETAIN on one and not the other would be theatre. Rotation is asserted
+     * because it is free, transparent, and the sort of thing that is never turned on
+     * later.
+     */
+    const block = backend.slice(backend.indexOf('new Key(sourcesStack, "SourceAccountKey"'))
+    const declaration = block.slice(0, block.indexOf("})"))
+    expect(declaration).toContain("RemovalPolicy.RETAIN")
+    expect(declaration).toContain("enableKeyRotation: true")
+  })
+})
+
 /** Criterion 2. */
 describe("the byExternalOwner index", () => {
   /**
