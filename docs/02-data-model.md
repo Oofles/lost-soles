@@ -820,9 +820,23 @@ pre-existing skills each gain one `match` line. **This must land in `rules/xp-ru
 before any scoring code is written** — retrofitting selection into data after a `switch` exists
 means rewriting the scorer and reissuing a rules version.
 
-**Action required:** `04-game-design.md` §1.3's schema block should be amended to include `match`
+~~**Action required:** `04-game-design.md` §1.3's schema block should be amended to include `match`
 and `matchPriority`, or annotated to point here. This document does not have the authority to
-edit that one; the ticket backlog must carry it. Filed as a blocking item for implementation.
+edit that one; the ticket backlog must carry it. Filed as a blocking item for implementation.~~
+
+> **RESOLVED 2026-09-04 by ticket `0031`.** §1.3's schema block was amended — not merely
+> annotated — and now carries `match`, `matchPriority` and `revealsGround` copied from the shipped
+> `rules/xp-rules-v1.yaml`, with `exercises` nested per §3.2 rather than at the top level.
+>
+> **The delegation is also now enforced rather than trusted.** `src/rules/doc-schema.test.ts`
+> extracts §1.3's YAML, runs the `0028` validator over it, and asserts every row it shows agrees
+> with the shipped file field by field. A doc example that drifts is a red build.
+>
+> That test exists because of what this note records: §1.3 shipped for weeks **without** a `match`
+> block, and it survived because nothing checked it. "The backlog must carry it" was the right
+> escalation, and it worked — but the general lesson is that a design doc's code example is
+> reachable by a test, and an example nothing checks will eventually teach the wrong shape with
+> full authority.
 
 ### 3.7 The honest boundary — what stays code, forever
 

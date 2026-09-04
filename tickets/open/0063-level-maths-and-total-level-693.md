@@ -80,6 +80,19 @@ is picked up, tick the box and note it.
 `levelHighWater` is **not** computed here — it is a ratchet applied at write time and owned by
 0066. This module is pure: no I/O, no clock, no registry singleton.
 
+**2026-09-04 (ticket `0031`, D-192) — this ticket's TITLE says "the 693 ceiling" and 693 is wrong.**
+The title is left alone deliberately: it feeds `index.json` and `docs/BUILD-ORDER.md`, and
+renaming it would be churn that fixes nothing. Read it as "the Total Level ceiling".
+
+**There is no correct number to substitute.** 594 → 693 → 792 → 891, falsified three times by
+changes that were each supposed to be data-only, which is why `04-game-design.md` §1.2 now states
+the arithmetic instead: `enabledSkillCount × maxLevel`, 9 × 99 = 891 at `v1`. **Compute it from
+`rules/xp-rules-v1.yaml`; do not hardcode a figure, including in a test fixture** — a test
+asserting `ceiling === 891` is the same defect one layer down, and it will pass right up until
+someone adds a row, which is the moment it was supposed to help.
+
+`09-roadmap.md` §5.1 records the prose half as done and this ticket as the code half.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

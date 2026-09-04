@@ -77,14 +77,35 @@ It is the skill that never stalls, because every skill feeds it.
 
 ### 1.2 Total Level (D-033)
 
-`TotalLevel = Σ level(skill)` over every skill defined in the ruleset, including meta skills.
+`TotalLevel = Σ level(skill)` over every **enabled** skill in the ruleset, including meta skills.
 
-- MVP ceiling: 6 skills × 99 = **594**.
-- With Slayer: 7 × 99 = **693**.
-- Beyond 99 (§2.5) the ceiling extends to 120 per skill.
+**The ceiling is arithmetic, not a constant** (D-145, corrected again by ticket `0031`):
+
+```
+ceiling = (number of enabled rows in rules/xp-rules-vN.yaml) × maxLevel
+```
+
+At `v1` — **9 enabled rows** (Wayfaring, Vigil, Roving, Cadence, Might, Fortitude, Endurance,
+Cartography, Constitution) and `maxLevel: 99`:
+
+| | rows | ceiling |
+|---|---|---|
+| MVP, as shipped | 9 | **891** |
+| ...if Slayer is enabled (D-122, post-MVP) | 10 | **990** |
+| Beyond 99 — `deepMaxLevel: 120` (§2.5) | 9 | **1,080** |
+
+> **This figure has now been wrong three times, and the reason is worth more than the number.**
+> It was published as **594** (6 rows), corrected to **693** when Slayer was counted, and both
+> were falsified again by Vigil (`0028`) and by Roving and Cadence (`0157`) — each of which was
+> *supposed* to be a data-only change, and each of which silently invalidated a hardcoded total
+> in this document.
+>
+> **So do not read a number here. Count the rows.** `rules/xp-rules-v1.yaml` is the authority;
+> the table above is a snapshot of it on 2026-09-04 and will go stale the next time a row lands.
+> Quoting it back as fact is the failure mode; deriving it is the fix.
 
 Total Level is the **headline number on the home screen**, not any individual skill. It moves
-~6× faster than any single skill, which is what keeps mid-game weeks from feeling empty
+~9× faster than any single skill, which is what keeps mid-game weeks from feeling empty
 (a run that moves Wayfaring 1.8% of a level can still be the run that ticks Total Level).
 
 `TotalXP = Σ xp(skill)` is displayed underneath, and it is the number that **always** goes up,
@@ -135,133 +156,157 @@ The skill registry is a versioned data file (`rules/xp-rules-v1.yaml`), loaded a
 and pinned per activity (§7). The schema:
 
 ```yaml
-# rules/xp-rules-v1.yaml
+# rules/xp-rules-v1.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
+# this block is checked against it by `src/rules/doc-schema.test.ts`, which extracts the
+# YAML below and runs the 0028 validator over it. If it drifts, the build goes red.
+#
+# Trimmed for reading: Fortitude, Endurance and Slayer follow Might's and Constitution's
+# shape exactly. Nothing else is omitted — in particular all FOUR distance skills are here,
+# because the seed-time totality check (02 §3.8/3, ticket 0029) requires every distance-
+# carrying kind to have exactly one, and an excerpt that dropped one would not validate.
 version: 1
 effectiveFrom: 2026-09-01T00:00:00Z
 
-curve:
-  # XP required to advance from level L to level L+1
+curve:                       # D-130. NOT per-skill — D-131 rejected per-skill constants.
   stepFormula: "4 * L^2"
   maxLevel: 99
-  deepMaxLevel: 120          # see §2.5
+  deepMaxLevel: 120          # §2.5
 
 skills:
 
   - id: wayfaring
     name: Wayfaring
     kind: activity
+    enabled: true
     displayOrder: 10
-    logMode: trace           # trace | reps | duration
+    logMode: trace           # trace | reps | duration | derived — a CLOSED set (02 §3.7)
     unit: km
     match:                   # J1 SELECTION (D-141) — which activities this skill consumes
-      kinds: [run, walk, hike]  # ActivityKind values (ingestion-contract §2). Absent/[] = any
+      kinds: [run, walk, hike]  # ActivityKind values. Absent/[] = ANY, not none.
       requiresTrace: true       # true | false | any — reads Activity.hasTrace
-      sources: any              # any | [strava, manual, …] — SourceId escape hatch, rarely used
-      measure: distanceKm       # which quantity off the Activity is the unit count
-    matchPriority: 100       # higher wins; ties break on skill id ascending (§7.4 determinism)
+      sources: any              # any | [<sourceId>, …] — escape hatch, rarely used
+      measure: distanceKm       # J2. ONE measure per row — see the resolved item below.
+    matchPriority: 100       # higher wins; ties break on skill id ascending (§7.4)
     xpPerUnit: 100
-    softCapUnits: null       # distance gets no diminishing returns — see §3.5
-    sanityCeilingUnits: 300  # flag-only, never blocks (D-123)
+    softCapUnits: null
+    sanityCeilingUnits: 300
     minUnitsForCredit: 0.25
-    groundMultipliers:       # D-120 — applies only to logMode: trace
+    groundMultipliers:       # D-120 — null would mean "not ground-scored", a DIFFERENT claim
       new: 1.0
       rearmed: 0.5
       recent: 0.5
+    revealsGround: true      # D-189 — the ONLY true in the file. Running opens the map.
     feeds:
       - skill: constitution
-        rate: 0.3333
+        rate: 0.3333         # Constitution's 1/3 lives HERE, never as a constant in code
+
+  # ONE FIELD separates this from Wayfaring, and it is read off Activity.hasTrace.
+  - id: vigil
+    name: Vigil              # provisional (D-132) — a display string, NEVER an identifier
+    kind: activity
+    enabled: true
+    displayOrder: 15
+    logMode: trace
+    unit: km
+    match: { kinds: [run, walk, hike], requiresTrace: false, sources: any, measure: distanceKm }
+    matchPriority: 100
+    xpPerUnit: 100           # D-132: FULL XP, identical to Wayfaring. Not half.
+    softCapUnits: null
+    sanityCeilingUnits: 300
+    minUnitsForCredit: 0.25
+    groundMultipliers: null  # not ground-scored — there is no ground
+    revealsGround: false
+    feeds: [{ skill: constitution, rate: 0.3333 }]
+
+  # The same construction one level down: `kinds` separates cycling from running.
+  - id: roving
+    name: Roving
+    kind: activity
+    enabled: true
+    displayOrder: 20
+    logMode: trace
+    unit: km
+    match: { kinds: [ride], requiresTrace: true, sources: any, measure: distanceKm }
+    matchPriority: 100
+    xpPerUnit: 60            # D-189, rescaled by 0158 to session parity at a 15 km ride
+    softCapUnits: null
+    sanityCeilingUnits: 200
+    minUnitsForCredit: 0.5
+    groundMultipliers: null
+    revealsGround: false     # a bike must not be able to collect the map's reward
+    feeds: [{ skill: constitution, rate: 0.3333 }]
+
+  - id: cadence
+    name: Cadence
+    kind: activity
+    enabled: true
+    displayOrder: 25
+    logMode: trace
+    unit: km
+    match: { kinds: [ride], requiresTrace: false, sources: any, measure: distanceKm }
+    matchPriority: 100
+    xpPerUnit: 60
+    softCapUnits: null
+    sanityCeilingUnits: 200
+    minUnitsForCredit: 0.5
+    groundMultipliers: null
+    revealsGround: false
+    feeds: [{ skill: constitution, rate: 0.3333 }]
 
   - id: might
     name: Might
     kind: activity
+    enabled: true
     displayOrder: 30
     logMode: reps
     unit: rep
     match: { kinds: [strength, other], requiresTrace: any, sources: any, measure: "reps:pushup" }
     matchPriority: 100
     xpPerUnit: 4
-    softCapUnits: 100        # per session, per §3.5
+    softCapUnits: 100        # per session, §3.5
     sanityCeilingUnits: 600
     minUnitsForCredit: 1
+    groundMultipliers: null
+    revealsGround: false
     feeds: [{ skill: constitution, rate: 0.3333 }]
-
-  - id: fortitude
-    name: Fortitude
-    kind: activity
-    displayOrder: 40
-    logMode: reps
-    unit: rep
-    match: { kinds: [strength, other], requiresTrace: any, sources: any, measure: "reps:situp" }
-    matchPriority: 100
-    xpPerUnit: 3
-    softCapUnits: 120
-    sanityCeilingUnits: 720
-    minUnitsForCredit: 1
-    feeds: [{ skill: constitution, rate: 0.3333 }]
-
-  - id: endurance
-    name: Endurance
-    kind: activity
-    displayOrder: 50
-    logMode: duration
-    unit: second
-    match: { kinds: [strength, other], requiresTrace: any, sources: any, measure: "seconds:plank" }
-    matchPriority: 100
-    xpPerUnit: 1.5           # = 90 XP per plank-minute
-    softCapUnits: 300
-    sanityCeilingUnits: 1800
-    minUnitsForCredit: 5
-    feeds: [{ skill: constitution, rate: 0.3333 }]
+    exercises:               # NESTED in the skill that owns them (02 §3.2), not top-level:
+      - id: pushup           # the YAML is seeded VERBATIM into T5, so the file's shape and
+        label: Pushups       # the item's shape are one shape. A `skill:` back-reference
+        entry: count         # would be a second place the mapping could disagree.
+        quickValues: [10, 20, 25, 50]
 
   - id: cartography
     name: Cartography
-    kind: meta
+    kind: meta               # meta skills are NEVER matched — they arrive via `feeds`, or
+    enabled: true            # via the fog subsystem's derived award (02 §3.4, 05 §8.2)
     displayOrder: 60
     logMode: derived
     unit: cell               # H3 res-10 (D-115)
-    match: null              # meta skills are NEVER matched — they arrive via `feeds`, or via
-                             # the fog subsystem's derived award (02 §3.4, 05 §8.2)
+    match: null
     xpPerUnit: 15
-    unitMultipliers:         # D-120 discovery credit
-      new: 1.0
-      rearmed: 0.5
-      recent: 0.0
+    unitMultipliers: { new: 1.0, rearmed: 0.5, recent: 0.0 }   # D-120 discovery credit
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null      # null on meta rows; required on every activity row
     feeds: []
 
   - id: constitution
     name: Constitution
     kind: meta
+    enabled: true
     displayOrder: 70
     logMode: derived
+    unit: share
     match: null
-    feeds: []
-
-  - id: slayer             # POST-MVP, D-122
-    name: Slayer
-    kind: meta
-    displayOrder: 80
-    logMode: derived
-    match: null
-    enabled: false           # `enabled: false` also stops a skill matching (02 §3.2)
-    feeds: []
-
-exercises:
-  # what the "Add workout" page (D-061) renders, one row each
-  - id: pushup
-    label: Pushups
-    skill: might
-    entry: count
-    quickValues: [10, 20, 25, 50]
-  - id: situp
-    label: Situps
-    skill: fortitude
-    entry: count
-    quickValues: [20, 30, 50]
-  - id: plank
-    label: Plank
-    skill: endurance
-    entry: seconds
-    quickValues: [30, 60, 90, 120]
+    xpPerUnit: 1             # the share arrives pre-computed; the rate is on the FEEDER row
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null
+    feeds: []                # Constitution feeds nothing — §1.1, and 02 §3.8 check 2
 ```
 
 **Adding a workout type is exactly this diff** — no code:
@@ -384,10 +429,26 @@ every activity skill from the very first seed. `02-data-model.md` §3.6 files th
 implementation item; §3.8 check 5 wires the D-132 regression test into CI permanently, so the
 "adding a workout type touches zero code" property cannot rot.
 
-*(Open, non-blocking: every MVP `reps`/`duration` skill owns exactly one exercise, so one
-`measure` per row is exact. A skill that later owns two exercises needs two measures; whether
-`match` becomes a list or `measure` accepts a set is an `02-data-model.md` §3 amendment, and
-still not a code change here.)*
+#### RESOLVED (ticket `0031`, D-191): one `measure` per row. A skill needing two quantities is two rows.
+
+This was carried as an open item — *"whether `match` becomes a list or `measure` accepts a set"* —
+and it is now settled, because the matcher shipped and the answer follows from it rather than from
+taste.
+
+**Why it cannot be a set.** `selectActivitySkills` (`02-data-model.md` §3.4) groups candidates
+**by `measure`** and returns one skill per distinct measure. That grouping is exactly what lets a
+single strength session train Might *and* Fortitude — different measures — while a run trains one
+distance skill. A row carrying two measures has **no defined position in that grouping**: it would
+belong to two groups, win or lose each independently, and could be selected for one of its
+measures and not the other. There is no sensible tie-break for a row that is half-selected.
+
+**So: one row, one measure.** A skill that genuinely owns two quantities — a movement scored on
+both reps and seconds — is two rows that happen to share a display name. That costs a `displayOrder`
+and a line, and it keeps the matcher's grouping total.
+
+**This is not a limitation to route around later.** It is the same shape as the rest of the schema:
+the general mechanism is rows, and the answer to "I need one row to do two things" is two rows.
+`02-data-model.md` §3.7's closed set of four kernels is the same principle at the layer below.
 
 Consequences the implementation must respect:
 
@@ -399,6 +460,14 @@ Consequences the implementation must respect:
   RNG — because §7.4 replay soundness depends on it.
 - Total Level and Total XP iterate the registry, so a new skill lifts the ceiling automatically.
   A new skill starts at level 1 with 0 XP — Total Level goes *up* by 1, never down.
+- **That free point must never fire a level-up celebration (D-146), and the guard belongs at the
+  NOTIFICATION layer, not the scoring layer** (`06-ui-ux.md` §5.4 and §10.5). The increment is
+  real bookkeeping and the scorer is right to produce it; what would be wrong is the app
+  congratulating you for a row someone added. Guarding it in the scorer would mean the scorer
+  lying about Total Level — and Total Level is asserted to only ever rise (§4.1), so a scorer that
+  suppressed the point would have to suppress it for ever, in every replay. **Every future skill
+  row trips this**, which is why it is a standing property rather than a Vigil quirk;
+  ticket `0159` asserts it once the notification layer exists.
 - D-061 already anticipated this: an "Add workout" button opening a page of one-row-per-type,
   chosen precisely so a seventh exercise does not clutter the home screen.
 - Cartography's `unit: cell` and Wayfaring's `unit: km` sharing one schema is the proof the
@@ -850,7 +919,16 @@ Milestones tied to *place* are the strongest ones this app has, because they cos
 maintain and they are visible forever on a map the user already looks at. **Every milestone that
 can be a landmark should be a landmark.**
 
-Total Level milestones: **100, 150, 200, 250, 300, 400, 500, 594** (MVP maximum).
+Total Level milestones: **100, 150, 200, 250, 300, 400, 500**, then the ceiling (§1.2 — **891**
+at `v1`; count the enabled rows, do not quote this number).
+
+> **The ladder has a gap above 500, and it was not designed in.** These milestones were chosen
+> against a 594 ceiling, where 500 was the last rung before the top. The ceiling is now 891, so
+> there is a 391-point run with nothing in it — the stretch where a mid-game player spends the
+> most time. Adding rungs is a design decision about pacing, not arithmetic, so it is **not** made
+> here: it belongs to `0063`, which owns Total Level maths. Recorded rather than quietly patched,
+> because a ladder that silently stops paying out is exactly the mid-game emptiness §1.2 says
+> Total Level exists to prevent.
 Under the model, Total Level 100 lands in **month one** — the first milestone should arrive
 before the honeymoon ends, and it does.
 

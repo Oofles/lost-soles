@@ -336,7 +336,7 @@ assumed. If it is not met, `08` is not done; do not proceed to Phase 2 on a rend
 | 3 | ▸ **`XpLedgerEntry` (T4): append-only, one row per (activity, skill, reason), each with `xpRulesVersion`** | D-142. `SkillState` is a pure SUM (T2). |
 | 4 | ▸ **Level maths: `4L²` to advance, `C(L) = 2(L−1)L(2L−1)/3`, `C(99) = 1,274,196`** | D-130. Cubic, not exponential. Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/s · new cell 15. |
 | 5 | ▸ **Meta-skill propagation: Cartography and Constitution** | Cartography from new cells (04 §3.3); Constitution = 1/3 of activity XP (§3.4). `feeds` in the ruleset — data, not code. |
-| 6 | ▸ **Total Level = Σ level(skill), Total XP = Σ xp(skill)** | Headline number on the home screen. Ceiling **693** (D-145, §5). |
+| 6 | ▸ **Total Level = Σ level(skill), Total XP = Σ xp(skill)** | Headline number on the home screen. Ceiling is **computed** — enabled rows × `maxLevel`, never a literal (D-192, §5.1). |
 | 7 | ▸ **Replay job: delete non-floor rows, write `retained_floor`, `ReplayRun` audit row, `levelHighWater` ratchet** | D-135, D-142. Corrections may only add. Two ratchets: XP floor covers rate changes, `levelHighWater` covers curve changes. |
 | 8 | ▸ **`snapshots/skillstate/` writer** | D-143 — the one documented exception to D-101. What was *displayed* is not derivable from raw. |
 
@@ -369,7 +369,8 @@ Fortitude *and* Constitution correctly, and adding a seventh activity skill requ
 | 5 | **Gold-leaf and contrast compliance** | D-148: gold is a fill and a rule, never body text; gold type only ≥24sp or on navy; all floating chrome opaque. |
 
 **Depends on:** `09`. **Done when:** every skill in `xp-rules-v1.yaml` appears with no per-skill
-component; contrast is checked against the §8 tokens; Total Level reads 693 at ceiling.
+component; contrast is checked against the §8 tokens; Total Level reads the computed ceiling
+(D-192 — count the enabled rows in the ruleset; do not hardcode a figure in a test fixture either).
 
 #### `12-post-run-moment` — 8 tickets
 *`06-ui-ux.md` §3: "the most important screen in the app, and it is not really a screen."*
@@ -665,16 +666,27 @@ which does not exist yet and so has nothing to preserve.
 Defects found *during design*. They are written down here so they become tickets rather than
 evaporating between documents. Each is already placed in §3; this section is the register.
 
-### 5.1 D-145 — Total Level ceiling is 693, not 594
+### 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated
 **Ticket: `04`/7 (doc fix) and `09`/6 (implementation).**
-Adding Vigil as a fifth activity skill moved the ceiling. `04-game-design.md` §1.2 still states
-**594** (6 skills × 99) and must be corrected to **693** (7 × 99). The MVP skill set is Wayfaring,
-Vigil, Might, Fortitude, Endurance, Cartography, Constitution — seven. Slayer is OUT of MVP
-(D-122) and adding it later does **not** move the ceiling again, because 693 already counts seven.
+> **RESOLVED 2026-09-04 by ticket `0031`, and the resolution is different from the one specified
+> here.** This item asked for 594 → 693. By the time it was worked, 693 was *also* wrong: Vigil
+> (`0028`) and then Roving and Cadence (`0157`) had each moved the ceiling, and each was a
+> data-only change that silently invalidated a hardcoded total. **§1.2 now states the arithmetic
+> rather than a number** — enabled rows × `maxLevel` — which is 9 × 99 = **891** at `v1`.
+>
+> This item also contained an error worth naming: it said adding Slayer "does not move the ceiling
+> again, because 693 already counts seven", while §1.2 counted its own seven as *six MVP skills
+> plus Slayer*. Two different sevens. The computed form removes the ambiguity: **Slayer ships
+> `enabled: false` and does not count until it is enabled.**
 
-Acceptance: `04-game-design.md` §1.2 reads 693; the number is *computed* in code as
-`skillCount × 99`, never a literal, so the next skill cannot desynchronise it; a test asserts the
-computed ceiling equals `Σ 99` over enabled rows in `xp-rules-v1.yaml`.
+Adding Vigil as a fifth activity skill moved the ceiling. `04-game-design.md` §1.2 stated
+**594** (6 skills × 99) and was to be corrected to **693** (7 × 99). The MVP skill set was
+Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution — seven.
+
+Acceptance, as amended by `0031`: `04-game-design.md` §1.2 states the **arithmetic** and not a
+number; the ceiling is *computed* as `enabledSkillCount × maxLevel`, never a literal, so the next
+skill cannot desynchronise it; a test asserts the computed ceiling equals `Σ maxLevel` over enabled
+rows in `xp-rules-v1.yaml`. **The prose half is done (D-192); the code half is `0063`.**
 
 ### 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate
 **Ticket: `12`/5.**
@@ -1035,7 +1047,8 @@ walks this list.
 - [ ] `displayedXp == SUM(ledger)` after a full replay (D-142).
 - [ ] A replay against a *lower* ruleset produces `retained_floor` rows and **no** visible
       decrease (D-135).
-- [ ] Total Level ceiling is computed as `skillCount × 99` = **693**, never a literal (D-145).
+- [ ] Total Level ceiling is computed as `enabledSkillCount × maxLevel`, never a literal
+      (D-145, D-192). Do not write the current figure here — that is what made it wrong three times.
 - [ ] Adding a skill fires **zero** level-up cards (D-146).
 - [ ] Re-processing an already-ingested activity changes zero cells, zero timestamps, zero ledger
       rows (idempotency, T8).

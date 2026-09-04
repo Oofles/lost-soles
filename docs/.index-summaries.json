@@ -497,7 +497,7 @@
  "docs/09-roadmap.md#4.5 Manual Sync before the webhook — a deliberate inversion": "D-013 forbids upkeep, so a Sync button looks like a violation.",
  "docs/09-roadmap.md#4.6 Why the XP engine is in Phase 2 and not Phase 1": "The fog reveal is the product (P4, D-051).",
  "docs/09-roadmap.md#5. Carry-forward corrections": "Defects found during design.",
- "docs/09-roadmap.md#5.1 D-145 — Total Level ceiling is 693, not 594": "Adding Vigil as a fifth activity skill moved the ceiling.",
+ "docs/09-roadmap.md#5.1 D-145 — the Total Level ceiling is COMPUTED, not stated": "Adding Vigil as a fifth activity skill moved the ceiling.",
  "docs/09-roadmap.md#5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate": "Total Level = Σ level(skill).",
  "docs/09-roadmap.md#5.3 The `04-game-design.md` §1.3 open item — one `measure` per row": "two exercises needs two measures; whether match becomes a list or measure accepts a set is an",
  "docs/09-roadmap.md#5.4 Standing conditions carried into implementation": "Not defects, but they expire silently if nobody holds them.",

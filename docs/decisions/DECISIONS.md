@@ -1463,3 +1463,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Found by writing `0157`,** not by writing this ticket: the cycling rows made it obvious that
     `other` + trace has no distance skill, which was already true and had never been surfaced.
     Recorded then as a known gap in a test, and settled here.
+
+---
+
+## One `measure` per skill row  (2026-09-04, ticket 0031)
+
+- **D-191** **A skill row carries exactly one `measure`. A skill that genuinely owns two
+  quantities is two rows.** `04-game-design.md` §1.3 carried this as an open item — *"whether
+  `match` becomes a list or `measure` accepts a set"* — and it is now settled by the matcher that
+  shipped in `0029`, not by preference.
+  - **A set has no defined behaviour.** `selectActivitySkills` groups candidates **by `measure`**
+    and returns one skill per distinct measure (`02-data-model.md` §3.4). That grouping is what
+    lets one strength session train Might *and* Fortitude while a run trains one distance skill.
+    A row with two measures belongs to two groups and wins or loses each independently — so it
+    could be selected for one of its measures and not the other, and there is no sensible
+    tie-break for a row that is half-selected.
+  - **The cost of the answer is one line and one `displayOrder`**, which is the same trade the
+    schema makes everywhere else: the general mechanism is rows, and the answer to "one row must
+    do two things" is two rows. `02` §3.7's closed set of four kernels is the same principle a
+    layer down.
+  - Enforced, not just written: `doc-schema.test.ts` asserts every activity row in §1.3's example
+    has a single string `measure`, and the schema types `measure` as one value rather than a list.
+
+---
+
+## The Total Level ceiling is computed, never stated  (2026-09-04, ticket 0031)
+
+- **D-192** **`04-game-design.md` §1.2 states the ARITHMETIC — enabled rows × `maxLevel` — and no
+  longer states a number. Supersedes the figure in D-145.**
+  - **The number has been wrong three times.** Published as **594** (6 rows), corrected to **693**
+    when Slayer was counted, then falsified again by Vigil (`0028`) and by Roving and Cadence
+    (`0157`). At `v1` it is 9 × 99 = **891**, and that figure will go stale too.
+  - **Every one of those falsifications was a data-only change** — the exact changes D-031
+    promises are free. So a hardcoded total is not merely a stale fact; it is a **standing
+    contradiction of the project's central structural claim.** Adding a skill cannot both be "a
+    row and zero code" and require editing a number in a design doc.
+  - **D-145's method was right and its number was incidental.** `09-roadmap.md` §5.1 already asked
+    for the ceiling to be *"computed in code as `skillCount × 99`, never a literal"*. This decision
+    applies the same rule to the prose, which is where all three errors actually lived.
+  - **It also resolves an ambiguity nobody had noticed:** §5.1 said 693 "already counts seven",
+    while §1.2's seven was *six MVP skills plus Slayer*. Two different sevens. Counting **enabled**
+    rows removes it — Slayer ships `enabled: false` and does not count until it is enabled.
+  - Knock-on, recorded rather than fixed: the Total Level milestone ladder (§4.3) was designed
+    against a 594 ceiling and ends at 500, leaving a 391-point gap at the top. Adding rungs is a
+    pacing decision and belongs to `0063`.

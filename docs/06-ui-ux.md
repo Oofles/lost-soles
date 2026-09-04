@@ -204,8 +204,9 @@ It must satisfy three things simultaneously:
   level-up card.
 - **Cells revealed, lifetime.** The other guaranteed-non-zero number (04 §4.1), and the one
   most directly tied to D-012 (novelty). It is the numeric twin of the map's shape.
-- **Progress toward the next Total Level milestone** (100/150/200/…/594, 04 §4.3) — a bar with a
-  named target, because a bare percentage reads as nothing.
+- **Progress toward the next Total Level milestone** (100/150/200/…, up to the ceiling — 04 §4.3;
+  the ceiling is computed from the ruleset, never a literal) — a bar with a named target, because
+  a bare percentage reads as nothing.
 - **The last run, one line, tappable.** It is the door back into §3, and it answers "did my run
   land?" — which is the single most common reason to open this app.
 - **Three destinations.** Skills, Add workout, Runs. Add workout is centre and widest: it is the
@@ -408,8 +409,8 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
   into the map* to the cell where it was earned, which then pulses once. Place-bound milestones
   are the strongest reward this app has (04 §4.3); make the placement visible at the moment it
   happens.
-- **Total Level milestones** (100/150/…/594) use the same card with the app's crest instead of a
-  skill sigil.
+- **Total Level milestones** (100/150/… up to the computed ceiling, 04 §1.2) use the same card
+  with the app's crest instead of a skill sigil.
 
 #### Beat 4 — the chronicle line (6.0 → 7.2 s)
 
@@ -908,9 +909,12 @@ icon set, the schema is wrong — D-132 says so in the strongest terms available
 
 Two consequences worth writing down before someone hits them:
 
-- **The MVP ceiling moves.** 04 §1.2 computes 6 skills × 99 = 594. With Vigil it is **7 × 99 =
-  693** in MVP, and 8 × 99 = 792 once Slayer lands post-MVP. The plinth's "next: 300" milestone
-  ladder (04 §4.3) is unaffected, but 04 §1.2's ceiling arithmetic needs a one-line update.
+- **The MVP ceiling moves — and it has now moved three times.** This bullet originally said
+  594 → 693. Vigil (`0028`) then Roving and Cadence (`0157`) each moved it again, and each was a
+  data-only change. **Corrected by `0031`: 04 §1.2 no longer states a number, it states the
+  arithmetic** — enabled rows × `maxLevel`, which is 9 × 99 = **891** at `v1`. Do not restate the
+  figure here or anywhere else; that is what made it wrong three times. The plinth's milestone
+  ladder is affected after all: see 04 §4.3 on the gap above 500.
 - **Adding a skill mints a free Total Level point**, because Total Level sums every skill in the
   ruleset and an untrained skill is level 1. That is a *bookkeeping* increment, not an
   achievement. **It must never fire a level-up card** (§3, Beat 3) and must never appear in a
@@ -1632,9 +1636,10 @@ them is a decision rather than a drift:
    is the strongest coupling in the document between a UI decision and a security one
    (`08-security-privacy.md` carries it as a standing condition).
 2. **The long-press gesture is on loan** until D-070's route planner is designed (§4.2).
-3. **04 §1.2's Total Level ceiling needs a one-line correction** now that Vigil exists: 7 × 99 =
-   693 in MVP, not 594 — and adding a skill mints a bookkeeping Total Level point that must never
-   fire a level-up card (§5.4).
+3. ~~**04 §1.2's Total Level ceiling needs a one-line correction**~~ — **DONE (`0031`).** §1.2 now
+   derives the ceiling from the ruleset rather than stating it, because a literal was falsified
+   three times by changes that were each supposed to be data-only. Adding a skill still mints a
+   bookkeeping Total Level point that must never fire a level-up card (§5.4, D-146).
 
 ### 10.6 The test every future screen has to pass
 
