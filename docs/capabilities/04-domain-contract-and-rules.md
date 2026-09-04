@@ -72,3 +72,33 @@ audit procedure and it is the only reason these were caught.
 `0027` built the gate for is the thing `05` will be tempted to bend — the gate is mechanical and
 does not exempt test files (D-163), which is the point.
 
+## Audit — 2026-09-04 (`tickets.mjs audit --record`)
+
+**Verdict: FORCED.** Mechanical half: 8 passed, 1 failed, 3 n/a. See AUDIT.md §1, §4, §5.
+
+> **Overridden with `--force`.** Reason: Two overrides, recorded separately. (1) invariant-sweep FAILS on a defect in the CHECK, not in this capability: 0133 specified it to arm on the first I-n citation anywhere, and src/rules/validate.test.ts correctly cites I-26 — but the ticket that supplies the other 29 (0116) is in capability 18, so as written the row fails every audit from 04 to 17. Filed as 0161 with a reproduction; cannot be fixed inside this capability without doing 0161's work. (2) Four divergences over the budget of three, recorded as four rather than folded into three to buy a pass — the 02 audit rejected that folding and it is rejected again here. All four were the SAME SHAPE: a design doc restating a value rules/xp-rules-v1.yaml owns, falsified by a change D-031 promises is free. The prescribed DESIGN session was performed, scoped to the five sections the audit found, and its output is D-193 (generalising D-192 from the Total Level ceiling to every ruleset-owned value) plus 0162 for the enforcement D-193 admits it lacks. The code was correct in all four cases. Separately noted and not counted as a divergence: the vigil-test n/a reason is also stale — it says no vigil test exists yet, after 0030 closed and shipped src/rules/registry-delta.test.ts; 0161's Notes carry it.
+
+> - 1 mechanical check(s) failed: invariant-sweep
+> - 4 divergences, over the budget of three — the design is stale, not the code.
+
+**Divergences (4 of a budget of 3):**
+
+1. **design-was-wrong** — `D-193` — 04 §1.1 advertised Roving at 35 XP/km after 0158 rescaled it to 60
+2. **design-was-wrong** — `D-193` — 04 §3.2's session-parity table — the one 0158 reasoned FROM — had no Vigil, Roving or Cadence row
+3. **design-was-wrong** — `D-193` — 02 §3.2 listed unit as a closed set of four omitting share, contradicting §3.7 of its own document and the shipped file
+4. **design-was-wrong** — `D-193` — 03 §1.1 carried a closed ActivitySkill union with 'adding a workout type adds a member' — the inverse of D-031/D-141, unreached by the file's supersession banner
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **fail** — 29/30 invariants have no citing test: I-1, I-2, I-3 [S], I-4, I-5 [S], I-6, I-7 [S], I-8 [S], I-9, I-10, I-11 [S], I-12, I-13, I-14, I-15, I-16, I-17, I-18 [S], I-19 [S], I-20 [S], I-21, I-22, I-23 [S], I-24, I-25, I-27, I-28 [S], I-29 [S], I-30
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 10 closed
+
+<!-- audit-record {"capability":"04-domain-contract-and-rules","audited":"2026-09-04T17:08:55Z","verdict":"forced","mechanical":{"pass":8,"fail":1,"na":3},"divergences":4,"forced":"Two overrides, recorded separately. (1) invariant-sweep FAILS on a defect in the CHECK, not in this capability: 0133 specified it to arm on the first I-n citation anywhere, and src/rules/validate.test.ts correctly cites I-26 — but the ticket that supplies the other 29 (0116) is in capability 18, so as written the row fails every audit from 04 to 17. Filed as 0161 with a reproduction; cannot be fixed inside this capability without doing 0161's work. (2) Four divergences over the budget of three, recorded as four rather than folded into three to buy a pass — the 02 audit rejected that folding and it is rejected again here. All four were the SAME SHAPE: a design doc restating a value rules/xp-rules-v1.yaml owns, falsified by a change D-031 promises is free. The prescribed DESIGN session was performed, scoped to the five sections the audit found, and its output is D-193 (generalising D-192 from the Total Level ceiling to every ruleset-owned value) plus 0162 for the enforcement D-193 admits it lacks. The code was correct in all four cases. Separately noted and not counted as a divergence: the vigil-test n/a reason is also stale — it says no vigil test exists yet, after 0030 closed and shipped src/rules/registry-delta.test.ts; 0161's Notes carry it."} -->
