@@ -926,6 +926,24 @@ the traces you did not archive are the ones you cannot get back.
 One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under
 D-083), block-all-public-access, no website hosting, no CORS.
 
+> **SUPERSEDED 2026-09-04 by D-194 (ticket `0035`). The layout below is NOT what is built.**
+>
+> The archive stores **one content-addressed object per ingest** at
+> `raw/<userId>/<source>/<externalId>/<sha256>.<ext>` — the key `contracts/ingestion-contract.md`
+> §2 gives `RawArchiveRef`, which carries a single `key`, `sha256` and `contentType`. D-140 makes
+> the contract authoritative wherever this document disagrees with it, and ticket `0039`, which
+> builds the archive, already restates the contract's layout.
+>
+> Both responses an adapter fetches go into one envelope,
+> `{"schemaVersion":1,"source":…,"detail":<bytes>,"streams":<bytes|null>}`, built by concatenating
+> buffers so §3.1 rule 2's "byte-for-byte, unmodified" holds exactly. See
+> `src/adapters/strava/raw-envelope.ts`.
+>
+> **What survives from below:** every rule in §3.1, the private/versioned/block-all-public-access
+> bucket posture, and `<source>` as a path segment — so "delete everything `source=strava` for this
+> user" is still one prefix delete. **What does not:** the `date=` Hive partition, the `r<revision>`
+> prefix, and the split into `manifest.json` / `summary.json` / `streams.json`.
+
 ```
 s3://lostsoles-raw-archive-<accountid>-<region>/
 

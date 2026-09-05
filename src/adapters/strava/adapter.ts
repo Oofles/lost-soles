@@ -5,6 +5,7 @@ import type { NormalizedIngest } from "@/src/domain/activity"
 import type { AckResult, IngestJob, SourceAdapter } from "../types"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
+import { sealRawEnvelope } from "./raw-envelope"
 
 /**
  * THE STRAVA ADAPTER. Ticket 0034 builds one of its four phases: `listSince`.
@@ -23,6 +24,19 @@ import { parseWithExactIds } from "./json-ids"
 
 /** §2.1's reconciliation call. 200 is the maximum; eight years of history is ~8 pages. */
 const PER_PAGE = 200
+
+/**
+ * THE STREAM KEYS. `keys` is required (CSV, minItems 1); §2.4.
+ *
+ * `latlng` is the trace, `time` places each point in it, and `altitude` is recorded now
+ * because a stream call cannot be re-spent later — it costs one API call per activity and
+ * after 2026 may not be re-acquirable at all (§2.8). The archive holds what we asked for,
+ * and what we did not ask for is gone.
+ *
+ * Two naming traps for whoever adds heart rate: there is NO `power` (it is `watts`) and NO
+ * `temperature` (it is `temp`).
+ */
+const STREAM_KEYS = "latlng,time,altitude"
 
 /**
  * A guard, not a limit. A short page ends the loop, so this is only reachable if Strava
@@ -181,8 +195,34 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
     throw new NotYetImplemented("accept", "0093")
   },
 
-  fetchRaw(): Promise<{ body: Buffer; contentType: string; ext: string }> {
-    throw new NotYetImplemented("fetchRaw", "0035")
+  /**
+   * PHASE 2. The activity detail plus its streams, returned as raw bytes for the pipeline
+   * to archive BEFORE anything parses them (D-121.2, §3.1 rule 1).
+   *
+   * Both responses go into one envelope, unmodified — see `raw-envelope.ts` for why one
+   * object rather than §3.2's three, and for why concatenation rather than re-serialising.
+   */
+  async fetchRaw(job: IngestJob, creds: StravaCreds) {
+    const client = createStravaClient(creds)
+    const id = job.externalId
+
+    /**
+     * The DETAIL first, and it is fetched for every activity including the traceless ones.
+     * §3.1 rule 3: archive everything, including activities we currently ignore — rides,
+     * swims, strength-shaped workouts. "The marginal cost is kilobytes; the option value is
+     * a future skill." It is also the only place `start_date` and `sport_type` come from,
+     * and `time` is seconds RELATIVE to that start, so a trace cannot be placed in absolute
+     * time without it.
+     */
+    const detailRes = await client.get(`/activities/${id}`)
+    if (!detailRes.ok) throw new StravaApiError("activity detail", detailRes.status)
+    const detail = Buffer.from(await detailRes.arrayBuffer())
+
+    return {
+      body: sealRawEnvelope(detail, await fetchStreams(client, job)),
+      contentType: "application/json",
+      ext: "json",
+    }
   },
 
   normalize(): NormalizedIngest {
@@ -276,4 +316,69 @@ function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date)
     meta,
     enqueuedAt: now.toISOString(),
   }
+}
+
+/**
+ * The streams call, or nothing at all.
+ *
+ * ─── THE TRAP: `resolution` AND `series_type` ARE RESPONSE METADATA ──────────
+ *
+ * The ONLY parameters `getActivityStreams` accepts are `id`, `keys` and `key_by_type` —
+ * verified by R1 against the live `swagger.json`, and confirmed here against the live API.
+ * Older Strava documentation prose, older client libraries (**stravalib**, **stravaj**) and
+ * essentially every blog post on the subject still describe `resolution=low|medium|high`
+ * and `series_type=distance|time` as query parameters.
+ *
+ * **They were removed and are now SILENTLY IGNORED.** No error, no effect. If you are here
+ * because you are debugging "why won't it downsample" — it cannot, and you are looking at
+ * the wrong layer. DO NOT ADD THEM BACK. They appear in the RESPONSE (see `StravaStream`),
+ * which is what makes them look like round-trippable parameters and is why this comment
+ * exists rather than a shorter one.
+ *
+ * The consequence is entirely good: streams always come back at full recording resolution.
+ * A live 23-minute run returned 1,339 points at `"resolution": "high"` — that field is
+ * confirming you got everything, not offering you a choice.
+ *
+ * ─── AND NEVER `summary_polyline` ───────────────────────────────────────────
+ *
+ * It is tempting because it is FREE: it rides along on the list endpoint, 200 activities
+ * per call, zero extra rate limit, while this costs one API call per activity. Do not take
+ * the trade (D-121.4). It is Ramer-Douglas-Peucker simplified — tens of metres of
+ * cross-track error on curves, corners cut, a tight loop through a park collapsed to a
+ * chord across it. That reveals ground the user never ran AND fails to reveal ground they
+ * did, and by D-020 both errors are permanent.
+ */
+async function fetchStreams(
+  client: ReturnType<typeof createStravaClient>,
+  job: IngestJob,
+): Promise<Buffer | null> {
+  /**
+   * NO GPS, NO CALL. Ticket 0034 decided this from the list response — `manual === true`,
+   * or an empty/absent `summary_polyline` — so the question is already answered and this
+   * spends nothing to act on it. Both a rate-limit saving and a correctness measure: the
+   * stream calls are the ENTIRE cost of the system (~1,600 for an eight-year backfill
+   * against 1,000 reads/day, §2.5), and there is nothing to fetch.
+   */
+  const meta = job.meta as StravaIngestMeta | undefined
+  if (meta?.hasGpsHint !== true) return null
+
+  const res = await client.get(`/activities/${job.externalId}/streams`, {
+    keys: STREAM_KEYS,
+    key_by_type: "true",
+  })
+
+  /**
+   * A 404 HERE IS NOT AN ERROR (§2.5). It is what Strava returns for an activity with no
+   * streams, and it was confirmed live: a manual activity's streams endpoint answers 404
+   * with `{"message":"Resource Not Found"}` rather than an empty 200.
+   *
+   * Reachable even though `hasGpsHint` was true, because the hint is derived from the LIST
+   * response and the two can disagree — an activity whose trace was removed at the source
+   * between the sweep and the fetch, say. Treating it as an error would put a permanently
+   * unfetchable activity into a retry loop.
+   */
+  if (res.status === 404) return null
+  if (!res.ok) throw new StravaApiError("activity streams", res.status)
+
+  return Buffer.from(await res.arrayBuffer())
 }

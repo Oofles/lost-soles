@@ -1575,3 +1575,46 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     decides — the nonce, its storage, the redirect target, who is signed in — is in the generic
     route. A file under `app/` that needs to know which provider it is talking to has found a
     missing connector member, not an exception.
+
+---
+
+## One raw archive object per ingest, not three  (2026-09-04, ticket `0035`)
+
+- **D-194** **The raw archive stores ONE content-addressed object per ingest, holding every
+  response the adapter fetched, at the key `contracts/ingestion-contract.md` §2 specifies.
+  `03-integrations.md` §3.2's three-object layout — `manifest.json` + `summary.json` +
+  `streams.json` under `raw/v1/user=…/source=…/date=…/<id>/r<rev>/` — is SUPERSEDED and must not
+  be built.**
+  - **The design contradicted itself and nothing had noticed, because nothing had built it.**
+    `contracts/ingestion-contract.md` §2 gives `RawArchiveRef` a single `key`, a single `sha256`
+    and a single `contentType`, and `NormalizedIngest.raw` is one ref or null. `03-integrations.md`
+    §3.2 lays out three files per activity under a Hive-partitioned, revisioned prefix. Both are
+    load-bearing text in documents an implementer is told to trust. D-140 already settles which
+    wins — the contract, wherever `01` or `03` disagree — so this decision is not a new choice so
+    much as the first time the existing rule had to be applied and written down.
+  - **The corroborating evidence is ticket `0039`**, which builds the archive and restates the
+    contract's layout verbatim, including the `sha256` content-addressing that makes the write
+    naturally idempotent. Two of the three artefacts agreed before this ticket asked.
+  - **What forced the question.** `fetchRaw` returns one `{ body, contentType, ext }` and Strava
+    needs TWO calls — the activity detail and the streams. A three-object layout would have meant
+    widening the adapter contract, `RawArchiveRef`, `NormalizedIngest.raw`, `0036` and `0039`. A
+    design session, not a ticket.
+  - **How two responses become one object without being modified.** The envelope
+    `{"schemaVersion":1,"source":"…","detail":<bytes>,"streams":<bytes|null>}` is built by
+    CONCATENATING BUFFERS, never by parsing and re-serialising, so each response appears
+    contiguously and unchanged — same whitespace, same key order, same digits. §3.1 rule 2's
+    "byte-for-byte, unmodified" holds in the strong sense: an int64 id in the archive is the int64
+    id the wire carried, because nothing ever turned it into a number. A malformed response
+    therefore produces a malformed envelope, which is correct — the archive holds what arrived,
+    and a wrapper that repaired a bad payload would destroy the only evidence of what went wrong.
+  - **`"streams": null` is a fact, not an absence.** It distinguishes "we looked and there is no
+    trace" from "we never looked", and a replay from the archive needs to tell those apart.
+  - **What is lost, stated honestly.** §3.2's Hive partitioning (`date=`, `source=`) made an
+    Athena sweep cheap and made "delete everything `source=strava` for this user" one prefix
+    delete. The contract's key keeps `<source>` as a path segment, so the deletion posture
+    survives; the `date=` partition does not. Nobody has needed it, `02-data-model.md` §8.5 does
+    not depend on it, and `0104`'s rebuild drill walks the whole prefix. If an Athena sweep is
+    ever wanted, it is a manifest built over the archive, not a re-layout of it.
+  - **`03-integrations.md` §3.2 is amended in place** with a pointer here, rather than left to
+    contradict the contract for the next reader — D-153's rule that the code or the doc changes,
+    never neither.

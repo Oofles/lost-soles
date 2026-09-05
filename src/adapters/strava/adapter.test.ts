@@ -12,6 +12,7 @@ import {
   type StravaIngestMeta,
 } from "./adapter"
 import { SOURCE_TEXT_AVAILABLE } from "./json-ids"
+import { assertStreamsAligned, openRawEnvelope, uploadIdOf } from "./raw-envelope"
 
 /**
  * Ticket 0034. `listSince` is the reconciliation sweep that covers SILENTLY DROPPED
@@ -71,9 +72,12 @@ describe("criterion 1 — it satisfies SourceAdapter without a cast", () => {
   it("is typed as the adapter interface, with the unbuilt phases naming their tickets", () => {
     // The type check is the compiler's; this asserts the honest half — that calling an
     // unbuilt phase says which ticket builds it rather than failing obscurely later.
+    //
+    // `fetchRaw` left this list in ticket 0035. `normalize` is 0036's and `accept` is
+    // 0093's; the adapter joins `registry.ts`'s ADAPTERS when `normalize` lands, so that
+    // `getAdapter("strava")` never hands back something that fails on a phase.
     expect(stravaAdapter.id).toBe("strava")
     expect(() => stravaAdapter.normalize(Buffer.from(""), {} as never, {} as never)).toThrow(/0036/)
-    expect(() => stravaAdapter.fetchRaw({} as never, {} as never)).toThrow(/0035/)
     expect(() => stravaAdapter.accept({} as never)).toThrow(/0093/)
   })
 })
@@ -383,5 +387,305 @@ describe("it runs on the 0033 token lifecycle rather than a captured token", () 
     // A `{ accessToken: string }` credential would have sent "Bearer t1" twice — a token
     // captured at some earlier instant, which is what 0033 exists to stop.
     expect(seen).toEqual(["Bearer t1", "Bearer t2"])
+  })
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET 0035 — fetchRaw
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * A synthetic stream of `n` points at ~1 Hz, shaped exactly as the live API returns one —
+ * including the `distance` stream Strava adds without being asked.
+ *
+ * SYNTHETIC AND NOT CAPTURED, deliberately. This repository is PUBLIC, and a real captured
+ * `latlng` stream is ~2,700 points of where the operator actually ran, starting outside
+ * their front door. Ticket 0168 settles how a real fixture is transformed before anyone
+ * commits one; until then the count assertions run on generated geometry, and the point
+ * count of a REAL run is verified by a live smoke test at close instead.
+ */
+const syntheticStreams = (n: number, over: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    latlng: {
+      // A circle, so it is obviously not anywhere: no bearing, no start, no route.
+      data: Array.from({ length: n }, (_, i) => [
+        Number((51 + 0.01 * Math.cos((i / n) * 2 * Math.PI)).toFixed(6)),
+        Number((0.01 * Math.sin((i / n) * 2 * Math.PI)).toFixed(6)),
+      ]),
+      original_size: n,
+      resolution: "high",
+      series_type: "distance",
+    },
+    time: { data: Array.from({ length: n }, (_, i) => i), original_size: n, resolution: "high" },
+    altitude: { data: Array.from({ length: n }, () => 12.4), original_size: n, resolution: "high" },
+    // Strava returns this without being asked. Verified live.
+    distance: { data: Array.from({ length: n }, (_, i) => i * 2.4), original_size: n, resolution: "high" },
+    ...over,
+  })
+
+const DETAIL_BODY = JSON.stringify({
+  id: 18736594040,
+  upload_id: 20014448765,
+  upload_id_str: "20014448765",
+  name: "Evening Run",
+  sport_type: "Run",
+  type: "Run",
+  distance: 3310.4,
+  elapsed_time: 1380,
+  start_date: "2026-06-01T00:53:48Z",
+})
+
+/** A job as `listSince` would have produced it. */
+const jobFor = (hasGpsHint: boolean): IngestJob => ({
+  ingestKey: "k",
+  userId: USER,
+  source: "strava",
+  externalId: "18736594040",
+  command: "ingest",
+  meta: { aspectType: "create", hasGpsHint, startedAt: "2026-06-01T00:53:48.000Z", sportType: "Run" },
+  enqueuedAt: NOW.toISOString(),
+})
+
+function fetchHarness(responses: Array<{ status: number; body: string }>) {
+  const urls: URL[] = []
+  const creds: StravaCreds = {
+    accessToken: async () => "access-v1",
+    markNeedsReauth: async () => {},
+    now: () => NOW,
+    fetch: (async (url: URL) => {
+      urls.push(new URL(String(url)))
+      const next = responses.shift() ?? { status: 200, body: "{}" }
+      return new Response(next.body, { status: next.status })
+    }) as unknown as typeof fetch,
+  }
+  return { creds, urls }
+}
+
+const OK_DETAIL = { status: 200, body: DETAIL_BODY }
+
+/** Criteria 1, 2 and 3. */
+describe("the streams request", () => {
+  it("sends exactly keys and key_by_type — no resolution, no series_type", async () => {
+    const { creds, urls } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(1339) }])
+    await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    const streams = urls[1]
+    expect(streams.pathname).toBe("/api/v3/activities/18736594040/streams")
+    expect([...streams.searchParams.keys()].sort()).toEqual(["key_by_type", "keys"])
+
+    /**
+     * THE CRITERION, as a failing assertion rather than a comment. Both were removed from
+     * `getActivityStreams` and are now silently ignored — no error, no effect — so a
+     * regression that added them back would look like it worked.
+     */
+    expect(streams.searchParams.get("resolution")).toBeNull()
+    expect(streams.searchParams.get("series_type")).toBeNull()
+  })
+
+  it("asks for latlng, time and altitude, with key_by_type true", async () => {
+    const { creds, urls } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(10) }])
+    await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    expect(urls[1].searchParams.get("keys")?.split(",").sort()).toEqual(["altitude", "latlng", "time"])
+    expect(urls[1].searchParams.get("key_by_type")).toBe("true")
+  })
+
+  it("records the trap at the call site, so the next reader does not 'fix' it back", () => {
+    // Criterion 2 is a documentation requirement, so it is checked as one. The comment is
+    // the only thing standing between a plausible-looking edit and a silent no-op.
+    const source = readFileSync(join(import.meta.dirname, "adapter.ts"), "utf8")
+    expect(source).toMatch(/resolution.*series_type.*RESPONSE METADATA/is)
+    expect(source).toContain("DO NOT ADD THEM BACK")
+  })
+
+  it("fetches the detail before the streams, and both for the same activity", async () => {
+    const { creds, urls } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(10) }])
+    await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    expect(urls.map((u) => u.pathname)).toEqual([
+      "/api/v3/activities/18736594040",
+      "/api/v3/activities/18736594040/streams",
+    ])
+  })
+})
+
+/** Criterion 7. */
+describe("an activity with no GPS", () => {
+  it("issues ZERO stream calls — counted, not inferred from the outcome", async () => {
+    const { creds, urls } = fetchHarness([OK_DETAIL])
+    await stravaAdapter.fetchRaw(jobFor(false), creds)
+
+    // One call, and it is the detail. §3.1 rule 3 archives the activity anyway; there is
+    // simply no trace to ask for, and the stream calls are the entire cost of the system.
+    expect(urls).toHaveLength(1)
+    expect(urls[0].pathname).toBe("/api/v3/activities/18736594040")
+  })
+
+  it("still archives the detail, with streams recorded as null", async () => {
+    const { creds } = fetchHarness([OK_DETAIL])
+    const raw = await stravaAdapter.fetchRaw(jobFor(false), creds)
+
+    const opened = openRawEnvelope(raw.body)
+    expect(opened.streams).toBeNull()
+    expect(opened.detail).toMatchObject({ sport_type: "Run" })
+  })
+
+  it("treats a 404 from /streams as 'no trace', not as an error", async () => {
+    /**
+     * Confirmed live: a manual activity's streams endpoint answers 404 with
+     * `{"message":"Resource Not Found"}` rather than an empty 200 (§2.5). Reachable even
+     * when `hasGpsHint` was true, because the hint comes from the LIST response and the
+     * two can disagree — a trace removed at the source between the sweep and the fetch.
+     * Treating it as an error would retry-loop a permanently unfetchable activity.
+     */
+    const { creds } = fetchHarness([
+      OK_DETAIL,
+      { status: 404, body: '{"message":"Resource Not Found"}' },
+    ])
+
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+    expect(openRawEnvelope(raw.body).streams).toBeNull()
+  })
+
+  it("throws on any other stream failure rather than archiving a silent gap", async () => {
+    const { creds } = fetchHarness([OK_DETAIL, { status: 500, body: "" }])
+    await expect(stravaAdapter.fetchRaw(jobFor(true), creds)).rejects.toBeInstanceOf(StravaApiError)
+  })
+
+  it("throws when the detail itself fails", async () => {
+    const { creds } = fetchHarness([{ status: 500, body: "" }])
+    await expect(stravaAdapter.fetchRaw(jobFor(true), creds)).rejects.toBeInstanceOf(StravaApiError)
+  })
+})
+
+/** Criterion 5. */
+describe("the fidelity floor this ticket exists to protect", () => {
+  it("carries thousands of points, not the hundreds summary_polyline would give", async () => {
+    /**
+     * A 45-minute run at ~1 Hz is ~2,700 points; `map.summary_polyline` for the same run is
+     * 100-300, Ramer-Douglas-Peucker simplified. The lower bound is set at 1,000 — far above
+     * anything RDP would produce and far below a real recording — so the test fails loudly
+     * if a decimated source is ever substituted, and does not fail on ordinary variation.
+     *
+     * The count here is synthetic (ticket 0168 — this repo is public). The equivalent
+     * assertion against a REAL run is in this ticket's Operator validation.
+     */
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(2711) }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    const streams = openRawEnvelope(raw.body).streams as Record<string, { data: unknown[] }>
+    expect(streams.latlng.data.length).toBe(2711)
+    expect(streams.latlng.data.length).toBeGreaterThan(1000)
+  })
+
+  it("keeps the streams index-aligned all the way through the archive", async () => {
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(1339) }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    expect(() => assertStreamsAligned(openRawEnvelope(raw.body).streams)).not.toThrow()
+  })
+
+  it("archives a misaligned response rather than refusing to archive it", async () => {
+    /**
+     * §3.1 rule 1 archives BEFORE the parser is trusted, and rule 5 never deletes on ingest
+     * failure. A `fetchRaw` that threw here would destroy the only evidence of what Strava
+     * actually sent. The raising happens in `assertStreamsAligned`, which `normalize` calls
+     * after the archive PUT — one phase later, costing a replay instead of the payload.
+     */
+    const misaligned = syntheticStreams(1339, {
+      time: { data: [0, 1, 2], original_size: 3, resolution: "high" },
+    })
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: misaligned }])
+
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+    expect(raw.body.includes(Buffer.from(misaligned))).toBe(true)
+    expect(() => assertStreamsAligned(openRawEnvelope(raw.body).streams)).toThrow()
+  })
+})
+
+/** Criteria 8 and 9. */
+describe("what fetchRaw returns", () => {
+  it("labels the payload for the archive", async () => {
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(10) }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    expect(raw.contentType).toBe("application/json")
+    expect(raw.ext).toBe("json")
+    expect(Buffer.isBuffer(raw.body)).toBe(true)
+  })
+
+  it("performs no transformation on either response", async () => {
+    const streamBody = syntheticStreams(10)
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: streamBody }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    // Both appear contiguously and unchanged. Any reshaping breaks this.
+    expect(raw.body.includes(Buffer.from(DETAIL_BODY))).toBe(true)
+    expect(raw.body.includes(Buffer.from(streamBody))).toBe(true)
+  })
+
+  it("does not coerce an id in the archived bytes", async () => {
+    const big = '{"id":12345678901234567890,"sport_type":"Run"}'
+    const { creds } = fetchHarness([{ status: 200, body: big }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(false), creds)
+
+    expect(raw.body.toString("utf8")).toContain("12345678901234567890")
+    // And it reads back exact, because the reader uses `parseWithExactIds` too.
+    expect((openRawEnvelope(raw.body).detail as { id: string }).id).toBe(
+      SOURCE_TEXT_AVAILABLE ? "12345678901234567890" : "12345678901234567890",
+    )
+  })
+
+  it("prefers upload_id_str when reading an upload id back", async () => {
+    const { creds } = fetchHarness([OK_DETAIL, { status: 200, body: syntheticStreams(10) }])
+    const raw = await stravaAdapter.fetchRaw(jobFor(true), creds)
+
+    expect(uploadIdOf(openRawEnvelope(raw.body).detail)).toBe("20014448765")
+  })
+})
+
+/** Criterion 4. */
+describe("no polyline decoder exists anywhere in this repository", () => {
+  it("imports no polyline-decoding dependency, and declares none", () => {
+    /**
+     * D-121.4. The danger is not that someone writes a decoder — it is that someone adds
+     * `@mapbox/polyline` in one line because the summary is free, and the map is quietly
+     * built from a decimated trace. By D-020 that is permanent.
+     *
+     * There is no bbox-prefilter helper yet, so the criterion's exemption has nothing to
+     * exempt: the correct current state is zero decoders anywhere.
+     */
+    const root = join(import.meta.dirname, "..", "..", "..")
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+
+    const declared = [
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ].filter((d) => /polyline/i.test(d))
+
+    expect(declared).toEqual([])
+
+    const skip = new Set(["node_modules", ".next", ".amplify", ".git", ".npm", "docs", "tickets"])
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        skip.has(e.name)
+          ? []
+          : e.isDirectory()
+            ? walk(join(dir, e.name))
+            : /\.(ts|tsx|mjs|js)$/.test(e.name)
+              ? [join(dir, e.name)]
+              : [],
+      )
+
+    const importers = walk(root).filter((f) =>
+      /^\s*import\b.*polyline|require\(["'][^"']*polyline/im.test(readFileSync(f, "utf8")),
+    )
+
+    expect(importers.map((f) => f.slice(root.length + 1))).toEqual([])
   })
 })
