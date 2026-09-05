@@ -4,7 +4,7 @@ slug: strava-fetch-latlng-stream
 title: Fetch the full latlng stream - never summary_polyline, and never send resolution/series_type
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 05-strava-adapter
 depends_on: [33, 34]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-05T00:53:57Z
+closed: 2026-09-05T01:03:00Z
 ---
 
 ## Description
