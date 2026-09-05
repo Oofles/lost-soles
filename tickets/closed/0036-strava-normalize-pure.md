@@ -4,13 +4,14 @@ slug: strava-normalize-pure
 title: strava/normalize.ts - pure, no network, no clock, streams JSON to { activity, trace }
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 05-strava-adapter
 depends_on: [25, 27, 35]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-05T23:16:53Z
 ---
 
 ## Description

@@ -841,7 +841,7 @@
     "title": "strava/normalize.ts - pure, no network, no clock, streams JSON to { activity, trace }",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -852,10 +852,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0036-strava-normalize-pure.md",
-    "ready": true,
+    "closed": "2026-09-05T23:16:53Z",
+    "path": "tickets/closed/0036-strava-normalize-pure.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 14,
       "total": 14
     }
   },
@@ -876,7 +877,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0037-strava-kind-mapping-and-trace-sanitation.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 16
@@ -1065,7 +1066,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0045-trace-to-h3-cell-set.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -3591,7 +3592,7 @@
     "source": "agent",
     "created": "2026-09-04T00:47:04Z",
     "path": "tickets/open/0156-deleted-adapter-simulation.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
