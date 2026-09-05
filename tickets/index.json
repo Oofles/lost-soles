@@ -826,6 +826,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-05T00:53:57Z",
     "path": "tickets/open/0035-strava-fetch-latlng-stream.md",
     "ready": true,
     "acceptance": {
@@ -886,7 +887,7 @@
     "title": "Checked-in real-response fixtures, the fidelity floor, and rate-limit backoff",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -894,7 +895,9 @@
       35,
       36
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      168
+    ],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0038-strava-fixtures-and-rate-limit-backoff.md",
@@ -3833,6 +3836,26 @@
     "acceptance": {
       "checked": 1,
       "total": 1
+    }
+  },
+  {
+    "id": 168,
+    "slug": "real-response-fixtures-would-publish-the-operator-s-home-in",
+    "title": "Real-response fixtures would publish the operator's home in a public repo",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "05-strava-adapter",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-05T00:53:57Z",
+    "path": "tickets/open/0168-real-response-fixtures-would-publish-the-operator-s-home-in.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
     }
   }
 ]
