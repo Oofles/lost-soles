@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto"
 
-import type { NormalizedIngest } from "@/src/domain/activity"
+import type { NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
 
 import type { AckResult, IngestJob, SourceAdapter } from "../types"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
+import { normalizeStrava } from "./normalize"
 import { sealRawEnvelope } from "./raw-envelope"
 
 /**
@@ -80,6 +81,20 @@ export interface StravaIngestMeta {
   startedAt: string
   /** Strava's `sport_type`. Carried for §2.6's mapping, which is another ticket's work. */
   sportType?: string
+  /**
+   * WHICH REVISION OF THIS ACTIVITY THIS JOB IS FOR. Ticket 0036, D-196.
+   *
+   * `normalize` is pure, so it cannot look up how many times an activity has already been
+   * edited — `Activity.revision` has to arrive on the job or be invented, and inventing it
+   * is how a source-side edit silently overwrites the original at the same revision.
+   *
+   * IN `meta` RATHER THAN ON `IngestJob`, which is the same call `hasGpsHint` gets and for
+   * the same reason: only the re-ingest path has anything to say about it, and a field on
+   * the generic job type would put one adapter's concern into the shape every adapter's
+   * queue messages share. Absent means 1 — a first ingest genuinely is revision 1, and the
+   * `create` jobs this sweep produces would otherwise all carry a constant.
+   */
+  revision?: number
 }
 
 /**
@@ -178,18 +193,19 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
   id: "strava",
 
   /**
-   * THE OTHER THREE PHASES ARE STUBS, and stubs that throw rather than return something
-   * empty. `listSince` is what this ticket builds; `accept`, `fetchRaw` and `normalize`
-   * are named tickets of their own.
+   * ONE PHASE LEFT AS A STUB, and a stub that throws rather than returns something empty.
+   * `listSince` landed in 0034, `fetchRaw` in 0035 and `normalize` in 0036; `accept` is
+   * the webhook endpoint and it is 0093's.
    *
-   * They exist at all because criterion 1 asks for `listSince` on an object that satisfies
-   * `SourceAdapter` WITHOUT A CAST, and a cast is exactly how a half-built adapter gets
-   * mistaken for a whole one. This object type-checks, and calling an unbuilt phase says
-   * which ticket builds it.
+   * It exists at all because 0034's criterion 1 asks for `listSince` on an object that
+   * satisfies `SourceAdapter` WITHOUT A CAST, and a cast is exactly how a half-built
+   * adapter gets mistaken for a whole one. This object type-checks, and calling an unbuilt
+   * phase says which ticket builds it.
    *
-   * FOR THE SAME REASON IT IS NOT IN `registry.ts`'s `ADAPTERS` YET. `getAdapter("strava")`
-   * should never hand back something that throws on three of its four phases; registration
-   * lands with `normalize` in 0036.
+   * STILL NOT IN `registry.ts`'s `ADAPTERS`. 0034's note said registration lands with
+   * `normalize`, and that was one phase early: `getAdapter("strava")` should never hand
+   * back something that throws on phase 1, and the webhook endpoint is the one caller that
+   * would reach for it through the registry. Registration goes with `accept`, in 0093.
    */
   accept(): Promise<AckResult> {
     throw new NotYetImplemented("accept", "0093")
@@ -225,8 +241,17 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
     }
   },
 
-  normalize(): NormalizedIngest {
-    throw new NotYetImplemented("normalize", "0036")
+  /**
+   * PHASE 3 — PURE, and the whole implementation is in `./normalize.ts`.
+   *
+   * It is a separate module rather than a method body because purity is asserted
+   * STATICALLY as well as at runtime (0036): `normalize.test.ts` walks that file's import
+   * graph and fails on an AWS SDK or an HTTP client. `adapter.ts` legitimately imports
+   * both — `client.ts` is a phase-2 concern — so the seam has to be a file boundary for
+   * the check to mean anything.
+   */
+  normalize(raw: Buffer, ref: RawArchiveRef, job: IngestJob): NormalizedIngest {
+    return normalizeStrava(raw, ref, job)
   },
 
   /**

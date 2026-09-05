@@ -1,0 +1,88 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ids are deterministic > locks the whole normalized shape 1`] = `
+{
+  "activity": {
+    "activityId": "9fb3a90f666ebe8f2bf666719e6d63d79d541892f35263ca5b105b9ccc1981a6",
+    "dedupeKey": "a2c4cbc4068fa3de99b703f8dd8d23ecd416f6af9a4f72ee74c4feef29cc0999",
+    "distanceM": 3310.4,
+    "elapsedS": 1380,
+    "elevationGainM": 12.2,
+    "hasTrace": true,
+    "ingestedAt": "2026-06-01T03:20:11.482Z",
+    "kind": "run",
+    "movingS": 1200,
+    "name": "Evening Run",
+    "raw": {
+      "archivedAt": "2026-06-01T03:20:11.482Z",
+      "bucket": "lost-soles-raw",
+      "bytes": 1024,
+      "contentType": "application/json",
+      "key": "raw/user-01JQ8Z/strava/18736594040/deadbeef.json",
+      "sha256": "deadbeef",
+    },
+    "revision": 1,
+    "sets": [],
+    "source": {
+      "externalId": "18736594040",
+      "fetchedAt": "2026-06-01T03:20:11.482Z",
+      "source": "strava",
+      "sourceTypeRaw": "Run",
+    },
+    "startedAt": "2026-06-01T02:53:48.000Z",
+    "startedAtLocal": "2026-05-31T19:53:48",
+    "timezone": "America/Los_Angeles",
+    "traceRef": null,
+    "userId": "user-01JQ8Z",
+  },
+  "trace": {
+    "bbox": [
+      -123.393,
+      -48.87605,
+      -123.39295,
+      -48.876,
+    ],
+    "gaps": [],
+    "pointCount": 6,
+    "points": [
+      {
+        "altM": 3,
+        "lat": -48.876,
+        "lng": -123.393,
+        "t": 1780282428000,
+      },
+      {
+        "altM": 3.1,
+        "lat": -48.87601,
+        "lng": -123.39299,
+        "t": 1780282429000,
+      },
+      {
+        "altM": 3.2,
+        "lat": -48.87602,
+        "lng": -123.39298,
+        "t": 1780282430000,
+      },
+      {
+        "altM": 3.1,
+        "lat": -48.87603,
+        "lng": -123.39297,
+        "t": 1780282431000,
+      },
+      {
+        "altM": 3,
+        "lat": -48.87604,
+        "lng": -123.39296,
+        "t": 1780282432000,
+      },
+      {
+        "altM": 2.9,
+        "lat": -48.87605,
+        "lng": -123.39295,
+        "t": 1780282433000,
+      },
+    ],
+    "simplified": false,
+  },
+}
+`;

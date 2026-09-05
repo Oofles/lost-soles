@@ -3858,5 +3858,45 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 169,
+    "slug": "dedupekey-buckets-straddle-boundaries-so-one-run-can-survive",
+    "title": "dedupeKey buckets straddle boundaries, so one run can survive as two activities",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-05T23:09:17Z",
+    "path": "tickets/open/0169-dedupekey-buckets-straddle-boundaries-so-one-run-can-survive.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 170,
+    "slug": "d-194-is-assigned-to-two-different-decisions-so-every-citati",
+    "title": "D-194 is assigned to two different decisions, so every citation is ambiguous",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-05T23:12:00Z",
+    "path": "tickets/open/0170-d-194-is-assigned-to-two-different-decisions-so-every-citati.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
   }
 ]

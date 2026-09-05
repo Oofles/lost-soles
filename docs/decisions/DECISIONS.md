@@ -1618,3 +1618,55 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`03-integrations.md` §3.2 is amended in place** with a pointer here, rather than left to
     contradict the contract for the next reader — D-153's rule that the code or the doc changes,
     never neither.
+
+- **D-195** **`GAP_THRESHOLD_MS` is 30 seconds.** Ticket `0036`.
+  - **It had never been given a value.** `docs/contracts/ingestion-contract.md` §2,
+    `01-architecture.md` §3 and `src/domain/activity.ts` all name the constant, all describe what
+    it protects — the fog renderer must not draw a corridor across a gap, distance must not be
+    summed across one — and none of them says how long a gap is. It was carried as a symbol
+    through three documents and two rounds of reconciliation without anyone noticing it was
+    undecided, because a symbol reads as settled.
+  - **30 seconds, from the sample rate.** `05-fog-of-war.md` §2.2 records Strava's `latlng`
+    stream as nominally ~1 Hz. Thirty consecutive missing samples is a stop, a tunnel or a
+    dropout. It is not a watch throttling under tree cover, which is the false positive that
+    matters here.
+  - **Why the false positive is the one to avoid.** D-020 makes over-revealing permanent and
+    under-revealing recoverable, which normally argues for the conservative choice — but a
+    spurious gap is not under-revealing. It is a break drawn into a route that was continuous:
+    the *"dotted corridor"* §9.5 warns about, on a favourite route, visible every time the
+    operator opens the map. A threshold too long merely delays noticing a real dropout; a
+    threshold too short manufactures one.
+  - **§9.5 says to measure before tuning** — *"measure it on the user's real first 20 runs before
+    touching the constants"* — so this is a defensible starting value and explicitly not a
+    finding. It lives as one named, commented constant in `src/adapters/strava/normalize.ts` so
+    that changing it later is one line and one re-derivation from the archive (D-101).
+
+- **D-196** **A pure `normalize()` gets its clock from `ref.archivedAt` and its `revision` from
+  the adapter-private `job.meta` — never from `Date.now()` and never invented.** Ticket `0036`.
+  - **The problem.** `Activity` carries three values a normalizer cannot compute from the
+    payload: `ingestedAt`, `SourceRef.fetchedAt` and `revision`. `0036` says *"`revision` is
+    taken from `job`, not invented"* and describes `job` as carrying `fetchedAt` — but
+    `IngestJob` (D-140, contract §3) carries neither. The instruction was right about the
+    principle and wrong about where the values live.
+  - **`ingestedAt` and `fetchedAt` both come from `ref.archivedAt`.** The archive PUT happens
+    immediately after the fetch and strictly *before* `normalize` runs (`0039`, D-121.2), so
+    `archivedAt` is the closest true fetch instant a pure function can observe. `job.enqueuedAt`
+    was the alternative and is wrong: it is the moment the job was *queued*, before anything was
+    fetched, and it understates by however long the queue was backed up. Adding a real
+    `fetchedAt` to `RawArchiveRef` would be more precise and would change the domain contract,
+    `0035` and `0039` for a distinction measured in milliseconds — rejected as not worth it, and
+    recorded here so it is a considered rejection rather than an oversight.
+  - **`revision` goes in `StravaIngestMeta`, not on `IngestJob`.** Only the re-ingest path has
+    anything to say about it. A field on the generic job type would put one adapter's concern
+    into the shape every adapter's queue messages share — the D-100 boundary moving into the
+    queue, which is the failure `check-boundaries.mjs` exists to catch and could not catch here,
+    because the word would be innocent. This is the same call `hasGpsHint` already gets. Absent
+    means 1: a first ingest genuinely is revision 1, and throwing would make every `create` job
+    carry a constant.
+  - **Why this is worth a decision at all.** The rebuild drill (`02-data-model.md` §8.3 step 2)
+    replays the S3 archive years later with Strava unreachable and asserts the same cell count
+    and the same Total XP come back. Every one of these three values is a place a wall clock
+    would slip in and quietly make the drill impossible — and the drill is what proves D-101's
+    reversibility is real rather than claimed. The T4 harness traps the clock at runtime;
+    `normalize.test.ts` additionally walks the module's import graph statically, because a trap
+    only catches the branch the fixture took.

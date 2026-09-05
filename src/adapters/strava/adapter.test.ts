@@ -73,11 +73,14 @@ describe("criterion 1 — it satisfies SourceAdapter without a cast", () => {
     // The type check is the compiler's; this asserts the honest half — that calling an
     // unbuilt phase says which ticket builds it rather than failing obscurely later.
     //
-    // `fetchRaw` left this list in ticket 0035. `normalize` is 0036's and `accept` is
-    // 0093's; the adapter joins `registry.ts`'s ADAPTERS when `normalize` lands, so that
-    // `getAdapter("strava")` never hands back something that fails on a phase.
+    // `fetchRaw` left this list in ticket 0035 and `normalize` in 0036. Only `accept`
+    // remains, and it is 0093's. `normalize` is now covered by `normalize.test.ts`; what
+    // is asserted here is that it no longer throws a NOT-BUILT error, which is what the
+    // registration in `registry.ts` waits on.
     expect(stravaAdapter.id).toBe("strava")
-    expect(() => stravaAdapter.normalize(Buffer.from(""), {} as never, {} as never)).toThrow(/0036/)
+    expect(() => stravaAdapter.normalize(Buffer.from(""), {} as never, {} as never)).not.toThrow(
+      /0036/,
+    )
     expect(() => stravaAdapter.accept({} as never)).toThrow(/0093/)
   })
 })

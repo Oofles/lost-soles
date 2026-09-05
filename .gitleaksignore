@@ -1,0 +1,18 @@
+# gitleaks false positives, by FINGERPRINT — never by path.
+#
+# A path allowlist would turn off the gate for a whole directory, and the directory it
+# would turn off here (`__snapshots__/`, `__fixtures__/`) is exactly where a real token
+# pasted from a live response would land. A fingerprint pins one finding on one line of
+# one file, and it stops covering that line the moment the line changes.
+#
+# That brittleness is the point. Every entry below is a value that must not change
+# without someone looking at it.
+
+# Ticket 0036. The `dedupeKey` in `normalize()`'s determinism snapshot: sha256 of
+# "user-01JQ8Z|29671373|66|46" — synthetic fixture data, no secret. It trips
+# `generic-api-key` because the field name ends in "Key" and a sha256 is high entropy.
+#
+# `02-data-model.md` §8.3 forbids changing the `dedupeKey` derivation without a full
+# rebuild, so if this snapshot ever moves, gitleaks firing again is CORRECT — it means
+# somebody changed a value that is not supposed to change, and they should have to say so.
+src/adapters/strava/__snapshots__/normalize.test.ts.snap:generic-api-key:7
