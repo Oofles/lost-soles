@@ -1,9 +1,14 @@
 import { createHash } from "node:crypto"
-import { readFileSync, readdirSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
+
+// D-199 (ticket 0168). The fixture-geography rule is defined ONCE, in the plain-node
+// script that also runs in the pre-commit hook and the Amplify build.
+// @ts-expect-error - plain-node check script, deliberately untyped (it runs where tsc does not)
+import { checkAll } from "../../../scripts/check-fixture-geography.mjs"
 
 import { assertNormalizeIsPure } from "@/src/adapters/normalize-purity"
 import type { IngestJob } from "@/src/adapters/types"
@@ -649,33 +654,28 @@ describe("indoor and no-GPS are normal outcomes, not error paths", () => {
  * the leak. So the assertion is inverted: every fixture coordinate must be within a few
  * kilometres of Point Nemo, the point on Earth farthest from any land.
  *
- * A hand-added fixture carrying a real track fails this the moment it lands.
+ * THE RULE ITSELF LIVES IN `scripts/check-fixture-geography.mjs` (D-199, ticket 0168), not
+ * here. It used to live here, and it checked `streams.latlng.data` and nothing else — so a
+ * fixture could have passed this test while publishing the operator's front door twice
+ * over in `detail.start_latlng` and `detail.end_latlng`, and again as an encoded
+ * `summary_polyline`. Moving it bought three things this file could not have:
+ *
+ *   - it runs in the PRE-COMMIT hook, which is the last point upstream of an
+ *     irreversible act, and in the Amplify build, which is the deploy lock (D-163);
+ *   - it covers every `__fixtures__` directory in the tree, so an adapter that does
+ *     not exist yet is guarded on the day it lands;
+ *   - it has a self-test proving it still fires, which a passing assertion never does.
+ *
+ * What stays here is the call, so a plain `npm test` still runs it and the box is defined
+ * in exactly one place.
  */
 describe("no fixture carries a real location", () => {
-  const NEMO = { lat: -48.876, lng: -123.393 }
-  const RADIUS_DEG = 0.05 // ~5.5 km of latitude. Generous for a synthetic track; nowhere.
-
   it("keeps every committed latlng point in the South Pacific", () => {
-    const files = readdirSync(FIXTURES).filter((f) => f.endsWith(".json"))
-    expect(files.length).toBeGreaterThan(0)
+    const { findings, checked } = checkAll()
 
-    let checked = 0
-    for (const file of files) {
-      const parsed = JSON.parse(readFileSync(join(FIXTURES, file), "utf8"))
-      const points: unknown = parsed?.streams?.latlng?.data
-      if (!Array.isArray(points)) continue
-
-      for (const [lat, lng] of points as Array<[number, number]>) {
-        expect(Math.abs(lat - NEMO.lat), `${file} carries a latitude outside the fixture box`)
-          .toBeLessThan(RADIUS_DEG)
-        expect(Math.abs(lng - NEMO.lng), `${file} carries a longitude outside the fixture box`)
-          .toBeLessThan(RADIUS_DEG)
-        checked++
-      }
-    }
-
-    // The guard must have had something to check. A fixture directory that stopped being
-    // read would otherwise pass this test silently.
+    expect(findings, findings.map((f: { file: string; at: string }) => `${f.file} ${f.at}`).join("\n")).toEqual([])
+    // The guard must have had something to check. A fixture directory that stopped
+    // being read would otherwise pass this test silently — D-176.
     expect(checked).toBeGreaterThan(10)
   })
 })

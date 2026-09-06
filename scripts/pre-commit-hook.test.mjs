@@ -146,7 +146,13 @@ const why = (r) =>
 /** Stage `files` in a fresh repo and run the hook exactly as git would. */
 function runHook(
   files,
-  { gitleaks = "pass", withSkillChecker = false, brokenGit = false, stagedOnly = {} } = {},
+  {
+    gitleaks = "pass",
+    withSkillChecker = false,
+    withGeographyChecker = false,
+    brokenGit = false,
+    stagedOnly = {},
+  } = {},
 ) {
   const repo = mkdtempSync(join(tmpdir(), "hookrepo-"))
   tmps.push(repo)
@@ -178,6 +184,13 @@ function runHook(
     const full = join(repo, rel)
     mkdirSync(dirname(full), { recursive: true })
     writeFileSync(full, body)
+  }
+  if (withGeographyChecker) {
+    mkdirSync(join(repo, "scripts"), { recursive: true })
+    copyFileSync(
+      join(ROOT, "scripts/check-fixture-geography.mjs"),
+      join(repo, "scripts/check-fixture-geography.mjs"),
+    )
   }
   if (withSkillChecker) {
     mkdirSync(join(repo, "scripts"), { recursive: true })
@@ -500,6 +513,60 @@ describe("check-skills.mjs — an absent skills directory is not a pass (0137)",
     }
     expect(status, err).toBe(1)
     expect(err).toMatch(/no skills directory/)
+  })
+})
+
+
+/**
+ * Layer 4 — ticket 0168. The layer that guards the one asset in this project that
+ * cannot be rotated after a leak. A credential can be revoked in an afternoon; the
+ * street the operator's runs start on cannot be, and github.com/Oofles/lost-soles is
+ * public. gitleaks does not know what a latitude is.
+ */
+describe("layer 4 — fixture geography", () => {
+  // Times Square: a public landmark, deliberately not anybody's home, and
+  // conclusively not Point Nemo.
+  const REAL = JSON.stringify({ streams: { latlng: { data: [[40.758, -73.9855]] } } })
+  const NEMO = JSON.stringify({ streams: { latlng: { data: [[-48.876, -123.393]] } } })
+  const FIX = "src/adapters/demo/__fixtures__/run.json"
+
+  it("blocks a staged fixture carrying a real location", () => {
+    const r = runHook({ [FIX]: REAL }, { withGeographyChecker: true })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/carries a real location/)
+  })
+
+  it("permits a staged fixture whose coordinates are synthetic", () => {
+    const r = runHook({ [FIX]: NEMO }, { withGeographyChecker: true })
+    expect(r.status, why(r)).toBe(0)
+  })
+
+  it("ignores a real-looking coordinate OUTSIDE a __fixtures__ directory", () => {
+    // The rule is about committed fixtures, not about the number 40.758 appearing
+    // anywhere in the repo. A guard that fires on map-centre constants in app code
+    // is a guard that gets bypassed — the same reasoning as the D-100 grep's two
+    // tiers, which fired on legitimate UI copy the first time real text was written.
+    const r = runHook({ "app/map/center.json": REAL }, { withGeographyChecker: true })
+    expect(r.status, why(r)).toBe(0)
+  })
+
+  it("scans the INDEX, not the worktree — a fixture repaired on disk after staging still blocks", () => {
+    // The failure this closes: `git add` a real track, fix the file on disk, commit.
+    // The worktree is clean and the index is not, and it is the index that becomes
+    // history. `stagedOnly` writes, stages, then removes from the worktree, which is
+    // the same divergence in its most extreme form.
+    const r = runHook({}, { withGeographyChecker: true, stagedOnly: { [FIX]: REAL } })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/carries a real location/)
+  })
+
+  it("FAILS CLOSED when the scanner is missing rather than skipping the fixture", () => {
+    // §7.3's rule, applied a fourth time: a missing scanner is a broken guard, not
+    // an absent one. Without this branch, deleting the script would turn every
+    // fixture commit green.
+    const r = runHook({ [FIX]: REAL }, { withGeographyChecker: false })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/check-fixture-geography\.mjs is missing/)
   })
 })
 

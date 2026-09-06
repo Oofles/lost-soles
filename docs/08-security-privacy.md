@@ -803,10 +803,22 @@ Two of these deserve a note:
 | The GitHub PAT (S5) or the GitHub webhook secret (S6) | SSM. `07-ticketsmith.md` §6.2: *"never in a committed `.env`, never echoed into logs"* |
 | Any AWS access key ID or secret access key (S8) | `~/.aws` — better, **IAM Identity Center SSO, so no long-lived `AKIA…` exists on the laptop at all** (§3, S8) |
 | Any user's Strava tokens (S4) | DynamoDB, never a file |
-| **Real GPS traces, GPX/FIT fixtures from actual runs, or a dump of `ExploredCell`** | S3. Test fixtures are **synthetic coordinates**. A "sample activity" checked in for a unit test is a home address in git history forever (§2.1) — this is the repo-hygiene rule most likely to be broken by someone being helpful |
+| **Real GPS traces, GPX/FIT fixtures from actual runs, or a dump of `ExploredCell`** | S3. Test fixtures are **synthetic coordinates** (D-199). A "sample activity" checked in for a unit test is a home address in git history forever (§2.1) — this is the repo-hygiene rule most likely to be broken by someone being helpful. **`github.com/Oofles/lost-soles` is public**, so "forever" also means cloneable and indexed. Enforced by `scripts/check-fixture-geography.mjs` — see §7.3 layer 4 |
 | A `.env` with anything real in it | `.env.example` with placeholder values, committed; the real one ignored |
 
-### 7.3 Scanning, in two places
+> **This row was broken within the week, exactly as it predicted** (ticket `0168`, 2026-09-05).
+> Ticket `0038` instructed the adapter to capture **real** Strava responses *"redacted of
+> tokens, **not of shape**"* — ~2,700 `latlng` points per fixture — and commit them, reasoning
+> soundly that the ingestion contract §5 wants `normalize()` testable from a checked-in fixture
+> with zero mocking and that after 2026 those responses may not be re-acquirable. Both true.
+> Neither considered that the archive being protected from loss is the same data §2.1 calls the
+> sensitive asset, and that this repo is the one place it must not go.
+>
+> The rule above was not missing when that ticket was written. **It was unenforceable**, and a
+> rule nobody can run is a sentence in a document. That is why §7.3 now has a fourth layer
+> rather than this row having stronger wording.
+
+### 7.3 Scanning, in four places
 
 1. **Pre-commit, on staged content.** A `gitleaks protect --staged` (or `git-secrets`) hook via
    `husky` + `lint-staged`, plus a literal check for `AKIA[0-9A-Z]{16}`, `ghp_`,
@@ -820,6 +832,19 @@ Two of these deserve a note:
    the click on a private one. `07-ticketsmith.md` §6.5 already flags it: the capture endpoint
    commits arbitrary prose from a phone into `tickets/inbox/`, so the repo has a path by which
    text the operator never re-read gets committed automatically.
+4. **Fixture geography** — `scripts/check-fixture-geography.mjs`, on the pre-commit hook, the
+   Actions gate and the Amplify build (D-199, ticket `0168`). **Layers 1–3 cannot see this
+   class at all.** gitleaks, the literal patterns and GitHub push protection all hunt for
+   credential *shapes*; a real GPS track is just numbers and matches none of them. It is also
+   the only asset in this system that **cannot be rotated** after a leak — a client secret is
+   revoked in an afternoon, a home address is not — which is why this layer's primary home is
+   the pre-commit hook, the last point upstream of an irreversible act.
+
+   The check is an **allowlist**: every coordinate in every `__fixtures__` directory must sit
+   within ~5.5 km of Point Nemo. A denylist would have to name where the operator really runs,
+   which is the leak written into the repo in order to prevent the leak. It covers `latlng`
+   streams, `start_latlng`/`end_latlng`, and encoded `polyline`/`summary_polyline` strings,
+   and it fails closed on a coordinate-shaped value it cannot decode.
 
 Pre-commit hooks are bypassable with `--no-verify` and are not a control against a determined
 person. They are not meant to be. They are a control against **a tired person and a wildcard**,

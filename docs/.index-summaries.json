@@ -469,7 +469,7 @@
  "docs/08-security-privacy.md#7. Repo hygiene — and one live finding (O-005)": "The repository is the most likely place a secret in this project actually escapes.",
  "docs/08-security-privacy.md#7.1 `.gitignore` — write it before the first commit, not after the first mistake": "A .gitignore added on day 40 does not protect the first 39 days, and git history is",
  "docs/08-security-privacy.md#7.2 What must never be committed": "",
- "docs/08-security-privacy.md#7.3 Scanning, in two places": "makes an accidental git add .",
+ "docs/08-security-privacy.md#7.3 Scanning, in four places": "makes an accidental git add .",
  "docs/08-security-privacy.md#7.4 O-005 — a live finding, on this machine, right now": "live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission",
  "docs/08-security-privacy.md#7.5 Dependencies": "control, not a convenience.",
  "docs/08-security-privacy.md#8. Incident playbook": "One responder, who is also the person who wrote the bug.",

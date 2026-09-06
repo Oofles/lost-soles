@@ -4,11 +4,11 @@ slug: strava-fixtures-and-rate-limit-backoff
 title: Checked-in real-response fixtures, the fidelity floor, and rate-limit backoff
 type: chore
 priority: high
-status: blocked
+status: open
 size: m
 capability: 05-strava-adapter
 depends_on: [34, 35, 36]
-blocked_by: [168]
+blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 ---
@@ -18,18 +18,29 @@ created: 2026-08-30T00:00:00Z
 Two things the adapter is not trustworthy without: real recorded responses to test against, and
 correct behaviour when Strava says no.
 
-**Fixtures — `src/adapters/strava/__fixtures__/`.** Capture **real** responses (redacted of
-tokens, not of shape) and commit them, because contract §3 makes `normalize()` unit-testable from
-a checked-in fixture **with zero mocking**, and because after 2026 these responses may not be
-re-acquirable. Required set:
+**Fixtures — `src/adapters/strava/__fixtures__/`.** Capture **real** responses and commit them,
+because contract §5 makes `normalize()` unit-testable from a checked-in fixture **with zero
+mocking**, and because after 2026 these responses may not be re-acquirable. Required set:
 
-> **BLOCKED ON `0168` FOR THE `latlng` FIXTURES, added 2026-09-04 while building `0035`.**
-> This repository is **public**. "Redacted of tokens, not of shape" leaves the coordinates in, so
-> committing item 1 or item 7 as captured publishes ~2,700 real GPS points of the operator's runs —
-> the street they start on and the route between — permanently and cloneably. `0168` settles how a
-> `latlng` fixture is transformed before it is committed. **Capture the responses; do not commit a
-> real track until that lands.** The non-`latlng` fixtures (3, 5, 6, 9, 10) and the whole
-> rate-limit half of this ticket are unaffected.
+> **AMENDED 2026-09-06 BY `0168`, WHICH IS NOW CLOSED. The instruction below originally read
+> "redacted of tokens, *not of shape*", and that was wrong.**
+>
+> `github.com/Oofles/lost-soles` is **public**. Leaving the coordinates in publishes ~2,700 real
+> GPS points per fixture — the street the operator starts on, and the route between — permanently
+> and cloneably. `08-security-privacy.md` §7.2 already forbade this in as many words (*"Test
+> fixtures are **synthetic coordinates**"*); nothing enforced it, so this ticket contradicted it
+> in good faith.
+>
+> **The rule is now D-199: real fixtures, synthetic geometry.** Capture the real response. Keep
+> every non-geometric field exactly as it arrived — field set, stream keys, point **count**, 1 Hz
+> cadence, index alignment across streams, `original_size`, the gap and signal-loss structure,
+> the int64 ids. Replace **only** the coordinates, generated along a synthetic path near Point
+> Nemo (`-48.876, -123.393`). The fixture remains a real captured response in every respect the
+> code can observe, which is the whole point of having one.
+>
+> Enforced by `scripts/check-fixture-geography.mjs` on the pre-commit hook, the Actions gate and
+> the Amplify build. A hand-added fixture carrying a real track is blocked before it is committed.
+> Rigid relocate-and-rotate of a real track was **considered and rejected** — see D-199.
 
 1. An outdoor run: detail + streams, **~2,700 `latlng` points**, with `original_size` intact.
 2. A `TrailRun` — proving the `type`/`sport_type` divergence is real, not theoretical.
@@ -101,6 +112,9 @@ with full jitter**. A single global backfill worker with a per-user FIFO is the 
 
 
 **Blocked 2026-09-05 on 0168:** The latlng fixtures cannot be committed to a public repo until 0168 settles how a real track is transformed
+
+**Unblocked 2026-09-06.** `0168` closed with D-199 ("real fixtures, synthetic geometry") and
+`scripts/check-fixture-geography.mjs`. The Description's fixture instruction is amended above.
 
 > **2026-09-04, ticket `0165`.** This ticket's value went up sharply and the reason should be on
 > it. `0032` shipped 76 green tests whose token-response fixtures were copied from

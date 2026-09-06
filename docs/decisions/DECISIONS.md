@@ -1743,3 +1743,52 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     before any sanitizer existed, in a document that in the same section asks for segments. It
     was not a decision that sanitation breaks should be invisible; it was a definition that had
     never met the requirement standing four paragraphs away from it.
+
+- **D-199** **Real fixtures, synthetic geometry: a committed fixture carries the provider's
+  response SHAPE and never its coordinates.** Ticket `0168`. Enforces
+  `08-security-privacy.md` §7.2; amends ticket `0038`. Standing rule for **every** adapter,
+  not a Strava exception.
+  - **The rule was never missing — it was unenforced.** §7.2 already reads *"Real GPS traces,
+    GPX/FIT fixtures from actual runs, or a dump of `ExploredCell`"* must never be committed,
+    and *"Test fixtures are **synthetic coordinates**"*, and it even names how it breaks:
+    *"this is the repo-hygiene rule most likely to be broken by someone being helpful."*
+    Ticket `0038` then instructed precisely that — capture real responses *"redacted of
+    tokens, **not of shape**"*, ~2,700 `latlng` points each — into a public repository. Two
+    documents, one flat contradiction, and nothing that could run. **A rule nobody can execute
+    is a sentence in a document.** `0168` was filed as "08 is missing a line"; it was not.
+    The doc was right and the ticket was wrong, which is the reverse of the usual finding and
+    worth recording as such.
+  - **What "synthetic geometry" means precisely**, because "make up a fixture" is how the
+    project ends up asserting its own design docs back at itself (`0165`: 76 green tests built
+    from `03-integrations.md`'s worked example, while the live service refused every grant).
+    Capture the **real** response. Keep every non-geometric field exactly as it arrived —
+    the field set, the stream keys, the point **count**, the 1 Hz cadence, index alignment
+    across streams, `original_size`, the gap and signal-loss structure, the int64 ids. Replace
+    **only** the coordinates, generated along a synthetic path near Point Nemo. The fixture
+    stays a real captured response in every respect the code can observe.
+  - **Rejected: capture real, then relocate and rotate as a rigid body.** `0168`'s own Notes
+    preferred this and it is the higher-fidelity option — but a rigid transform preserves the
+    **route shape**, and a route shape is matchable against OpenStreetMap. A distinctive loop
+    moved to the South Pacific is still a description of the streets the operator runs on.
+    It also required amending §7.2, and amending a settled security rule to make a ticket
+    easier is the thing the working agreement forbids.
+  - **Point Nemo (`-48.876, -123.393`), and the guard is an ALLOWLIST.** The obvious check —
+    "no coordinate near where the operator runs" — is unwritable: expressing it requires
+    committing where the operator runs, which is the leak, written into the repo in order to
+    prevent the leak. Inverting it costs nothing and fails **closed** on any geometry it has
+    never seen, including an adapter that does not exist yet.
+  - **`scripts/check-fixture-geography.mjs` runs on three surfaces**, and the pre-commit hook
+    is the one that matters: it is the last point upstream of an irreversible act. A leaked
+    credential is revoked in an afternoon; a leaked home address in a public repo's history is
+    permanent, and **gitleaks does not know what a latitude is** — a real GPS track trips none
+    of §7.3's credential patterns, because it is just numbers.
+  - **It covers every coordinate carrier, not the one the first version checked.** The guard
+    began life inside `normalize.test.ts` looking at `streams.latlng.data` alone, so a fixture
+    could have passed it while publishing the operator's front door twice over in
+    `detail.start_latlng` / `end_latlng`, and a third time as an encoded `summary_polyline`.
+    An encoded polyline is not less of a location for being unreadable to a human.
+  - **An undecodable polyline string fails CLOSED**, which caught a real fixture on the check's
+    first run: `run-continuous.json` carried the placeholder `"omitted"`. Not a leak, but
+    nothing in the scanner can prove that, and *"I could not read it"* must never resolve to
+    *"clean"* (D-176). The fixture was given genuine encoded synthetic geometry instead, which
+    also made it a more faithful copy of what Strava actually returns.

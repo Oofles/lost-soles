@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,406 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,525 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 557 sections · regenerated 2026-09-04
+13 documents · 557 sections · regenerated 2026-09-06
 
 
 ## `docs/00-vision.md`
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,493 lines
+**01 — System Architecture** — 1,498 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -79,44 +79,44 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ The CDK escape hatch — where and why | `226-300` | Amplify Gen 2 backends are AWS CDK. |
 | &nbsp;&nbsp;↳ Strava's 2-second deadline — the precise design | `301-339` | Strava requires the subscription POST be acknowledged within 2 seconds or it retries |
 | &nbsp;&nbsp;↳ The 15-minute wall | `340-351` | R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of |
-| 3. The adapter architecture | `352-727` | The rationale is not aesthetic. |
+| 3. The adapter architecture | `352-732` | The rationale is not aesthetic. |
 | &nbsp;&nbsp;↳ Module layout — the boundary is a directory boundary | `374-400` | domain/ ← NO source-specific type may appear anywhere in here. |
-| &nbsp;&nbsp;↳ The domain contract | `401-498` | / Which adapter produced this. |
-| &nbsp;&nbsp;↳ The adapter interface | `499-580` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
-| &nbsp;&nbsp;↳ How each source plugs into the same contract | `581-638` | job from {ownerid, objectid, aspecttype}. |
-| &nbsp;&nbsp;↳ The test that proves the boundary is right | `639-695` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
-| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `696-727` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
-| 4. Data flow — one activity, end to end | `728-834` |  |
-| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `753-786` | D-120 is final and supersedes the provisional D-022. |
-| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `787-819` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
-| &nbsp;&nbsp;↳ Failure handling | `820-834` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `835-1011` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ The fact that drives the whole design | `837-861` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ App Router structure | `862-945` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `946-1000` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `1001-1011` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `1012-1182` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `1014-1031` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `1032-1049` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1050-1112` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1113-1160` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1161-1182` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1183-1288` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1188-1221` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1222-1255` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1256-1273` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1274-1288` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1289-1367` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1320-1335` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1336-1349` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1350-1367` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1368-1419` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1373-1395` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1396-1408` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1409-1419` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1420-1441` |  |
-| 11. Known tensions the decision log creates | `1442-1482` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1483-1493` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ The domain contract | `401-503` | / Which adapter produced this. |
+| &nbsp;&nbsp;↳ The adapter interface | `504-585` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
+| &nbsp;&nbsp;↳ How each source plugs into the same contract | `586-643` | job from {ownerid, objectid, aspecttype}. |
+| &nbsp;&nbsp;↳ The test that proves the boundary is right | `644-700` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
+| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `701-732` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
+| 4. Data flow — one activity, end to end | `733-839` |  |
+| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `758-791` | D-120 is final and supersedes the provisional D-022. |
+| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `792-824` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
+| &nbsp;&nbsp;↳ Failure handling | `825-839` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
+| 5. Frontend architecture | `840-1016` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ The fact that drives the whole design | `842-866` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ App Router structure | `867-950` | layout.tsx root: fonts, theme, <AmplifyProvider> |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `951-1005` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `1006-1016` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1017-1187` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1019-1036` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1037-1054` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1055-1117` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1118-1165` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1166-1187` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1188-1293` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1193-1226` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1227-1260` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1261-1278` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1279-1293` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1294-1372` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress | `1325-1340` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1341-1354` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1355-1372` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1373-1424` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1378-1400` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1401-1413` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1414-1424` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1425-1446` |  |
+| 11. Known tensions the decision log creates | `1447-1487` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1488-1498` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 
@@ -198,7 +198,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/03-integrations.md`
 
-**03 — Integrations & Data Ingestion** — 1,523 lines
+**03 — Integrations & Data Ingestion** — 1,602 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -207,54 +207,54 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 1.2 The adapter interface | `148-177` | interface SourceAdapter { |
 | 1.3 The pipeline every adapter feeds | `178-222` | adapter.fetch() |
 | 2.1 Endpoints used | `223-237` | Nothing else. Club, Segment-Explore, and leaderboard endpoints are out of scope and several |
-| 2.2 OAuth | `238-307` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
-| 2.3 Webhooks | `308-411` | POST https://www.strava.com/api/v3/pushsubscriptions |
-| 2.4 Fetching the trace | `412-484` | GET https://www.strava.com/api/v3/activities/{id}/streams |
-| 2.5 Rate limits and the budget | `485-575` | shared across every athlete who has authorized the app. |
-| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `512-533` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
-| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `534-547` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
-| &nbsp;&nbsp;↳ Backoff and retry | `548-575` | read X-ReadRateLimit-Usage / -Limit |
-| 2.6 Activity type mapping | `576-655` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
-| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `596-622` | the stream response comes back without the key. |
-| &nbsp;&nbsp;↳ Manual Strava activities | `623-628` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
-| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `629-641` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
-| &nbsp;&nbsp;↳ Trace sanitation | `642-655` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
-| 2.7 Idempotency, edits, deletions, and dedupe | `656-726` | same hazard for recent activities. |
-| 2.8 The honest risk register | `727-877` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
-| &nbsp;&nbsp;↳ What is true | `732-763` | "aggregate, cache, or store geographic location information", except per §6.2. |
-| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `764-775` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
-| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `776-798` | This is the part to internalize. |
-| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `799-825` | Review this list quarterly. |
-| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `826-850` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
-| &nbsp;&nbsp;↳ The counterfactual, recorded once | `851-877` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
-| 3.1 Rules | `878-892` | with them. A parser bug must never cost data; it must only cost a replay. |
-| 3.2 Bucket and layout | `893-957` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
-| 3.3 Format and encoding | `958-968` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
-| 3.4 Lifecycle, cost, and durability | `969-987` | below, so a future convenience change cannot quietly add one. |
-| 3.5 Backfilling a future adapter from the archive | `988-1054` | This is the procedure §6 depends on, so it is specified here rather than described. |
-| 4.1 Health Connect bridge (D-113) | `1055-1162` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
-| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1065-1094` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
-| &nbsp;&nbsp;↳ Data shape | `1095-1111` | ExerciseRoute.Location( |
-| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1112-1141` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
-| &nbsp;&nbsp;↳ Bridge sketch | `1142-1162` | [Screen: one button, one status line] |
-| 4.2 GPSLogger HTTP endpoint (D-112) | `1163-1245` | — so no Play review, no Play policy exposure). |
-| &nbsp;&nbsp;↳ Endpoint spec | `1172-1210` | POST https://lostsoles.devaultsecurity.com/api/ingest |
-| &nbsp;&nbsp;↳ GPX parsing | `1211-1219` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
-| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1220-1245` | Each session is one activity, cleanly. |
-| 4.3 Manual entry | `1246-1277` | Two distinct paths, one UI. |
-| 4.4 Watch vendor (D-117) — sketch only | `1278-1316` | device decision is no longer blocking and can be made later without touching the rest of the |
-| Whoop — REJECTED as a trace source | `1317-1333` | all, so there is nothing to expose. |
-| Fitbit / Google Health API — REJECTED | `1334-1343` | be building on something already gone. |
-| Apple Health — REJECTED (structural, not a preference) | `1344-1351` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
-| Health Connect as a *native* dependency — SCOPED, not rejected | `1352-1358` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
-| PWA run recording — REJECTED (D-110) | `1359-1370` | The user's instinct that "it needs to be an Android app" was correct. |
-| Share-sheet GPX import — REJECTED (D-111) | `1371-1391` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
-| 6.1 Trigger | `1392-1401` | Any row in §2.8's trigger table. |
-| 6.2 Steps | `1402-1439` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
-| 6.3 What changes, and what does not | `1440-1471` |  |
-| 6.4 How the archive backfills history | `1472-1499` | function and the transport is a separate file. |
-| 6.5 Do not delete the archive | `1500-1510` | Even after migration, source=strava objects in the raw archive are the only copy of some |
-| Appendix — decision references used | `1511-1523` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
+| 2.2 OAuth | `238-338` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
+| 2.3 Webhooks | `339-442` | POST https://www.strava.com/api/v3/pushsubscriptions |
+| 2.4 Fetching the trace | `443-515` | GET https://www.strava.com/api/v3/activities/{id}/streams |
+| 2.5 Rate limits and the budget | `516-606` | shared across every athlete who has authorized the app. |
+| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `543-564` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
+| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `565-578` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
+| &nbsp;&nbsp;↳ Backoff and retry | `579-606` | read X-ReadRateLimit-Usage / -Limit |
+| 2.6 Activity type mapping | `607-716` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
+| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `627-653` | the stream response comes back without the key. |
+| &nbsp;&nbsp;↳ Manual Strava activities | `654-659` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
+| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `660-672` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
+| &nbsp;&nbsp;↳ Trace sanitation | `673-716` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
+| 2.7 Idempotency, edits, deletions, and dedupe | `717-787` | same hazard for recent activities. |
+| 2.8 The honest risk register | `788-938` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
+| &nbsp;&nbsp;↳ What is true | `793-824` | "aggregate, cache, or store geographic location information", except per §6.2. |
+| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `825-836` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
+| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `837-859` | This is the part to internalize. |
+| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `860-886` | Review this list quarterly. |
+| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `887-911` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
+| &nbsp;&nbsp;↳ The counterfactual, recorded once | `912-938` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
+| 3.1 Rules | `939-953` | with them. A parser bug must never cost data; it must only cost a replay. |
+| 3.2 Bucket and layout | `954-1036` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
+| 3.3 Format and encoding | `1037-1047` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
+| 3.4 Lifecycle, cost, and durability | `1048-1066` | below, so a future convenience change cannot quietly add one. |
+| 3.5 Backfilling a future adapter from the archive | `1067-1133` | This is the procedure §6 depends on, so it is specified here rather than described. |
+| 4.1 Health Connect bridge (D-113) | `1134-1241` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
+| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1144-1173` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
+| &nbsp;&nbsp;↳ Data shape | `1174-1190` | ExerciseRoute.Location( |
+| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1191-1220` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
+| &nbsp;&nbsp;↳ Bridge sketch | `1221-1241` | [Screen: one button, one status line] |
+| 4.2 GPSLogger HTTP endpoint (D-112) | `1242-1324` | — so no Play review, no Play policy exposure). |
+| &nbsp;&nbsp;↳ Endpoint spec | `1251-1289` | POST https://lostsoles.devaultsecurity.com/api/ingest |
+| &nbsp;&nbsp;↳ GPX parsing | `1290-1298` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
+| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1299-1324` | Each session is one activity, cleanly. |
+| 4.3 Manual entry | `1325-1356` | Two distinct paths, one UI. |
+| 4.4 Watch vendor (D-117) — sketch only | `1357-1395` | device decision is no longer blocking and can be made later without touching the rest of the |
+| Whoop — REJECTED as a trace source | `1396-1412` | all, so there is nothing to expose. |
+| Fitbit / Google Health API — REJECTED | `1413-1422` | be building on something already gone. |
+| Apple Health — REJECTED (structural, not a preference) | `1423-1430` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
+| Health Connect as a *native* dependency — SCOPED, not rejected | `1431-1437` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
+| PWA run recording — REJECTED (D-110) | `1438-1449` | The user's instinct that "it needs to be an Android app" was correct. |
+| Share-sheet GPX import — REJECTED (D-111) | `1450-1470` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
+| 6.1 Trigger | `1471-1480` | Any row in §2.8's trigger table. |
+| 6.2 Steps | `1481-1518` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
+| 6.3 What changes, and what does not | `1519-1550` |  |
+| 6.4 How the archive backfills history | `1551-1578` | function and the transport is a separate file. |
+| 6.5 Do not delete the archive | `1579-1589` | Even after migration, source=strava objects in the raw archive are the only copy of some |
+| Appendix — decision references used | `1590-1602` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
 
 ## `docs/04-game-design.md`
 
@@ -508,7 +508,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,055 lines
+**08 — Security & Privacy** — 1,080 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -543,18 +543,18 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `660-697` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
 | &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `698-735` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
 | &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `736-748` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `749-903` | The repository is the most likely place a secret in this project actually escapes. |
+| 7. Repo hygiene — and one live finding (O-005) | `749-928` | The repository is the most likely place a secret in this project actually escapes. |
 | &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `756-797` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `798-808` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in two places | `809-827` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `828-886` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `887-903` | control, not a convenience. |
-| 8. Incident playbook | `904-1018` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `922-947` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `948-965` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `966-991` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `992-1018` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1019-1055` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `798-820` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `821-852` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `853-911` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `912-928` | control, not a convenience. |
+| 8. Incident playbook | `929-1043` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `947-972` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `973-990` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `991-1016` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1017-1043` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1044-1080` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 
@@ -652,12 +652,12 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/contracts/ingestion-contract.md`
 
-**CANONICAL — Ingestion Contract** — 270 lines
+**CANONICAL — Ingestion Contract** — 280 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | 1. The eight conflicts and how they were settled | `13-27` |  |
-| 2. `src/domain/activity.ts` — the contract | `28-145` | / Known sources, widened so adding one never edits the domain (D-100). |
-| 3. `src/adapters/types.ts` — the adapter interface | `146-227` | export interface SourceAdapter<TCreds = unknown> { |
-| 4. The pipeline | `228-241` | accept() → ack the source in <2s, enqueue |
-| 5. CI checks that prove the boundary holds (D-100) | `242-270` | source-side decimation (the summarypolyline failure mode) before it permanently |
+| 2. `src/domain/activity.ts` — the contract | `28-155` | / Known sources, widened so adding one never edits the domain (D-100). |
+| 3. `src/adapters/types.ts` — the adapter interface | `156-237` | export interface SourceAdapter<TCreds = unknown> { |
+| 4. The pipeline | `238-251` | accept() → ack the source in <2s, enqueue |
+| 5. CI checks that prove the boundary holds (D-100) | `252-280` | source-side decimation (the summarypolyline failure mode) before it permanently |

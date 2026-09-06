@@ -180,6 +180,37 @@ if [ "$skill_staged" -eq 1 ]; then
   fi
 fi
 
+# ── 4. fixture geography ───────────────────────────────────────────────────
+# docs/08-security-privacy.md §7.2, D-199, ticket 0168. THIS is the layer that
+# matters most in this file, because it is the last one upstream of an
+# irreversible act: github.com/Oofles/lost-soles is public, and a blob that has
+# been cloned cannot be recalled. gitleaks does not know what a latitude is, and
+# a real GPS track trips none of layer 2's patterns — it is just numbers.
+#
+# The gate is PURE BASH for the reason spelled out at layer 3: a two-process
+# pipeline can answer "no fixture staged" for reasons that have nothing to do
+# with the string, and every one of those is "I never ran" wearing "I ran and
+# found nothing".
+fixtures_staged=""
+while IFS= read -r f; do
+  case "$f" in *__fixtures__/*) fixtures_staged="${fixtures_staged} ${f}" ;; esac
+done <<< "$staged"
+
+if [ -n "$fixtures_staged" ]; then
+  if [ ! -f scripts/check-fixture-geography.mjs ]; then
+    # A missing scanner is a broken guard, not an absent one — §7.3, and the same
+    # reasoning as the missing-gitleaks branch at layer 1.
+    fail "a fixture is staged but scripts/check-fixture-geography.mjs is missing,
+  so its coordinates were never checked. This repo is public and a committed
+  real GPS track cannot be un-published. Nothing has been committed."
+  fi
+  # shellcheck disable=SC2086  # word splitting is the intent: one argument per path
+  if ! node scripts/check-fixture-geography.mjs --staged $fixtures_staged; then
+    fail "a staged fixture carries a real location (above).
+  Nothing has been committed."
+  fi
+fi
+
 # The ONLY exit 0 in this file that is not inside an explicit if-block, and it is
 # the last line. scripts/pre-commit-hook.test.mjs asserts that stays true.
 exit 0

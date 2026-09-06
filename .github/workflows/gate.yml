@@ -90,6 +90,19 @@ jobs:
       - name: design tokens — no raw colour outside app/tokens.css
         run: node scripts/check-design-tokens.mjs
 
+      # 08 §7.2 / D-199 (ticket 0168). This repo is PUBLIC, and the operator's
+      # traces are the sensitive asset the whole of 08 §2 is about. §7.2 always
+      # said "test fixtures are synthetic coordinates"; nothing enforced it, and
+      # ticket 0038 went on to instruct the opposite in good faith. The check is
+      # an ALLOWLIST — every committed coordinate must sit in one box in the
+      # South Pacific — because a denylist would have to name where the operator
+      # really runs, which is the leak written down to prevent the leak.
+      - name: fixture geography check self-test
+        run: node scripts/check-fixture-geography.mjs --self-test
+
+      - name: no committed fixture carries a real location
+        run: node scripts/check-fixture-geography.mjs
+
       # 0125. The suite that exercises .githooks/pre-commit rides in `npm test`
       # above, so it runs on both CI surfaces. This is the separate, cheaper
       # assertion the ticket asks for: a syntax check that holds even if vitest
