@@ -693,6 +693,11 @@ A run through a tunnel or an urban canyon produces `latlng` points that jump hun
 **Filter on implausible point-to-point speed before projecting to H3.** One bad fix paints a
 revealed corridor across the city, and D-020 makes it permanent.
 
+- **Choose the anchor before applying the gate.** "The previous accepted point" has to start
+  somewhere, and the first fix has nothing behind it to corroborate it. A fix earns the anchor
+  by surviving one plausible step: if `p0 -> p1` is plausible, start at `p0`; if it is not but
+  `p1 -> p2` is, then `p0` was the outlier — discard it and start at `p1`; if neither step is
+  plausible, start at `p0` and let the gate work. See D-201.
 - Reject a point whose implied speed from the previous accepted point exceeds the gate **for
   that `ActivityKind`** — ~12.5 m/s for a run, walk or hike (45 km/h, just above the 100 m
   world-record peak of ~12.4 m/s and far below GPS jump magnitudes), ~30 m/s for a ride. Drop
@@ -715,6 +720,19 @@ revealed corridor across the city, and D-020 makes it permanent.
 >    manufacturing exactly the "dotted corridor" §9.5 warns about. 12.5 splits the observed
 >    data along the line this section's own reasoning appeals to: it admits all five plausible
 >    human bursts and still rejects the 13 m/s fix, which is past the world record.
+> **AMENDED AGAIN 2026-09-06 by D-201 (ticket `0172`), adding the anchor rule above.** This
+> section specified the filter and never said where it starts, and the literal reading —
+> accept the first fix, because there is nothing to compare it against — makes a cold-start
+> fix into an anchor that rejects the real track behind it. A GPS fix hundreds of metres out
+> is the ordinary behaviour of a watch that has been indoors, so the case is the *first run
+> after a break*, not an exotic one. The damage scales with how wrong the fix is: a 400 m
+> error at a 12.5 m/s gate rejects the first ~32 seconds of a trace, and takes the whole
+> trace when the trace is shorter than that.
+>
+> Note the general shape, because the next adapter inherits it: **every "compare against the
+> previous accepted value" filter has this weakness at its boundary.** Fixed in
+> `sanitize.ts`, which D-112 and D-113 will share, rather than per adapter.
+
 > 2. **The gate is per-kind, not a single number.** This section gave one, "for a run",
 >    and said nothing about any other kind — but `rules/xp-rules-v1.yaml` has two enabled rows
 >    matching `kinds: [ride]`, so rides are ingested and earn XP, and a cyclist holds 8 m/s

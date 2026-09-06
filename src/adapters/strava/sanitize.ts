@@ -103,6 +103,77 @@ export interface SanitizedTrace {
 }
 
 /**
+ * How many fixes ahead the anchor decision may look. ONE.
+ *
+ * Named rather than inlined because it is the single tunable in `chooseAnchor` and it
+ * deserves the same visibility as the gate it sits beside — but note that raising it is
+ * not free. A deeper lookahead buys robustness against several consecutive bad fixes and
+ * pays for it by being able to discard a genuine start: a trace that legitimately begins
+ * with a sprint out of a doorway looks, from far enough away, like a lead-in of noise.
+ * Depth 1 can only ever discard the FIRST fix, which bounds the damage of being wrong at
+ * exactly one point — the same fix the unpatched algorithm would have kept and built an
+ * entire wrong trace on.
+ */
+export const ANCHOR_CORROBORATION_LOOKAHEAD = 1
+
+/**
+ * WHERE THE TRACE ACTUALLY STARTS — the index of the first fix to trust as an anchor.
+ *
+ * The problem, precisely. The gate asks "is the step from the last accepted fix to this one
+ * plausible?", which assumes the last accepted fix is real. At index 0 that assumption has
+ * no evidence behind it: `p0` is accepted because it is first, not because anything
+ * corroborated it. A cold GPS fix hundreds of metres out — the ordinary behaviour of a
+ * watch that has been indoors, so this is the FIRST run after a break, not an exotic case —
+ * therefore becomes an anchor that rejects the real track behind it.
+ *
+ * THE RULE: a fix earns the anchor by being corroborated, and one plausible step is
+ * corroboration. So look at the first two steps and let them vote.
+ *
+ *   p0 -> p1 plausible                    p0 is corroborated. Start at 0. The clean case,
+ *                                         and the overwhelmingly common one — this is the
+ *                                         only branch a normal trace ever takes.
+ *   p0 -> p1 implausible, p1 -> p2 fine   p1 is corroborated and p0 is not. p0 is the
+ *                                         outlier. Start at 1, counting p0 as rejected.
+ *   both implausible                      Nothing is corroborated and the evidence does not
+ *                                         name a culprit. Fall back to §2.2 as written:
+ *                                         start at 0 and let the gate work. Guessing here
+ *                                         would trade a known behaviour for an arbitrary
+ *                                         one.
+ *
+ * WHY NOT THE ALTERNATIVES (`0172`'s Notes). "Re-anchor after N consecutive rejections"
+ * needs a magic N and would also re-anchor inside a genuine long tunnel, which is the one
+ * place the trace must NOT be stitched back together. "Median of the first k fixes" is more
+ * robust and can move the recorded start of the run, which is a worse failure than the one
+ * it fixes — the start point is where the operator's front door is.
+ *
+ * WHAT THIS DOES NOT DO, deliberately: it never runs anywhere but the start. Past index 0
+ * the anchor has been corroborated by at least one accepted transition, so the gate's
+ * assumption holds and there is nothing to repair.
+ */
+export function chooseAnchor(points: readonly GeoPoint[], gate: number): number {
+  // Two points cannot corroborate anything — there is no second step to consult.
+  if (points.length < 2 + ANCHOR_CORROBORATION_LOOKAHEAD) return 0
+  if (impliedSpeed(points[0], points[1]) <= gate) return 0
+  if (impliedSpeed(points[1], points[2]) <= gate) return 1
+  return 0
+}
+
+/**
+ * Metres per second between two fixes.
+ *
+ * A non-positive interval is not a speed. Two fixes sharing a timestamp are a duplicate if
+ * they are in the same place and a teleport if they are not, and dividing by zero would
+ * silently make the second one `Infinity` either way — so the two cases are separated here
+ * rather than left to IEEE-754.
+ */
+function impliedSpeed(from: GeoPoint, to: GeoPoint): number {
+  const seconds = (to.t - from.t) / 1000
+  const metres = metresBetween(from, to)
+  if (seconds > 0) return metres / seconds
+  return metres > 0 ? Infinity : 0
+}
+
+/**
  * Drop implausible fixes and mark where the trace broke.
  *
  * §2.2's algorithm, transcribed: *"Reject a point whose implied speed from the previous
@@ -115,17 +186,18 @@ export interface SanitizedTrace {
  * draw reads `breaks` and ignores the rest. Returning arrays-of-arrays would have made the
  * common case — "is there a break between these two points?" — the awkward one.
  *
- * ─── THE KNOWN WEAKNESS, STATED RATHER THAN HIDDEN ──────────────────────────
+ * ─── THE BOUNDARY CASE §2.2 DOES NOT COVER, FIXED IN 0172 ───────────────────
  *
- * "From the previous **accepted** point" anchors on whatever was kept last, and the first
- * fix is always accepted because there is nothing to compare it against. So a cold-start
- * fix that is 400 m wrong becomes the anchor, and every genuine fix afterwards looks
- * impossible relative to it — the whole trace is rejected.
+ * "From the previous **accepted** point" has to start somewhere, and §2.2 is silent on
+ * where. `0037` implemented the literal reading — accept the first fix unconditionally,
+ * because there is nothing to compare it against — and recorded the consequence rather
+ * than quietly improving it: a cold-start fix that is 400 m wrong becomes the anchor, and
+ * every genuine fix afterwards looks impossible relative to it.
  *
- * That is §2.2's algorithm as specified, and it is implemented as specified rather than
- * quietly improved. What makes it survivable is `rejected` being carried on the activity
- * (criterion 16): a trace that lost 98% of its fixes is loudly visible rather than silently
- * empty. Filed as `0172`.
+ * See `chooseAnchor` below for the fix. The general shape is worth naming: EVERY
+ * "compare against the previous accepted value" filter has this weakness at its boundary,
+ * so the next adapter to land (D-112 GPSLogger, D-113 Health Connect) inherits it if it
+ * shares this file — which is the argument for fixing it here rather than per adapter.
  */
 export function sanitizeTracePoints(
   points: readonly GeoPoint[],
@@ -133,30 +205,33 @@ export function sanitizeTracePoints(
 ): SanitizedTrace {
   const gate = MAX_IMPLIED_SPEED_MS[kind] ?? MAX_IMPLIED_SPEED_MS.other
 
+  /**
+   * The lead-in the anchor decision discarded — 0 in every ordinary trace, 1 when the
+   * first fix was an uncorroborated outlier. Counted as rejected, because it was: it is a
+   * fix that arrived and is not in the output.
+   *
+   * No `break` is recorded for it. `breaks` marks ground a corridor must not be drawn
+   * ACROSS (D-198), and there is nothing on the near side of the first accepted fix to
+   * draw from — the same reasoning that leaves a run of rejections at the very end of a
+   * trace unmarked.
+   */
+  const start = chooseAnchor(points, gate)
+
   const kept: GeoPoint[] = []
   const breaks: Array<[number, number]> = []
-  let rejected = 0
+  let rejected = start
   let brokeSinceLastAccepted = false
 
-  for (const point of points) {
+  for (let i = start; i < points.length; i++) {
+    const point = points[i]
     if (kept.length === 0) {
       kept.push(point)
       continue
     }
 
     const previous = kept[kept.length - 1]
-    const seconds = (point.t - previous.t) / 1000
-    const metres = metresBetween(previous, point)
 
-    /**
-     * A non-positive interval is not a speed. Two fixes sharing a timestamp are a
-     * duplicate if they are in the same place and a teleport if they are not, and
-     * dividing by zero would silently make the second one `Infinity` either way — so the
-     * two cases are separated here rather than left to IEEE-754.
-     */
-    const impliedSpeed = seconds > 0 ? metres / seconds : metres > 0 ? Infinity : 0
-
-    if (impliedSpeed > gate) {
+    if (impliedSpeed(previous, point) > gate) {
       rejected++
       brokeSinceLastAccepted = true
       continue

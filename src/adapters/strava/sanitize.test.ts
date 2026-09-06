@@ -200,22 +200,85 @@ describe("degenerate input", () => {
   })
 
   /**
-   * THE KNOWN WEAKNESS, ASSERTED RATHER THAN HIDDEN — filed as `0172`.
+   * THE REGRESSION TEST FOR `0172`, and it is the same case inverted.
    *
-   * §2.2 anchors on "the previous ACCEPTED point", and the first fix is always accepted
-   * because there is nothing to compare it against. A cold-start fix 400 m off therefore
-   * becomes the anchor and rejects the entire real trace behind it.
+   * Until 0172 this asserted the opposite — `points` of length 1 and `rejected` of 9 —
+   * because §2.2 anchors on "the previous ACCEPTED point" and the first fix is always
+   * accepted, having nothing to compare it against. A cold-start fix 400 m off therefore
+   * became the anchor and rejected the real trace behind it. `0037` implemented that
+   * literally and recorded the consequence here rather than quietly improving it, which is
+   * why this test already existed to be inverted.
    *
-   * This test exists so the behaviour is a recorded, testable fact rather than a surprise
-   * on a run that quietly loses its map. The mitigation that ships today is `rejected`
-   * being carried on the activity, which makes it loud.
+   * One bad fix now costs one fix.
    */
-  it("loses the whole trace to a bad FIRST fix, which is why rejected is reported", () => {
+  it("drops a bad FIRST fix and keeps the real track behind it", () => {
     const points = track(10, 3)
     points[0] = { ...points[0], lat: points[0].lat + 400 / 111_320 }
 
     const out = sanitizeTracePoints(points, "run")
-    expect(out.points).toHaveLength(1)
-    expect(out.rejected).toBe(9)
+    expect(out.points).toHaveLength(9)
+    expect(out.rejected).toBe(1)
+    // The survivor is the REAL track, not the outlier. Under the old behaviour the single
+    // kept point was the bad fix itself — the wrong one of the ten.
+    expect(out.points).toEqual(points.slice(1))
+  })
+
+  it("records no break for a discarded lead-in fix", () => {
+    // `breaks` marks ground a corridor must not be drawn ACROSS (D-198). Nothing precedes
+    // the first accepted fix, so there is nothing to draw from and nothing to mark.
+    const points = track(10, 3)
+    points[0] = { ...points[0], lat: points[0].lat + 400 / 111_320 }
+    expect(sanitizeTracePoints(points, "run").breaks).toEqual([])
+  })
+
+  it("keeps §2.2's behaviour when NOTHING is corroborated", () => {
+    // Both of the first two steps implausible: the evidence does not name a culprit, so
+    // the fix declines to guess and falls back to the algorithm as specified.
+    const points = track(6, 3)
+    points[0] = { ...points[0], lat: points[0].lat + 400 / 111_320 }
+    points[1] = { ...points[1], lat: points[1].lat + 800 / 111_320 }
+
+    const out = sanitizeTracePoints(points, "run")
+    expect(out.points[0]).toEqual(points[0])
+  })
+
+  it("does not fire on a trace too short to corroborate anything", () => {
+    const two = track(2, 3)
+    two[0] = { ...two[0], lat: two[0].lat + 400 / 111_320 }
+    // Two fixes offer no second step to consult. Unchanged from §2.2: keep the first.
+    expect(sanitizeTracePoints(two, "run").points).toEqual([two[0]])
+  })
+
+  it("leaves a clean trace completely untouched", () => {
+    const clean = track(20, 1)
+    const out = sanitizeTracePoints(clean, "run")
+    expect(out.points).toEqual(clean)
+    expect(out.rejected).toBe(0)
+    expect(out.breaks).toEqual([])
+  })
+
+  /**
+   * THE REAL COLD-START FIX FROM THE OPERATOR'S OWN HISTORY.
+   *
+   * Activity `19831578054`, 2026-08-21: `p0 -> p1` is 12.7 m in 1 s — 12.7 m/s, just over
+   * the 12.5 gate — and `p1 -> p2` is 3.0 m/s. Found by sweeping 53 activities' streams
+   * while building 0038, and it is the ONLY bad first fix in six years of data.
+   *
+   * Worth being precise about what it does and does not prove. It is a marginal fix, not
+   * the 400 m cold start this ticket describes: either reading costs exactly one point, so
+   * the fix is not what rescues this trace. What it demonstrates is that the corroboration
+   * branch fires on real data at all, and that it picks the fix the rest of the trace
+   * disagrees with rather than the one that happened to arrive first.
+   */
+  it("picks the corroborated fix on the one real cold start in the operator's history", () => {
+    const observed: GeoPoint[] = [
+      { lat: 0, lng: 0, t: START },
+      { lat: 12.7 / 111_320, lng: 0, t: START + 1000 },
+      { lat: (12.7 + 3.0) / 111_320, lng: 0, t: START + 2000 },
+      { lat: (12.7 + 3.0 + 6.1) / 111_320, lng: 0, t: START + 3000 },
+    ]
+    const out = sanitizeTracePoints(observed, "run")
+    expect(out.points).toEqual(observed.slice(1))
+    expect(out.rejected).toBe(1)
   })
 })

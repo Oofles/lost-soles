@@ -1837,3 +1837,43 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     and nothing downstream ever did. The flag keeps its job for a trace that is decimated
     but still dense enough to draw; below the floor, refusing is the only safe answer.
     `normalize.test.ts` now asserts both halves against two separate fixtures.
+
+- **D-201** **A fix earns the sanitation anchor by being corroborated: one plausible step.**
+  Ticket `0172`. Amends `03-integrations.md` §2.2.
+  - **§2.2 specified the filter and never said where it starts.** "Reject a point whose
+    implied speed from the previous **accepted** point exceeds the gate" presumes the last
+    accepted point is real, and at index 0 that presumption has no evidence behind it —
+    `p0` is accepted because it is first, not because anything corroborated it. `0037`
+    implemented the literal reading and recorded the consequence in a test rather than
+    quietly improving it, which is why there was an assertion to invert here.
+  - **The rule.** `p0 -> p1` plausible → start at `p0` (the ordinary trace; the only branch
+    a clean stream ever takes). Implausible, but `p1 -> p2` plausible → `p1` is corroborated
+    and `p0` is not, so `p0` is the outlier: discard it and start at `p1`. Neither plausible
+    → nothing is corroborated and the evidence does not name a culprit, so fall back to §2.2
+    as written. **Guessing in the third branch would trade a known behaviour for an
+    arbitrary one.**
+  - **Lookahead depth 1, and raising it is not free.** A deeper lookahead buys robustness
+    against several consecutive bad fixes and pays by being able to discard a genuine start
+    — a run that legitimately begins with a sprint out of a doorway looks, from far enough
+    away, like a lead-in of noise. Depth 1 can discard at most the FIRST fix, bounding the
+    cost of being wrong at exactly one point: the same fix the unpatched algorithm would
+    have kept and built a whole wrong trace on.
+  - **Rejected: re-anchor after N consecutive rejections.** Needs a magic N, and would
+    re-anchor inside a genuine long tunnel — the one place the trace must *not* be stitched
+    back together, because a corridor drawn across a dropout reveals ground that may not
+    have been run.
+  - **Rejected: median of the first k fixes.** More robust, and it can **move the recorded
+    start of the run** — which is a worse failure than the one it fixes, since the start
+    point is where the operator's front door is.
+  - **The damage it repairs, measured rather than asserted.** A 400 m cold fix against a
+    12.5 m/s gate rejects the first ~32 seconds of a trace (400 / 12.5), and takes the
+    *entire* trace when the trace is shorter than that — the ticket's 10-point reproduction
+    is the short case. Sweeping 53 real activities found exactly **one** bad first fix in
+    six years (`19831578054`: 12.7 m/s at index 1), and it is marginal rather than a 400 m
+    cold start, so the severe case is real but has not yet occurred on this account.
+  - **Fixed in `sanitize.ts`, not per adapter.** Every "compare against the previous
+    accepted value" filter has this weakness at its boundary, so D-112 (GPSLogger) and
+    D-113 (Health Connect) inherit it the moment they share this file.
+  - **No `break` is recorded for a discarded lead-in.** `breaks` marks ground a corridor
+    must not be drawn ACROSS (D-198), and nothing precedes the first accepted fix — the
+    same reasoning that leaves a run of rejections at the very end of a trace unmarked.

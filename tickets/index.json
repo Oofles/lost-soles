@@ -3928,17 +3928,18 @@
     "title": "A bad first GPS fix anchors the sanitizer and rejects the entire trace behind it",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "05-strava-adapter",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-06T00:45:43Z",
-    "path": "tickets/open/0172-a-bad-first-gps-fix-anchors-the-sanitizer-and-rejects-the-en.md",
-    "ready": true,
+    "closed": "2026-09-06T04:44:08Z",
+    "path": "tickets/closed/0172-a-bad-first-gps-fix-anchors-the-sanitizer-and-rejects-the-en.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
