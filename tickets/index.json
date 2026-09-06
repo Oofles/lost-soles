@@ -967,7 +967,7 @@
     "title": "pipeline/persist.ts — write the Activity row inside the ingest transaction",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "06-ingest-pipeline",
     "depends_on": [
@@ -977,10 +977,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0041-persist-activity-row.md",
-    "ready": true,
+    "started": "2026-09-06T18:38:13Z",
+    "closed": "2026-09-06T19:00:42Z",
+    "path": "tickets/closed/0041-persist-activity-row.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -1002,7 +1004,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0042-process-activity-lambda-and-queue.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
