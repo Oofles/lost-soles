@@ -1,0 +1,7 @@
+{
+	"schemaVersion": 1,
+  "source": "acme-tracker",
+	"detail": {"id": 18736594040123457, "name": "Abendlauf \u2014 K\u00f6ln", "sport_type": "Run",
+"distance":3310.4,   "elapsed_time": 1380},
+  "streams": null
+}

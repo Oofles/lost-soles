@@ -41,6 +41,16 @@ import { parseWithExactIds } from "./json-ids"
 /** Bumped only if the envelope's own shape changes. Never for a change in Strava's. */
 const SCHEMA_VERSION = 1
 
+/**
+ * What `fetchRaw` declares to the archive as this object's shape (ticket 0039).
+ *
+ * DERIVED FROM `SCHEMA_VERSION`, not written out again, because the whole value of the
+ * hint is that it tells a future backfill which reader to use — and a hint that says
+ * `@1` over bytes sealed by a version-2 envelope is worse than no hint at all. Deriving
+ * it makes the two structurally incapable of disagreeing.
+ */
+export const RAW_ENVELOPE_SCHEMA_HINT = `strava/raw-envelope@${SCHEMA_VERSION}`
+
 const PREFIX = Buffer.from(`{"schemaVersion":${SCHEMA_VERSION},"source":"strava","detail":`)
 const MIDDLE = Buffer.from(`,"streams":`)
 const SUFFIX = Buffer.from("}")

@@ -731,9 +731,19 @@ Rules:
   field-stripping, no re-encoding. The `sha256` in the key makes the object
   content-addressed and the write naturally idempotent.
 - **Immutable.** S3 Object Lock is unnecessary at this scale, but the bucket policy denies
-  `DeleteObject` on `raw/*` to every principal except an explicit break-glass role, and
-  versioning is on. D-101 makes these the system of record; anything API-sourced is
-  reproducible or replaceable, never the only copy.
+  `DeleteObject` **and `DeleteObjectVersion`** on `raw/*` to every principal except an explicit
+  break-glass role, and versioning is on. D-101 makes these the system of record; anything
+  API-sourced is reproducible or replaceable, never the only copy.
+
+  > **Amended 2026-09-06 by D-205** (ticket `0039`, the first ticket to build this). Two
+  > corrections to the sentence above. **`DeleteObjectVersion` was missing**, and on a versioned
+  > bucket it is the action that actually destroys bytes — denying only `DeleteObject` stops the
+  > delete *marker* and leaves versioning decorative. And the **break-glass role now exists**:
+  > `LostSolesArchiveDeletion`, trusted by the account root, holding deletion on `raw/*` and
+  > nothing else. Until this ticket the sentence excepted a role that had never been created, so
+  > it was unenforceable as written. I-3's "overwrite" is met by versioning plus the version-delete
+  > deny rather than by a policy refusing writes — no IAM condition can distinguish an overwrite
+  > from a first write. See D-205.
 - **Self-describing.** Object metadata carries `adapter`, `externalId`, `userId`,
   `schemaHint`, and the app version, so a backfill five years from now can identify what it
   is looking at without a database.

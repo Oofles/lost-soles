@@ -1958,3 +1958,63 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **What this decision does NOT do.** It changes no code and supersedes no settled decision. It
     is the `design-was-wrong` half of D-153's rule — *if the code diverged from the design, either
     the code changes or the doc changes, never neither* — applied twice to the same document.
+
+- **D-204** **`fetchRaw` returns a `schemaHint` alongside `contentType` and `ext`, and all three
+  are declared by the adapter rather than inferred from the bytes.** Ticket `0039`, 2026-09-06.
+  - **The gap.** `01-architecture.md` §3 has always required archived object metadata to carry
+    `adapter`, `externalId`, `userId`, **`schemaHint`** and the app version, so that "a backfill
+    five years from now can identify what it is looking at without a database". `schemaHint`
+    existed in that sentence and nowhere else — not in `contracts/ingestion-contract.md` §3, not
+    in `src/adapters/types.ts`, not in the Strava adapter. The first ticket that had to write the
+    metadata is the first ticket that noticed.
+  - **On the return, not on the adapter.** `readonly schemaHint` beside `readonly id` was the
+    smaller change and is wrong: an adapter may archive more than one payload shape. A file-upload
+    source (D-101, the Strava bulk export path) archives a GPX for one job and a FIT for the next,
+    and a single static field would have to lie about one of them — in the metadata that exists
+    precisely to stop a future reader from guessing.
+  - **It names the ARCHIVE's shape, not the vendor's.** `"strava/raw-envelope@1"` describes the
+    envelope `raw-envelope.ts` seals — two responses concatenated inside a wrapper this repo
+    invented (ticket `0035`) — not Strava's API version. A change in what the adapter archives
+    bumps it; a change in what Strava returns does not. It is derived from the envelope's own
+    `SCHEMA_VERSION` so the two cannot drift, because a hint reading `@1` over version-2 bytes is
+    worse than no hint at all.
+  - **Declared, never sniffed, and that is the load-bearing half.** The archive must not look at
+    the bytes for any reason (§3.1 rule 2). Content-type sniffing is the plausible convenience
+    that breaks it, and the case where sniffing and declaring disagree is exactly the payload that
+    arrived malformed — the one whose archived description must be a faithful record of what the
+    source *claimed*, not a guess about what it sent.
+  - **Contract amended, not worked around.** D-140 makes `contracts/ingestion-contract.md` §3 win
+    over `01`/`03`, so a field `01` requires and the contract omits is a defect in the contract.
+    §3 now carries it, and `src/adapters/types.ts` transcribes it.
+
+- **D-205** **I-3's "overwrite" is enforced by making an overwrite non-destructive, not by
+  refusing one — S3 versioning plus a `DeleteObjectVersion` deny, with a conditional PUT as the
+  second mechanism.** Ticket `0039`, 2026-09-06.
+  - **Why the literal reading is unbuildable.** `02-data-model.md` I-3 asks for a bucket policy
+    that denies "`s3:DeleteObject`/**overwrite**" on `raw/*`. There is no IAM condition key that
+    distinguishes a PUT onto an existing key from the first PUT of a new one, so any policy able
+    to refuse the second would refuse the first — the archive could never write anything. This is
+    not a gap in AWS to route around; it is a property of how S3 authorises writes.
+  - **What was built instead, in two independent layers.** (1) **Structural**: versioning is on
+    (`amplify/storage/resource.ts`) and the bucket policy denies **both** `s3:DeleteObject` and
+    `s3:DeleteObjectVersion`. An overwrite can therefore only *add* a version; the original bytes
+    remain readable and cannot be removed by any principal but the break-glass role. This half
+    holds against code that never runs ours. (2) **At the writer**: `archiveRaw` PUTs with
+    `IfNoneMatch: "*"` and treats the resulting 412 as success, so the common case — an SQS
+    redelivery of the same activity — leaves exactly one object with exactly one version.
+  - **`DeleteObjectVersion` is the one that is easy to omit,** and omitting it would have made
+    versioning decorative: on a versioned bucket `DeleteObject` writes a delete marker and hides
+    the object, while `DeleteObjectVersion` destroys bytes. A policy denying only the first reads
+    as protection and prevents nothing permanent.
+  - **Why not Object Lock,** which would give genuine write-once semantics: `01-architecture.md`
+    §3 already ruled it out at this scale, and enabling it requires recreating the bucket — which
+    on the one artifact no rebuild can reproduce is a larger risk than the one being closed.
+  - **The archive was also actively deletable before this,** which is the finding that made the
+    ticket bigger than its title. The deployed bucket had versioning **off** and CDK's
+    auto-delete-objects custom resource armed, so an `ampx` teardown would have emptied `raw/`
+    under a live role holding `s3:DeleteObject*` bucket-wide. `keepOnDelete: true` retires both.
+    The accepted cost is that a torn-down stack now leaves the bucket behind — the same trade
+    `LostSolesSourceAccount` records, in the same direction.
+  - **I-3 is not amended.** Its intent — `raw/` objects cannot be destroyed except by the deletion
+    role — is fully met. Only the mechanism differs from the one its `[S]` column names, and this
+    decision is what the column should be read against.

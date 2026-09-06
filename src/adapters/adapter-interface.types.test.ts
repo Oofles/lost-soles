@@ -45,7 +45,12 @@ type OptionalKeys<T> = {
 const _noListSince: SourceAdapter = {
   id: "gpslogger",
   accept: async () => ({ status: 200, commands: [] }),
-  fetchRaw: async () => ({ body: Buffer.alloc(0), contentType: "application/json", ext: "json" }),
+  fetchRaw: async () => ({
+    body: Buffer.alloc(0),
+    contentType: "application/json",
+    ext: "json",
+    schemaHint: "gpslogger/raw@1",
+  }),
   normalize: () => ({ activity: {} as NormalizedIngest["activity"] }),
 }
 

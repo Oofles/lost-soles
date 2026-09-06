@@ -647,9 +647,11 @@ defaults-or-one-line, and all of them matter more than anything else in this sec
   likewise encrypted with the AWS-owned key.
 - **Versioning: ON.** This is the ransomware and fat-finger control, and it is what makes the
   next bullet honest.
-- **`DeleteObject` on `raw/*` denied by bucket policy to every principal except an explicit
-  break-glass role** (`01-architecture.md` §3). No Lambda, no Amplify role, and not the
-  operator's day-to-day credentials can delete an archived trace. Deletion of the archive is
+- **`DeleteObject` and `DeleteObjectVersion` on `raw/*` denied by bucket policy to every
+  principal except an explicit break-glass role** (`01-architecture.md` §3; the second action
+  and the role itself both arrived with ticket `0039`, D-205 — that role is
+  `LostSolesArchiveDeletion`). No Lambda, no Amplify role, and not the operator's day-to-day
+  credentials can delete an archived trace. Deletion of the archive is
   possible, but only by a person who has deliberately assumed a role whose only purpose is
   deletion. **That is the technical mechanism on which §6.4 turns.**
 

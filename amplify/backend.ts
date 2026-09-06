@@ -7,7 +7,13 @@ import {
   Table,
   TableEncryption,
 } from "aws-cdk-lib/aws-dynamodb"
-import { PolicyStatement, Role } from "aws-cdk-lib/aws-iam"
+import {
+  AccountRootPrincipal,
+  AnyPrincipal,
+  Effect,
+  PolicyStatement,
+  Role,
+} from "aws-cdk-lib/aws-iam"
 import { Key } from "aws-cdk-lib/aws-kms"
 
 import { auth } from "./auth/resource"
@@ -25,7 +31,12 @@ import { storage } from "./storage/resource"
  * Function URL, and the scheduled token refresh. The first of those arrives at
  * the bottom of this file in ticket 0019.
  */
-const backend = defineBackend({
+/**
+ * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
+ * the I-3 controls in CI (ticket 0039). Amplify only requires that this module call
+ * `defineBackend`; exporting the result changes nothing about the deploy.
+ */
+export const backend = defineBackend({
   auth,
   data,
   storage,
@@ -412,5 +423,146 @@ computeRole.addToPrincipalPolicy(
       `arn:aws:ssm:${sourcesStack.region}:${sourcesStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID`,
       `arn:aws:ssm:${sourcesStack.region}:${sourcesStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
     ],
+  }),
+)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE RAW ARCHIVE IS UNDELETABLE  (ticket 0039, I-3, 01-architecture.md §3,
+ * 08-security-privacy.md §6.2)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * I-3: *"`raw/` objects are immutable and undeletable; the only operation permitted
+ * to remove one is account deletion."* It is classified **[S] Structural** — a
+ * policy, explicitly "not a convention" — because everything else in this system is
+ * derived and rebuildable and these bytes are not (D-101). Lose an archived trace
+ * and the run it encoded is gone from a map that never re-fogs (D-020).
+ *
+ * Two mechanisms, and the split is the point. Versioning and `keepOnDelete` are in
+ * `./storage/resource.ts`; the two Deny statements are here.
+ */
+const archiveStack = backend.createStack("RawArchive")
+
+/**
+ * THE BREAK-GLASS ROLE. `01-architecture.md` §3 and §6.2 both name it: deletion of
+ * an archived object is possible, "but only by a person who has deliberately assumed
+ * a role whose only purpose is deletion."
+ *
+ * It did not exist before this ticket, which meant §3's "every principal except an
+ * explicit break-glass role" had no role to except and the sentence was unenforceable
+ * as written.
+ *
+ * NAMED EXPLICITLY, and here the reason is not the usual one about CloudFormation
+ * outputs — it is that this ARN is written into a bucket policy as a STRING rather
+ * than as a CDK reference. A reference would make the storage stack depend on this
+ * one, and a dependency cycle between the bucket and the role that guards it is a
+ * deploy failure at exactly the wrong moment. A literal ARN in a condition is
+ * validated by nobody and breaks nothing if the role is absent — the Deny simply
+ * applies to everyone, which is the safe direction to fail.
+ *
+ * TRUSTED BY THE ACCOUNT ROOT, which does NOT mean "anyone in the account". It means
+ * an IAM principal must additionally hold an explicit `sts:AssumeRole` grant for this
+ * role and must then deliberately assume it. That two-step is the whole control: the
+ * operator's day-to-day credentials cannot delete an archived trace by accident, by
+ * a mistyped `aws s3 rm --recursive`, or by a compromised session that never thought
+ * to look for a role.
+ *
+ * IT GRANTS NOTHING ELSE. No read, no list, no write — deletion only, on `raw/*`
+ * only. A role that could also read the archive would be a second, quieter copy of
+ * the lifetime GPS history's threat model (§6.2), and there is no reason for the
+ * deletion path to be able to look at what it is deleting.
+ */
+const ARCHIVE_DELETION_ROLE_NAME = "LostSolesArchiveDeletion"
+const ARCHIVE_DELETION_ROLE_ARN = `arn:aws:iam::${archiveStack.account}:role/${ARCHIVE_DELETION_ROLE_NAME}`
+
+const archiveDeletionRole = new Role(archiveStack, "ArchiveDeletionRole", {
+  roleName: ARCHIVE_DELETION_ROLE_NAME,
+  assumedBy: new AccountRootPrincipal(),
+  description:
+    "BREAK GLASS ONLY. The single principal permitted to delete objects under raw/*. " +
+    "See 08-security-privacy.md §6.4/§6.5 before assuming it.",
+  /**
+   * One hour. Long enough for a deliberate deletion under §6.5's procedure, short
+   * enough that a forgotten session is not a standing capability to erase the
+   * system of record.
+   */
+  maxSessionDuration: Duration.hours(1),
+})
+
+const rawArchiveObjects = backend.storage.resources.bucket.arnForObjects("raw/*")
+
+archiveDeletionRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "DeleteArchivedRawObjects",
+    /**
+     * BOTH ACTIONS. `DeleteObject` on a versioned bucket writes a delete marker and
+     * hides the object; `DeleteObjectVersion` is what actually destroys bytes. A
+     * break-glass role that could only do the first would leave §6.5's account
+     * deletion unable to finish, which is the tension §6.3 exists to resolve.
+     */
+    actions: ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+    resources: [rawArchiveObjects],
+  }),
+)
+
+/**
+ * THE DENY. `Principal: "*"`, excepted only by the role above.
+ *
+ * WHY A CONDITION AND NOT `NotPrincipal`: a `Deny` with `NotPrincipal` matches every
+ * principal not named, including anonymous and cross-account callers, and its
+ * evaluation is notoriously easy to get backwards. `aws:PrincipalArn` is a plain
+ * string comparison, and for an assumed role it resolves to the ROLE's ARN rather
+ * than the session ARN — so one entry covers every session of it. A request with no
+ * principal ARN at all (an anonymous caller) fails the `StringNotLike` and is denied,
+ * which is the correct default.
+ *
+ * BOTH `DeleteObject` AND `DeleteObjectVersion`, and the second is the one that is
+ * easy to omit. Denying only `DeleteObject` on a versioned bucket stops the delete
+ * MARKER and leaves the actual destruction of bytes wide open — versioning would then
+ * be decorative, and `storage/resource.ts` leans on it for the overwrite half of I-3.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DENY is `s3:PutObject`. I-3 names overwrite as well
+ * as deletion, and there is no IAM condition that refuses a PUT onto an existing key
+ * while permitting the first one — a policy able to stop an overwrite would stop
+ * every write, including the archive's own. D-205 records the resolution: versioning
+ * plus this Deny makes an overwrite structurally non-destructive (the prior bytes
+ * remain and cannot be removed), and `src/pipeline/archive.ts` PUTs with
+ * `IfNoneMatch: "*"` so the common case never writes a second version at all.
+ */
+backend.storage.resources.bucket.addToResourcePolicy(
+  new PolicyStatement({
+    sid: "DenyRawArchiveDeletionExceptBreakGlass",
+    effect: Effect.DENY,
+    principals: [new AnyPrincipal()],
+    actions: ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+    resources: [rawArchiveObjects],
+    conditions: {
+      StringNotLike: { "aws:PrincipalArn": ARCHIVE_DELETION_ROLE_ARN },
+    },
+  }),
+)
+
+/**
+ * AND THE BUCKET POLICY ITSELF IS PROTECTED. Without this, the Deny above is one
+ * `PutBucketPolicy` away from being deleted by anything that can edit the policy —
+ * which, before this statement, included the SSR compute role's account-admin
+ * neighbours and any future CDK deploy running under a broad role. An immutability
+ * control that can be switched off by the same credentials it constrains is not a
+ * control, it is a comment.
+ *
+ * CloudFormation deploys are excepted by `aws:CalledVia`, because the storage stack
+ * must still be able to update its own policy — otherwise the next `ampx` deploy
+ * fails and the only fix is a manual policy edit under root, which is worse.
+ */
+backend.storage.resources.bucket.addToResourcePolicy(
+  new PolicyStatement({
+    sid: "DenyBucketPolicyTamperingOutsideCloudFormation",
+    effect: Effect.DENY,
+    principals: [new AnyPrincipal()],
+    actions: ["s3:DeleteBucketPolicy"],
+    resources: [backend.storage.resources.bucket.bucketArn],
+    conditions: {
+      StringNotEquals: { "aws:CalledVia": "cloudformation.amazonaws.com" },
+    },
   }),
 )

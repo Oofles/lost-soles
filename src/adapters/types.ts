@@ -119,8 +119,29 @@ export interface SourceAdapter<TCreds = unknown> {
    * PHASE 2 — runs in the worker. May use the network.
    * Returns raw bytes EXACTLY as the source gave them. No transformation.
    * The pipeline archives these to S3 BEFORE `normalize()` is ever called (D-121.2).
+   *
+   * ALL THREE DESCRIPTORS ARE DECLARED, NEVER SNIFFED (ticket 0039, D-204). The
+   * pipeline writes what it is told: it does not inspect the bytes to guess a content
+   * type, because the one case where sniffing and declaring disagree is a payload that
+   * arrived malformed — exactly the payload whose archived description must be a
+   * faithful record of what the source claimed rather than a guess about what it sent.
+   *
+   * `schemaHint` names the SHAPE OF THE ARCHIVED OBJECT, and it is the field a backfill
+   * five years from now reads to know which normalizer can understand these bytes
+   * (`01-architecture.md` §3, "self-describing"). It is versioned and it belongs to the
+   * adapter, not to the vendor: `"strava/raw-envelope@1"` describes the envelope
+   * `raw-envelope.ts` seals, not Strava's API version. A change in what an adapter
+   * archives bumps it; a change in what Strava returns does not.
+   *
+   * It is returned per call rather than declared once on the adapter because an adapter
+   * may archive more than one payload shape — a file-upload source would archive a GPX
+   * for one job and a FIT for the next — and a single static field would have to lie
+   * about one of them.
    */
-  fetchRaw(job: IngestJob, creds: TCreds): Promise<{ body: Buffer; contentType: string; ext: string }>
+  fetchRaw(
+    job: IngestJob,
+    creds: TCreds,
+  ): Promise<{ body: Buffer; contentType: string; ext: string; schemaHint: string }>
 
   /**
    * PHASE 3 — PURE. No network, no AWS SDK, no clock, no randomness.

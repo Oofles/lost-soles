@@ -41,7 +41,12 @@ const ARGS: NormalizeArgs = { raw: Buffer.from("{}"), ref: REF, job: JOB }
 const OTHER_PHASES = {
   id: "gpslogger" as const,
   accept: async () => ({ status: 200, commands: [] }),
-  fetchRaw: async () => ({ body: Buffer.alloc(0), contentType: "application/json", ext: "json" }),
+  fetchRaw: async () => ({
+    body: Buffer.alloc(0),
+    contentType: "application/json",
+    ext: "json",
+    schemaHint: "gpslogger/raw@1",
+  }),
   listSince: async function* (): AsyncGenerator<IngestJob> {},
 }
 

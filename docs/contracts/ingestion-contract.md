@@ -208,8 +208,20 @@ export interface SourceAdapter<TCreds = unknown> {
 
   /** PHASE 2 — runs in the worker. May use the network.
    *  Returns raw bytes EXACTLY as the source gave them. No transformation.
-   *  The pipeline archives these to S3 BEFORE normalize() is ever called (D-121.2). */
-  fetchRaw(job: IngestJob, creds: TCreds): Promise<{ body: Buffer; contentType: string; ext: string }>
+   *  The pipeline archives these to S3 BEFORE normalize() is ever called (D-121.2).
+   *
+   *  ALL THREE DESCRIPTORS ARE DECLARED, NEVER SNIFFED (D-204). `schemaHint` names the
+   *  shape of the ARCHIVED OBJECT — the field a backfill reads to know which normalizer
+   *  understands these bytes (01-architecture.md §3, "self-describing"). It is the
+   *  adapter's own versioned identifier, not the vendor's API version:
+   *  "strava/raw-envelope@1" describes the envelope the adapter seals, so a change in
+   *  what the adapter archives bumps it and a change in what Strava returns does not.
+   *  Returned per call rather than declared once on the adapter, because one adapter may
+   *  archive several payload shapes — a file-upload source archives a GPX for one job and
+   *  a FIT for the next, and a single static field would have to lie about one of them. */
+  fetchRaw(job: IngestJob, creds: TCreds): Promise<{
+    body: Buffer; contentType: string; ext: string; schemaHint: string
+  }>
 
   /** PHASE 3 — PURE. No network, no AWS SDK, no clock, no randomness.
    *  THIS IS THE MIGRATION SEAM. Unit-testable from a checked-in fixture with zero mocking,

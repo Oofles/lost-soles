@@ -6,7 +6,7 @@ import type { AckResult, IngestJob, SourceAdapter } from "../types"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
 import { normalizeStrava } from "./normalize"
-import { sealRawEnvelope } from "./raw-envelope"
+import { RAW_ENVELOPE_SCHEMA_HINT, sealRawEnvelope } from "./raw-envelope"
 
 /**
  * THE STRAVA ADAPTER. Ticket 0034 builds one of its four phases: `listSince`.
@@ -238,6 +238,12 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
       body: sealRawEnvelope(detail, await fetchStreams(client, job)),
       contentType: "application/json",
       ext: "json",
+      /**
+       * The ENVELOPE's shape, not Strava's API version. See `RAW_ENVELOPE_SCHEMA_HINT`.
+       * The bytes below are two Strava responses concatenated inside a wrapper this
+       * repo invented, so what a future reader needs to be told is which wrapper.
+       */
+      schemaHint: RAW_ENVELOPE_SCHEMA_HINT,
     }
   },
 
