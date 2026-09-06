@@ -81,6 +81,20 @@ jobs:
       - name: D-100 boundary — no Strava type outside the adapter
         run: node scripts/check-boundaries.mjs
 
+      # D-121.1, ticket 0156. The other half of 0027's T2. `check-boundaries.mjs` and
+      # `registry.test.ts` read IMPORT STATEMENTS; this asks the compiler what breaks if
+      # the adapter directory vanishes, and the only acceptable answer is one file. An
+      # import scan cannot see a duplicated structural type, an `as` cast to a shape the
+      # adapter owns, or a branch on a source-id string literal — this can.
+      #
+      # It copies the tree to a scratch directory and symlinks node_modules, so it never
+      # writes inside the repo; ~6s.
+      - name: deleted-adapter simulation self-test
+        run: node scripts/check-adapter-deletion.mjs --self-test
+
+      - name: D-121.1 — deleting an adapter breaks only registry.ts
+        run: node scripts/check-adapter-deletion.mjs
+
       # 06-ui-ux.md §8. Landed in 0016 while there are almost no components, for
       # the same reason the D-100 grep landed while the domain was empty: a
       # palette rule added after the palette has leaked has already failed.

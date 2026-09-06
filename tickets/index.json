@@ -3583,7 +3583,7 @@
     "title": "T2 deleted-adapter simulation — stub an adapter's exports to never, and fail only in registry.ts",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -3592,10 +3592,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T00:47:04Z",
-    "path": "tickets/open/0156-deleted-adapter-simulation.md",
-    "ready": true,
+    "closed": "2026-09-06T04:48:34Z",
+    "path": "tickets/closed/0156-deleted-adapter-simulation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
