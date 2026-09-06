@@ -526,6 +526,46 @@ describe("an activity with no GPS", () => {
     expect(urls[0].pathname).toBe("/api/v3/activities/18736594040")
   })
 
+  /**
+   * TICKET 0037, CRITERION 11 — the two halves joined.
+   *
+   * `hasGpsHint` being false for `manual: true` is asserted above, and zero stream calls
+   * for a false hint is asserted directly above that. Neither on its own says what the
+   * criterion actually asks: that a MANUAL ACTIVITY costs one call, not two. Joining them
+   * matters because the link is a job travelling through a queue — the one place a
+   * refactor can quietly break the chain while both endpoint tests stay green.
+   */
+  it("costs a manual activity exactly ONE call, from list response to fetch", async () => {
+    const listed = harness([JSON.stringify([activity(1, { manual: true })])])
+    const [job] = await collect(listed.creds)
+    expect((job.meta as StravaIngestMeta).hasGpsHint).toBe(false)
+
+    const { creds, urls } = fetchHarness([OK_DETAIL])
+    await stravaAdapter.fetchRaw(job, creds)
+
+    expect(urls).toHaveLength(1)
+    expect(urls[0].pathname).toContain("/activities/")
+    expect(urls[0].pathname).not.toContain("/streams")
+  })
+
+  /**
+   * CRITERION 10's second half — "and is NOT logged as an error".
+   *
+   * Asserted structurally rather than by spying, because there is nothing to spy on: this
+   * adapter has no logger and makes no console call at all, so a 404 cannot be logged as
+   * anything. That is a stronger guarantee than a mock returning zero calls, and it is
+   * worth locking, because the natural way to "improve" the 404 branch later is to add a
+   * `console.warn` to it — which would turn the single most common outcome of the winter
+   * (a treadmill run) into recurring noise in the logs.
+   */
+  it("cannot log the 404 as an error, because the adapter never logs", () => {
+    const source = readFileSync(new URL("./adapter.ts", import.meta.url), "utf8")
+    for (const line of source.split("\n")) {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue
+      expect(/\bconsole\.|\blogger\./.test(line), `adapter.ts logs: ${line.trim()}`).toBe(false)
+    }
+  })
+
   it("still archives the detail, with streams recorded as null", async () => {
     const { creds } = fetchHarness([OK_DETAIL])
     const raw = await stravaAdapter.fetchRaw(jobFor(false), creds)

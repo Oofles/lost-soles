@@ -82,6 +82,43 @@ const BROAD = {
   redact: /\bSTRAVA_[A-Z0-9_]+\b/g,
 };
 
+// TIER 3 — `sourceTypeRaw` is READ-ONLY outside the adapter. Ticket 0037.
+//
+// The contract puts the vendor's own type string on `SourceRef` deliberately —
+// "the vendor's own type string, verbatim, for debugging and re-mapping" — and
+// then says, in the same breath, "NEVER branched on outside the adapter". Those
+// two sentences are the whole rule: keeping the string is provenance, and it is
+// what lets an unknown sport type be re-mapped out of the archive years later
+// without calling Strava. Comparing it is a Strava-shaped decision, and one made
+// somewhere the D-100 boundary says it cannot be made.
+//
+// It is invisible to the other two tiers, and that is exactly why it needs its
+// own: `sourceTypeRaw` contains no vendor name. A pipeline that did
+// `if (a.source.sourceTypeRaw === "TrailRun")` would pass STRICT and BROAD
+// cleanly while hard-coding Strava's 56-value enum into the domain.
+//
+// FIRES ON COMPARISON, NOT ON MENTION. Reading the value — logging it, showing
+// it, storing it — is the point of the field. `===`, `!==`, `switch`, a
+// `.startsWith`/`.includes`/`.match`/`.test` call on it, or using it as an object
+// key are the shapes that express a branch, and they are what this catches. Same
+// narrowing discipline as D-166/D-167: a gate with false positives is a gate that
+// gets bypassed.
+const SOURCE_TYPE_RAW = {
+  roots: ["app", "lib", "amplify", "src"],
+  pattern: new RegExp(
+    [
+      'sourceTypeRaw\\s*(===|!==|==(?!=)|!=(?!=))',   // a === "TrailRun"
+      'sourceTypeRaw\\s*\\.\\s*(startsWith|endsWith|includes|match|test|indexOf)',
+      '(===|!==|==(?!=)|!=(?!=))\\s*[\\w.]*sourceTypeRaw',  // "TrailRun" === a
+      'switch\\s*\\([^)]*sourceTypeRaw',
+      '\\[\\s*[\\w.]*sourceTypeRaw\\s*\\]',           // MAP[a.sourceTypeRaw]
+      '\\bcase\\b[^:]*sourceTypeRaw',
+      '\\.\\s*includes\\s*\\(\\s*[\\w.]*sourceTypeRaw',  // LIST.includes(a.sourceTypeRaw)
+    ].join('|'),
+  ),
+  why: "contract §2 — sourceTypeRaw is provenance; branching on it is a Strava decision outside the adapter",
+};
+
 // The adapter itself, and the one registry line the design explicitly blesses:
 // "replacing Strava must produce a diff confined to src/adapters/<name>/ and ONE
 // line in src/adapters/registry.ts (PRIMARY_ADAPTER)" (01-architecture.md §3 T2).
@@ -164,6 +201,7 @@ function check(base = ROOT) {
   const hits = [];
   scan(STRICT, hits, base);
   scan(BROAD, hits, base);
+  scan(SOURCE_TYPE_RAW, hits, base);
   return hits;
 }
 
@@ -235,6 +273,20 @@ if (process.argv.includes("--self-test")) {
     "app/page.tsx":                    ["export default function Home() { return null }", false],
     "src/domain/notes.md":             ["Strava is the first adapter.", false],  // not a source ext
     "node_modules/pkg/index.ts":       ["import { StravaActivity } from 'strava'", false],  // skipped dir
+    // Ticket 0037 — sourceTypeRaw is provenance to READ, never a thing to branch on.
+    // Note none of these lines contain a vendor name: the other two tiers see nothing.
+    "src/pipeline/remap.ts":                ['if (a.source.sourceTypeRaw === "TrailRun") return 1', true],
+    "src/pipeline/remap-switch.ts":         ["switch (a.source.sourceTypeRaw) {", true],
+    "src/pipeline/remap-lookup.ts":         ["const k = TABLE[a.source.sourceTypeRaw]", true],
+    "lib/remap-prefix.ts":                  ['if (act.source.sourceTypeRaw.startsWith("Trail")) {}', true],
+    "lib/remap-yoda.ts":                    ['if ("Ride" === a.source.sourceTypeRaw) {}', true],
+    "lib/remap-inlist.ts":                  ["if (KINDS.includes(a.source.sourceTypeRaw)) {}", true],
+    // Reading it is the entire point of the field. These must all pass.
+    "app/activity/debug.tsx":               ["const label = a.source.sourceTypeRaw", false],
+    "lib/log-activity.ts":                  ["logger.info({ raw: a.source.sourceTypeRaw })", false],
+    "src/domain/source-ref.ts":             ["  sourceTypeRaw: string", false],
+    // And the adapter may branch on it all it likes — that is where the knowledge belongs.
+    "src/adapters/strava/map.ts":           ['if (sourceTypeRaw === "TrailRun") return "run"', false],
   };
 
   const base = mkdtempSync(join(tmpdir(), "d100-"));

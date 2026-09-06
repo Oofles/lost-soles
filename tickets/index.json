@@ -3899,5 +3899,45 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 171,
+    "slug": "the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut",
+    "title": "The activity kind is derived and unchangeable, so a wrong auto-classification is permanent",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-09-06T00:37:31Z",
+    "path": "tickets/open/0171-the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 172,
+    "slug": "a-bad-first-gps-fix-anchors-the-sanitizer-and-rejects-the-en",
+    "title": "A bad first GPS fix anchors the sanitizer and rejects the entire trace behind it",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "05-strava-adapter",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-06T00:45:43Z",
+    "path": "tickets/open/0172-a-bad-first-gps-fix-anchors-the-sanitizer-and-rejects-the-en.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

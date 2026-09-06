@@ -57,9 +57,19 @@ export interface GeoPoint {
 /** Ordered, de-duplicated, monotonic in time. Adapters guarantee it; the pipeline asserts it. */
 export interface Trace {
   points: GeoPoint[]
-  /** [startIdx, endIdx] pairs marking gaps > GAP_THRESHOLD_MS (tunnel, pause, signal loss).
-   *  The fog renderer MUST NOT draw a corridor across a gap.
-   *  Distance MUST NOT be summed across one. */
+  /** [startIdx, endIdx] pairs marking places a corridor MUST NOT be drawn across, and
+   *  distance MUST NOT be summed across. Indices are into `points` AFTER sanitation.
+   *
+   *  TWO CAUSES, ONE FIELD (D-198, ticket 0037):
+   *    1. a time interval > GAP_THRESHOLD_MS — a pause, a tunnel, a dropout;
+   *    2. a SANITATION BREAK — an implausible fix was dropped between two accepted ones.
+   *
+   *  (2) was added because it has nowhere else to go: an outlier dropped between two
+   *  2-second samples breaks the trace without crossing any time threshold, so a `gaps`
+   *  that meant only (1) would let the renderer draw straight through it. One field
+   *  rather than two, because both answer exactly one question — may a corridor be drawn
+   *  across this? — and a renderer honouring one but not the other would leave a
+   *  permanent scar on a map that never re-fogs (D-020). */
   gaps: Array<[number, number]>
   /** True if the source is known lossy. Strava's summary_polyline would be true — which is
    *  exactly why D-121.4 forbids it. A permanent map cannot be built from a decimated trace. */

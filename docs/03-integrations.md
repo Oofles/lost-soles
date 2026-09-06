@@ -676,13 +676,43 @@ A run through a tunnel or an urban canyon produces `latlng` points that jump hun
 **Filter on implausible point-to-point speed before projecting to H3.** One bad fix paints a
 revealed corridor across the city, and D-020 makes it permanent.
 
-- Reject a point whose implied speed from the previous accepted point exceeds ~8 m/s for a run
-  (~29 km/h — comfortably above any human running pace, below GPS jump magnitudes). Drop the
-  point, keep the previous, continue.
+- Reject a point whose implied speed from the previous accepted point exceeds the gate **for
+  that `ActivityKind`** — ~12.5 m/s for a run, walk or hike (45 km/h, just above the 100 m
+  world-record peak of ~12.4 m/s and far below GPS jump magnitudes), ~30 m/s for a ride. Drop
+  the point, keep the previous, continue.
 - Do not interpolate across the gap; a straight line through a dropout also reveals ground that
   may not have been run. Break the trace into segments and project each independently.
-- Log rejection counts per activity. A sudden rise means a hardware or firmware change worth
+- Record rejection counts per activity. A sudden rise means a hardware or firmware change worth
   knowing about.
+
+> **AMENDED 2026-09-05 by D-197 and D-198 (ticket `0037`).** Two changes, both forced by
+> building it:
+>
+> 1. **The number was too tight, and is now 12.5 m/s.** `05-fog-of-war.md` §9.5 says to
+>    measure before touching these constants. Measured across eight real runs and 21,225
+>    fixes, the 8 m/s gate rejected six fixes — at 8, 8, 9, 9, 9 and 13 m/s — and caught
+>    **zero** GPS jumps. The failure this section describes ("jump hundreds of metres") is
+>    ~200 m/s at the observed ~0.5 Hz cadence and did not occur once. Meanwhile the operator's
+>    fastest accepted fix was 7.6 m/s, so the promised "comfortably above any human running
+>    pace" was a 5% margin — and every false rejection also writes a `gaps` entry (D-198),
+>    manufacturing exactly the "dotted corridor" §9.5 warns about. 12.5 splits the observed
+>    data along the line this section's own reasoning appeals to: it admits all five plausible
+>    human bursts and still rejects the 13 m/s fix, which is past the world record.
+> 2. **The gate is per-kind, not a single number.** This section gave one, "for a run",
+>    and said nothing about any other kind — but `rules/xp-rules-v1.yaml` has two enabled rows
+>    matching `kinds: [ride]`, so rides are ingested and earn XP, and a cyclist holds 8 m/s
+>    without trying. A single gate at 8 deletes five fixes out of six from an ordinary descent.
+>    The table lives in `src/adapters/strava/sanitize.ts` as a data table, not a `switch`
+>    (D-031).
+> 3. **"Log" is "record".** `normalize()` is pure (D-196) and cannot log; a `console.log` there
+>    would be the first side effect on the migration seam. The count rides on `SourceRef.meta`
+>    as `rejectedPoints`, which the contract already types and already calls provenance. It is
+>    strictly better than a log line: durable, so "a sudden rise" is a query over stored
+>    activities rather than a CloudWatch search that ages out, and reproducible on a replay from
+>    the archive.
+>
+> **The segments are expressed as `gaps` entries**, not as a list of arrays — see D-198 and the
+> amended `Trace.gaps` in `contracts/ingestion-contract.md` §2.
 
 ## 2.7 Idempotency, edits, deletions, and dedupe
 

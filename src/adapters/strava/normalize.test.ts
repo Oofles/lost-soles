@@ -537,6 +537,109 @@ describe("scalar fields", () => {
   })
 })
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TRACE SANITATION AND INDOOR HANDLING — ticket 0037
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+describe("trace sanitation, through the archive", () => {
+  it("drops a single 400 m jump and keeps both its neighbours", () => {
+    const { activity, trace } = run("run-signal-loss-jump", { externalId: "18736594049" })
+
+    // Six fixes in the archive, one impossible. The archive still holds all six — D-101
+    // means the evidence is never edited; only what gets projected to H3 is filtered.
+    expect(trace?.pointCount).toBe(5)
+    expect(activity.source.meta?.rejectedPoints).toBe(1)
+  })
+
+  it("marks the break in `gaps`, so no corridor is drawn across it (D-198)", () => {
+    const { trace } = run("run-signal-loss-jump", { externalId: "18736594049" })
+    // The fixes are 2 s apart, so NO time threshold is crossed anywhere in this trace.
+    // Without D-198 widening `gaps`, this break would have had nowhere to be recorded and
+    // the renderer would have drawn straight through the underpass.
+    expect(trace?.gaps).toEqual([[1, 2]])
+    for (let i = 1; i < trace!.points.length; i++) {
+      expect(trace!.points[i].t - trace!.points[i - 1].t).toBeLessThan(GAP_THRESHOLD_MS)
+    }
+  })
+
+  it("never interpolates — every surviving fix is one Strava actually sent", () => {
+    const raw = JSON.parse(fixture("run-signal-loss-jump").toString("utf8"))
+    const sent: Array<[number, number]> = raw.streams.latlng.data
+    const { trace } = run("run-signal-loss-jump", { externalId: "18736594049" })
+
+    for (const p of trace!.points) {
+      expect(sent.some(([lat, lng]) => lat === p.lat && lng === p.lng)).toBe(true)
+    }
+  })
+
+  it("keeps the rejected fix out of the bbox", () => {
+    const { trace } = run("run-signal-loss-jump", { externalId: "18736594049" })
+    const [, minLat, , maxLat] = trace!.bbox
+    // The jump was ~400 m north. If sanitation ran after measurement, the box would be
+    // 400 m tall and every cell inside it a candidate for revealing.
+    expect((maxLat - minLat) * 111_320).toBeLessThan(20)
+  })
+
+  it("does not report a trace as `simplified` just because fixes were dropped", () => {
+    // `simplified` is a claim about what the SOURCE sent, not about what we kept.
+    const { trace } = run("run-signal-loss-jump", { externalId: "18736594049" })
+    expect(trace?.simplified).toBe(false)
+  })
+
+  it("omits rejectedPoints entirely when nothing was rejected", () => {
+    // Absent means "nothing to say". A 0 on a clean run would be noise on every activity.
+    expect(run("run-continuous").activity.source.meta).toBeUndefined()
+  })
+
+  it("keeps a 15 m/s descent because the gate is per-kind (D-197)", () => {
+    const { activity, trace } = run("ride-fast-descent", { externalId: "18736594050" })
+
+    expect(activity.kind).toBe("ride")
+    expect(trace?.pointCount).toBe(6)
+    expect(trace?.gaps).toEqual([])
+    expect(activity.source.meta).toBeUndefined()
+    // Under §2.2's single 8 m/s gate this ride would have lost five of its six fixes.
+  })
+})
+
+describe("indoor and no-GPS are normal outcomes, not error paths", () => {
+  /**
+   * THE NASTY ONE (§2.6). A watch-recorded indoor run returns 200 with `time`, `distance`
+   * and a heart-rate stream and NO `latlng` key at all — with no flag anywhere on the
+   * summary object to warn you. `streams.latlng.data[0]` is the crash that ships here.
+   */
+  it("normalizes a 200 with streams but no latlng key, without throwing", () => {
+    const raw = JSON.parse(fixture("indoor-watch-no-latlng").toString("utf8"))
+    expect(raw.streams).not.toBeNull()
+    expect("latlng" in raw.streams).toBe(false)
+    expect(Object.keys(raw.streams).length).toBeGreaterThan(0)
+
+    const out = run("indoor-watch-no-latlng", { externalId: "18736594051" })
+    expect(out.trace).toBeUndefined()
+    expect(out.activity.hasTrace).toBe(false)
+    expect(out.activity.traceRef).toBeNull()
+  })
+
+  it("still produces a real Activity for it — it is a run that happened", () => {
+    const { activity } = run("indoor-watch-no-latlng", { externalId: "18736594051" })
+    expect(activity.kind).toBe("run")
+    expect(activity.distanceM).toBe(5000)
+    expect(activity.elapsedS).toBe(1500)
+  })
+
+  it("treats an archived `streams: null` (the 404 case) identically", () => {
+    // §2.5: a GPS-less activity's /streams answers 404, and 0035 archives that as `null`.
+    // "We looked and there is nothing" must reach the same place as "there is no key".
+    const noKey = run("indoor-watch-no-latlng", { externalId: "18736594051" })
+    const wasA404 = run("treadmill-no-streams", { externalId: "18736594046" })
+
+    expect(wasA404.activity.hasTrace).toBe(noKey.activity.hasTrace)
+    expect(wasA404.trace).toBe(noKey.trace)
+  })
+})
+
 /**
  * THE FIXTURE GUARD, and it is an ALLOWLIST on purpose.
  *

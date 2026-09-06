@@ -1670,3 +1670,76 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     reversibility is real rather than claimed. The T4 harness traps the clock at runtime;
     `normalize.test.ts` additionally walks the module's import graph statically, because a trap
     only catches the branch the fixture took.
+
+- **D-197** **The trace outlier gate is 12.5 m/s on foot, PER-`ActivityKind`, as a data table —
+  and rejection counts are recorded as provenance rather than logged.** Ticket `0037`.
+  - **§2.2's 8 m/s was measured against real traces and found too tight.** `05-fog-of-war.md`
+    §9.5 instructs *"measure it on the user's real first 20 runs before touching the
+    constants"*; eight runs and 21,225 fixes settled it. At 8 m/s the gate rejected six fixes —
+    implied speeds 8, 8, 9, 9, 9 and 13 m/s — and **caught zero GPS jumps.** The failure §2.2
+    exists to prevent ("points that jump hundreds of metres") is ~200 m/s at the observed
+    ~0.5 Hz cadence, and it did not occur once in the data. Meanwhile the operator's fastest
+    ACCEPTED fix was 7.6 m/s, so "comfortably above any human running pace" was a 5% margin.
+  - **The cost of the tight gate was not neutral.** Every rejection also writes a `gaps` entry
+    (D-198), so 8 m/s was manufacturing six breaks in traces that were continuous — which is
+    precisely the *"dotted corridor"* §9.5 warns about, on the routes the operator runs most.
+    A gate that discards real fixes is not the safe direction; it is a different harm.
+  - **12.5 m/s (45 km/h) splits the observed data along §2.2's own reasoning.** That section
+    appeals to what a human can run; the men's 100 m world record peaks at ~12.4 m/s. 12.5
+    admits all five plausible bursts and still rejects the 13 m/s fix, which nobody has ever
+    run. It leaves a 64% margin over this operator's observed maximum, against 5%, and remains
+    an order of magnitude below any real jump.
+  - **§2.2 specified one number and only for one kind** — *"~8 m/s for a run
+    (~29 km/h — comfortably above any human running pace, below GPS jump magnitudes)"* — and said
+    nothing about anything else. That reads complete until you check what else reaches the
+    sanitizer.
+  - **The silence about other kinds was load-bearing, and rides do reach it.** `rules/xp-rules-v1.yaml` has two enabled rows
+    matching `kinds: [ride]`. §2.6's table calls `Ride` *(ignored)*, but that column is about
+    ingest policy and the YAML is the thing that actually decides — D-141 means the rules file
+    wins, and it says rides count. A cyclist holds 8 m/s (29 km/h) without trying, so a single
+    gate set for a person on foot destroys five fixes out of six on an ordinary descent.
+    Measured, not argued: `sanitize.test.ts` asserts exactly that, so the cost of the
+    alternative is a test rather than a claim.
+  - **A data table, not a `switch`** (D-031/D-141). Adding a kind is a row, and a missing row is
+    caught by a test rather than silently becoming `x > undefined`, which is `false` — a missing
+    gate would accept everything.
+  - **What the gate is not.** It is not a classifier: it never touches `Activity.kind`, and a run
+    containing walk breaks stays one run, because walking is *slower* and the gate only fires on
+    impossibly fast. It is also not a speed limit — the two populations it separates are three
+    orders of magnitude apart (a real GPS jump is ~200 m/s at this trace's measured cadence), so
+    its exact value matters far less than its existence.
+  - **"Log rejection counts" became "record" them, on `SourceRef.meta`.** `normalize()` is pure
+    (D-196) and cannot log; a `console.log` there would be the first side effect on the migration
+    seam. `meta` is already typed `Record<string, string | number | boolean>` and already called
+    provenance by the contract. Two things come free that a log line would not have given: the
+    count is durable, so "a sudden rise" is a query over stored activities rather than a
+    CloudWatch search that ages out, and it survives a replay from the archive. Omitted entirely
+    rather than set to `0` when nothing was rejected — an absent key means "nothing to say",
+    where a `0` on a treadmill run would claim a clean trace that never existed.
+
+- **D-198** **`Trace.gaps` marks anything a corridor must not be drawn across — a time gap OR a
+  sanitation break — and there is no second field.** Ticket `0037`. Amends
+  `contracts/ingestion-contract.md` §2, `01-architecture.md` §3 and `src/domain/activity.ts`.
+  - **The contract defined `gaps` too narrowly to hold what §2.2 requires.** It said
+    *"[startIdx, endIdx] pairs marking gaps > GAP_THRESHOLD_MS"*, which is a statement about
+    TIME. §2.2 separately requires the sanitizer to *"break the trace into segments"* when an
+    implausible fix is dropped — and a fix dropped between two 2-second samples produces a break
+    that crosses no time threshold at all. Under the original wording that break had **nowhere
+    to be recorded**, so the renderer would have drawn straight through it.
+  - **One field, not two.** `Trace.breaks` alongside `gaps` was the alternative and is cleaner to
+    describe, but both fields answer exactly one question — *may a corridor be drawn across
+    this?* — and every consumer would have to honour both. The fog renderer forgetting one, or
+    the distance summer forgetting the other, writes a permanent scar onto a map that never
+    re-fogs (D-020). A single field cannot be half-honoured.
+  - **Indices are into the SANITIZED `points` array.** Indices into the original stream would
+    point at fixes nothing downstream ever holds.
+  - **Sanitation runs before anything is measured.** `gaps`, `bbox` and `pointCount` all describe
+    the trace that will be projected to H3, so measuring the unsanitized array would put a
+    rejected fix inside the bounding box and report a count nothing ever sees. `simplified` is
+    the deliberate exception — it is a claim about what the SOURCE sent, so it is measured
+    against the original length; conflating the two would make every sanitized trace look
+    decimated.
+  - **Why the doc changed rather than the code** (D-153). The narrow definition was written
+    before any sanitizer existed, in a document that in the same section asks for segments. It
+    was not a decision that sanitation breaks should be invisible; it was a definition that had
+    never met the requirement standing four paragraphs away from it.

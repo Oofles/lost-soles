@@ -12,6 +12,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 
 import type { IngestJob } from "../types"
 import { assertStreamsAligned, openRawEnvelope, type StravaStream } from "./raw-envelope"
+import { sanitizeTracePoints } from "./sanitize"
 
 /**
  * THE MIGRATION SEAM. Ticket 0036.
@@ -220,6 +221,28 @@ function revisionFrom(job: IngestJob): number {
 }
 
 /**
+ * REJECTION COUNTS, AS PROVENANCE RATHER THAN AS A LOG LINE — D-197.
+ *
+ * `03-integrations.md` §2.2 says *"Log rejection counts per activity. A sudden rise means a
+ * hardware or firmware change worth knowing about."* `normalize` is pure and cannot log, and
+ * a `console.log` here would be the first side effect on the migration seam.
+ *
+ * So the count rides on `SourceRef.meta`, which the contract already types as
+ * `Record<string, string | number | boolean>` and already calls provenance. Two things come
+ * free that a log line would not have given: it is durable, so "a sudden rise" is a query
+ * over stored activities rather than a CloudWatch search that ages out; and it survives a
+ * replay from the archive, so a rebuild years later reports the same number.
+ *
+ * OMITTED ENTIRELY WHEN THERE IS NO TRACE, and omitted rather than set to 0 when nothing was
+ * rejected — an absent key means "nothing to say", and a `0` on a treadmill run would read as
+ * "we sanitized a trace and it was clean", which is a claim about a trace that never existed.
+ */
+function sourceMeta(rejected: number | undefined): { meta?: Record<string, number> } {
+  if (rejected === undefined || rejected === 0) return {}
+  return { meta: { rejectedPoints: rejected } }
+}
+
+/**
  * The §2.7 composite key. **Cross-source, not just intra-source** — the same run arriving
  * via Strava and via Health Connect must collapse to one activity, and neither adapter can
  * see the other's ids. Time to the minute, distance to 50 m, elapsed to 30 s: coarse enough
@@ -283,19 +306,33 @@ function isDecimated(stream: StravaStream | undefined, pointCount: number): bool
  * anywhere on the summary object; `streams.latlng.data[0]` is the crash that ships if this
  * is skipped.
  */
-function buildTrace(streams: unknown, startedAtMs: number): Trace | undefined {
+function buildTrace(
+  streams: unknown,
+  startedAtMs: number,
+  kind: ActivityKind,
+): { trace: Trace; rejected: number } | undefined {
   if (streams === null || typeof streams !== "object" || Array.isArray(streams)) return undefined
 
   assertStreamsAligned(streams)
 
   const byKey = streams as Record<string, StravaStream>
+
+  /**
+   * CHECK FOR THE KEY, DO NOT INDEX INTO IT. §2.6: a watch-recorded indoor run comes back
+   * 200 with `time`, `distance` and its heart-rate-shaped streams and **no `latlng` key at
+   * all**, with no flag anywhere on the summary object to warn you. `streams.latlng.data[0]`
+   * is the crash that ships if this line is skipped, and it ships on a treadmill run, which
+   * is the most ordinary thing the operator does in winter.
+   *
+   * No trace is a NORMAL outcome here, not an error path.
+   */
   const latlng = streamData(byKey, "latlng")
   if (!latlng || latlng.length === 0) return undefined
 
   const time = streamData(byKey, "time")
   const altitude = streamData(byKey, "altitude")
 
-  const points: GeoPoint[] = latlng.map((pair, i) => {
+  const zipped: GeoPoint[] = latlng.map((pair, i) => {
     if (!Array.isArray(pair) || typeof pair[0] !== "number" || typeof pair[1] !== "number") {
       throw new StravaNormalizeError(`latlng[${i}] is not a [lat, lng] pair`)
     }
@@ -326,10 +363,38 @@ function buildTrace(streams: unknown, startedAtMs: number): Trace | undefined {
     return point
   })
 
-  const gaps: Array<[number, number]> = []
+  /**
+   * SANITATION RUNS BEFORE ANYTHING IS MEASURED. `gaps`, `bbox` and `pointCount` all
+   * describe the trace that will be projected to H3, so measuring the unsanitized array
+   * would put a rejected fix inside the bounding box and report a point count nothing
+   * downstream ever sees.
+   */
+  const { points, breaks, rejected } = sanitizeTracePoints(zipped, kind)
+
+  /**
+   * `gaps` CARRIES BOTH MEANINGS — D-198. A time interval over `GAP_THRESHOLD_MS` (a pause,
+   * a tunnel, a dropout) AND a sanitation break where a fix was thrown away. The contract's
+   * original wording named only the first, which left the second with nowhere to go: an
+   * outlier dropped between two 2-second samples breaks the trace without crossing any time
+   * threshold, and the renderer would draw straight through it.
+   *
+   * One field rather than two, because both answer exactly one question — *may a corridor be
+   * drawn across this?* — and a renderer that honoured `gaps` but forgot `breaks` would
+   * leave a permanent scar on a map that never re-fogs.
+   */
+  const gapIndices = new Set<number>()
   for (let i = 1; i < points.length; i++) {
-    if (points[i].t - points[i - 1].t > GAP_THRESHOLD_MS) gaps.push([i - 1, i])
+    if (points[i].t - points[i - 1].t > GAP_THRESHOLD_MS) gapIndices.add(i - 1)
   }
+  for (const [from] of breaks) gapIndices.add(from)
+
+  const gaps: Array<[number, number]> = [...gapIndices]
+    .sort((a, b) => a - b)
+    .map((i) => [i, i + 1])
+
+  // Every fix rejected. A trace with no points is not a trace — see `sanitizeTracePoints`'s
+  // note on a bad first anchor, and `0172`.
+  if (points.length === 0) return undefined
 
   let minLng = points[0].lng
   let minLat = points[0].lat
@@ -343,11 +408,17 @@ function buildTrace(streams: unknown, startedAtMs: number): Trace | undefined {
   }
 
   return {
-    points,
-    gaps,
-    simplified: isDecimated(byKey.latlng, points.length),
-    bbox: [minLng, minLat, maxLng, maxLat],
-    pointCount: points.length,
+    trace: {
+      points,
+      gaps,
+      // Measured against the ORIGINAL stream length, not the sanitized one. Dropping a
+      // bogus fix does not make the source lossy — `simplified` is a statement about what
+      // Strava sent, and conflating the two would make every sanitized trace look decimated.
+      simplified: isDecimated(byKey.latlng, zipped.length),
+      bbox: [minLng, minLat, maxLng, maxLat],
+      pointCount: points.length,
+    },
+    rejected,
   }
 }
 
@@ -385,7 +456,11 @@ export function normalizeStrava(
   }
 
   const distanceM = optionalNumber(detail.distance)
-  const trace = buildTrace(streams, startedAtMs)
+
+  // The kind is needed BEFORE the trace, because the outlier gate is per-kind (D-197).
+  const kind = mapSportTypeToKind(detail.sport_type)
+  const built = buildTrace(streams, startedAtMs, kind)
+  const trace = built?.trace
 
   const activity: Activity = {
     // Deterministic, which is the whole idempotency story: a webhook replayed three times
@@ -393,7 +468,7 @@ export function normalizeStrava(
     // map that cannot re-fog.
     activityId: computeActivityId(job.userId, job.source, job.externalId),
     userId: job.userId,
-    kind: mapSportTypeToKind(detail.sport_type),
+    kind,
 
     startedAt,
     startedAtLocal: stripLyingZ(detail.start_date_local),
@@ -419,6 +494,7 @@ export function normalizeStrava(
       // see. `job.enqueuedAt` is the moment the job was QUEUED — before anything was
       // fetched — and would understate by however long the queue was backed up.
       fetchedAt: ref.archivedAt,
+      ...sourceMeta(built?.rejected),
     },
     raw: ref,
 

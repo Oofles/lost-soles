@@ -437,9 +437,14 @@ export interface GeoPoint {
 export interface Trace {
   points: GeoPoint[]
   /**
-   * Ordered [startIndex, endIndex] pairs marking gaps > GAP_THRESHOLD_MS
-   * (tunnel, pause, signal loss). The fog renderer must not draw a corridor
-   * across a gap, and distance must not be summed across one.
+   * Ordered [startIndex, endIndex] pairs marking places the fog renderer must not
+   * draw a corridor across, and distance must not be summed across. Indices are
+   * into `points` after sanitation.
+   *
+   * Two causes, one field (D-198, ticket 0037): a time interval > GAP_THRESHOLD_MS
+   * (tunnel, pause, dropout), OR a sanitation break where an implausible fix was
+   * dropped between two accepted ones. See contracts/ingestion-contract.md §2 —
+   * the contract is normative here (D-140).
    */
   gaps: Array<[number, number]>
   /** True if the source is known to be lossy/simplified. Strava summary_polyline would be
