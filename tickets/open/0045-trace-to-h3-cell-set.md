@@ -30,7 +30,8 @@ and collect candidates. The exact radius filter (step 5) and the `REVEAL_R_M` co
 because that filter is the definition of "revealed" and deserves its own acceptance criteria.
 
 Constants: `MAX_ACC_M = 50`, `DWELL_SPEED = 0.5 m/s`, `DWELL_MIN_S = 60`,
-`TELEPORT_SPEED = 12.0 m/s`, `SPLIT_GAP_M = 250`, `SPLIT_GAP_S = 120`, `DENSIFY_STEP_M = 30`.
+**`TELEPORT_SPEED = 12.0 m/s` — CONTESTED, see criterion 11**, `SPLIT_GAP_M = 250`,
+`SPLIT_GAP_S = 120`, `DENSIFY_STEP_M = 30`.
 
 Three of these carry reasoning that must survive into the code as comments:
 
@@ -58,7 +59,8 @@ out-and-backs, loops, figure-eights, crossing your own path — falls out of thi
 - [ ] Non-finite and consecutive-identical coordinates are dropped.
 - [ ] A ≥60 s stretch under 0.5 m/s collapses to a single geometric-median point that still
       qualifies its own cell.
-- [ ] A >12 m/s jump, or a >250 m gap lasting >120 s, splits the trace; no cells are emitted along
+- [ ] A jump above the settled `TELEPORT_SPEED` (criterion 11), or a >250 m gap lasting >120 s,
+      splits the trace; no cells are emitted along
       the joining chord.
 - [ ] A synthetic trace with a 400 m sampling gap along a straight road still yields a contiguous
       cell chain (densification proof).
@@ -66,6 +68,21 @@ out-and-backs, loops, figure-eights, crossing your own path — falls out of thi
 - [ ] A figure-eight's crossing point contributes one cell, not two.
 - [ ] A real checked-in Strava fixture (~2,700 points, 5 miles) yields **40–130 cells**.
 - [ ] An all-garbage trace (every sample filtered) returns an empty set without throwing.
+- [ ] **`TELEPORT_SPEED` is reconciled with the ingestion sanitizer's gate, or the difference is
+      justified in writing.** Added by the `05-strava-adapter` drift audit, 2026-09-06
+      (divergence 2). `05-fog-of-war.md` §2.2 specifies 12.0 m/s; **D-197 set
+      `src/adapters/strava/sanitize.ts`'s gate to 12.5 m/s** for `run`/`walk`/`hike` after
+      measuring 21,225 real fixes, deliberately admitting bursts up to the ~12.4 m/s world-record
+      peak. A trace arriving here has already passed that gate, so 12.0 can only fire on fixes
+      D-197 chose to keep — and each such split writes a `gaps` entry (D-198), the *"dotted
+      corridor"* §9.5 warns about. Rides are out of scope: only `wayfaring` has
+      `revealsGround: true` and it matches `kinds: [run, walk, hike]`.
+      **Either** import the per-kind table `sanitize.ts` already owns rather than restating a
+      number (D-031: a gate per kind is a data row, never a `switch`), **or** record why the fog
+      layer should split where the sanitizer accepts. §9.5's *"measure it on the user's real first
+      20 runs"* applies — the 21,225-fix dataset from `0037` is the measurement. Silently shipping
+      12.0 is the one outcome this criterion forbids, and `05-fog-of-war.md` §2.2 carries the
+      matching note.
 
 ## Notes
 

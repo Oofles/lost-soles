@@ -1927,3 +1927,34 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **What was NOT accepted.** Nothing about the app's code changed and nothing should: the
     `[source]` routes, the `APP_ORIGIN`-derived redirect URI and the state check all stay as
     they are. This decision is scoped to one field on a third-party settings page.
+
+- **D-203** **`01-architecture.md`'s pre-implementation route path and adapter module tree are
+  corrected to what was built, because in both cases the code is the more D-100-conformant of the
+  two readings.** The `05-strava-adapter` drift audit, 2026-09-06 (divergences 3 and 4 of four).
+  - **One shape, two symptoms.** `01-architecture.md` was written before any code existed and
+    guessed at structure in two places. The build settled both differently, and settled them
+    *better* — each guess had quietly named a vendor or a file where the boundary did not need
+    one. Recorded as one decision because the amendment is one amendment; recorded as **two**
+    divergences in the audit because they are two places a reader is misled, and the `04` audit's
+    refusal to fold divergences to buy a passing budget applies here too.
+  - **The callback route.** This document (§2's component diagram, §7's secrets table and IAM
+    grant, §7's "what never reaches the client"), `08-security-privacy.md` §3, and
+    `capabilities/02-deploy-and-auth.md` all read **`/api/strava/callback`**. The built route is
+    **`app/api/auth/[source]/callback`**, and the parameterization is the point: no route in the
+    tree carries a vendor name, so adding GPSLogger (D-112) or Health Connect (D-113) adds a
+    registry entry and not a route. `03-integrations.md` §2.2's authorize URL and D-202 already
+    used the built path — three documents disagreed with two, and the two were right.
+  - **`strava/types.ts`.** §3's module tree promised *"`types.ts` — Strava's wire shapes. NOTHING
+    outside this directory imports it"*. No such file exists. The adapter instead declares
+    **deliberately partial** interfaces at each point of use, because a file declaring the
+    vendor's whole schema must be edited every time Strava adds a field, and `adapter.ts`'s
+    `StravaSummaryActivity` and `normalize.ts`'s detail/stream shapes want different subsets.
+  - **The rule the deleted file was carrying survives intact, and is now stated where it belongs.**
+    "Nothing outside `src/adapters/strava/` may import a Strava-shaped type" is D-100; it never
+    depended on the types living in one file. It is enforced by `scripts/check-boundaries.mjs`
+    (clean) and `scripts/check-adapter-deletion.mjs`, and ticket `0156` measured it: deleting the
+    adapter stubs **19 modules and breaks exactly one file**, `registry.ts`. A layout convention
+    was mistaken for the invariant; the invariant is a CI check.
+  - **What this decision does NOT do.** It changes no code and supersedes no settled decision. It
+    is the `design-was-wrong` half of D-153's rule — *if the code diverged from the design, either
+    the code changes or the doc changes, never neither* — applied twice to the same document.

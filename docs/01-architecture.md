@@ -161,7 +161,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
                   ▼                                              ▼
   ┌───────────────────────────────────────────────────────────────────────────┐
   │ Amplify Hosting compute — Next.js 15 App Router                           │
-  │   SSR shell · /api/strava/callback · (post-MVP) /api/ingest               │
+  │   SSR shell · /api/auth/strava/callback · (post-MVP) /api/ingest               │
   │   soles.devaultsecurity.com  ·  ACM cert  ·  Route 53 (existing zone)     │
   └───────────────────────────┬───────────────────────────────────────────────┘
                               │  Cognito session (Essentials, passkey)
@@ -390,13 +390,31 @@ src/
     strava/                 ← MVP.  Swapping the primary source replaces this directory.
       adapter.ts
       client.ts             Strava HTTP, token refresh
-      types.ts              Strava's wire shapes. NOTHING outside this directory imports it.
       normalize.ts          pure: streams JSON → { activity, trace }
-      __fixtures__/         checked-in real responses
+      sanitize.ts           pure: the per-kind outlier gate (D-197/D-201)
+      oauth.ts              the connect flow; the only file that spells activity:read_all
+      __fixtures__/         checked-in responses, synthetic geometry (D-199)
     gpslogger/              ← post-MVP (D-112)
     health-connect/         ← post-MVP (D-113)
     manual/                 ← in MVP for strength work (D-060/D-061); no Trace
 ```
+
+> **Amended 2026-09-06 by D-203**, from the `05-strava-adapter` drift audit (divergence 4). This
+> tree listed **`types.ts` — "Strava's wire shapes. NOTHING outside this directory imports it"**
+> and it was not built. The rule it encodes is real and holds: `check-boundaries.mjs` is clean and
+> `registry.ts` is the only file outside this directory that names the adapter. What did not
+> survive was the idea of one file declaring the vendor's schema. The built adapter declares
+> **deliberately partial** interfaces at each point of use — `StravaSummaryActivity` in
+> `adapter.ts`, the detail and stream shapes in `normalize.ts` — because an adapter that declares
+> the whole schema has to be edited every time Strava adds a field, and none of those readers
+> wants the same subset. The tree above is corrected to what exists; the boundary rule moves to
+> the sentence below, where it was always the load-bearing half.
+>
+> **NOTHING OUTSIDE `src/adapters/strava/` MAY IMPORT A STRAVA-SHAPED TYPE**, wherever it is
+> declared. That is D-100, it is enforced by `scripts/check-boundaries.mjs` and
+> `scripts/check-adapter-deletion.mjs`, and `0156` measured it: deleting the adapter stubs 19
+> modules and breaks exactly one file, `registry.ts`.
+
 
 ### The domain contract
 
@@ -1211,11 +1229,20 @@ the correct one per environment automatically. **Standard parameters are free.**
 
 | Key | Used by | Notes |
 |---|---|---|
-| `STRAVA_CLIENT_ID` | `/api/strava/callback`, `process-activity`, `token-refresh` | Semi-public (it appears in the OAuth authorize URL) but kept server-side anyway — no reason to build the habit of leaking it |
+| `STRAVA_CLIENT_ID` | `/api/auth/strava/callback`, `process-activity`, `token-refresh` | Semi-public (it appears in the OAuth authorize URL) but kept server-side anyway — no reason to build the habit of leaking it |
 | `STRAVA_CLIENT_SECRET` | callback + token refresh | **Never leaves a Lambda.** |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | `strava-webhook` GET handshake | Compared in constant time |
 | `INGEST_BEARER_TOKEN` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
 | `TILES_BASE_URL` | client build | Not a secret; listed here because it is environment-varying config. Use an env var, not `secret()` |
+
+> **Amended 2026-09-06 by D-203**, from the `05-strava-adapter` drift audit (divergence 3). Every
+> occurrence of the callback route in this document, in `08-security-privacy.md` §3, and in
+> `capabilities/02-deploy-and-auth.md` read **`/api/strava/callback`**. The built route is
+> **`app/api/auth/[source]/callback`** — source-*parameterized*, so `/api/auth/strava/callback` is
+> one instance of it and no route in the tree carries a vendor name. `03-integrations.md` §2.2's
+> authorize URL and `DECISIONS.md` already had it right; these three did not. Corrected in place.
+> The code is the more D-100-conformant of the two readings, which is why the doc moved and not
+> the route.
 
 **Environment variables are NOT secrets.** Amplify renders them in plaintext into build
 artifacts, readable by anyone with `get-app` access on the app. Anything sensitive uses
@@ -1246,7 +1273,7 @@ SK: SOURCE#strava                        (SOURCE#health-connect, SOURCE#polar, .
 - The table is **created in CDK and is not an Amplify Data model** — it is not exposed
   through AppSync at all, so no auth rule can be misconfigured into leaking it. Access is by
   IAM grant to exactly three principals: `process-activity`, `token-refresh`, and the
-  `/api/strava/callback` route handler's execution role.
+  `/api/auth/strava/callback` route handler's execution role.
 - Encryption at rest with an AWS-managed key is the default and is sufficient here. If the
   user later wants defence in depth, a customer-managed KMS key adds ~$1/month — note it,
   do not build it.
@@ -1263,7 +1290,7 @@ SK: SOURCE#strava                        (SOURCE#health-connect, SOURCE#polar, .
 Everything above. Concretely:
 
 - **No OAuth token of any kind is ever sent to the browser.** The Strava OAuth code exchange
-  happens entirely inside `/api/strava/callback`; the browser only ever sees a redirect and
+  happens entirely inside `/api/auth/strava/callback`; the browser only ever sees a redirect and
   a "connected" boolean on the profile.
 - **No client secret, no verify token, no ingest bearer token** appears in a client bundle.
   A CI check greps the built `.next/static` output for the literal values of the secret keys

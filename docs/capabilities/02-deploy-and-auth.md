@@ -295,7 +295,7 @@ application config in SSM; per-user rotating credentials in DynamoDB.
 
 | Key | Store | Used by | Notes |
 |---|---|---|---|
-| `STRAVA_CLIENT_ID` | SSM `secret()` | `/api/strava/callback`, `process-activity`, `token-refresh` | Semi-public — it appears in the OAuth authorize URL — but kept server-side anyway. No reason to build the habit of leaking it |
+| `STRAVA_CLIENT_ID` | SSM `secret()` | `/api/auth/strava/callback`, `process-activity`, `token-refresh` | Semi-public — it appears in the OAuth authorize URL — but kept server-side anyway. No reason to build the habit of leaking it |
 | `STRAVA_CLIENT_SECRET` | SSM `secret()` | callback + token refresh | **Never leaves a Lambda** |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM `secret()` | `strava-webhook` GET handshake | Compared in constant time |
 | `INGEST_BEARER_TOKEN` | SSM `secret()` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
@@ -430,7 +430,7 @@ naming each key's origin (`from env` vs a parameter path) makes visible instead 
 ### Proving `secret()` works before there is a consumer
 
 `secret()` resolves only into a **Lambda's environment at deploy time** — there is no other consumer
-shape. Every real consumer (`/api/strava/callback`, `process-activity`, `token-refresh`,
+shape. Every real consumer (`/api/auth/strava/callback`, `process-activity`, `token-refresh`,
 `strava-webhook`) belongs to capability 05 or 14, so establishing the mechanism only when the first
 of those lands would mean debugging SSM resolution, IAM and an OAuth exchange in one session.
 

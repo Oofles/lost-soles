@@ -1070,7 +1070,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 11
+      "total": 12
     }
   },
   {
@@ -3963,6 +3963,66 @@
     "ready": false,
     "acceptance": {
       "checked": 5,
+      "total": 5
+    }
+  },
+  {
+    "id": 174,
+    "slug": "trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl",
+    "title": "Trace sanitation is cited as 03-integrations.md §2.2 in 21 places; it is §2.6",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-06T15:57:09Z",
+    "path": "tickets/open/0174-trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 175,
+    "slug": "registry-ts-says-0036-0037-register-the-strava-adapter-both",
+    "title": "registry.ts says 0036/0037 register the strava adapter; both closed and it is still unregistered",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-06T15:57:14Z",
+    "path": "tickets/open/0175-registry-ts-says-0036-0037-register-the-strava-adapter-both.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 176,
+    "slug": "audit-sections-attributes-a-roadmap-section-number-to-the-do",
+    "title": "audit --sections attributes a roadmap section number to the doc named beside it",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-06T15:57:14Z",
+    "path": "tickets/open/0176-audit-sections-attributes-a-roadmap-section-number-to-the-do.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
       "total": 5
     }
   }
