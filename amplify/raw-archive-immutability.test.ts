@@ -31,6 +31,15 @@ const { backend } = await import("./backend")
 const bucket = backend.storage.resources.cfnResources.cfnBucket
 const template = Template.fromStack(backend.storage.stack)
 
+/**
+ * The break-glass role lives in its own stack, so it needs its own synth — done HERE,
+ * at module scope, and not inside the test that reads it. `Template.fromStack` runs a
+ * full CDK synth, which takes 6+ seconds in the Amplify build container against
+ * vitest's 5 s per-test default. Ticket 0041 failed a deploy exactly that way, with a
+ * timeout that reproduced nowhere locally.
+ */
+const archive = Template.fromStack(backend.stack.node.findChild("RawArchive") as Stack)
+
 /** Every `AWS::S3::BucketPolicy` statement in the storage stack, flattened. */
 function policyStatements(): Array<Record<string, unknown>> {
   const policies = template.findResources("AWS::S3::BucketPolicy")
@@ -104,8 +113,6 @@ describe("the raw archive is undeletable (I-3)", () => {
    * role" excepted a role that had never been created.
    */
   it("creates that role, with deletion on raw/* as its only permission", () => {
-    const archiveStack = backend.stack.node.findChild("RawArchive") as Stack
-    const archive = Template.fromStack(archiveStack)
 
     const breakGlass = Object.values(archive.findResources("AWS::IAM::Role")).filter(
       (r) => (r.Properties as { RoleName?: string }).RoleName === "LostSolesArchiveDeletion",

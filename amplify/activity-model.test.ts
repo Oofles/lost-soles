@@ -38,9 +38,17 @@ interface IndexShape {
  * after deploy — comparing it to `"Activity-"` silently matched nothing and every
  * assertion below reported a missing index rather than a wrong one.
  */
+/**
+ * SYNTHESIZED ONCE, AT MODULE SCOPE. `Template.fromStack` runs a full CDK synth of the
+ * data stack — 1.4 s on a laptop and **6.4 s in the Amplify build container**, which is
+ * past vitest's 5 s per-test default. Calling it inside a test body failed the deploy
+ * for ticket 0041 with a timeout that reproduced nowhere locally. Module scope is not
+ * subject to that timeout, and one synth serves every assertion below.
+ */
+const TEMPLATE = Template.fromStack(activity.stack as Stack)
+
 function indexes(): IndexShape[] {
-  const stack = activity.stack as Stack
-  const template = Template.fromStack(stack)
+  const template = TEMPLATE
   const found: IndexShape[] = []
   for (const [logicalId, resource] of Object.entries(
     template.findResources("Custom::AmplifyDynamoDBTable"),
