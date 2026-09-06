@@ -3372,17 +3372,19 @@
     "title": "check-design-tokens.mjs reads a DynamoDB composite key as a hex colour",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T04:04:46Z",
-    "path": "tickets/open/0146-check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a.md",
-    "ready": true,
+    "started": "2026-09-06T18:52:03Z",
+    "closed": "2026-09-06T18:55:12Z",
+    "path": "tickets/closed/0146-check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },

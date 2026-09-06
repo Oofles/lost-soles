@@ -4,13 +4,15 @@ slug: check-design-tokens-mjs-reads-a-dynamodb-composite-key-as-a
 title: check-design-tokens.mjs reads a DynamoDB composite key as a hex colour
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-02T04:04:46Z
+started: 2026-09-06T18:52:03Z
+closed: 2026-09-06T18:55:12Z
 ---
 
 ## Description
@@ -33,12 +35,18 @@ own comment warns about.
 
 ## Acceptance criteria
 
-- [ ] A line containing a DynamoDB composite key with a hex-looking segment — use
+- [x] A line containing a DynamoDB composite key with a hex-looking segment — use
       `` `U#${uid}#C#8a2a1072b59ffff` `` — does **not** trip the check.
-- [ ] A genuine palette leak still fails: `const c = '#C9A227'` and `color: '#000'` both
+      And it needs no suppression to do so: the narrowing is the fix, the suppression is
+      only the residual escape hatch. Four more real keys are covered too, including the
+      two that actually blocked `0041` and `0019`'s original `RATE#<uid>#H#<hour>`.
+- [x] A genuine palette leak still fails: `const c = '#C9A227'` and `color: '#000'` both
       still fail, asserted by the existing self-test cases rather than by new ones.
-- [ ] The self-test carries the composite-key case, so the fix cannot regress silently.
-- [ ] Whatever mechanism is chosen, a suppression is **visible on the line** in the diff
+      Both pre-existing cases pass unchanged. Four new cases were added on the *firing*
+      side as well, because a narrowing is exactly the change that can open a hole
+      quietly — an 8-digit `#RRGGBBAA`, a `#` after a colon, and one after a paren.
+- [x] The self-test carries the composite-key case, so the fix cannot regress silently.
+- [x] Whatever mechanism is chosen, a suppression is **visible on the line** in the diff
       (the `gitleaks:allow` convention the pre-commit hook already uses) rather than a
       directory or file-extension exemption that silently stops scanning real components.
 
@@ -119,3 +127,61 @@ which is correct, since that genuinely is indistinguishable from a colour.
 None — a build-time check script with its own self-test. The self-test result and a green
 `node scripts/check-design-tokens.mjs` on a tree containing a realistic H3 cell key are the
 evidence.
+
+
+## Resolution
+
+**Files touched:** `scripts/check-design-tokens.mjs` only — the pattern, an on-line
+suppression, and ten new self-test cases (11 → 21).
+
+**The fix is two narrowings, and both are statements about what a CSS colour actually is
+rather than heuristics about what a key looks like.**
+
+1. **A colour is 3, 4, 6 or 8 hex digits.** Never 5, never 7 — those are not CSS syntax in
+   any spelling. The old `{3,8}` matched `#86283`, which is not a colour in any browser.
+2. **A colour's `#` is not preceded by a word character or `}`.** In every real colour the
+   `#` *opens a value*: after a quote, a space, a colon, a paren, or the start of a line.
+   In every composite key it *separates two segments* — `gpslogger#9001`, `${uid}#C#…`,
+   `U#u#C#…`. That difference is structural, which is what makes it safe to key on.
+
+Neither weakens the real rule, and the self-test now asserts that from both directions:
+five key-shaped lines must pass, and four colour-shaped ones — including an 8-digit
+`#RRGGBBAA`, a `#` after a colon, and one after a paren — must still fire.
+
+**The residual escape hatch is `design-tokens:allow` on the line**, the same convention
+`.githooks/pre-commit` uses for `gitleaks:allow`, and chosen for the same reason criterion
+4 gives: a suppression has to be visible in the diff that introduces it. There is no
+directory exemption and no extension exemption, because either would silently stop
+scanning real components — which is the failure mode this check exists to prevent.
+
+**Why this was done now.** It was not scheduled; it *blocked* `0041`. That ticket's tests
+carry an ordinary cross-source dedupe key (`gpslogger#9001`) and a local-day bucket
+(`#2026-09-05`), and `check-design-tokens.mjs` runs in `amplify.yml` and `gate.yml` — so
+`0041` could not deploy green. Neither string had a respelling available that was not a
+contortion, which is the ticket's own thesis arriving on schedule. Raised with the
+operator rather than worked around; the decision to fix it here was theirs.
+
+**What was deliberately NOT changed.** `lib/tickets/capture-store.ts` still spells its
+rate-limit keys `RATE#<uid>#hour:<…>` — `0019`'s workaround. It is no longer necessary and
+the self-test now covers the `H#` form it was avoiding, but those strings are live
+DynamoDB partition keys: changing them would orphan every counter in the table to fix
+nothing. The workaround stays, and this is the note saying why.
+
+## Operator validation
+
+**No operator step** — this is a build-time scanner with no UI (D-181). Verified by the
+agent.
+
+**Automated:** `node scripts/check-design-tokens.mjs --self-test` passes **21/21** cases,
+up from 11 — the ten new ones being five composite keys that must pass, four colours that
+must still fire, and the on-line suppression. `node scripts/check-design-tokens.mjs`
+against the real tree exits 0.
+
+**The fix was verified to actually bite** before being trusted: the four new
+must-fire cases were written specifically because a narrowing is the change most likely to
+open a hole quietly, and the pre-existing `#C9A227` / `#000` / `#ffffff` cases were left
+untouched rather than rewritten, so criterion 2 is asserted by the tests that predate the
+change.
+
+Full suite green afterwards: 969 passing, `tsc --noEmit`, `eslint --max-warnings 0`, and
+all six `scripts/check-*.mjs` at exit 0.
