@@ -230,7 +230,15 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
     const schemaBlock = dataResource.slice(dataResource.indexOf("a.schema({"))
     const models = [...schemaBlock.matchAll(/^\s{2}(\w+)\s*:\s*a$/gm)].map((m) => m[1])
 
-    expect(models).toEqual(["DeploySmokeTest"])
+    /**
+     * `Activity` was added by ticket 0041 (T3), and it comes here to say what it is:
+     * a model holding one person's workout records, `allow.owner().to(['read'])`, no
+     * credential material of any kind. Every field on it is written server-side by the
+     * pipeline; the client cannot even create one.
+     *
+     * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
+     */
+    expect(models).toEqual(["Activity", "DeploySmokeTest"])
   })
 })
 

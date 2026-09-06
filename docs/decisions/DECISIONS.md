@@ -2046,3 +2046,37 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     attempt from one about to be dead-lettered — is met exactly. Only the write layout differs
     from what a single-`UpdateItem` reading of the row implies, and this decision is what that
     row should be read against.
+
+- **D-207** **The ingest pipeline writes `Activity` rows as raw DynamoDB items and is therefore
+  responsible for Amplify's own item conventions — `__typename`, `owner`, `createdAt`,
+  `updatedAt`.** Ticket `0041`, 2026-09-06.
+  - **The coupling no document states.** `02-data-model.md` §2.1 makes `Activity` one of the five
+    `defineData` models, so its table is created and read through AppSync. `01-architecture.md` §4
+    step 15 has the worker write it with `TransactWriteItems`, alongside the `IngestReceipt`
+    transition. Both are right and neither mentions the consequence: **an AppSync mutation cannot
+    take part in a DynamoDB transaction**, so the write must be raw — and a raw write bypasses the
+    resolver that would normally add Amplify's bookkeeping fields.
+  - **Why it cannot be avoided by writing through AppSync instead.** That would split the
+    `Activity` put from the receipt's DONE transition, which is exactly the window T8 layer 3
+    exists to close: *"XP and the receipt commit or fail together."* A crash between two calls
+    leaves a scored activity whose receipt still reads `PROCESSING`, the next delivery reclaims it
+    as stale, and the run is scored twice on a ledger that can only add (D-135). The atomicity is
+    worth more than the decoupling.
+  - **Why not make `Activity` a CDK table** and own the shape outright: §2.1 reason 3 answers it —
+    hand-rolling resolvers for a client-facing model is "a large, permanent tax paid to optimise a
+    bottleneck that does not exist". `Activity` is read by the app on every screen; `SourceAccount`
+    and `IngestReceipt` are not, which is why those three are CDK and this one is not.
+  - **The failure it prevents is silent, which is the reason it is a decision and not a detail.**
+    A row missing `__typename` comes back from AppSync with a null type and the generated client
+    discards it; a row missing the non-null `createdAt`/`updatedAt` fails field resolution on read.
+    Either way the row is present in DynamoDB and **invisible in the app, with nothing erroring** —
+    the worst available failure, and one no amount of DynamoDB-side inspection would explain.
+  - **`createdAt`/`updatedAt` come from `activity.ingestedAt`, not from the clock.** The ticket
+    asks that re-persisting the same activity write identical bytes; a `new Date()` in the item
+    builder makes that impossible to assert honestly, and "identical apart from the two fields that
+    always differ" is not the property worth having. `activityItem` is therefore a pure function of
+    the activity, and the byte comparison is a real test rather than a hope.
+  - **What keeps it honest.** The field set is pinned by a unit test and, at close, was verified by
+    writing a row through the real table and reading it back — because the shape is Amplify's to
+    define and could change under a version bump. If Gen 2 ever adds a required bookkeeping field,
+    this is the module that has to learn about it.

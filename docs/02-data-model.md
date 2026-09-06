@@ -290,6 +290,19 @@ GSI3 byUserAndDay        PK userIdLocalDay  SK startedAtLocal   (INCLUDE: kind, 
 
 Auth: `allow.owner()`, but **`to(['read'])` for every field the pipeline owns.** Client creates
 are only permitted through the manual-log mutation (§2.11), never a raw `createActivity`.
+
+> **Built 2026-09-06 by ticket `0041`**, with two notes.
+>
+> **The auth rule is model-level `allow.owner().to(['read'])`, not per-field.** Every field on T3
+> is written by the pipeline, so "read-only for every field the pipeline owns" and "read-only"
+> are the same rule here — and a model-level rule is one line that cannot drift field by field.
+> If a future field is genuinely client-writable it gets the manual-log mutation, per §2.11.
+>
+> **The pipeline writes these rows as RAW DynamoDB items, so it must also write Amplify's own
+> bookkeeping fields** — `__typename`, `owner`, `createdAt`, `updatedAt`. That is forced: 01 §4
+> step 15 puts this write inside a `TransactWriteItems` with the receipt, and an AppSync mutation
+> cannot join a transaction. A row missing them is present in DynamoDB and invisible in the app,
+> with nothing erroring. See **D-207**.
 Access patterns: **AP-3**, **AP-4**, **AP-7**, **AP-10**, **AP-13**.
 5-year count: ~400 activities/year typical (200 runs + ~200 strength sessions), 1,000/year
 pessimistic (04 §7.6) → **2,000–5,000 items**, ~700 bytes each → ~3.5 MB.
