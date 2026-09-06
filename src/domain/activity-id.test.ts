@@ -47,6 +47,24 @@ describe("computeActivityId", () => {
     )
   })
 
+  /**
+   * ACROSS PROCESSES AND ACROSS RUNS (ticket 0040 criterion 1, I-5) — which is a
+   * stronger claim than the two tests above make. Both of them recompute the answer in
+   * THIS process with THIS crypto; they would stay green if the formula changed under
+   * them, so long as it changed consistently.
+   *
+   * A literal checked into the file is the only form of the assertion that cannot do
+   * that. This digest was produced by a separate `node` invocation, and it is what the
+   * receipt table's rows are keyed on for ninety days at a time — an id that shifted
+   * between deploys would silently split one activity into two, permanently, on a map
+   * that cannot re-fog (D-020).
+   */
+  it("matches a digest computed by a different process entirely", () => {
+    expect(computeActivityId(...args)).toBe(
+      "97a32673eaf4d824c630e1fcf8a4bc17cc49795b06a2f6b7f1ea6488a1890c8c",
+    )
+  })
+
   it("returns a full 64-character hex sha256", () => {
     expect(computeActivityId(...args)).toMatch(/^[0-9a-f]{64}$/)
   })

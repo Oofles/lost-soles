@@ -566,3 +566,73 @@ backend.storage.resources.bucket.addToResourcePolicy(
     },
   }),
 )
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE INGEST RECEIPT  (ticket 0040, 02-data-model.md T8, 01-architecture.md §4)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The table that makes webhook replay unable to double-award XP. It ships at the
+ * first import rather than when duplicates start arriving, because idempotency
+ * cannot be retrofitted onto an append-only ledger: D-135 says XP never decreases,
+ * so once two awards exist for one run there is no operation that removes the wrong
+ * one and no way to tell which was the duplicate.
+ *
+ * A CDK table, not a `defineData` model, for §2.1 reason 2 — and reason 5 is the one
+ * that bites here: T6/T7/T8 must survive a stack teardown, which a `defineData`
+ * model cannot promise.
+ *
+ * `src/pipeline/ingest-receipt.ts` holds the four layers this table implements and
+ * the reasoning for each. What lives here is only its shape.
+ */
+const ingestStack = backend.createStack("IngestPipeline")
+
+const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
+  /**
+   * NAMED EXPLICITLY, the same trade `LostSolesCaptureGuard` and
+   * `LostSolesSourceAccount` record: the accept gate's first caller is the Sync
+   * action (0043) on Amplify's SSR compute, which is not a `defineFunction` Lambda
+   * and has no CloudFormation output to be handed a generated name through.
+   * `src/pipeline/ingest-receipt.ts` states the identical literal and a test asserts
+   * the two agree.
+   */
+  tableName: "LostSolesIngestReceipt",
+  /** T8: `pk = ingestKey`, no sort key. One receipt per gate, looked up by key alone. */
+  partitionKey: { name: "ingestKey", type: AttributeType.STRING },
+  /**
+   * ~250 live items at five years (90-day TTL × ~2 keys/activity × ~400/yr). T8 says
+   * it plainly: "this is not a scale problem; it is a correctness structure."
+   */
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * 90 days, and SAFE TO EXPIRE — which is worth stating because a table guarding
+   * against double-awards looks like one that should keep its rows forever.
+   *
+   * It is safe because layer 4 is the permanent backstop (§4): the explored set is a
+   * SET, so `delta = newCells \ explored` is empty on a replay and a re-run of the
+   * same activity yields zero new cells and zero discovery credit even with no
+   * receipt at all. The ledger's deterministic id is the second backstop. This table
+   * is an optimisation over two structural guarantees, not the guarantee itself.
+   */
+  timeToLiveAttribute: "ttl",
+  /**
+   * RETAIN. `02-data-model.md` §7.2/5 names T6, T7 and T8 together: "CDK tables with
+   * `removalPolicy: RETAIN` — they survive a stack teardown by construction. That is
+   * the whole reason they are outside `defineData`."
+   *
+   * Note this differs from `LostSolesCaptureGuard`, which is DESTROY on the argument
+   * that its rows are disposable guard state with a TTL in hours. These rows are
+   * disposable too — but the window is 90 days, and losing the table mid-window means
+   * every in-flight activity loses its receipt at once, which is the one moment the
+   * two structural backstops are being asked to work unaided. §7 settles it; the
+   * orphaned-name cost is accepted, as it is for T7.
+   */
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+
+/**
+ * The Sync action (0043) runs the accept gate on the SSR compute, so that role needs
+ * read/write here. The `process-activity` Lambda gets its own grant in 0042 — this
+ * one is not it, and neither grant is a wildcard over the account's DynamoDB.
+ */
+ingestReceiptTable.grantReadWriteData(computeRole)
