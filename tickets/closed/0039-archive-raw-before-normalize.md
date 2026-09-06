@@ -4,7 +4,7 @@ slug: archive-raw-before-normalize
 title: pipeline/archive.ts — write the raw source payload to S3 before normalize runs
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: [12, 35]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-06T16:28:44Z
+closed: 2026-09-06T16:52:04Z
 ---
 
 ## Description

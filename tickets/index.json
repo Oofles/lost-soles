@@ -916,7 +916,7 @@
     "title": "pipeline/archive.ts — write the raw source payload to S3 before normalize runs",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "06-ingest-pipeline",
     "depends_on": [
@@ -927,10 +927,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-06T16:28:44Z",
-    "path": "tickets/open/0039-archive-raw-before-normalize.md",
-    "ready": true,
+    "closed": "2026-09-06T16:52:04Z",
+    "path": "tickets/closed/0039-archive-raw-before-normalize.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -952,7 +953,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0040-ingest-receipt-idempotency-ledger.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
