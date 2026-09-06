@@ -65,10 +65,64 @@ const EXTS = [".ts", ".tsx", ".js", ".jsx", ".css", ".scss"]
 /** The single file permitted to contain raw hex. */
 const PALETTE = "app/tokens.css"
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT IS A COLOUR, AND WHAT IS A DATABASE KEY  (ticket 0146)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The original pattern was `/#[0-9a-f]{3,8}\b/i` — a correct description of a CSS
+ * colour and an incorrect description of a DynamoDB composite key, which this
+ * project's own architecture writes with `#` separators (`01-architecture.md` §2:
+ * `PK = U#<uid>#C#<res6parent>`, and an H3 cell id is a hex string).
+ *
+ * It fired on `RATE#<uid>#H#2026-09-02T14` in ticket 0019, which worked around it by
+ * respelling one key. It fired again in 0041 on `gpslogger#9001` and on a local-day
+ * bucket `#2026-09-05` — neither of which is a cell id, neither of which had any
+ * respelling available that was not a contortion. Capability `07` would have hit it on
+ * every realistic cell fixture. A guard that has to be dodged is a guard that gets
+ * disabled, which is what `.githooks/pre-commit` warns about in its own comment.
+ *
+ * TWO NARROWINGS, both about what a CSS colour actually is:
+ *
+ *   1. A COLOUR IS 3, 4, 6 OR 8 HEX DIGITS. Never 5, never 7 — those are not CSS
+ *      syntax in any spelling. `#86283` was matched by the old `{3,8}` and is not a
+ *      colour in any browser.
+ *
+ *   2. A COLOUR'S `#` DOES NOT FOLLOW A WORD CHARACTER OR `}`. In every real colour
+ *      the `#` opens a value: after a quote, a space, a colon, a paren, or the start
+ *      of a line. In every composite key it SEPARATES two segments —
+ *      `gpslogger#9001`, `${uid}#C#...`, `U#u#C#...`. That difference is structural,
+ *      not stylistic, which is what makes it safe to key on.
+ *
+ * Neither narrowing weakens the real rule: `'#C9A227'`, `#000`, `#ffffff` and
+ * `= '#0B1020'` all still fire, and the self-test asserts each of them still does.
+ *
+ * The residual escape hatch is `design-tokens:allow` ON THE LINE — the same
+ * convention `.githooks/pre-commit` uses for `gitleaks:allow`, and chosen for the same
+ * reason: a suppression must be visible in the diff that introduces it. There is no
+ * directory exemption and no file-extension exemption, because either would silently
+ * stop scanning real components.
+ */
+
+/**
+ * A `#` that opens a value rather than separating two segments of a key.
+ * `(?<![\w}])` — not preceded by a word character or a closing template brace.
+ */
+const COLOUR_START = "(?<![\\w}])#"
+
+/** The only digit counts CSS accepts: #RGB, #RGBA, #RRGGBB, #RRGGBBAA. */
+const HEX_RUN = "(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})"
+
 /** Pure black / pure white, in every spelling. Banned everywhere, no exceptions. */
-const ABSOLUTE = /#(?:000000|ffffff|000|fff)\b/i
+const ABSOLUTE = new RegExp(`${COLOUR_START}(?:000000|ffffff|000|fff)\\b`, "i")
 /** Any hex colour at all. Permitted only in the palette file. */
-const ANY_HEX = /#[0-9a-f]{3,8}\b/i
+const ANY_HEX = new RegExp(`${COLOUR_START}${HEX_RUN}\\b`, "i")
+
+/**
+ * An on-line suppression, visible in the diff. Deliberately spelled out in full so
+ * `grep -rn "design-tokens:allow"` finds every one of them in one command.
+ */
+const ALLOW = /design-tokens:allow/
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out
@@ -90,6 +144,9 @@ export function scan(base) {
       const rel = relative(base, file).split(sep).join("/")
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
         const at = { rel, n: i + 1, line: line.trim() }
+        // An explicit, visible suppression. Applies to both rules: a line that has
+        // been looked at and judged is not worth judging twice.
+        if (ALLOW.test(line)) return
         if (ABSOLUTE.test(line)) {
           hits.push({ ...at, rule: "never #000000 / #FFFFFF — §8.2. Use --ink-900 / --parch-50" })
           return
@@ -132,6 +189,33 @@ if (process.argv.includes("--self-test")) {
     // name. It is scanned because it is on disk. If someone reverts to a
     // hand-written ROOTS, this is the case that goes red.
     "packages/ui/button.tsx": ["const bg = '#F5EDD9'", true],
+
+    // ── 0146: a `#` separator is not a colour ──────────────────────────────
+    // The case the ticket names verbatim. An H3 cell id is a hex string and
+    // 01-architecture.md §2 writes the key as U#<uid>#C#<res6parent>, so every
+    // realistic cell fixture in capability 07 contains one of these.
+    "src/pipeline/cell-key.ts": ["const k = `U#${uid}#C#8a2a1072b59ffff`", false],
+    // The two that actually broke ticket 0041, and neither is a cell id: an
+    // ordinary cross-source dedupe key, and a local-day bucket. There was no
+    // respelling available for either that was not a contortion.
+    "src/pipeline/dedupe.ts": ['const k = "gpslogger#9001"', false],
+    "src/pipeline/day.ts": ["const d = `${userId}#2026-09-05`", false],
+    // 0019's original: RATE#<userId>#H#<hour>. It respelled the key to get past
+    // this check; that workaround is what this fixture makes unnecessary.
+    "lib/tickets/rate.ts": ["const k = `RATE#${userId}#H#2026-09-02T14`", false],
+    // FIVE hex digits is not a CSS colour in any spelling, so it never was one.
+    "src/pipeline/five.ts": ['const k = "U#u#C#86283"', false],
+
+    // ...and the narrowing must not have opened a hole. Each of these is a real
+    // colour whose `#` opens a value, and each must still fire.
+    "components/still-fires.tsx": ["const c = '#C9A227'", true],
+    "components/eight-digit.tsx": ["const c = '#C9A22780'", true],
+    "components/after-colon.css": ["  color:#0B1020;", true],
+    "components/after-paren.ts": ["const c = rgba('#0B1020', 0.5)", true],
+
+    // The escape hatch, visible on the line (criterion 4). A genuine colour that
+    // has been looked at and judged — the gitleaks:allow convention.
+    "components/suppressed.tsx": ["const c = '#C9A227' // design-tokens:allow — §8.3 exception", false],
   }
   const base = mkdtempSync(join(tmpdir(), "tokens-"))
   try {
