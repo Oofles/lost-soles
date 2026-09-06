@@ -165,6 +165,18 @@ function isPreconditionFailed(error: unknown): boolean {
  * system of record acquired these bytes", and the second attempt did not acquire
  * anything. Stamping `now()` there would make a replay silently rewrite the
  * provenance of an object it did not write.
+ *
+ * THE TWO PATHS AGREE TO THE SECOND, NOT THE MILLISECOND, and that is accepted
+ * rather than unnoticed (ticket 0039's smoke test is where it showed up). A first
+ * write stamps the caller's clock; a replay reads S3's `LastModified`, which S3
+ * stores at one-second granularity. So re-ingesting an already-archived activity can
+ * move `Activity.raw.archivedAt` by under a second.
+ *
+ * The fix would be a HEAD after every successful PUT, and it is not worth it:
+ * `archivedAt` is provenance, nothing keys on it or compares two of them, and the
+ * cost would be an extra round trip on every activity forever to make a sub-second
+ * cosmetic difference go away. Worth knowing before someone treats this field as an
+ * identifier — it is not one; `sha256` is.
  */
 export async function archiveRaw(
   input: RawArchiveInput,
