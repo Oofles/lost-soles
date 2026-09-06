@@ -61,8 +61,45 @@ points, readable in full, and named for the behaviour it pins down. They are not
 fixtures, they are a different tool: `run-paused` exists to put a gap at a known index, and
 a real capture would bury that in three thousand points.
 
-Four fixtures the account **cannot** produce — a `TrailRun`, an id above 2^53, a novel
-`sport_type`, and a 429 — are ticket `0173`.
+### The naming convention
+
+**`real-` means captured. No prefix means constructed.** That is the whole rule, and it is
+the one thing to check before trusting a fixture as evidence of what Strava actually sends.
+A constructed fixture proves the code handles a shape; only a captured one proves the shape
+is real. `0165` is why the distinction is worth a prefix: 76 green tests were built from a
+design document's worked example, so the suite proved the code matched the *document* while
+the live service refused every grant.
+
+`http/` holds HTTP responses rather than archive envelopes — see below.
+
+### The four that CANNOT be captured, and why (ticket `0173`)
+
+JSON has no comments, so the rationale lives here rather than in a header inside each file.
+Adding a `_comment` key was the alternative and is worse: an archive-envelope fixture's one
+valuable property is being byte-shaped like what `sealRawEnvelope` writes, and a key Strava
+never sends would quietly cost exactly that.
+
+| Fixture | Why no real capture is possible | What it locks down |
+|---|---|---|
+| `trailrun-legacy-type-mismatch` | The account has **zero** `type`/`sport_type` divergence in 104 activities across six years — every one is `Run/Run`, `Ride/Ride`, `Walk/Walk` or `Workout/Workout`. | That the legacy `type` and the modern `sport_type` are read as two different fields, and that `sport_type` wins. |
+| `unknown-sport-type` | By definition the interesting value is one Strava has not shipped. The name is deliberately absurd — a plausible-but-unshipped value would quietly become correct the day Strava shipped it, and stop testing the unknown branch. | The fallback for a `sport_type` this code has never seen. |
+| `oversized-activity-id` | The largest real id on the account is `20014448765` — 2.0 × 10¹⁰ against 2^53 ≈ 9.0 × 10¹⁵. Strava is **five orders of magnitude** from minting one. | The whole silent chain: `JSON.parse` rounds the id → `externalId` is wrong → `computeActivityId` is wrong → a re-ingest is a SECOND activity → XP awarded twice, on a ledger that only ever adds (D-135). The id is 2^53 **+ 1**, the smallest integer a double cannot hold, because it is the boundary that ships. |
+| `http/429-rate-limited`, `http/429-daily-exhausted` | Forcing a real 429 costs ~1,000 reads of a quota that is **per-application** and shared across every athlete on the `client_id` (§2.5) — a day of budget, on the only connected account. | That `afterResponse` reads *which* bucket is exhausted off the headers and sleeps to the matching natural boundary, rather than retrying immediately or backing off blindly against a fixed window. |
+
+The 429 pair is constructed but not invented: the header **names** and the **limit** values
+are exactly those observed on live 200s from `client_id 276053` on 2026-09-06
+(`x-readratelimit-limit: 100,1000`). Only the usage counters are moved to their ceilings,
+and the two files differ in exactly one field — a test asserts that, so the pair keeps
+isolating the one variable it was built to isolate.
+
+They live under `http/` because they are HTTP responses, not archive envelopes. That also
+keeps `normalize.test.ts`'s every-fixture sweep — which reads only the top level of this
+directory — from trying to normalize them.
+
+All of them are exercised in `synthetic-fixtures.test.ts`, against real behaviour rather
+than merely loaded. **Being constructed is not the same as being decorative**, and if the
+account ever does produce a real divergence, a novel type or an oversized id, those tests
+are the ones that should be replaced by a capture.
 
 ## Capturing a new one
 

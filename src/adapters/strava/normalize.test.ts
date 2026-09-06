@@ -22,6 +22,7 @@ import {
   normalizeStrava,
   stripLyingZ,
 } from "./normalize"
+import { openRawEnvelope } from "./raw-envelope"
 
 /**
  * TICKET 0036 — `normalize()`, the migration seam.
@@ -695,8 +696,16 @@ describe("every fixture normalizes", () => {
 
   for (const name of names) {
     it(`${name}`, () => {
-      const parsed = JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), "utf8"))
-      const externalId = String(parsed.detail.id)
+      /**
+       * `openRawEnvelope`, NOT `JSON.parse`. This line used to be
+       * `String(JSON.parse(...).detail.id)`, and `oversized-activity-id.json` is what
+       * exposed it: a plain parse silently rounds an int64 to the nearest double, so the
+       * sweep would have fed `normalize` a CORRUPTED id, asserted that `normalize` copied
+       * it faithfully, and passed. Green, and proving nothing about the one fixture added
+       * to catch exactly that.
+       */
+      const { detail } = openRawEnvelope(fixture(name))
+      const externalId = String((detail as { id: unknown }).id)
 
       if (REFUSED.has(name)) {
         expect(() => run(name, { externalId })).toThrow(/fidelity floor/)

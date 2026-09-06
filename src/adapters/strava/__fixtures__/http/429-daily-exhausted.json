@@ -1,0 +1,15 @@
+{
+  "note": "CONSTRUCTED, not captured — same reasoning as 429-rate-limited.json. Ticket 0173.",
+  "realism": "Identical to 429-rate-limited.json except the DAILY read counter is also at its ceiling (1000 of 1000).",
+  "locks": "That the sleep target is chosen from WHICH bucket is exhausted, not assumed. Waking at the quarter hour against an exhausted daily bucket burns one request every 15 minutes until midnight for nothing.",
+  "status": 429,
+  "statusText": "Too Many Requests",
+  "headers": {
+    "x-ratelimit-limit": "200,2000",
+    "x-ratelimit-usage": "100,2000",
+    "x-readratelimit-limit": "100,1000",
+    "x-readratelimit-usage": "100,1000",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": { "message": "Rate Limit Exceeded", "errors": [{ "resource": "Application", "field": "rate limit", "code": "exceeded" }] }
+}

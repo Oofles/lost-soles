@@ -1,0 +1,15 @@
+{
+  "note": "CONSTRUCTED, not captured. A real 429 costs ~1,000 reads of a quota that is per-APPLICATION and shared across every athlete on the client_id (03-integrations.md 2.5) — a day of budget on the only connected account, to obtain a response whose headers are already documented and whose 200-shape was captured live. Ticket 0173. NOT an archive envelope: this is an HTTP response, so it lives under http/ where normalize's fixture sweep does not reach it, and it carries this note because the shape is ours rather than Strava's.",
+  "realism": "Header NAMES and the limit values are exactly those observed on live 200s from client_id 276053 on 2026-09-06 (x-readratelimit-limit: 100,1000). Only the usage counters are altered, to the values that produce a 429: the 15-minute bucket at its ceiling.",
+  "locks": "That afterResponse() reads the bucket off the headers and sleeps to the correct natural boundary — the quarter hour for a 15-minute exhaustion, midnight UTC for a daily one — rather than retrying immediately or backing off blindly against a fixed window.",
+  "status": 429,
+  "statusText": "Too Many Requests",
+  "headers": {
+    "x-ratelimit-limit": "200,2000",
+    "x-ratelimit-usage": "100,431",
+    "x-readratelimit-limit": "100,1000",
+    "x-readratelimit-usage": "100,431",
+    "content-type": "application/json; charset=utf-8"
+  },
+  "body": { "message": "Rate Limit Exceeded", "errors": [{ "resource": "Application", "field": "rate limit", "code": "exceeded" }] }
+}

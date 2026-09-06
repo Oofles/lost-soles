@@ -3951,17 +3951,18 @@
     "title": "The four fixtures no real account can produce: TrailRun, id>2^53, novel sport_type, and a 429",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "05-strava-adapter",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-06T02:17:34Z",
-    "path": "tickets/open/0173-the-four-fixtures-no-real-account-can-produce-trailrun-id-2.md",
-    "ready": true,
+    "closed": "2026-09-06T15:43:13Z",
+    "path": "tickets/closed/0173-the-four-fixtures-no-real-account-can-produce-trailrun-id-2.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   }
