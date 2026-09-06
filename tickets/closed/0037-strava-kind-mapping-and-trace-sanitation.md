@@ -4,13 +4,14 @@ slug: strava-kind-mapping-and-trace-sanitation
 title: Activity-kind mapping on sport_type, indoor/no-GPS handling, and trace sanitation
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 05-strava-adapter
 depends_on: [29, 36]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-06T00:51:38Z
 ---
 
 ## Description

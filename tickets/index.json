@@ -866,7 +866,7 @@
     "title": "Activity-kind mapping on sport_type, indoor/no-GPS handling, and trace sanitation",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -876,10 +876,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0037-strava-kind-mapping-and-trace-sanitation.md",
-    "ready": true,
+    "closed": "2026-09-06T00:51:38Z",
+    "path": "tickets/closed/0037-strava-kind-mapping-and-trace-sanitation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 16,
       "total": 16
     }
   },
@@ -3917,7 +3918,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   },
   {
@@ -3937,7 +3938,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   }
 ]
