@@ -507,7 +507,7 @@ score-time   (05 §3.5):
 | `userId`, `activityId` | S | |
 | `processingStartedAt` | S | a `PROCESSING` older than the 15-minute Lambda timeout is reclaimable by the next attempt (01 §4) — which is why the state carries a timestamp |
 | `xpAwarded`, `newCellCount` | N | on `DONE`, so a duplicate returns the winner's award rather than recomputing |
-| `attempts` | N | `ADD 1` per delivery; ≥ 4 means the DLQ has it |
+| `attempts` | N | `ADD 1` per delivery; ≥ 4 means the DLQ has it. **Its own `UpdateItem`, not part of the score gate's conditional update — see D-206**: a failed `ConditionExpression` writes nothing, so folding them would skip exactly the delivery worth counting and this column would read "successful claims". |
 | `ttl` | N | 90 days. **Safe to expire**: layer 4 (cell writes are set-inserts) is the permanent backstop (01 §4). |
 
 **The four layers, mapped onto this table** (01 §4, restated so an implementer sees which write

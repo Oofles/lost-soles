@@ -2018,3 +2018,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **I-3 is not amended.** Its intent — `raw/` objects cannot be destroyed except by the deletion
     role — is fully met. Only the mechanism differs from the one its `[S]` column names, and this
     decision is what the column should be read against.
+
+- **D-206** **`attempts` is incremented by its own write, outside the score gate's conditional
+  update, so that it counts DELIVERIES and not successful claims.** Ticket `0040`, 2026-09-06.
+  - **The contradiction.** `02-data-model.md` T8 specifies `attempts` as "`ADD 1` per delivery;
+    ≥ 4 means the DLQ has it", and specifies the score gate as an `UpdateItem` carrying a
+    `ConditionExpression` on `status`. Those cannot both be satisfied by one write: **a DynamoDB
+    conditional update whose condition fails writes nothing at all**, including its `ADD`. Fold
+    the increment into the gate and the delivery that loses the race — precisely the redelivery
+    worth counting — leaves no trace. `attempts` would silently become "successful claims", and
+    the sentence about the DLQ would be false in the one situation it exists to describe.
+  - **What was built.** `recordDelivery` is a separate `UpdateItem`, issued before the claim and
+    conditional only on `attribute_exists(ingestKey)`. The claim keeps its status condition
+    untouched. Two writes per message, ~800 a year at this volume, comfortably inside the free
+    tier — and in exchange `attempts` means what T8 says, and `0044` has a real signal to alarm on
+    rather than a number that undercounts exactly when something is going wrong.
+  - **Why not increment on the failure path instead** (one write on the happy path, two on a
+    duplicate): it puts the counter on an error path, where a second failure loses the count with
+    nothing to notice it. The counter exists to make trouble visible; siting it where trouble
+    already is makes it least reliable when it matters most.
+  - **The `attribute_exists` guard is not defensive dressing.** `UpdateItem` UPSERTS. An unguarded
+    `ADD attempts :one` would CREATE a receipt for a job that never passed the accept gate — a
+    phantom row in the table whose entire purpose is recording what was accepted. On a correct
+    path this cannot happen (`0043` accepts before it enqueues, and SQS's 14-day retention is far
+    inside the 90-day TTL), so it throws rather than being tolerated.
+  - **T8 is not amended.** Its intent — a per-delivery counter whose value distinguishes a first
+    attempt from one about to be dead-lettered — is met exactly. Only the write layout differs
+    from what a single-`UpdateItem` reading of the row implies, and this decision is what that
+    row should be read against.
