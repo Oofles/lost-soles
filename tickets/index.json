@@ -3743,17 +3743,18 @@
     "title": "Narrow the Strava Authorization Callback Domain from devaultsecurity.com to the app subdomain",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "05-strava-adapter",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T17:40:35Z",
-    "path": "tickets/open/0163-narrow-the-strava-authorization-callback-domain-from-devault.md",
-    "ready": true,
+    "closed": "2026-09-06T15:21:36Z",
+    "path": "tickets/closed/0163-narrow-the-strava-authorization-callback-domain-from-devault.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

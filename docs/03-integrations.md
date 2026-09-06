@@ -261,7 +261,9 @@ webhook events for them (§2.3).
    ```
    The redirect URI's **host must match the "Authorization Callback Domain"** configured in the
    Strava app settings — that field is a bare domain, no scheme, no path, no port. Set it to
-   the app's subdomain of `devaultsecurity.com` (D-080).
+   the app's subdomain of `devaultsecurity.com` (D-080). **The live app does not: it is the
+   bare parent, accepted under D-202 with a re-open trigger — see the amendment below.** The
+   instruction above is still what a NEW app should be registered with.
 
    > **Amended 2026-09-04, ticket `0032`.** Two claims in this paragraph were wrong, and both
    > were corrected against the live service rather than against documentation. The probe:
@@ -278,8 +280,16 @@ webhook events for them (§2.3).
    >    `STRAVA_CLIENT_ID` values in SSM are not required by this constraint.
    >
    > The same probe also found the configured domain to be the **bare parent**
-   > `devaultsecurity.com`, so every `*.devaultsecurity.com` host is currently a legitimate
-   > destination for this app's authorization codes. Narrowing it is ticket `0163`.
+   > `devaultsecurity.com`, so every `*.devaultsecurity.com` host is a legitimate destination
+   > for this app's authorization codes.
+   >
+   > **This is now an ACCEPTED RISK and not a pending fix — D-202, ticket `0163`,
+   > 2026-09-06.** The field is not editable on the current Strava settings page, and the
+   > residual exposure was measured: all six live siblings refuse anonymous writes, none has a
+   > dangling DNS record, and the start route builds `redirect_uri` from `APP_ORIGIN` and never
+   > from the request. **D-202 carries a re-open trigger** — most importantly, any new host
+   > under `*.devaultsecurity.com` serving content the operator does not fully control. Do not
+   > read the acceptance without the trigger; it is what makes it defensible.
 
 2. **Callback.** `?code=...&scope=activity%3Aread_all&state=...`. Verify `state`. Then
    **verify the returned `scope` string actually contains `activity:read_all`** — users can

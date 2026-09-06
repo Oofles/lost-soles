@@ -92,14 +92,22 @@ attacker.example/cb                            400   refused
 1. **The domain is the bare parent, not the app's subdomain.** Strava matches the configured
    domain *or any subdomain of it*, so every `*.devaultsecurity.com` host is currently a
    legitimate destination for this app's authorization codes — the exact future
-   `app/api/tickets/capture/route.ts` already worries about in its CORS comment. Narrowing it to
-   `soles.devaultsecurity.com` is ticket **`0163`**; it is a settings-page edit and no code
-   changes. Suffix confusion is handled correctly by Strava, as the fifth row shows.
+   `app/api/tickets/capture/route.ts` already worries about in its CORS comment. Suffix confusion
+   is handled correctly by Strava, as the fifth row shows.
+
+   > **RESOLVED 2026-09-06 as an ACCEPTED RISK, ticket `0163`, D-202. Not fixed.** The field is
+   > not editable on the current Strava settings page, and the residual exposure was measured
+   > rather than estimated. **Re-probed 2026-09-06: unchanged** — the parent and every sibling
+   > are still accepted. D-202 carries the re-open trigger; read it before treating this as
+   > closed business.
 
 2. **`localhost` needs no second app.** `03-integrations.md` §2.2 and ticket `0032` both said
    *"you cannot have both at once on one app, so register a second throwaway Strava app for local
    dev"*. The probe shows `localhost` and the production host accepted by the **same** app —
-   Strava exempts `localhost` from the callback-domain match. §2.2 was amended. There are two
+   Strava exempts `localhost` from the callback-domain match. §2.2 was amended.
+   **Re-confirmed 2026-09-06 (`0163` criterion 3): `localhost:3000/api/auth/strava/callback` and
+   bare `localhost/cb` both still 302.** The exemption holds; it is not a side effect of the
+   parent domain being wide, since `localhost` is not a subdomain of it. There are two
    further `STRAVA_CLIENT_ID` values in SSM under the sandbox paths
    (`lostsoles/root-sandbox-…`, `lostsoles/vivicat-sandbox-…`); whatever they were created for,
    this constraint is not it.

@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,573 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,583 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -198,7 +198,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/03-integrations.md`
 
-**03 — Integrations & Data Ingestion** — 1,637 lines
+**03 — Integrations & Data Ingestion** — 1,647 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -207,54 +207,54 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 1.2 The adapter interface | `148-177` | interface SourceAdapter { |
 | 1.3 The pipeline every adapter feeds | `178-222` | adapter.fetch() |
 | 2.1 Endpoints used | `223-237` | Nothing else. Club, Segment-Explore, and leaderboard endpoints are out of scope and several |
-| 2.2 OAuth | `238-338` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
-| 2.3 Webhooks | `339-442` | POST https://www.strava.com/api/v3/pushsubscriptions |
-| 2.4 Fetching the trace | `443-515` | GET https://www.strava.com/api/v3/activities/{id}/streams |
-| 2.5 Rate limits and the budget | `516-623` | shared across every athlete who has authorized the app. |
-| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `551-572` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
-| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `573-586` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
-| &nbsp;&nbsp;↳ Backoff and retry | `587-623` | read X-ReadRateLimit-Usage / -Limit |
-| 2.6 Activity type mapping | `624-751` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
-| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `644-670` | the stream response comes back without the key. |
-| &nbsp;&nbsp;↳ Manual Strava activities | `671-676` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
-| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `677-689` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
-| &nbsp;&nbsp;↳ Trace sanitation | `690-751` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
-| 2.7 Idempotency, edits, deletions, and dedupe | `752-822` | same hazard for recent activities. |
-| 2.8 The honest risk register | `823-973` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
-| &nbsp;&nbsp;↳ What is true | `828-859` | "aggregate, cache, or store geographic location information", except per §6.2. |
-| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `860-871` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
-| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `872-894` | This is the part to internalize. |
-| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `895-921` | Review this list quarterly. |
-| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `922-946` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
-| &nbsp;&nbsp;↳ The counterfactual, recorded once | `947-973` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
-| 3.1 Rules | `974-988` | with them. A parser bug must never cost data; it must only cost a replay. |
-| 3.2 Bucket and layout | `989-1071` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
-| 3.3 Format and encoding | `1072-1082` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
-| 3.4 Lifecycle, cost, and durability | `1083-1101` | below, so a future convenience change cannot quietly add one. |
-| 3.5 Backfilling a future adapter from the archive | `1102-1168` | This is the procedure §6 depends on, so it is specified here rather than described. |
-| 4.1 Health Connect bridge (D-113) | `1169-1276` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
-| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1179-1208` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
-| &nbsp;&nbsp;↳ Data shape | `1209-1225` | ExerciseRoute.Location( |
-| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1226-1255` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
-| &nbsp;&nbsp;↳ Bridge sketch | `1256-1276` | [Screen: one button, one status line] |
-| 4.2 GPSLogger HTTP endpoint (D-112) | `1277-1359` | — so no Play review, no Play policy exposure). |
-| &nbsp;&nbsp;↳ Endpoint spec | `1286-1324` | POST https://lostsoles.devaultsecurity.com/api/ingest |
-| &nbsp;&nbsp;↳ GPX parsing | `1325-1333` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
-| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1334-1359` | Each session is one activity, cleanly. |
-| 4.3 Manual entry | `1360-1391` | Two distinct paths, one UI. |
-| 4.4 Watch vendor (D-117) — sketch only | `1392-1430` | device decision is no longer blocking and can be made later without touching the rest of the |
-| Whoop — REJECTED as a trace source | `1431-1447` | all, so there is nothing to expose. |
-| Fitbit / Google Health API — REJECTED | `1448-1457` | be building on something already gone. |
-| Apple Health — REJECTED (structural, not a preference) | `1458-1465` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
-| Health Connect as a *native* dependency — SCOPED, not rejected | `1466-1472` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
-| PWA run recording — REJECTED (D-110) | `1473-1484` | The user's instinct that "it needs to be an Android app" was correct. |
-| Share-sheet GPX import — REJECTED (D-111) | `1485-1505` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
-| 6.1 Trigger | `1506-1515` | Any row in §2.8's trigger table. |
-| 6.2 Steps | `1516-1553` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
-| 6.3 What changes, and what does not | `1554-1585` |  |
-| 6.4 How the archive backfills history | `1586-1613` | function and the transport is a separate file. |
-| 6.5 Do not delete the archive | `1614-1624` | Even after migration, source=strava objects in the raw archive are the only copy of some |
-| Appendix — decision references used | `1625-1637` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
+| 2.2 OAuth | `238-348` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
+| 2.3 Webhooks | `349-452` | POST https://www.strava.com/api/v3/pushsubscriptions |
+| 2.4 Fetching the trace | `453-525` | GET https://www.strava.com/api/v3/activities/{id}/streams |
+| 2.5 Rate limits and the budget | `526-633` | shared across every athlete who has authorized the app. |
+| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `561-582` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
+| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `583-596` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
+| &nbsp;&nbsp;↳ Backoff and retry | `597-633` | read X-ReadRateLimit-Usage / -Limit |
+| 2.6 Activity type mapping | `634-761` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
+| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `654-680` | the stream response comes back without the key. |
+| &nbsp;&nbsp;↳ Manual Strava activities | `681-686` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
+| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `687-699` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
+| &nbsp;&nbsp;↳ Trace sanitation | `700-761` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
+| 2.7 Idempotency, edits, deletions, and dedupe | `762-832` | same hazard for recent activities. |
+| 2.8 The honest risk register | `833-983` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
+| &nbsp;&nbsp;↳ What is true | `838-869` | "aggregate, cache, or store geographic location information", except per §6.2. |
+| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `870-881` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
+| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `882-904` | This is the part to internalize. |
+| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `905-931` | Review this list quarterly. |
+| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `932-956` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
+| &nbsp;&nbsp;↳ The counterfactual, recorded once | `957-983` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
+| 3.1 Rules | `984-998` | with them. A parser bug must never cost data; it must only cost a replay. |
+| 3.2 Bucket and layout | `999-1081` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
+| 3.3 Format and encoding | `1082-1092` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
+| 3.4 Lifecycle, cost, and durability | `1093-1111` | below, so a future convenience change cannot quietly add one. |
+| 3.5 Backfilling a future adapter from the archive | `1112-1178` | This is the procedure §6 depends on, so it is specified here rather than described. |
+| 4.1 Health Connect bridge (D-113) | `1179-1286` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
+| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1189-1218` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
+| &nbsp;&nbsp;↳ Data shape | `1219-1235` | ExerciseRoute.Location( |
+| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1236-1265` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
+| &nbsp;&nbsp;↳ Bridge sketch | `1266-1286` | [Screen: one button, one status line] |
+| 4.2 GPSLogger HTTP endpoint (D-112) | `1287-1369` | — so no Play review, no Play policy exposure). |
+| &nbsp;&nbsp;↳ Endpoint spec | `1296-1334` | POST https://lostsoles.devaultsecurity.com/api/ingest |
+| &nbsp;&nbsp;↳ GPX parsing | `1335-1343` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
+| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1344-1369` | Each session is one activity, cleanly. |
+| 4.3 Manual entry | `1370-1401` | Two distinct paths, one UI. |
+| 4.4 Watch vendor (D-117) — sketch only | `1402-1440` | device decision is no longer blocking and can be made later without touching the rest of the |
+| Whoop — REJECTED as a trace source | `1441-1457` | all, so there is nothing to expose. |
+| Fitbit / Google Health API — REJECTED | `1458-1467` | be building on something already gone. |
+| Apple Health — REJECTED (structural, not a preference) | `1468-1475` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
+| Health Connect as a *native* dependency — SCOPED, not rejected | `1476-1482` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
+| PWA run recording — REJECTED (D-110) | `1483-1494` | The user's instinct that "it needs to be an Android app" was correct. |
+| Share-sheet GPX import — REJECTED (D-111) | `1495-1515` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
+| 6.1 Trigger | `1516-1525` | Any row in §2.8's trigger table. |
+| 6.2 Steps | `1526-1563` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
+| 6.3 What changes, and what does not | `1564-1595` |  |
+| 6.4 How the archive backfills history | `1596-1623` | function and the transport is a separate file. |
+| 6.5 Do not delete the archive | `1624-1634` | Even after migration, source=strava objects in the raw archive are the only copy of some |
+| Appendix — decision references used | `1635-1647` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
 
 ## `docs/04-game-design.md`
 

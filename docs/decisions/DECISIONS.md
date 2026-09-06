@@ -1877,3 +1877,53 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **No `break` is recorded for a discarded lead-in.** `breaks` marks ground a corridor
     must not be drawn ACROSS (D-198), and nothing precedes the first accepted fix — the
     same reasoning that leaves a run of rejections at the very end of a trace unmarked.
+
+- **D-202** **The Strava app's Authorization Callback Domain stays the bare parent
+  `devaultsecurity.com`. Accepted risk, not a fix — and it has a re-open trigger.**
+  Ticket `0163`, operator decision 2026-09-06.
+  - **What is actually exposed.** Strava matches the configured domain **or any subdomain of
+    it**, so every `*.devaultsecurity.com` host is a legitimate destination for this app's
+    authorization codes. Confirmed by probe on 2026-09-04 and again on 2026-09-06:
+    `other.devaultsecurity.com/cb` and the bare parent both answer `302`, while
+    `notsoles.devaultsecurity.com.evil.example` and `attacker.example` answer `400` — Strava
+    handles suffix confusion correctly, so the exposure is exactly the sibling set and
+    nothing wider.
+  - **Why it was not fixed.** The Authorization Callback Domain field **is not present on
+    the current `https://www.strava.com/settings/api` page** for this app (client id
+    `276053`), verified by the operator while logged in. The ticket assumed a one-field
+    edit; there is no field. This is a finding about the ticket, not an obstacle routed
+    around.
+  - **Why accepting is defensible, measured rather than asserted.** Reaching the codes
+    requires an attacker to *receive* a redirect at some `*.devaultsecurity.com` host, which
+    requires either content control on an existing sibling or a DNS record for a new one —
+    and the operator controls the zone. Checked on 2026-09-06:
+
+    | | |
+    |---|---|
+    | Live siblings | `www`, `github`, `linkedin`, `mastodon`, `twitter`, `ctf` — six, all S3-hosted static sites |
+    | Anonymous write to any of them | **403 on all six** — no attacker-writable sibling |
+    | Dangling DNS / claimable bucket | none — every subdomain's bucket exists in account `286588821906` |
+    | Names with no DNS (e.g. `other.`) | unusable by an attacker; they would need the zone |
+
+    Add the two mitigations already in place — `0032`'s start route builds `redirect_uri`
+    from `APP_ORIGIN` and **never** from the request, so the app cannot be induced to emit a
+    crafted one, and the flow is state-checked via `LostSolesOAuthState` — and the residual
+    path is a hand-built authorize URL the operator personally follows to a host the
+    attacker would already have had to compromise.
+  - **THE RE-OPEN TRIGGER, in the shape 08 §2.4 uses for D-123.** This risk is **not
+    static**; it is low only because of the table above. Re-open `0163` and narrow the
+    domain — by whatever mechanism Strava then offers, including recreating the app — if
+    **any** of these fire:
+    1. **A new host is deployed under `*.devaultsecurity.com`** that serves content this
+       operator does not fully control (a third-party page builder, a CI preview domain, a
+       hosted status page, anything with user-supplied content).
+    2. **Any sibling bucket becomes writable** by a principal outside the account, or a
+       subdomain's DNS is left pointing at a resource that no longer exists — a dangling
+       record is a claimable bucket and turns this from theoretical into live.
+    3. **A second user is provisioned** (08 §2.4 TRIGGER A already gates this), because the
+       blast radius stops being one person's location history.
+    4. **The Strava app is ever recreated or the field reappears** — then it costs nothing,
+       and "it was free" is reason enough.
+  - **What was NOT accepted.** Nothing about the app's code changed and nothing should: the
+    `[source]` routes, the `APP_ORIGIN`-derived redirect URI and the state check all stay as
+    they are. This decision is scoped to one field on a third-party settings page.
