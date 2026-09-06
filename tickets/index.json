@@ -941,7 +941,7 @@
     "title": "IngestReceipt idempotency ledger with deterministic activityId",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "06-ingest-pipeline",
     "depends_on": [
@@ -953,10 +953,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-06T17:22:45Z",
-    "path": "tickets/open/0040-ingest-receipt-idempotency-ledger.md",
-    "ready": true,
+    "closed": "2026-09-06T18:11:19Z",
+    "path": "tickets/closed/0040-ingest-receipt-idempotency-ledger.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -977,7 +978,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0041-persist-activity-row.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7

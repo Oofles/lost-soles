@@ -4,7 +4,7 @@ slug: ingest-receipt-idempotency-ledger
 title: IngestReceipt idempotency ledger with deterministic activityId
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: [12, 25, 39]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-06T17:22:45Z
+closed: 2026-09-06T18:11:19Z
 ---
 
 ## Description
