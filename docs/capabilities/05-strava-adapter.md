@@ -132,6 +132,48 @@ restorable by anyone who can restore a table, and it would make the drill's §8.
 The `byExternalOwner` GSI (`KEYS_ONLY`) and the CMK are **not** here — they are ticket `0033`'s,
 alongside the rotation handling they exist to serve.
 
+## The read budget, recorded so a change is visibly a budget decision  (ticket 0038, 2026-09-06)
+
+`03-integrations.md` §2.5 does the arithmetic; this is the copy that sits next to the code,
+so that a future change which multiplies call volume shows up as a **budget decision** and
+not as a performance detail.
+
+**The fact everything else follows from: limits are per-APPLICATION, not per-athlete.** The
+quota attaches to the `client_id`. Adding a user does not add quota, it splits it.
+
+| Bucket | 15 min | Daily |
+|---|---|---|
+| Read (every call we make) | 100 | **1,000** |
+| Overall | 200 | 2,000 |
+
+**Steady state — ~6-10 reads/day of 1,000.** Webhook fires → 1 detail + 1 streams = 2.
+Reconciliation, 4 sweeps × ~1 page = 4. Under 1% of quota: the steady state is free.
+
+**Backfill — ~1,608 calls, ~2.3 days.** 8 years × ~200 activities ≈ 1,600, plus 8 list
+pages. At 70% of the daily budget (700/day) that is 2.3 days, checkpointed and resumable.
+The 15-minute ceiling of 100 is the tighter constraint, so the worker paces at ≤90 per 15
+minutes — one call every ~10 seconds, deliberately slow and correct.
+
+**Measured against the real account while building `0038`:** 104 activities, not the ~1,600
+the estimate assumes. The backfill for THIS account is ~112 calls — a few minutes, not two
+days. The 1,600 figure is kept because it is the number the *design* has to survive, and
+because `0038`'s pacing primitives are sized for it.
+
+**Live budget headers, observed 2026-09-06** across the whole fixture-capture session
+(~54 reads — one activity list, ~53 detail/stream calls hunting a real signal-loss jump):
+
+```
+x-ratelimit-limit:      200,2000
+x-readratelimit-limit:  100,1000
+x-readratelimit-usage:  1,37   ->  1,55     (15min, daily)
+```
+
+Two things confirmed rather than assumed: the **default tier** is what is actually in
+force (100/1,000 read, not the upgraded 200/2,000), and every call this adapter makes
+lands in the **read** bucket — the read and overall usage counters moved in lockstep all
+session. 55 of 1,000 for a day that included capturing five fixtures and sweeping 53
+activities' streams; the budget is not the constraint at one user, exactly as §2.5 says.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

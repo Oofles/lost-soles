@@ -12,6 +12,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 
 import type { IngestJob } from "../types"
 import { assertStreamsAligned, openRawEnvelope, type StravaStream } from "./raw-envelope"
+import { fidelityFloorViolation } from "./fidelity"
 import { sanitizeTracePoints } from "./sanitize"
 
 /**
@@ -395,6 +396,18 @@ function buildTrace(
   // Every fix rejected. A trace with no points is not a trace — see `sanitizeTracePoints`'s
   // note on a bad first anchor, and `0172`.
   if (points.length === 0) return undefined
+
+  /**
+   * THE FIDELITY FLOOR (0038, contract §5 check 5, D-200), and it THROWS.
+   *
+   * Checked here rather than downstream because this is the last point at which the
+   * evidence still exists: `time` is in scope, and one line later the trace is just a
+   * `GeoPoint[]` whose timestamps look identical whether Strava sent them or `buildTrace`
+   * counted them off the index. It runs AFTER sanitation for the same reason `gaps` and
+   * `bbox` do — the question is about the trace that will actually be projected to H3.
+   */
+  const violation = fidelityFloorViolation(points, time !== undefined)
+  if (violation) throw new StravaNormalizeError(violation)
 
   let minLng = points[0].lng
   let minLat = points[0].lat

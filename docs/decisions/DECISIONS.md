@@ -1792,3 +1792,48 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     nothing in the scanner can prove that, and *"I could not read it"* must never resolve to
     *"clean"* (D-176). The fixture was given genuine encoded synthetic geometry instead, which
     also made it a more faithful copy of what Strava actually returns.
+
+- **D-200** **The fidelity floor is a SAMPLING RATE — `0.3` points/second as a median
+  interval — not points-per-km, and an absent `time` stream fails it outright.** Ticket
+  `0038`. Amends `contracts/ingestion-contract.md` §5 check 5 (canonical) and
+  `03-integrations.md` §2.5.
+  - **The specified metric could not separate the two populations, and the number that
+    justified it was wrong.** `0038` reasoned: *"At 1 Hz a 6 min/km run gives ~360
+    points/km; `summary_polyline` would give ~10-30. Set the floor well below the former
+    and far above the latter."* Measured against real captured responses from the connected
+    account rather than estimated:
+
+    | | points/km | points/second |
+    |---|---|---|
+    | real full streams (87 runs, 2 rides, 12 walks) | 182 – 684 | 0.94 – 0.99 |
+    | real `summary_polyline` | **20 – 49** | 0.047 – 0.110 |
+    | real `map.polyline` | 37 – 56 | — |
+
+    The decimated figure is more than twice the assumed one, and it is wrong in the unsafe
+    direction — a floor set "far above 30" would have passed a real `summary_polyline`.
+  - **Points-per-km is a function of speed; a sampling rate is not.** At 1 Hz, 100
+    points/km is exactly 36 km/h, so a floor placed in the 49–182 gap refuses a fast
+    descent as though it were corrupt. `xp-rules-v1.yaml` already carries `kinds: [ride]`
+    (D-197), so that is a supported activity and not a hypothetical. The rate separates the
+    same two populations by 9–21×, with 0.3 sitting ~3× from each side.
+  - **The MEDIAN interval, not the mean.** The mean is `duration / points`, which any pause
+    destroys: a 20-minute run, a two-hour stop, 20 minutes more is a full-resolution 1 Hz
+    trace whose mean rate is under the floor. A mean would refuse to ingest a real run
+    because the operator stopped for lunch. A gap moves a few intervals to the end of a
+    sorted list and leaves the median alone. Every gap this system already models (D-198)
+    has that shape.
+  - **An absent `time` stream is itself the failure, and this is half the check.**
+    `buildTrace` derives each timestamp as `startedAt + (offsetS ?? i) * 1000` — with no
+    `time` stream it counts off the ARRAY INDEX and fabricates a flawless 1 Hz cadence. A
+    trace decoded from a `summary_polyline` has no time stream, so it would have arrived
+    with perfectly spaced synthetic timestamps and cleared the rate floor comfortably: the
+    check reporting "clean" for precisely the input it exists to reject. Found while
+    writing the test, not while writing the check.
+  - **It throws.** `0038`: *"a loud failure, not a warning: by D-020 a bad reveal cannot be
+    un-drawn."* Refusing one activity costs a re-run; ingesting a decimated one costs the
+    map, permanently.
+  - **It supersedes `Trace.simplified` for traces below the floor.** `simplified` was the
+    earlier, weaker answer to D-121 — mark the trace and let something downstream decide —
+    and nothing downstream ever did. The flag keeps its job for a trace that is decimated
+    but still dense enough to draw; below the floor, refusing is the only safe answer.
+    `normalize.test.ts` now asserts both halves against two separate fixtures.

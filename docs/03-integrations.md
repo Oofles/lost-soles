@@ -530,6 +530,14 @@ Strava API and it drives the whole backfill design.
 
 **Headers on every response** — read them, do not model the budget locally:
 
+> **Correction, 2026-09-06 (ticket `0038`).** Not *every* response. Probed live against the
+> production `client_id`: an authenticated 200, an authenticated 400 and an authenticated
+> 404 for another athlete's activity all carry the four headers; an authenticated **404
+> from `/streams`** does not, and neither does an unauthenticated 401. The `/streams` 404 is
+> the ordinary answer for every manual and GPS-less activity (§2.6), so a backfill over a
+> mixed history meets it constantly. A header-less response must therefore leave the last
+> known reading in place rather than clear it — see `mergeRateLimit`.
+
 ```
 X-RateLimit-Limit:      200,2000      # overall:  15min,daily
 X-RateLimit-Usage:      12,431
@@ -598,6 +606,15 @@ on 401:
 
 on 404 for /streams:
   this is NOT an error. It means the activity has no streams (manual activity). §2.6.
+
+on a trace that arrives below the FIDELITY FLOOR:
+  refuse the activity. Not a warning, not a flag — normalize() throws and ingestion for
+  that activity stops. The floor is a SAMPLING RATE (>= 0.3 points/second, median
+  interval), never points-per-km: measured against real responses, summary_polyline gives
+  20-49 points/km against 182-684 for a full stream, and points-per-km is a function of
+  speed, so a floor in that gap rejects a fast ride. A trace with no `time` stream at all
+  fails outright — its timestamps can only have been synthesised from the array index.
+  D-200, ticket 0038.
 ```
 
 The interactive path (a user pressing "sync now") and the backfill worker draw on the same

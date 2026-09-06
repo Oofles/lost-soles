@@ -258,9 +258,22 @@ accept()                                   → ack the source in <2s, enqueue
 3. Cross-adapter equivalence: the same physical run ingested via two adapters yields the
    **same H3 cell set** (within tolerance).
 4. `normalize()` is pure — enforced by running it with network and clock stubbed to throw.
-5. **Fidelity floor**: assert points-per-km above a threshold, to catch a silent
-   source-side decimation (the `summary_polyline` failure mode) before it permanently
-   corrupts the map.
+5. **Fidelity floor**: assert the trace's **sampling rate** is above a threshold, to catch
+   a silent source-side decimation (the `summary_polyline` failure mode) before it
+   permanently corrupts the map. `MIN_POINTS_PER_SECOND = 0.3`, measured as the **median**
+   inter-sample interval, plus the requirement that a `time` stream exists at all.
+
+> **Amended 2026-09-06 (ticket `0038`, D-200).** This check read *"assert points-per-KM
+> above a threshold"* and the metric was wrong. Measured against real captured responses:
+> a real `summary_polyline` is **20-49 points/km**, not the 10-30 the ticket assumed, while
+> real full streams run 182-684 — the 182 being a 20 km/h bike ride. Points-per-km is a
+> function of SPEED, so a floor placed in that gap rejects a fast descent as a corrupted
+> trace. A sampling RATE is speed-invariant and separates the same two populations by 9-21x.
+>
+> The `time`-stream requirement is the half without which the other half is decorative:
+> `buildTrace` derives timestamps as `startedAt + (offsetS ?? i) * 1000`, so a trace with
+> no time stream — which is exactly what a decoded `summary_polyline` is — arrives with a
+> fabricated perfect 1 Hz cadence and clears any rate floor. See D-200.
 
 > **Correction, 2026-08-31 (ticket 0025, D-167).** Check 1 previously read "returns **nothing**",
 > full stop. **That was never satisfiable** — §2 of this file puts `"strava"` in `SourceId`

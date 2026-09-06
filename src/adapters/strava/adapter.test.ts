@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it, vi } from "vitest"
@@ -725,10 +725,59 @@ describe("no polyline decoder exists anywhere in this repository", () => {
               : [],
       )
 
-    const importers = walk(root).filter((f) =>
-      /^\s*import\b.*polyline|require\(["'][^"']*polyline/im.test(readFileSync(f, "utf8")),
-    )
+    const importers = walk(root)
+      .filter((f) => /^\s*import\b.*polyline|require\(["'][^"']*polyline/im.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(root.length + 1))
 
-    expect(importers.map((f) => f.slice(root.length + 1))).toEqual([])
+    /**
+     * TWO EXEMPTIONS, ADDED BY TICKET 0038, and they are named individually rather than
+     * as a `scripts/` wildcard so that adding a third is a visible edit to this file.
+     *
+     * Both are PRIVACY tooling and neither can reach a trace. `check-fixture-geography.mjs`
+     * decodes a committed fixture's `summary_polyline` in order to prove it carries no real
+     * coordinate — an encoded polyline is a location even though no coordinate scanner sees
+     * one — and `make-strava-fixture.mjs` decodes a captured one so it can re-encode the
+     * SYNTHETIC geometry that replaces it (D-199). Refusing them a decoder would mean
+     * committing a real polyline unexamined, which is the outcome D-121 and 08 §7.2 are
+     * both trying to avoid.
+     *
+     * The exemption is safe because of the assertion below, not because of this comment:
+     * these files run in a git hook and in CI, never in ingestion, and nothing that ships
+     * imports them.
+     */
+    const PRIVACY_TOOLING = [
+      "scripts/check-fixture-geography.mjs",
+      "scripts/make-strava-fixture.mjs",
+    ]
+    expect(importers.filter((f) => !PRIVACY_TOOLING.includes(f))).toEqual([])
+
+    /**
+     * AND THE HALF THAT ACTUALLY GUARDS D-121. The danger was never a decoder existing —
+     * it is a decoder being REACHABLE from the code that builds a trace. So: nothing under
+     * the shipped tree may import the exempted files, and nothing under the shipped tree
+     * may mention polyline decoding at all.
+     *
+     * This is strictly stronger than what this test asserted before ticket 0038, which
+     * scanned for the word `polyline` in an import line anywhere and would have passed a
+     * hand-rolled decoder written inline in `normalize.ts` — the exact file it matters in.
+     */
+    const SHIPPED = ["src", "lib", "app", "amplify", "components"]
+    // Tests are excluded: the concern is code that can build a trace at RUNTIME, and a
+    // test cannot corrupt a map. This very file would otherwise match on the regex below,
+    // which is a self-match and not a finding.
+    const shippedFiles = SHIPPED.filter((d) => existsSync(join(root, d)))
+      .flatMap((d) => walk(join(root, d)))
+      .filter((f) => !/\.test\.(ts|tsx|mjs)$/.test(f))
+
+    const reachesTooling = shippedFiles.filter((f) => {
+      const body = readFileSync(f, "utf8")
+      return PRIVACY_TOOLING.some((t) => body.includes(t.replace(/^scripts\//, "")))
+    })
+    expect(reachesTooling.map((f) => f.slice(root.length + 1))).toEqual([])
+
+    const decodesInline = shippedFiles.filter((f) =>
+      /decodePolyline|decode_polyline|polyline\s*\.\s*decode/i.test(readFileSync(f, "utf8")),
+    )
+    expect(decodesInline.map((f) => f.slice(root.length + 1))).toEqual([])
   })
 })

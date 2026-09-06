@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -254,9 +254,31 @@ describe("simplified is the summary_polyline guard", () => {
     expect(run("run-continuous").trace?.simplified).toBe(false)
   })
 
-  it("is true when the response says it dropped samples", () => {
-    // 3 points delivered against an `original_size` of 3600, at resolution "low".
-    const { trace } = run("ride-decimated-streams", { externalId: "18736594045" })
+  /**
+   * AMENDED BY TICKET 0038, and the amendment is the point.
+   *
+   * This used to assert that `ride-decimated-streams` normalizes to `simplified: true`
+   * with `pointCount: 3`. It no longer normalizes at all: 3 points across 2,400 seconds is
+   * a median sampling interval of 20 minutes, and the fidelity floor now REFUSES it.
+   *
+   * That is the correct outcome and it supersedes the flag for this input. `simplified`
+   * was the earlier, weaker answer to D-121 — mark the trace and let something downstream
+   * decide — and nothing downstream ever did. On a map that cannot re-fog (D-020) the
+   * decision has to be taken before the trace is projected, not recorded next to it. The
+   * flag keeps its job for traces that are decimated but still DENSE ENOUGH to draw; below
+   * the floor, refusing is the only safe answer. See D-200.
+   */
+  it("REFUSES a trace the source admits it decimated below the floor", () => {
+    expect(() => run("ride-decimated-streams", { externalId: "18736594045" })).toThrow(
+      /fidelity floor/,
+    )
+  })
+
+  it("still just FLAGS a decimated trace that is dense enough to draw", () => {
+    // `original_size` 3600 against 3 delivered points says "decimated", but these three
+    // arrive one second apart — 1.0 points/second, comfortably over the floor. The flag
+    // and the floor answer different questions and this fixture separates them.
+    const { trace } = run("ride-decimated-dense", { externalId: "18736594052" })
     expect(trace?.simplified).toBe(true)
     expect(trace?.pointCount).toBe(3)
   })
@@ -643,6 +665,69 @@ describe("indoor and no-GPS are normal outcomes, not error paths", () => {
     expect(wasA404.activity.hasTrace).toBe(noKey.activity.hasTrace)
     expect(wasA404.trace).toBe(noKey.trace)
   })
+})
+
+/**
+ * EVERY FIXTURE IS NORMALIZED, ticket 0038 criterion 3 — with zero mocking, because no
+ * HTTP is involved: `normalize()` reads an archived envelope and nothing else.
+ *
+ * Discovers the directory rather than listing it. The tests above each name the fixture
+ * they need, which means a fixture added for one assertion is exercised by exactly that
+ * assertion and a fixture added and then forgotten is exercised by nothing at all — and a
+ * fixture nobody runs is a file that only carries risk (D-199) and proves no behaviour.
+ * This is the sweep that makes a new capture pay for itself on the day it lands.
+ *
+ * `ride-decimated-streams` is the one expected refusal: it is 3 points across 2,400
+ * seconds and the fidelity floor is supposed to throw on it (D-200). Named here rather
+ * than pattern-matched, so that a SECOND fixture starting to throw is a failure and not a
+ * silently widened exception.
+ */
+describe("every fixture normalizes", () => {
+  const REFUSED = new Set(["ride-decimated-streams"])
+
+  const names = readdirSync(FIXTURES)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""))
+
+  it("has fixtures to run", () => {
+    expect(names.length).toBeGreaterThan(10)
+  })
+
+  for (const name of names) {
+    it(`${name}`, () => {
+      const parsed = JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), "utf8"))
+      const externalId = String(parsed.detail.id)
+
+      if (REFUSED.has(name)) {
+        expect(() => run(name, { externalId })).toThrow(/fidelity floor/)
+        return
+      }
+
+      const { activity, trace } = run(name, { externalId })
+
+      // The invariants that must hold for EVERY fixture, whatever it was captured to prove.
+      expect(activity.source.externalId).toBe(externalId)
+      expect(activity.source.source).toBe("strava")
+      expect(activity.startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+      expect(activity.hasTrace).toBe(trace !== undefined)
+
+      if (trace) {
+        expect(trace.pointCount).toBe(trace.points.length)
+        // The bbox must actually contain the points it claims to bound.
+        const [minLng, minLat, maxLng, maxLat] = trace.bbox
+        for (const p of trace.points) {
+          expect(p.lng).toBeGreaterThanOrEqual(minLng)
+          expect(p.lng).toBeLessThanOrEqual(maxLng)
+          expect(p.lat).toBeGreaterThanOrEqual(minLat)
+          expect(p.lat).toBeLessThanOrEqual(maxLat)
+        }
+        // Time must be non-decreasing, or `gaps` indices mean nothing.
+        for (let i = 1; i < trace.points.length; i++) {
+          expect(trace.points[i].t).toBeGreaterThanOrEqual(trace.points[i - 1].t)
+        }
+      }
+    })
+  }
 })
 
 /**

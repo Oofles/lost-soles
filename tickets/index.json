@@ -890,7 +890,7 @@
     "title": "Checked-in real-response fixtures, the fidelity floor, and rate-limit backoff",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "05-strava-adapter",
     "depends_on": [
@@ -901,10 +901,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0038-strava-fixtures-and-rate-limit-backoff.md",
-    "ready": true,
+    "started": "2026-09-06T01:55:41Z",
+    "closed": "2026-09-06T02:23:05Z",
+    "path": "tickets/closed/0038-strava-fixtures-and-rate-limit-backoff.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
@@ -3934,6 +3936,26 @@
     "source": "agent",
     "created": "2026-09-06T00:45:43Z",
     "path": "tickets/open/0172-a-bad-first-gps-fix-anchors-the-sanitizer-and-rejects-the-en.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 173,
+    "slug": "the-four-fixtures-no-real-account-can-produce-trailrun-id-2",
+    "title": "The four fixtures no real account can produce: TrailRun, id>2^53, novel sport_type, and a 429",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "05-strava-adapter",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-06T02:17:34Z",
+    "path": "tickets/open/0173-the-four-fixtures-no-real-account-can-produce-trailrun-id-2.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

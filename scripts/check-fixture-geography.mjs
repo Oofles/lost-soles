@@ -73,6 +73,42 @@ const SKIP = new Set(["node_modules", ".next", ".amplify", ".git", ".claude"])
 const POINT_KEYS = new Set(["latlng", "start_latlng", "end_latlng"])
 const POLYLINE_KEYS = new Set(["polyline", "summary_polyline"])
 
+/**
+ * A PLACE NAME IS A LOCATION, and no coordinate scanner sees one.
+ *
+ * Found by capturing a real detail response in ticket 0038: alongside the track, Strava
+ * returns `segment_efforts[].segment.city / state / country` — for the operator's own runs,
+ * "Ponte Vedra Beach, Florida" — plus the segment's name, which is a named local landmark.
+ * Committing that publishes the town without publishing a single coordinate.
+ *
+ * Same allowlist trick as the geography box, and for the same reason: a denylist would have
+ * to enumerate the operator's places, which is the leak written down to prevent the leak.
+ * These fields must be absent, empty, null, or exactly one of the synthetic constants.
+ */
+const PLACE_KEYS = new Set(["city", "state", "country", "location_city", "location_state", "location_country"])
+/** Credentials that ride along in an activity payload. `embed_token` is a live token. */
+const TOKEN_KEYS = new Set(["embed_token"])
+
+const ALLOWED_PLACE = new Set(["Point Nemo"])
+
+/**
+ * FREE TEXT — `name`, `description`, `external_id`, `device_name` — is scrubbed by
+ * `make-strava-fixture.mjs` and deliberately NOT checked here.
+ *
+ * It was checked here first, and the rule was wrong. `detail.name` on a hand-written
+ * fixture is a test label — "Continuous outdoor run", "Ride with a fast descent" — and
+ * demanding a fixed constant fired on eleven legitimate fixtures at once while making the
+ * directory unreadable. A guard with that false-positive rate gets deleted by whoever it
+ * blocks, which is the same reasoning that gave the D-100 boundary check its two tiers
+ * after it fired on real UI copy.
+ *
+ * The residual risk is a hand-added REAL capture whose activity name mentions a place. It
+ * is small and covered twice over: the capture tool is the only sanctioned way to produce
+ * a fixture and it scrubs the field, and a hand-added real capture carries real
+ * coordinates, which the box catches on the same commit. Structured place fields stay
+ * checked above precisely because they have no legitimate descriptive use.
+ */
+
 const inBox = (lat, lng) =>
   Math.abs(lat - NEMO.lat) < RADIUS_DEG && Math.abs(lng - NEMO.lng) < RADIUS_DEG
 
@@ -177,6 +213,14 @@ export function coordinatesIn(value, path = "") {
             if (isPair(p)) found.push({ at: `${here}[${i}]`, lat: p[0], lng: p[1] })
           })
         }
+      }
+
+      if (TOKEN_KEYS.has(key) && v !== undefined) {
+        found.push({ at: here, lat: NaN, lng: NaN, note: `'${key}' is a live token and must be removed, not blanked` })
+      }
+
+      if (PLACE_KEYS.has(key) && typeof v === "string" && v.length > 0 && !ALLOWED_PLACE.has(v)) {
+        found.push({ at: here, lat: NaN, lng: NaN, note: "place name — a location without a coordinate" })
       }
 
       if (POLYLINE_KEYS.has(key) && typeof v === "string" && v.length > 0) {
@@ -358,6 +402,15 @@ if (isMain && process.argv.includes("--self-test")) {
     // A string that is neither empty nor decodable fails CLOSED. It is not a location,
     // but nothing here can prove that, and "I could not read it" must never mean "clean".
     "polyline-placeholder.json": [{ detail: { map: { summary_polyline: "omitted" } } }, true],
+    // A place name is a location even though no coordinate scanner sees one.
+    "place-name.json": [{ detail: { segment_efforts: [{ segment: { city: "Ponte Vedra Beach" } }] } }, true],
+    "place-name-scrubbed.json": [{ detail: { segment_efforts: [{ segment: { city: "Point Nemo" } }] } }, false],
+    // Free text is the capture tool's job, not this guard's — see the note above. A
+    // descriptive test label must NOT be treated as a leak.
+    "free-text-label.json": [{ detail: { name: "Continuous outdoor run" } }, false],
+    // A live token in a captured payload — criterion 2 of ticket 0038.
+    "embed-token.json": [{ detail: { embed_token: "abc123" } }, true],
+    "embed-token-removed.json": [{ detail: { id: 1 } }, false],
     // Nesting must not matter — the walk is structural, not path-based.
     "deeply-nested.json": [{ a: { b: [{ c: { latlng: { data: REAL } } }] } }, true],
     // One bad point among good ones must still fire.
