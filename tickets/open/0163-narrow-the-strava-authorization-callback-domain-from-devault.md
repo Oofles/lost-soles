@@ -54,16 +54,58 @@ and this ticket should re-probe `localhost` afterwards to confirm the exemption 
 
 ## Acceptance criteria
 
-- [ ] The Strava app's Authorization Callback Domain is `soles.devaultsecurity.com`.
+- [ ] **(operator)** The Strava app's Authorization Callback Domain is
+      `soles.devaultsecurity.com`. `https://www.strava.com/settings/api` needs a Strava
+      login, and no script in this repo has one — this is the whole ticket and it is not
+      the agent's to do.
 - [ ] The probe is re-run and `other.devaultsecurity.com` and the bare parent now return **400**,
       while `soles.devaultsecurity.com` still returns 302.
 - [ ] `localhost` is re-probed and the result — accepted or refused — is recorded in
       `docs/capabilities/05-strava-adapter.md`, replacing the value `0032` recorded.
-- [ ] A real connect still completes end to end after the change.
+- [ ] **(operator)** A real connect still completes end to end after the change.
 - [ ] `docs/capabilities/05-strava-adapter.md` records the new domain, and
       `03-integrations.md` §2.2 agrees with it.
 
 ## Notes
+
+> **BASELINE RE-PROBED 2026-09-06 by the agent, before any change. The finding is still
+> live, and `localhost` is still exempt.** Re-run verbatim; it needs no credentials beyond
+> the `client_id`, which `01-architecture.md` §7 records as semi-public by design.
+>
+> ```sh
+> CID=$(aws ssm get-parameter --name /amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID \
+>        --with-decryption --profile devault --region us-east-1 \
+>        --query 'Parameter.Value' --output text)
+> for uri in \
+>   "https://soles.devaultsecurity.com/api/auth/strava/callback" \
+>   "https://other.devaultsecurity.com/cb" \
+>   "https://devaultsecurity.com/cb" \
+>   "https://notsoles.devaultsecurity.com.evil.example/cb" \
+>   "https://attacker.example/cb" \
+>   "http://localhost:3000/api/auth/strava/callback" ; do
+>   printf "%-56s %s\n" "$uri" "$(curl -s -o /dev/null -w '%{http_code}' -G \
+>     https://www.strava.com/oauth/authorize \
+>     --data-urlencode "client_id=$CID" --data-urlencode "redirect_uri=$uri" \
+>     --data-urlencode "response_type=code" --data-urlencode "scope=activity:read_all")"
+> done
+> ```
+>
+> | redirect_uri | before (2026-09-06) | required after |
+> |---|---|---|
+> | `soles.devaultsecurity.com/api/auth/strava/callback` | **302 accepted** | 302 accepted |
+> | `other.devaultsecurity.com/cb` | **302 accepted** ← the finding | **400 refused** |
+> | `devaultsecurity.com/cb` | **302 accepted** ← the finding | **400 refused** |
+> | `notsoles.devaultsecurity.com.evil.example/cb` | 400 refused | 400 refused |
+> | `attacker.example/cb` | 400 refused | 400 refused |
+> | `localhost:3000/api/auth/strava/callback` | **302 accepted** | expected to stay 302 |
+>
+> **`--with-decryption` is required and its absence fails silently in the worst way.**
+> Without it, SSM returns the *ciphertext* rather than the client id, every probe answers
+> 400 because the client id is invalid, and the table reads as though the domain were
+> already narrowed — a completely clean-looking result that means nothing. That happened on
+> the first run of this probe today. Always sanity-check that at least one row is 302
+> before believing any row that is 400.
+
 
 The probe needs no credentials beyond the `client_id`, which `01-architecture.md` §7 already
 records as semi-public by design — it appears in every authorize URL. It is therefore safe to
