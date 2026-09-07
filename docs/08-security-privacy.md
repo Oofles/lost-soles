@@ -320,9 +320,26 @@ KEY-----` — so it also catches secrets it was never told about.
 secrets and coordinates leak, and an unbounded log group is both a liability and a bill.
 
 **Not secrets, and must not be mistaken for leaks:** `amplify_outputs.json` (Cognito pool ID,
-app client ID, identity pool ID, AppSync endpoint) and `TILES_BASE_URL`. These are public
-identifiers protected by policy, not obscurity. `amplify_outputs.json` is gitignored because it
-is generated per-environment, not because it is sensitive.
+app client ID, identity pool ID, AppSync endpoint, **and the `custom` block**) and
+`TILES_BASE_URL`. These are public identifiers protected by policy, not obscurity.
+`amplify_outputs.json` is gitignored because it is generated per-environment, not because it is
+sensitive.
+
+> **Amended 2026-09-07, ticket `0043`.** The `custom` block was added to this list because it now
+> holds the SQS queue URLs `backend.addOutput` publishes (`01-architecture.md` §2), and a queue URL
+> **contains the AWS account id**. Two things make it a public identifier rather than a leak, and
+> both are worth stating because the next reader will and should stop on it:
+>
+> - Possessing the URL grants nothing. `sqs:SendMessage` on that queue is held by the SSR compute
+>   role alone, and the worker's own grant is consume-only. The protection is the IAM policy.
+> - The account id is **already public by this project's own choice** — `CLAUDE.md` states it, and
+>   the repository is public. Publishing it again in a bundle changes nothing about the exposure.
+>
+> Note the mechanism, since it is not obvious: `components/auth-gate.tsx` is a client component and
+> `Amplify.configure(outputs)` needs the whole object, so **everything in `amplify_outputs.json`
+> reaches the browser** — not just the fields the client uses. Anything added to `custom` is
+> published. A value that genuinely must stay server-side does not belong there; it belongs in SSM
+> with an IAM grant, the way the OAuth client credentials do (§7.1).
 
 ---
 
