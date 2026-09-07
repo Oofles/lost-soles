@@ -4,13 +4,14 @@ slug: dedupekey-buckets-straddle-boundaries-so-one-run-can-survive
 title: dedupeKey buckets straddle boundaries, so one run can survive as two activities
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 06-ingest-pipeline
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-05T23:09:17Z
+closed: 2026-09-07T22:20:56Z
 ---
 
 ## Description
