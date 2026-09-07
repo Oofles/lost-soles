@@ -40,15 +40,20 @@ because the operator is the user.
 
 ## Acceptance criteria
 
-- [ ] SNS topic + email subscription + CloudWatch alarm on DLQ `ApproximateNumberOfMessagesVisible > 0`.
-      A test message to the queue produces an email.
+- [x] SNS topic + email subscription + CloudWatch alarm on DLQ `ApproximateNumberOfMessagesVisible > 0`.
+      A test message to the queue produces an email. — verified 2026-09-07: two test messages, both
+      `OK → ALARM` in ~3.5 min, SNS action succeeded against the confirmed subscription.
 - [x] Terminal failures write `status = "FAILED"` on the receipt with the attempt count and an
       error class string (not a raw stack trace).
 - [x] Every terminal failure emits one structured JSON log line with the fields listed above.
-- [ ] The Sync action reports outstanding `FAILED` receipts for the user in its result line.
-- [ ] A revoked Strava authorization surfaces as a distinct "reconnect Strava" state, not as a
+- [x] The Sync action reports outstanding `FAILED` receipts for the user in its result line.
+      — query proven live against the deployed index; sentence and wiring proven by tests. Not
+      pressed on a phone against a real failure; see `0178`.
+- [x] A revoked Strava authorization surfaces as a distinct "reconnect Strava" state, not as a
       generic failure and not as a retry storm.
-- [ ] Redriving a DLQ message re-imports the activity exactly once and clears the `FAILED` state.
+- [x] Redriving a DLQ message re-imports the activity exactly once and clears the `FAILED` state.
+      — the clearing half proven live against the deployed table; the exactly-once half rests on
+      the four idempotency layers `0040`/`0041` already test. No real redrive yet; see `0178`.
 - [x] A runbook section in `docs/capabilities/06-ingest-pipeline.md` states, in order, how to
       diagnose and redrive a failed import.
 
@@ -157,3 +162,138 @@ do, in this order — 0 needs doing first or nothing else works.
    the map gains the run's territory. The runbook in
    `docs/capabilities/06-ingest-pipeline.md` is the procedure; following it here is also how the
    runbook gets checked. → criterion 6.
+
+## Resolution
+
+**Shipped with three criteria proven at the unit level rather than end to end, at the operator's
+explicit decision.** That is the most important sentence in this Resolution and it is first so
+nobody later reads the ticked boxes as more than they are. What each box actually rests on is
+annotated on the criterion itself.
+
+### What was built
+
+- **The alarm.** SNS topic, email subscription to the operator, and one CloudWatch alarm on the
+  DLQ's `ApproximateNumberOfMessagesVisible > 0`, in `amplify/backend.ts`'s ingest stack. Named
+  `Lost Soles — an activity failed to import`, because SNS renders an alarm as
+  `ALARM: "<name>" in <region>` — the name *is* the subject line, which is the whole product
+  surface here. `treatMissingData: NOT_BREACHING` is load-bearing rather than tidy: SQS publishes
+  queue metrics only while a queue is polled, so a DLQ empty for a week emits nothing, and any
+  other treatment either pins the alarm in `INSUFFICIENT_DATA` or emails about a healthy queue.
+  Both end with the sender filtered, which is the failure `09-roadmap.md` §8.6 names.
+- **`recordFailure`, replacing `markFailed`.** `0042`'s note was right that `markFailed` could
+  never have had a caller: it was guarded `= PROCESSING`, and almost every terminal failure
+  happens *before* the score gate with the receipt still `QUEUED`. The guard is inverted to
+  `<> DONE` — `DONE` is excluded because it is the one status written inside the ingest
+  transaction alongside the XP award, and overwriting it would make the ledger's commit record
+  lie. It writes four fields together and returns the row as written, so the log line gets
+  `attempts` without a second read.
+- **A sparse `failedByUser` GSI.** `failedUserId` duplicates `userId` deliberately: an index keyed
+  on `userId` would hold every receipt ever written. This one holds one entry per *outstanding*
+  failure and is normally empty, so the cost of asking "is anything broken?" is a function of how
+  much is currently broken rather than of how long the app has been used.
+- **`ProcessDeps.onPhase`.** An observer, not an error wrapper. The obvious alternative — throwing
+  an `IngestPhaseError` carrying the phase — breaks the handler's two `instanceof` matches on
+  `SourceRateLimitedError` and `SourceNeedsReauthError`, which is how §4's failure rules are
+  applied. Rewriting those to unwrap a cause would make two queue rules depend on this module
+  never forgetting to wrap. The observer changes no error contract at all.
+- **The structured line, the Sync sentence, and the runbook**, per criteria 3, 4 and 7.
+
+### Decisions
+
+**D-209 — a `FAILED` receipt is reclaimable at the score gate.** This reverses a `0040` decision
+that was made deliberately and with a stated reason, so it is superseded visibly rather than
+edited away. The reason `0040` gave — "a recorded failure is a decision and should be visible
+rather than quietly retried forever" — was half right. The visibility half stands and is now
+`recordFailure`. The *lock* half made a DLQ redrive a silent no-op: the redriven message resolved
+credentials, fetched, archived, normalized, then lost the claim to the very `FAILED` status it had
+been sent back to repair, and returned to the DLQ looking identical to the original failure. The
+operator's only control would have reported success and changed nothing. Nothing is retried
+forever because this table never bounded retries — `maxReceiveCount: 3` does, and it is untouched.
+What the exclusion actually bounded was the ability to intervene.
+
+**D-210 — which failures are terminal.** Dead credentials on the first delivery, because no retry
+repairs them and waiting three deliveries costs ~48 minutes of visibility timeouts during which
+the screen says nothing is wrong. Anything else only on the last delivery the queue allows,
+because marking earlier would report a failure the queue is about to retry successfully. Never
+`ReceiptNotClaimableError`: that means another invocation holds a live claim, and `recordFailure`
+is guarded `<> DONE`, so marking there would stamp `FAILED` over a working import.
+
+The delivery count comes from SQS's `ApproximateReceiveCount`, not the receipt's `attempts`.
+`attempts` only ever increases, so a redriven message arrives at 3 and would be judged terminal
+before trying anything — defeating D-209. `ApproximateReceiveCount` resets on a redrive, so it
+answers the question actually being asked: how many chances are left for *this* recovery attempt.
+
+### What went wrong
+
+**The first push failed CI on my own boundary rule.** A test I added hard-coded the vendor name in
+a display-name stub, which is exactly what `check-boundaries.mjs` scans `lib/` for (D-100). It
+reached CI because I ran the check locally and read only the last three lines of its output — the
+D-121.1 footer prints identically on the pass and the fail path. The backend stack had already
+deployed by then, so only the frontend gate failed. Fixed in `6c7c3fd`; every subsequent run
+checked the exit code instead of the footer.
+
+**A criterion was ticked on weaker evidence than it looked.** Criterion 4's real gap was never the
+query or the sentence — both were well covered — but the six lines of wiring in `syncNow` joining
+them, which no test reached. `app/sync-action.test.ts` was added at close specifically for that:
+the failure read happens *after* the sweep, it asks only about the signed-in user, and a broken
+read cannot fail the press. That last one matters most — the activities are queued either way, and
+losing a real import's confirmation to a broken report about a hypothetical failure would be the
+wrong trade on the one surface that says whether the data arrived.
+
+### The residual risk, stated plainly
+
+Criteria 4, 5 and 6 describe things the **operator sees**, and none has been seen. Manufacturing a
+failed import costs either two deploys of deliberately-broken code or revoking and re-authorizing
+the Strava connection; the operator judged that excessive against a path covered by tests that has
+never fired in anger, and shipped. `0178` is filed to walk the runbook on the **next real
+failure**, when the cost is zero because the failure already happened. It explicitly forbids
+staging one to close it.
+
+The specific thing unproven is not the mechanism — the receipt write, the index and the alarm are
+all verified against deployed infrastructure — but the **sentences a human reads**: whether the
+alarm's subject identifies the app on a phone, and whether the Sync line says the right thing at
+the moment it matters.
+
+## Operator validation
+
+**Step 0 (operator, 2026-09-07):** SNS email subscription to `amazingbrandon@gmail.com` confirmed.
+Verified by the agent: the subscription now carries a real ARN
+(`…IngestAlarms…:9bd597b3-53db-4fc5-91f2-413531e5c9f0`) instead of `PendingConfirmation`.
+
+**Steps 1–4 were declined by the operator** — see *The residual risk* above and ticket `0178`.
+Recording that as the honest outcome rather than leaving four boxes looking unexamined.
+
+### Smoke tests (agent, `AWS_PROFILE=devault`, account `286588821906`, `us-east-1`)
+
+**The alarm, twice, end to end.**
+
+| | first (pre-confirmation) | second (post-confirmation) |
+|---|---|---|
+| test message to `ActivityIngestDLQ` | 20:52:20Z | 21:52:42Z |
+| `OK → ALARM` | 20:56:02Z (~3.5 min) | 21:55:53Z (~3.2 min) |
+| SNS action | *Successfully executed* | *Successfully executed* |
+| delivered? | **no** — endpoint `PendingConfirmation` | yes — confirmed endpoint |
+| message deleted, `ALARM → OK` | 20:59:38Z | — |
+
+State reason on both: *"1 out of the last 1 datapoints [1.0] was greater than the threshold
+(0.0)"*. The first run is worth keeping in the record because it demonstrates the failure mode
+this alarm can have and nothing else would report: **it fires correctly and delivers nothing**
+while the subscription is unconfirmed. Both synthetic messages were deleted; the DLQ is empty and
+the alarm is `OK`.
+
+**The receipt and the sparse index, against the deployed table.** The real `recordFailure`,
+`listFailedReceipts` and `claimForScoring` run against `LostSolesIngestReceipt` via `tsx` —
+15/15 assertions. A seeded `QUEUED` receipt is marked `FAILED` carrying `errorClass`,
+`rawArchived` and `failedUserId`, with `attempts` preserved; the `failedByUser` GSI returns it
+with `errorClass` projected; `claimForScoring` then reclaims it (D-209), leaves it `PROCESSING`,
+and all four failure fields are gone from both the row and the index. Synthetic row deleted.
+
+This is the test that proves criterion 6's clearing half and D-209 as a whole, against real
+DynamoDB rather than a stub — an invalid `REMOVE` or condition would have been rejected by the
+service.
+
+**Deploy.** Amplify job 124, commit `6c7c3fd`, SUCCEED. `failedByUser` index `ACTIVE`.
+
+**CI.** 1085 unit tests, `tsc --noEmit`, `eslint --max-warnings 0`, and all five check scripts —
+`check-boundaries`, `check-design-tokens`, `check-fixture-geography`, `check-adapter-deletion`,
+`check-skills` — pass, exit codes verified.

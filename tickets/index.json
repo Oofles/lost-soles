@@ -1057,7 +1057,7 @@
     "path": "tickets/open/0044-ingest-failure-visibility.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 7
     }
   },
@@ -4057,6 +4057,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 178,
+    "slug": "end-to-end-proof-that-a-real-failed-import-surfaces-on-the-n",
+    "title": "End-to-end proof that a real failed import surfaces, on the next real failure",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-07T22:01:43Z",
+    "path": "tickets/open/0178-end-to-end-proof-that-a-real-failed-import-surfaces-on-the-n.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
