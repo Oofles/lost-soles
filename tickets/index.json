@@ -4066,15 +4066,16 @@
     "title": "End-to-end proof that a real failed import surfaces, on the next real failure",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "deferred",
     "size": "s",
     "capability": "06-ingest-pipeline",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-07T22:10:00Z",
+    "deferred": "2026-09-07T22:04:40Z",
     "path": "tickets/open/0178-end-to-end-proof-that-a-real-failed-import-surfaces-on-the-n.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 4

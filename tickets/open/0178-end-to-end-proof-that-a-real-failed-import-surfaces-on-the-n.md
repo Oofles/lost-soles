@@ -4,13 +4,14 @@ slug: end-to-end-proof-that-a-real-failed-import-surfaces-on-the-n
 title: End-to-end proof that a real failed import surfaces, on the next real failure
 type: chore
 priority: low
-status: open
+status: deferred
 size: s
 capability: 06-ingest-pipeline
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-07T22:10:00Z
+deferred: 2026-09-07T22:04:40Z
 ---
 
 ## Description
@@ -31,6 +32,30 @@ zero cost, because the failure has already happened.
 What `0044` proved and what it did not is recorded in full in that ticket's `## Resolution`.
 The short version: the alarm is proven live, the receipt write and the sparse index are proven
 against the deployed table, and everything the *operator sees* is proven only by tests.
+
+## Deferred
+
+**Reason:** Waits on a real failed import, which is outside the project's control. The ticket exists precisely so that nobody manufactures one — 0044 shipped after the operator declined to spend two deploys or a Strava re-authorization staging a failure. Deferred rather than left open because as an ordinary open ticket it would block capability 06's audit indefinitely, and through it every capability after it.
+
+**Re-check** — the cheap test that says the wait is over. `tickets.mjs recheck 0178`
+runs it and reports the result; nothing un-defers on its own. When it exits 0, read the
+output and `tickets.mjs resume 0178`.
+
+```sh
+export AWS_PROFILE=devault
+# Exits 0 ONLY when a real failed import has happened — the exit code is what
+# `recheck` labels PASSES/waits on, so a verdict that only printed would read as
+# "the wait is over" every time it managed to reach AWS.
+n=$(aws dynamodb scan --table-name LostSolesIngestReceipt --filter-expression "attribute_exists(errorClass)" --select COUNT --query "Count" --output text 2>/dev/null)
+if [ -z "$n" ]; then
+  echo "UNKNOWN: could not read LostSolesIngestReceipt (is AWS_PROFILE=devault set?)"; exit 1
+elif [ "$n" -gt 0 ]; then
+  echo "READY: $n receipt(s) carry an errorClass — a real import failed; walk the runbook against it"; exit 0
+else
+  echo "WAITING: no failed import in the receipt table (90-day TTL). Nothing to walk the runbook against."; exit 1
+fi
+```
+
 
 ## Acceptance criteria
 
