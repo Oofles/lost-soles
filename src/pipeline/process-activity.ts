@@ -53,6 +53,33 @@ import { persistActivity, type PersistDeps } from "./persist"
  */
 
 /**
+ * THE PHASES, IN ORDER. Ticket 0044 — exported as an ordered array because the only
+ * question anyone asks of it is a COMPARISON: "did we get as far as the archive?"
+ *
+ * The handler's failure log has to answer that (criterion 3's `rawArchived`, which the
+ * ticket calls load-bearing: raw in S3 means the run is replayable forever from the
+ * archive under D-101, raw missing means the only copy is still on the source's
+ * servers). Nothing else in the pipeline can answer it — by the time an exception
+ * reaches the handler, everything that knew how far it got is gone.
+ */
+export const INGEST_PHASES = [
+  "credentials",
+  "fetch",
+  "archive",
+  "normalize",
+  "gate",
+  "persist",
+] as const
+
+export type IngestPhase = (typeof INGEST_PHASES)[number]
+
+/** Whether reaching `phase` means the archive PUT completed. */
+export function archiveCompletedBy(phase: IngestPhase | undefined): boolean {
+  if (phase === undefined) return false
+  return INGEST_PHASES.indexOf(phase) >= INGEST_PHASES.indexOf("normalize")
+}
+
+/**
  * Per-phase wall-clock, in milliseconds. Criterion 8 — 0044 alarms on these, and an
  * alarm needs a number that means one thing.
  *
@@ -94,9 +121,13 @@ export type ProcessResult =
    */
   | { outcome: "already-done"; xpAwarded: number; newCellCount: number }
   /**
-   * The receipt is in a state this delivery may not claim: another invocation holds it,
-   * or a previous one recorded a failure. NOT success and NOT an exception — the caller
-   * decides, and for an SQS consumer the answer is "let it be redelivered".
+   * The receipt is in a state this delivery may not claim: another invocation is holding
+   * it right now. NOT success and NOT an exception — the caller decides, and for an SQS
+   * consumer the answer is "let it be redelivered".
+   *
+   * `FAILED` NO LONGER REACHES HERE (D-209, ticket 0044). It used to, and that made a
+   * DLQ redrive a silent no-op — the redriven message did all the work and then lost the
+   * claim to the very failure it was sent back to repair. The gate now reclaims it.
    */
   | { outcome: "not-claimable"; status: ReceiptStatus }
 
@@ -119,6 +150,26 @@ export interface ProcessDeps<TCreds> {
   persist: PersistDeps
   /** Injected so timings are assertable. Wall clock; only differences are ever used. */
   clock?: () => number
+  /**
+   * CALLED AS EACH PHASE IS ENTERED. Ticket 0044.
+   *
+   * An OBSERVER, not a return value, because the caller that needs it is the one
+   * handling an exception — and an exception carries nothing this function chose to
+   * return. The handler keeps the last phase it was told about and reads it in its
+   * `catch`.
+   *
+   * ─── WHY NOT ATTACH THE PHASE TO THE ERROR ──────────────────────────────────
+   *
+   * Wrapping the throw in an `IngestPhaseError` was the obvious alternative and it is
+   * wrong here: the handler matches `SourceRateLimitedError` and `SourceNeedsReauthError`
+   * with `instanceof` to apply §4's failure rules, and a wrapper breaks both matches.
+   * Rewriting those to unwrap a cause would make two queue rules depend on this module
+   * not forgetting to wrap. An observer changes no error contract at all.
+   *
+   * MUST NOT THROW. It is called on the success path too, and an observer that can fail
+   * the import it is observing is worse than no observability.
+   */
+  onPhase?(phase: IngestPhase): void
 }
 
 export async function processActivity<TCreds>(
@@ -126,6 +177,7 @@ export async function processActivity<TCreds>(
   deps: ProcessDeps<TCreds>,
 ): Promise<ProcessResult> {
   const clock = deps.clock ?? (() => Date.now())
+  const phase = (name: IngestPhase) => deps.onPhase?.(name)
   const startedAt = clock()
 
   /**
@@ -142,6 +194,7 @@ export async function processActivity<TCreds>(
    */
   const attempt = await recordDelivery(job.ingestKey, deps.receipt)
 
+  phase("credentials")
   const t0 = clock()
   const creds = await deps.credentials(job)
   const credentialsMs = clock() - t0
@@ -156,14 +209,26 @@ export async function processActivity<TCreds>(
   const timedAdapter: SourceAdapter<TCreds> = {
     ...deps.adapter,
     fetchRaw: async (j, c) => {
+      phase("fetch")
       const at = clock()
+      let raw
       try {
-        return await deps.adapter.fetchRaw(j, c)
+        raw = await deps.adapter.fetchRaw(j, c)
       } finally {
         fetchMs = clock() - at
       }
+      /**
+       * The fetch returned, so `fetchArchiveNormalize` calls `archiveRaw` next — which
+       * is why this is announced HERE and not inside that function. It takes no
+       * instrumentation hook, deliberately (D-101: every argument it grows is another
+       * thing a future edit could reorder), so the phase is inferred from the two calls
+       * on either side of it. Reaching `normalize` below is what proves it completed.
+       */
+      phase("archive")
+      return raw
     },
     normalize: (raw, ref, j) => {
+      phase("normalize")
       const at = clock()
       try {
         return deps.adapter.normalize(raw, ref, j)
@@ -181,6 +246,7 @@ export async function processActivity<TCreds>(
    * THE SCORE GATE (§4 step 12, layer 2). Everything above this line is repeatable and
    * writes nothing that a second run would corrupt; everything below it is the award.
    */
+  phase("gate")
   const t2 = clock()
   const claim = await claimForScoring(job.ingestKey, deps.receipt)
   const gateMs = clock() - t2
@@ -209,6 +275,7 @@ export async function processActivity<TCreds>(
    * and capability 07 is what adds the writer. When it does, it goes above this line and
    * `persistActivity`'s `assertNoCellWrites` is what stops it going below.
    */
+  phase("persist")
   const t3 = clock()
   await persistActivity(ingest.activity, { ingestKey: job.ingestKey }, deps.persist)
   const persistMs = clock() - t3

@@ -1,6 +1,12 @@
 import { defineBackend } from "@aws-amplify/backend"
 import { Duration, RemovalPolicy } from "aws-cdk-lib"
 import {
+  Alarm,
+  ComparisonOperator,
+  TreatMissingData,
+} from "aws-cdk-lib/aws-cloudwatch"
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
+import {
   AttributeType,
   BillingMode,
   ProjectionType,
@@ -16,6 +22,8 @@ import {
 } from "aws-cdk-lib/aws-iam"
 import { Key } from "aws-cdk-lib/aws-kms"
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
+import { Topic } from "aws-cdk-lib/aws-sns"
+import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
 
 import { auth } from "./auth/resource"
@@ -638,9 +646,48 @@ const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
 })
 
 /**
+ * THE SPARSE FAILURE INDEX (ticket 0044, criterion 4).
+ *
+ * `failedUserId` is written only by `recordFailure` and removed again by
+ * `claimForScoring`, so this index holds one entry per OUTSTANDING failure and is
+ * normally empty. That is what lets the Sync action ask "did anything fail for this
+ * user?" with a Query rather than a Scan — and, more to the point, what keeps the cost
+ * of asking a function of how much is currently broken rather than of how many
+ * activities have ever been imported.
+ *
+ * THE NAME IS STATED TWICE, like the table's own, and for the identical reason: the
+ * reader is the Sync action on Amplify's SSR compute, which has no CloudFormation output
+ * to be handed a generated one through. `src/pipeline/ingest-receipt.ts` states the same
+ * literal and `ingest-receipt-table.test.ts` asserts the two agree.
+ *
+ * PROJECTION IS `INCLUDE`, NOT `ALL`, and at ~250 rows that is not about cost. It is
+ * about a projection being a statement of what the index is FOR: a failure report needs
+ * the identity of the run, its error class and whether the raw bytes survived. It does
+ * not need `xpAwarded`, and an index that carried the DONE-path fields would invite a
+ * reader to answer a different question from the one it was built for.
+ */
+ingestReceiptTable.addGlobalSecondaryIndex({
+  indexName: "failedByUser",
+  partitionKey: { name: "failedUserId", type: AttributeType.STRING },
+  /** Newest failure first, which is the one the operator is asking about. */
+  sortKey: { name: "failedAt", type: AttributeType.STRING },
+  projectionType: ProjectionType.INCLUDE,
+  nonKeyAttributes: [
+    "activityId",
+    "source",
+    "externalId",
+    "errorClass",
+    "rawArchived",
+    "attempts",
+  ],
+})
+
+/**
  * The Sync action (0043) runs the accept gate on the SSR compute, so that role needs
- * read/write here. The `process-activity` Lambda gets its own grant in 0042 — this
- * one is not it, and neither grant is a wildcard over the account's DynamoDB.
+ * read/write here — and from 0044, a Query on the index above, which
+ * `grantReadWriteData` covers because CDK extends a table grant to `<table>/index/*`.
+ * The `process-activity` Lambda gets its own grant in 0042 — this one is not it, and
+ * neither grant is a wildcard over the account's DynamoDB.
  */
 ingestReceiptTable.grantReadWriteData(computeRole)
 
@@ -906,3 +953,83 @@ backend.addOutput({
 
 /** The Sync action is the only producer today. It sends; it never receives. */
 activityIngestQueue.grantSendMessages(computeRole)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE ONE ALARM  (ticket 0044, 01-architecture.md §4 "Failure handling")
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * §4 is unusually specific and it is worth quoting rather than paraphrasing: *"A
+ * CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` on the DLQ is the only
+ * alarm this app needs."*
+ *
+ * THE WORD DOING THE WORK IS "ONLY". `09-roadmap.md` §8.6 is the Habitica risk turned
+ * inward — a system that nags stops being read — and at three to five runs a week an
+ * alarm on Lambda errors or duration fires on cold starts and network blips until the
+ * operator filters the sender. The DLQ is the one signal that is never noise: a message
+ * is here if and only if an activity failed three deliveries, and on a map that cannot
+ * re-fog (D-020) that is ground permanently missing until someone acts. Do not add a
+ * second alarm without deleting a sentence from §4 first.
+ */
+const ingestAlarms = new Topic(ingestStack, "IngestAlarms", {
+  displayName: "Lost Soles ingest",
+})
+
+/**
+ * EMAIL, AND IT COSTS ONE CLICK ONCE. SNS sends a confirmation request on first deploy
+ * and delivers nothing until it is accepted, so an unconfirmed subscription is a silent
+ * alarm — which is the exact failure this ticket exists to end. The close records
+ * confirming it as an operator step for that reason.
+ *
+ * THE ADDRESS IS IN SOURCE, deliberately, on the same argument `lib/auth/owner.ts` makes
+ * for the Cognito sub: it is an identifier, not a credential, the repository is private,
+ * and it already appears in `docs/capabilities/02-deploy-and-auth.md` and ticket 0014.
+ * Routing it through SSM would add a parameter that must exist before a deploy succeeds,
+ * in exchange for hiding something already written down twice.
+ */
+ingestAlarms.addSubscription(new EmailSubscription("amazingbrandon@gmail.com"))
+
+/**
+ * THE ALARM NAME IS THE PRODUCT SURFACE, which is a strange sentence until you read one
+ * of these on a phone. SNS renders a CloudWatch alarm as `ALARM: "<name>" in <region>`,
+ * so the name is the entire subject line and the whole of what the operator sees before
+ * deciding whether to open it. A generated name would identify the CloudFormation stack;
+ * this one identifies the app and the problem.
+ *
+ * AN EXPLICIT NAME IS ACCOUNT-AND-REGION UNIQUE, the same cost the four named tables
+ * carry — but it adds nothing new here: `LostSolesIngestReceipt` already prevents an
+ * `ampx sandbox` deploy from coexisting with the `main` branch's stack, and that is
+ * recorded in the capability doc.
+ */
+const dlqNotEmpty = new Alarm(ingestStack, "IngestDlqNotEmpty", {
+  alarmName: "Lost Soles — an activity failed to import",
+  alarmDescription:
+    "A message reached the ingest dead letter queue, which means an activity failed " +
+    "three delivery attempts and is not on the map. The map cannot re-fog (D-020), so " +
+    "this does not resolve itself. Runbook: docs/capabilities/06-ingest-pipeline.md.",
+  /**
+   * `Maximum` OVER ONE MINUTE, not `Average` and not five. A DLQ that holds one message
+   * for ten minutes averages down toward zero over a long period and can fail to breach
+   * a threshold of zero; the maximum of a queue depth is the only statistic that means
+   * "something was in here".
+   */
+  metric: activityIngestDlq.metricApproximateNumberOfMessagesVisible({
+    period: Duration.minutes(1),
+    statistic: "Maximum",
+  }),
+  threshold: 0,
+  comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+  evaluationPeriods: 1,
+  datapointsToAlarm: 1,
+  /**
+   * MISSING IS NOT BREACHING, and this is the setting that decides whether the alarm is
+   * usable at all. SQS publishes queue-depth metrics only while the queue is being
+   * polled, so a DLQ that has been empty for a week emits NOTHING — under any other
+   * treatment that gap either holds the alarm permanently in INSUFFICIENT_DATA or, with
+   * `BREACHING`, emails the operator about a queue that is fine. Both end with the
+   * sender filtered, which is the failure §8.6 names.
+   */
+  treatMissingData: TreatMissingData.NOT_BREACHING,
+})
+
+dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms))

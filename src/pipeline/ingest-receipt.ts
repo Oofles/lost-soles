@@ -2,6 +2,7 @@ import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb"
 import {
   GetCommand,
   PutCommand,
+  QueryCommand,
   UpdateCommand,
   type TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb"
@@ -75,6 +76,27 @@ export const RECEIPT_TTL_DAYS = 90
  */
 export const PROCESSING_STALE_MS = 15 * 60 * 1000
 
+/**
+ * THE SPARSE INDEX OVER FAILURES. Ticket 0044, criterion 4.
+ *
+ * `failedUserId` is written ONLY by `recordFailure` and removed again by
+ * `claimForScoring`, so the index holds one entry per outstanding failure and nothing
+ * else — normally zero. That is what makes "what failed for this user?" a Query over an
+ * empty index rather than a Scan of the whole table.
+ *
+ * A NON-SPARSE INDEX ON `userId` WOULD ALSO WORK TODAY and is the reason to say why it
+ * was not chosen: at ~250 live rows either is free. But the Sync action runs this query
+ * on every press, and an index that grows with total imports is one whose cost is a
+ * function of how long the app has been used, while this one's cost is a function of
+ * how much is currently broken. Those are different curves and only one of them is
+ * bounded.
+ *
+ * `amplify/backend.ts` states the identical literal, for the same reason the table name
+ * is stated twice — the SSR compute reads it at runtime and has no CloudFormation
+ * output to be handed a generated name through. A test asserts the two agree.
+ */
+export const FAILED_BY_USER_INDEX = "failedByUser"
+
 /** T8. Every transition is a conditional update; there is no unguarded status write. */
 export type ReceiptStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED"
 
@@ -107,6 +129,37 @@ export interface IngestReceipt {
   xpAwarded?: number
   newCellCount?: number
   ttl: number
+
+  /*
+   * ─── THE FAILURE FIELDS (ticket 0044) ──────────────────────────────────────
+   *
+   * All four are written together by `recordFailure` and removed together by
+   * `claimForScoring`. They exist on a receipt if and only if it is FAILED, which is
+   * what lets `failedUserId` back a sparse index.
+   */
+
+  /**
+   * The user's id, DUPLICATED FROM `userId` — and the duplication is the whole point.
+   * This is the partition key of `FAILED_BY_USER_INDEX`, and an index keyed on `userId`
+   * itself would contain every receipt ever written rather than only the broken ones.
+   */
+  failedUserId?: string
+  failedAt?: string
+  /**
+   * An error CLASS, never a stack and never a provider's response body (criterion 2).
+   * `SourceNeedsReauthError`, `TypeError`, `TimeoutError` — the name and nothing else.
+   * A message can quote the request that produced it, which on a token endpoint means
+   * the client secret (O-005, `08-security-privacy.md` §7.4).
+   */
+  errorClass?: string
+  /**
+   * WHETHER THE RAW BYTES REACHED S3 BEFORE THIS FAILED, and the ticket calls it
+   * load-bearing: if they landed, the failure is replayable forever from the archive
+   * (D-101). If they did not, the only copy is still on the source's servers, and a
+   * source that later deletes the activity takes the run with it. Those are two
+   * different urgencies and the runbook branches on this field.
+   */
+  rawArchived?: boolean
 }
 
 /**
@@ -119,7 +172,9 @@ export interface IngestReceipt {
  * with itself, and an injected client has no cross-test global to reset.
  */
 export interface ReceiptDdb {
-  send(command: PutCommand | UpdateCommand | GetCommand): Promise<Record<string, unknown>>
+  send(
+    command: PutCommand | UpdateCommand | GetCommand | QueryCommand,
+  ): Promise<Record<string, unknown>>
 }
 
 export interface ReceiptDeps {
@@ -262,6 +317,32 @@ export async function recordDelivery(
  * winner's numbers rather than recomputing them. A duplicate that finds an unfinished
  * winner gets the status and stops — SQS will redeliver, which is the mechanism that
  * already exists for waiting, and is why this function does not poll.
+ *
+ * ─── FAILED IS RECLAIMABLE. THIS REVERSES A 0040 DECISION (D-209, ticket 0044) ──
+ *
+ * 0040 matched `PROCESSING` only, deliberately, on the argument that "a crash is
+ * transient and should retry, a recorded failure is a decision and should be visible
+ * rather than quietly retried forever". The visibility half of that still holds and is
+ * why `recordFailure` exists at all. The *lock* half turned out to be wrong, and the
+ * way it was wrong is worth stating because it looked safe:
+ *
+ * A FAILED receipt that no delivery may claim makes a DLQ REDRIVE A SILENT NO-OP. The
+ * operator's whole documented recovery path is "fix the cause, redrive from the SQS
+ * console" — and with `FAILED` excluded here, the redriven message fetches, archives,
+ * normalizes, loses the claim, throws, and lands back in the DLQ looking exactly like
+ * the original failure. The one control the operator has would report success and do
+ * nothing.
+ *
+ * NOTHING IS RETRIED FOREVER, because this table was never what bounded retries.
+ * `maxReceiveCount: 3` on the queue is (§4), and it is unchanged: a receipt reclaimed
+ * from FAILED gets whatever deliveries the queue still owes it and no more. What the
+ * exclusion actually bounded was the operator's ability to intervene.
+ *
+ * THE REMOVE IS THE CLEARING STEP criterion 6 asks for. A claim wipes the four failure
+ * fields, which drops the row out of `FAILED_BY_USER_INDEX` — so the Sync line stops
+ * reporting a failure the moment a retry is genuinely underway, and reports it again if
+ * `recordFailure` writes them back. `REMOVE` on absent attributes is a no-op, so the
+ * ordinary QUEUED path pays nothing for this.
  */
 export async function claimForScoring(
   ingestKey: string,
@@ -273,14 +354,17 @@ export async function claimForScoring(
       new UpdateCommand({
         TableName: INGEST_RECEIPT_TABLE,
         Key: { ingestKey },
-        UpdateExpression: "SET #status = :processing, processingStartedAt = :now",
+        UpdateExpression:
+          "SET #status = :processing, processingStartedAt = :now " +
+          "REMOVE failedUserId, failedAt, errorClass, rawArchived",
         ConditionExpression:
-          "attribute_exists(ingestKey) AND (#status = :queued OR " +
+          "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
           "(#status = :processing AND processingStartedAt < :stale))",
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: {
           ":processing": "PROCESSING",
           ":queued": "QUEUED",
+          ":failed": "FAILED",
           ":now": now.toISOString(),
           ":stale": new Date(now.getTime() - PROCESSING_STALE_MS).toISOString(),
         },
@@ -298,6 +382,10 @@ export async function claimForScoring(
      * The row vanished between the failed condition and this read — only possible via
      * TTL expiry, and then the condition failed for a reason we can no longer see.
      * Reported as FAILED rather than guessed at: layer 4 makes a re-run harmless.
+     *
+     * Note this is now the ONLY way this function reports FAILED, since 0044 made that
+     * status claimable above. It is a sentinel for "cannot claim, cannot say why", not a
+     * reading of the row — there is no row.
      */
     if (!existing) return { kind: "duplicate", status: "FAILED" }
 
@@ -352,35 +440,116 @@ export function doneTransactItem(input: {
   }
 }
 
+/** What `recordFailure` is told, beyond the key. Never a message, never a stack. */
+export interface FailureFacts {
+  /** From the job, not from the row — the write must work on a receipt it never read. */
+  userId: string
+  /** `error.name`. See `IngestReceipt.errorClass` for why it is only ever the name. */
+  errorClass: string
+  /** Whether the raw archive PUT completed before this failed. */
+  rawArchived: boolean
+}
+
 /**
- * Marks a claimed receipt failed. Guarded on `PROCESSING` so it can only ever close a
- * claim this caller actually holds.
+ * RECORDS A TERMINAL FAILURE ON THE RECEIPT. Ticket 0044, criterion 2. This replaces
+ * 0040's `markFailed`, which had no caller anywhere and could not have had one.
  *
- * A FAILED receipt is NOT reclaimable by the stale clause above — that clause matches
- * `PROCESSING` only. This is deliberate: a crash is transient and should retry, a
- * recorded failure is a decision and should be visible to 0044 rather than quietly
- * retried forever. The SQS redrive policy, not this table, is what governs retries.
+ * ─── WHY THE GUARD IS `<> DONE` AND NOT `= PROCESSING` ──────────────────────
+ *
+ * `markFailed` was guarded on `PROCESSING`, which is the state a caller holding a claim
+ * is in — and 0042's own note is the finding that killed it: **almost no terminal
+ * failure happens while a claim is held.** The order in `process-activity.ts` is
+ * credentials → fetch → archive → normalize → SCORE GATE → persist, so a revoked
+ * authorization, a 4xx or a malformed payload all fail with the receipt still `QUEUED`.
+ * A `PROCESSING` guard would no-op on precisely the failures worth recording.
+ *
+ * So the guard is inverted: anything that is not already `DONE` may be marked failed.
+ * `DONE` is excluded because it is the one state that means XP was awarded inside a
+ * transaction, and overwriting it would make the ledger's own commit record lie.
+ *
+ * ─── IT DOES NOT DECIDE WHAT IS TERMINAL ────────────────────────────────────
+ *
+ * That decision belongs to the handler, because it is a statement about a QUEUE — "this
+ * delivery was the last one the redrive policy allows" is not a fact `src/pipeline` can
+ * see. This function writes what it is told. Calling it on a transient failure would
+ * make the Sync line report a failure the queue is about to retry successfully, which
+ * is the failure mode the ticket's note warns about.
+ *
+ * Returns the row AS WRITTEN, so the caller's log line gets `attempts` and the stored
+ * `activityId` without a second read.
  */
-export async function markFailed(ingestKey: string, deps: ReceiptDeps): Promise<void> {
+export async function recordFailure(
+  ingestKey: string,
+  facts: FailureFacts,
+  deps: ReceiptDeps,
+): Promise<IngestReceipt | undefined> {
+  const now = nowOf(deps)
   try {
-    await deps.ddb.send(
+    const result = await deps.ddb.send(
       new UpdateCommand({
         TableName: INGEST_RECEIPT_TABLE,
         Key: { ingestKey },
-        UpdateExpression: "SET #status = :failed",
-        ConditionExpression: "#status = :processing",
+        UpdateExpression:
+          "SET #status = :failed, failedUserId = :userId, failedAt = :now, " +
+          "errorClass = :errorClass, rawArchived = :rawArchived",
+        ConditionExpression: "attribute_exists(ingestKey) AND #status <> :done",
         ExpressionAttributeNames: { "#status": "status" },
-        ExpressionAttributeValues: { ":failed": "FAILED", ":processing": "PROCESSING" },
+        ExpressionAttributeValues: {
+          ":failed": "FAILED",
+          ":done": "DONE",
+          ":userId": facts.userId,
+          ":now": now.toISOString(),
+          ":errorClass": facts.errorClass,
+          ":rawArchived": facts.rawArchived,
+        },
+        ReturnValues: "ALL_NEW",
       }),
     )
+    return result.Attributes as IngestReceipt | undefined
   } catch (error) {
     /**
-     * Losing this race is not an error worth propagating: it means the receipt is no
-     * longer PROCESSING, so either the work finished or another attempt reclaimed it.
-     * Throwing here would mask the ORIGINAL failure that led the caller to call this.
+     * Losing this race is not an error worth propagating: it means the receipt reached
+     * DONE, or aged out, so either the work finished or there is nothing left to mark.
+     * Throwing here would mask the ORIGINAL failure that led the caller to call this,
+     * which is the one a human actually needs to read.
      */
     if (!isConditionalFailure(error)) throw error
+    return undefined
   }
+}
+
+/**
+ * EVERY OUTSTANDING FAILURE FOR ONE USER. Ticket 0044, criterion 4 — the Sync action
+ * calls this so the result line can say "1 activity failed to import" instead of
+ * reporting nothing at all.
+ *
+ * A Query against the sparse index, which normally returns zero items, so the ordinary
+ * press of Sync pays one empty Query. `limit` exists because the line only ever renders
+ * a count and a runaway failure does not need to be enumerated to be reported — but
+ * note the count is then a floor, and `syncResultLine` is written to say so.
+ *
+ * NOT CONSISTENT-READ, because a GSI cannot be. A failure recorded moments ago may not
+ * appear until the next press. That is acceptable for a report and would not be for a
+ * gate — which is why no gate reads this.
+ */
+export async function listFailedReceipts(
+  userId: string,
+  deps: ReceiptDeps,
+  limit = 25,
+): Promise<IngestReceipt[]> {
+  const result = await deps.ddb.send(
+    new QueryCommand({
+      TableName: INGEST_RECEIPT_TABLE,
+      IndexName: FAILED_BY_USER_INDEX,
+      KeyConditionExpression: "failedUserId = :userId",
+      ExpressionAttributeValues: { ":userId": userId },
+      Limit: limit,
+      /** Newest failure first: the one the operator is most likely asking about. */
+      ScanIndexForward: false,
+    }),
+  )
+
+  return (result.Items ?? []) as IngestReceipt[]
 }
 
 export async function readReceipt(

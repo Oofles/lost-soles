@@ -8,7 +8,13 @@ import { SourceRateLimitedError } from "@/src/adapters/errors"
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
 import type { NormalizedIngest } from "@/src/domain/activity"
 import { RawArchiveError } from "@/src/pipeline/archive"
-import { processActivity, type ProcessDeps } from "@/src/pipeline/process-activity"
+import {
+  archiveCompletedBy,
+  INGEST_PHASES,
+  processActivity,
+  type IngestPhase,
+  type ProcessDeps,
+} from "@/src/pipeline/process-activity"
 
 /**
  * Ticket 0042, criterion 4 — "a test asserts the ORDER, not just that each ran".
@@ -292,11 +298,15 @@ describe("redelivery", () => {
   })
 
   /**
-   * A recorded failure is not reclaimable by the stale clause (0040), so it surfaces the
-   * same way — as a disposition the handler turns into a redelivery, and after three of
-   * those, the DLQ.
+   * A STATUS THIS FUNCTION DOES NOT INTERPRET. The gate decides what is claimable, and
+   * from 0044 `FAILED` is (D-209) — so what surfaces here is whatever the gate refused
+   * on, reported as a disposition the handler turns into a redelivery.
+   *
+   * `claimForScoring` only ever reports FAILED now as its "cannot claim, cannot say why"
+   * sentinel for a row that aged out mid-call, and this asserts the pipeline passes even
+   * that through rather than guessing at it.
    */
-  it("reports not-claimable on a receipt a previous delivery marked FAILED", async () => {
+  it("passes the gate's refusal through without interpreting the status", async () => {
     const { deps } = rig({ claim: { kind: "duplicate", attributes: { status: "FAILED" } } })
 
     expect(await processActivity(JOB, deps)).toEqual({
@@ -343,5 +353,75 @@ describe("timings", () => {
     expect(t.totalMs).toBeGreaterThanOrEqual(
       t.credentialsMs + t.fetchMs + t.archiveMs + t.normalizeMs + t.gateMs + t.persistMs,
     )
+  })
+})
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET 0044 — THE PHASE OBSERVER
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The handler's failure log has to answer one question the exception itself cannot:
+ * DID THE RAW BYTES REACH S3 BEFORE THIS BROKE? The ticket calls the answer load-bearing
+ * — raw in S3 means the run is replayable forever from the archive (D-101); raw missing
+ * means the only copy is on the source's servers, and a deletion there takes the run
+ * with it. Those are different urgencies and the runbook branches on them.
+ */
+describe("onPhase (ticket 0044)", () => {
+  const observed = async (options: Parameters<typeof rig>[0] = {}) => {
+    const phases: IngestPhase[] = []
+    const { deps } = rig(options)
+    await processActivity(JOB, { ...deps, onPhase: (p) => phases.push(p) }).catch(() => {})
+    return phases
+  }
+
+  /** The same order the `calls` array asserts, announced from inside rather than out. */
+  it("announces every phase, in the order they run", async () => {
+    expect(await observed()).toEqual([...INGEST_PHASES])
+  })
+
+  /**
+   * THE ARCHIVE PHASE IS INFERRED FROM ITS NEIGHBOURS, because `fetchArchiveNormalize`
+   * takes no instrumentation hook — deliberately, since every argument it grows is
+   * another thing a future edit could reorder (D-101). So "archive" is announced once
+   * the fetch has returned and the archive PUT is what happens next.
+   */
+  it("stops at the archive when the archive PUT is what failed", async () => {
+    expect(await observed({ archiveFails: true })).toEqual(["credentials", "fetch", "archive"])
+  })
+
+  /** A failed fetch never reaches the archive, so nothing was written. */
+  it("stops at the fetch when the source is what failed", async () => {
+    const limited = new SourceRateLimitedError(SOURCE, "activity detail", 1000)
+    expect(await observed({ fetchRaw: () => Promise.reject(limited) })).toEqual([
+      "credentials",
+      "fetch",
+    ])
+  })
+})
+
+describe("archiveCompletedBy", () => {
+  /**
+   * REACHING `normalize` IS THE PROOF, and it is proof rather than inference: the three
+   * steps are one function and D-101 forbids normalizing bytes that have not been
+   * archived, so the normalize phase cannot begin unless the PUT returned.
+   */
+  it("is true only from the normalize phase onward", () => {
+    expect(archiveCompletedBy("credentials")).toBe(false)
+    expect(archiveCompletedBy("fetch")).toBe(false)
+    expect(archiveCompletedBy("archive")).toBe(false)
+    expect(archiveCompletedBy("normalize")).toBe(true)
+    expect(archiveCompletedBy("gate")).toBe(true)
+    expect(archiveCompletedBy("persist")).toBe(true)
+  })
+
+  /**
+   * NO PHASE AT ALL MEANS NO ARCHIVE. A failure before the first phase — a message with
+   * no receipt row, so `recordDelivery` throws — has written nothing anywhere, and
+   * defaulting to "archived" would send the runbook down the replay path for bytes that
+   * are not there.
+   */
+  it("is false when nothing was announced", () => {
+    expect(archiveCompletedBy(undefined)).toBe(false)
   })
 })

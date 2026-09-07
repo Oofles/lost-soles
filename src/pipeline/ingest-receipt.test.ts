@@ -1,5 +1,5 @@
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb"
-import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import { computeActivityId } from "@/src/domain/activity-id"
@@ -8,11 +8,13 @@ import {
   claimForScoring,
   doneTransactItem,
   INGEST_RECEIPT_TABLE,
-  markFailed,
+  FAILED_BY_USER_INDEX,
+  listFailedReceipts,
   PROCESSING_STALE_MS,
   readReceipt,
   receiptTtl,
   recordDelivery,
+  recordFailure,
   type IngestReceipt,
   type ReceiptDdb,
 } from "@/src/pipeline/ingest-receipt"
@@ -30,7 +32,7 @@ const KEY = "e3b0c44298fc1c149afbf4c8996fb924"
 const USER = "b3f1c2d4-0000-4000-8000-000000000001"
 const NOW = new Date("2026-09-06T12:00:00.000Z")
 
-type Sent = PutCommand | UpdateCommand | GetCommand
+type Sent = PutCommand | UpdateCommand | GetCommand | QueryCommand
 
 /** Replies in order; an `Error` in the list is thrown instead of returned. */
 function stub(outcomes: Array<unknown> = []) {
@@ -173,9 +175,12 @@ describe("layer 2 — the score gate", () => {
     expect(await claimForScoring(KEY, deps)).toEqual({ kind: "claimed", attempts: 1 })
 
     const input = (sent[0] as UpdateCommand).input
-    expect(input.UpdateExpression).toBe("SET #status = :processing, processingStartedAt = :now")
+    expect(input.UpdateExpression).toBe(
+      "SET #status = :processing, processingStartedAt = :now " +
+        "REMOVE failedUserId, failedAt, errorClass, rawArchived",
+    )
     expect(input.ConditionExpression).toBe(
-      "attribute_exists(ingestKey) AND (#status = :queued OR " +
+      "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
         "(#status = :processing AND processingStartedAt < :stale))",
     )
     /** The cutoff is the Lambda timeout behind `now`, not an arbitrary constant. */
@@ -324,30 +329,160 @@ describe("layer 3 — the DONE transition is a descriptor, not a write", () => {
   })
 })
 
-describe("markFailed", () => {
-  it("closes only a claim the caller holds", async () => {
-    const { deps, sent } = stub()
+describe("recordFailure (ticket 0044, criterion 2)", () => {
+  const FACTS = { userId: USER, errorClass: "SourceNeedsReauthError", rawArchived: false }
 
-    await markFailed(KEY, deps)
+  /**
+   * THE GUARD IS THE WHOLE POINT OF THIS FUNCTION EXISTING.
+   *
+   * 0040's `markFailed` was guarded on `#status = :processing`, and 0042's note is the
+   * finding that killed it: almost every terminal failure happens BEFORE the score gate,
+   * with the receipt still `QUEUED`. A `PROCESSING` guard would no-op on exactly the
+   * failures worth recording — which is why that function never acquired a caller.
+   */
+  it("marks any receipt that has not already reached DONE", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt({ status: "FAILED", attempts: 3 }) }])
+
+    await recordFailure(KEY, FACTS, deps)
 
     const input = (sent[0] as UpdateCommand).input
-    expect(input.UpdateExpression).toBe("SET #status = :failed")
-    expect(input.ConditionExpression).toBe("#status = :processing")
+    expect(input.ConditionExpression).toBe("attribute_exists(ingestKey) AND #status <> :done")
+    expect(input.ExpressionAttributeValues?.[":done"]).toBe("DONE")
   })
 
   /**
-   * Losing this race means the receipt is no longer PROCESSING — the work finished, or
-   * another attempt reclaimed it. Throwing here would mask the ORIGINAL failure that
-   * led the caller to call this in the first place.
+   * DONE is excluded because it is the one status written inside the ingest transaction
+   * alongside the XP award. Overwriting it would make the ledger's own commit record
+   * claim a failure for a run that was scored.
    */
-  it("is silent when the receipt is no longer PROCESSING", async () => {
+  it("writes the four failure fields together, so the sparse index is consistent", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt({ status: "FAILED" }) }])
+
+    await recordFailure(KEY, { ...FACTS, rawArchived: true }, deps)
+
+    const input = (sent[0] as UpdateCommand).input
+    expect(input.UpdateExpression).toBe(
+      "SET #status = :failed, failedUserId = :userId, failedAt = :now, " +
+        "errorClass = :errorClass, rawArchived = :rawArchived",
+    )
+    expect(input.ExpressionAttributeValues).toMatchObject({
+      ":failed": "FAILED",
+      ":userId": USER,
+      ":now": NOW.toISOString(),
+      ":errorClass": "SourceNeedsReauthError",
+      ":rawArchived": true,
+    })
+  })
+
+  /**
+   * `failedUserId` duplicates `userId` and that duplication is the design: an index
+   * keyed on `userId` would hold every receipt ever written, not only the broken ones.
+   */
+  it("takes the user from the job, not from the row it never read", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt() }])
+
+    await recordFailure(KEY, { ...FACTS, userId: "someone-else" }, deps)
+
+    expect((sent[0] as UpdateCommand).input.ExpressionAttributeValues?.[":userId"]).toBe(
+      "someone-else",
+    )
+  })
+
+  /** The caller's log line reads `attempts` off this rather than spending a second read. */
+  it("returns the row as written", async () => {
+    const { deps } = stub([{ Attributes: receipt({ status: "FAILED", attempts: 3 }) }])
+
+    expect((await recordFailure(KEY, FACTS, deps))?.attempts).toBe(3)
+  })
+
+  /**
+   * Losing this race means the receipt reached DONE or aged out. Throwing would mask the
+   * ORIGINAL failure that led the caller here — the one a human actually has to read.
+   */
+  it("is silent when the receipt is already DONE", async () => {
     const { deps } = stub([conditionFailed()])
-    await expect(markFailed(KEY, deps)).resolves.toBeUndefined()
+    await expect(recordFailure(KEY, FACTS, deps)).resolves.toBeUndefined()
   })
 
   it("still propagates a real fault", async () => {
     const { deps } = stub([new Error("InternalServerError")])
-    await expect(markFailed(KEY, deps)).rejects.toThrow("InternalServerError")
+    await expect(recordFailure(KEY, FACTS, deps)).rejects.toThrow("InternalServerError")
+  })
+})
+
+/**
+ * CRITERION 6, as a unit. The redrive is a human deciding to retry, and before 0044 it
+ * was a silent no-op: the redriven message did the fetch, the archive and the normalize,
+ * lost the claim to the very FAILED status it was sent back to repair, and returned to
+ * the DLQ looking exactly like the original failure.
+ */
+describe("a FAILED receipt is reclaimable, and the claim clears it (D-209)", () => {
+  it("claims a receipt a previous delivery marked FAILED", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt({ status: "PROCESSING", attempts: 4 }) }])
+
+    expect(await claimForScoring(KEY, deps)).toEqual({ kind: "claimed", attempts: 4 })
+    expect((sent[0] as UpdateCommand).input.ExpressionAttributeValues?.[":failed"]).toBe("FAILED")
+  })
+
+  /**
+   * THE REMOVE IS THE CLEARING STEP. Dropping `failedUserId` drops the row out of the
+   * sparse index, which is what stops the Sync line reporting a failure that is being
+   * retried. All four go together or the index and the status disagree.
+   */
+  it("removes every failure field on the claim", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt({ status: "PROCESSING" }) }])
+
+    await claimForScoring(KEY, deps)
+
+    const update = (sent[0] as UpdateCommand).input.UpdateExpression ?? ""
+    for (const field of ["failedUserId", "failedAt", "errorClass", "rawArchived"]) {
+      expect(update).toContain(field)
+    }
+    expect(update).toContain("REMOVE")
+  })
+
+  /**
+   * NOTHING IS RETRIED FOREVER, and that is the answer to 0040's stated reason for
+   * excluding FAILED. This table never bounded retries — `maxReceiveCount: 3` on the
+   * queue does, and it is untouched. What the exclusion actually bounded was the
+   * operator's only means of intervening.
+   */
+  it("does not make DONE reclaimable", async () => {
+    const { deps, sent } = stub([{ Attributes: receipt({ status: "PROCESSING" }) }])
+
+    await claimForScoring(KEY, deps)
+
+    expect((sent[0] as UpdateCommand).input.ConditionExpression).not.toContain(":done")
+    expect((sent[0] as UpdateCommand).input.ExpressionAttributeValues?.[":failed"]).toBe("FAILED")
+  })
+})
+
+describe("listFailedReceipts (criterion 4)", () => {
+  it("queries the sparse index by user, newest first", async () => {
+    const { deps, sent } = stub([{ Items: [receipt({ status: "FAILED" })] }])
+
+    expect(await listFailedReceipts(USER, deps)).toHaveLength(1)
+
+    const input = (sent[0] as QueryCommand).input
+    expect(input.IndexName).toBe(FAILED_BY_USER_INDEX)
+    expect(input.KeyConditionExpression).toBe("failedUserId = :userId")
+    expect(input.ExpressionAttributeValues?.[":userId"]).toBe(USER)
+    expect(input.ScanIndexForward).toBe(false)
+  })
+
+  /** The common case, and the one the Sync action pays for on every press. */
+  it("is empty when nothing is broken", async () => {
+    const { deps } = stub([{}])
+    expect(await listFailedReceipts(USER, deps)).toEqual([])
+  })
+
+  /**
+   * The index name is stated in `amplify/backend.ts` too, for the same reason the table
+   * name is: the SSR compute reads it at runtime with no CloudFormation output to be
+   * handed a generated one through. `ingest-receipt-table.test.ts` asserts they agree.
+   */
+  it("has the index name amplify/backend.ts states", () => {
+    expect(FAILED_BY_USER_INDEX).toBe("failedByUser")
   })
 })
 

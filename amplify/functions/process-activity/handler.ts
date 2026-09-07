@@ -5,10 +5,20 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
 import { log } from "@/lib/log"
 import { oauthCredentialsFor } from "@/lib/sources/adapter-credentials"
-import { SourceNeedsReauthError, SourceRateLimitedError } from "@/src/adapters/errors"
+import {
+  SourceNeedsReauthError,
+  SourceNotConnectedError,
+  SourceRateLimitedError,
+} from "@/src/adapters/errors"
 import { getAdapter } from "@/src/adapters/registry"
 import type { IngestJob } from "@/src/adapters/types"
-import { processActivity } from "@/src/pipeline/process-activity"
+import { computeActivityId } from "@/src/domain/activity-id"
+import { recordFailure } from "@/src/pipeline/ingest-receipt"
+import {
+  archiveCompletedBy,
+  processActivity,
+  type IngestPhase,
+} from "@/src/pipeline/process-activity"
 
 /**
  * THE QUEUE HALF. Ticket 0042.
@@ -73,6 +83,15 @@ interface SqsRecord {
   messageId: string
   receiptHandle: string
   body: string
+  /**
+   * OPTIONAL, and it is optional because this type is a transcription and a transcription
+   * can be wrong. Every real SQS event carries `ApproximateReceiveCount`; a handwritten
+   * test event or a future event-source setting might not, and defaulting to 1 fails
+   * SAFE — it makes a delivery look early, so the worst case is a terminal failure that
+   * goes unrecorded for one delivery rather than a live `PROCESSING` claim stomped by a
+   * premature one.
+   */
+  attributes?: { ApproximateReceiveCount?: string }
 }
 interface SqsEvent {
   Records: SqsRecord[]
@@ -106,6 +125,63 @@ class ReceiptNotClaimableError extends Error {
     super(`Receipt ${ingestKey} is ${status}; this delivery may not claim it`)
     this.name = "ReceiptNotClaimableError"
   }
+}
+
+/**
+ * THE QUEUE'S RETRY BUDGET, RESTATED. Ticket 0044.
+ *
+ * It must equal `maxReceiveCount` on `ActivityIngestQueue` in `amplify/backend.ts`, and
+ * `process-activity-stack.test.ts` asserts the two agree rather than trusting them to
+ * stay in step — the same guard `PROCESSING_STALE_MS` carries against the Lambda timeout,
+ * and for the same reason: a constant living beside only one of the two settings it
+ * relates is how they drift.
+ *
+ * It is here and not in `src/pipeline` because it is a statement about a QUEUE. "This
+ * delivery is the last one the redrive policy allows" is not a fact the pipeline can see,
+ * and moving it there would put SQS semantics in the module whose whole point is not
+ * having any.
+ */
+const MAX_RECEIVE_COUNT = 3
+
+/**
+ * WHICH FAILURES ARE TERMINAL — the decision 0042's note left to this ticket, taken
+ * deliberately rather than by marking everything.
+ *
+ * Two ways to be terminal, and only two:
+ *
+ *   1. THE CREDENTIAL IS DEAD. `SourceNeedsReauthError` and `SourceNotConnectedError`
+ *      cannot be repaired by retrying — a human has to re-authorize — so recording the
+ *      failure on the first delivery is what turns three silent redeliveries into a
+ *      sentence on the Sync screen. Criterion 5 is exactly this: a revoked authorization
+ *      surfaces as a distinct reconnect state, not as a generic failure.
+ *
+ *   2. THIS WAS THE LAST DELIVERY. Anything else that fails on receive number
+ *      `MAX_RECEIVE_COUNT` is about to reach the DLQ, and a failure nobody records on its
+ *      way there is the silence this whole ticket exists to end.
+ *
+ * WHAT IS DELIBERATELY NOT TERMINAL:
+ *
+ *   - A transient fault on an early delivery. Recording it would make the Sync line
+ *     report a failure the queue is about to retry successfully, which is a lie with a
+ *     shorter half-life than the truth it displaced but a lie all the same.
+ *   - `SourceRateLimitedError`. It never reaches this function: rule 3 returns the
+ *     message with a delay and rethrows above. A 429 is a schedule, not a failure.
+ *   - `ReceiptNotClaimableError`, and this one MATTERS. It means another invocation holds
+ *     a live `PROCESSING` claim on this receipt. `recordFailure` is guarded on `<> DONE`,
+ *     so marking here would stomp a working import with a FAILED status it would then
+ *     have to clear — reporting a failure to the operator while the activity imports
+ *     successfully behind it.
+ */
+function isTerminalFailure(error: unknown, receiveCount: number): boolean {
+  if (error instanceof ReceiptNotClaimableError) return false
+  if (error instanceof SourceNeedsReauthError) return true
+  if (error instanceof SourceNotConnectedError) return true
+  return receiveCount >= MAX_RECEIVE_COUNT
+}
+
+/** An error CLASS. Never a message: a provider's can quote the request that made it. */
+function errorClassOf(error: unknown): string {
+  return error instanceof Error ? error.name : "UnknownError"
 }
 
 /** SQS's ceiling. A daily-bucket 429 can ask for longer than this; see `delayMessage`. */
@@ -145,6 +221,21 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
   const job = JSON.parse(record.body) as IngestJob
   const startedAt = Date.now()
 
+  /**
+   * WHICH DELIVERY THIS IS, from SQS rather than from the receipt's `attempts`.
+   *
+   * The two disagree in exactly the case that matters. `attempts` only ever increases —
+   * an activity that failed three times and was then redriven arrives with `attempts` at
+   * 3, and reading terminality off it would mark the redriven message terminal before it
+   * had tried anything. `ApproximateReceiveCount` RESETS on a redrive, because the move
+   * re-sends the message, so it says what is actually being asked: how many chances are
+   * left for THIS attempt at recovery.
+   */
+  const receiveCount = Number(record.attributes?.ApproximateReceiveCount ?? "1") || 1
+
+  /** The last phase the pipeline announced; see `ProcessDeps.onPhase`. */
+  let phase: IngestPhase | undefined
+
   const base = {
     at: "process-activity",
     messageId: record.messageId,
@@ -173,6 +264,9 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       archive: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
       receipt: { ddb },
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
+      onPhase: (entered) => {
+        phase = entered
+      },
     })
 
     if (result.outcome === "not-claimable") {
@@ -215,20 +309,76 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
     }
 
     /**
-     * RULE 2's visible half. The refresh-and-retry already happened inside the adapter;
-     * by the time this is thrown the connection is marked `NEEDS_REAUTH` and a human has
-     * to act. Logged distinctly because it is the one failure the settings screen can
-     * repair, and 0044 should be able to tell it apart from an outage.
+     * RULE 2's visible half, and criterion 5's. The refresh-and-retry already happened
+     * inside the adapter; by the time this is thrown the connection is marked
+     * `NEEDS_REAUTH` and a human has to act. It keeps a distinct `outcome` because it is
+     * the one failure the settings screen can repair, and telling it apart from an outage
+     * is the difference between "reconnect" and "try again later".
+     *
+     * NOT A RETRY STORM, and the reason is upstream of this file: every later delivery
+     * refuses at the credential store before any HTTP happens, so the two remaining
+     * receives cost a DynamoDB read each and the message reaches the DLQ.
      */
-    if (error instanceof SourceNeedsReauthError) {
-      log.error({ ...base, outcome: "needs-reauth", detail: error.detail })
-      throw error
+    const needsReauth =
+      error instanceof SourceNeedsReauthError || error instanceof SourceNotConnectedError
+
+    /**
+     * CRITERION 2 AND 3, TOGETHER — and they are one block on purpose. The receipt write
+     * and the log line have to agree about what happened, and the surest way to keep two
+     * records of one event in step is to derive both from the same values.
+     */
+    const terminal = isTerminalFailure(error, receiveCount)
+    const rawArchived = archiveCompletedBy(phase)
+    const errorClass = errorClassOf(error)
+
+    /**
+     * WRITTEN BEFORE THE LOG LINE, so the line can carry `attempts` off the row it just
+     * wrote rather than guessing. `recordFailure` returns `undefined` when the receipt
+     * reached DONE or aged out; the line still goes out, because a failure that could not
+     * be recorded is MORE worth reading, not less.
+     *
+     * IT MUST NOT MASK THE ORIGINAL ERROR. If the receipt write itself throws, the thing
+     * a human needs is still the failure that got us here — so its class is logged
+     * alongside and the original is what propagates to the queue.
+     */
+    let receipt
+    if (terminal) {
+      try {
+        receipt = await recordFailure(
+          job.ingestKey,
+          { userId: job.userId, errorClass, rawArchived },
+          { ddb },
+        )
+      } catch (writeError) {
+        log.error({ ...base, outcome: "failure-not-recorded", error: errorClassOf(writeError) })
+      }
     }
 
+    /**
+     * ONE STRUCTURED LINE PER TERMINAL FAILURE (criterion 3), carrying every field the
+     * runbook needs to decide what to do — and `rawArchived` is the one it branches on.
+     *
+     * `activityId` is COMPUTED, not read off the receipt, so the line is complete even
+     * when there is no receipt to read: it is deterministic from (user, source, external
+     * id) by I-5, which is the entire reason ids are derived rather than minted.
+     *
+     * `attempts` prefers the receipt's own counter — the number T8 defines and the
+     * runbook quotes — and falls back to the delivery count when the row is gone.
+     */
     log.error({
       ...base,
-      outcome: "failed",
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      event: terminal ? "ingest-failed" : "ingest-attempt-failed",
+      outcome: needsReauth ? "needs-reauth" : "failed",
+      terminal,
+      userId: job.userId,
+      activityId: computeActivityId(job.userId, job.source, job.externalId),
+      attempts: receipt?.attempts ?? receiveCount,
+      receiveCount,
+      errorClass,
+      phase: phase ?? "none",
+      rawArchived,
+      failureRecorded: terminal ? receipt !== undefined : false,
+      ...(error instanceof SourceNeedsReauthError ? { detail: error.detail } : {}),
       totalMs: Date.now() - startedAt,
     })
     throw error

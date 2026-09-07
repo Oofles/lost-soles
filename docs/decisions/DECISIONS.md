@@ -2115,3 +2115,65 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     the reasoning attached, so `aspectType` and `ownerId` still stop the build. `startedAt` was
     removed from `StravaIngestMeta` in the same change rather than left in both places — one field,
     one writer, and no way for the two to disagree.
+
+- **D-209** **A `FAILED` receipt is reclaimable at the score gate. `maxReceiveCount` bounds
+  retries; the receipt does not.**
+  *(Ticket `0044`. Supersedes the reasoning ticket `0040` attached to `markFailed` — that
+  `claimForScoring` matches `PROCESSING` only, so "a recorded failure is a decision and should be
+  visible rather than quietly retried forever". The visibility half stands and is now
+  `recordFailure`. The lock half is withdrawn.)*
+  - **What was wrong with it.** A `FAILED` receipt that no delivery may claim makes a **DLQ redrive
+    a silent no-op** — and the redrive is the operator's entire documented recovery path
+    (`01-architecture.md` §4, and this ticket's own scope note: *"the operator's recovery path at
+    this milestone is 'redrive the DLQ message from the SQS console'"*). The redriven message
+    resolves credentials, fetches, archives, normalizes, loses the claim to the very `FAILED`
+    status it was sent back to repair, throws, and returns to the DLQ looking exactly like the
+    original failure. The one control the operator has would report success and change nothing.
+  - **Why "retried forever" was never what the exclusion prevented.** This table has never bounded
+    retries and `ingest-receipt.ts` says so in the same paragraph: *"The SQS redrive policy, not
+    this table, is what governs retries."* `maxReceiveCount: 3` is unchanged, so a receipt
+    reclaimed from `FAILED` gets whatever deliveries the queue still owes it and no more. What the
+    exclusion actually bounded was the operator's ability to intervene at all.
+  - **The `REMOVE` is the clearing step, and it is on the claim rather than on success.** A claim
+    wipes `failedUserId`, `failedAt`, `errorClass` and `rawArchived` together, which drops the row
+    out of the sparse `failedByUser` index. So the Sync line stops reporting a failure the moment a
+    retry is genuinely underway and reports it again if `recordFailure` writes the fields back.
+    Clearing on success instead would leave the report standing through the whole retry, which is
+    the state the operator is least able to interpret: broken, or being fixed?
+  - **`DONE` is still not reclaimable, and that is the line that matters.** It is the one status
+    written inside the ingest transaction alongside the XP award (T8 layer 3), so reclaiming it
+    would reopen the double-award window the whole receipt exists to close. `recordFailure` is
+    guarded `<> DONE` for the same reason from the other direction.
+  - **What keeps it honest.** The condition and the `REMOVE` list are both asserted in
+    `src/pipeline/ingest-receipt.test.ts`, including that `:done` never enters the claim's
+    condition. Layer 4 — the explored set is a set — remains the backstop that makes any reclaim
+    safe regardless.
+
+- **D-210** **Terminal ingest failures are dead credentials, plus anything that fails on the last
+  delivery the queue allows. Nothing else writes `FAILED`.**
+  *(Ticket `0044`. The decision ticket `0042` deliberately left open: *"it has to decide
+  deliberately WHICH failures are terminal rather than marking all of them."*)*
+  - **Two ways in, and only two.** `SourceNeedsReauthError` and `SourceNotConnectedError` are
+    terminal on the first delivery because no retry can repair them — a human has to
+    re-authorize — and waiting three deliveries to say so costs up to ~48 minutes of visibility
+    timeouts during which the screen says nothing is wrong. Everything else becomes terminal only
+    on receive number `maxReceiveCount`, because that message is about to reach the DLQ and a
+    failure nobody records on its way there is the silence this ticket exists to end.
+  - **Why not mark every failure.** The Sync line would report a failure the queue is about to
+    retry successfully — true for ninety seconds and then a lie, on the one surface the operator
+    has for knowing whether their data arrived.
+  - **Why not mark only on the last delivery.** It is simpler and it delays criterion 5: a revoked
+    authorization is the one failure the settings screen can actually repair, and it should say so
+    the first time it is known rather than three deliveries later.
+  - **`ReceiptNotClaimableError` is never terminal, and this one is a correctness point rather
+    than a preference.** It means another invocation holds a live `PROCESSING` claim.
+    `recordFailure` is guarded `<> DONE`, so marking here would stamp `FAILED` over a working
+    import and report it broken to the operator while it succeeded behind them.
+  - **The delivery count comes from SQS, not from the receipt.** `attempts` only ever increases, so
+    a redriven message arrives with `attempts` already at 3 and would be judged terminal before it
+    had tried anything — defeating D-209. `ApproximateReceiveCount` resets on a redrive, because
+    the move re-sends the message, so it answers the question actually being asked: how many
+    chances are left for *this* attempt at recovery.
+  - **What keeps it honest.** `MAX_RECEIVE_COUNT` is restated in the handler because a bundled
+    Lambda cannot import a CDK construct; `process-activity-stack.test.ts` asserts the two numbers
+    agree, the same guard `PROCESSING_STALE_MS` carries against the Lambda timeout.

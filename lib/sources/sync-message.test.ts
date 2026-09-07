@@ -102,3 +102,75 @@ describe("what the button says", () => {
     )
   })
 })
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET 0044, CRITERION 4 — OUTSTANDING FAILURES
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `09-roadmap.md` §2.3 admits the milestone shipped with "no error surface — the user
+ * finds out because the map did not change". This is the sentence that ends that, and
+ * the thing to keep straight is that it describes A DIFFERENT PRESS: the outcomes above
+ * are this sweep, the count below is activities that were queued earlier and that the
+ * worker could not import.
+ */
+describe("outstanding failures", () => {
+  const name = () => "Strava"
+
+  it("says nothing when nothing is outstanding", () => {
+    expect(syncResultLine([{ sourceId: "s", kind: "nothing-new" }], name, 0)).toBe("Nothing new.")
+  })
+
+  /** Defaulted, so every existing caller and test reads unchanged. */
+  it("says nothing when the count is not supplied at all", () => {
+    expect(syncResultLine([{ sourceId: "s", kind: "nothing-new" }], name)).toBe("Nothing new.")
+  })
+
+  /**
+   * THE CASE THE TICKET IS ABOUT. A sweep that finds nothing new while an earlier import
+   * is broken used to render as "Nothing new." — a true sentence that hides the reason
+   * the map is missing a run.
+   */
+  it("appends the failure to a sweep that found nothing", () => {
+    expect(syncResultLine([{ sourceId: "s", kind: "nothing-new" }], name, 1)).toBe(
+      "Nothing new. 1 activity failed to import.",
+    )
+  })
+
+  /**
+   * THE TWO SENTENCES ARE NOT MERGED. A press that queued three activities did real
+   * work, and collapsing it into the failure would make a successful sweep read as a
+   * broken one whenever anything old was still outstanding.
+   */
+  it("keeps a successful sweep and an old failure as separate sentences", () => {
+    expect(
+      syncResultLine([{ sourceId: "s", kind: "queued", queued: 3, alreadyKnown: 0 }], name, 2),
+    ).toBe("3 activities queued. 2 activities failed to import.")
+  })
+
+  /**
+   * CRITERION 5. A revoked authorization keeps its own distinct sentence — the one that
+   * names the action a human can take — and the failure count sits beside it rather than
+   * replacing it. "Reconnect" and "something failed" are different facts.
+   */
+  it("leaves the reconnect sentence intact beside a failure", () => {
+    expect(syncResultLine([{ sourceId: "s", kind: "reconnect" }], name, 1)).toBe(
+      "Reconnect Strava in Settings. 1 activity failed to import.",
+    )
+  })
+
+  /**
+   * A CONNECTION REMOVED AFTER AN IMPORT BROKE. "No sources are connected" alone would
+   * be true and would hide the reason the map is missing a run.
+   */
+  it("reports a failure even with no sources connected", () => {
+    expect(syncResultLine([], name, 1)).toBe(
+      "No sources are connected. 1 activity failed to import.",
+    )
+  })
+
+  it("uses the singular for exactly one", () => {
+    expect(syncResultLine([], name, 1)).toContain("1 activity failed")
+    expect(syncResultLine([], name, 4)).toContain("4 activities failed")
+  })
+})

@@ -267,3 +267,117 @@ describe("the customer-managed key on T7", () => {
     expect(actions).toContain("kms:GenerateDataKey*")
   })
 })
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET 0044, CRITERION 1 — THE ONE ALARM
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `01-architecture.md` §4: *"A CloudWatch alarm on `ApproximateNumberOfMessagesVisible >
+ * 0` on the DLQ is the only alarm this app needs."* Everything below is that sentence,
+ * asserted — and the last test in the block is the word "only", which is the half a
+ * future edit is most likely to break without meaning to.
+ */
+describe("the DLQ alarm", () => {
+  const alarms = () => Object.values(ingest.findResources("AWS::CloudWatch::Alarm"))
+  const alarm = () => {
+    expect(alarms(), "exactly one alarm — §4 says one is all this app needs").toHaveLength(1)
+    return alarms()[0] as { Properties: Record<string, unknown> }
+  }
+
+  it("watches the queue depth of the DLQ", () => {
+    expect(alarm().Properties.MetricName).toBe("ApproximateNumberOfMessagesVisible")
+    expect(alarm().Properties.Namespace).toBe("AWS/SQS")
+  })
+
+  /** `> 0`, on ONE datapoint. Any message at all is an activity that is not on the map. */
+  it("fires on a single message", () => {
+    expect(alarm().Properties.Threshold).toBe(0)
+    expect(alarm().Properties.ComparisonOperator).toBe("GreaterThanThreshold")
+    expect(alarm().Properties.EvaluationPeriods).toBe(1)
+    expect(alarm().Properties.DatapointsToAlarm).toBe(1)
+  })
+
+  /**
+   * `Maximum`, NOT `Average`. A DLQ holding one message averages down toward zero over a
+   * long enough period and can fail to breach a threshold of zero; the maximum of a
+   * queue depth is the only statistic that means "something was in here".
+   */
+  it("takes the maximum depth over a minute", () => {
+    expect(alarm().Properties.Statistic).toBe("Maximum")
+    expect(alarm().Properties.Period).toBe(60)
+  })
+
+  /**
+   * THE SETTING THAT DECIDES WHETHER THE ALARM IS USABLE AT ALL. SQS publishes queue
+   * metrics only while a queue is polled, so a DLQ empty for a week emits nothing —
+   * which under any other treatment either pins the alarm in INSUFFICIENT_DATA or emails
+   * the operator about a queue that is fine. Both end with the sender filtered, which is
+   * the failure `09-roadmap.md` §8.6 names.
+   */
+  it("treats missing data as not breaching", () => {
+    expect(alarm().Properties.TreatMissingData).toBe("notBreaching")
+  })
+
+  /**
+   * THE NAME IS THE SUBJECT LINE. SNS renders an alarm as `ALARM: "<name>" in <region>`,
+   * so this string is the whole of what the operator sees on a phone before deciding
+   * whether to open it. A generated name would identify a CloudFormation stack.
+   */
+  it("is named so the email subject alone identifies the app", () => {
+    expect(String(alarm().Properties.AlarmName)).toContain("Lost Soles")
+  })
+
+  it("notifies a topic", () => {
+    expect((alarm().Properties.AlarmActions as unknown[]) ?? []).toHaveLength(1)
+  })
+
+  /**
+   * AN UNCONFIRMED SUBSCRIPTION IS A SILENT ALARM. SNS delivers nothing until the
+   * confirmation link is clicked, which is why the close records confirming it as an
+   * operator step rather than assuming the deploy finished the job.
+   */
+  it("subscribes the operator by email", () => {
+    const subscriptions = Object.values(ingest.findResources("AWS::SNS::Subscription"))
+    expect(subscriptions).toHaveLength(1)
+    expect((subscriptions[0].Properties as { Protocol?: string }).Protocol).toBe("email")
+  })
+
+  /**
+   * THE WORD "ONLY", ASSERTED. §4 earns its single alarm by refusing every other one, and
+   * `09-roadmap.md` §8.6 is the reason: at three to five runs a week an alarm on Lambda
+   * errors or duration fires on cold starts and blips until the operator filters the
+   * sender — at which point the DLQ alarm stops being read too. A second alarm here means
+   * deleting a sentence from §4 first.
+   */
+  it("is the only alarm in the ingest stack", () => {
+    expect(alarms()).toHaveLength(1)
+    expect(Object.values(workerStack.findResources("AWS::CloudWatch::Alarm"))).toHaveLength(0)
+  })
+})
+
+/**
+ * THE HANDLER RESTATES `maxReceiveCount` and cannot import it — the queue is CDK and the
+ * handler is a bundled Lambda. `MAX_RECEIVE_COUNT` is what decides whether a failure is
+ * terminal (ticket 0044), so a drift between the two would silently move the point at
+ * which a failure gets recorded: raise the queue to 5 and the handler marks FAILED two
+ * deliveries early, reporting a failure that is still being retried.
+ *
+ * Asserted against the SOURCE TEXT rather than by importing the handler, because
+ * importing it constructs AWS clients and reads environment variables this synth test
+ * has neither of.
+ */
+describe("the handler's retry budget matches the queue's", () => {
+  it("states the same maxReceiveCount the redrive policy does", async () => {
+    const { readFileSync } = await import("node:fs")
+    const source = readFileSync(
+      new URL("./functions/process-activity/handler.ts", import.meta.url),
+      "utf8",
+    )
+    const declared = /const MAX_RECEIVE_COUNT = (\d+)/.exec(source)?.[1]
+    expect(declared, "handler.ts should declare MAX_RECEIVE_COUNT").toBeDefined()
+
+    const redrive = mainQueue().Properties.RedrivePolicy as { maxReceiveCount?: number }
+    expect(Number(declared)).toBe(redrive.maxReceiveCount)
+  })
+})

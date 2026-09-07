@@ -1053,6 +1053,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-07T20:27:27Z",
     "path": "tickets/open/0044-ingest-failure-visibility.md",
     "ready": true,
     "acceptance": {
