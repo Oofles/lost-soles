@@ -1043,7 +1043,7 @@
     "title": "Failure handling and DLQ visibility — a failed job must be visible somewhere a human looks",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "06-ingest-pipeline",
     "depends_on": [
@@ -1054,10 +1054,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-07T20:27:27Z",
-    "path": "tickets/open/0044-ingest-failure-visibility.md",
-    "ready": true,
+    "closed": "2026-09-07T22:03:13Z",
+    "path": "tickets/closed/0044-ingest-failure-visibility.md",
+    "ready": false,
     "acceptance": {
-      "checked": 3,
+      "checked": 7,
       "total": 7
     }
   },
@@ -2392,7 +2393,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0102-rebuild-drill-enumerate-normalize-sort.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -2484,7 +2485,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0106-account-deletion-runbook-executed.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -4071,12 +4072,12 @@
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
-    "created": "2026-09-07T22:01:43Z",
+    "created": "2026-09-07T22:10:00Z",
     "path": "tickets/open/0178-end-to-end-proof-that-a-real-failed-import-surfaces-on-the-n.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   }
 ]

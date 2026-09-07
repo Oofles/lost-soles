@@ -4,7 +4,7 @@ slug: ingest-failure-visibility
 title: Failure handling and DLQ visibility — a failed job must be visible somewhere a human looks
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: [42, 43]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-07T20:27:27Z
+closed: 2026-09-07T22:03:13Z
 ---
 
 ## Description
