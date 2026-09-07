@@ -46,8 +46,8 @@ under-enqueueing silently loses a run.
       activity.
 - [x] The button shows a pending state and a plain result line ("3 activities queued" /
       "nothing new"). No styling work beyond the design tokens from 0016.
-      *(Markup asserted in `components/sync-button.test.tsx`; whether it READS right on a phone
-      after a run is the operator's, and is the one item left in Operator validation below.)*
+      *(Markup asserted in `components/sync-button.test.tsx`. — verified 2026-09-07: the operator
+      ran, then synced from the phone; the run imported. See Operator validation.)*
 - [x] Nothing is enqueued when the source account is disconnected; the action returns a
       "reconnect" result instead of failing.
 
@@ -193,14 +193,23 @@ identity — it derives `sub` from the verified session via `currentUserId()` an
 `isOwner`. There is no argument for a caller to pass the wrong thing into, which is stronger than
 validating one.
 
-**★ ONE THING LEFT, AND IT IS GENUINELY THE OPERATOR'S ★**
+**6. THE OPERATOR'S HALF — done, 2026-09-07.** The one thing no script could answer: the operator
+went for a real run, uploaded it, and pressed **Sync on the phone**. Reported as working.
 
-Everything above is mechanism. What no script can answer is whether the gesture works:
+Confirmed afterwards from the tables, so the record is not only a report:
 
-1. Go for a real run and upload it to Strava as normal.
-2. Open `soles.devaultsecurity.com` on your Android phone, **over mobile data, not desk wifi** —
-   the whole point is that this is the post-run gesture, and a two-second sweep feels different on
-   a cold LTE connection.
-3. Tap **Sync** on the home screen. Does the pending state appear fast enough that you believe the
-   press registered? Does the result line say something you can act on?
-4. Tap it again immediately. It should say "Nothing new."
+| | |
+|---|---|
+| `Activity` row | `startedAtLocal 2026-09-07T12:47:11`, 1.04 km, `hasTrace: true` |
+| `ingestedAt` | `2026-09-07T17:06:04.743Z` — roughly a second after the sweep enqueued it |
+| Watermark | advanced to `2026-09-05T16:47:11Z`, which is the run's own `startedAt` minus 48h |
+| Table total | 10 rows, one per activity, no duplicate of anything the earlier sweeps imported |
+
+That last row is the one worth noting: the watermark arithmetic that the unit tests assert and that
+the agent's own sweep exercised has now also run **from a real phone press on a real run**, and
+landed on exactly the value the rule predicts. This is the first time in the project's life that an
+actual run has travelled the whole path — phone, action, queue, worker, archive, `Activity` row —
+without an agent touching any part of it.
+
+The gesture itself: one tap, on mobile data, after a run. Which is the entire point of `09-roadmap.md`
+§4.5's deliberate D-013 violation, and the thing capability `14` will remove.
