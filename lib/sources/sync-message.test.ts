@@ -115,7 +115,7 @@ describe("what the button says", () => {
  * worker could not import.
  */
 describe("outstanding failures", () => {
-  const name = () => "Strava"
+  const name = () => "Example Source"
 
   it("says nothing when nothing is outstanding", () => {
     expect(syncResultLine([{ sourceId: "s", kind: "nothing-new" }], name, 0)).toBe("Nothing new.")
@@ -155,7 +155,7 @@ describe("outstanding failures", () => {
    */
   it("leaves the reconnect sentence intact beside a failure", () => {
     expect(syncResultLine([{ sourceId: "s", kind: "reconnect" }], name, 1)).toBe(
-      "Reconnect Strava in Settings. 1 activity failed to import.",
+      "Reconnect Example Source in Settings. 1 activity failed to import.",
     )
   })
 
