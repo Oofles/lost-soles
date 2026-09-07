@@ -144,44 +144,59 @@ CONSTANTS
   MAX_ACC_M      = 50          # drop samples with worse reported accuracy
   DWELL_SPEED    = 0.5         # m/s
   DWELL_MIN_S    = 60          # seconds
-  TELEPORT_SPEED = 12.0        # m/s (43 km/h) — not a run. CONTESTED, see the note below
+  TELEPORT_SPEED = <the sanitizer's foot gate>   # NOT a literal here. See the note below.
   SPLIT_GAP_M    = 250         # gap beyond which we refuse to interpolate
   SPLIT_GAP_S    = 120
   DENSIFY_STEP_M = 30          # < inradius, so no cell can be skipped
 ```
 
-> **`TELEPORT_SPEED` CONTRADICTS THE ADAPTER'S GATE, AND IS UNRESOLVED HERE ON PURPOSE.**
-> Flagged by the `05-strava-adapter` drift audit, 2026-09-06 (divergence 2 of four).
+> **`TELEPORT_SPEED` IS THE SANITIZER'S GATE. RESOLVED 2026-09-07 (ticket `0045`, D-212).**
+> Raised by the `05-strava-adapter` drift audit, 2026-09-06 (divergence 2 of four); the audit
+> deliberately left the value open and made `0045` carry the obligation. This is that answer.
 >
-> This section was written before anything was built. Since then **D-197** (ticket `0037`) set
-> the ingestion sanitizer's outlier gate to **12.5 m/s** for `run`/`walk`/`hike`, as a per-kind
-> data table in `src/adapters/strava/sanitize.ts`, and gave the measurement: across eight real
-> runs and 21,225 fixes, an 8 m/s gate rejected six fixes and caught **zero** GPS jumps, while
-> the men's 100 m world record peaks at ~12.4 m/s. 12.5 was chosen precisely to *admit* a human
-> burst up to that peak.
+> **The 12.0 written above is superseded and is left standing so the mistake is visible.**
+> `src/domain/fog.ts` imports the per-kind table rather than restating a number, so there is
+> one gate with one owner. The table moved to `src/domain/geo.ts` in the same ticket, because
+> the domain may not import from an adapter and a second copy of the number is exactly the
+> two-owners failure D-193 names.
 >
-> A trace reaching `traceToCells` has already been through that gate. So `TELEPORT_SPEED = 12.0`
-> can now only fire in the band **12.0–12.5 m/s** — on exactly the fixes D-197 deliberately
-> decided to keep. And a split there is not free: it writes a `gaps` entry (D-198), which is the
-> *"dotted corridor"* §9.5 warns about and which D-197's own reasoning treats as a real harm
-> rather than the safe direction.
+> **Why 12.0 was wrong, in D-197's own terms.** D-197 (ticket `0037`) set the ingestion
+> sanitizer's gate to **12.5 m/s** for foot activities after measuring 21,225 fixes across
+> eight real runs: an 8 m/s gate rejected six fixes and caught **zero** GPS jumps, and the
+> men's 100 m world record peaks at ~12.4 m/s, so 12.5 was chosen precisely to *admit* a human
+> burst up to that peak. A trace reaching `traceToCells` has already passed that gate — so a
+> 12.0 threshold here could only ever fire in the band **12.0–12.5 m/s**, on exactly the fixes
+> D-197 decided to keep. And firing is not free: the split writes a break into the corridor,
+> which is the *"dotted corridor"* §9.5 warns about. 12.0 would have re-introduced, one module
+> later, the defect the sanitizer was re-measured to remove.
 >
-> **Scope, stated honestly, because it is narrower than it first looks.** Only `wayfaring` carries
-> `revealsGround: true` in `rules/xp-rules-v1.yaml`, and it matches `kinds: [run, walk, hike]` —
-> so **rides never reach this function**, and the sanitizer's 30 m/s ride row is irrelevant here.
-> Nothing in the 21,225 measured fixes lands in the 12.0–12.5 band either; the operator's fastest
-> accepted fix was 7.6 m/s. This is a latent contradiction, not an observed defect.
->
-> **The value is not chosen here.** §9.5 says to measure before touching these constants, and the
-> measurement that matters belongs to the ticket that builds this function. **Ticket `0045`
-> carries the obligation** as an acceptance criterion: reconcile the two gates, or state why they
-> differ deliberately. What is settled is that they may not silently disagree.
+> **Scope, stated honestly, because it is narrower than it first looks.** Exactly one skill row
+> in `rules/xp-rules-v1.yaml` carries `revealsGround: true` (D-189) and its `match` names the
+> three on-foot kinds, which all hold the same gate — so wheeled activities never reach this
+> function and the sanitizer's 30 m/s row is irrelevant here. That is why `traceToCells` takes
+> no `ActivityKind`. If a future row ever sets `revealsGround: true` for a wheeled kind, this
+> is the constant that has to grow a parameter.
 
 ```
 
-function traceToCells(points):
+function traceToCells(trace):
+  # ---- 0. split on Trace.gaps -----------------------------------------
+  # ADDED 2026-09-07 (ticket `0045`, D-212). This step did not exist when the
+  # section was written: `Trace.gaps` arrived with D-198, and it carries the
+  # only question this function has to ask — MAY A CORRIDOR BE DRAWN ACROSS
+  # HERE? Two causes feed it, a time interval past GAP_THRESHOLD_MS (30 s,
+  # D-195) and a sanitation break where an implausible fix was dropped between
+  # two accepted ones, and D-198 puts them in one field precisely so that no
+  # consumer can honour one and forget the other.
+  #
+  # It goes FIRST because it is strictly stronger than step 3: a 30-second
+  # interval breaks the trace regardless of distance, where step 3 needs
+  # 250 m AND 120 s. Every split step 3 would make across a dropout, this has
+  # already made.
+  runs = splitOnGaps(trace)          # steps 1-4 then run per `run`
+
   # ---- 1. clean --------------------------------------------------------
-  pts = points
+  pts = run
         .filter(p => p.accuracyM == null or p.accuracyM <= MAX_ACC_M)
         .filter(p => isFinite(p.lat) and isFinite(p.lng))
         .dedupeConsecutiveIdentical()
@@ -197,6 +212,11 @@ function traceToCells(points):
   # A lost fix that reacquires 400 m away must NOT be interpolated: that
   # would reveal a corridor through buildings the user never ran. Likewise
   # a drive between a trailhead and home inside one recorded "activity".
+  #
+  # On a NORMALISED trace this step is expected never to fire: step 0 has
+  # already cut every dropout and the sanitizer already applied the same
+  # speed gate. It is kept as defence in depth, because this is a domain
+  # function and it does not get to assume its caller sanitized anything.
   segments = splitWhere(pts, (a, b) =>
       speed(a, b) > TELEPORT_SPEED or
       (haversine(a, b) > SPLIT_GAP_M and (b.t - a.t) > SPLIT_GAP_S))
@@ -231,6 +251,9 @@ Notes on the steps that matter:
   wild point is bounded to its own neighbourhood rather than drawing a spike.
 - **Pauses (step 2).** Collapsing rather than dropping matters: the dwell point is still on the
   route and must still reveal its own cell.
+- **Gaps (step 0).** `Trace.gaps` is authoritative and is honoured before anything else. See
+  the step's own comment; added by ticket `0045`, D-212. `01-architecture.md` §11 has always
+  said *"no cell is emitted across a `gaps` interval"* — this is where that happens.
 - **Splits (step 3).** Splitting rather than joining is the conservative choice. Under-revealing
   is recoverable (run it again). Over-revealing is not — D-020 makes it permanent.
 - **The output is a `Set`.** Every downstream property in §3 — out-and-backs, loops, figure-eights,

@@ -91,14 +91,57 @@ describe("the domain depends on nothing", () => {
     expect(offenders.map(([rel]) => rel)).toEqual([])
   })
 
-  it("imports only node: builtins and its own siblings", () => {
+  /**
+   * THE ONE THIRD-PARTY PACKAGE THE DOMAIN MAY IMPORT. Ticket `0045`, D-212.
+   *
+   * Named individually rather than as a "pure libraries are fine" rule, so that adding a
+   * second one is a visible edit to this file with a reason attached — the same discipline
+   * `adapter.test.ts` applies to its two polyline decoders and `check-boundaries.mjs` to
+   * its three narrowings.
+   *
+   * `h3-js` earns it on the design's say-so, not on convenience: `01-architecture.md` §11
+   * specifies it by name for this exact step (*"in-process, `h3-js` (pure JS, bundles
+   * cleanly)"*), and `05-fog-of-war.md` §2.2's normative pseudocode is written in H3
+   * primitives throughout. A domain that may not import it cannot implement §2.2 at all.
+   *
+   * And it does not weaken what this test protects. The rule guards DIRECTION and
+   * PORTABILITY — nothing may point out of the domain at an adapter, the pipeline, the UI
+   * or a cloud SDK, and `normalize()` must run in a Lambda, a browser and a replay harness
+   * alike. Measured rather than assumed: `h3-js@4.5.0` has **zero** dependencies and zero
+   * peer dependencies, is the version R3 §627 pinned, and R3 records it working in both
+   * the browser and Lambda. It is a compiled geometry kernel, not a layer.
+   */
+  const DOMAIN_ALLOWED_PACKAGES = ["h3-js"]
+
+  it("imports only node: builtins, its own siblings, and h3-js", () => {
     const allowed = /^(node:|\.\/|\.\.\/|vitest$)/
     const bad: string[] = []
     for (const [rel, body] of files) {
       for (const m of body.matchAll(/from\s+["']([^"']+)["']/g)) {
-        if (!allowed.test(m[1])) bad.push(`${rel} → ${m[1]}`)
+        if (allowed.test(m[1])) continue
+        if (DOMAIN_ALLOWED_PACKAGES.includes(m[1])) continue
+        bad.push(`${rel} → ${m[1]}`)
       }
     }
     expect(bad).toEqual([])
+  })
+
+  it("the allowlist is exactly one package, and it is the one the architecture names", () => {
+    // A list that quietly grows is how "the domain depends on nothing" becomes untrue
+    // while every test stays green. If this fails, the question to answer is whether the
+    // NEW entry belongs in the domain at all — not whether to raise the number.
+    expect(DOMAIN_ALLOWED_PACKAGES).toEqual(["h3-js"])
+  })
+
+  it("every allowed package is genuinely dependency-free", () => {
+    // The portability claim above, asserted rather than trusted. A transitive dependency
+    // arriving in a minor bump is exactly the drift this file is named for.
+    for (const pkg of DOMAIN_ALLOWED_PACKAGES) {
+      const manifest = JSON.parse(
+        readFileSync(join(ROOT, "node_modules", pkg, "package.json"), "utf8"),
+      )
+      expect(Object.keys(manifest.dependencies ?? {}), pkg).toEqual([])
+      expect(Object.keys(manifest.peerDependencies ?? {}), pkg).toEqual([])
+    }
   })
 })

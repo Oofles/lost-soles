@@ -2239,3 +2239,115 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     of this does not exist — contract §3's step 3 `DEDUPE` is unimplemented and nothing queries
     GSI2. I-22 claimed otherwise and has been corrected. Ticket `0179` is the lookup; until it
     lands, cross-source duplication is prevented only by there being one source.
+
+---
+
+## The fog projection's split rules  (2026-09-07, ticket `0045`)
+
+- **D-212** **`traceToCells` splits on `Trace.gaps` BEFORE anything else, and its teleport
+  gate is the ingestion sanitizer's per-kind table by reference — never a restated number.**
+  *(Amends `05-fog-of-war.md` §2.2, which is otherwise normative. Discharges the obligation the
+  `05-strava-adapter` drift audit placed on this ticket, 2026-09-06, divergence 2.)*
+  - **Two findings, one section, one cause: §2.2 was written before anything existed, and two
+    later decisions overtook it without anyone re-reading it.**
+  - **`gaps` is not in §2.2 at all.** Its pseudocode takes a bare list of points. `Trace.gaps`
+    arrived with **D-198** and carries the only question this function asks — *may a corridor be
+    drawn across here?* — merging a time interval past `GAP_THRESHOLD_MS` (30 s, D-195) with a
+    sanitation break where a fix was dropped between two accepted ones. D-198 put both in one
+    field **precisely so that no consumer could honour one and forget the other**, and this is a
+    consumer. `01-architecture.md` §11 has always said *"no cell is emitted across a `gaps`
+    interval"*; nothing said where that happened. It happens here.
+  - **It goes first because it is strictly stronger than §2.2's own step 3.** A 30-second
+    interval breaks the trace regardless of distance; step 3 requires 250 m **and** 120 s. Every
+    split step 3 would make across a dropout, `gaps` has already made — so on a normalised trace
+    step 3 is expected never to fire. **It is kept anyway**, as defence in depth: this is a
+    domain function, it does not get to assume its caller sanitized anything, and the cost of
+    being wrong is a permanent scar on a map that never re-fogs (D-020).
+  - **The teleport gate: 12.0 was wrong, in D-197's own terms.** §2.2 specifies
+    `TELEPORT_SPEED = 12.0`; D-197 set the sanitizer to **12.5 m/s** for foot activities after
+    measuring 21,225 fixes across eight real runs. A trace reaching `traceToCells` has already
+    passed that gate, so 12.0 could only ever fire in the band **12.0–12.5** — on exactly the
+    fixes D-197 deliberately decided to KEEP, having found that a tighter gate caught zero GPS
+    jumps and rejected five plausible human bursts. And firing is not free: the split writes a
+    break into the corridor, the *"dotted corridor"* §9.5 warns about. **Shipping 12.0 would
+    have re-introduced, one module later, the precise defect the sanitizer was re-measured to
+    remove.**
+  - **So the two gates are ONE gate with ONE owner**, and the table moved to `src/domain/geo.ts`
+    to make that expressible. It could not stay in the adapter: `src/domain/` may not import
+    from `src/adapters/` — `check-boundaries.mjs`'s STRICT tier fails on the import path, and it
+    is right to — so the dependency inverted, which is the direction D-100 wanted anyway.
+    Restating `12.5` in `fog.ts` was the alternative and is the two-owners-of-one-value failure
+    **D-193** names; the test asserts the *identity*
+    `TELEPORT_SPEED_MS === MAX_IMPLIED_SPEED_MS.run` rather than the value, so the next
+    measurement cannot move one and not the other.
+  - **No `ActivityKind` parameter, and that is a deliberate narrowing rather than an oversight.**
+    Exactly one skill row carries `revealsGround: true` (**D-189**) and its `match` names the
+    three on-foot kinds, which all hold the same gate. Wheeled activities never reach this
+    function. A test asserts those three agree, so the day one of them diverges the build says
+    so — which is the point at which `traceToCells` has to grow the parameter.
+  - **What this does NOT change.** Steps 1, 2, 4 and 5 of §2.2 stand as written, `REVEAL_R_M`
+    and the exact filter remain ticket `0046`'s, and `12.0` is left visible in §2.2's constant
+    block marked superseded rather than quietly overwritten.
+
+- **D-213** **A synthetic fixture must preserve the trace's EXTENT, not only its step lengths.**
+  *(Ticket `0045`. Corrects the implementation of D-199, not the decision.)*
+  - **The defect, measured.** `synthesise()` drew an **independent** random bearing per step.
+    That is a diffusive random walk: extent grows with √n, not n. `real-run-outdoor` is a
+    genuine **6,069 m** run and its synthetic geometry occupied a box of **98 m × 154 m** —
+    about the area of ONE H3 res-10 cell. The whole run projected to **2 cells**, against
+    `0045` criterion 10's requirement of 40–130.
+  - **Why nothing caught it for a capability and a half.** Every existing consumer measures
+    something a scribble satisfies: the fidelity floor (D-200) measures a sampling *rate*, the
+    sanitizer (D-197) measures step *lengths*, `bbox` was only ever asserted to contain its own
+    points, and the geography guard asks whether coordinates are near Point Nemo — a tighter
+    scribble passes it more easily. **The fog projection is the first consumer that measures
+    extent, and it is the one that cannot tolerate the fixture being wrong.** This is the shape
+    to watch for: a fixture is only as real as the properties something has actually checked.
+  - **The fix is a correlated bearing, and it does not weaken D-199.** The turn per step is now
+    bounded per metre travelled, so the track meanders like a route instead of diffusing like
+    noise — 58 res-10 cells over the same 6,069 m. Step lengths, point counts, timestamps,
+    `original_size` and every non-geometric field are untouched. **The bearings still carry no
+    information from the real track**, which is the property D-199 rejected rigid
+    relocate-and-rotate to protect: a route *shape* is matchable against OpenStreetMap, and a
+    generated meander is not a route shape.
+  - **Regenerated without re-capturing, and that is exact rather than approximate.**
+    `make-strava-fixture.mjs --resynthesise <name>` re-runs the transform on a committed fixture
+    with no network call and no credentials. `synthesise` reads exactly one thing from its input
+    — the step length between consecutive points — and every committed fixture already carries
+    the real ones, because preserving them is the invariant of the transform that wrote it. The
+    seed comes from `detail.id`, so a re-synthesis and a re-capture of the same activity agree.
+  - **It is a branch in the capture script rather than a script of its own**, deliberately:
+    `rewriteGeometry` decodes an encoded line, and `adapter.test.ts` holds a short, individually
+    named allowlist of files permitted to do that. A second module would have had to be added to
+    it. One transform, one privileged file.
+  - **The turn rate was measured, not chosen by taste.** 0.03 rad/m yields 58 cells over
+    6,069 m, against 49 for a hand-built 6 km rectangular circuit; rates from 0.01 to 0.05 all
+    land in the same band. It is a named constant so the next person to widen it knows what it
+    was measured against.
+
+- **D-214** **The domain may import exactly ONE third-party package — `h3-js` — named and
+  justified in `contract-drift.test.ts`, with its dependency-free claim asserted rather than
+  trusted.** *(Ticket `0045`.)*
+  - **The test was broader than the design.** `contract-drift.test.ts` asserted the domain
+    imports "only `node:` builtins and its own siblings", written when `src/domain/` held three
+    types-only modules and nothing had needed a library. But `01-architecture.md` §11 specifies
+    `h3-js` **by name** for this exact step — *"in-process, `h3-js` (pure JS, bundles cleanly)"*
+    — and `05-fog-of-war.md` §2.2's normative pseudocode is written in H3 primitives throughout.
+    A domain that may not import it cannot implement §2.2 at all. Same shape as **D-167**: a
+    rule stated more broadly than the thing it protects, discovered the first time someone tried
+    to build against it.
+  - **What the rule actually protects is DIRECTION and PORTABILITY, and neither is weakened.**
+    Nothing may point out of the domain at an adapter, the pipeline, the UI or a cloud SDK — all
+    five of those assertions are untouched — and `normalize()` must run in a Lambda, a browser
+    and a replay harness alike. Measured: `h3-js@4.5.0` has **zero** dependencies and zero peer
+    dependencies, is the version R3 §627 pinned, and R3 records it working in browser and
+    Lambda. It is a compiled geometry kernel, not a layer.
+  - **An allowlist of named entries, not a category.** "Pure libraries are fine" is a rule that
+    admits the second and third package without anyone deciding to; a list of one makes adding
+    the second a visible edit with a reason attached. Same discipline `adapter.test.ts` applies
+    to its two polyline decoders and `check-boundaries.mjs` to its three narrowings — and the
+    same instruction attached: **if a fourth is wanted, the question is whether it belongs in
+    the domain at all, not whether to raise the number.**
+  - **The dependency-free claim is a test, not a comment.** A transitive dependency arriving in
+    a minor bump is exactly the drift the file is named for, and a portability argument nobody
+    re-checks is a portability argument that expires.

@@ -129,6 +129,46 @@ function mulberry32(seed) {
 const CONTAIN_M = 2_000
 
 /**
+ * How fast the heading may wander, in radians per metre travelled. Ticket 0045.
+ *
+ * ─── WHY THIS CONSTANT EXISTS AT ALL ────────────────────────────────────────
+ *
+ * The first version of this walk drew an INDEPENDENT random bearing for every step, and
+ * that is a diffusive random walk: its extent grows with √n, not with n. Measured on the
+ * shipped fixtures, the consequence was severe and had gone unnoticed for a capability
+ * and a half — `real-run-outdoor` is a genuine 6,069 m run, and its synthetic geometry
+ * occupied a box **98 m × 154 m**, about the area of ONE H3 res-10 cell. The whole run
+ * projected to **2 cells**.
+ *
+ * Nothing before capability 07 could see it. The fidelity floor (D-200) measures a
+ * sampling RATE, the sanitizer (D-197) measures step LENGTHS, and `bbox` was only ever
+ * asserted to contain its own points. Every one of those is satisfied by a scribble. The
+ * fog projection is the first consumer that measures EXTENT, and it is the consumer that
+ * cannot tolerate the fixture being wrong: ticket 0045's criterion asks a real fixture to
+ * yield 40–130 cells, and no amount of correct code gets there from a 98 m box.
+ *
+ * ─── WHY THIS IS STILL D-199-CONFORMANT ─────────────────────────────────────
+ *
+ * D-199 rejects "capture real, then relocate and rotate as a rigid body" because a rigid
+ * transform preserves the route SHAPE, and a route shape is matchable against
+ * OpenStreetMap. Correlating the heading does not reintroduce that: the bearings are
+ * still generated from the seeded PRNG and still carry no information from the real
+ * track. What changes is only the CHARACTER of the generated sequence — a meander with a
+ * few-hundred-metre persistence length instead of white noise — so the synthetic path
+ * covers ground the way a run does while describing no street anyone has run on.
+ *
+ * 0.03 rad/m was chosen by measuring, not by taste. Against `real-run-outdoor`'s real step
+ * lengths it produces 58 res-10 cells over 6,069 m (~9.6 cells/km), against 49 for a
+ * hand-built 6 km rectangular circuit and 2 for the walk it replaces. Rates from 0.01 to
+ * 0.05 all land in the same band; the value is not delicate, and it is named rather than
+ * inlined so that the next person to widen it knows what it was measured against.
+ */
+const TURN_RATE_RAD_PER_M = 0.03
+
+/** How sharply containment may pull the heading back, in radians per step. */
+const CONTAIN_TURN_RAD = 0.15
+
+/**
  * Rebuilds a track: same length, same point count, same step lengths, new bearings.
  *
  * The containment rule is a reflection, not a clamp. Clamping a coordinate would SHORTEN
@@ -143,18 +183,31 @@ function synthesise(points, seed) {
   const origin = [NEMO.lat, NEMO.lng]
   const out = [origin]
 
+  // CARRIED between steps, which is the whole point — see TURN_RATE_RAD_PER_M. A heading
+  // redrawn from scratch each step is white noise and goes nowhere.
+  let bearing = rand() * 2 * Math.PI
+
   for (let i = 1; i < points.length; i++) {
     const metres = haversine(points[i - 1], points[i])
     const from = out[i - 1]
 
-    // Random bearing, but if we are near the edge of the box, aim back towards the
-    // middle instead. A 2,700-point random walk of 5 m steps drifts ~260 m, so this
-    // fires rarely — it exists for the signal-loss fixture, whose single 400 m jump can
-    // cross the boundary on its own.
-    let bearing = rand() * 2 * Math.PI
     if (haversine(from, origin) > CONTAIN_M * 0.8) {
-      const back = Math.atan2(origin[1] - from[1], origin[0] - from[0])
-      bearing = back + (rand() - 0.5) * (Math.PI / 2)
+      // Near the edge of the box, steer back towards the middle — but STEER, do not
+      // snap. A hard turn preserves step lengths just as well and produces a visible
+      // starburst around the boundary; a bounded turn reads as a run looping home.
+      //
+      // atan2 over a longitude scaled by cos(lat), because a degree of longitude at
+      // 48°S is only ~0.66 of a degree of latitude and an unscaled bearing aims wide.
+      const back = Math.atan2(
+        (origin[1] - from[1]) * Math.cos(toRad(from[0])),
+        origin[0] - from[0],
+      )
+      // Shortest way round: without normalising to (-π, π] the correction can take the
+      // long way and turn the containment into an orbit.
+      const diff = ((back - bearing + Math.PI * 3) % (Math.PI * 2)) - Math.PI
+      bearing += Math.max(-CONTAIN_TURN_RAD, Math.min(CONTAIN_TURN_RAD, diff))
+    } else {
+      bearing += (rand() * 2 - 1) * TURN_RATE_RAD_PER_M * metres
     }
     out.push(step(from, metres, bearing))
   }
@@ -361,8 +414,78 @@ const opt = (n) => {
 const activityId = argv.find((a) => /^\d+$/.test(a))
 const name = opt("name")
 
+/**
+ * ─── `--resynthesise <fixture>`: RE-RUN THE TRANSFORM ON A COMMITTED FIXTURE ──
+ *
+ * Ticket 0045. When the synthesis rule itself changes — as it did when
+ * TURN_RATE_RAD_PER_M was introduced — every committed fixture carries geometry built by
+ * the old rule, and re-capturing them is not an option: the operator's account is the only
+ * source, several of the captured activities are years old, and a re-capture spends real
+ * rate-limit budget to obtain bytes we already hold.
+ *
+ * It does not need one. `synthesise` reads exactly ONE thing from its input — the step
+ * length between consecutive points — and every committed fixture already carries the
+ * real step lengths, because preserving them is the invariant of the transform that wrote
+ * it. So re-walking a fixture's existing geometry is not an approximation of a re-capture;
+ * it is bit-for-bit what a re-capture would have produced, and `rewriteGeometry` maps the
+ * scalar coordinates and encoded lines through by index exactly as it did the first time.
+ *
+ * THE SEED COMES FROM `detail.id`, so a re-synthesis and a re-capture of the same activity
+ * agree. A fresh seed here would make the two paths diverge silently.
+ *
+ * This mode reaches no network and needs no credentials, which is also why it is a branch
+ * in THIS file rather than a script of its own: `rewriteGeometry` decodes an encoded line,
+ * and `adapter.test.ts` holds a deliberately short allowlist of files permitted to do that.
+ * A second module would have to be added to it. One transform, one privileged file.
+ */
+if (flag("resynthesise")) {
+  const targets = argv
+    .slice(argv.indexOf("--resynthesise") + 1)
+    .filter((a) => !a.startsWith("--"))
+
+  if (targets.length === 0) {
+    console.error("usage: make-strava-fixture.mjs --resynthesise <fixture-name> [<fixture-name>...]")
+    process.exit(2)
+  }
+
+  const written = []
+  for (const target of targets) {
+    const path = join(FIXTURES, `${target}.json`)
+    if (!existsSync(path)) {
+      console.error(`  no such fixture: ${path}`)
+      process.exit(1)
+    }
+    const envelope = JSON.parse(readFileSync(path, "utf8"))
+    const { detail, streams } = envelope
+
+    if (typeof detail?.id !== "number") {
+      console.error(`  ${target}: detail.id is missing, so there is no deterministic seed. Refusing.`)
+      process.exit(1)
+    }
+
+    const before = streams?.latlng?.data?.length ?? 0
+    const moved = transform(detail, streams, detail.id % 2147483647)
+    writeFileSync(path, formatFixture(envelope))
+    written.push(path)
+    console.log(`  ${target}: ${before} points -> ${moved} re-synthesised`)
+  }
+
+  // Same self-check the capture path runs, and for the same reason: the generator does
+  // not get to vouch for itself. A re-synthesis that wrote a real coordinate would be
+  // just as permanent as a capture that did.
+  const { findings, checked } = check(written)
+  if (findings.length) {
+    console.error(`\n  RE-SYNTHESIS WROTE A REAL LOCATION — the transform is broken.`)
+    for (const f of findings.slice(0, 5)) console.error(`    ${f.at}`)
+    process.exit(1)
+  }
+  console.log(`\n  geography guard: ${checked} coordinate carriers, all near Point Nemo\n`)
+  process.exit(0)
+}
+
 if (!activityId || !name) {
   console.error("usage: make-strava-fixture.mjs <activityId> --name <fixture-name> [--no-streams] [--keep-raw <dir>] [--dry-run]")
+  console.error("       make-strava-fixture.mjs --resynthesise <fixture-name> [<fixture-name>...]")
   process.exit(2)
 }
 

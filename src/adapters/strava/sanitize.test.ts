@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { ActivityKind, GeoPoint } from "@/src/domain/activity"
 
-import { MAX_IMPLIED_SPEED_MS, metresBetween, sanitizeTracePoints } from "./sanitize"
+import { sanitizeTracePoints } from "./sanitize"
 
 /**
  * TICKET 0037 — the outlier gate, at unit level.
@@ -26,44 +26,12 @@ function track(n: number, metresPerStep: number, stepS = 1): GeoPoint[] {
   }))
 }
 
-describe("metresBetween", () => {
-  it("measures a degree of latitude to within half a percent", () => {
-    const d = metresBetween({ lat: 0, lng: 0, t: 0 }, { lat: 1, lng: 0, t: 0 })
-    expect(d).toBeGreaterThan(110_000)
-    expect(d).toBeLessThan(112_000)
-  })
-
-  it("is zero for a point and itself, and symmetric", () => {
-    const a: GeoPoint = { lat: -48.876, lng: -123.393, t: 0 }
-    const b: GeoPoint = { lat: -48.877, lng: -123.392, t: 0 }
-    expect(metresBetween(a, a)).toBe(0)
-    expect(metresBetween(a, b)).toBeCloseTo(metresBetween(b, a), 9)
-  })
-})
-
+/**
+ * The TABLE and the haversine moved to `src/domain/geo.ts` in ticket `0045`, and their
+ * pure assertions moved with them to `src/domain/geo.test.ts`. What stays here is what is
+ * genuinely this file's: the gate's BEHAVIOUR when applied to a trace.
+ */
 describe("the gate is a data table, not a switch", () => {
-  it("gives every ActivityKind a row", () => {
-    // A missing row would be an `undefined` comparison, and `x > undefined` is false —
-    // so the gate would silently accept everything for that kind. D-031: adding a kind
-    // is a row, and this asserts the row exists.
-    const kinds: ActivityKind[] = ["run", "walk", "hike", "ride", "strength", "other"]
-    for (const kind of kinds) {
-      expect(typeof MAX_IMPLIED_SPEED_MS[kind], `no gate for kind "${kind}"`).toBe("number")
-      expect(MAX_IMPLIED_SPEED_MS[kind]).toBeGreaterThan(0)
-    }
-  })
-
-  it("puts the foot gate above the human sprint record, not at running pace", () => {
-    // §2.2 said 8 m/s. Measured against eight real traces it rejected six fixes at
-    // 8, 8, 9, 9, 9 and 13 m/s and caught zero actual GPS jumps — see the constant's
-    // comment and D-197. 12.5 is just above the ~12.4 m/s 100 m world-record peak.
-    for (const kind of ["run", "walk", "hike"] as const) {
-      expect(MAX_IMPLIED_SPEED_MS[kind]).toBeGreaterThan(12.4)
-      // And still far below a real jump, which is ~200 m/s at a 2-second cadence.
-      expect(MAX_IMPLIED_SPEED_MS[kind]).toBeLessThan(50)
-    }
-  })
-
   it("accepts a hard sprint and rejects a speed nobody has ever run", () => {
     // The five fixes at 8-9 m/s that the old gate threw away.
     const sprint = track(6, 9)
@@ -72,12 +40,6 @@ describe("the gate is a data table, not a switch", () => {
     // The one at 13 m/s, which is past the world record and therefore not a human.
     const impossible = track(6, 13)
     expect(sanitizeTracePoints(impossible, "run").rejected).toBe(5)
-  })
-
-  it("gives a ride room the run gate would not (D-197)", () => {
-    // The rules file has two enabled rows matching `kinds: [ride]`, so rides reach the
-    // sanitizer and earn XP — and a descent exceeds any gate set for a person on foot.
-    expect(MAX_IMPLIED_SPEED_MS.ride).toBeGreaterThan(MAX_IMPLIED_SPEED_MS.run)
   })
 })
 

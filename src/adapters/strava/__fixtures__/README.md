@@ -23,6 +23,26 @@ direction. Nobody has run there and nobody is going to.
 Rigid relocate-and-rotate of a real track was considered and rejected: it preserves the
 route *shape*, and a route shape is matchable against OpenStreetMap. See D-199.
 
+### The geometry was regenerated on 2026-09-07 (ticket `0045`, D-213)
+
+The first version of the walk drew an **independent** random bearing per step. That is a
+diffusive random walk, whose extent grows with √n — so `real-run-outdoor`, a genuine
+6,069 m run, occupied a box **98 m × 154 m**, about the area of one H3 res-10 cell, and
+projected to **2 cells**. Nothing before capability `07` could see it: the fidelity floor
+measures a sampling *rate*, the sanitizer measures step *lengths*, and `bbox` was only ever
+asserted to contain its own points. Every one of those is satisfied by a scribble.
+
+The bearing is now **correlated** between steps (a bounded turn per metre travelled), so
+the track covers ground the way a run does — 58 res-10 cells over the same 6,069 m. Step
+lengths, point counts, timestamps and every non-geometric field are untouched, and the
+bearings still carry no information from the real track, so D-199's rejection of a rigid
+transform is unaffected.
+
+`node scripts/make-strava-fixture.mjs --resynthesise <name>` re-runs the transform on a
+committed fixture with no network call and no credentials. It is exact rather than
+approximate: `synthesise` reads only the step length between consecutive points, and a
+committed fixture already carries the real ones.
+
 ## The guard, and why it is an allowlist
 
 `scripts/check-fixture-geography.mjs` asserts every coordinate in every `__fixtures__`

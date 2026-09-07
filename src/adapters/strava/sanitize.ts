@@ -1,4 +1,5 @@
 import type { ActivityKind, GeoPoint } from "@/src/domain/activity"
+import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs } from "@/src/domain/geo"
 
 /**
  * TRACE SANITATION. Ticket 0037, `03-integrations.md` §2.2 and `05-fog-of-war.md` §9.5.
@@ -14,80 +15,17 @@ import type { ActivityKind, GeoPoint } from "@/src/domain/activity"
  */
 
 /**
- * The implied point-to-point speed above which a fix is impossible and therefore noise.
+ * THE OUTLIER GATE AND THE HAVERSINE NOW LIVE IN `src/domain/geo.ts`. Ticket `0045`.
  *
- * **A DATA TABLE, NOT A `switch`** (D-031/D-141). Adding a kind is a row.
- *
- * `03-integrations.md` §2.2 gives one number — *"~8 m/s for a run (~29 km/h — comfortably
- * above any human running pace, below GPS jump magnitudes)"* — and says nothing about any
- * other kind. **Both halves of that turned out to be wrong**: the number is too tight (see
- * `run` below) and the silence about other kinds is load-bearing. That gap is not theoretical: `rules/xp-rules-v1.yaml` has two enabled rows
- * matching `kinds: [ride]`, so rides reach this function and earn XP, and a cyclist holds
- * 8 m/s without trying. A single gate at 8 would delete most of every ride. Recorded as
- * D-197.
- *
- * (Those rows are deliberately not named here. Naming a skill in an adapter is the coupling
- * D-031 forbids, and `src/rules/no-skill-names.test.ts` fires on it — as it did on the
- * first draft of this very comment.)
- *
- * Two things this gate is NOT:
- *
- *   - **It is not a classifier.** It never changes `Activity.kind`. A run containing walk
- *     breaks is one run with one kind; walking makes you slower, and this only ever fires
- *     on impossibly fast.
- *   - **It is not a speed limit.** 30 m/s is 108 km/h, which no ride reaches — the point is
- *     that a real GPS jump is 400 m between consecutive samples, which at this trace's
- *     measured ~0.5 Hz cadence is ~200 m/s. The gate separates two populations that are
- *     three orders of magnitude apart, so its exact value matters far less than its
- *     existence.
+ * They moved because they grew a second consumer on the far side of the D-100 boundary:
+ * `src/domain/fog.ts` splits a trace on the same implied speed this file gates on, and
+ * `src/domain/` may not import from an adapter. Re-declaring the number here would have
+ * been the restated-constant failure D-193 names — two owners of one value, drifting
+ * apart the first time either is measured again. D-197's reasoning is unchanged and
+ * travelled with the table; only its address did.
  */
-export const MAX_IMPLIED_SPEED_MS: Readonly<Record<ActivityKind, number>> = {
-  /**
-   * 12.5 m/s — 45 km/h — and NOT §2.2's 8, which was measured against real traces and
-   * found to be too tight. `05-fog-of-war.md` §9.5 says to *"measure it on the user's real
-   * first 20 runs before touching the constants"*; eight runs and 21,225 fixes were enough.
-   *
-   * At 8 m/s the gate rejected six fixes across those eight runs, with implied speeds of
-   * 8, 8, 9, 9, 9 and 13 m/s — and **not one of them was a GPS jump.** The failure §2.2
-   * describes ("points that jump hundreds of metres") is ~200 m/s at this stream's ~0.5 Hz
-   * cadence, and there were ZERO of those. The operator's fastest accepted fix was 7.6 m/s,
-   * so an 8 m/s gate had a 5% margin where the document promised "comfortably above any
-   * human running pace".
-   *
-   * The cost of that was not theoretical: each rejection also writes a `gaps` entry
-   * (D-198), so the tight gate was manufacturing six breaks in traces that were continuous
-   * — precisely the "dotted corridor" §9.5 warns about, on the operator's favourite routes.
-   *
-   * 12.5 splits the observed data exactly along the line §2.2's own reasoning appeals to:
-   * the men's 100 m world record peaks at ~12.4 m/s, so 12.5 admits every one of the five
-   * plausible human bursts and still rejects the 13 m/s fix, which no one has ever run. It
-   * leaves a 64% margin over this operator's observed maximum, against 5%.
-   */
-  run: 12.5,
-  walk: 12.5,
-  hike: 12.5,
-  // A descent can exceed 20 m/s (72 km/h). 30 leaves headroom without admitting a jump.
-  ride: 30,
-  // No trace is expected on either, but a gate is cheap and a missing row would be a
-  // `undefined` comparison that silently accepts everything.
-  strength: 12.5,
-  other: 30,
-}
 
-/** Metres between two fixes. Haversine on a spherical Earth — good to ~0.5% and pure. */
-const EARTH_RADIUS_M = 6_371_008.8
 
-export function metresBetween(a: GeoPoint, b: GeoPoint): number {
-  const toRad = Math.PI / 180
-  const dLat = (b.lat - a.lat) * toRad
-  const dLng = (b.lng - a.lng) * toRad
-  const lat1 = a.lat * toRad
-  const lat2 = b.lat * toRad
-
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
-}
 
 export interface SanitizedTrace {
   /** The accepted fixes, in order. Never interpolated, never re-timed. */
@@ -153,25 +91,11 @@ export const ANCHOR_CORROBORATION_LOOKAHEAD = 1
 export function chooseAnchor(points: readonly GeoPoint[], gate: number): number {
   // Two points cannot corroborate anything — there is no second step to consult.
   if (points.length < 2 + ANCHOR_CORROBORATION_LOOKAHEAD) return 0
-  if (impliedSpeed(points[0], points[1]) <= gate) return 0
-  if (impliedSpeed(points[1], points[2]) <= gate) return 1
+  if (impliedSpeedMs(points[0], points[1]) <= gate) return 0
+  if (impliedSpeedMs(points[1], points[2]) <= gate) return 1
   return 0
 }
 
-/**
- * Metres per second between two fixes.
- *
- * A non-positive interval is not a speed. Two fixes sharing a timestamp are a duplicate if
- * they are in the same place and a teleport if they are not, and dividing by zero would
- * silently make the second one `Infinity` either way — so the two cases are separated here
- * rather than left to IEEE-754.
- */
-function impliedSpeed(from: GeoPoint, to: GeoPoint): number {
-  const seconds = (to.t - from.t) / 1000
-  const metres = metresBetween(from, to)
-  if (seconds > 0) return metres / seconds
-  return metres > 0 ? Infinity : 0
-}
 
 /**
  * Drop implausible fixes and mark where the trace broke.
@@ -231,7 +155,7 @@ export function sanitizeTracePoints(
 
     const previous = kept[kept.length - 1]
 
-    if (impliedSpeed(previous, point) > gate) {
+    if (impliedSpeedMs(previous, point) > gate) {
       rejected++
       brokeSinceLastAccepted = true
       continue
