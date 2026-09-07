@@ -4,13 +4,14 @@ slug: trace-to-h3-cell-set
 title: domain/fog.ts — traceToCells, a pure trace → H3 res-10 cell Set
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [25, 36]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-07T23:27:59Z
 ---
 
 ## Description

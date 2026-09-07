@@ -1068,7 +1068,7 @@
     "title": "domain/fog.ts — traceToCells, a pure trace → H3 res-10 cell Set",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -1078,11 +1078,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0045-trace-to-h3-cell-set.md",
-    "ready": true,
+    "closed": "2026-09-07T23:27:59Z",
+    "path": "tickets/closed/0045-trace-to-h3-cell-set.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 12
+      "checked": 13,
+      "total": 13
     }
   },
   {
@@ -1101,7 +1102,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0046-reveal-radius-and-corridor-fill.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -3585,7 +3586,7 @@
     "source": "agent",
     "created": "2026-09-04T00:46:59Z",
     "path": "tickets/open/0155-cross-adapter-cell-set-equivalence.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
