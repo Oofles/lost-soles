@@ -4,7 +4,7 @@ slug: process-activity-lambda-and-queue
 title: process-activity Lambda, SQS queue and DLQ via the CDK escape hatch
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: [39, 40, 41]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-07T02:50:56Z
+closed: 2026-09-07T04:24:23Z
 ---
 
 ## Description

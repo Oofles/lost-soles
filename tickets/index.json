@@ -992,7 +992,7 @@
     "title": "process-activity Lambda, SQS queue and DLQ via the CDK escape hatch",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "06-ingest-pipeline",
     "depends_on": [
@@ -1004,10 +1004,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-07T02:50:56Z",
-    "path": "tickets/open/0042-process-activity-lambda-and-queue.md",
-    "ready": true,
+    "closed": "2026-09-07T04:24:23Z",
+    "path": "tickets/closed/0042-process-activity-lambda-and-queue.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -1028,7 +1029,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0043-manual-sync-action.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -2137,7 +2138,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
