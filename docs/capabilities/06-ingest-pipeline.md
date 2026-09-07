@@ -109,5 +109,58 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+Six tickets built the path from "Strava has a run" to "a row exists", plus a seventh that made a
+failure on that path visible and an eighth that fixed a key nobody was using yet. What is worth
+carrying forward is mostly about **the difference between a thing being built and a thing being
+in force.**
+
+**Three times this capability, a document asserted an enforcement that did not exist.** I-22's
+evidence column said GSI2 "is queried at pipeline step 3 before any write" and that a CI fixture
+asserted one activity and one award; neither was true, and neither had ever been true — the
+lookup is not written (`0179`). `markFailed` shipped in `0040` guarded on `PROCESSING` and could
+never have had a caller, because every terminal failure happens before the score gate (`0044`).
+`09-roadmap.md` §2.3 still described a milestone with "no error surface" hours after one was
+built. None of these were caught by a test, because **a test can only fail on code that runs**,
+and the common shape of all three is code or prose describing a path nothing takes yet. The audit
+is the only mechanism that looks at those, which is the strongest argument for D-153 this project
+has produced so far.
+
+**The bugs that mattered were at boundaries, and both were found by sweeping rather than
+sampling.** `0169` existed because `03-integrations.md` §2.7 hashed *buckets* and called them
+tolerances, so two recordings of one run 20 m apart landed either side of a 50 m edge and became
+two activities. Fixing it, the first version of the replacement probe reintroduced the identical
+class of bug — an edge test written `>` where it had to be `>=`, missing a duplicate stored
+exactly the tolerance away. A test that checked a handful of hand-picked points would have passed;
+the one that swept a whole window at 15-second steps caught it in seconds. **Where a rule has an
+edge, sample the edge exhaustively or do not claim to have tested it.**
+
+**Two deliberate decisions were reversed, and both had been made carefully.** `0040` excluded
+`FAILED` from the score gate on the reasoning that a recorded failure is a decision rather than a
+crash — correct about visibility, wrong about locking, because it made a DLQ redrive a silent
+no-op and the redrive is the operator's only recovery path (D-209). §2.7's composite key was
+chosen to be coarse enough for two devices to agree — but buckets are not tolerances, and no
+bucket size fixes that (D-211). In both cases the original reasoning was sound and the *shape*
+was wrong, which is why both were superseded visibly with the old argument quoted rather than
+edited away. A decision register that only ever grows agreement is not recording anything.
+
+**D-181 landed mid-capability and the seam shows.** `0039`, `0040` and `0041` carry Operator
+validation sections that are instruction lists with no recorded result; the verification they
+describe was genuinely done and is written up in their `## Resolution` instead. `0042` onward
+records results in the right place. Nothing is missing, but three tickets read as though nobody
+checked, which is exactly the impression D-181 exists to prevent — worth knowing when reading
+this capability's closed tickets later.
+
+**What was deferred honestly rather than quietly.** `0044` shipped with three criteria proven only
+at the unit level: the alarm is verified live, but nothing has confirmed that its email subject
+reads well on a phone or that the Sync line says the right thing at the moment it matters,
+because manufacturing a failed import costs two deploys or a Strava re-authorization. `0178` is
+deferred against the next real failure, with a re-check that exits non-zero while it waits. The
+first version of that re-check exited 0 on both paths and the tool reported a WAITING verdict as
+`PASSES` — a deferred ticket whose re-check lies is worse than no re-check, because the whole
+point of the status is that someone reads the verdict before resuming.
+
+**The one thing to do differently next time:** run the full check suite after editing a *document*,
+not only after editing code. The contract in `docs/contracts/ingestion-contract.md` is asserted
+byte-identical to `src/domain/activity.ts`, so a comment added to the doc broke the build — caught
+by the audit's own mechanical half rather than before the commit.
 

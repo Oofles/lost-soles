@@ -139,8 +139,10 @@ export interface Activity {
   /** D-062: sets deferred from the MVP UI, but carried in the model from day one. */
   sets: WorkoutSet[]
 
-  /** Composite natural key for CROSS-source dedupe (same run via Strava and Health Connect). */
-  dedupeKey: string  // D-211: a coarse 30-min start ANCHOR; the match is a tolerance compare (03 §2.7)
+  /** Composite natural key for CROSS-source dedupe (same run via Strava and Health Connect).
+   *  D-211: a coarse 30-min start-time ANCHOR, not the whole comparison — the duplicate
+   *  decision is a tolerance compare over the candidates it returns (03 §2.7). */
+  dedupeKey: string
   ingestedAt: string
   /** Monotonic per (source, externalId). Bumped on re-ingest of a source-side edit. */
   revision: number

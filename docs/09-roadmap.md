@@ -137,8 +137,13 @@ Stated plainly, so nobody mistakes it for a defect and files a ticket:
 - **Sign-in is the raw Amplify UI component.** Email + password, passkeys later.
 - **One user.** Self-signup off, account created by hand in the Cognito console (`08-security-
   privacy.md` §5.4). No provisioning flow.
-- **No error surface.** A failed import fails into CloudWatch. The user finds out because the map
-  did not change.
+- ~~**No error surface.** A failed import fails into CloudWatch. The user finds out because the map
+  did not change.~~ **Superseded 2026-09-07 by ticket `0044`.** This was true when the milestone
+  was written and is no longer. There is now one CloudWatch alarm on the DLQ emailing the operator
+  (`01-architecture.md` §4 — "the only alarm this app needs"), a `FAILED` status on the receipt,
+  one structured log line per terminal failure, and a sentence in the Sync result reporting
+  outstanding failures. What is still absent is a retry UI, an error detail page and
+  notifications — deliberately, and recorded in that ticket's scope note.
 
 **Explicitly *not* compromised, even at this milestone** — these are cheap now and expensive
 to retrofit:

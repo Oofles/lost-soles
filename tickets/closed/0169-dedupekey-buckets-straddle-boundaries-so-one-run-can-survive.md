@@ -100,13 +100,6 @@ Three candidate shapes for whoever picks this up:
 
 (1) looks best: it fixes the miss without changing a derivation §8.3 protects.
 
-## Operator validation
-
-None — no rendered surface, and the whole failure is invisible by construction. The verification
-is the CI test named in criterion 2, which is what I-22 already asserts is in place. Worth noting
-that the honest end-to-end check only becomes possible once a second adapter exists, so a fix
-landing before then is verified by fixture and not by a real duplicate run.
-
 ## Resolution
 
 Fixed, not accepted. **D-211** rewrites the key; `src/domain/dedupe-key.ts` is the one
@@ -200,3 +193,16 @@ rest of the check scripts pass, exit codes verified.
 the index (`0179`), and there is no second adapter to duplicate from. The honest end-to-end check
 only becomes possible when one exists — the same limitation this ticket recorded when it was
 filed.
+
+### The original pre-close intent, kept for the record — and where it was wrong
+
+> **The last clause of this is FALSE and its falseness is a finding of this ticket.** I-22 did not
+> assert the CI test was in place in any sense that survived being checked: the test does not
+> exist, and neither does the lookup it would exercise. The register has been corrected and `0179`
+> filed. Kept unedited below because a ticket that quietly rewrote its own premise would hide the
+> most useful thing it found.
+
+None — no rendered surface, and the whole failure is invisible by construction. The verification
+is the CI test named in criterion 2, which is what I-22 already asserts is in place. Worth noting
+that the honest end-to-end check only becomes possible once a second adapter exists, so a fix
+landing before then is verified by fixture and not by a real duplicate run.

@@ -377,12 +377,15 @@ shopping decision, because a new device is a new directory under `src/adapters/`
 src/
   domain/                 ← NO source-specific type may appear anywhere in here.
     activity.ts             Activity, Trace, GeoPoint, ActivityKind
-    ids.ts                  AdapterId, ActivityId, UserId
+    activity-id.ts          computeActivityId — deterministic, sha256(user:source:externalId)
+    dedupe-key.ts           the cross-source natural key (D-211)
     xp.ts                   XP + discovery-credit rules (D-120)
     fog.ts                  trace → H3 cells, set diff
   pipeline/               ← Orchestration. Imports domain/ and the registry. Never an adapter.
-    processActivity.ts
+    process-activity.ts
     archive.ts
+    fetch-archive-normalize.ts   the D-101 ordering, as its own seam
+    ingest-receipt.ts            the four idempotency layers (T8)
     persist.ts
   adapters/
     types.ts                SourceAdapter<TCreds>, IngestJob, RawArchiveRef
@@ -775,7 +778,7 @@ The user finishes a run. Strava's app uploads it. Then:
 | 9 | **Archive raw** | **S3** `raw/<uid>/strava/<id>/<sha256>.json` | **D-121.2. Happens before any parsing.** Verbatim bytes, content-addressed, versioned, delete-denied. If this PUT fails, the message goes back to the queue — we never normalize data we have not archived. |
 | 10 | Normalize | in-process, **pure** | `stravaAdapter.normalize(raw, ref, job)` → `{ activity, trace }`. First and last point where a Strava wire type exists. |
 | 11 | Trace → cells | in-process, `h3-js` (pure JS, bundles cleanly) | `latLngToCell(p.lat, p.lng, 10)` per sample, `k=0`, deduped. **Resolution 10 (D-115)** — R4's soft-disc splatting means hex geometry never appears visually, so res 11's 4.4× data cost buys nothing. A 5-mile run is **~80–130 cells**. No cell is emitted across a `gaps` interval. |
-| 12 | Idempotency re-check | **DynamoDB** `IngestReceipt` | `UpdateItem ... SET status="PROCESSING" ... ConditionExpression: status = "QUEUED"`. A redelivered message loses this race and exits **before any XP is written**. |
+| 12 | Idempotency re-check | **DynamoDB** `IngestReceipt` | `UpdateItem ... SET status="PROCESSING" ... ConditionExpression: status = "QUEUED" OR status = "FAILED" OR (status = "PROCESSING" AND processingStartedAt < now − 15 min)`. A redelivered message loses this race and exits **before any XP is written**. The `FAILED` disjunct is **D-209** and the stale `PROCESSING` disjunct is layer 2's crash-recovery clause; the same update `REMOVE`s the failure fields, which is what makes a DLQ redrive clear the failure it was sent to repair. |
 | 13 | Diff against explored | **DynamoDB** `ExploredCell`, `BatchGetItem` | Read the ~80–130 candidate cells (`PK = U#<uid>#C#<res6parent>`, `SK = <res10cell>`; res-6 parents keep it to a handful of partitions). Partition each candidate into `new` / `stale` / `fresh` by `lastRunAt` — see below. |
 | 14 | Score XP | in-process, `src/domain/xp.ts` | Deterministic pure function of `(cells, distanceM, kind, now)`. Server-side only: **never let the client claim XP.** |
 | 15 | Persist | **DynamoDB** `TransactWriteItems` | Atomic: `Activity` record + `Skill` XP increments + `IngestReceipt` → `status="DONE"` guarded by `status = "PROCESSING"`. Cell upserts follow via `BatchWriteItem` (idempotent by construction). |
@@ -825,10 +828,19 @@ Strava redelivers. SQS standard is at-least-once. Lambda retries. There are ther
 1. **Receipt-at-accept (step 3).** Conditional `PutItem` on `ingestKey`. Kills duplicate
    deliveries before they ever reach the queue. Cheap, and it protects the 2-second budget.
 2. **Receipt state machine (step 12).** `QUEUED → PROCESSING → DONE`, each transition a
-   conditional update. A redelivered SQS message finds `PROCESSING` or `DONE` and exits
-   before scoring. A crashed invocation leaves `PROCESSING`; a `processingStartedAt` older
-   than the 15-minute timeout is reclaimable by the next attempt, which is why the state
-   carries a timestamp.
+   conditional update. A redelivered SQS message finds a live `PROCESSING` or a `DONE` and
+   exits before scoring. A crashed invocation leaves `PROCESSING`; a `processingStartedAt`
+   older than the 15-minute timeout is reclaimable by the next attempt, which is why the
+   state carries a timestamp.
+
+   **`FAILED` is also reclaimable — D-209, and it is the one transition that is not
+   forward-only.** A terminal failure is recorded on the receipt so the Sync screen can
+   report it (ticket `0044`), but recording it must not *lock* the row: with `FAILED`
+   excluded here, a DLQ redrive became a silent no-op — the redriven message fetched,
+   archived, normalized, then lost the claim to the very failure it had been sent back to
+   repair. Retries are bounded by `maxReceiveCount: 3` on the queue and always were; this
+   table never bounded them. Only `DONE` is a terminal state, because it is the one written
+   inside the transaction alongside the XP award.
 3. **The XP write is transactional (step 15).** `TransactWriteItems` bundles the `Activity`
    put, the `Skill` XP `ADD`s, and the receipt transition to `DONE` with a
    `ConditionExpression` on the previous state. **XP and the receipt commit or fail

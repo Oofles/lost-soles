@@ -128,42 +128,6 @@ non-terminal attempt is tagged differently so a Logs Insights filter on `ingest-
 only failures that stuck. No terminal failure has occurred in production yet; the first real one
 is what the operator's step 1 below manufactures.
 
-## Operator validation
-
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
-
-**Agent smoke tests are recorded in `## Notes` above.** What is left is what only the operator can
-do, in this order — 0 needs doing first or nothing else works.
-
-0. **Confirm the SNS subscription.** AWS has emailed `amazingbrandon@gmail.com` a
-   *"AWS Notification - Subscription Confirmation"* for the topic ending `IngestAlarms…rxVBsadb5GCX`.
-   Click the link. Until then the alarm fires correctly and **delivers nothing** — verified: it
-   reached `ALARM` and executed the SNS action while the endpoint sat `PendingConfirmation`.
-   → criterion 1's *"a test message to the queue produces an email"*.
-
-1. **Read one.** Once confirmed, say so and the agent will re-send a test message to the DLQ.
-   Read the email **on the phone** and judge the subject alone:
-   `ALARM: "Lost Soles — an activity failed to import" in US East (N. Virginia)`. Does it tell you
-   which app, without opening it? → criterion 1.
-
-2. **Break the pipeline deliberately** (a bad Strava base URL) and press Sync on the phone. Let it
-   fail its three deliveries into the DLQ. → sets up 3 and 4.
-
-3. **Press Sync again.** The result line must read that an activity failed, not "nothing new".
-   → criterion 4, and criterion 5 if the break was a revoked authorization rather than a bad URL —
-   in which case it must read *"Reconnect … in Settings."*, not a generic failure.
-
-4. **Fix the URL, redrive from the SQS console, press Sync.** The failure sentence disappears and
-   the map gains the run's territory. The runbook in
-   `docs/capabilities/06-ingest-pipeline.md` is the procedure; following it here is also how the
-   runbook gets checked. → criterion 6.
-
 ## Resolution
 
 **Shipped with three criteria proven at the unit level rather than end to end, at the operator's
@@ -298,3 +262,39 @@ service.
 **CI.** 1085 unit tests, `tsc --noEmit`, `eslint --max-warnings 0`, and all five check scripts —
 `check-boundaries`, `check-design-tokens`, `check-fixture-geography`, `check-adapter-deletion`,
 `check-skills` — pass, exit codes verified.
+
+### The original pre-close intent, kept for the record
+
+> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
+> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
+> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
+> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
+> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
+> run. The text below is the original author's intent, kept as context for **what** to verify — not
+> as a list of chores for the operator.
+
+**Agent smoke tests are recorded in `## Notes` above.** What is left is what only the operator can
+do, in this order — 0 needs doing first or nothing else works.
+
+0. **Confirm the SNS subscription.** AWS has emailed `amazingbrandon@gmail.com` a
+   *"AWS Notification - Subscription Confirmation"* for the topic ending `IngestAlarms…rxVBsadb5GCX`.
+   Click the link. Until then the alarm fires correctly and **delivers nothing** — verified: it
+   reached `ALARM` and executed the SNS action while the endpoint sat `PendingConfirmation`.
+   → criterion 1's *"a test message to the queue produces an email"*.
+
+1. **Read one.** Once confirmed, say so and the agent will re-send a test message to the DLQ.
+   Read the email **on the phone** and judge the subject alone:
+   `ALARM: "Lost Soles — an activity failed to import" in US East (N. Virginia)`. Does it tell you
+   which app, without opening it? → criterion 1.
+
+2. **Break the pipeline deliberately** (a bad Strava base URL) and press Sync on the phone. Let it
+   fail its three deliveries into the DLQ. → sets up 3 and 4.
+
+3. **Press Sync again.** The result line must read that an activity failed, not "nothing new".
+   → criterion 4, and criterion 5 if the break was a revoked authorization rather than a bad URL —
+   in which case it must read *"Reconnect … in Settings."*, not a generic failure.
+
+4. **Fix the URL, redrive from the SQS console, press Sync.** The failure sentence disappears and
+   the map gains the run's territory. The runbook in
+   `docs/capabilities/06-ingest-pipeline.md` is the procedure; following it here is also how the
+   runbook gets checked. → criterion 6.
