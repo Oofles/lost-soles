@@ -15,9 +15,12 @@ import {
   Role,
 } from "aws-cdk-lib/aws-iam"
 import { Key } from "aws-cdk-lib/aws-kms"
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
+import { Queue } from "aws-cdk-lib/aws-sqs"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
+import { processActivity } from "./functions/process-activity/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { storage } from "./storage/resource"
 
@@ -43,6 +46,10 @@ export const backend = defineBackend({
   // Ticket 0017. Proves secret() resolves end to end; deleted when token-refresh
   // (ticket 0094) reads the same secret in earnest. See its resource.ts.
   secretSmokeTest,
+  // Ticket 0042. The ingest worker. Its queue, DLQ, grants and environment are at the
+  // bottom of this file — `defineFunction` has no queue primitive, which is the second
+  // of the four escape-hatch uses 01-architecture.md §2 sanctions.
+  processActivity,
 })
 
 /*
@@ -636,3 +643,243 @@ const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
  * one is not it, and neither grant is a wildcard over the account's DynamoDB.
  */
 ingestReceiptTable.grantReadWriteData(computeRole)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE QUEUE, THE DLQ AND THE WORKER  (ticket 0042, 01-architecture.md §2 and §4)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The second of the four sanctioned escape-hatch uses. Amplify has no queue primitive
+ * and `defineFunction` has no event-source property, so all of this is CDK — and AWS is
+ * explicit that anything added this way is ours to get right, which is why the synth
+ * test `process-activity-stack.test.ts` asserts each number below rather than trusting
+ * the diff that introduced it.
+ *
+ * IT IS BUILT QUEUE-SHAPED WITH ONE PRODUCER, ON PURPOSE. Today only the Sync action
+ * (0043) enqueues. Capability 14 adds the webhook producer to this same queue with NO
+ * change to this consumer — that is the entire argument for a queue over a direct call,
+ * and it only holds if the queue exists before the second producer does. §4's 2-second
+ * ack deadline cannot be met any other way: the ack has to happen before the fetch.
+ */
+
+/**
+ * THE DEAD LETTER QUEUE, DECLARED FIRST because the main queue references it.
+ *
+ * FOURTEEN DAYS, which is SQS's maximum and is chosen for what it protects rather than
+ * for tidiness: a message here is an activity that failed to import, the map cannot
+ * re-fog (D-020), and the raw bytes it points at may be the only surviving copy of a
+ * run if the source has since deleted it. Two weeks is enough for a holiday. §4 names a
+ * CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` here as "the only alarm
+ * this app needs" — that alarm is 0044's, and this is the queue it watches.
+ */
+const activityIngestDlq = new Queue(ingestStack, "ActivityIngestDLQ", {
+  retentionPeriod: Duration.days(14),
+})
+
+/**
+ * THE INGEST QUEUE.
+ *
+ * `visibilityTimeout` is 16 MINUTES AND IT IS DERIVED, not chosen: it must exceed the
+ * worker's 900-second timeout, or SQS hands a still-running message to a second
+ * invocation and two workers race for the same claim. The score gate would survive that
+ * — one of them loses the conditional update — but it would burn a receive attempt and
+ * two API calls against a shared rate limit to discover it. If `resource.ts`'s timeout
+ * ever changes, this changes with it.
+ *
+ * `maxReceiveCount: 3` is §4's "3 receive attempts, then the DLQ". SQS counts receives,
+ * so the message moves on the FOURTH delivery — the redrive policy is a ceiling on
+ * successful receives, not on failures.
+ *
+ * STANDARD, NOT FIFO. Ordering is meaningless here (activities are independent and the
+ * `Activity` row is keyed on a deterministic id) and exactly-once is not something this
+ * system is willing to depend on — the receipt table exists precisely because
+ * at-least-once is assumed. A FIFO queue would cost a content-deduplication window that
+ * silently overlaps the receipt's own 90 days and answers the same question worse.
+ */
+const activityIngestQueue = new Queue(ingestStack, "ActivityIngestQueue", {
+  visibilityTimeout: Duration.minutes(16),
+  deadLetterQueue: { queue: activityIngestDlq, maxReceiveCount: 3 },
+})
+
+const processActivityLambda = backend.processActivity.resources.lambda
+
+/**
+ * `batchSize: 1` — one activity per invocation, and the reason is in the ticket: one
+ * poisoned message cannot fail a batch of good ones. Without partial-batch reporting a
+ * thrown handler fails every message in its batch, so a batch of ten would send nine
+ * healthy activities back to the queue and, after three rounds, into the DLQ alongside
+ * the one that was actually broken.
+ */
+processActivityLambda.addEventSource(
+  new SqsEventSource(activityIngestQueue, { batchSize: 1 }),
+)
+
+/**
+ * THE GRANTS. Amplify grants a CDK-created resource NOTHING for you, and least privilege
+ * here is not ceremony — this function holds the only principal in the account that can
+ * read a user's OAuth tokens and write to the archive.
+ */
+
+/**
+ * EVERY GRANT BELOW IS AN EXPLICIT ACTION LIST, not `grantReadWriteData`.
+ *
+ * That convenience method was the first draft and the synth test rejected it, correctly:
+ * it hands out `dynamodb:DeleteItem`, `BatchWriteItem` and `Scan` on every table it
+ * touches. Criterion 3 asks for the absence of `DeleteItem` because of I-7 — *"no code
+ * path deletes an `ExploredCell` item, at any level of retreat"* — and the cell table
+ * arrives in capability 07, into a role that would already have carried the action if
+ * this had been left as a convenience call. The invariant is classified **[S]
+ * Structural**, meaning it must not be removable without the removal showing up in an
+ * infrastructure diff; a role that never held the action in the first place is the only
+ * version of that which survives someone reaching for `grantReadWriteData` out of habit.
+ *
+ * `table.grant()` still grants the encryption key alongside the table, so T7's CMK is
+ * covered without a second statement.
+ */
+
+/**
+ * T8. `UpdateItem` counts the delivery, claims the receipt, and closes it inside the
+ * persist transaction; `GetItem` is the read on the losing side of a lost claim. The
+ * accept gate's `PutItem` is NOT here — that runs on the SSR compute (0043), and a
+ * worker able to create receipts could manufacture the row it is supposed to be checked
+ * against.
+ */
+ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+
+/**
+ * T7. READ **AND WRITE**, and this is a deliberate departure from ticket 0042's third
+ * acceptance criterion, which says "read `SourceAccount`".
+ *
+ * §4 step 7 and §2's own grants block both say read/write, and the reason is concrete:
+ * the provider may return a NEW refresh token on any refresh (`03-integrations.md` §2.2),
+ * so an inline refresh that cannot write the rotation back leaves the row holding a
+ * refresh token the provider has already retired. The connection would then be dead
+ * until a human reconnected it — and it would break on the FIRST refresh, not eventually.
+ *
+ * A read-only grant would also break the lease `lib/sources/token-refresh.ts` takes to
+ * stop two refreshers racing, which is itself a conditional write.
+ *
+ * The criterion is amended at close with this reasoning rather than quietly satisfied
+ * with a grant that does not match it.
+ *
+ * `GetItem` and `UpdateItem` only — the two commands the credential path actually issues
+ * (`loadCredentials` reads; the lease, the rotation and `markNeedsReauth` are all
+ * conditional updates). No `PutItem`: creating a connection is the OAuth callback's job,
+ * and no `Query`, which would reach the `byExternalOwner` index the webhook uses to turn
+ * a provider's owner id into a user id — a lookup this function has no reason to perform
+ * and §7 explicitly wants kept off the ingest path.
+ */
+sourceAccountTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+
+/**
+ * T3, the Amplify-generated `Activity` table. Reached through `backend.data`, because
+ * `defineData` generates the physical name and nothing may hard-code it — the worker is
+ * handed it in the environment below.
+ *
+ * WRITE ACCESS TO AN APPSYNC MODEL'S TABLE, DIRECTLY, is the D-207 consequence: the row
+ * must be able to join a `TransactWriteItems` with the receipt, and an AppSync mutation
+ * cannot join a transaction. §4 layer 3 dies without one.
+ */
+const activityTable = backend.data.resources.tables["Activity"]
+/**
+ * `PutItem` ALONE. The transaction writes the row and never reads it back, never updates
+ * it in place, and — the one that matters — never deletes it. A source-side delete
+ * TOMBSTONES an activity by setting `status`, which is an update this function does not
+ * perform either: `aspect_type: "delete"` handling is capability 14's, and it will need
+ * its own grant, written where a reviewer can see what it permits.
+ */
+activityTable.grant(processActivityLambda, "dynamodb:PutItem")
+
+/**
+ * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a
+ * `HeadObject` on the already-archived path — S3 authorises a HEAD with `s3:GetObject`,
+ * so a grant of PutObject alone would fail on exactly the re-delivery path the archive
+ * is content-addressed to make cheap.
+ *
+ * SCOPED TO `raw/*` AND NOTHING ELSE. The same bucket holds `explored-r10.bin` and the
+ * aggregates (capability 07), which this function will also write — under their own
+ * grant, when that ticket adds it. A prefix-free grant now would quietly hand the worker
+ * the whole bucket and there would be no diff to notice later.
+ *
+ * WRITTEN AS A STATEMENT rather than `bucket.grantRead`/`grantPut`, for the same reason
+ * the table grants above are explicit: those two convenience methods also grant
+ * `s3:List*` and `s3:GetBucket*` on the WHOLE bucket — object-level access is scoped to
+ * the prefix, bucket-level access cannot be — so the worker would be able to enumerate
+ * every user blob in it. Two actions on one prefix is the entire need.
+ *
+ * IT CANNOT DELETE. Not stated as a restriction but as an absence: I-3 denies deletion
+ * under `raw/*` to every principal except the break-glass role, and this grant never
+ * asks for it.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteAndReadRawArchive",
+    actions: ["s3:PutObject", "s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
+  }),
+)
+
+/**
+ * THE CLIENT CREDENTIALS, and this grant was missed on the first pass — worth recording
+ * because the failure it causes is invisible until the first token expires.
+ *
+ * §4 step 7 has the worker refresh inline when `expiresAt` is inside its skew window,
+ * and a refresh is a token EXCHANGE: it posts the client id and client secret to the
+ * provider. `lib/sources/oauth-credentials.ts` reads both from SSM at first use, so
+ * without this the ordinary path works perfectly for an hour and then every activity
+ * fails with an `AccessDeniedException` from SSM — long after the deploy that caused it.
+ *
+ * §7's registry sanctions exactly this: the two parameters are granted to "exactly three
+ * principals: `process-activity`, `token-refresh`, and the callback route."
+ *
+ * TWO PARAMETER ARNs, NAMED, not a path wildcard — the same care the SSR compute's own
+ * grant takes, and for the same reason: `/amplify/shared/<app>/*` also covers
+ * `GITHUB_TICKETS_PAT`, which acts as the operator on the repository. A grant written
+ * for convenience would hand the ingest worker the ability to write to this repo.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ReadSourceOAuthClientCredentials",
+    actions: ["ssm:GetParameter"],
+    resources: [
+      `arn:aws:ssm:${ingestStack.region}:${ingestStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID`,
+      `arn:aws:ssm:${ingestStack.region}:${ingestStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
+    ],
+  }),
+)
+
+/**
+ * The environment. Two generated names the function cannot know any other way, plus the
+ * queue's own URL — needed for `ChangeMessageVisibility`, which is how §4's "a 429
+ * returns the message to the queue with a delay" is actually performed.
+ *
+ * `backend.processActivity.addEnvironment` rather than `environment:` in `resource.ts`,
+ * because all three are CloudFormation references that only exist once the backend has
+ * been assembled — and on the FACTORY rather than on `resources.lambda`, which Amplify
+ * exposes as an `IFunction` with no such method.
+ */
+backend.processActivity.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+backend.processActivity.addEnvironment(
+  "RAW_ARCHIVE_BUCKET",
+  backend.storage.resources.bucket.bucketName,
+)
+backend.processActivity.addEnvironment(
+  "ACTIVITY_INGEST_QUEUE_URL",
+  activityIngestQueue.queueUrl,
+)
+
+/**
+ * SURFACED FOR THE PRODUCER. 0043's Sync action runs on the SSR compute, which has no
+ * CloudFormation output of its own to read — the same structural gap that made the three
+ * CDK tables carry explicit names. `amplify_outputs.json` is the one channel available,
+ * and a queue URL is not a secret: possessing it grants nothing without `sqs:SendMessage`.
+ */
+backend.addOutput({
+  custom: {
+    activityIngestQueueUrl: activityIngestQueue.queueUrl,
+    activityIngestDlqUrl: activityIngestDlq.queueUrl,
+  },
+})
+
+/** The Sync action is the only producer today. It sends; it never receives. */
+activityIngestQueue.grantSendMessages(computeRole)

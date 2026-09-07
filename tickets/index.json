@@ -1003,6 +1003,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-07T02:50:56Z",
     "path": "tickets/open/0042-process-activity-lambda-and-queue.md",
     "ready": true,
     "acceptance": {

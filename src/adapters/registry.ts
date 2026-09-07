@@ -13,6 +13,7 @@
  */
 
 import type { SourceId } from "@/src/domain/activity"
+import { stravaAdapter } from "./strava/adapter"
 import { stravaOAuth } from "./strava/oauth"
 import type { OAuthConnector, SourceAdapter } from "./types"
 
@@ -38,8 +39,28 @@ export class UnknownAdapterError extends Error {
  * a total record would be a lie in both directions.
  *
  * ADD AN ADAPTER HERE AND NOWHERE ELSE.
+ *
+ * ─── WHEN THE INGEST ADAPTER WAS REGISTERED, AND WHY THEN ───────────────────
+ *
+ * Ticket 0042, and the date matters because two earlier comments guessed at it and both
+ * guessed wrong — this one said 0036/0037, `adapter.ts` said 0093, and neither happened
+ * (ticket 0175 is the record of that). What actually forced it is `process-activity`:
+ * the worker resolves its adapter through `getAdapter(job.source)` and there is no other
+ * way for it to reach one, so an empty registry made the whole ingest path a function
+ * that throws.
+ *
+ * `adapter.ts` argued for waiting on `accept` — *"`getAdapter("strava")` should never
+ * hand back something that throws on phase 1"* — and that concern is real but smaller
+ * than the one above. `accept` is phase 1, it is the WEBHOOK's entry point, and the
+ * webhook does not exist until capability 14; the one caller that would reach for it
+ * through the registry is the one caller that has not been built. Meanwhile phases 2, 3
+ * and 4 are complete and are what the worker actually calls. Registering an object whose
+ * unbuilt phase throws a named `NotYetImplemented` naming its ticket is a better failure
+ * than a registry that cannot answer at all.
  */
-export const ADAPTERS: Readonly<Partial<Record<SourceId, SourceAdapter>>> = {}
+export const ADAPTERS: Readonly<Partial<Record<SourceId, SourceAdapter>>> = {
+  strava: stravaAdapter as SourceAdapter,
+}
 
 export function getAdapter(id: SourceId): SourceAdapter {
   const adapter = ADAPTERS[id]
@@ -69,9 +90,12 @@ export function registeredSources(): SourceId[] {
  * silently un-say `registry.test.ts`'s "ships empty" assertion, which is a real
  * statement about where the project is rather than a placeholder.
  *
- * So the connector is registered on its own until there is an adapter to hang it on.
- * When 0036/0037 register the real one, folding `oauth` onto `SourceAdapter` is a
- * refactor with these tests already green.
+ * So the connector was registered on its own until there was an adapter to hang it on.
+ * That is now the case — 0042 registered the ingest adapter above — and the two lookups
+ * still stay separate, because folding `oauth` onto `SourceAdapter` would put the
+ * connect lifecycle back inside the ingest one for no gain: `connectableSources()` and
+ * `registeredSources()` answer different questions and the settings screen asks the
+ * first one.
  *
  * What has NOT changed: this file is still the only one outside an adapter's own
  * directory that names a concrete adapter, and `registry.test.ts` still asserts it.

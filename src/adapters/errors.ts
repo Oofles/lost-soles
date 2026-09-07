@@ -89,3 +89,52 @@ export class SourceNotConnectedError extends Error {
     this.source = source
   }
 }
+
+/**
+ * The source refused the call because a rate limit is exhausted, and the window it is
+ * waiting on is known. Ticket 0042.
+ *
+ * ─── WHY THIS IS IN THE SHARED VOCABULARY AND NOT IN THE ADAPTER ────────────
+ *
+ * `01-architecture.md` §4 "Failure handling" gives the worker a rule it cannot follow
+ * without this type: *"429 (rate limit) → return the message to the queue with a
+ * delay."* The worker lives in `src/pipeline`, which `check-boundaries.mjs` forbids
+ * from containing the vendor's name at all — so it cannot import the adapter's own
+ * `StravaApiError` to find out that a 429 happened, and matching on a bare `status`
+ * property would make the rule depend on a convention nothing enforces.
+ *
+ * So it joins the other two here for the reason stated at the top of this file: both
+ * halves of the D-100 boundary have to agree about this condition. The adapter is what
+ * learns it — which bucket is exhausted and when it resets is read off the vendor's own
+ * headers — and the pipeline is what acts on it.
+ *
+ * ─── `retryAfterMs` IS THE ADAPTER'S ANSWER, NOT A GUESS ────────────────────
+ *
+ * A 429 must NOT be backed off exponentially: the window is fixed, so sleeping 1s then
+ * 2s then 4s against a boundary eleven minutes away spends four more requests to learn
+ * something the clock already knew (`03-integrations.md` §2.5). The adapter computes the
+ * real wake time from the response headers and hands it over; nothing downstream invents
+ * a delay of its own.
+ *
+ * NOT RETRYABLE-FOREVER, either. The caller returns the message to its queue, which
+ * still counts as a delivery — so a source that answers 429 indefinitely reaches the DLQ
+ * rather than looping. The delay changes WHEN the retries happen, not how many.
+ */
+export class SourceRateLimitedError extends Error {
+  readonly source: SourceId
+  /** Milliseconds from now until the exhausted window reopens. Never negative. */
+  readonly retryAfterMs: number
+  /** Which call was refused, for the log line. Never carries a credential. */
+  readonly step: string
+
+  constructor(source: SourceId, step: string, retryAfterMs: number) {
+    super(
+      `Source "${source}" rate-limited the ${step} call; retry in ` +
+        `${Math.round(retryAfterMs / 1000)}s`,
+    )
+    this.name = "SourceRateLimitedError"
+    this.source = source
+    this.step = step
+    this.retryAfterMs = Math.max(0, retryAfterMs)
+  }
+}

@@ -2,10 +2,12 @@ import { createHash } from "node:crypto"
 
 import type { NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
 
+import { SourceRateLimitedError } from "../errors"
 import type { AckResult, IngestJob, SourceAdapter } from "../types"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
 import { normalizeStrava } from "./normalize"
+import { afterResponse } from "./rate-limit"
 import { RAW_ENVELOPE_SCHEMA_HINT, sealRawEnvelope } from "./raw-envelope"
 
 /**
@@ -122,6 +124,37 @@ export class StravaApiError extends Error {
   }
 }
 
+/**
+ * THE ONE PLACE A NON-OK RESPONSE BECOMES AN ERROR. Ticket 0042.
+ *
+ * A 429 leaves this directory as `SourceRateLimitedError` — the shared, source-agnostic
+ * type from `../errors` — because the worker that has to act on it lives in
+ * `src/pipeline` and may not name this vendor (D-100). Everything else stays
+ * `StravaApiError`, which nothing outside this directory ever sees.
+ *
+ * THE DELAY IS COMPUTED HERE, from the response's own headers, because WHICH bucket is
+ * exhausted decides how long to wait (§2.5): the 15-minute window reopens on the next
+ * quarter hour, the daily one at 00:00 UTC. `afterResponse` already encodes that,
+ * including the +5s jitter that stops every worker sharing this client id from waking on
+ * the same instant and re-exhausting the window in one burst. Re-deriving it here would
+ * be a second, quieter copy of a rule that already has a test.
+ *
+ * `attempt` is 1 because this is not a retry loop — the queue is. `afterResponse` only
+ * consults `attempt` on the 5xx path, which returns a `retry` decision this function
+ * does not use.
+ */
+function apiError(step: string, res: Response, now: () => number = Date.now): Error {
+  if (res.status === 429) {
+    const at = now()
+    const decision = afterResponse(429, res.headers, at, 1)
+    // `afterResponse` answers `sleep` for every 429; the fallback is not reachable and
+    // exists so this function is total rather than relying on that staying true.
+    const untilMs = decision.action === "sleep" ? decision.untilMs : at
+    return new SourceRateLimitedError("strava", step, untilMs - at)
+  }
+  return new StravaApiError(step, res.status)
+}
+
 class NotYetImplemented extends Error {
   constructor(phase: string, ticket: string) {
     super(`Strava adapter phase "${phase}" is not built yet — ticket ${ticket}`)
@@ -202,10 +235,13 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
    * adapter gets mistaken for a whole one. This object type-checks, and calling an unbuilt
    * phase says which ticket builds it.
    *
-   * STILL NOT IN `registry.ts`'s `ADAPTERS`. 0034's note said registration lands with
-   * `normalize`, and that was one phase early: `getAdapter("strava")` should never hand
-   * back something that throws on phase 1, and the webhook endpoint is the one caller that
-   * would reach for it through the registry. Registration goes with `accept`, in 0093.
+   * NOW IN `registry.ts`'s `ADAPTERS`, as of 0042, and this paragraph used to say the
+   * opposite. The argument it made — `getAdapter("strava")` should never hand back
+   * something that throws on phase 1 — lost to a larger one: `process-activity` reaches
+   * its adapter ONLY through `getAdapter(job.source)`, so an empty registry made the
+   * whole ingest path a function that throws. The webhook endpoint is still the one
+   * caller that would touch `accept`, and it does not exist until capability 14.
+   * `registry.ts` carries the same account of it.
    */
   accept(): Promise<AckResult> {
     throw new NotYetImplemented("accept", "0093")
@@ -231,7 +267,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
      * time without it.
      */
     const detailRes = await client.get(`/activities/${id}`)
-    if (!detailRes.ok) throw new StravaApiError("activity detail", detailRes.status)
+    if (!detailRes.ok) throw apiError("activity detail", detailRes)
     const detail = Buffer.from(await detailRes.arrayBuffer())
 
     return {
@@ -295,7 +331,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
         per_page: String(PER_PAGE),
       })
 
-      if (!res.ok) throw new StravaApiError("activity list", res.status)
+      if (!res.ok) throw apiError("activity list", res)
 
       /**
        * `.text()` and not `.json()`, because `parseWithExactIds` needs the source
@@ -409,7 +445,7 @@ async function fetchStreams(
    * unfetchable activity into a retry loop.
    */
   if (res.status === 404) return null
-  if (!res.ok) throw new StravaApiError("activity streams", res.status)
+  if (!res.ok) throw apiError("activity streams", res)
 
   return Buffer.from(await res.arrayBuffer())
 }

@@ -3,7 +3,7 @@ import { dirname, join, normalize, relative, sep } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { ADAPTERS, getAdapter, registeredSources, UnknownAdapterError } from "./registry"
+import { getAdapter, registeredSources, UnknownAdapterError } from "./registry"
 
 /**
  * Ticket 0026. Two jobs: the registry behaves, and — the criterion that actually matters —
@@ -143,10 +143,42 @@ describe("registry.ts is the only file that names a concrete adapter", () => {
   })
 })
 
-describe("the registry works with zero adapters registered", () => {
-  it("ships empty — the boundary exists before any source does", () => {
-    expect(registeredSources()).toEqual([])
-    expect(Object.keys(ADAPTERS)).toHaveLength(0)
+describe("the registry answers for exactly the adapters that are built", () => {
+  /**
+   * This assertion used to read "ships empty — the boundary exists before any source
+   * does", and it was right for as long as nothing consumed the registry. Ticket 0042
+   * built the consumer: `process-activity` reaches its adapter only through
+   * `getAdapter(job.source)`, so an empty registry is no longer a boundary standing ready
+   * — it is an ingest path that throws.
+   *
+   * It is still an EXACT list rather than a `toContain`, for the reason the original had:
+   * a source appearing here is a deliberate act, and a registry that silently grew an
+   * entry would make D-121.1's "swapping the primary source is one line here" untrue
+   * without anything saying so.
+   */
+  it("registers exactly the adapters that exist", () => {
+    // NAMED BY DISCOVERY, not by literal. `check-boundaries.mjs` blesses `registry.ts`
+    // alone, so this file may not spell the vendor's id — and having to discover it is
+    // an improvement: the assertion now reads "the registry answers for every adapter
+    // directory that exists", which is the rule, rather than for one hard-coded id.
+    expect(registeredSources().sort()).toEqual(adapterDirs().sort())
+  })
+
+  /**
+   * The contract each registered entry must satisfy: it is the adapter it claims to be,
+   * and the three phases the ingest worker calls are present. Phase 1 (`accept`) is
+   * deliberately not asserted here — it is the webhook's entry point, it is unbuilt until
+   * capability 14, and `strava/adapter.test.ts` is where its `NotYetImplemented` is
+   * covered, in the one directory allowed to name it.
+   */
+  it("hands back a usable adapter for every registered source", () => {
+    for (const id of registeredSources()) {
+      const adapter = getAdapter(id)
+      expect(adapter.id).toBe(id)
+      expect(typeof adapter.fetchRaw).toBe("function")
+      expect(typeof adapter.normalize).toBe("function")
+      expect(typeof adapter.listSince).toBe("function")
+    }
   })
 
   it("throws a typed error rather than returning undefined", () => {
