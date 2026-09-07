@@ -343,14 +343,21 @@ describe("the job's shape", () => {
       source: "strava",
       externalId: "42",
       command: "ingest",
+      startedAt: "2026-09-09T07:15:00.000Z",
       enqueuedAt: NOW.toISOString(),
     })
     // The adapter-private half lives in `meta`, which the contract designates for exactly
     // this. Promoting any of it would put one adapter's vocabulary in every adapter's queue.
+    //
+    // `startedAt` LEFT THIS OBJECT IN TICKET 0043 (D-208), and the test above now asserts
+    // it on the job instead. It was never adapter-private: it was here because `meta` was
+    // the only field on a job that could hold anything, and the consumer it was put here
+    // for — the generic watermark rule — is the one caller forbidden from reading `meta`.
+    // `aspectType`, `hasGpsHint` and `sportType` genuinely are this adapter's vocabulary
+    // and stay.
     expect(job.meta).toEqual({
       aspectType: "create",
       hasGpsHint: true,
-      startedAt: "2026-09-09T07:15:00.000Z",
       sportType: "Run",
     })
   })
@@ -358,7 +365,9 @@ describe("the job's shape", () => {
   it("carries the start date the watermark boundary is computed from", async () => {
     const { creds } = harness([JSON.stringify([activity(1, { start_date: "2026-09-09T07:15:00Z" })])])
     const [job] = await collect(creds)
-    expect((job.meta as StravaIngestMeta).startedAt).toBe("2026-09-09T07:15:00.000Z")
+    // ON THE JOB, not in `meta` — D-208. The consumer that needs this is generic and may
+    // not read `meta`, which the contract types as `unknown` for exactly that reason.
+    expect(job.startedAt).toBe("2026-09-09T07:15:00.000Z")
   })
 
   it("refuses an activity with no usable start_date", async () => {
@@ -447,7 +456,8 @@ const jobFor = (hasGpsHint: boolean): IngestJob => ({
   source: "strava",
   externalId: "18736594040",
   command: "ingest",
-  meta: { aspectType: "create", hasGpsHint, startedAt: "2026-06-01T00:53:48.000Z", sportType: "Run" },
+  startedAt: "2026-06-01T00:53:48.000Z",
+  meta: { aspectType: "create", hasGpsHint, sportType: "Run" },
   enqueuedAt: NOW.toISOString(),
 })
 

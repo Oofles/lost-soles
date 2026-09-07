@@ -59,7 +59,8 @@ const job = (over: Partial<IngestJob> = {}): IngestJob => ({
   source: "strava",
   externalId: "18736594040",
   command: "ingest",
-  meta: { aspectType: "create", hasGpsHint: true, startedAt: "2026-06-01T02:53:48Z" } satisfies
+  startedAt: "2026-06-01T02:53:48Z",
+  meta: { aspectType: "create", hasGpsHint: true } satisfies
     StravaIngestMeta,
   enqueuedAt: "2026-06-01T03:19:00.000Z",
   ...over,
@@ -447,7 +448,6 @@ describe("revision comes from the job", () => {
     const meta: StravaIngestMeta = {
       aspectType: "create",
       hasGpsHint: true,
-      startedAt: "2026-06-01T02:53:48Z",
       revision: 4,
     }
     expect(run("run-continuous", { command: "reingest", meta }).activity.revision).toBe(4)

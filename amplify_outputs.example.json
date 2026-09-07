@@ -110,5 +110,9 @@
     "bucket_name": "example-lostsoles-bucket",
     "buckets": []
   },
-  "version": "1.5"
+  "version": "1.5",
+  "custom": {
+    "activityIngestQueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/EXAMPLE-ActivityIngestQueue",
+    "activityIngestDlqUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/EXAMPLE-ActivityIngestDLQ"
+  }
 }

@@ -65,6 +65,25 @@ export interface IngestJob {
   /** ALWAYS a string. Some sources' ids are int64 and `JSON.parse` corrupts them past 2^53. */
   externalId: string
   command: IngestCommandKind
+  /**
+   * WHEN THE ACTIVITY HAPPENED, ISO 8601. Not when the job was made — that is
+   * `enqueuedAt`, and the two are days apart for anything uploaded late.
+   *
+   * ADDED IN TICKET 0043, D-208, and it is a deliberate reopening of a shape ticket 0026
+   * settled. The reason is that `lib/sources/list-since-watermark.ts` is written in terms
+   * of activity start dates — its crash-recovery rule pins the watermark BELOW the oldest
+   * activity that was listed and not enqueued — and no generic caller could obtain one.
+   * The Strava adapter had already put `startedAt` in `meta` with the comment *"THE
+   * WATERMARK BOUNDARY — the consumer needs it to work out how far it got"*, which is the
+   * right intent in a field the consumer is not allowed to read: the contract types `meta`
+   * as `unknown` precisely so nothing generic reaches into it.
+   *
+   * IT IS NOT A VENDOR CONCEPT. Every source has "when did this happen", `Activity`
+   * carries `startedAt` in the domain contract already, and a watermark is meaningless
+   * without one. This is the field the rule was always written about, moved to where the
+   * rule can see it.
+   */
+  startedAt: string
   /** Adapter-private hints: an event's aspect type, an uploaded file's S3 key, a page cursor. */
   meta: unknown
   enqueuedAt: string

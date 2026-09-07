@@ -186,9 +186,24 @@ export interface IngestJob {
   source: SourceId
   externalId: string       // ALWAYS a string — int64 ids corrupt past 2^53 in JSON.parse
   command: IngestCommandKind
+  startedAt: string        // when the ACTIVITY happened, ISO 8601 — not when the job was made
   meta: unknown            // adapter-private hints: an aspect type, an S3 key, a page cursor
   enqueuedAt: string
 }
+
+> **Amended 2026-09-07 by D-208** (ticket `0043`). `startedAt` was added to `IngestJob`, which
+> ticket `0026` had settled. It is not a loosening of the rule above it: every source has "when
+> did this activity happen", the domain's `Activity` carries `startedAt` already, and
+> `lib/sources/list-since-watermark.ts` — the reconciliation watermark, as generic as code in this
+> repo gets — is written entirely in terms of activity start dates. Its crash-recovery rule pins
+> the watermark *below the oldest activity that was listed and not enqueued*, and without a start
+> date on the job no generic caller could supply one.
+>
+> The Strava adapter had already put `startedAt` inside `meta`, commented *"THE WATERMARK BOUNDARY
+> — the consumer needs it to work out how far it got"*. That was the right intent in a field this
+> contract types as `unknown` precisely so nothing generic reaches into it. The field moved; the
+> rule did not change. `aspectType`, `hasGpsHint` and `sportType` remain adapter-private and the
+> exact-key-set guard in `src/adapters/adapter-interface.types.test.ts` still refuses them.
 
 /** What accept() returns: the immediate response, plus the intents to enqueue.
  *  `commands`, not `jobs` (D-187) — a delete webhook and a deauthorisation both arrive here

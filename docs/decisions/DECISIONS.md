@@ -2080,3 +2080,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     writing a row through the real table and reading it back — because the shape is Amplify's to
     define and could change under a version bump. If Gen 2 ever adds a required bookkeeping field,
     this is the module that has to learn about it.
+
+- **D-208** **`IngestJob` carries `startedAt` — the activity's own start date, not the job's.**
+  *(Ticket `0043`. Amends `contracts/ingestion-contract.md` §3, which ticket `0026` settled, and
+  reopens the exact key set `src/adapters/adapter-interface.types.test.ts` guards.)*
+  - **The gap.** `lib/sources/list-since-watermark.ts` is written entirely in terms of activity
+    start dates: `nextListSinceWatermark` takes `confirmed` and `unconfirmed` as ISO start dates,
+    and its crash-recovery rule pins the watermark **below the oldest activity that was listed and
+    not enqueued**. Both of its callers — the manual Sync (`0043`) and the scheduled sweep
+    (`0095`) — are generic. Neither could obtain a start date, because `IngestJob` had none.
+  - **Where it was instead.** The Strava adapter put `startedAt` in `meta`, with the comment *"THE
+    WATERMARK BOUNDARY — the consumer needs it to work out how far it got, and it is on the job
+    because the job is the only thing that survives the trip through the queue."* The intent was
+    exactly right and the location was exactly wrong: the contract types `meta` as `unknown`
+    specifically so that nothing generic reaches into it, so the consumer it was placed there for
+    is the one caller forbidden to read it.
+  - **Why it is not a vendor concept smuggled in.** Every source has "when did this activity
+    happen". The domain's `Activity` already carries `startedAt`, and a reconciliation watermark is
+    meaningless without one — the field is what the rule was always *about*. Contrast the three
+    that stayed in `meta`: `aspectType` is one provider's webhook vocabulary, `hasGpsHint` is an
+    inference from one provider's list response, and `sportType` is one provider's taxonomy. None
+    of those has a generic reader; this one has two.
+  - **Why not read `meta.startedAt` structurally instead.** It would have worked today and cost
+    nothing, and it is the option that quietly ends the boundary. `check-boundaries.mjs` cannot
+    catch it — `startedAt` is an innocent word — so the rule "every adapter must name this field
+    identically inside an opaque blob" would be enforced by nothing at all. D-100 survives because
+    the things it forbids are refused by a build, not by a convention.
+  - **Why not use `enqueuedAt` as a proxy.** It is correct in the success case and silently wrong
+    in the one that matters: on a sweep that dies halfway, every job carries roughly the same
+    `enqueuedAt`, so the boundary would land at *now − overlap* instead of below the oldest
+    un-enqueued activity. That is the permanent-data-loss case
+    `list-since-watermark.ts`'s header describes, on a map that by D-020 never re-fogs.
+  - **What keeps it honest.** The exact-key-set guard was not deleted, it was amended in place with
+    the reasoning attached, so `aspectType` and `ownerId` still stop the build. `startedAt` was
+    removed from `StravaIngestMeta` in the same change rather than left in both places — one field,
+    one writer, and no way for the two to disagree.

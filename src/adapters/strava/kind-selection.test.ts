@@ -43,7 +43,8 @@ const job = (externalId: string): IngestJob => ({
   source: "strava",
   externalId,
   command: "ingest",
-  meta: { aspectType: "create", hasGpsHint: true, startedAt: "2026-06-01T02:53:48Z" },
+  startedAt: "2026-06-01T02:53:48Z",
+  meta: { aspectType: "create", hasGpsHint: true },
   enqueuedAt: "2026-06-01T03:19:00.000Z",
 })
 

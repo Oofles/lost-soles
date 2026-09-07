@@ -75,12 +75,6 @@ export interface StravaIngestMeta {
    * that never happens.
    */
   hasGpsHint: boolean
-  /**
-   * The activity's `start_date`, ISO 8601. THE WATERMARK BOUNDARY — the consumer needs it
-   * to work out how far it got, and it is on the job because the job is the only thing
-   * that survives the trip through the queue.
-   */
-  startedAt: string
   /** Strava's `sport_type`. Carried for §2.6's mapping, which is another ticket's work. */
   sportType?: string
   /**
@@ -370,7 +364,6 @@ function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date)
   const meta: StravaIngestMeta = {
     aspectType: "create",
     hasGpsHint: hasGps(activity),
-    startedAt: new Date(startedAt).toISOString(),
     ...(typeof activity.sport_type === "string" ? { sportType: activity.sport_type } : {}),
   }
 
@@ -380,6 +373,16 @@ function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date)
     source: "strava",
     externalId,
     command: "ingest",
+    /**
+     * ON THE JOB, NOT IN `meta` — moved there by ticket 0043 (D-208).
+     *
+     * It lived in `meta` with the comment "THE WATERMARK BOUNDARY — the consumer needs it
+     * to work out how far it got", which was the right intent in the wrong place: the
+     * contract types `meta` as `unknown` so that nothing generic reaches into it, and the
+     * consumer that needs this is `lib/sources/list-since-watermark.ts`, which is as
+     * generic as code gets. It is a field of the job now, and there is exactly one of it.
+     */
+    startedAt: new Date(startedAt).toISOString(),
     meta,
     enqueuedAt: now.toISOString(),
   }

@@ -31,6 +31,7 @@ const JOB: IngestJob = {
   source: "gpslogger",
   externalId: "17",
   command: "ingest",
+  startedAt: "2026-06-01T02:53:48.000Z",
   meta: null,
   enqueuedAt: "2026-09-03T00:00:00.000Z",
 }

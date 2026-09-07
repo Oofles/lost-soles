@@ -66,10 +66,10 @@ const JOB: IngestJob = {
   source: "strava",
   externalId: "18736594040123457",
   command: "ingest",
+  startedAt: "2026-06-01T00:53:48.000Z",
   meta: {
     aspectType: "create",
     hasGpsHint: true,
-    startedAt: "2026-06-01T00:53:48.000Z",
     sportType: "Run",
   },
   enqueuedAt: NOW.toISOString(),

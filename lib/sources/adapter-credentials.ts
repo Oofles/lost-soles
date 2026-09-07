@@ -1,5 +1,5 @@
 import { getOAuthConnector } from "@/src/adapters/registry"
-import type { IngestJob } from "@/src/adapters/types"
+import type { SourceId } from "@/src/domain/activity"
 
 import { markNeedsReauth } from "./source-account-store"
 import { accessTokenFor } from "./token-refresh"
@@ -47,18 +47,29 @@ export interface OAuthAdapterCredentials {
  * worker: none should be retried against the provider, which is what stops a revoked
  * authorisation becoming a retry storm.
  */
-export function oauthCredentialsFor(job: IngestJob): OAuthAdapterCredentials {
-  const connector = getOAuthConnector(job.source)
+/**
+ * `{ userId, source }` RATHER THAN AN `IngestJob`, so both callers fit.
+ *
+ * The worker has a job; the Sync sweep (0043) needs credentials BEFORE it has one, to
+ * call `listSince`. An `IngestJob` satisfies this shape structurally, so the worker's
+ * call site did not change when the sweep arrived — which is the point of asking for the
+ * two fields actually used instead of for the object they happened to arrive in.
+ */
+export function oauthCredentialsFor(connection: {
+  userId: string
+  source: SourceId
+}): OAuthAdapterCredentials {
+  const { userId, source } = connection
+  const connector = getOAuthConnector(source)
 
   return {
     accessToken: (opts) =>
       accessTokenFor({
-        userId: job.userId,
-        sourceId: job.source,
+        userId,
+        sourceId: source,
         connector,
         knownStale: opts?.knownStale,
       }),
-    markNeedsReauth: (detail) =>
-      markNeedsReauth({ userId: job.userId, sourceId: job.source, detail }),
+    markNeedsReauth: (detail) => markNeedsReauth({ userId, sourceId: source, detail }),
   }
 }

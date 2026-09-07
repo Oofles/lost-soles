@@ -26,6 +26,7 @@ const JOB: IngestJob = {
   source: SOURCE,
   externalId: "14567890123",
   command: "ingest",
+  startedAt: "2026-06-01T02:53:48.000Z",
   meta: null,
   enqueuedAt: "2026-09-06T09:00:00.000Z",
 }

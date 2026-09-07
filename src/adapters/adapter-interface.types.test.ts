@@ -102,10 +102,25 @@ type _NoBehaviour = Expect<
 // The temptation this ticket exists to resist. Spelled out as an exact key set so that
 // adding `aspectType` or `ownerId` "just for now" stops the build here, where the reason
 // is written down, rather than at 0027's grep, where it is not.
+//
+// IT STOPPED THE BUILD ONCE, IN TICKET 0043, AND WORKED. `startedAt` was added, and the
+// question it forced was the right one: is this a vendor concept wearing a generic name?
+// It is not — every source has "when did this happen", the domain's `Activity` already
+// carries it, and `lib/sources/list-since-watermark.ts` is written entirely in terms of
+// it. What made the addition legitimate rather than convenient is that no generic caller
+// could obtain a start date at all, so the watermark's crash-recovery rule was
+// unimplementable. Recorded as D-208. `aspectType` and `ownerId` are still refused.
 type _JobKeys = Expect<
   Equals<
     keyof IngestJob,
-    "ingestKey" | "userId" | "source" | "externalId" | "command" | "meta" | "enqueuedAt"
+    | "ingestKey"
+    | "userId"
+    | "source"
+    | "externalId"
+    | "command"
+    | "startedAt"
+    | "meta"
+    | "enqueuedAt"
   >
 >
 

@@ -42,7 +42,8 @@ const job = (over: Partial<IngestJob> = {}): IngestJob => ({
   source: "strava",
   externalId: "9007199254740993",
   command: "ingest",
-  meta: { aspectType: "create", hasGpsHint: false, startedAt: "2026-06-01T02:53:48Z" },
+  startedAt: "2026-06-01T02:53:48.000Z",
+  meta: { aspectType: "create", hasGpsHint: false },
   enqueuedAt: "2026-06-01T03:19:00.000Z",
   ...over,
 })

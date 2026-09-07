@@ -1028,6 +1028,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-07T04:42:01Z",
     "path": "tickets/open/0043-manual-sync-action.md",
     "ready": true,
     "acceptance": {
@@ -4034,6 +4035,26 @@
     "acceptance": {
       "checked": 0,
       "total": 5
+    }
+  },
+  {
+    "id": 177,
+    "slug": "historical-backfill-import-beyond-the-first-30-days-paced-ag",
+    "title": "Historical backfill — import beyond the first 30 days, paced against the read budget",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-07T04:57:15Z",
+    "path": "tickets/open/0177-historical-backfill-import-beyond-the-first-30-days-paced-ag.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
