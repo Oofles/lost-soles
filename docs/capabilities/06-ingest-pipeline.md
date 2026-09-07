@@ -164,3 +164,35 @@ not only after editing code. The contract in `docs/contracts/ingestion-contract.
 byte-identical to `src/domain/activity.ts`, so a comment added to the doc broke the build — caught
 by the audit's own mechanical half rather than before the commit.
 
+## Audit — 2026-09-07 (`tickets.mjs audit --record`)
+
+**Verdict: FORCED.** Mechanical half: 7 passed, 2 failed, 3 n/a. See AUDIT.md §1, §4, §5.
+
+> **Overridden with `--force`.** Reason: Two overrides, recorded separately. (1) invariant-sweep FAILS for the reason ticket 0161 documents and NOT for anything in this capability: the sweep arms on the first I-n citation and demands all thirty, but the ticket supplying them (0116) sits in capability 18 — so it fails every capability from 04 through 17, exactly as it did for 04 and 05. This capability ADDED a citation (I-22, in dedupe-key.test.ts), improving the count from 22 missing to 21. (2) capability-tickets-closed FAILS on 0179, which is the ticket §2 of AUDIT.md instructed this audit to file for its own code-was-wrong divergence — the self-defeating gate ticket 0144 documents. 0178 is deferred and correctly excluded. On the divergence budget: four is over three, and the rule says that means the design is stale. It is not being argued away — but the record should show that THREE of the four are doc-lag created by this capability's own tickets hours earlier (0044 and 0169, both closed today), not accumulated staleness, and all three were amended in the same commit as this audit. Recommend a DESIGN pass on 09-roadmap.md before capability 07, since §2.3's milestone description is now the least trustworthy document in the set.
+
+> - 2 mechanical check(s) failed: invariant-sweep, capability-tickets-closed
+> - 4 divergences, over the budget of three — the design is stale, not the code.
+
+**Deferred, and therefore excluded from `capability-tickets-closed`:** `0178` End-to-end proof that a real failed import surfaces, on the next real failure. This capability passed with work outstanding — waiting on something outside the project, not forgotten. `tickets.mjs recheck` reports whether any wait is over.
+
+**Divergences (4 of a budget of 3):**
+
+1. **design-was-wrong** — `0044` — 09-roadmap.md §2.3 still described the milestone as shipping with 'no error surface — a failed import fails into CloudWatch'. 0044 built one: a DLQ alarm, a FAILED receipt status, a structured failure log line and a sentence in the Sync result. Superseded in place, with what is still deliberately absent (retry UI, error page, notifications) named.
+2. **design-was-wrong** — `D-209` — 01-architecture.md §4 step 12 and idempotency layer 2 described the receipt as forward-only — 'a redelivered message finds PROCESSING or DONE and exits'. D-209 makes FAILED reclaimable and REMOVEs the failure fields on the claim, which is the entire mechanism by which a DLQ redrive clears the failure it was sent to repair. Both the step-12 condition and the layer-2 prose amended.
+3. **code-was-wrong** — `0179` — 02-data-model.md I-22's evidence column asserted 'GSI2 byUserAndDedupe is queried at pipeline step 3 before any write' and that a CI fixture asserts one activity and one award. NEITHER HAS EVER BEEN TRUE: contract §3's step 3 DEDUPE is unimplemented and nothing queries the index. The register now says so; 0179 is the lookup.
+4. **design-was-wrong** — `D-211` — 01-architecture.md §3's module tree named src/pipeline/processActivity.ts and src/domain/ids.ts; the code has process-activity.ts and activity-id.ts, and gained dedupe-key.ts, fetch-archive-normalize.ts and ingest-receipt.ts. Tree corrected to the files that exist.
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **fail** — 21/30 invariants have no citing test: I-1, I-3 [S], I-4, I-6, I-7 [S], I-8 [S], I-9, I-11 [S], I-12, I-14, I-15, I-16, I-17, I-18 [S], I-19 [S], I-21, I-23 [S], I-24, I-25, I-27, I-30
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **na** — no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **fail** — 1 still open: 0179; 1 deferred (0178)
+
+<!-- audit-record {"capability":"06-ingest-pipeline","audited":"2026-09-07T22:29:01Z","verdict":"forced","mechanical":{"pass":7,"fail":2,"na":3},"divergences":4,"deferred":["0178"],"forced":"Two overrides, recorded separately. (1) invariant-sweep FAILS for the reason ticket 0161 documents and NOT for anything in this capability: the sweep arms on the first I-n citation and demands all thirty, but the ticket supplying them (0116) sits in capability 18 — so it fails every capability from 04 through 17, exactly as it did for 04 and 05. This capability ADDED a citation (I-22, in dedupe-key.test.ts), improving the count from 22 missing to 21. (2) capability-tickets-closed FAILS on 0179, which is the ticket §2 of AUDIT.md instructed this audit to file for its own code-was-wrong divergence — the self-defeating gate ticket 0144 documents. 0178 is deferred and correctly excluded. On the divergence budget: four is over three, and the rule says that means the design is stale. It is not being argued away — but the record should show that THREE of the four are doc-lag created by this capability's own tickets hours earlier (0044 and 0169, both closed today), not accumulated staleness, and all three were amended in the same commit as this audit. Recommend a DESIGN pass on 09-roadmap.md before capability 07, since §2.3's milestone description is now the least trustworthy document in the set."} -->
