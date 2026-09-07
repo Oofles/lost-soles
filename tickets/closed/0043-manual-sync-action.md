@@ -4,7 +4,7 @@ slug: manual-sync-action
 title: Manual Sync action — listSince, then enqueue
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: [34, 42]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-07T04:42:01Z
+closed: 2026-09-07T17:07:56Z
 ---
 
 ## Description
