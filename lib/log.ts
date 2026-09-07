@@ -66,7 +66,23 @@ const SENSITIVE_KEY = /token|secret|password|passwd|credential|authorization|api
  * narrowing the pattern, so that adding a safe name is a deliberate act with a reason
  * next to it and not a quiet loosening of the rule.
  */
-const NOT_SENSITIVE = new Set(["tokentype", "token_type", "scopesource", "scope_source"])
+const NOT_SENSITIVE = new Set([
+  "tokentype",
+  "token_type",
+  "scopesource",
+  "scope_source",
+  /**
+   * A DURATION, added in ticket 0042 after the deployed worker logged
+   * `"credentialsMs":"<redacted>"` on a successful import. It is the number of
+   * milliseconds the credential phase took — criterion 8's whole point is that 0044 can
+   * alarm on these, and a blanked one is worse than an absent one because it looks like
+   * a credential was nearly leaked.
+   *
+   * The `Ms` suffix is what makes it safe to name here and it is not a general licence:
+   * this is one exact key, not a rule that anything ending in `Ms` is fine.
+   */
+  "credentialsms",
+])
 
 const REDACTED = "<redacted>"
 

@@ -203,4 +203,26 @@ describe("credentials are redacted by the name of the field carrying them", () =
     expect(() => log.warn("odd", circular)).not.toThrow()
     expect(spy.mock.calls[0][0] as string).not.toContain(REFRESH)
   })
+
+  /**
+   * Ticket 0042. The deployed worker logged `"credentialsMs":"<redacted>"` on a
+   * SUCCESSFUL import — the by-name rule fired on a duration. A blanked timing is worse
+   * than an absent one: it reads as though a credential was nearly leaked, and 0044 is
+   * meant to alarm on exactly this number.
+   */
+  it("does not redact the credential PHASE TIMING", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    log.info("x", { credentialsMs: 41 })
+    expect(spy.mock.calls[0][0] as string).toContain("41")
+    expect(spy.mock.calls[0][0] as string).not.toContain("<redacted>")
+  })
+
+  /** The exemption is one exact key, not a licence for anything ending in Ms. */
+  it("still redacts a credential-shaped key that merely looks similar", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {})
+    log.info("x", { credentialsMap: "s", accessToken: "s" })
+    const line = spy.mock.calls[0][0] as string
+    expect(line).toContain("<redacted>")
+    expect(line).not.toContain('"s"')
+  })
 })

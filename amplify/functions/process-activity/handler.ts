@@ -43,8 +43,10 @@ import { processActivity } from "@/src/pipeline/process-activity"
  * 8 asks for cold-start and warm-path timings so 0044 has something to alarm on, and the
  * difference between the two is only visible from a value that survives invocations.
  *
- * Init duration is not otherwise reachable from inside a handler: Lambda reports it in
- * the REPORT line for a cold start and nowhere in the event.
+ * Lambda's OWN init duration is not reachable from inside a handler — it appears in the
+ * REPORT line for a cold start and nowhere in the event — so what this supports is the
+ * cold/warm distinction plus the gap between module load and first use. See
+ * `sinceInitMs` below, which says exactly what it measures and nothing more.
  */
 const MODULE_LOADED_AT = Date.now()
 let invocations = 0
@@ -150,8 +152,18 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
     externalId: job.externalId,
     ingestKey: job.ingestKey,
     coldStart,
-    /** Init + time to the first invocation. Only meaningful on a cold start. */
-    initMs: coldStart ? startedAt - MODULE_LOADED_AT : undefined,
+    /**
+     * Milliseconds between this module finishing evaluation and the first invocation
+     * starting — NOT Lambda's init duration, which is already on the REPORT line and is
+     * not reachable from inside a handler. Corrected after the first live invocation
+     * logged `initMs: 29` beside `Init Duration: 349.43 ms`; a field claiming to be the
+     * init duration and reporting a twelfth of it is worse than no field, because 0044
+     * would alarm on the wrong number.
+     *
+     * It is still worth having: a large value here means the environment sat warm-but-
+     * idle before its first message, which is a different story from a slow init.
+     */
+    sinceInitMs: coldStart ? startedAt - MODULE_LOADED_AT : undefined,
   }
 
   try {
