@@ -45,6 +45,22 @@ Cosmetic in effect, not in position.
       paragraph and `registry.ts`'s comment tell the same story.
 - [ ] `registry.test.ts`'s "ships empty" assertion is untouched and still passes.
 
+**2026-09-07 — ticket `0042` overtook this one, by operator decision.** `0042` needed the ingest
+adapter registered: `process-activity` reaches its adapter only through `getAdapter(job.source)`,
+so an empty `ADAPTERS` made the whole ingest path a function that throws. The operator chose to
+register it there rather than leave the worker undeployable.
+
+That settles criteria 1 and 2 — `registry.ts` and `adapter.ts` now tell the same story, and both
+name `0042` as what actually forced the registration rather than guessing at a future ticket, which
+was this ticket's whole complaint. **Criterion 3 is overturned:** `registry.test.ts`'s "ships
+empty" assertion could not survive and was replaced by one that asserts the registry answers for
+exactly the adapter directories that exist — discovered rather than named, since
+`check-boundaries.mjs` forbids that file from spelling the vendor's id.
+
+Left open rather than closed here: this ticket is in capability `18`, `0042` is in `06`, and
+closing it needs its own commit and its criteria amended. It should close as already-satisfied at
+capability 18, or sooner if the operator wants it off the list.
+
 ## Steps to reproduce
 
 1. `grep -n "0036/0037" src/adapters/registry.ts`

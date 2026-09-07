@@ -245,3 +245,25 @@ describe("the inline token refresh (§4 step 7)", () => {
     }
   })
 })
+
+describe("the customer-managed key on T7", () => {
+  /**
+   * The gap a live smoke test found and this build did not.
+   *
+   * `grantReadWriteData` grants the encryption key alongside the table; `Table.grant()`
+   * does not. Narrowing the grants to keep `dynamodb:DeleteItem` off this role (I-7)
+   * therefore removed the `kms:Decrypt` the credentials table needs, and nothing failed
+   * — the assertions above check the actions that must be absent and the ones the
+   * pipeline calls, and a missing KMS action is neither.
+   *
+   * A CMK's default policy delegates to IAM rather than granting anything itself, so the
+   * table permission is necessary and not sufficient: without this the first activity
+   * fails with an `AccessDeniedException` from KMS naming a key rather than a table.
+   */
+  it("grants the worker decrypt AND encrypt on the credentials key", () => {
+    const actions = workerActions()
+    expect(actions).toContain("kms:Decrypt")
+    /** The encrypt half is what writes a rotated refresh token back. */
+    expect(actions).toContain("kms:GenerateDataKey*")
+  })
+})

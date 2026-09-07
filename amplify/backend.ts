@@ -772,6 +772,29 @@ ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:Up
 sourceAccountTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
 
 /**
+ * AND THE KEY, SEPARATELY — which `grantReadWriteData` would have done for free and
+ * `Table.grant()` does not.
+ *
+ * T7 is the one table in this system encrypted with a customer-managed key, and a CMK's
+ * default policy delegates to IAM (`kms:*` to the account root) rather than granting
+ * anything itself. So a role holding `dynamodb:GetItem` and no `kms:Decrypt` is refused
+ * by KMS on every read — the table permission is necessary and not sufficient.
+ *
+ * THIS WAS CAUGHT BY THE LIVE SMOKE TEST, NOT BY THE BUILD, and that is worth recording
+ * rather than tidying away. Narrowing the grants above (to keep `dynamodb:DeleteItem`
+ * off this role for I-7) silently dropped the key grant that the convenience method had
+ * been supplying, and nothing in CI noticed: the synth test asserted the actions that
+ * must be ABSENT and the ones the pipeline calls, and a missing KMS action is neither.
+ * The failure would have been an `AccessDeniedException` on the first activity, from
+ * KMS, naming a key rather than a table.
+ *
+ * `grantEncryptDecrypt` and not `grantDecrypt`: DynamoDB needs the encrypt half to WRITE
+ * the row back after a token rotation, which is the whole reason the write grant above
+ * exists.
+ */
+sourceAccountKey.grantEncryptDecrypt(processActivityLambda)
+
+/**
  * T3, the Amplify-generated `Activity` table. Reached through `backend.data`, because
  * `defineData` generates the physical name and nothing may hard-code it — the worker is
  * handed it in the environment below.

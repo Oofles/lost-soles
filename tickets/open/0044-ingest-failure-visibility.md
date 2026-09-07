@@ -60,6 +60,21 @@ different urgency.
 Do not add alarms on Lambda errors or duration. At 3–5 runs a week that is noise, and an alarm
 nobody reads is worse than no alarm (`09-roadmap.md` §8.6, the Habitica risk turned inward).
 
+**2026-09-07, from `0042`.** Two findings from building the worker, both landing on criteria 2 and 6.
+
+1. **Nothing writes `FAILED` today, and it is not an oversight in `0042` — it is the fixed order.**
+   Every terminal source-side failure (a revoked authorization, a 4xx) happens BEFORE the score
+   gate, so the worker holds no claim when it fails, and `markFailed` is guarded on `PROCESSING`
+   and would no-op. Only a persist failure happens after the claim, and that one is genuinely
+   transient — marking it would forfeit the retry. So `markFailed` (built in `0040`) currently has
+   no caller anywhere. Whatever writes `FAILED` has to be this ticket's, and it has to decide
+   deliberately WHICH failures are terminal rather than marking all of them.
+
+2. **A `FAILED` receipt cannot be cleared by a redrive alone**, which criterion 6 asks for. The
+   stale-reclaim clause in `claimForScoring` matches `PROCESSING` only — deliberately, per `0040`
+   — so a redriven message finds `FAILED`, loses the claim, and returns to the DLQ. Criterion 6
+   needs an explicit clear-on-redrive step, not just the redrive.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**
