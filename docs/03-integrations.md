@@ -801,14 +801,53 @@ connection dead. §2.8 covers what happens to the data.
 **Cross-source dedupe.** This is the real risk once §4 adapters land, not now. If the same run
 arrives via both Strava and GPSLogger, naive ingestion double-reveals and double-counts XP.
 
+**Rewritten 2026-09-07 (D-211, ticket `0169`).** This section previously hashed a composite of
+rounded components — start to the minute, distance to 50 m, elapsed to 30 s. **Those were
+buckets, not tolerances, and two recordings that straddled a boundary did not collide however
+close they were:** 3310 m and 3330 m are 20 m apart and rounded to 66 and 67. A hash destroys
+locality by design, so an exact-match lookup on a hashed composite can only ask *"same bucket?"*
+and never *"close enough?"*. Widening the buckets would have moved the boundary rather than
+removed it — and would not have been enough anyway, since two devices disagree on distance
+*proportionally*: 3% of a 10 km run is 300 m, or six buckets of 50 m.
+
+So the key stops trying to be the whole answer. It **anchors** on the one component that
+genuinely agrees between two devices — the start time — and the duplicate decision moves to a
+**tolerance comparison** over the candidates the anchor returns. There is no bucket anywhere in
+the comparison, so there is no boundary to straddle.
+
 ```
-dedupeKey = sha256([
-  userId,
-  floor(startedAt_epoch / 60),        // start time to the minute
-  round(distanceMeters / 50),         // 50 m buckets
-  round(elapsedSeconds / 30),         // 30 s buckets
-].join('|'))
+# Stored on the activity; the GSI2 sort key.
+dedupeKey = sha256(`${userId}|${floor(startedAt_epoch_ms / 30min)}`)
+
+# Looked up: the stored key, plus the neighbouring bucket when the start time is
+# near enough to an edge that a duplicate could have landed on the other side.
+# Never more than two, because the tolerance is well under half the bucket.
+candidates(userId, t) = [anchor(t)] + [anchor(t)∓1 if t is within 5 min of that edge]
+
+# Then, per candidate row — real tolerances, no rounding:
+sameActivity(a, b) =  |Δ startedAt| ≤ 5 min
+                  and |Δ elapsedSeconds| ≤ 5 min
+                  and (either distance absent  OR  |Δ distance| ≤ max(100 m, 3%))
 ```
+
+The tolerances are what two devices actually disagree by. Start times agree to within a few
+minutes — both clocks are NTP-synced and the spread is how long the user takes to start the
+second device. Distance disagrees proportionally, hence the 3% with a 100 m floor for short
+activities. Elapsed disagrees by however long sat between the two start presses.
+
+**An absent distance abstains rather than vetoes.** It is legitimately absent for treadmill runs,
+strength work and manual entries, and two sources disagree about whether they report it at all —
+Health Connect reports distance for an indoor session that Strava leaves blank. Treating a
+missing value as a disagreement would split exactly the activities with the least other evidence.
+
+**The kind is deliberately not compared.** Two sources routinely classify one session differently
+(a trail run against a run), and a kind veto would split duplicates over a disagreement about
+vocabulary. Adding one is a decision with its own reasoning, not a condition to append quietly.
+
+**One implementation, in `src/domain/dedupe-key.ts`**, source-agnostic and used by every adapter.
+It was previously private to the Strava adapter, where a second adapter could not reach it and
+would have had to reimplement it — and two implementations of a cross-source key agree right up
+until the day they matter.
 
 On collision, **keep the higher-fidelity trace** (more points; ties broken by source priority
 `healthconnect > gpslogger > suunto/polar > fileupload > strava > manual`) and record the loser

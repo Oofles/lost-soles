@@ -276,7 +276,7 @@ GSI3 byUserAndDay        PK userIdLocalDay  SK startedAtLocal   (INCLUDE: kind, 
 | `traceRef` | S/NULL | contract | S3 key of the normalized trace. **Null is a normal outcome**: treadmill, manual, strength. |
 | `hasTrace` | BOOL | contract | the field the skill matcher reads (§3.4). |
 | `sets` | L of M | contract `WorkoutSet[]` | `{exercise, reps?, durationS?, weightKg?}`. D-062: carried from day one even though MVP logs one number. |
-| `dedupeKey` | S | contract | cross-source natural key. GSI2 sort key. |
+| `dedupeKey` | S | contract | cross-source natural key. GSI2 sort key. **D-211: a coarse 30-min start-time ANCHOR, not the whole comparison** — `sameActivity` decides on real tolerances over the candidates it returns (03 §2.7). |
 | `ingestedAt` | S | contract | |
 | `revision` | N | contract | bumped on re-ingest of a source-side edit |
 | — game layer below this line — | | | |
@@ -307,9 +307,18 @@ Access patterns: **AP-3**, **AP-4**, **AP-7**, **AP-10**, **AP-13**.
 5-year count: ~400 activities/year typical (200 runs + ~200 strength sessions), 1,000/year
 pessimistic (04 §7.6) → **2,000–5,000 items**, ~700 bytes each → ~3.5 MB.
 
-*Why GSI2 is `KEYS_ONLY`:* the dedupe check only needs "does an activity with this `dedupeKey`
-already exist, and what is its id". Projecting the whole item would double the write cost of a
-table that is written on every single ingest.
+*Why GSI2 is `KEYS_ONLY`:* the dedupe check only needs "which activities are anchored in this
+window, and what are their ids". Projecting the whole item would double the write cost of a table
+that is written on every single ingest.
+
+*And why it stays `KEYS_ONLY` after D-211:* the anchor no longer settles the question by itself —
+`sameActivity` compares start, distance and elapsed, none of which a `KEYS_ONLY` index carries. So
+the check is now a Query followed by a `GetItem` per candidate. That is a deliberate trade rather
+than an oversight: the candidate set is **0–2 rows** (03 §2.7 bounds the probe to two keys, and a
+30-minute window holds one activity or none on almost every day of the year at ~400 activities a
+year), so the read cost is ~1–2 RRU against a write cost paid on every ingest forever. Projecting
+`INCLUDE (startedAt, distanceM, elapsedS)` would save that GetItem and is the change to make if
+the candidate count ever stops being ~1.
 
 ---
 
@@ -1175,7 +1184,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-7** | XP itemisation for one activity (post-run tally, activity detail) | T4 GSI1 `byActivity` | `Query activityId` | 4–6 | **0.5 RRU** |
 | **AP-8** | The skill registry + curve for a rules version | T5 `RuleSkill` base | `Query rulesVersion` | ~9 | **0.5 RRU**; cached in the client for the session |
 | **AP-9** | One skill's XP history (sparkline, "training since") | T4 GSI3 `bySkill` | `Query userId#skillId, SK between` | 50–500 | **1–13 RRU** (INCLUDE projection keeps rows ~80 B) |
-| **AP-10** | Cross-source dedupe check at ingest | T3 GSI2 `byUserAndDedupe` | `Query userId, SK = dedupeKey` | 0–1 | **0.5 RRU** (KEYS_ONLY) |
+| **AP-10** | Cross-source dedupe check at ingest | T3 GSI2 `byUserAndDedupe` | `Query userId, SK IN candidates(t)` (1–2 keys, D-211), then `GetItem` per hit | 0–2 | **~0.5–2.5 RRU** (KEYS_ONLY + a GetItem per candidate) |
 | **AP-11** | Replay: every ledger row for a user, in order | T4 GSI2 `byUserAndSeq` | `Query userId` paged | 9k–25k | **~1,250 RRU** once per rebalance |
 | **AP-12** | Webhook: `owner_id` → `userId`; worker: fetch tokens | T7 GSI1 `byExternalOwner` (KEYS_ONLY), then T7 base | `Query` + `GetItem` | 1 + 1 | **1 RRU**; the index cannot leak a token (§2 T7) |
 | **AP-13** | "Did I work out today" / a day's activities | T3 GSI3 `byUserAndDay` | `Query userIdLocalDay` | 0–4 | **0.5 RRU** — uses `startedAtLocal` (contract conflict #3) |
@@ -1812,7 +1821,7 @@ Three rules govern the list:
 | # | Invariant | Why it matters | How it is checked |
 |---|---|---|---|
 | **I-21** | **Re-ingesting an activity awards nothing further.** Processing the same activity N times produces the same XP, the same ledger rows and the same cells as processing it once. | Webhook redelivery is routine, not exceptional, and a double award is both wrong and — under D-135 — permanent, because the inflated number becomes a floor. | Four independent layers (T8): accept gate, score gate, the transactional commit, and set semantics + the deterministic ledger `id`. **Two of the four are structural and survive the receipt table expiring.** CI: the fixture is ingested 5× (including concurrently) and asserts identical totals; a chaos test replays a webhook after TTL expiry. |
-| **I-22** | **At most one `ACTIVE` `Activity` per `(userId, dedupeKey)`**, across *all* sources — the same run arriving via Strava and Health Connect is one activity, not two. | Cross-source duplication is the failure mode that silently doubles XP and doubles cell visit counts, and it is invisible in any single adapter's view. | GSI2 `byUserAndDedupe` is queried at pipeline step 3 (contract §3) before any write. CI: a fixture supplies the same run through two adapters with differing `externalId`s and asserts one activity, one award. Drill step 8 check 2 reconciles rebuilt activity count against raw object count minus known `dedupeKey` collisions. |
+| **I-22** | **At most one `ACTIVE` `Activity` per `(userId, dedupeKey)`**, across *all* sources — the same run arriving via Strava and Health Connect is one activity, not two. | Cross-source duplication is the failure mode that silently doubles XP and doubles cell visit counts, and it is invisible in any single adapter's view. | **[S] NOT YET ENFORCED — the lookup does not exist.** Corrected 2026-09-07 (ticket `0169`); this cell previously read as though it were in force, which it never has been. GSI2 `byUserAndDedupe` is deployed and `dedupeKey` is written on every activity, but **nothing queries it**: contract §3's step 3 `DEDUPE` is unimplemented and is ticket `0179`. Until then the invariant holds only because a single source cannot violate it — `activityId` is `sha256(userId:source:externalId)`, so intra-source replay collapses on the id alone. It arms the day a second adapter lands (D-112, D-113), and `0179` is what must land first. The derivation itself is `src/domain/dedupe-key.ts` and IS tested (D-211). *Planned:* a fixture supplies the same run through two adapters with differing `externalId`s and asserts one activity, one award; drill step 8 check 2 reconciles rebuilt activity count against raw object count minus known `dedupeKey` collisions. |
 | **I-23** | Expiry of an `IngestReceipt` (90-day TTL) can **never** cause a double award. | The receipt table is deliberately disposable; if correctness depended on it, the TTL would be a scheduled bug. | **[S]** Layer 4 is permanent and independent of T8: `delta = newCells \ exploredSet` is empty on a replay, and the ledger `id` is deterministic so a duplicate put is a `ConditionalCheckFailed`. Covered by the I-21 post-TTL chaos test. |
 
 ### 9.6 Skills are data — D-031, D-132, D-141

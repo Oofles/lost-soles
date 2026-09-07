@@ -140,7 +140,7 @@ export interface Activity {
   sets: WorkoutSet[]
 
   /** Composite natural key for CROSS-source dedupe (same run via Strava and Health Connect). */
-  dedupeKey: string
+  dedupeKey: string  // D-211: a coarse 30-min start ANCHOR; the match is a tolerance compare (03 §2.7)
   ingestedAt: string
   /** Monotonic per (source, externalId). Bumped on re-ingest of a source-side edit. */
   revision: number
@@ -269,7 +269,7 @@ accept()                                   → ack the source in <2s, enqueue
   → fetchRaw()
   → 1. ARCHIVE raw bytes to S3             (D-101/D-121.2 — before anything trusts them)
   → 2. normalize()  [PURE]                 (vendor types die here)
-  → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source)
+  → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source — NOT BUILT, ticket 0179)
   → 4. SANITIZE trace                      (speed-gate implausible jumps; honour `gaps`)
   → 5. PROJECT to H3 res 10 cells          (D-115)
   → 6. SCORE fog + XP                      (D-120: full / half / 50% re-arm)

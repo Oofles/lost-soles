@@ -2177,3 +2177,65 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **What keeps it honest.** `MAX_RECEIVE_COUNT` is restated in the handler because a bundled
     Lambda cannot import a CDK construct; `process-activity-stack.test.ts` asserts the two numbers
     agree, the same guard `PROCESSING_STALE_MS` carries against the Lambda timeout.
+
+- **D-211** **The cross-source natural key is a coarse start-time ANCHOR plus a tolerance
+  comparison, not a hash of rounded components.**
+  *(Ticket `0169`. Rewrites `03-integrations.md` §2.7's formula, amends `02-data-model.md` T3,
+  GSI2's projection rationale, AP-10 and I-22. §8.3's "never change the `dedupeKey` derivation
+  without a full rebuild" applies and was honoured — see *the rebuild*, below.)*
+  - **The bug.** §2.7 hashed `[userId, floor(start/60), round(distance/50), round(elapsed/30)]`.
+    **Those are buckets, not tolerances, and the difference is the bug:** two recordings collide
+    only when every component lands in the same bucket, so two that straddle a boundary do not
+    collide *however close they are*. 3310 m and 3330 m are 20 m apart and round to 66 and 67.
+    The start time was worst — `floor` has no centring, so a two-second disagreement between a
+    phone and a watch missed one time in thirty.
+  - **Why it is a class of bug and not a tuning problem.** `sha256` destroys locality by design,
+    so an exact-match lookup on a hashed composite can only ever ask *"same bucket?"* and never
+    *"close enough?"*. No choice of bucket size fixes that; it only moves the boundary.
+  - **The second finding, which is why the obvious fix was rejected.** `0169` proposed probing the
+    adjacent buckets, which would have left the stored derivation alone and avoided a rebuild.
+    It is not enough: two devices disagree on distance *proportionally*, and 3% of a 10 km run is
+    300 m — six buckets of 50 m. Probing ±1 would still have split a long run. **The buckets were
+    too fine as well as misaligned**, and that only became visible once the boundary case was
+    being reasoned about properly.
+  - **What the components actually do.** Start times agree to within a few minutes (both clocks
+    are NTP-synced; the spread is how long the user takes to start the second device). Distance
+    disagrees proportionally. Elapsed disagrees by however long sat between the two start presses.
+    So the key anchors on the *only* component that agrees, and the rest are compared with real
+    tolerances: ±5 min start, ±5 min elapsed, ±max(100 m, 3%) distance.
+  - **Why the anchor is 30 minutes when the tolerance is 5.** The anchor is not trying to
+    discriminate — `isSameActivity` does that. Its only job is to keep the candidate set small,
+    and at ~400 activities a year a 30-minute window holds one activity or none on almost every
+    day. Keeping the tolerance well under *half* the bucket is what bounds the probe to two keys
+    and guarantees a duplicate is never two buckets away; a test asserts the relationship rather
+    than the two constants separately.
+  - **An absent distance abstains rather than vetoes.** It is legitimately absent for treadmill
+    runs, strength work and manual entries, and two sources disagree about whether they report it
+    at all. Treating a missing value as a disagreement would split exactly the activities with the
+    least other evidence to go on.
+  - **The kind is deliberately not compared.** Two sources routinely classify one session
+    differently — a trail run against a run — and the mapping tables that reconcile that are
+    per-source data (D-031/D-141). A kind veto would split duplicates over a disagreement about
+    vocabulary, which is the failure this decision removes. Adding one later is a decision with
+    its own reasoning, not a condition to append quietly.
+  - **It moved out of the adapter, and that was already a violation.** `computeDedupeKey` was
+    private to `src/adapters/strava/`, where a second adapter could not reach it and would have
+    had to reimplement it. `0169` criterion 3 says it plainly: *"two implementations of a dedupe
+    key is worse than a coarse one."* It now lives in `src/domain/dedupe-key.ts` beside
+    `computeActivityId`, source-agnostic, for the reason that module records — `activity.ts` is
+    types only, so importing an `Activity` type can never drag `node:crypto` into a client bundle.
+  - **The rebuild §8.3 demands was ten rows.** Every stored activity predates any real use and is
+    smoke-test data; raw is archived under D-101, so a replay is always available. This was the
+    cheapest moment this change will ever have, which is the argument `0169` made for doing it now
+    rather than when Health Connect lands.
+  - **What keeps it honest.** `src/domain/dedupe-key.test.ts` sweeps a whole anchor window rather
+    than sampling points, asserting that a duplicate anywhere inside the tolerance is found
+    wherever the run starts. **That sweep caught an off-by-one in the first version of the probe**
+    — a duplicate stored exactly the tolerance ahead was missed because the edge test was `>`
+    rather than `>=`. A sampled test would have passed. The adapter's own test now asserts it uses
+    the shared derivation rather than asserting a literal hash, which would have passed equally
+    well against a reintroduced private copy.
+  - **What this decision does NOT do: none of it is enforced yet.** The lookup that would use any
+    of this does not exist — contract §3's step 3 `DEDUPE` is unimplemented and nothing queries
+    GSI2. I-22 claimed otherwise and has been corrected. Ticket `0179` is the lookup; until it
+    lands, cross-source duplication is prevented only by there being one source.

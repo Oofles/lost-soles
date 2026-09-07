@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto"
-
 import type {
   Activity,
   ActivityKind,
@@ -9,6 +7,7 @@ import type {
   Trace,
 } from "@/src/domain/activity"
 import { computeActivityId } from "@/src/domain/activity-id"
+import { computeDedupeKey } from "@/src/domain/dedupe-key"
 
 import type { IngestJob } from "../types"
 import { assertStreamsAligned, openRawEnvelope, type StravaStream } from "./raw-envelope"
@@ -241,31 +240,6 @@ function revisionFrom(job: IngestJob): number {
 function sourceMeta(rejected: number | undefined): { meta?: Record<string, number> } {
   if (rejected === undefined || rejected === 0) return {}
   return { meta: { rejectedPoints: rejected } }
-}
-
-/**
- * The §2.7 composite key. **Cross-source, not just intra-source** — the same run arriving
- * via Strava and via Health Connect must collapse to one activity, and neither adapter can
- * see the other's ids. Time to the minute, distance to 50 m, elapsed to 30 s: coarse enough
- * that two devices' recordings of one run agree, fine enough that two real runs do not.
- *
- * Plain hex, matching `computeActivityId`. `03-integrations.md` §3's example JSON shows a
- * `"sha256:"` prefix, but §2.7's formula — which is the normative one — has no prefix, and
- * a key that is sometimes prefixed is a key that sometimes misses.
- */
-function computeDedupeKey(
-  userId: string,
-  startedAtMs: number,
-  distanceM: number | undefined,
-  elapsedS: number,
-): string {
-  const parts = [
-    userId,
-    Math.floor(startedAtMs / 1000 / 60),
-    Math.round((distanceM ?? 0) / 50),
-    Math.round(elapsedS / 30),
-  ]
-  return createHash("sha256").update(parts.join("|")).digest("hex")
 }
 
 /** One stream's `data`, or `undefined` when the key is absent. Never indexes blindly. */
@@ -522,7 +496,14 @@ export function normalizeStrava(
     // has no concept of reps or exercise detail anywhere in its API (D-060).
     sets: [],
 
-    dedupeKey: computeDedupeKey(job.userId, startedAtMs, distanceM, elapsedS),
+    /**
+     * D-211: the anchor only. The tolerance comparison that actually decides a duplicate
+     * is `isSameActivity`, and it runs at lookup time over the candidates this anchors —
+     * so `distanceM` and `elapsedS` are deliberately NOT hashed in here any more. See
+     * `src/domain/dedupe-key.ts` for why a hashed composite could never be probed for
+     * nearness, which is what made the old formula miss a run over a bucket boundary.
+     */
+    dedupeKey: computeDedupeKey(job.userId, startedAtMs),
     // THE CLOCK IS `ref.archivedAt`. Reaching for `Date.now()` here is the single most
     // common way this function stops being pure, and it would not survive a rebuild drill.
     ingestedAt: ref.archivedAt,

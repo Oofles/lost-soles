@@ -4080,5 +4080,25 @@
       "checked": 0,
       "total": 4
     }
+  },
+  {
+    "id": 179,
+    "slug": "pipeline-step-3-the-cross-source-dedupe-lookup-that-i-22-ass",
+    "title": "Pipeline step 3 — the cross-source dedupe lookup that I-22 assumes exists",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "06-ingest-pipeline",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-07T22:18:05Z",
+    "path": "tickets/open/0179-pipeline-step-3-the-cross-source-dedupe-lookup-that-i-22-ass.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

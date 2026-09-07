@@ -4,7 +4,7 @@ exports[`ids are deterministic > locks the whole normalized shape 1`] = `
 {
   "activity": {
     "activityId": "9fb3a90f666ebe8f2bf666719e6d63d79d541892f35263ca5b105b9ccc1981a6",
-    "dedupeKey": "a2c4cbc4068fa3de99b703f8dd8d23ecd416f6af9a4f72ee74c4feef29cc0999",
+    "dedupeKey": "9b7ded8a2fd82c5bb391aa745b90c3c67f03573d7265d34fb564e40e888169ee",
     "distanceM": 3310.4,
     "elapsedS": 1380,
     "elevationGainM": 12.2,

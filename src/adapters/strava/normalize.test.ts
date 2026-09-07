@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto"
 import { readFileSync, readdirSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { describe, expect, it } from "vitest"
+
+import { computeDedupeKey, isSameActivity } from "@/src/domain/dedupe-key"
 
 // D-199 (ticket 0168). The fixture-geography rule is defined ONCE, in the plain-node
 // script that also runs in the pre-commit hook and the Amplify build.
@@ -359,48 +360,43 @@ describe("ids are deterministic", () => {
     )
   })
 
-  it("computes dedupeKey as the §2.7 composite, cross-source and unprefixed", () => {
+  /**
+   * D-211 (ticket `0169`) replaced the §2.7 composite. What this file still owes is that
+   * the adapter uses the SHARED derivation and adds nothing of its own — the bucketing,
+   * the tolerances and the boundary sweep are `src/domain/dedupe-key.test.ts`'s, because
+   * they are not this adapter's to define.
+   *
+   * `0169` criterion 3: *"whatever replaces or keeps the formula is written in exactly one
+   * place and used by every adapter; two implementations of a dedupe key is worse than a
+   * coarse one."* This test is what stops a future edit reintroducing a private copy —
+   * asserting the literal hash instead would pass just as happily against one.
+   */
+  it("takes dedupeKey from the shared domain derivation, unprefixed", () => {
     const { activity } = run("run-continuous")
     expect(activity.dedupeKey).toBe(
-      "a2c4cbc4068fa3de99b703f8dd8d23ecd416f6af9a4f72ee74c4feef29cc0999",
+      computeDedupeKey(activity.userId, Date.parse(activity.startedAt)),
     )
     expect(activity.dedupeKey).not.toMatch(/^sha256:/)
   })
 
-  it("buckets the composite coarsely enough for two devices to agree on one run", () => {
-    // Time to the minute, distance to 50 m, elapsed to 30 s. Asserted through the real
-    // formula on a hand-built pair rather than through a fixture, because the point is the
-    // bucketing and not this activity.
-    const key = (userId: string, startedAtMs: number, distanceM: number, elapsedS: number) =>
-      createHash("sha256")
-        .update(
-          [
-            userId,
-            Math.floor(startedAtMs / 1000 / 60),
-            Math.round(distanceM / 50),
-            Math.round(elapsedS / 30),
-          ].join("|"),
-        )
-        .digest("hex")
+  /**
+   * THE BUG `0169` WAS FILED FOR, ASSERTED AS FIXED where it was previously asserted as a
+   * known miss. 3310 m and 3330 m are 20 m apart; the old formula rounded them into 50 m
+   * buckets 66 and 67 and produced two activities for one run, on a map that never
+   * re-fogs. Distance no longer enters the key at all — it is compared with a real
+   * tolerance at lookup time instead.
+   */
+  it("no longer splits one run over a distance bucket boundary", () => {
+    const { activity } = run("run-continuous")
+    const startedAtMs = Date.parse(activity.startedAt)
 
-    const base = Date.parse("2026-06-01T02:53:48Z")
-
-    // The same run as a second source would have recorded it: 5 s later, 10 m longer.
-    expect(key("u", base, 3300, 1380)).toBe(key("u", base + 5_000, 3310, 1385))
-
-    /**
-     * AND THE HONEST LIMIT, asserted rather than left to be discovered.
-     *
-     * These are BUCKETS, not tolerances: two recordings that straddle a boundary do NOT
-     * collide however close they are. 3310 m and 3330 m are 20 m apart and land in
-     * different 50 m buckets, so the same run recorded by two devices can produce two
-     * `dedupeKey`s and therefore two activities.
-     *
-     * That is a real weakness in the §2.7 formula and it is NOT this ticket's to fix — the
-     * cross-source case does not exist until the §4 adapters land. Filed as `0169` so it
-     * is a known bound rather than a surprise the first time Health Connect arrives.
-     */
-    expect(key("u", base, 3310, 1380)).not.toBe(key("u", base, 3330, 1380))
+    expect(computeDedupeKey(activity.userId, startedAtMs)).toBe(activity.dedupeKey)
+    expect(
+      isSameActivity(
+        { startedAtMs, distanceM: 3310, elapsedS: 1380 },
+        { startedAtMs, distanceM: 3330, elapsedS: 1380 },
+      ),
+    ).toBe(true)
   })
 
   it("returns byte-identical output for the same fixture normalized twice", () => {
