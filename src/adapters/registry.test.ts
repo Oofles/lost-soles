@@ -51,9 +51,24 @@ function sourceFiles(): string[] {
  * A concrete adapter lives at `src/adapters/<source>/`. Anything directly in
  * `src/adapters/` is the boundary itself — `types.ts`, `registry.ts`, these tests.
  */
+/**
+ * A directory under `src/adapters/` is an adapter UNLESS it is a conventional test-support
+ * directory. Ticket `0155` added `__fixtures__/`, holding the synthetic second adapter the
+ * cross-adapter equivalence check compares against (`contracts/ingestion-contract.md` §5 check
+ * 3) — a fixture, never registered, never reachable from the ingest path.
+ *
+ * Excluded BY NAME rather than by a heuristic, and the name is the argument: a real adapter is
+ * never called `__fixtures__`. `scripts/check-adapter-deletion.mjs` carries the identical list
+ * for the identical reason, and the test below asserts nothing outside a test file imports what
+ * this exclusion lets through.
+ */
+const NOT_AN_ADAPTER = new Set(["__fixtures__", "__snapshots__", "__mocks__"])
+
 function adapterDirs(): string[] {
   if (!existsSync(ADAPTERS_DIR)) return []
-  return readdirSync(ADAPTERS_DIR).filter((n) => statSync(join(ADAPTERS_DIR, n)).isDirectory())
+  return readdirSync(ADAPTERS_DIR).filter(
+    (n) => statSync(join(ADAPTERS_DIR, n)).isDirectory() && !NOT_AN_ADAPTER.has(n),
+  )
 }
 
 /** Every module specifier in a file: static imports, type imports, re-exports, dynamic. */
@@ -84,6 +99,45 @@ function resolveSpecifier(fromFile: string, spec: string): string | null {
 }
 
 const posix = (p: string) => p.split(sep).join("/")
+
+/**
+ * THE HOLE `NOT_AN_ADAPTER` OPENS, CLOSED. Ticket `0155`.
+ *
+ * Excluding `__fixtures__/` from the adapter rules means the import guard above stops watching
+ * it — so a fixture adapter could, in principle, be imported by production code and reach the
+ * ingest path without any of the boundary machinery objecting. It names no vendor, so
+ * `check-boundaries.mjs` would not fire either.
+ *
+ * The exclusion is still right — a fixture is not an adapter and the rules about adapters do
+ * not apply to it — but an exclusion without a replacement rule is a gap. This is the
+ * replacement rule.
+ */
+describe("the fixture adapter cannot reach production code", () => {
+  it("is imported only by test files", () => {
+    const offenders: string[] = []
+    for (const file of sourceFiles()) {
+      const rel = posix(relative(ROOT, file))
+      if (/\.test\.tsx?$/.test(rel)) continue
+      if (rel.startsWith("src/adapters/__fixtures__/")) continue
+
+      for (const spec of importSpecifiers(readFileSync(file, "utf8"))) {
+        const target = resolveSpecifier(file, spec)
+        if (target !== null && posix(target).startsWith("src/adapters/__fixtures__/")) {
+          offenders.push(`${rel} imports "${spec}"`)
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "a fixture adapter reachable from production code is an unregistered second ingest path",
+    ).toEqual([])
+  })
+
+  it("is not registered, so getAdapter can never hand it out", () => {
+    expect(registeredSources()).not.toContain("gpx-fixture")
+  })
+})
 
 describe("registry.ts is the only file that names a concrete adapter", () => {
   it("finds no import of a concrete adapter outside its own directory", () => {

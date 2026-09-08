@@ -2597,3 +2597,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `{cells, rejects}` tuple. `0045` and `0046` specify that return type precisely and their
     tests passed unchanged; a tuple would have rewritten every call site to widen a contract
     that did not change a single classification.
+
+- **D-223** **A directory under `src/adapters/` is an adapter unless it is a conventional
+  test-support directory, and the exclusion comes with a replacement rule.** *(Ticket `0155`.)*
+  - **`0155` needed a second adapter that is not one.** Cross-adapter equivalence
+    (`contracts/ingestion-contract.md` §5 check 3) compares the primary against a synthetic
+    adapter replaying the same run through a different code path. `0027` specified exactly that
+    — *"land the harness now with a second, synthetic fixture adapter"* — because waiting for a
+    real one means waiting for capability `10`, and the harness's whole value is being already
+    written on the day the primary is swapped.
+  - **Two structural guards discovered it by directory and treated it as real.**
+    `registry.test.ts` asserts the registry answers for every adapter directory, and
+    `check-adapter-deletion.mjs` asserts deleting any adapter breaks only `registry.ts`. Both
+    failed — correctly, by their own rules, applied to something that is not an adapter.
+  - **Excluded by NAME, and the name is the argument.** `__fixtures__`, `__snapshots__`,
+    `__mocks__`. A real adapter is never called any of those, so the exclusion cannot widen by
+    accident the way a heuristic could.
+  - **An exclusion without a replacement rule is a gap, so there is one.** Dropping
+    `__fixtures__` from the adapter rules means the import guard stops watching it, and a
+    fixture adapter names no vendor so `check-boundaries.mjs` would not fire either — leaving a
+    second, unregistered ingest path reachable from production code. `registry.test.ts` now
+    asserts the fixture adapter is imported only by test files and is never registered.
+  - **The same ticket found the same shape of hole in a different guard.**
+    `check-fixture-geography.mjs` read only `.json`, so the checked-in `.gpx` — 2,537 real-shaped
+    fixes — would have gone unscanned and the tree would have reported clean (D-199, and this
+    repo is public). It now reads GPX too, and its own self-test caught the first
+    implementation requiring `lat` before `lon`: GPX does not fix attribute order, so
+    `<trkpt lon="…" lat="…"/>` would have walked straight past.

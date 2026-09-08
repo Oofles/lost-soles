@@ -3594,6 +3594,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T00:46:59Z",
+    "started": "2026-09-08T15:24:36Z",
     "path": "tickets/open/0155-cross-adapter-cell-set-equivalence.md",
     "ready": true,
     "acceptance": {

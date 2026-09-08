@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,973 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,988 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -652,7 +652,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/contracts/ingestion-contract.md`
 
-**CANONICAL — Ingestion Contract** — 322 lines
+**CANONICAL — Ingestion Contract** — 337 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -660,4 +660,4 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 2. `src/domain/activity.ts` — the contract | `28-157` | / Known sources, widened so adding one never edits the domain (D-100). |
 | 3. `src/adapters/types.ts` — the adapter interface | `158-266` | export interface SourceAdapter<TCreds = unknown> { |
 | 4. The pipeline | `267-280` | accept() → ack the source in <2s, enqueue |
-| 5. CI checks that prove the boundary holds (D-100) | `281-322` | source-side decimation (the summarypolyline failure mode) before it permanently |
+| 5. CI checks that prove the boundary holds (D-100) | `281-337` | source-side decimation (the summarypolyline failure mode) before it permanently |

@@ -60,10 +60,25 @@ const COPY = [
   "amplify_outputs.example.json",
 ]
 
+/**
+ * A directory under `src/adapters/` is an adapter UNLESS it is a conventional test-support
+ * directory. Ticket `0155` added `__fixtures__/`, which holds the synthetic second adapter the
+ * cross-adapter equivalence check compares against (`contracts/ingestion-contract.md` §5 check
+ * 3) — a fixture, never registered, never reachable from the ingest path.
+ *
+ * Excluded BY NAME rather than by a heuristic, and the name is the argument: a real adapter is
+ * never called `__fixtures__`. Treating it as one made this check demand that deleting the
+ * fixtures break only `registry.ts`, which is a rule about adapters applied to something that
+ * is not one.
+ */
+const NOT_AN_ADAPTER = new Set(["__fixtures__", "__snapshots__", "__mocks__"])
+
 /** Discovered, never named — criterion 7. A vendor name here would need a boundary exemption. */
 export function adapterDirs(base = ADAPTERS_DIR) {
   if (!existsSync(base)) return []
-  return readdirSync(base).filter((n) => statSync(join(base, n)).isDirectory())
+  return readdirSync(base).filter(
+    (n) => statSync(join(base, n)).isDirectory() && !NOT_AN_ADAPTER.has(n),
+  )
 }
 
 /** Every `.ts`/`.tsx` file under a directory, recursively. */

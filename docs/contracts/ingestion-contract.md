@@ -286,6 +286,21 @@ accept()                                   → ack the source in <2s, enqueue
 2. Swapping the primary source touches **one directory + one registry line**.
 3. Cross-adapter equivalence: the same physical run ingested via two adapters yields the
    **same H3 cell set** (within tolerance).
+   **Implemented 2026-09-08 by ticket `0155`** (split out of `0027`'s T3, which could not be
+   built in any ordering of the backlog: `0027 → 0036 → 0045 → what 0027 needed`).
+   - Harness: `src/adapters/__fixtures__/cell-set-equivalence.ts` — the tolerance
+     (`MAX_CELL_SET_DIVERGENCE = 0.02`), its measurement table, the adjacency rule and the
+     failure message. Source-agnostic, so it survives the migration it exists for.
+   - Second adapter: `src/adapters/__fixtures__/gpx-adapter.ts`, replaying the same run from
+     GPX (XML, attribute strings, absolute instants, its own speed gate) — a genuinely
+     different code path, sharing only `src/domain/geo.ts`'s D-197 rule.
+   - Driver: `src/adapters/strava/cross-adapter-equivalence.test.ts`, inside the primary
+     adapter's directory because D-188 refuses test files a `check-boundaries.mjs` exemption.
+     **It dies with the adapter it names**; the harness does not, which is the point.
+   - **Measured result: the two agree EXACTLY.** `REVEAL_R_M`'s 65 m radius is not sensitive to
+     metre-scale coordinate disagreement — re-projecting the run at 7, 6 and 5 decimal places
+     all give an identical 45-cell set; only 4 dp (11 m, beyond any real GPX) moves anything, at
+     10.2%. The tolerance is the bar a future adapter must clear, not a crutch this one needs.
 4. `normalize()` is pure — enforced by running it with network and clock stubbed to throw.
 5. **Fidelity floor**: assert the trace's **sampling rate** is above a threshold, to catch
    a silent source-side decimation (the `summary_polyline` failure mode) before it

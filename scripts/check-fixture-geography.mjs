@@ -243,12 +243,23 @@ export function coordinatesIn(value, path = "") {
   return found
 }
 
-function jsonFilesUnder(dir) {
+/**
+ * `.json` AND `.gpx`. Ticket `0155` checked in the first non-JSON fixture that carries
+ * coordinates — `src/adapters/__fixtures__/equivalence-run.gpx`, the second adapter's copy of
+ * the cross-adapter equivalence run — and a scanner that reads only JSON would have reported a
+ * clean tree while 2,537 fixes sat beside it unread.
+ *
+ * That is the exact failure mode D-176 and this file's own `checked` counter exist for, arriving
+ * through a new door: not "the scanner stopped recognising the shape" but "a shape appeared the
+ * scanner was never taught". Any future fixture format that carries geometry gets added here on
+ * the same day it is committed.
+ */
+function fixtureFilesUnder(dir) {
   const out = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
-    if (statSync(full).isDirectory()) out.push(...jsonFilesUnder(full))
-    else if (entry.endsWith(".json")) out.push(full)
+    if (statSync(full).isDirectory()) out.push(...fixtureFilesUnder(full))
+    else if (entry.endsWith(".json") || entry.endsWith(".gpx")) out.push(full)
   }
   return out
 }
@@ -289,8 +300,19 @@ export function check(files, read = (f) => readFileSync(f, "utf8")) {
   let checked = 0
 
   for (const file of files) {
-    let parsed
     const text = read(file)
+
+    if (file.endsWith(".gpx")) {
+      for (const c of coordinatesInGpx(text)) {
+        checked++
+        if (Number.isNaN(c.lat) || Number.isNaN(c.lng) || !inBox(c.lat, c.lng)) {
+          findings.push({ file: relative(ROOT, file), ...c })
+        }
+      }
+      continue
+    }
+
+    let parsed
     try {
       parsed = JSON.parse(text)
     } catch {
@@ -308,9 +330,39 @@ export function check(files, read = (f) => readFileSync(f, "utf8")) {
   return { findings, checked, files }
 }
 
-/** The whole-tree scan: every JSON in every `__fixtures__` directory. */
+/**
+ * Every `<trkpt lat="…" lon="…">` and `<wpt>`/`<rtept>` in a GPX document.
+ *
+ * A regex rather than an XML parse, for the same reason the rest of this file avoids
+ * dependencies: it runs in the Amplify build container as well as the GitHub gate (D-163), and
+ * it must not be able to fail to run. Over-matching is the safe direction here — a coordinate
+ * this finds that is not really one is a false positive on a fixture that has to be near Nemo
+ * anyway; one it misses is a home address in a public repository.
+ */
+export function coordinatesInGpx(text) {
+  const out = []
+  /**
+   * The TAG first, then each attribute independently. The first version required `lat` before
+   * `lon` in the source order, and the self-test caught it: **GPX does not fix attribute
+   * order**, so `<trkpt lon="…" lat="…"/>` is legal and would have walked straight past a
+   * scanner built on one regex. Exactly the shape of hole this check exists to close.
+   */
+  const tag = /<(trkpt|wpt|rtept)\b([^>]*)>/g
+  let m
+  let i = 0
+  while ((m = tag.exec(text)) !== null) {
+    const attrs = m[2] ?? ""
+    const lat = /\blat\s*=\s*"([^"]+)"/.exec(attrs)?.[1]
+    const lon = /\blon\s*=\s*"([^"]+)"/.exec(attrs)?.[1]
+    if (lat === undefined || lon === undefined) continue
+    out.push({ at: `${m[1]}[${i++}]`, lat: Number(lat), lng: Number(lon) })
+  }
+  return out
+}
+
+/** The whole-tree scan: every JSON and GPX in every `__fixtures__` directory. */
 export function checkAll(base = ROOT) {
-  const files = fixtureDirs(base).flatMap(jsonFilesUnder)
+  const files = fixtureDirs(base).flatMap(fixtureFilesUnder)
   return check(files)
 }
 
@@ -417,12 +469,46 @@ if (isMain && process.argv.includes("--self-test")) {
     "one-bad-point.json": [{ streams: { latlng: { data: [...SYNTH, REAL[0]] } } }, true],
   }
 
+  /**
+   * GPX, added by ticket `0155` with the first non-JSON fixture that carries coordinates. A
+   * scanner that reads only JSON reports a clean tree while a track sits beside it unread —
+   * which is this file's own empty-scan failure arriving through a door it had not been taught
+   * about.
+   */
+  const gpxDoc = (points) =>
+    [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<gpx version="1.1"><trk><trkseg>',
+      ...points.map(
+        ([lat, lon]) => `  <trkpt lat="${lat}" lon="${lon}"><time>2024-01-01T00:00:00Z</time></trkpt>`,
+      ),
+      "</trkseg></trk></gpx>",
+    ].join("\n")
+
+  const GPX_CASES = {
+    "track-real.gpx": [gpxDoc(REAL), true],
+    "track-synthetic.gpx": [gpxDoc(SYNTH), false],
+    "track-one-bad-point.gpx": [gpxDoc([...SYNTH, REAL[0]]), true],
+    // Attribute order is not fixed by the spec, and `lon` before `lat` is legal.
+    "track-reordered-attrs.gpx": [
+      '<gpx><trk><trkseg><trkpt lon="-73.9855" lat="40.758"/></trkseg></trk></gpx>',
+      true,
+    ],
+    // A waypoint is a location too, and one outside a <trk> is the easiest thing to miss.
+    "waypoint-real.gpx": [`<gpx><wpt lat="${REAL[0][0]}" lon="${REAL[0][1]}"/></gpx>`, true],
+    // A GPX with no points at all recognises zero coordinates — the empty-scan case, per file.
+    "track-empty.gpx": ['<gpx><trk><trkseg></trkseg></trk></gpx>', false],
+  }
+
   const base = mkdtempSync(join(tmpdir(), "fixgeo-"))
   try {
     const dir = join(base, "src", "adapters", "example", FIXTURE_DIR)
     mkdirSync(dir, { recursive: true })
     for (const [name, [body]] of Object.entries(CASES)) {
       writeFileSync(join(dir, name), JSON.stringify(body, null, 2))
+    }
+    for (const [name, [body]] of Object.entries(GPX_CASES)) {
+      writeFileSync(join(dir, name), body)
     }
 
     // Discovery must work by name, from an arbitrary root.
@@ -441,6 +527,20 @@ if (isMain && process.argv.includes("--self-test")) {
       console.log(`  ${ok ? "ok  " : "FAIL"}  ${mustFire ? "must fire" : "must pass"}  ${name}`)
     }
 
+    for (const [name, [, mustFire]] of Object.entries(GPX_CASES)) {
+      const { findings } = check([join(dir, name)])
+      const fired = findings.length > 0
+      const ok = fired === mustFire
+      if (!ok) failed++
+      console.log(`  ${ok ? "ok  " : "FAIL"}  ${mustFire ? "must fire" : "must pass"}  ${name}`)
+    }
+
+    // The GPX walker must actually be READING them — a regex that matched nothing would
+    // report every case above as "must pass" and look identical to a clean scan.
+    const gpxChecked = check([join(dir, "track-synthetic.gpx")]).checked
+    console.log(`  ${gpxChecked === 2 ? "ok  " : "FAIL"}  must fire  the GPX walker read ${gpxChecked} coordinate(s), expected 2`)
+    if (gpxChecked !== 2) failed++
+
     // And the empty-scan guard itself must fire, or every other case is decoration.
     const emptyDir = join(base, "src", "adapters", "empty", FIXTURE_DIR)
     mkdirSync(emptyDir, { recursive: true })
@@ -454,7 +554,7 @@ if (isMain && process.argv.includes("--self-test")) {
       console.error(`\n${failed} self-test case(s) failed — the fixture geography check is broken.`)
       process.exit(1)
     }
-    console.log(`\nself-test: ${Object.keys(CASES).length + 2} cases passed — the check fires on a real location.`)
+    console.log(`\nself-test: ${Object.keys(CASES).length + Object.keys(GPX_CASES).length + 3} cases passed — the check fires on a real location, in JSON and in GPX.`)
   } finally {
     rmSync(base, { recursive: true, force: true })
   }
