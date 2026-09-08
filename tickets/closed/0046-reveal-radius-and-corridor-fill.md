@@ -4,13 +4,14 @@ slug: reveal-radius-and-corridor-fill
 title: REVEAL_R_M = 65 m exact-radius filter and corridor fill
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [45]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-08T02:20:57Z
 ---
 
 ## Description

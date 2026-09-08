@@ -1092,7 +1092,7 @@
     "title": "REVEAL_R_M = 65 m exact-radius filter and corridor fill",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -1101,10 +1101,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0046-reveal-radius-and-corridor-fill.md",
-    "ready": true,
+    "closed": "2026-09-08T02:20:57Z",
+    "path": "tickets/closed/0046-reveal-radius-and-corridor-fill.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -1125,7 +1126,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0047-explored-cell-writes-first-last-run-at.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
