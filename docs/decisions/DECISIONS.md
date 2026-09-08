@@ -2411,3 +2411,36 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     A hole is also invisible on screen: §4.1's renderer splats ~102 m discs, so a neighbour
     covers it. It is real in the data and in XP, and a later run at a different GPS offset
     fills it.
+
+- **D-217** **The ruleset ships to the ingest Lambda as a generated `rules/xp-rules-v*.json`,
+  committed beside its YAML and gated by `--check`.** *(Ticket `0047`.)*
+  - **The worker had no way to read the rules at all, and it is not allowed to guess.** D-189
+    makes `revealsGround` the field that decides whether an activity's cells are written, and
+    a cell written by mistake is permanent (D-020) — so "read it if you can" is not an option
+    the design leaves open. But `src/rules/load.ts` resolves `rules/` from `import.meta.url`,
+    which after esbuild bundling points at the bundle rather than at the repo, and T5 — the
+    `RuleSkill` table the browser reads (02 §3.3) — is not seeded until capability 09 (ticket
+    `0060`). Both channels the design assumed were unavailable.
+  - **JSON specifically, because esbuild inlines a JSON import with no loader and no bundling
+    configuration.** Every other option changes how Amplify builds the function: a YAML text
+    loader, a `bundling` override, or copying `rules/` into the artefact. This one is a plain
+    `import` and nothing about the build had to move.
+  - **The YAML remains the authority.** It is what a human edits and what `02` §3.3 names. The
+    `.json` is a build artefact of it, byte-equivalent by construction, and the generator
+    preserves key order so a rules diff stays readable.
+  - **COMMITTED, not gitignored, and `--check` in CI is what makes that safe.** An artefact
+    regenerated at deploy time can differ between the tree a reviewer reads and the bytes that
+    ship. Committing both halves means a rules change shows both in one diff — which is the
+    point, since D-031 promises that adding a workout type is a data row and a reviewer should
+    be able to see the whole row. `scripts/build-rules-json.mjs --check` runs on both CI
+    surfaces (D-163), and `reveals-ground.test.ts` asserts the same equality in `npm test` so
+    the drift is caught before the push rather than by it.
+  - **Validated at cold start, not at build.** The handler runs `assertValidRuleSet` on import,
+    so a malformed ruleset fails the cold start with one clear error instead of failing each
+    activity differently deep inside the matcher. The generator deliberately does not validate:
+    a build step that silently refuses to emit is harder to debug than a runtime that refuses
+    to start.
+  - **This is a bridge, and it says so.** The import pins v1 by path. Replay against an older
+    `rulesVersion` (04 §7.6) needs T5 and belongs to capability 09 — which is why
+    `processActivity` takes the registry as an ARGUMENT: that day changes one line in the
+    handler and nothing in the pipeline.
