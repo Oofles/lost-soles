@@ -104,6 +104,14 @@ jobs:
       - name: design tokens — no raw colour outside app/tokens.css
         run: node scripts/check-design-tokens.mjs
 
+      # D-217 / ticket 0047. rules/xp-rules-v*.json is what the ingest Lambda imports:
+      # the YAML cannot be read from inside a bundled function and T5 does not exist
+      # until capability 09. A stale .json means the deployed worker is scoring against
+      # a ruleset nobody reviewed — including `revealsGround`, which decides whether an
+      # activity's cells are written at all and cannot be taken back (D-189, D-020).
+      - name: generated rules JSON matches its YAML
+        run: node scripts/build-rules-json.mjs --check
+
       # 05 §2.3 / ticket 0046. REVEAL_R_M (65 m, scoring, permanent under D-020) and
       # revealScale (~102 m, a shader look) are different numbers for different jobs.
       # Landed while the renderer does not exist yet, for the same reason the D-100 grep

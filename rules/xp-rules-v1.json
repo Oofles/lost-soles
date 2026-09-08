@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "effectiveFrom": "2026-09-01T00:00:00Z",
+  "curve": {
+    "stepFormula": "4 * L^2",
+    "maxLevel": 99,
+    "deepMaxLevel": 120
+  },
+  "skills": [
+    {
+      "id": "wayfaring",
+      "name": "Wayfaring",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 10,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "run",
+          "walk",
+          "hike"
+        ],
+        "requiresTrace": true,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 100,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 300,
+      "minUnitsForCredit": 0.25,
+      "groundMultipliers": {
+        "new": 1,
+        "rearmed": 0.5,
+        "recent": 0.5
+      },
+      "revealsGround": true,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "vigil",
+      "name": "Vigil",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 15,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "run",
+          "walk",
+          "hike"
+        ],
+        "requiresTrace": false,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 100,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 300,
+      "minUnitsForCredit": 0.25,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "roving",
+      "name": "Roving",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 20,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "ride"
+        ],
+        "requiresTrace": true,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 60,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 200,
+      "minUnitsForCredit": 0.5,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "cadence",
+      "name": "Cadence",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 25,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "ride"
+        ],
+        "requiresTrace": false,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 60,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 200,
+      "minUnitsForCredit": 0.5,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "might",
+      "name": "Might",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 30,
+      "logMode": "reps",
+      "unit": "rep",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "reps:pushup"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 4,
+      "softCapUnits": 100,
+      "sanityCeilingUnits": 600,
+      "minUnitsForCredit": 1,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "pushup",
+          "label": "Pushups",
+          "entry": "count",
+          "quickValues": [
+            10,
+            20,
+            25,
+            50
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fortitude",
+      "name": "Fortitude",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 40,
+      "logMode": "reps",
+      "unit": "rep",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "reps:situp"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 3,
+      "softCapUnits": 120,
+      "sanityCeilingUnits": 720,
+      "minUnitsForCredit": 1,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "situp",
+          "label": "Situps",
+          "entry": "count",
+          "quickValues": [
+            20,
+            30,
+            50
+          ]
+        }
+      ]
+    },
+    {
+      "id": "endurance",
+      "name": "Endurance",
+      "kind": "activity",
+      "enabled": true,
+      "displayOrder": 50,
+      "logMode": "duration",
+      "unit": "second",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "seconds:plank"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 1.5,
+      "softCapUnits": 300,
+      "sanityCeilingUnits": 1800,
+      "minUnitsForCredit": 5,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "plank",
+          "label": "Plank",
+          "entry": "seconds",
+          "quickValues": [
+            30,
+            60,
+            90,
+            120
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cartography",
+      "name": "Cartography",
+      "kind": "meta",
+      "enabled": true,
+      "displayOrder": 60,
+      "logMode": "derived",
+      "unit": "cell",
+      "match": null,
+      "xpPerUnit": 13,
+      "unitMultipliers": {
+        "new": 1,
+        "rearmed": 0.5,
+        "recent": 0
+      },
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    },
+    {
+      "id": "constitution",
+      "name": "Constitution",
+      "kind": "meta",
+      "enabled": true,
+      "displayOrder": 70,
+      "logMode": "derived",
+      "unit": "share",
+      "match": null,
+      "xpPerUnit": 1,
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    },
+    {
+      "id": "slayer",
+      "name": "Slayer",
+      "kind": "meta",
+      "enabled": false,
+      "displayOrder": 80,
+      "logMode": "derived",
+      "unit": "share",
+      "match": null,
+      "xpPerUnit": 1,
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    }
+  ]
+}

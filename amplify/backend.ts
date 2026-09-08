@@ -693,6 +693,64 @@ ingestReceiptTable.grantReadWriteData(computeRole)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
+ * THE FOG  (ticket 0047, 02-data-model.md T6, 05-fog-of-war.md §2.4)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The table that holds the map. **This is the one table whose loss would feel
+ * final**, and every property below is chosen for that sentence.
+ *
+ * Not a `defineData` model: the client never reads it (01 §2). The browser
+ * downloads `explored-r10.bin` and queries it in memory, so putting T6 behind
+ * AppSync would add $4.00/M operations for a path nobody uses — and §2.1 reason 5
+ * settles it anyway, because a `defineData` model cannot promise RETAIN.
+ */
+const exploredCellTable = new Table(ingestStack, "ExploredCellTable", {
+  /**
+   * NAMED, like `LostSolesIngestReceipt` and `LostSolesSourceAccount`, and here the
+   * argument is sharper than for either of them: RETAIN exists so the table SURVIVES a
+   * stack teardown, and a generated name is orphaned by the very teardown it is meant to
+   * survive — the next deploy would stand up an empty table beside a full one and the map
+   * would silently start from nothing. `src/pipeline/explored-cells.ts` states the same
+   * literal and `explored-cells-table.test.ts` asserts the two agree.
+   */
+  tableName: "LostSolesExploredCell",
+  /**
+   * T6: `pk = U#<uid>#C#<res6ParentCellId>`, `sk = <res10CellId>`.
+   *
+   * The res-6 parent is not decoration — a res-6 cell holds at most 7⁴ = 2,401 res-10
+   * children, a HARD ceiling, so a partition cannot exceed ~384 KB. One decision, three
+   * payoffs: bounded partitions, a 1–20 `Query` viewport read, and the client's bucketing
+   * for free (05 §6.2). See `parentOf` in `src/domain/fog.ts`.
+   *
+   * NO SOURCE ANYWHERE IN THE KEY (§7.4). That absence is the structural reason
+   * "remove Strava's cells" is not an operation this schema can express, which is what
+   * makes D-020 a property of the data model rather than a rule anyone has to remember.
+   */
+  partitionKey: { name: "pk", type: AttributeType.STRING },
+  sortKey: { name: "sk", type: AttributeType.STRING },
+  /**
+   * 20k–150k items at five years, ~160 B each — 4–24 MB, inside the free tier. T6's own
+   * note applies: this is not a scale problem.
+   */
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  /**
+   * RETAIN, and NO TTL — the two together are the point. `LostSolesIngestReceipt` expires
+   * its rows at 90 days because it is an optimisation over two structural backstops. This
+   * table IS the backstop. D-020 says the map only ever grows, so nothing here may expire,
+   * and §7.2/5 names T6 first among the tables that must survive a teardown.
+   */
+  removalPolicy: RemovalPolicy.RETAIN,
+  /**
+   * PITR. The only table in this system that carries it, and the reason is that its
+   * contents cannot be re-derived from anywhere cheap: the raw traces in S3 CAN rebuild it
+   * (§2.9, ticket 0103), but that is a drill measured in hours, and 35 days of
+   * point-in-time restore turns "the map is wrong" from an incident into an afternoon.
+   */
+  pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+})
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
  * THE QUEUE, THE DLQ AND THE WORKER  (ticket 0042, 01-architecture.md §2 and §4)
  * ─────────────────────────────────────────────────────────────────────────────
  *
@@ -792,6 +850,30 @@ processActivityLambda.addEventSource(
  * against.
  */
 ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+
+/**
+ * T6. **`UpdateItem` AND NOTHING ELSE**, and every absence here is deliberate.
+ *
+ * NO `DeleteItem` — I-7: *"no code path deletes an `ExploredCell` item, at any level of
+ * retreat"*. The invariant is classified **[S] Structural**, meaning it must not be
+ * removable without the removal showing up in an infrastructure diff. A role that never
+ * held the action is the only version of that which survives someone reaching for
+ * `grantReadWriteData` out of habit — which is precisely the trap the comment above the
+ * T8 grant was written to describe, one capability before this table existed.
+ *
+ * NO `BatchWriteItem` — same reason, since a batch carries `DeleteRequest`. It is also
+ * useless here: a batch cannot carry a `ConditionExpression`, which is the entire
+ * mechanism by which `firstRunAt` takes a `min` and `lastRunAt` a `max` (I-8).
+ *
+ * NO `PutItem` — a `Put` replaces the item, which is the unconditional `SET` that lets a
+ * 2024 backfill stomp a 2026 `lastRunAt`. The absence makes that write unavailable rather
+ * than merely discouraged.
+ *
+ * NO `Query`/`GetItem` — this ticket only writes. The ingest-time diff (AP-15) and the
+ * blob rebuild (AP-16) belong to 0048 and 0049, and each should add the read it needs
+ * where a reviewer can see it.
+ */
+exploredCellTable.grant(processActivityLambda, "dynamodb:UpdateItem")
 
 /**
  * T7. READ **AND WRITE**, and this is a deliberate departure from ticket 0042's third

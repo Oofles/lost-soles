@@ -51,6 +51,11 @@ const THE_ONE_FILE = "src/adapters/registry.ts"
  */
 const COPY = [
   "src", "lib", "app", "amplify", "components", "hooks", "types",
+  // `rules/` joined the list in 0047: the ingest handler imports `xp-rules-v1.json`
+  // (D-217), so the ruleset is now a COMPILE-time dependency and not just a data file.
+  // Without it every importer failed to resolve the module and this check reported them
+  // as adapter leaks — a true failure with an entirely misleading name.
+  "rules",
   "tsconfig.json", "next-env.d.ts", "package.json", "amplify_outputs.json",
   "amplify_outputs.example.json",
 ]

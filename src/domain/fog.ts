@@ -1,4 +1,4 @@
-import { cellToLatLng, gridDisk, latLngToCell, type H3Index } from "h3-js"
+import { cellToLatLng, cellToParent, gridDisk, latLngToCell, type H3Index } from "h3-js"
 
 import type { GeoPoint, Trace } from "./activity"
 import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
@@ -37,6 +37,43 @@ import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
 
 /** The one resolution. D-115; see the header. */
 export const RES = 10
+
+/**
+ * THE PARENT RESOLUTION — res 6, and it is one decision with three payoffs.
+ * `02-data-model.md` T6 and §2.4; `05-fog-of-war.md` §6.2; ticket `0047`.
+ *
+ * A res-6 cell is ~36.13 km² and has exactly **7⁴ = 2,401** res-10 children, which is a
+ * *hard ceiling*, not an average. That single fact does all three jobs:
+ *
+ *   1. **It bounds a DynamoDB partition.** 2,401 × ~160 B ≈ 384 KB, three orders of
+ *      magnitude under the 10 GB limit, so T6's partition key can be the parent and no
+ *      partition can ever go hot.
+ *   2. **It bounds a viewport read** to 1–20 `Query` calls (AP-15/AP-16), and one 5-mile
+ *      run touches 1–2 parents.
+ *   3. **It hands the client its bucketing for free** (§6.2) and the delta-invalidation
+ *      key with it (§7.4).
+ *
+ * Res 7 was rejected — 343 children makes partitions too small and multiplies rebuild
+ * queries by 7 — and res 5 too, at 16,807 children and ~2.7 MB partitions.
+ *
+ * NOT A SECOND CANONICAL RESOLUTION. Nothing is ever *stored* at res 6: it is a grouping
+ * of res-10 ids, derived on demand, and `RES` remains the only resolution this module
+ * emits (D-115).
+ */
+export const RES_PARENT = 6
+
+/**
+ * The res-6 parent of a res-10 cell — T6's partition key, minus the `U#<uid>#C#` prefix
+ * that `src/pipeline/explored-cells.ts` owns.
+ *
+ * Here rather than in the pipeline because it is pure H3 and because D-115's
+ * never-mix rule is stated in this file: `cellToParent` is one of the few calls in the
+ * library that legitimately crosses resolutions, and it belongs next to the constant that
+ * says crossing is otherwise forbidden.
+ */
+export function parentOf(cell: H3Index): H3Index {
+  return cellToParent(cell, RES_PARENT)
+}
 
 /**
  * **THE DEFINITION OF THE WORD "REVEALED": 65 metres either side of the path.** A ~130 m

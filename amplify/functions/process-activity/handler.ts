@@ -3,6 +3,8 @@ import { S3Client } from "@aws-sdk/client-s3"
 import { ChangeMessageVisibilityCommand, SQSClient } from "@aws-sdk/client-sqs"
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
+import RULES_V1 from "@/rules/xp-rules-v1.json"
+
 import { log } from "@/lib/log"
 import { oauthCredentialsFor } from "@/lib/sources/adapter-credentials"
 import {
@@ -13,6 +15,9 @@ import {
 import { getAdapter } from "@/src/adapters/registry"
 import type { IngestJob } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
+import { EXPLORED_CELL_TABLE } from "@/src/pipeline/explored-cells"
+import type { RuleSet } from "@/src/rules/schema"
+import { assertValidRuleSet } from "@/src/rules/validate"
 import { recordFailure } from "@/src/pipeline/ingest-receipt"
 import {
   archiveCompletedBy,
@@ -72,6 +77,40 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   /** An unset optional on an `Activity` row is absent, not `{NULL:true}` (0041's T3 shape). */
   marshallOptions: { removeUndefinedValues: true },
 })
+
+/**
+ * THE RULESET, LOADED ONCE PER COLD START AND VALIDATED EVERY TIME. D-189, D-217,
+ * ticket `0047`.
+ *
+ * ─── WHY A `.json` IMPORT AND NOT `loadRuleSet()` ───────────────────────────
+ *
+ * `src/rules/load.ts` resolves the YAML from `import.meta.url`, which after esbuild
+ * bundling points at the bundle rather than at the repo — the read finds nothing. T5, the
+ * `RuleSkill` table the browser reads, does not exist until capability 09. And the worker
+ * cannot simply go without: D-189 makes `revealsGround` the field that decides whether an
+ * activity's cells are written at all, and a cell written by mistake is permanent (D-020).
+ *
+ * esbuild inlines a JSON import with no loader and no bundling configuration, so
+ * `rules/xp-rules-v*.json` — generated from the YAML by `scripts/build-rules-json.mjs`
+ * and kept honest by a `--check` gate — is the one form that reaches here intact.
+ *
+ * ─── VALIDATED, NOT TRUSTED ─────────────────────────────────────────────────
+ *
+ * `assertValidRuleSet` runs at module load, so a malformed ruleset fails the cold start
+ * rather than the activity — every message goes to the DLQ with one clear error instead
+ * of each one failing differently deep inside the matcher. It costs microseconds once.
+ * The generator does not validate on purpose: a build step that silently refuses to emit
+ * is harder to debug than a runtime that refuses to start.
+ *
+ * PINNED TO v1 by the import path, which is honest about what this is: replay against an
+ * older `rulesVersion` (04 §7.6) needs T5 and belongs to capability 09. The pipeline
+ * takes the registry as an argument precisely so that day changes this line and nothing
+ * else.
+ */
+const RULES: RuleSet = (() => {
+  assertValidRuleSet(RULES_V1)
+  return RULES_V1
+})()
 
 /**
  * The SQS record fields this handler reads, DELIBERATELY PARTIAL — the same choice
@@ -263,6 +302,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       credentials: async (j) => oauthCredentialsFor(j),
       archive: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
       receipt: { ddb },
+      cells: { ddb, table: EXPLORED_CELL_TABLE },
+      registry: RULES,
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       onPhase: (entered) => {
         phase = entered
@@ -287,7 +328,16 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       outcome: result.outcome,
       totalMs: Date.now() - startedAt,
       ...(result.outcome === "persisted"
-        ? { activityId: result.activityId, timings: result.timings }
+        ? {
+            activityId: result.activityId,
+            timings: result.timings,
+            /**
+             * `null` and `{advanced: 0, …}` are different stories and the log must be
+             * able to tell them: the first is D-189 refusing to open the map for this
+             * activity, the second is a run whose every cell was already known.
+             */
+            cells: result.cells ?? "revealsGround=false",
+          }
         : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })
   } catch (error) {

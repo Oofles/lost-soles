@@ -1,6 +1,11 @@
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
+import type { Activity, Trace } from "@/src/domain/activity"
+import { traceToCells } from "@/src/domain/fog"
+import { matchable, revealsGround } from "@/src/rules/reveals-ground"
+import type { RuleSkill } from "@/src/rules/schema"
 
 import type { ArchiveDeps } from "./archive"
+import { writeCells, type CellWriteDeps, type CellWriteResult } from "./explored-cells"
 import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
@@ -68,6 +73,18 @@ export const INGEST_PHASES = [
   "archive",
   "normalize",
   "gate",
+  /**
+   * ITS OWN PHASE, ADDED BY `0047`, and not folded into `persist`.
+   *
+   * It sits BETWEEN the gate and the transaction because I-10 fixes it there (D-144), and
+   * it is named separately because a failure here and a failure in the transaction mean
+   * opposite things to an operator: a cell-write failure leaves the map ahead and the
+   * receipt still `PROCESSING`, which self-heals on redelivery; a transaction failure
+   * leaves nothing written at all. Reporting both as "persist" would erase the one
+   * distinction §4's failure handling turns on. `persistMs` would also have quietly
+   * become two numbers under one name.
+   */
+  "cells",
   "persist",
 ] as const
 
@@ -98,6 +115,8 @@ export interface PhaseTimings {
   archiveMs: number
   normalizeMs: number
   gateMs: number
+  /** The 40–130 conditional `UpdateItem`s. Zero when the activity reveals no ground. */
+  cellsMs: number
   persistMs: number
   totalMs: number
 }
@@ -113,7 +132,18 @@ export interface PhaseTimings {
  */
 export type ProcessResult =
   /** Claimed, scored and committed. The only outcome that wrote an `Activity` row. */
-  | { outcome: "persisted"; activityId: string; timings: PhaseTimings }
+  | {
+      outcome: "persisted"
+      activityId: string
+      timings: PhaseTimings
+      /**
+       * What the cell writes did. `null` when the activity reveals no ground — which is
+       * NOT the same as `{advanced: 0, ...}`, and the difference is the whole of D-189: a
+       * traced ride that wrote nothing because the rules said so must not look like a run
+       * whose cells all happened to be replays.
+       */
+      cells: CellWriteResult | null
+    }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
    * receipt rather than recomputed — with rules that may have changed in between,
@@ -147,7 +177,21 @@ export interface ProcessDeps<TCreds> {
   credentials(job: IngestJob): Promise<TCreds>
   archive: ArchiveDeps
   receipt: ReceiptDeps
+  cells: CellWriteDeps
   persist: PersistDeps
+  /**
+   * THE RULESET, AS AN ARGUMENT. D-189, D-217.
+   *
+   * Passed in rather than loaded here for the reason `selectActivitySkills` states: a
+   * recomputation runs against the `rulesVersion` the activity was scored under, which may
+   * not be the current one, and a module-level import would freeze that choice at build
+   * time. It is also the only way this file stays testable without a filesystem.
+   *
+   * The handler reads it from `rules/xp-rules-v1.json`, the build artefact `0047` added
+   * (D-217) — the YAML cannot be read from inside a bundled Lambda, and T5 does not exist
+   * until capability 09.
+   */
+  registry: { skills: RuleSkill[] }
   /** Injected so timings are assertable. Wall clock; only differences are ever used. */
   clock?: () => number
   /**
@@ -270,11 +314,25 @@ export async function processActivity<TCreds>(
   void attempt
 
   /**
-   * CELLS ARE NOT WRITTEN HERE, and their absence is load-bearing rather than pending.
-   * I-10 fixes the ordering — cells first, OUTSIDE and BEFORE the transaction (D-144) —
-   * and capability 07 is what adds the writer. When it does, it goes above this line and
-   * `persistActivity`'s `assertNoCellWrites` is what stops it going below.
+   * THE CELLS, FIRST AND OUTSIDE THE TRANSACTION. I-10, D-144, ticket `0047`.
+   *
+   * Above `persistActivity`, always. The skew this ordering chooses is **map ahead of XP,
+   * never the reverse**: revealed-but-unscored ground self-heals because the receipt never
+   * reached `DONE` and a redelivery re-runs these writes as conditional no-ops, whereas
+   * scored-but-unrevealed ground could only be repaired by re-fogging, which D-020 forbids
+   * outright. `persistActivity`'s `assertNoCellWrites` is what stops the writes ever
+   * migrating below this line into the transaction, where the 100-item cap would start
+   * failing them silently on exactly the longest runs.
+   *
+   * A THROW HERE IS SAFE, and that is why nothing catches it: the transaction has not run,
+   * so there is no `Activity` row and no `DONE` receipt, and the redelivery repeats the
+   * whole set idempotently.
    */
+  phase("cells")
+  const t3c = clock()
+  const cells = await projectCells(ingest, deps)
+  const cellsMs = clock() - t3c
+
   phase("persist")
   const t3 = clock()
   await persistActivity(ingest.activity, { ingestKey: job.ingestKey }, deps.persist)
@@ -283,14 +341,49 @@ export async function processActivity<TCreds>(
   return {
     outcome: "persisted",
     activityId: ingest.activity.activityId,
+    cells,
     timings: {
       credentialsMs,
       fetchMs,
       archiveMs,
       normalizeMs,
       gateMs,
+      cellsMs,
       persistMs,
       totalMs: clock() - startedAt,
     },
   }
+}
+
+/**
+ * TRACE → CELLS → T6, or nothing at all. Ticket `0047`; D-189, D-020.
+ *
+ * THREE WAYS TO WRITE NOTHING, and they are not the same thing:
+ *
+ *   1. **No trace.** A treadmill run, a manual entry, a strength session — `05` §3.6,
+ *      verbatim: no trace ⇒ no projection ⇒ no cells ⇒ no `ExploredCell` write and no
+ *      Cartography award. It falls out with no field and no branch of its own.
+ *   2. **The rules say this activity does not open the map** (D-189). A road ride has a
+ *      real trace and real geometry and must write **none** of it. Returned as `null`
+ *      rather than an empty result so the caller can tell the two apart — the log line
+ *      for "the rules refused" and for "every cell was a replay" must not be identical.
+ *   3. **An empty cell set** from a trace too short or too degraded to qualify anything.
+ *      A real result with zero writes, because the map was consulted and had nothing to
+ *      add.
+ *
+ * `revealsGround` is a DATA LOOKUP on the matched skill row, never a `switch` on
+ * `ActivityKind` (D-031/D-141) — see `src/rules/reveals-ground.ts` for why that
+ * distinction is the difference between adding a workout type as a row and adding it as
+ * a code change.
+ */
+async function projectCells<TCreds>(
+  ingest: { activity: Activity; trace?: Trace },
+  deps: ProcessDeps<TCreds>,
+): Promise<CellWriteResult | null> {
+  const { activity, trace } = ingest
+
+  if (!revealsGround(matchable(activity), deps.registry)) return null
+  if (!trace) return { advanced: 0, backfilled: 0, unchanged: 0 }
+
+  return writeCells(traceToCells(trace), activity, deps.cells)
 }

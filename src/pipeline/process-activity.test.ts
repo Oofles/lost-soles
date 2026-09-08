@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest"
 
 import { SourceRateLimitedError } from "@/src/adapters/errors"
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
-import type { NormalizedIngest } from "@/src/domain/activity"
+import type { NormalizedIngest, Trace } from "@/src/domain/activity"
 import { RawArchiveError } from "@/src/pipeline/archive"
+import { loadRuleSet } from "@/src/rules/load"
 import {
   archiveCompletedBy,
   INGEST_PHASES,
@@ -34,6 +35,7 @@ import {
 const SOURCE = "gpslogger"
 const BUCKET = "test-bucket"
 const ACTIVITY_TABLE = "Activity-testapi-NONE"
+const CELL_TABLE = "TestExploredCell"
 const FIXTURE = readFileSync(new URL("./__fixtures__/verbatim-payload.json", import.meta.url))
 
 const JOB: IngestJob = {
@@ -52,18 +54,25 @@ const JOB: IngestJob = {
  * fixture — `persist.test.ts` owns the row's shape, and duplicating it here would mean
  * two places to edit every time T3 gains a field.
  */
-const INGEST = {
-  activity: {
-    activityId: "a-1",
-    userId: "u-1",
-    kind: "run",
-    startedAt: "2026-09-06T03:00:00.000Z",
-    startedAtLocal: "2026-09-05T21:00:00",
-    timezone: "America/Denver",
-    ingestedAt: "2026-09-06T09:00:02.000Z",
-    sets: [],
-  },
-} as unknown as NormalizedIngest
+function ingestOf(over: Options["ingest"] = {}): NormalizedIngest {
+  return {
+    activity: {
+      activityId: "a-1",
+      userId: "u-1",
+      kind: over.kind ?? "run",
+      hasTrace: over.hasTrace ?? false,
+      source: { source: SOURCE },
+      startedAt: "2026-09-06T03:00:00.000Z",
+      startedAtLocal: "2026-09-05T21:00:00",
+      timezone: "America/Denver",
+      ingestedAt: "2026-09-06T09:00:02.000Z",
+      sets: [],
+    },
+    trace: over.trace,
+  } as unknown as NormalizedIngest
+}
+
+const INGEST = ingestOf()
 
 interface Options {
   /** What the score gate answers. `claimed` by default. */
@@ -72,6 +81,31 @@ interface Options {
   archiveFails?: boolean
   /** No receipt row — `recordDelivery`'s condition fails. */
   noReceipt?: boolean
+  /**
+   * Ticket `0047`. Overrides on the normalized ingest, so one rig can produce a traceless
+   * strength log, a run that reveals ground and a ride that must not.
+   */
+  ingest?: { kind?: string; hasTrace?: boolean; trace?: Trace }
+  /** Ticket `0047`. Every cell write throws this, to prove the ordering holds under failure. */
+  cellsFail?: Error
+}
+
+/** The real v1 ruleset, because D-189's answer must be the shipped one, not a stub's. */
+const REGISTRY = loadRuleSet(1)
+
+/**
+ * A two-point trace near Point Nemo (D-199), long enough to qualify a handful of cells
+ * and short enough that the assertions stay countable.
+ */
+const TRACE: Trace = {
+  points: [
+    { lat: -48.876, lng: -123.393, t: 0 },
+    { lat: -48.8735, lng: -123.393, t: 90_000 },
+  ],
+  gaps: [],
+  simplified: false,
+  bbox: [-123.393, -48.876, -123.393, -48.8735],
+  pointCount: 2,
 }
 
 /**
@@ -81,6 +115,7 @@ interface Options {
  */
 function rig(options: Options = {}) {
   const calls: string[] = []
+  const cellWrites: UpdateCommand["input"][] = []
   let ticks = 0
   const clock = () => {
     ticks += 1
@@ -97,7 +132,7 @@ function rig(options: Options = {}) {
     },
     normalize() {
       calls.push("normalize")
-      return INGEST
+      return options.ingest ? ingestOf(options.ingest) : INGEST
     },
     listSince: () => {
       throw new Error("listSince belongs to the Sync action, not the worker")
@@ -136,6 +171,25 @@ function rig(options: Options = {}) {
         throw new Error("unreachable")
       },
     } as never,
+    /**
+     * Ticket `0047`. Every conditional `UpdateItem` is captured, and the FIRST one pushes
+     * `cells` — one entry, not 130, so the ordering assertion stays about the sequence of
+     * phases rather than about how much ground the fixture happens to cover.
+     */
+    cells: {
+      table: CELL_TABLE,
+      concurrency: 1,
+      sleep: async () => {},
+      ddb: {
+        async send(command: UpdateCommand) {
+          if (!cellWrites.length) calls.push("cells")
+          cellWrites.push(command.input)
+          if (options.cellsFail) throw options.cellsFail
+          return {}
+        },
+      },
+    },
+    registry: REGISTRY,
     persist: {
       activityTable: ACTIVITY_TABLE,
       ddb: {
@@ -194,7 +248,7 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls }
+  return { deps, calls, cellWrites }
 }
 
 describe("the fixed order", () => {
@@ -351,7 +405,13 @@ describe("timings", () => {
       expect(ms, `${phase} should be a non-negative number`).toBeGreaterThanOrEqual(0)
     }
     expect(t.totalMs).toBeGreaterThanOrEqual(
-      t.credentialsMs + t.fetchMs + t.archiveMs + t.normalizeMs + t.gateMs + t.persistMs,
+      t.credentialsMs +
+        t.fetchMs +
+        t.archiveMs +
+        t.normalizeMs +
+        t.gateMs +
+        t.cellsMs +
+        t.persistMs,
     )
   })
 })
@@ -423,5 +483,114 @@ describe("archiveCompletedBy", () => {
    */
   it("is false when nothing was announced", () => {
     expect(archiveCompletedBy(undefined)).toBe(false)
+  })
+})
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET `0047` — cells first, outside the transaction, and only when the rules say so.
+ * I-10, D-144, D-189.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+const TRACED_RUN: Options["ingest"] = { kind: "run", hasTrace: true, trace: TRACE }
+
+describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
+  it("puts the cell writes between the gate and persist, in that order", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+
+    expect(calls.indexOf("cells")).toBeGreaterThan(calls.indexOf("gate"))
+    expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("persist"))
+  })
+
+  it("announces `cells` as its own phase, not folded into persist", async () => {
+    const phases: IngestPhase[] = []
+    const { deps } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, { ...deps, onPhase: (p) => phases.push(p) })
+    expect(phases).toEqual([...INGEST_PHASES])
+  })
+
+  /**
+   * THE FAULT INJECTION. `0047` criterion 7, amended — the original asked the recovery
+   * path to "award XP", and there is no XP engine until capability 09.
+   *
+   * What IS assertable now is the property the criterion was protecting: the skew may only
+   * ever be MAP AHEAD OF XP. So the failure is injected between the two writes and the
+   * assertion is that the transaction never ran — no `Activity` row, no `DONE` receipt —
+   * while whatever cells landed stay landed. Revealed-but-unscored self-heals on
+   * redelivery; scored-but-unrevealed could only be repaired by re-fogging (D-020).
+   */
+  it("a cell-write failure leaves the transaction unrun, so XP never leads the map", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN, cellsFail: new Error("dynamo is down") })
+
+    await expect(processActivity(JOB, deps)).rejects.toThrow("dynamo is down")
+
+    expect(calls).toContain("cells")
+    expect(calls).not.toContain("persist")
+  })
+
+  it("and the reverse skew is impossible: persist cannot run first", async () => {
+    // Stated as an ordering assertion rather than a comment, because the failure it
+    // guards is invisible — a scored run whose ground was never revealed looks fine
+    // until someone opens the map.
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+    expect(calls.filter((c) => c === "cells" || c === "persist")).toEqual(["cells", "persist"])
+  })
+
+  it("reports what the writes did, and times them separately", async () => {
+    const { deps } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+
+    expect(result.outcome).toBe("persisted")
+    if (result.outcome !== "persisted") return
+    expect(result.cells).toEqual({ advanced: expect.any(Number), backfilled: 0, unchanged: 0 })
+    expect(result.cells!.advanced).toBeGreaterThan(0)
+    expect(result.timings.cellsMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it("writes the real T6 update expression, keyed by res-6 parent", async () => {
+    const { deps, cellWrites } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+
+    expect(cellWrites.length).toBeGreaterThan(0)
+    for (const input of cellWrites) {
+      expect(input.TableName).toBe(CELL_TABLE)
+      expect(input.Key!.pk).toMatch(/^U#u-1#C#/)
+      expect(input.ConditionExpression).toContain("lastRunAt < :at")
+      // The cell's clock is the RUN's clock, never the ingest's.
+      expect(input.ExpressionAttributeValues![":at"]).toBe("2026-09-06T03:00:00.000Z")
+    }
+  })
+})
+
+describe("revealsGround gates the whole projection (D-189)", () => {
+  it("A TRACED RIDE WRITES NOT ONE CELL", async () => {
+    const { deps, calls, cellWrites } = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE },
+    })
+    const result = await processActivity(JOB, deps)
+
+    expect(cellWrites).toHaveLength(0)
+    expect(calls).not.toContain("cells")
+    // `null`, not an empty result: "the rules refused" and "every cell was a replay" are
+    // different stories and the log line must be able to tell them apart.
+    expect(result.outcome === "persisted" && result.cells).toBeNull()
+  })
+
+  it("and still persists the activity — the run happened, it just opened no map", async () => {
+    const { deps, calls } = rig({ ingest: { kind: "ride", hasTrace: true, trace: TRACE } })
+    await processActivity(JOB, deps)
+    expect(calls).toContain("persist")
+  })
+
+  it("a traceless run reveals nothing either, with no branch of its own (05 §3.6)", async () => {
+    // No trace ⇒ no projection ⇒ no cells. It also fails `revealsGround`, because
+    // `requiresTrace` is what separates the outdoor row from the indoor one — so this
+    // asserts the outcome, not which of the two reasons got there first.
+    const { deps, cellWrites } = rig({ ingest: { kind: "run", hasTrace: false } })
+    await processActivity(JOB, deps)
+    expect(cellWrites).toHaveLength(0)
   })
 })
