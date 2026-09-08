@@ -4,13 +4,14 @@ slug: an-unknown-capability-is-a-validate-error-because-it-silentl
 title: An unknown capability is a validate error, because it silently gates every ticket above it
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-08T19:46:47Z
+closed: 2026-09-08T19:47:40Z
 ---
 
 ## Description

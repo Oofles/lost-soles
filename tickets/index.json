@@ -4226,18 +4226,19 @@
     "title": "An unknown capability is a validate error, because it silently gates every ticket above it",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T19:46:47Z",
-    "path": "tickets/open/0185-an-unknown-capability-is-a-validate-error-because-it-silentl.md",
-    "ready": true,
+    "closed": "2026-09-08T19:47:40Z",
+    "path": "tickets/closed/0185-an-unknown-capability-is-a-validate-error-because-it-silentl.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 1
+      "checked": 5,
+      "total": 5
     }
   }
 ]
