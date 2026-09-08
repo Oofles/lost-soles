@@ -4,7 +4,7 @@ slug: cross-adapter-cell-set-equivalence
 title: T3 cross-adapter equivalence — one run, two adapters, the same H3 res-10 cell set
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [45]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T00:46:59Z
 started: 2026-09-08T15:24:36Z
+closed: 2026-09-08T15:39:27Z
 ---
 
 ## Description
