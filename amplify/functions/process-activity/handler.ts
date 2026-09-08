@@ -338,6 +338,33 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
     }
 
     /**
+     * §3.6's LAST BULLET, and it is a `warn` rather than a field on the line below because it
+     * is the one ingest outcome that looks completely normal and is not. Ticket `0180`.
+     *
+     * A watch emitting 2,000 fixes at 60 m accuracy produces an activity indistinguishable
+     * from a treadmill run — zero cells, zero credit, no error — and the cause gets diagnosed
+     * a month later, if at all. `rejects !== null` means a projection actually ran, so a
+     * genuinely traceless activity logs nothing: it is not a fault.
+     *
+     * ONE LINE, NOT ONE PER SAMPLE. The counts are already aggregated by `traceToCells`; a
+     * per-sample log would bury the signal it exists to raise and cost more than the ingest.
+     */
+    if (
+      result.outcome === "persisted" &&
+      // `!= null`, loosely: "a projection ran and reported counts". A traceless activity has
+      // `null` and is not a fault; anything else absent means there is nothing to warn about.
+      result.rejects != null &&
+      result.award.cellCount === 0
+    ) {
+      log.warn({
+        ...base,
+        outcome: "trace-yielded-no-cells",
+        activityId: result.activityId,
+        rejects: result.rejects,
+      })
+    }
+
+    /**
      * CRITERION 8. One line per invocation carrying the phase breakdown — this is what
      * 0044 alarms on, and it is why the pipeline returns timings rather than logging
      * them itself: a module that logs cannot be called twice in a test without noise.
@@ -366,6 +393,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
              * exactly where it was (tickets `0069`, `0159`).
              */
             blobs: result.blobs,
+            /** `0180`. Null for a traceless activity; zeros for a clean one. */
+            rejects: result.rejects,
           }
         : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })

@@ -9,7 +9,7 @@ import {
   NO_CELLS,
   type DiscoveryAward,
 } from "@/src/domain/discovery"
-import { traceToCells } from "@/src/domain/fog"
+import { traceToCells, type TraceRejects } from "@/src/domain/fog"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSkill } from "@/src/rules/schema"
 
@@ -198,6 +198,11 @@ export type ProcessResult =
        * a 300 KB blob identical to the one it holds (tickets `0069`, `0159`).
        */
       blobs: RegenerateResult | null
+      /**
+       * `0180`. `null` when nothing was projected — no trace, or D-189 refused. Non-null with
+       * `award.cellCount === 0` is §3.6's silently-garbage recording, and the handler warns.
+       */
+      rejects: TraceRejects | null
     }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
@@ -387,7 +392,7 @@ export async function processActivity<TCreds>(
    */
   phase("cells")
   const t3c = clock()
-  const { cells, award, touched } = await projectCells(ingest, deps)
+  const { cells, award, touched, rejects } = await projectCells(ingest, deps)
   const cellsMs = clock() - t3c
 
   /**
@@ -427,6 +432,7 @@ export async function processActivity<TCreds>(
     deps.persist,
     [],
     award,
+    rejects ?? undefined,
   )
   const persistMs = clock() - t3
 
@@ -436,6 +442,7 @@ export async function processActivity<TCreds>(
     cells,
     award,
     blobs,
+    rejects,
     timings: {
       credentialsMs,
       fetchMs,
@@ -496,9 +503,15 @@ async function projectCells<TCreds>(
    * distinguished only for the reasons the three cases below are.
    */
   touched: ReadonlySet<H3Index> | null
+  /**
+   * Why the projection dropped what it dropped (`0180`, §3.6). `null` when no projection ran
+   * at all — no trace, or the rules refused — which is what lets the handler tell "there was
+   * nothing to project" from "there was something and it all failed the gates".
+   */
+  rejects: TraceRejects | null
 }> {
   const { activity, trace } = ingest
-  const nothing = { cells: null, award: NO_CELLS, touched: null }
+  const nothing = { cells: null, award: NO_CELLS, touched: null, rejects: null }
 
   if (!revealsGround(matchable(activity), deps.registry)) return nothing
   if (!trace) return nothing
@@ -507,7 +520,14 @@ async function projectCells<TCreds>(
   if (cells.size === 0) {
     // A trace with points but nothing that survived §2.2 is no-GPS (§3.6). Distinguished
     // from "no trace" only in the log; both award nothing and write nothing.
-    return { cells: { advanced: 0, backfilled: 0, unchanged: 0 }, award: NO_CELLS, touched: null }
+    return {
+      cells: { advanced: 0, backfilled: 0, unchanged: 0 },
+      award: NO_CELLS,
+      touched: null,
+      // The case §3.6's last bullet is about: points went in, nothing came out. The counts
+      // are the only thing that says why, and the handler warns on exactly this shape.
+      rejects: cells.rejects,
+    }
   }
 
   // 2. CLASSIFY, against pre-run state, in one read.
@@ -546,5 +566,5 @@ async function projectCells<TCreds>(
     await markReplayPending(activity.userId, activity.startedAt, deps.cells)
   }
 
-  return { cells: written, award, touched: cells }
+  return { cells: written, award, touched: cells, rejects: cells.rejects }
 }

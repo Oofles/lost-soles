@@ -1001,3 +1001,86 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
     )
   })
 })
+
+describe("trace reject counts reach T3 (0180, §3.6)", () => {
+  const rowOf = async (options: Options) => {
+    const transactions: unknown[] = []
+    const { deps } = rig(options)
+    const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
+    deps.persist.ddb = {
+      async send(command: TransactWriteCommand) {
+        transactions.push(command.input.TransactItems)
+        return inner(command)
+      },
+    }
+    const result = await processActivity(JOB, deps)
+    const items = transactions[0] as Array<{ Put?: { Item: Record<string, unknown> } }>
+    return { row: items.find((i) => i.Put)!.Put!.Item, result }
+  }
+
+  it("writes the counts on a scored run", async () => {
+    const { row, result } = await rowOf({ ingest: TRACED_RUN })
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(row.traceRejectCounts).toEqual(result.rejects)
+    expect(row.traceRejectCounts).toMatchObject({ accuracy: 0, duplicate: 0, nonFinite: 0 })
+  })
+
+  /**
+   * WRITTEN EVEN WHEN THERE IS NOTHING TO REPORT, the same rule `cellCount: 0` follows. A
+   * missing map on a treadmill run would be indistinguishable from a row written before the
+   * column existed — which is exactly the "absent vs none" distinction §3.6 refuses to make a
+   * reader carry.
+   */
+  it("writes zeros for a traceless activity, so the row shape never varies", async () => {
+    const { row, result } = await rowOf({ ingest: { kind: "run", hasTrace: false } })
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.rejects).toBeNull()
+    expect(row.traceRejectCounts).toEqual({
+      accuracy: 0,
+      duplicate: 0,
+      nonFinite: 0,
+      segments: 0,
+    })
+  })
+
+  it("writes zeros for an activity the rules refuse to project (D-189)", async () => {
+    const { row } = await rowOf({ ingest: { kind: "ride", hasTrace: true, trace: TRACE } })
+    expect(row.traceRejectCounts).toEqual({
+      accuracy: 0,
+      duplicate: 0,
+      nonFinite: 0,
+      segments: 0,
+    })
+  })
+
+  /**
+   * CRITERION 4, end to end. Every sample over `MAX_ACC_M`: the activity persists, scores
+   * nothing, and the row says why — which is the whole difference between this and a treadmill
+   * run that looks identical in every other column.
+   */
+  it("a trace whose every sample fails the accuracy gate: cellCount 0, accuracy == pointCount", async () => {
+    const bad: Trace = {
+      ...TRACE,
+      points: TRACE.points.map((p) => ({ ...p, accuracyM: 500 })),
+    }
+    const { row, result } = await rowOf({ ingest: { ...TRACED_RUN, trace: bad } })
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    expect(row.cellCount).toBe(0)
+    expect(result.award.cellCount).toBe(0)
+    expect(row.traceRejectCounts).toMatchObject({ accuracy: bad.points.length, segments: 0 })
+    // And it is distinguishable from a treadmill run, which is the point.
+    expect(result.rejects).not.toBeNull()
+  })
+
+  it("bumps no generation for that run — it revealed nothing", async () => {
+    const bad: Trace = {
+      ...TRACE,
+      points: TRACE.points.map((p) => ({ ...p, accuracyM: 500 })),
+    }
+    const { deps, calls, blobPuts } = rig({ ingest: { ...TRACED_RUN, trace: bad } })
+    await processActivity(JOB, deps)
+    expect(blobPuts).toEqual([])
+    expect(calls).not.toContain("generation")
+  })
+})

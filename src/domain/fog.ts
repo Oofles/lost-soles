@@ -195,8 +195,70 @@ const MEDIAN_ITERATIONS = 32
  * @returns res-10 cell ids only, every one of them within `REVEAL_R_M` of ground the
  *          runner actually covered.
  */
-export function traceToCells(trace: Trace): Set<H3Index> {
+/**
+ * WHY THE PROJECTION DROPPED WHAT IT DROPPED. Ticket `0180`; `05-fog-of-war.md` §3.6's last
+ * bullet; `02-data-model.md` T3 `traceRejectCounts`.
+ *
+ * §3.6: *"A trace with points but ALL of them filtered out by §2.2 is treated as no-GPS, and
+ * the ingest logs a warning with the reject counts so it is visible rather than silently
+ * scoring nothing."* Without these numbers a watch emitting 2,000 fixes at 60 m accuracy
+ * produces an activity indistinguishable from a treadmill run — zero cells, zero credit, no
+ * error — and the cause gets diagnosed a month later, if at all.
+ *
+ * ─── WHAT IS COUNTED, AND WHAT DELIBERATELY IS NOT ──────────────────────────
+ *
+ * These are the FOG PROJECTION's own drops, step 1 of §2.2. They are per-sample, so they are
+ * counts.
+ *
+ * `segments` is not a drop count and is included anyway: it is the honest output of step 3,
+ * the teleport gate, which **splits rather than drops** (D-212). A trace that arrives as one
+ * recording and leaves as eleven segments is a diagnostic even when nothing was rejected — and
+ * a count of "samples rejected by the speed gate" does not exist here, because no sample is.
+ *
+ * `speedGate` IS NOT HERE, and `02` T3 named it before that distinction existed (D-222). The
+ * per-sample speed-gate count that genuinely exists is the ADAPTER's — `sanitizeTracePoints`
+ * drops fixes on `MAX_IMPLIED_SPEED_MS` and reports the number, which already reaches T3
+ * inside `source.meta.rejectedPoints`. Copying it here would be the two-owners duplication
+ * D-193 names, on a number the row already carries.
+ */
+export interface TraceRejects {
+  /** Fixes whose declared `accuracyM` exceeded `MAX_ACC_M`. A cheap watch, a canyon, a roof. */
+  accuracy: number
+  /** Consecutive identical coordinates — a receiver repeating itself, contributing no geometry. */
+  duplicate: number
+  /** `NaN` or `Infinity` in a coordinate. Should be zero; a non-zero value is an adapter bug. */
+  nonFinite: number
+  /** How many pieces §2.2 steps 1-3 left the trace in. Not a drop count — see above. */
+  segments: number
+}
+
+/**
+ * The cell set, with the counts riding along.
+ *
+ * **A plain `Set` with one extra property, not a subclass.** `0180`'s criterion is that the
+ * `Set` stays *"the primary, ergonomic result"* and that existing callers *"should not have to
+ * destructure to get it"* — `for…of`, `.size`, `.has` and spread all behave exactly as before,
+ * and `0045`/`0046`'s tests needed no change. A `Set` subclass would do the same but drags in
+ * `Symbol.species` and a two-argument constructor for no benefit.
+ */
+export type CellSet = Set<H3Index> & { readonly rejects: TraceRejects }
+
+/**
+ * The counts for an activity that was projected and dropped nothing. **Written even when every
+ * field is zero**, the same rule `cellCount: 0` follows (§3.6): a reader must never have to
+ * distinguish "absent" from "none", and an absent map on a run with perfect GPS would be
+ * indistinguishable from a row written before this column existed.
+ */
+export const NO_REJECTS: TraceRejects = Object.freeze({
+  accuracy: 0,
+  duplicate: 0,
+  nonFinite: 0,
+  segments: 0,
+})
+
+export function traceToCells(trace: Trace): CellSet {
   const candidates = new Set<H3Index>()
+  const rejects: TraceRejects = { accuracy: 0, duplicate: 0, nonFinite: 0, segments: 0 }
 
   // The segments accumulate ACROSS runs, because step 5 filters once at the end against
   // all of them. A cell qualified as a candidate by one run may be within 65 m of a
@@ -208,7 +270,7 @@ export function traceToCells(trace: Trace): Set<H3Index> {
 
   for (const run of splitOnGaps(trace)) {
     // 1. clean ─────────────────────────────────────────────────────────────
-    const cleaned = clean(run)
+    const cleaned = clean(run, rejects)
     if (cleaned.length === 0) continue
 
     // 2. collapse pauses ───────────────────────────────────────────────────
@@ -217,6 +279,7 @@ export function traceToCells(trace: Trace): Set<H3Index> {
     // 3. split on implausible jumps ────────────────────────────────────────
     for (const segment of splitImplausible(collapsed)) {
       segments.push(segment)
+      rejects.segments++
 
       // 4. densify + collect candidates ──────────────────────────────────
       for (const p of densify(segment)) {
@@ -242,7 +305,7 @@ export function traceToCells(trace: Trace): Set<H3Index> {
     const [lat, lng] = cellToLatLng(c)
     if (distancePointToSegments({ lat, lng }, segments) <= REVEAL_R_M) revealed.add(c)
   }
-  return revealed
+  return Object.assign(revealed, { rejects })
 }
 
 /**
@@ -384,13 +447,22 @@ function splitOnGaps(trace: Trace): GeoPoint[][] {
  * geometry and would otherwise weight a dwell's geometric median towards whichever fix the
  * receiver happened to repeat.
  */
-function clean(points: readonly GeoPoint[]): GeoPoint[] {
+function clean(points: readonly GeoPoint[], rejects: TraceRejects): GeoPoint[] {
   const out: GeoPoint[] = []
   for (const p of points) {
-    if (p.accuracyM != null && p.accuracyM > MAX_ACC_M) continue
-    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue
+    if (p.accuracyM != null && p.accuracyM > MAX_ACC_M) {
+      rejects.accuracy++
+      continue
+    }
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) {
+      rejects.nonFinite++
+      continue
+    }
     const last = out[out.length - 1]
-    if (last && last.lat === p.lat && last.lng === p.lng) continue
+    if (last && last.lat === p.lat && last.lng === p.lng) {
+      rejects.duplicate++
+      continue
+    }
     out.push(p)
   }
   return out

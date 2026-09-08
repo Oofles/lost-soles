@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { GeoPoint, Trace } from "./activity"
 import { MAX_IMPLIED_SPEED_MS } from "./geo"
 import {
+  MAX_ACC_M,
   DENSIFY_STEP_M,
   DWELL_MIN_S,
   DWELL_SPEED_MS,
-  MAX_ACC_M,
   RES,
   REVEAL_R_M,
   TELEPORT_SPEED_MS,
@@ -685,5 +685,109 @@ describe("traceToCells — a wild outlier draws no spike (§2.2 note on noise)",
     const withoutRogue = traceToCells(trace(withOutlier(null)))
     const extra = [...withRogue].filter((c) => !withoutRogue.has(c))
     expect(extra.length).toBeLessThanOrEqual(2)
+  })
+})
+
+describe("traceRejectCounts — why the projection dropped what it dropped (0180)", () => {
+  /**
+   * `05` §3.6's last bullet: *"a trace with points but ALL of them filtered out by §2.2 is
+   * treated as no-GPS, and the ingest logs a warning with the reject counts so it is VISIBLE
+   * rather than silently scoring nothing."*
+   *
+   * Without these, a watch emitting 2,000 fixes at 60 m accuracy produces an activity
+   * indistinguishable from a treadmill run — and that is the failure this whole file's
+   * counting exists to surface.
+   */
+  it("a clean run reports zeros and one segment", () => {
+    const cells = traceToCells(trace(line(NEMO, 0, 40, 30)))
+    expect(cells.size).toBeGreaterThan(0)
+    expect(cells.rejects).toEqual({ accuracy: 0, duplicate: 0, nonFinite: 0, segments: 1 })
+  })
+
+  /** CRITERION 4. Every sample over `MAX_ACC_M`: zero cells, and the count says why. */
+  it("EVERY sample failing the accuracy gate gives zero cells and accuracy == pointCount", () => {
+    const points = line(NEMO, 0, 200, 30).map((p) => ({ ...p, accuracyM: MAX_ACC_M + 10 }))
+    const cells = traceToCells(trace(points))
+
+    expect(cells.size).toBe(0)
+    expect(cells.rejects.accuracy).toBe(points.length)
+    expect(cells.rejects.segments).toBe(0)
+  })
+
+  it("counts only the samples that failed, not the ones that passed", () => {
+    const points = line(NEMO, 0, 40, 30).map((p, i) =>
+      i % 2 === 0 ? { ...p, accuracyM: MAX_ACC_M + 1 } : { ...p, accuracyM: 5 },
+    )
+    const cells = traceToCells(trace(points))
+    expect(cells.rejects.accuracy).toBe(20)
+    expect(cells.size).toBeGreaterThan(0)
+  })
+
+  /** An absent `accuracyM` is UNKNOWN, not zero — the only source that ships sends none. */
+  it("never counts a missing accuracyM as a rejection", () => {
+    expect(traceToCells(trace(line(NEMO, 0, 20, 30))).rejects.accuracy).toBe(0)
+  })
+
+  it("counts consecutive identical coordinates as duplicates", () => {
+    const base = line(NEMO, 0, 10, 30)
+    const withRepeats = base.flatMap((p) => [p, { ...p, t: p.t + 1000 }])
+    const cells = traceToCells(trace(withRepeats))
+    expect(cells.rejects.duplicate).toBe(10)
+    expect(cells.rejects.accuracy).toBe(0)
+  })
+
+  it("counts a non-finite coordinate — a value that should always be zero", () => {
+    const points = line(NEMO, 0, 10, 30)
+    points[3] = { ...points[3]!, lat: Number.NaN }
+    points[5] = { ...points[5]!, lng: Number.POSITIVE_INFINITY }
+    expect(traceToCells(trace(points)).rejects.nonFinite).toBe(2)
+  })
+
+  /**
+   * `segments` is NOT a drop count and is reported anyway (D-222): the teleport gate splits
+   * rather than drops (D-212), so "samples rejected by the speed gate" does not exist in this
+   * layer. A recording that arrives as one trace and leaves as several is the diagnostic.
+   */
+  it("reports the segment count, which is what the teleport gate actually produces", () => {
+    const first = line(NEMO, 0, 10, 30)
+    const far = step(NEMO, 5000, 30)
+    const second = line(far, 0, 10, 30, 3, first[first.length - 1]!.t + 20_000)
+    const cells = traceToCells(trace([...first, ...second]))
+
+    expect(cells.rejects.segments).toBe(2)
+    // Nothing was DROPPED — every sample survives, in one of the two pieces.
+    expect(cells.rejects.accuracy + cells.rejects.duplicate + cells.rejects.nonFinite).toBe(0)
+    expect(cells.size).toBeGreaterThan(0)
+  })
+
+  it("a declared gap splits too, and is likewise not a drop", () => {
+    const points = line(NEMO, 0, 20, 30)
+    const cells = traceToCells(trace(points, [[9, 10]]))
+    expect(cells.rejects.segments).toBe(2)
+    expect(cells.rejects.duplicate).toBe(0)
+  })
+
+  it("an empty trace reports zeros and no segments", () => {
+    expect(traceToCells(trace([])).rejects).toEqual({
+      accuracy: 0,
+      duplicate: 0,
+      nonFinite: 0,
+      segments: 0,
+    })
+  })
+
+  /**
+   * CRITERION 1's ergonomics clause: the `Set` stays the primary result and no existing caller
+   * had to destructure. Asserted rather than assumed, because a `Set` subclass or a
+   * `{cells, rejects}` tuple would both have broken every call site in `0045` and `0046`.
+   */
+  it("is still an ordinary Set — size, has, iteration and spread all unchanged", () => {
+    const cells = traceToCells(trace(line(NEMO, 0, 20, 30)))
+    expect(cells).toBeInstanceOf(Set)
+    expect(typeof cells.size).toBe("number")
+    const spread = [...cells]
+    expect(spread).toHaveLength(cells.size)
+    expect(cells.has(spread[0]!)).toBe(true)
+    for (const c of cells) expect(getResolution(c)).toBe(RES)
   })
 })

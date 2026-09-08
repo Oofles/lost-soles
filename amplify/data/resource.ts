@@ -50,11 +50,25 @@ const workoutSet = a.customType({
   weightKg: a.float(),
 })
 
-/** 05 §3.6 — makes a silently-garbage GPS record visible instead of merely absent. */
+/**
+ * 05 §3.6 — makes a silently-garbage GPS record visible instead of merely absent. Ticket
+ * `0180`, and the shape moved from `02` T3's original `{speedGate, accuracy, duplicate}`
+ * (D-222).
+ *
+ * These are the FOG PROJECTION's own per-sample drops (§2.2 step 1), plus `segments`, which is
+ * not a drop count and is here anyway: the teleport gate SPLITS rather than drops (D-212), so
+ * "samples rejected by the speed gate" does not exist in this layer — a trace that arrives as
+ * one recording and leaves as eleven segments is the diagnostic instead.
+ *
+ * `speedGate` is gone for that reason, and because the per-sample count that genuinely exists
+ * is the adapter sanitizer's and already reaches this row inside `source.meta`. Two copies of
+ * one number is the duplication D-193 names.
+ */
 const traceRejectCounts = a.customType({
-  speedGate: a.integer().required(),
   accuracy: a.integer().required(),
   duplicate: a.integer().required(),
+  nonFinite: a.integer().required(),
+  segments: a.integer().required(),
 })
 
 const schema = a.schema({
@@ -140,7 +154,18 @@ const schema = a.schema({
       newCellCount: a.integer(),
       rearmedCellCount: a.integer(),
       cooledCellCount: a.integer(),
-      /** `cells/<uid>/<id>.cells.bin` — the per-activity set, needed for un-award (05 §3.5). */
+      /**
+       * `0050`, 05 §3.4 / D-221. Cells whose verdict could not be decided incrementally
+       * because this activity is EARLIER than their `lastRunAt`. A non-zero value means the
+       * award is PROVISIONAL until a replay folds the history.
+       *
+       * **Added here by `0180`, one ticket late.** `0050` wrote it in `persist.ts` and did not
+       * declare it — DynamoDB is schemaless so the attribute landed, but AppSync would not
+       * return a field it does not know about, so the column was unreadable by anything that
+       * would ever want it.
+       */
+      deferredCellCount: a.integer(),
+      /** `users/<uid>/cells/<id>.bin` — the per-activity set, needed for un-award (05 §3.5). */
       cellsRef: a.string(),
       /**
        * ACTIVE | TOMBSTONED. A source-side delete sets TOMBSTONED; **cells are never

@@ -2,6 +2,7 @@ import { TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/l
 
 import type { Activity } from "@/src/domain/activity"
 import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
+import { NO_REJECTS, type TraceRejects } from "@/src/domain/fog"
 
 import { objectKeys } from "./explored-blob-store"
 import { doneTransactItem } from "./ingest-receipt"
@@ -133,6 +134,12 @@ export function activityItem(
    * a shape a reader would have to special-case.
    */
   award: DiscoveryAward = NO_CELLS,
+  /**
+   * `0180`, §3.6. Why the projection dropped what it dropped. Defaults to `NO_REJECTS` for
+   * the same reason `award` defaults to `NO_CELLS`: a treadmill run has nothing to report and
+   * still writes the column, so no reader distinguishes "absent" from "none".
+   */
+  rejects: TraceRejects = NO_REJECTS,
 ): Record<string, unknown> {
   return {
     ...amplifyMetadata(activity.userId, activity.ingestedAt),
@@ -230,6 +237,18 @@ export function activityItem(
     cellsRef:
       award.cellCount > 0 ? objectKeys.runCells(activity.userId, activity.activityId) : null,
 
+    /**
+     * `0180`, §3.6's last bullet, and `02` T3's column. The projection's own per-sample drops
+     * plus the segment count — see `TraceRejects`, which also records why `speedGate` is not
+     * among them (D-222): the fog's teleport gate splits rather than drops, and the per-sample
+     * speed-gate count that does exist is the adapter's and already reaches this row inside
+     * `source.meta`.
+     *
+     * WRITTEN EVEN WHEN EVERY FIELD IS ZERO. A missing map on a run with perfect GPS would be
+     * indistinguishable from a row written before the column existed.
+     */
+    traceRejectCounts: { ...rejects },
+
     /** ACTIVE | TOMBSTONED. A source-side delete tombstones; cells are never removed. */
     status: "ACTIVE",
   }
@@ -293,12 +312,14 @@ export async function persistActivity(
    * T3 row, not items in T6.
    */
   award: DiscoveryAward = NO_CELLS,
+  /** `0180`. Rides in the same transaction as the award, for the same reason. */
+  rejects: TraceRejects = NO_REJECTS,
 ): Promise<void> {
   const items: NonNullable<TransactWriteCommandInput["TransactItems"]> = [
     {
       Put: {
         TableName: deps.activityTable,
-        Item: activityItem(activity, award),
+        Item: activityItem(activity, award, rejects),
       },
     },
     /**

@@ -2572,3 +2572,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     its input is sorted, so a negative delta there is a sorting bug in the one function whose
     entire contract is that it is sorted (I-14). That is worth failing loudly for, and
     `fold.ts` is where it now throws.
+
+- **D-222** **`traceRejectCounts` is `{accuracy, duplicate, nonFinite, segments}`, not
+  `{speedGate, accuracy, duplicate}`.** *(Ticket `0180`.)*
+  - **`speedGate` describes something that does not happen in this layer.** `02` T3 named it
+    before D-212 drew the distinction: §2.2 step 3 does not DROP an implausible sample, it
+    **splits the trace** either side of it, so "samples rejected by the speed gate" has no
+    value to report. Every other key in the column is a per-sample count; that one would have
+    had to be a count of splits under a name that says samples.
+  - **And the per-sample speed-gate count that genuinely exists is not the fog's.** The adapter
+    sanitizer (`0037`) drops fixes on `MAX_IMPLIED_SPEED_MS` and reports how many, and that
+    number already reaches T3 inside `source.meta.rejectedPoints`. Copying it into
+    `traceRejectCounts` would be two owners for one number — the duplication D-193 names — on a
+    row that already carries it.
+  - **`segments` replaces it, and is honest about not being a drop count.** It is what the
+    teleport gate actually produces, and it is a real diagnostic on its own: a recording that
+    arrives as one trace and leaves as eleven pieces has something wrong with it even when
+    nothing was rejected.
+  - **`nonFinite` was added.** `clean()` already dropped `NaN`/`Infinity` coordinates silently.
+    The count should always be zero, and a non-zero value is an adapter bug — which is exactly
+    the kind of thing worth a column rather than a silent `continue`.
+  - **The counts ride on the `Set`, not beside it.** `traceToCells` returns
+    `Set<H3Index> & { rejects }` — a plain Set with one extra property, not a subclass and not a
+    `{cells, rejects}` tuple. `0045` and `0046` specify that return type precisely and their
+    tests passed unchanged; a tuple would have rewritten every call site to widen a contract
+    that did not change a single classification.

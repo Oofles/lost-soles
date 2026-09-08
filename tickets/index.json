@@ -4127,6 +4127,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T05:20:45Z",
+    "started": "2026-09-08T15:06:32Z",
     "path": "tickets/open/0180-trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec.md",
     "ready": true,
     "acceptance": {
@@ -4191,7 +4192,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]

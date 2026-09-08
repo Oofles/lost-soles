@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { NO_CELLS } from "@/src/domain/discovery"
+
 import {
   SourceNeedsReauthError,
   SourceNotConnectedError,
@@ -183,15 +185,82 @@ describe("criterion 6 — a dead credential fails to the DLQ without looping", (
   })
 })
 
+/** The `console.warn` lines §3.6's guard emits, as rendered strings. */
+const noCellWarnings = (): string[] =>
+  vi
+    .mocked(console.warn)
+    .mock.calls.map((c) => String(c[0]))
+    .filter((line) => line.includes("trace-yielded-no-cells"))
+
 describe("what the handler does with the pipeline's four outcomes", () => {
   it("acks a persisted activity", async () => {
     runPipeline.mockResolvedValue({
       outcome: "persisted",
       activityId: "a-1",
-      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, persistMs: 6, totalMs: 21 },
+      cells: { advanced: 4, backfilled: 0, unchanged: 0 },
+      award: { ...NO_CELLS, cellCount: 4, newCellCount: 4 },
+      blobs: null,
+      rejects: null,
+      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, cellsMs: 6, blobsMs: 7, persistMs: 8, totalMs: 21 },
     })
 
     await expect(handler(event())).resolves.toBeUndefined()
+  })
+
+  /**
+   * §3.6's last bullet (ticket `0180`). Points went in, nothing came out — the one ingest
+   * outcome that looks completely normal and is not. ONE warning, naming the counts.
+   */
+  it("warns once when a trace had points and yielded no cells", async () => {
+    runPipeline.mockResolvedValue({
+      outcome: "persisted",
+      activityId: "a-1",
+      cells: { advanced: 0, backfilled: 0, unchanged: 0 },
+      award: NO_CELLS,
+      blobs: null,
+      rejects: { accuracy: 2000, duplicate: 0, nonFinite: 0, segments: 0 },
+      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, cellsMs: 6, blobsMs: 0, persistMs: 8, totalMs: 21 },
+    })
+
+    await expect(handler(event())).resolves.toBeUndefined()
+    // `log.warn` serialises through `lib/log.ts`'s redactor, so the spy sees one string.
+    const warnings = noCellWarnings()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('"activityId":"a-1"')
+    expect(warnings[0]).toContain('"accuracy":2000')
+    expect(warnings[0]).toContain('"segments":0')
+  })
+
+  /** A traceless activity is NOT a fault, and must not produce the warning. */
+  it("does not warn for a treadmill run — there was nothing to project", async () => {
+    runPipeline.mockResolvedValue({
+      outcome: "persisted",
+      activityId: "a-1",
+      cells: null,
+      award: NO_CELLS,
+      blobs: null,
+      rejects: null,
+      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, cellsMs: 0, blobsMs: 0, persistMs: 8, totalMs: 21 },
+    })
+
+    await expect(handler(event())).resolves.toBeUndefined()
+    expect(noCellWarnings()).toHaveLength(0)
+  })
+
+  /** A run with perfect GPS reports zeros and still does not warn. */
+  it("does not warn when a projection ran and produced cells", async () => {
+    runPipeline.mockResolvedValue({
+      outcome: "persisted",
+      activityId: "a-1",
+      cells: { advanced: 9, backfilled: 0, unchanged: 0 },
+      award: { ...NO_CELLS, cellCount: 9, newCellCount: 9 },
+      blobs: null,
+      rejects: { accuracy: 0, duplicate: 0, nonFinite: 0, segments: 1 },
+      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, cellsMs: 6, blobsMs: 7, persistMs: 8, totalMs: 21 },
+    })
+
+    await expect(handler(event())).resolves.toBeUndefined()
+    expect(noCellWarnings()).toHaveLength(0)
   })
 
   /** The replay no-op. A duplicate that finds a finished winner is a SUCCESS. */

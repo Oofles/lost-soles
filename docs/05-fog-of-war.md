@@ -618,6 +618,18 @@ produce **zero cells**. The fog subsystem's contract for these is narrow and exp
   treated as no-GPS, and the ingest logs a warning with the reject counts so it is visible rather
   than silently scoring nothing.
 
+  **The counts are `traceToCells`' own** (ticket `0180`): `{accuracy, duplicate, nonFinite,
+  segments}`, returned alongside the cell set and stored on T3's `traceRejectCounts`. Written
+  even when every field is zero — the same rule `cellCount: 0` follows above, so a reader never
+  distinguishes "absent" from "none". The warning fires when a projection ran and produced no
+  cells; a genuinely traceless activity logs nothing, because it is not a fault.
+
+  `segments` is not a drop count and is reported anyway (D-222): §2.2 step 3 SPLITS rather than
+  drops (D-212), so a count of "samples the speed gate rejected" does not exist in this layer — a
+  recording that arrives as one trace and leaves as eleven pieces is the diagnostic instead. The
+  per-sample speed-gate count that does exist belongs to the adapter sanitizer and already
+  reaches T3 inside `source.meta`.
+
 ---
 
 ## 4. Rendering
