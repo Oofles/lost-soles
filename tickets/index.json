@@ -4118,7 +4118,7 @@
     "title": "Trace reject counts reach T3 — make a silently-garbage GPS record visible",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -4128,10 +4128,11 @@
     "source": "agent",
     "created": "2026-09-08T05:20:45Z",
     "started": "2026-09-08T15:06:32Z",
-    "path": "tickets/open/0180-trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec.md",
-    "ready": true,
+    "closed": "2026-09-08T15:16:21Z",
+    "path": "tickets/closed/0180-trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },

@@ -4,7 +4,7 @@ slug: trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec
 title: Trace reject counts reach T3 — make a silently-garbage GPS record visible
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: [48]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-08T05:20:45Z
 started: 2026-09-08T15:06:32Z
+closed: 2026-09-08T15:16:21Z
 ---
 
 ## Description
