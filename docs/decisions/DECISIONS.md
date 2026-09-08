@@ -2624,3 +2624,48 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     repo is public). It now reads GPX too, and its own self-test caught the first
     implementation requiring `lat` before `lon`: GPX does not fix attribute order, so
     `<trkpt lon="…" lat="…"/>` would have walked straight past.
+
+- **D-224** **An invariant is cited when an `I-n` appears in the NAME of a `describe`/`it`/`test`,
+  never merely somewhere in a test file.** *(Ticket `0161`.)*
+  - **The old rule counted prose, and prose is free.** `0133` scanned test files for `/\bI-\d+\b/`.
+    A sweep satisfiable by typing `I-7` into a comment measures nothing — it measures that somebody
+    typed `I-7`. `0133` had already been bitten by the weak form once, when its own fixture rows
+    activated the sweep against the real backlog, and fixed it by narrowing **where** it looked
+    (`src|app|lib|scripts`) rather than **what counts**.
+  - **A title is bound to an assertion that runs.** It appears in vitest's output, so "what covers
+    I-9?" is answered by running the suite rather than by grepping and reading. Deleting or renaming
+    the test removes the citation, which is the only reason D-225's regression check can mean
+    anything: a comment survives the deletion of the code it describes, and would keep vouching for
+    coverage that no longer exists.
+  - **It cost nothing to adopt.** At the time of the change 15 invariants appeared somewhere in a
+    test file and 9 appeared in a test name; the codebase had already reached for the strong form on
+    its own (`it("stores all three time fields (I-13)")`, `describe("cells are written BEFORE the
+    transaction (I-10, D-144)")`). The rule ratified an existing idiom rather than imposing one.
+  - **Comments keep their job.** `explored-cells.test.ts` explains *why* I-8 forbids an
+    unconditional `SET` in twelve lines of prose that no test name could carry. The rule says prose
+    is not evidence of coverage, not that prose is unwelcome.
+
+- **D-225** **The invariant sweep is a RATCHET with a high-water mark, and goes all-or-nothing only
+  when `0116` declares the set complete.** *(Ticket `0161`. Supersedes `0133`'s binary trigger.)*
+  - **`0133`'s trigger was `na` until the first citation, then all thirty or fail.** The first
+    correct citation therefore armed a gate nothing could satisfy: `0116` — "a test, or a written
+    reason it cannot have one, for each of the thirty" — sits in capability `18`, and correctly so,
+    because most of the thirty are about the fog, the ledger and the rebuild drill. The sweep went
+    red in capability `04` and would have stayed red through `17`.
+  - **A gate that cannot go green until the last capability is not a gate.** It is a row everyone
+    learns to scroll past — the exact failure `0133`'s own reasoning invoked when it chose `na` over
+    thirty red rows on an empty repo. The right lesson was applied at the wrong end of the timeline.
+  - **The mechanism: `docs/capabilities/invariant-citations.json`.** It holds the set ever cited
+    plus a `complete` flag. The row FAILs on a **lost** citation, PASSes otherwise with the count
+    and with the sentence naming what would change the verdict, and becomes all-or-nothing the day
+    `0116` sets `"complete": true`. **`0116`'s remit is untouched** — this decision fixes the gate's
+    timing, it does not do the sweep or shrink what `0116` must still deliver.
+  - **The mark rises only in `audit --record`, and says so out loud.** The moment a capability is
+    declared done is the right moment to raise a bar, and it keeps a single writer. Raising it on
+    every `audit` run would let a citation appear and vanish between two audits with nothing to
+    show for it; never raising it would protect only what `0161` happened to freeze. A deliberate
+    removal goes through the existing `--force "<reason>"`, which writes the reason into the
+    capability doc rather than hiding it.
+  - **A corrupt ratchet file FAILs rather than reading as an empty one.** An unreadable high-water
+    mark means a lost citation passes unnoticed, which is worse than the bug this fixed. The same
+    instinct as `NA`-with-a-reason: "could not check" must never render as "checked".

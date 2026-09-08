@@ -818,7 +818,7 @@ describe("0133 — audit runs AUDIT.md's mechanical half and is honest about wha
     rmSync(d, { recursive: true, force: true });
   });
 
-  test("the invariant sweep parses I-n rows and goes live once a test cites one", () => {
+  test("the invariant sweep parses I-n rows and goes live once a test NAMES one (0161)", () => {
     const d = repo();
     const cap = withCap(d);
     mkdirSync(join(d, "docs"), { recursive: true });
@@ -829,20 +829,28 @@ describe("0133 — audit runs AUDIT.md's mechanical half and is honest about wha
     let c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
     assert.equal(c.status, "na");
     assert.match(c.detail, /2 invariants declared/);
-    assert.match(c.detail, /activates/);
+    assert.match(c.detail, /arms with the first/);
 
-    // One cited, one not: live, and it names the gap rather than the coverage.
+    // PROSE IS NOT A CITATION (D-224). The old rule counted this and it is the
+    // whole reason the row could be satisfied by typing a string into a comment.
     mkdirSync(join(d, "src"), { recursive: true });
-    writeFileSync(join(d, "src/cells.test.mjs"), "// asserts I-1 holds\n");
+    writeFileSync(join(d, "src/cells.test.mjs"), "// asserts I-1 holds\nit('reveals a cell', () => {})\n");
     c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
-    assert.equal(c.status, "fail");
-    assert.match(c.detail, /I-2/);
-    assert.ok(!/I-1\b/.test(c.detail.replace(/1\/2/, "")), `I-1 is cited and must not be listed as missing: ${c.detail}`);
+    assert.equal(c.status, "na", `a comment must not activate the sweep: ${c.detail}`);
 
-    // Both cited: pass.
-    writeFileSync(join(d, "src/xp.test.mjs"), "// asserts I-2 holds\n");
+    // A test NAME does. And one of two cited is a PASS, not a fail: the ratchet
+    // reports progress rather than punishing a capability for work not yet due.
+    writeFileSync(join(d, "src/cells.test.mjs"), "it('never re-fogs a cell (I-1)', () => {})\n");
     c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
     assert.equal(c.status, "pass", c.detail);
+    assert.match(c.detail, /1\/2 invariants cited/);
+    assert.match(c.detail, /complete/, `the detail must name what would change the verdict: ${c.detail}`);
+
+    // Both cited, and still not "all-or-nothing" until 0116 says so.
+    writeFileSync(join(d, "src/xp.test.mjs"), "describe('xp only grows (I-2)', () => {})\n");
+    c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+    assert.equal(c.status, "pass", c.detail);
+    assert.match(c.detail, /2\/2 invariants cited/);
     rmSync(d, { recursive: true, force: true });
   });
 
@@ -856,7 +864,9 @@ describe("0133 — audit runs AUDIT.md's mechanical half and is honest about wha
     mkdirSync(join(d, "docs"), { recursive: true });
     writeFileSync(join(d, "docs/02-data-model.md"), "| **I-1** | never re-fog | why | CI |\n");
     mkdirSync(join(d, ".claude/skills/x"), { recursive: true });
-    writeFileSync(join(d, ".claude/skills/x/tool.test.mjs"), "const fixture = '| **I-1** | never re-fog |';\n");
+    // A real test title, not a bare string: under D-224 a comment would be
+    // ignored anyway, and this test must still prove the ROOT scoping.
+    writeFileSync(join(d, ".claude/skills/x/tool.test.mjs"), "it('parses an | **I-1** | row', () => {})\n");
     const c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
     assert.equal(c.status, "na", `tooling fixtures must not activate the sweep: ${c.detail}`);
     rmSync(d, { recursive: true, force: true });
@@ -1640,6 +1650,134 @@ describe("0023 — triage: promote, merge, decline, defer", () => {
     assert.ok(existsSync(join(d, "tickets/closed/0041-streak-freeze-after-7-days.md")));
     // Max-plus-one, never gap-filling: 41 is spent, so create gets 42.
     assert.match(run(d, "create", "--title", "Next", "--type", "chore", "--priority", "low").out, /0042/);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ─────────────────────── 0161 the invariant ratchet + the vigil marker ────
+
+describe("0161 — the invariant sweep is a ratchet, and it fails on a lost citation", () => {
+  const REFLECT = "\n## Reflection\n\n" + "The design got the validator's flat rule list right, which is why conformance could be checked line by line rather than argued about. ".repeat(3) + "\n";
+  const CITATIONS = "docs/capabilities/invariant-citations.json";
+
+  /** A repo with two invariants, one cited by a test NAME, ready to record. */
+  const armed = (cap = "00-x") => {
+    const d = repo();
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n${REFLECT}`);
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    mkdirSync(join(d, "docs"), { recursive: true });
+    writeFileSync(join(d, "docs/02-data-model.md"),
+      "## 9. Invariants\n\n| **I-1** | never re-fog | why | **[S]** enforced |\n| **I-2** | xp only grows | why | CI |\n");
+    mkdirSync(join(d, "src"), { recursive: true });
+    writeFileSync(join(d, "src/cells.test.mjs"), "it('never re-fogs a cell (I-1)', () => {})\n");
+    return [d, cap];
+  };
+  const sweep = (d, cap) => JSON.parse(run(d, "audit", cap, "--json").out).checks.find((c) => c.id === "invariant-sweep");
+  const ratchet = (d) => JSON.parse(readFileSync(join(d, CITATIONS), "utf8"));
+
+  test("--record raises the high-water mark, and says out loud that it did", () => {
+    // Silently raising a bar is how a ratchet becomes a trap. The gain is
+    // printed because the next audit will fail if any of it disappears.
+    const [d, cap] = armed();
+    assert.ok(!existsSync(join(d, CITATIONS)), "no ratchet file before the first record");
+    const r = run(d, "audit", cap, "--record", "--no-divergences");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /ratchet raised/);
+    assert.match(r.out, /I-1/);
+    assert.deepEqual(ratchet(d).cited, ["I-1"]);
+    assert.equal(ratchet(d).complete, false, "0116 sets this, not the audit");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a citation that was recorded and is then removed FAILS the audit", () => {
+    // The one thing this row can prove before 0116 runs, and the reason the
+    // fix for 0161 is a ratchet rather than a return to n/a.
+    const [d, cap] = armed();
+    run(d, "audit", cap, "--record", "--no-divergences");
+    assert.equal(sweep(d, cap).status, "pass");
+
+    writeFileSync(join(d, "src/cells.test.mjs"), "it('never re-fogs a cell', () => {})\n");
+    const c = sweep(d, cap);
+    assert.equal(c.status, "fail", `a lost citation must fail: ${c.detail}`);
+    assert.match(c.detail, /REGRESSION/);
+    assert.match(c.detail, /I-1/);
+    assert.match(c.detail, /--force/, "the detail must name the deliberate-removal path");
+    assert.notEqual(run(d, "audit", cap).code, 0, "and the audit as a whole must be red");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("an uncited invariant does NOT fail until 0116 sets complete: true", () => {
+    // The defect 0161 exists to fix: `0116` lands in capability 18, so an
+    // all-or-nothing row is red for every capability from 04 to 17.
+    const [d, cap] = armed();
+    run(d, "audit", cap, "--record", "--no-divergences");
+    let c = sweep(d, cap);
+    assert.equal(c.status, "pass", `I-2 is uncited and not yet due: ${c.detail}`);
+    assert.match(c.detail, /1\/2 invariants cited/);
+
+    const j = ratchet(d);
+    writeFileSync(join(d, CITATIONS), JSON.stringify({ ...j, complete: true }, null, 2));
+    c = sweep(d, cap);
+    assert.equal(c.status, "fail", "declared complete, so a gap is now a failure");
+    assert.match(c.detail, /I-2/);
+    assert.match(c.detail, /complete/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the full set cited under complete: true is the only way to a clean pass", () => {
+    const [d, cap] = armed();
+    writeFileSync(join(d, "src/xp.test.mjs"), "describe('xp only grows (I-2)', () => {})\n");
+    run(d, "audit", cap, "--record", "--no-divergences");
+    const j = ratchet(d);
+    assert.deepEqual(j.cited, ["I-1", "I-2"]);
+    writeFileSync(join(d, CITATIONS), JSON.stringify({ ...j, complete: true }, null, 2));
+    const c = sweep(d, cap);
+    assert.equal(c.status, "pass", c.detail);
+    assert.match(c.detail, /all 2 invariants/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("a corrupt ratchet file fails rather than reading as an empty one", () => {
+    // An unreadable high-water mark means a lost citation would pass unnoticed,
+    // which is worse than the bug 0161 fixed. Silence is not the safe default.
+    const [d, cap] = armed();
+    writeFileSync(join(d, CITATIONS), "{ not json\n");
+    const c = sweep(d, cap);
+    assert.equal(c.status, "fail", c.detail);
+    assert.match(c.detail, /invariant-citations\.json/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("I-10 sorts after I-9 in the report, not between I-1 and I-2", () => {
+    const [d, cap] = armed();
+    writeFileSync(join(d, "docs/02-data-model.md"),
+      "## 9. Invariants\n\n| **I-2** | b | why | CI |\n| **I-9** | i | why | CI |\n| **I-10** | j | why | CI |\n");
+    writeFileSync(join(d, "src/cells.test.mjs"),
+      "it('a (I-10)', () => {})\nit('b (I-9)', () => {})\nit('c (I-2)', () => {})\n");
+    const c = sweep(d, cap);
+    assert.match(c.detail, /I-2, I-9, I-10/, `numeric order, not lexicographic: ${c.detail}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the vigil test is found by its marker, not by its filename", () => {
+    // The bug: `0030` shipped the vigil test as `registry-delta.test.ts` — the
+    // method is a registry delta — and a filename matcher reported "no vigil
+    // test exists yet" for four capabilities after it closed.
+    const [d, cap] = armed();
+    let c = JSON.parse(run(d, "audit", cap, "--json").out).checks.find((x) => x.id === "vigil-test");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /THE VIGIL TEST/, "the n/a must name the marker that would activate it");
+
+    // The finder directly, not through the audit: activating the row makes it
+    // shell out to vitest, and this test is about which file gets found.
+    writeFileSync(join(d, "src/registry-delta.test.mjs"), "/** THE VIGIL TEST — adding a workout type is a row. */\n");
+    const probe = join(d, "probe.mjs");
+    writeFileSync(probe, `const m = await import(process.env.SCRIPT);\nconsole.log(m.vigilTests().join(","));\n`);
+    const found = spawnSync("node", [probe],
+      { cwd: d, env: { ...process.env, TICKETS_ROOT: d, SCRIPT }, encoding: "utf8" });
+    assert.match(found.stdout, /registry-delta\.test\.mjs/,
+      `the marker must locate the file whatever it is called: ${found.stdout}${found.stderr}`);
     rmSync(d, { recursive: true, force: true });
   });
 });

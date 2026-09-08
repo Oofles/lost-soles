@@ -79,6 +79,24 @@ runtime moment is the post-run moment and the user is standing outside.
 Where an earlier capability already wrote the test, this sweep's job is verification, not
 duplication — link to the existing test rather than writing a second one that can drift.
 
+**2026-09-08, ticket `0161` — this ticket's remit is UNCHANGED.** `0161` fixed the *timing* of the
+AUDIT.md §1 invariant row, which `0133` had armed all-or-nothing on the first citation and which
+therefore went red in capability `04` and would have stayed red until this ticket ran in `18`. It
+is now a ratchet: it fails on a lost citation and otherwise reports progress. **It did not do any
+part of the sweep and it reduced nothing you must still deliver** — all thirty invariants still
+need a test or a written reason they cannot have one.
+
+Two things `0161` added that change *how* you finish, not *what*:
+
+- **A citation is an `I-n` in the NAME of a `describe`/`it`/`test`** (D-224), not an `I-n` in a
+  comment. Where you link to an existing test rather than writing a new one, check its name carries
+  the `I-n` — several already do, some carry it only in the file's header prose and will not count.
+- **Closing this ticket means setting `"complete": true` in
+  `docs/capabilities/invariant-citations.json`** (D-225). That is the switch that makes the row
+  all-or-nothing over the full set, and it is this ticket's to throw. Until it is thrown the audit
+  cannot tell "not due yet" from "quietly never done", which is the whole reason the flag is
+  explicit rather than inferred from a count.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

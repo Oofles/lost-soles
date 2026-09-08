@@ -14,14 +14,29 @@ the only thing standing between a 19-capability build and architectural drift.
 ## 1. Automated — must be green, no exceptions
 
 - [ ] `tsc --noEmit`, ESLint, and the full `vitest` suite pass.
-- [ ] **Invariant sweep**: every applicable invariant from `02-data-model.md` §9 (`I-1`…`I-30`)
-      has a passing test. Any marked `[S]` (structural) is still structurally enforced, not
-      downgraded to a test that could be deleted.
+- [ ] **Invariant sweep — a ratchet, not a scorecard** (D-224, D-225). An invariant from
+      `02-data-model.md` §9 (`I-1`…`I-30`) counts as covered when **an `I-n` appears in the NAME of
+      a `describe`/`it`/`test`** under `src|app|lib|scripts` — not in a comment. A title is bound to
+      an assertion that runs, shows up in test output, and vanishes when the test is deleted or
+      renamed; a comment buys coverage for the price of typing a string.
+      `docs/capabilities/invariant-citations.json` holds the set ever cited. The row **fails on a
+      regression** — an invariant that was cited and is not any more — and otherwise reports
+      progress: the rest of the thirty are not due until `0116` (capability 18) sets
+      `"complete": true` in that file, which turns the row all-or-nothing over the full set.
+      The high-water mark is raised **only** by `tickets.mjs audit --record`, which prints what it
+      added; a deliberate removal goes through `--force "<reason>"`, which writes the reason into
+      the capability doc. Never hand-edit the file to make an audit pass.
+      Any invariant marked `[S]` (structural) is still structurally enforced, not downgraded to a
+      test that could be deleted.
 - [ ] **Boundary greps clean**: `grep -ri strava src/domain src/pipeline` returns nothing;
       no skill id string appears anywhere in `src/`; `normalize()` is still pure.
 - [ ] **The Vigil test passes** — adding a workout type is still a YAML row and zero code (D-031,
       D-141). This is the canary for the whole modularity claim; if it ever needs a code change to
       pass, stop and fix the schema, do not amend the test.
+      It is located by the marker **`THE VIGIL TEST`** in the file, never by its filename: it ships
+      as `src/rules/registry-delta.test.ts`, because the method is a registry delta. **Keep the
+      marker if you move or rename it** — a filename matcher reported "no vigil test exists yet"
+      for four capabilities after `0030` closed (ticket `0161`).
 - [ ] `/tickets validate` reports no errors across `open/` and `closed/`.
 
 ## 2. Design conformance — the manual half, and the part that actually catches drift

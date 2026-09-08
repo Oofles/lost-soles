@@ -3736,6 +3736,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T17:03:08Z",
+    "started": "2026-09-08T17:37:43Z",
     "path": "tickets/open/0161-invariant-sweep-activation-rule.md",
     "ready": true,
     "acceptance": {

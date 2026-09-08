@@ -507,11 +507,88 @@ function npmCheck(id, section, script) {
  * precisely so tests can cite them, so the sweep is a citation check: which
  * invariants does a test actually name?
  *
- * It stays `na` until at least one test cites one. That is deliberate rather
- * than lenient — reporting 30 uncited invariants as failures on a repo with no
- * domain model would be noise that trains everyone to ignore the row, and the
- * reason string names exactly what switches it on.
+ * **It is a RATCHET, not a pass/fail on the whole set** (D-225, ticket 0161).
+ * `0133` armed it all-or-nothing on the first citation, which made it red for
+ * every capability from `04` to `17` — the ticket that supplies the full thirty
+ * citations, `0116`, sits in capability `18`, and correctly so: most of the
+ * thirty are about the fog, the ledger and the rebuild drill, none of which
+ * exist when the row first goes live. A gate that cannot go green until the
+ * last capability is not a gate; it is a row everyone learns to scroll past.
+ *
+ * So: `docs/capabilities/invariant-citations.json` holds the set ever cited.
+ * The row fails on a **regression** — an invariant that was cited and is not
+ * any more — and, once `0116` sets `"complete": true`, on any invariant still
+ * uncited. In between it reports progress and says what would change the
+ * verdict. The ratchet advances only in `audit --record`; see `advanceRatchet`.
  */
+const CITATIONS = "docs/capabilities/invariant-citations.json";
+
+/** `I-9` before `I-10`. Sorting these as strings reads as a bug in the report. */
+const byInvariant = (a, b) => Number(a.slice(2)) - Number(b.slice(2));
+
+/**
+ * A citation is an `I-n` in the NAME of a `describe`/`it`/`test`, not anywhere
+ * in the file (D-224).
+ *
+ * The old rule counted prose, and a sweep satisfiable by typing `I-7` into a
+ * comment measures nothing. A title is attached to an assertion that runs, it
+ * appears in test output — so "what covers I-9?" is answered by running the
+ * suite — and it disappears when the test is deleted or renamed, which is the
+ * only reason the regression check below means anything.
+ */
+const TITLE_RE = /\b(?:describe|it|test)(?:\.\w+)*\s*\(\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
+
+function citedInvariants(files = testFiles()) {
+  const cited = new Map();
+  for (const f of files) {
+    for (const m of readFileSync(f, "utf8").matchAll(TITLE_RE)) {
+      for (const n of m[2].matchAll(/\bI-\d+\b/g)) {
+        if (!cited.has(n[0])) cited.set(n[0], new Set());
+        cited.get(n[0]).add(relative(ROOT, f));
+      }
+    }
+  }
+  return cited;
+}
+
+/** The ratchet's high-water mark. `malformed` is deliberately not "empty". */
+function citationRatchet() {
+  const p = join(ROOT, CITATIONS);
+  if (!existsSync(p)) return { cited: [], complete: false, exists: false };
+  try {
+    const j = JSON.parse(readFileSync(p, "utf8"));
+    return { cited: Array.isArray(j.cited) ? j.cited : [], complete: j.complete === true, exists: true, raw: j };
+  } catch {
+    return { cited: [], complete: false, exists: true, malformed: true };
+  }
+}
+
+/**
+ * Advance the high-water mark — called from `--record` and nowhere else.
+ *
+ * The moment a capability is declared done is the right moment to raise the
+ * bar, and it keeps a single writer. Advancing on every `audit` run would let a
+ * citation appear and vanish between two audits with nothing to show for it;
+ * advancing never would mean the regression check protects only what 0161 froze.
+ */
+function advanceRatchet(cited) {
+  const cur = citationRatchet();
+  if (cur.malformed) return null;
+  const merged = [...new Set([...cur.cited, ...cited])].sort(byInvariant);
+  if (cur.exists && merged.length === cur.cited.length) return null;
+  const out = {
+    note: "High-water mark for the AUDIT.md §1 invariant sweep (D-224/D-225, ticket 0161). " +
+          "An invariant is listed once a describe/it/test NAME cites it. Removing a listed " +
+          "invariant's citing test fails the next audit. Advanced only by 'tickets.mjs audit " +
+          "--record'; never hand-edited to make an audit pass. Set \"complete\": true in ticket " +
+          "0116, which turns the row all-or-nothing over the full I-1..I-30 set.",
+    complete: cur.raw?.complete === true,
+    cited: merged,
+  };
+  writeFileSync(join(ROOT, CITATIONS), JSON.stringify(out, null, 2) + "\n");
+  return merged.filter((i) => !cur.cited.includes(i));
+}
+
 function invariantSweep() {
   const doc = join(ROOT, "docs/02-data-model.md");
   const S = "1";
@@ -520,19 +597,43 @@ function invariantSweep() {
     .map((m) => ({ id: m[1], structural: m[2].includes("[S]") }));
   if (!invariants.length) return NA("invariant-sweep", S, "no `| **I-n** |` rows found in 02-data-model.md §9");
 
-  const tests = testFiles();
-  const cited = new Set();
-  for (const f of tests) {
-    for (const m of readFileSync(f, "utf8").matchAll(/\bI-\d+\b/g)) cited.add(m[0]);
+  const ratchet = citationRatchet();
+  if (ratchet.malformed) {
+    return FAIL("invariant-sweep", S,
+      `${CITATIONS} is not readable JSON — the ratchet's high-water mark cannot be checked, so a lost citation would pass unnoticed. Fix the file (git history has the last good copy)`);
   }
-  if (!cited.size) {
+
+  const cited = citedInvariants();
+  const known = new Set(invariants.map((i) => i.id));
+  const live = [...cited.keys()].filter((id) => known.has(id)).sort(byInvariant);
+  const lost = ratchet.cited.filter((id) => !cited.has(id)).sort(byInvariant);
+
+  // Regression first, and it outranks everything: a citation that existed and
+  // does not any more is the one thing this row can prove before 0116 runs.
+  if (lost.length) {
+    return FAIL("invariant-sweep", S,
+      `REGRESSION — ${lost.join(", ")} ${lost.length === 1 ? "was" : "were"} cited by a test name and no longer ${lost.length === 1 ? "is" : "are"}. ` +
+      `Restore the test, or if the removal was deliberate re-record with --force, which writes the reason into the capability doc`);
+  }
+
+  if (!live.length) {
     return NA("invariant-sweep", S,
-      `${invariants.length} invariants declared, none cited by any test yet — activates as soon as one test names an I-n (the domain model starts at capability 04)`);
+      `${invariants.length} invariants declared, none named by a test yet — the ratchet arms with the first \`describe\`/\`it\`/\`test\` whose NAME contains an I-n (D-224; the domain model starts at capability 04)`);
   }
+
   const missing = invariants.filter((i) => !cited.has(i.id));
-  if (!missing.length) return PASS("invariant-sweep", S, `all ${invariants.length} invariants cited by a test`);
-  return FAIL("invariant-sweep", S,
-    `${missing.length}/${invariants.length} invariants have no citing test: ${missing.map((i) => i.id + (i.structural ? " [S]" : "")).join(", ")}`);
+  if (ratchet.complete) {
+    return missing.length
+      ? FAIL("invariant-sweep", S,
+          `${CITATIONS} declares the set complete (0116), and ${missing.length}/${invariants.length} invariants have no citing test: ${missing.map((i) => i.id + (i.structural ? " [S]" : "")).join(", ")}`)
+      : PASS("invariant-sweep", S, `all ${invariants.length} invariants cited by a test name, and the set is declared complete`);
+  }
+
+  const gained = live.filter((i) => !ratchet.cited.includes(i));
+  return PASS("invariant-sweep", S,
+    `${live.length}/${invariants.length} invariants cited by a test name, none lost` +
+    (gained.length ? `, ${gained.length} new since the last recorded audit (${gained.join(", ")})` : "") +
+    `. Ratchet only: the remaining ${invariants.length - live.length} are not due until 0116 sets "complete": true in ${CITATIONS}, which makes this row all-or-nothing`);
 }
 
 /**
@@ -554,6 +655,27 @@ function testFiles(roots = APP_ROOTS, acc = []) {
     walkTests(abs, acc);
   }
   return acc;
+}
+
+/**
+ * The Vigil test, found BY A MARKER IN THE FILE and never by its filename
+ * (ticket 0161).
+ *
+ * The filename rule reported `n/a — no vigil test exists yet` for four
+ * capabilities AFTER `0030` closed, because the test shipped as
+ * `registry-delta.test.ts`: the method is a registry delta, and naming the file
+ * after the one skill it happens to add would have been the worse name. A check
+ * that can be switched off by a justified rename is not a check.
+ *
+ * The marker is prose, and that is not D-224 contradicting itself. The
+ * invariant sweep refuses prose because prose there IS the coverage claim; here
+ * prose only LOCATES a file that is then actually run under vitest. The run is
+ * the evidence, not the string.
+ */
+const VIGIL_MARKER = /THE VIGIL TEST/i;
+
+function vigilTests() {
+  return testFiles().filter((f) => VIGIL_MARKER.test(readFileSync(f, "utf8")) || /vigil/i.test(f));
 }
 
 function walkTests(dir, acc) {
@@ -596,11 +718,11 @@ function auditChecks(capability, tickets) {
     checks.push(ok ? PASS("boundary-greps", "1", "check-boundaries.mjs clean") : FAIL("boundary-greps", "1", detail));
   }
 
-  const vigil = testFiles().filter((f) => /vigil/i.test(f));
+  const vigil = vigilTests();
   checks.push(vigil.length
     ? (() => { const { ok, detail } = runCheck("npx", ["vitest", "run", ...vigil]);
                return ok ? PASS("vigil-test", "1", vigil.map((f) => relative(ROOT, f)).join(", ")) : FAIL("vigil-test", "1", detail); })()
-    : NA("vigil-test", "1", "no vigil test exists yet — ticket 0030 puts it permanently in CI (D-031/D-141)"));
+    : NA("vigil-test", "1", "no test file carries the marker `THE VIGIL TEST` — ticket 0030 puts it permanently in CI (D-031/D-141)"));
 
   const { errors } = validate(tickets);
   checks.push(errors.length
@@ -850,6 +972,10 @@ function cmdAudit(capability, flags) {
         `  records the override and its reason in the capability doc rather than hiding it.`);
   }
 
+  // The ratchet rises HERE and nowhere else (D-225): the moment a capability is
+  // declared done. `gained` is reported so a silent bar-raise is impossible.
+  const gained = advanceRatchet([...citedInvariants().keys()]);
+
   const record = {
     capability,
     audited: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
@@ -895,6 +1021,10 @@ function cmdAudit(capability, flags) {
 
   printAuditTable(capability, checks, failed, na);
   console.log(`  recorded → docs/capabilities/${capability}.md  (verdict: ${record.verdict})`);
+  if (gained?.length) {
+    console.log(`  invariant ratchet raised → ${CITATIONS}  (+${gained.length}: ${gained.join(", ")})`);
+    console.log(`  those citations must not disappear again — the next audit fails if one does.`);
+  }
   if (problems.length) console.log(`  the override and its reason are in the doc.`);
 }
 
@@ -1688,4 +1818,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
