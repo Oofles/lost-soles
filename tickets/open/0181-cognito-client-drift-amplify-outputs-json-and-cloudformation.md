@@ -6,7 +6,7 @@ type: bug
 priority: high
 status: open
 size: s
-capability: 00-foundations
+capability: 02-deploy-and-auth
 depends_on: []
 blocked_by: []
 source: agent
@@ -123,6 +123,20 @@ jobs 132-135 reported SUCCEED while all of this was true.
       artifact whose staleness is expected, and the check states which copy it targets.
 
 ## Notes
+
+**2026-09-08 — capability corrected from `00-foundations` to `02-deploy-and-auth`.** There is no
+capability called `00-foundations`; it was never in `ROADMAP.md` and has no doc. Because
+`auditBlockers()` enumerates capabilities from **ticket frontmatter** rather than from
+`docs/capabilities/`, that one field invented a phantom capability sorting below everything, with
+no doc and therefore no possible audit record — which gated all 18 ready tickets in capability
+`>= 02` for four days. `validate` reported it, as a *warning*. This ticket's subject matter —
+Cognito user pool clients, `amplify_outputs.json`, the CloudFormation auth stack — is
+`02-deploy-and-auth` on the merits, not merely the nearest valid name.
+
+Note that `02-deploy-and-auth` already has a recorded audit (`forced`, 2026-09-05). This ticket
+being open means a re-audit of `02` fails `capability-tickets-closed` until it closes. That is
+correct and deliberate: the capability really does have open work.
+
 
 Do not "fix" this by editing `amplify_outputs.json` or by weakening the check. The check header
 says it plainly and it is right: *"the deploy is failed deliberately. Fix `amplify/backend.ts`;

@@ -420,7 +420,20 @@ function validate(tickets) {
     if (folder !== "closed" && fm.type === "feature" && (fm.capability === "null" || fm.capability == null)) {
       W("no-capability", "feature ticket has no capability");
     }
-    if (fm.capability && fm.capability !== "null" && !caps.has(fm.capability)) W("missing-capability-doc", `no docs/capabilities/${fm.capability}.md`);
+    // AN ERROR, NOT A WARNING (ticket 0185). A capability with no doc cannot be
+    // audited — `audit` refuses the name outright — and `auditBlockers` builds
+    // its blocker list from ticket FRONTMATTER rather than from the docs
+    // directory. So one mistyped `capability:` invents a phantom capability that
+    // sorts below the real ones, can never record a verdict, and gates every
+    // ticket above it for ever. `00-foundations` on ticket `0181` did exactly
+    // that for four days and blocked 18, while this line reported it at the same
+    // volume as a stale inbox item.
+    if (fm.capability && fm.capability !== "null" && !caps.has(fm.capability)) {
+      E("unknown-capability",
+        `capability '${fm.capability}' has no docs/capabilities/${fm.capability}.md. ` +
+        `Fix the name, or create the doc — until one or the other, this capability can never ` +
+        `pass an audit and gates every ticket above it (D-153).`);
+    }
     if (fm.size === "l" && isReady(t, index)) W("size-l-ready", "size:l ticket is in the ready set — split it");
     if (folder === "inbox" && Date.now() - t.mtime.getTime() > 14 * 864e5) W("stale-inbox", "inbox item older than 14 days");
     for (const k of t.order) if (!FIELD_ORDER.includes(k)) W("unknown-key", `unknown frontmatter key '${k}' (preserved)`);

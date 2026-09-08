@@ -25,6 +25,10 @@ function repo() {
   for (const d of ["tickets/inbox", "tickets/open", "tickets/closed", "docs/capabilities"]) {
     mkdirSync(join(dir, d), { recursive: true });
   }
+  // The doc for FM()'s default capability. Since 0185 a capability with no doc is
+  // a validate ERROR — it can never pass an audit and gates every ticket above it
+  // — so a fixture repo without this one is not a valid repo.
+  writeFileSync(join(dir, "docs/capabilities/00-x.md"), "# 00-x\n");
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "t@t"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "t"], { cwd: dir });
@@ -1778,6 +1782,61 @@ describe("0161 — the invariant sweep is a ratchet, and it fails on a lost cita
       { cwd: d, env: { ...process.env, TICKETS_ROOT: d, SCRIPT }, encoding: "utf8" });
     assert.match(found.stdout, /registry-delta\.test\.mjs/,
       `the marker must locate the file whatever it is called: ${found.stdout}${found.stderr}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ────────────────── 0185 an unknown capability is an ERROR, not a warning ────
+
+describe("0185 — a capability with no doc is an error, because it gates every ticket above it", () => {
+  const cap = (d, name) => writeFileSync(join(d, "docs/capabilities", `${name}.md`), `# ${name}\n`);
+
+  test("a mistyped capability fails validate rather than warning", () => {
+    // The bug: `auditBlockers` builds its blocker list from ticket FRONTMATTER,
+    // not from docs/capabilities/, so a typo invents a capability that sorts
+    // below the real ones and can never record a verdict. `00-foundations` on
+    // ticket 0181 gated 18 tickets for four days while validate said "1 warning".
+    const d = repo();
+    cap(d, "00-preflight-and-repo");
+    ticket(d, "open", FM({ capability: "00-foundations" }));
+    const r = run(d, "validate");
+    assert.notEqual(r.code, 0, `an unauditable capability must fail validate:\n${r.out}`);
+    assert.match(r.out, /unknown-capability/);
+    assert.match(r.out, /00-foundations/);
+    assert.match(r.out, /gates every ticket above it/,
+      "the message must say what it costs, not just that a file is missing");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("the phantom capability really does gate — and correcting the name lifts it", () => {
+    // Both halves, because the error is only worth escalating if the gate is real.
+    const d = repo();
+    for (const c of ["00-preflight-and-repo", "02-deploy-and-auth"]) cap(d, c);
+    writeFileSync(join(d, "docs/capabilities/00-preflight-and-repo.md"),
+      `# 00\n\n<!-- audit-record {"capability":"00-preflight-and-repo","verdict":"pass"} -->\n`);
+    ticket(d, "open", FM({ id: 1, slug: "phantom", capability: "00-foundations", priority: "low" }));
+    ticket(d, "open", FM({ id: 2, slug: "real-work", capability: "02-deploy-and-auth", priority: "high" }));
+
+    let out = run(d, "next").out;
+    assert.match(out, /gated on capability '00-foundations'/, `expected the phantom to gate:\n${out}`);
+
+    // One word, and 0002 becomes workable.
+    const p = join(d, "tickets/open/0001-phantom.md");
+    writeFileSync(p, readFileSync(p, "utf8").replace("00-foundations", "00-preflight-and-repo"));
+    out = run(d, "next").out;
+    assert.doesNotMatch(out, /00-foundations/, out);
+    assert.match(out, /0002/, `the gated ticket must now be offered:\n${out}`);
+    assert.equal(run(d, "validate").code, 0, "and validate must be clean again");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("capability: null is still allowed — it means 'no home yet', not a typo", () => {
+    const d = repo();
+    cap(d, "00-preflight-and-repo");
+    ticket(d, "open", FM({ type: "chore", capability: "null" }));
+    const r = run(d, "validate");
+    assert.equal(r.code, 0, `an explicit null capability is not an unknown one:\n${r.out}`);
+    assert.doesNotMatch(r.out, /unknown-capability/);
     rmSync(d, { recursive: true, force: true });
   });
 });

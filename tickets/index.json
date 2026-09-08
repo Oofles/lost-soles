@@ -4148,7 +4148,7 @@
     "priority": "high",
     "status": "open",
     "size": "s",
-    "capability": "00-foundations",
+    "capability": "02-deploy-and-auth",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
@@ -4214,6 +4214,26 @@
     "source": "agent",
     "created": "2026-09-08T17:53:27Z",
     "path": "tickets/open/0184-the-two-audit-md-4-regression-rows-are-hardcoded-n-a-and-can.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 185,
+    "slug": "an-unknown-capability-is-a-validate-error-because-it-silentl",
+    "title": "An unknown capability is a validate error, because it silently gates every ticket above it",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T19:46:47Z",
+    "path": "tickets/open/0185-an-unknown-capability-is-a-validate-error-because-it-silentl.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
