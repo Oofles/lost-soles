@@ -245,19 +245,44 @@ describe("the explored delivery layer in S3", () => {
   })
 
   /**
-   * Delta GC (`0051`) is the first thing that will want a delete here, and it can argue for
-   * it in its own diff. Note what it would still not reach: the bucket is versioned and
-   * `s3:DeleteObjectVersion` is denied bucket-wide, so even that GC could not destroy bytes.
+   * `0049` predicted this: *"Delta GC (`0051`) is the first thing that will want
+   * `s3:DeleteObject` here, and it can argue for it in its own diff."* It did, and the grant
+   * it took is narrower than the prefix it GCs within — `users/*​/deltas/*`, not `users/*`.
+   *
+   * The read/write statement above must NOT have absorbed it. Folding a delete into that
+   * statement would widen deletion to the manifest, the set, the sidecar and the aggregate
+   * for one line of convenience, and there would be no diff later to notice it in.
    */
-  it("cannot delete anything, in the delivery layer or the archive", () => {
+  it("grants delete ONLY on the deltas, in a statement of its own", () => {
+    const gc = s3Statements().find((s) => s.sid === "ExpireExploredDeltas")
+    expect(gc, "the delta GC grant must exist").toBeDefined()
+    expect(gc!.actions).toEqual(["s3:DeleteObject"])
+    expect(gc!.resource).toContain("users/*/deltas/*")
+
+    expect(delivery()!.actions).not.toContain("s3:DeleteObject")
+  })
+
+  /**
+   * `DeleteObject` on a versioned bucket writes a delete marker; `DeleteObjectVersion` is what
+   * destroys bytes, and it is denied bucket-wide by the resource policy. So the GC's worst
+   * case is an object a client wanted becoming unreachable — one 300 KB immutable GET, the
+   * outcome `02` §6.5 already calls correct — and never data loss.
+   */
+  it("cannot delete a version anywhere, so no delete in this account destroys bytes", () => {
     const statements = s3Statements()
     expect(statements.length).toBeGreaterThan(0)
     for (const statement of statements) {
       for (const action of statement.actions) {
-        expect(action, `${statement.sid} grants ${action}`).not.toMatch(/^s3:Delete/)
+        expect(action, `${statement.sid} grants ${action}`).not.toBe("s3:DeleteObjectVersion")
         expect(action).not.toBe("s3:*")
       }
     }
+  })
+
+  /** The archive keeps its absolute rule: I-3, no delete of any kind, ever. */
+  it("still cannot delete anything under raw/", () => {
+    const archive = s3Statements().find((s) => s.sid === "WriteAndReadRawArchive")!
+    expect(archive.actions.filter((a) => a.startsWith("s3:Delete"))).toEqual([])
   })
 
   /**

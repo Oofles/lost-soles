@@ -1026,6 +1026,38 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
+ * DELTA GARBAGE COLLECTION. `0051`, `02-data-model.md` §6.5 — deltas are kept for ~20
+ * generations and dropped after that.
+ *
+ * `0049` predicted this grant and named the conditions on it: *"Delta GC (`0051`) is the first
+ * thing that will want `s3:DeleteObject` here, and it can argue for it in its own diff."*
+ * The argument:
+ *
+ *   - **Nothing under `users/` is a system of record.** Every object in the delivery layer is
+ *     re-derivable from `raw/` plus T6 (§1.1) — that is the difference between this prefix and
+ *     `raw/*`, where deletion is denied to every principal including this one (I-3), and it is
+ *     why the two prefixes were split into separate statements rather than one.
+ *   - **A delete here cannot destroy bytes.** The bucket is versioned and
+ *     `s3:DeleteObjectVersion` is denied bucket-wide by the resource policy above, so this
+ *     writes a delete marker and the object stays recoverable.
+ *   - **It is scoped to the deltas and to nothing else.** `deltas/` only: not the manifest, not
+ *     `explored/`. A bug in the GC arithmetic can therefore drop a delta a client wanted —
+ *     which costs that client one 300 KB immutable GET, the outcome §6.5 already calls correct
+ *     — and cannot touch the set, the sidecar or the aggregate.
+ *
+ * SEPARATE FROM THE READ/WRITE STATEMENT ABOVE, deliberately. Folding `s3:DeleteObject` into
+ * it would widen deletion to the whole `users/*` prefix for one line of convenience, and there
+ * would be no diff later to notice it in.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ExpireExploredDeltas",
+    actions: ["s3:DeleteObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*/deltas/*")],
+  }),
+)
+
+/**
  * THE CLIENT CREDENTIALS, and this grant was missed on the first pass — worth recording
  * because the failure it causes is invisible until the first token expires.
  *

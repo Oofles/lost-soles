@@ -2511,3 +2511,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     protect a cosmetic layer. It is reported on the result as `sidecarRebuilt` rather than
     swallowed, because a `true` there means something upstream wrote a bad object — and T6
     still holds the real days for an AP-17 repair to restore.
+
+- **D-220** **The delta object is named by `toGen` alone, and the client walks the chain
+  BACKWARDS.** *(Ticket `0051`.)*
+  - **The documented name cannot be constructed by the client that needs it.** `02` §6.1 and
+    `05` §7.3 both tabulate `deltas/<fromGen>-<toGen>.bin`, and §6.5 tells the client to
+    *"chain multiple deltas when several generations behind, validating each."* A client knows
+    exactly one of those two numbers — its own cached generation, the `from` end. For the
+    single hop the manifest spells out (`deltasFrom` → `generation`) it works by accident;
+    the chain does not, and never could.
+  - **D-219 made it worse rather than exposing something old.** Before the manifest CAS,
+    generations would have been contiguous and `toGen = fromGen + 1` would have walked the
+    chain by arithmetic. The counter burns a number whenever a worker loses the race, so
+    41 → 42 → 44 is reachable and the guess is wrong exactly when concurrency happened.
+  - **Named by `toGen`, the walk needs nothing but the manifest.** Fetch the delta for
+    `manifest.generation`, read `fromGen` out of the `LSFD` header, repeat until it matches the
+    cached generation or drops below `deltasFrom`. Gaps are invisible: the walk follows what
+    was written rather than what the numbers imply. `fromGen` stays in the header where it
+    already was, so the format does not change — only the key.
+  - **The same walk is what makes GC free of a listing.** Nothing in the delivery layer needs
+    `s3:ListBucket`, which matters because bucket-level grants cannot be scoped to a prefix the
+    way object-level ones can, and a list grant would let the worker enumerate every user's
+    blobs. The GC does not even walk: it deletes the arithmetic range
+    `(previousGeneration − 20, generation − 20]`, which is one key in the ordinary case and
+    covers burned numbers with a harmless no-op delete.
+  - **`deltasFrom` is `generation − 20`, not `previousGeneration`.** GC only ever deletes hops
+    at or below that, so a client cached exactly there still finds every hop above it, and one
+    cached a step lower is correctly told to take the full blob. Erring high is safe (an
+    unnecessary 300 KB immutable GET, which `02` §6.5 already calls the correct outcome);
+    erring low would send a client after an object that has been deleted.

@@ -311,7 +311,21 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        *
        * `ddb` is shared: the generation counter is a T6 item (D-218).
        */
-      blobs: { s3, bucket: required("USER_DATA_BUCKET"), ddb, table: EXPLORED_CELL_TABLE },
+      blobs: {
+        s3,
+        bucket: required("USER_DATA_BUCKET"),
+        ddb,
+        table: EXPLORED_CELL_TABLE,
+        /**
+         * `0051`. `PROFILE_TABLE` IS NOT SET, and that is the accurate state of the world —
+         * T1 arrives with the XP engine (capability 09), so `mirrorGeneration` answers
+         * `"no-table"` and the publish is unaffected. `required()` is deliberately NOT used:
+         * the manifest is authoritative (`02` §6.4) and the mirror is only the AppSync
+         * subscription's push channel, so its absence must not fail a cold start. Ticket
+         * `0182` wires it.
+         */
+        mirror: { ddb, table: process.env.PROFILE_TABLE },
+      },
       registry: RULES,
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       onPhase: (entered) => {

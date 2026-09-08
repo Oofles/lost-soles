@@ -68,7 +68,7 @@ s3://lost-soles-storage/
   users/<uid>/explored/explored-r10.<gen>.bin        immutable, content-addressed by generation
   users/<uid>/explored/explored-agg.<gen>.json
   users/<uid>/explored/explored-lastrun-r10.<gen>.bin
-  users/<uid>/deltas/<fromGen>-<toGen>.bin           immutable, GC'd at ~20 generations
+  users/<uid>/deltas/<toGen>.bin                     immutable, GC'd at ~20 generations
   rules/xp-rules-v<N>.yaml                           mirror of the repo file, for the replay job
   regions/<regionId>-r10.bin                         precomputed denominators (05 §8.1)
 ```
@@ -614,7 +614,7 @@ strictly better path that `process-activity` is already positioned for:
 1. GET  users/<uid>/explored/explored-r10.<gen-1>.bin   (~300 KB, one S3 GET)
 2. decode → sorted BigUint64Array
 3. merge the run's newly-added cells (typically 40–130)  → still sorted
-4. encode, gzip, PUT explored-r10.<gen>.bin  +  deltas/<gen-1>-<gen>.bin
+4. encode, gzip, PUT explored-r10.<gen>.bin  +  deltas/<gen>.bin
 5. PUT manifest.json  (the only mutable object)
 ```
 
@@ -1238,7 +1238,7 @@ them entirely:
 | **S-3** | "% explored" of a region | in-memory `Set.has()` over `region.cellsRes10` (05 §8.1) | **zero**; ~13k lookups, milliseconds |
 | **S-4** | "Unexplored near me" | in-memory `frontier()` (05 §8.4) | **zero** |
 | **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r10.<gen>.bin` | one GET, on demand only |
-| **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<from>-<to>.bin` GET | ~1 KB (05 §7.4) |
+| **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<toGen>.bin` GET | ~1 KB (05 §7.4) |
 | **S-7** | Trace polyline on activity detail | `traces/<activityId>.polyline.gz` | one immutable GET |
 
 ### 5.2 By screen — what actually fires
@@ -1330,7 +1330,7 @@ Per user, under `s3://lost-soles-storage/users/<uid>/` (05 §7.3):
 | `explored/explored-r10.<gen>.bin` | the set — `LSFG` header + `baseCell` u64 + (count−1) LEB128 ascending deltas (05 §7.1) | `public, max-age=31536000, immutable` | cold load only |
 | `explored/explored-agg.<gen>.json` | res 6/7/8 parent → `{exploredChildren, totalChildren, fraction}` | immutable | app load; a few KB |
 | `explored/explored-lastrun-r10.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array** | immutable | **lazily** — atlas cold overlay only (D-133) |
-| `deltas/<fromGen>-<toGen>.bin` | `LSFD`, adds only, ascending delta-varint | immutable, GC'd after ~20 generations | mid-session update (S-6) |
+| `deltas/<toGen>.bin` | `LSFD`, adds only, ascending delta-varint; `fromGen` is in the header | immutable, GC'd after ~20 generations | mid-session update (S-6) |
 
 `<gen>` in the name is what makes `immutable` safe: a generation is never rewritten, so no cache
 anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging.
@@ -1430,7 +1430,7 @@ generation bumps, and an open tab must show the new ground without a reload and 
 the full blob.
 
 ```
-GET deltas/<fromGen>-<toGen>.bin      # "LSFD", version, res=10, fromGen u64, toGen u64,
+GET deltas/<toGen>.bin                # "LSFD", version, res=10, fromGen u64, toGen u64,
                                       # addedCount u32, ascending delta-varint cell IDs
 ```
 
@@ -1444,6 +1444,13 @@ stays small, not to save bandwidth.
   un-award code path", applied to geometry.
 - **`assert delta.fromGen === state.generation`** before applying; on mismatch, fall back to a full
   fetch. Chain multiple deltas when several generations behind, validating each.
+- **The chain is walked BACKWARDS, and that is why the object is named by `toGen` alone**
+  (ticket `0051`, D-220). *Written here as `deltas/<fromGen>-<toGen>.bin` until then, which a
+  client cannot construct: it knows only its own cached generation, the `from` end.* Start at
+  `manifest.generation`, read each hop's `fromGen` out of the `LSFD` header, repeat until it
+  matches the cached generation or drops below `deltasFrom`. This also survives the gaps D-219's
+  counter introduces — a generation burned by a lost manifest race leaves no object, and an
+  arithmetic guess of `from + 1` would land on it.
 - **Only the touched res-6 parents are invalidated** (`unique(added.map(c => cellToParent(c, 6)))`).
   One run touches 1–2 parents, so the update is sub-millisecond and one VBO upload. This is the
   third distinct use of the res-6 grouping already chosen for the T6 partition key and the client's
@@ -1622,7 +1629,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
 | T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny; PITR on |
 | `explored-*.<gen>.bin`, `explored-agg.<gen>.json` | **keep current + 1 previous** | regenerable in <100 ms (§2.10). Older generations are garbage. |
-| `deltas/<from>-<to>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
+| `deltas/<toGen>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
 | T8 `IngestReceipt` | **TTL 90 days** | safe to expire: set semantics and the deterministic ledger `id` are the permanent backstops (§2 T8 layer 4) |
 | T7 `SourceAccount` tokens | **until disconnect, then deleted** | not rebuildable **and must not be** (§1.1). Recovery is re-authorisation, by design. |
 | `snapshots/skillstate/<uid>/<date>.json` | **forever** | §8.2 — the D-135 waterline. Small, and the one derived thing that is not re-derivable. |

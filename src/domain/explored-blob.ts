@@ -206,6 +206,27 @@ function readHeader(bytes: Uint8Array, magic: string, minBytes: number): number 
         "comparable; refusing to decode.",
     )
   }
+  /**
+   * THE RESERVED BYTE MUST BE ZERO, AND A NON-ZERO ONE IS REFUSED. Ticket `0051`.
+   *
+   * `05` §7.4 states the delta's central property as *"adds only. There is no removal opcode,
+   * and there must never be one"* — and draws the security conclusion, not just the
+   * correctness one: *"a client that cannot express a removal cannot be tricked into
+   * un-revealing ground by a malformed payload."*
+   *
+   * A format with a byte a decoder SKIPS is a format that can grow an opcode later and be
+   * read by an old client that ignores it. Refusing here is what makes "there must never be
+   * one" enforceable rather than aspirational: any future meaning assigned to this byte has to
+   * come with a `version` bump, which every decoder in this file already rejects outright.
+   */
+  const reserved = bytes[OFF_RESERVED]!
+  if (reserved !== 0) {
+    throw new BlobFormatError(
+      `${magic}: reserved byte is ${reserved}, expected 0. This decoder refuses unknown ` +
+        "header content rather than skipping it — 05 §7.4 requires that a payload cannot " +
+        "carry an instruction a reader silently ignores.",
+    )
+  }
   return bytes[OFF_FLAGS]!
 }
 

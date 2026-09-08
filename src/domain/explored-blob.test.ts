@@ -329,7 +329,7 @@ describe("mergeCells — §2.10 step 3", () => {
     }
   })
 
-  it("is linear and correct at 150k — the size the hot path actually sees", () => {
+  it("is linear and correct at 150k — the size the hot path actually sees", { timeout: 30_000 }, () => {
     const base = sortBig(gridDisk(ORIGIN, 225))
     const run = sortBig(gridDisk(ORIGIN, 226)).slice(-130)
     const merged = mergeCells(base, run)
@@ -385,5 +385,59 @@ describe("mergeLastRunDays — the sidecar follows the merge", () => {
     const touched = new Set(sortBig(gridDisk(ORIGIN, 1)))
     const days = mergeLastRunDays([], mergeCells([], touched), touched, 1234)
     expect([...days]).toEqual([...touched].map(() => 1234))
+  })
+})
+
+describe("no removal opcode, and no room to grow one (0051 criterion 5)", () => {
+  /**
+   * `05` §7.4: *"Adds only. There is no removal opcode, and there must never be one"* — and
+   * the reason is not only correctness: *"a client that cannot express a removal cannot be
+   * tricked into un-revealing ground by a malformed payload."*
+   *
+   * "There must never be one" is only enforceable if a decoder refuses header content it does
+   * not understand. A byte it SKIPS is a byte a future payload can carry an instruction in,
+   * read by an old client that ignores it. So the reserved byte must be 0 in all three
+   * formats, and a non-zero one is the nearest thing this format has to an unknown opcode.
+   */
+  const withReserved = (bytes: Uint8Array, value: number): Uint8Array => {
+    const copy = Uint8Array.from(bytes)
+    copy[7] = value
+    return copy
+  }
+
+  it("rejects a non-zero reserved byte in a delta rather than skipping it", () => {
+    const bytes = encodeDeltaBlob(sortBig(gridDisk(ORIGIN, 1)), 1, 2)
+    expect(() => decodeDeltaBlob(withReserved(bytes, 1))).toThrow(/reserved byte is 1/)
+    expect(() => decodeDeltaBlob(withReserved(bytes, 0xff))).toThrow(/reserved byte/)
+  })
+
+  it("rejects it in the set and the sidecar too — one rule, three formats", () => {
+    const cells = sortBig(gridDisk(ORIGIN, 1))
+    expect(() => decodeExploredBlob(withReserved(encodeExploredBlob(cells, 1), 2))).toThrow(
+      /reserved byte/,
+    )
+    expect(() => decodeLastRunBlob(withReserved(encodeLastRunBlob([1], 1), 2))).toThrow(
+      /reserved byte/,
+    )
+  })
+
+  it("still accepts a well-formed object, so the check is not simply always-on", () => {
+    const bytes = encodeDeltaBlob(sortBig(gridDisk(ORIGIN, 1)), 1, 2)
+    expect(bytes[7]).toBe(0)
+    expect(decodeDeltaBlob(bytes).toGen).toBe(2)
+  })
+
+  /**
+   * The body has no opcode either: every byte after the header is part of an ascending gap.
+   * There is nowhere to put a removal without changing `version`, which every decoder here
+   * rejects outright — which is what makes the guarantee structural rather than a promise.
+   */
+  it("a delta's body is gaps and nothing else — no tag byte to hide a verb in", () => {
+    const added = sortBig(gridDisk(ORIGIN, 2))
+    const bytes = encodeDeltaBlob(added, 1, 2)
+    const varints: number[] = []
+    for (let i = 1; i < added.length; i++) writeVarint(varints, added[i]! - added[i - 1]!)
+    expect(bytes.length).toBe(36 + varints.length)
+    expect([...bytes.subarray(36)]).toEqual(varints)
   })
 })

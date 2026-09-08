@@ -1218,6 +1218,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-08T14:18:19Z",
     "path": "tickets/open/0051-cache-invalidation-contract.md",
     "ready": true,
     "acceptance": {
@@ -4148,6 +4149,26 @@
     "acceptance": {
       "checked": 0,
       "total": 7
+    }
+  },
+  {
+    "id": 182,
+    "slug": "wire-profile-exploredgeneration-once-t1-exists-env-var-grant",
+    "title": "Wire Profile.exploredGeneration once T1 exists — env var, grant, and the mirror repair",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T14:33:29Z",
+    "path": "tickets/open/0182-wire-profile-exploredgeneration-once-t1-exists-env-var-grant.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

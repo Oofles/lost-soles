@@ -1156,7 +1156,7 @@ s3://lost-soles-data/users/<uid>/
   explored/explored-r10.<gen>.bin       # immutable
   explored/explored-agg.<gen>.json      # immutable
   explored/explored-lastrun-r10.<gen>.bin
-  deltas/<fromGen>-<toGen>.bin          # immutable, short-lived
+  deltas/<toGen>.bin                    # immutable, short-lived; fromGen is in the header
   traces/<activityId>.polyline.gz       # raw, immutable, never deleted (D-101, D-121)
 ```
 
@@ -1211,7 +1211,7 @@ The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) an
 450 KB.
 
 ```
-delta object: deltas/<fromGen>-<toGen>.bin
+delta object: deltas/<toGen>.bin
   magic "LSFD", version, res=10, fromGen u64, toGen u64,
   addedCount u32, then ascending delta-varint cell IDs (adds only)
 ```
@@ -1255,7 +1255,10 @@ function applyDelta(state, delta):
 - **Only the touched res-6 parents are rebuilt**, not the whole bucket. One run touches 1–2
   parents, so a mid-session update is sub-millisecond of work and one VBO upload.
 - **Chain multiple deltas** if the client is several generations behind; each is validated
-  `fromGen === state.generation` before applying.
+  `fromGen === state.generation` before applying. **Walk backwards**: start at
+  `manifest.generation`, read each hop's `fromGen` from its header, and repeat. *Named
+  `<fromGen>-<toGen>.bin` here until ticket `0051` (D-220) — a name a client cannot build,
+  since it knows only the `from` end.*
 - **Reveal it, don't just repaint it.** A run landing mid-session is the emotional payload of the
   entire product. Animate the new cells' `revealScale` from 0 to 1 over ~800 ms with a slight
   stagger along the route, and pan to the new territory if it is off-screen. This is the only

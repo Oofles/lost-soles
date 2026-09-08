@@ -90,6 +90,8 @@ interface Options {
   cellsFail?: Error
   /** `0049`. A failed blob PUT, to prove it happens above the transaction. */
   blobsFail?: Error
+  /** `0051`. T1's table name, when a test wants the mirror to actually write. */
+  profileTable?: string
   /**
    * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
    * map classifies `new`. Given as a function of the run's cells so a test can seed "every
@@ -240,6 +242,16 @@ function rig(options: Options = {}) {
     blobs: {
       bucket: BUCKET,
       table: CELL_TABLE,
+      /** `0051`. No T1 yet, so the mirror is a no-op — see `explored-mirror.ts`. */
+      mirror: options.profileTable === undefined ? undefined : {
+        table: options.profileTable,
+        ddb: {
+          async send() {
+            calls.push("mirror")
+            return {}
+          },
+        } as never,
+      },
       now: () => new Date("2026-09-06T09:00:02.000Z"),
       ddb: {
         async send() {
@@ -876,7 +888,7 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
       "users/u-1/explored/explored-r10.1.bin",
       "users/u-1/explored/explored-lastrun-r10.1.bin",
       "users/u-1/explored/explored-agg.1.json",
-      "users/u-1/deltas/0-1.bin",
+      "users/u-1/deltas/1.bin",
       "users/u-1/manifest.json",
     ])
     expect(result.blobs).toMatchObject({ generation: 1, previousGeneration: 0 })

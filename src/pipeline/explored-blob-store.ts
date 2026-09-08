@@ -1,6 +1,7 @@
 import { gunzipSync, gzipSync } from "node:zlib"
 
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   type S3ServiceException,
@@ -14,15 +15,18 @@ import {
   decodeExploredBlob,
   decodeLastRunBlob,
   encodeDeltaBlob,
+  decodeDeltaBlob,
   encodeExploredBlob,
   encodeLastRunBlob,
   mergeCells,
   mergeLastRunDays,
+  type DeltaBlob,
   type LastRunBlob,
 } from "@/src/domain/explored-blob"
 import { RES } from "@/src/domain/fog"
 
 import { bumpGeneration, type GenerationDeps } from "./explored-generation"
+import { mirrorGeneration, type MirrorDeps, type MirrorOutcome } from "./explored-mirror"
 
 /**
  * THE DELIVERY LAYER'S WRITER. Ticket `0049`. `02-data-model.md` §2.10, §6.1, §6.4;
@@ -89,7 +93,55 @@ export const objectKeys = {
   agg: (userId: string, gen: number) => `users/${userId}/explored/explored-agg.${gen}.json`,
   lastRun: (userId: string, gen: number) =>
     `users/${userId}/explored/explored-lastrun-r10.${gen}.bin`,
-  delta: (userId: string, from: number, to: number) => `users/${userId}/deltas/${from}-${to}.bin`,
+  /**
+   * NAMED BY `toGen` ALONE, and `05` §7.3 tabulates it as `<fromGen>-<toGen>.bin`. D-220.
+   *
+   * A client only ever knows the `from` end — its own cached generation — so it cannot build
+   * a two-ended key without already knowing the answer. The documented name works for the
+   * single hop the manifest spells out (`deltasFrom` → `generation`) and makes §7.4's *"chain
+   * multiple deltas if the client is several generations behind"* unimplementable.
+   *
+   * Named by `toGen`, the chain walks BACKWARDS and needs nothing but the manifest: fetch the
+   * delta for `manifest.generation`, read its `fromGen` out of the LSFD header, and repeat
+   * until it matches the cached generation or falls below `deltasFrom`. That also survives the
+   * gaps D-219's counter introduces — a generation burned by a lost manifest race leaves no
+   * object, and an arithmetic guess of `from + 1` would land on it.
+   */
+  delta: (userId: string, toGen: number) => `users/${userId}/deltas/${toGen}.bin`,
+}
+
+/**
+ * How many generations of delta to keep. `02` §6.5, `05` §7.3: *"~20 generations"*, and
+ * `manifest.deltasFrom` tells a client when the chain no longer reaches it.
+ *
+ * A client further back than this takes the full immutable GET, which `02` §6.5 already calls
+ * *"the correct outcome"* for a client that has been closed for a month.
+ */
+export const DELTA_CHAIN_KEEP = 20
+
+/**
+ * The delta objects that fall out of the window when `previousGeneration` becomes `generation`.
+ *
+ * **Arithmetic, not a listing or a walk**, which is what keeps GC O(1) on the hot path — the
+ * alternative is ~20 sequential GETs per publish to read each hop's header, 19 of them
+ * no-ops. It is a RANGE rather than a single number because the counter can skip: a worker
+ * that loses the manifest race burns its allocation, so 41 → 44 is reachable and deleting only
+ * `generation - KEEP` would leak the numbers in between. The range is `generation −
+ * previousGeneration` wide, which is 1 in the ordinary case.
+ *
+ * A key that names a burned generation simply does not exist, and deleting it is a no-op.
+ * Erring that way is deliberate: burned numbers make the retained chain slightly LONGER than
+ * 20 hops, never shorter, and a chain that reaches further than advertised costs nothing.
+ */
+export function expiringDeltaGenerations(
+  previousGeneration: number,
+  generation: number,
+): number[] {
+  const out: number[] = []
+  for (let g = previousGeneration - DELTA_CHAIN_KEEP + 1; g <= generation - DELTA_CHAIN_KEEP; g++) {
+    if (g >= 1) out.push(g)
+  }
+  return out
 }
 
 /** `02` §6.1's field list, exactly. `0051` asserts it is exactly this and nothing more. */
@@ -112,11 +164,18 @@ export interface BlobStoreS3 {
     ETag?: string
   }>
   send(command: PutObjectCommand): Promise<{ ETag?: string }>
+  send(command: DeleteObjectCommand): Promise<unknown>
 }
 
 export interface BlobStoreDeps extends GenerationDeps {
   s3: BlobStoreS3
   bucket: string
+  /**
+   * The `Profile.exploredGeneration` mirror (`0051`, `02` §6.4, T1). Optional, and its
+   * `table` is optional in turn: T1 does not exist yet, and a mirror with nowhere to write
+   * reports `"no-table"` rather than throwing.
+   */
+  mirror?: MirrorDeps
   /** Injected so `updatedAt` is assertable. */
   now?: () => Date
   /**
@@ -135,6 +194,14 @@ export interface RegenerateResult {
   addedCount: number
   /** How many times the manifest precondition failed before this one committed. */
   conflicts: number
+  /** Delta objects dropped out of the ~20-generation window by this publish. */
+  deltasExpired: number
+  /**
+   * What the `Profile.exploredGeneration` mirror did. `"no-table"` until T1 exists — the
+   * manifest is authoritative and the mirror is only the AppSync subscription's push channel
+   * (`02` §6.4), so its absence costs nothing today.
+   */
+  mirrored: MirrorOutcome
   /**
    * The previous sidecar could not be used and every untouched cell's `lastRunDay` was
    * reset to 0. **Not an error, and deliberately not a throw** — `explored-lastrun-r10.bin`
@@ -306,7 +373,7 @@ export async function regenerateExplored(
      * back to the full 300 KB fetch" would take the expensive branch on the cheapest case.
      */
     await putImmutable(
-      objectKeys.delta(userId, previousGeneration, generation),
+      objectKeys.delta(userId, generation),
       encodeDeltaBlob(merged.added, previousGeneration, generation),
       "application/octet-stream",
       deps,
@@ -321,11 +388,16 @@ export async function regenerateExplored(
       agg: objectKeys.agg(userId, generation),
       lastRun: objectKeys.lastRun(userId, generation),
       /**
-       * The chain reaches back to the generation this one was built on. `0051` owns the GC
-       * that walks it forward as old deltas are dropped; until then a client is always at
-       * most one hop behind, which is the case §6.5 calls common.
+       * THE OLDEST GENERATION THE CHAIN STILL REACHES. `02` §6.4 step 4: a client whose
+       * cached generation is at or above this walks the deltas; below it, it takes the full
+       * blob.
+       *
+       * It is `generation − KEEP` and not `previousGeneration`, because the chain is now
+       * walkable (D-220) and GC only ever deletes hops at or below `generation − KEEP`. A
+       * client cached exactly here needs the hops ABOVE it, all of which survive; one cached
+       * a step lower needs the hop just deleted, and is correctly told to refetch.
        */
-      deltasFrom: previousGeneration,
+      deltasFrom: Math.max(0, generation - DELTA_CHAIN_KEEP),
     }
 
     try {
@@ -357,6 +429,17 @@ export async function regenerateExplored(
       throw e
     }
 
+    /**
+     * ─── EVERYTHING BELOW HERE IS AFTER THE COMMIT POINT ────────────────────
+     *
+     * The manifest has landed, so the client is already correct. GC and the mirror are
+     * housekeeping, and **neither may fail the publish**: a delete that 403s or a mirror
+     * write that throws must not turn a completed publish into a redelivery, because the
+     * redelivery would allocate a fresh generation and republish an identical map.
+     */
+    const deltasExpired = await expireDeltas(userId, previousGeneration, generation, deps)
+    const mirrored = await mirrorGeneration(userId, generation, deps.mirror)
+
     return {
       generation,
       previousGeneration,
@@ -364,8 +447,95 @@ export async function regenerateExplored(
       addedCount: merged.added.length,
       conflicts: attempt,
       sidecarRebuilt,
+      deltasExpired,
+      mirrored,
     }
   }
+}
+
+/**
+ * DROP THE DELTAS THAT FELL OUT OF THE WINDOW. `02` §6.5, `05` §7.3 — *"garbage-collected at
+ * ~20 generations"*.
+ *
+ * ─── AFTER THE MANIFEST, AND IT CANNOT FAIL THE PUBLISH ─────────────────────
+ *
+ * The manifest already names `deltasFrom`, so a client is correct the instant it commits —
+ * these objects are past the window and nothing will ask for them again. A delete that fails
+ * therefore costs an orphan object, and orphans are already what `02` §6.4 calls harmless.
+ * Throwing here would cost far more: the receipt is still `PROCESSING`, so the redelivery
+ * would allocate a NEW generation and republish an identical map, permanently, on every
+ * attempt. The failure is returned as a count rather than swallowed silently.
+ *
+ * ─── WHAT A DELETE ACTUALLY DOES HERE ───────────────────────────────────────
+ *
+ * The bucket is versioned, so this writes a delete marker rather than destroying bytes, and
+ * `s3:DeleteObjectVersion` is denied bucket-wide. Even a bug in this function cannot lose
+ * anything — and nothing under `users/` is a system of record in any case: every object here
+ * is re-derivable from `raw/` plus T6 (§1.1). That is the whole reason the delivery layer gets
+ * a delete grant and `raw/*` never will (I-3).
+ */
+async function expireDeltas(
+  userId: string,
+  previousGeneration: number,
+  generation: number,
+  deps: BlobStoreDeps,
+): Promise<number> {
+  let deleted = 0
+  for (const gen of expiringDeltaGenerations(previousGeneration, generation)) {
+    try {
+      await deps.s3.send(
+        new DeleteObjectCommand({ Bucket: deps.bucket, Key: objectKeys.delta(userId, gen) }),
+      )
+      deleted++
+    } catch {
+      // See above: an undeleted delta is an orphan, and an orphan is cheaper than a
+      // republish loop. S3 answers a delete of a missing key with 204, so this is a real
+      // failure rather than the ordinary burned-generation case.
+    }
+  }
+  return deleted
+}
+
+/**
+ * WALK THE CHAIN BACKWARDS. D-220, `05` §7.4, `02` §6.5.
+ *
+ * The client's algorithm, server-side: from `manifest.generation`, fetch each delta, read the
+ * `fromGen` out of its header, and repeat until the cached generation is reached. Returns the
+ * hops in APPLICATION order — oldest first — because that is the order they must be merged in.
+ *
+ * It lives here rather than only in `0054` for a reason that outlives the client: it is the
+ * executable proof that the objects this module writes are walkable at all, which is the
+ * entire content of D-220. A rename back to a two-ended key would break this function rather
+ * than break a browser three tickets later.
+ *
+ * @returns `undefined` when the chain does not reach — a hop is missing, or `cachedGeneration`
+ *          is below `deltasFrom`. The caller's answer is always the same: take the full blob.
+ */
+export async function readDeltaChain(
+  userId: string,
+  cachedGeneration: number,
+  deps: BlobStoreDeps,
+): Promise<DeltaBlob[] | undefined> {
+  const prior = await readManifest(userId, deps)
+  if (prior === undefined) return undefined
+  const { generation, deltasFrom } = prior.manifest
+
+  if (cachedGeneration === generation) return []
+  if (cachedGeneration < deltasFrom || cachedGeneration > generation) return undefined
+
+  const hops: DeltaBlob[] = []
+  let at = generation
+  // Bounded by the retention window, so a corrupt `fromGen` cannot loop forever.
+  for (let i = 0; i <= DELTA_CHAIN_KEEP; i++) {
+    const object = await getBytes(objectKeys.delta(userId, at), deps)
+    if (object === undefined) return undefined
+    const hop = decodeDeltaBlob(gunzipIfNeeded(object.bytes))
+    hops.unshift(hop)
+    if (hop.fromGen === cachedGeneration) return hops
+    if (hop.fromGen >= at) return undefined // not descending; refuse rather than spin
+    at = hop.fromGen
+  }
+  return undefined
 }
 
 /**

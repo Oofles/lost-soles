@@ -171,9 +171,18 @@ describe("the worker's IAM role (criterion 3)", () => {
    * I-3's other half, same shape. The archive is the one artifact no rebuild can
    * reproduce (D-101); the bucket policy denies deletion under `raw/*` to everything but
    * the break-glass role, and this asserts the worker never even asks.
+   *
+   * `0051` ADDED ONE DELETE, and the assertion moved rather than weakened: the worker may
+   * delete under `users/*​/deltas/*` and nowhere else. That prefix holds objects that are
+   * re-derivable from `raw/` plus T6 (§1.1), the bucket is versioned, and
+   * `s3:DeleteObjectVersion` is denied bucket-wide — so even this grant writes a delete
+   * marker rather than destroying bytes. `explored-cells-table.test.ts` asserts the scoping;
+   * this asserts the shape of the exception, which is that there is exactly one.
    */
-  it("cannot delete an object", () => {
-    expect(workerActions().filter((a) => a.startsWith("s3:Delete"))).toEqual([])
+  it("can delete ONLY expired deltas, and never a version", () => {
+    const deletes = workerActions().filter((a) => a.startsWith("s3:Delete"))
+    expect([...new Set(deletes)]).toEqual(["s3:DeleteObject"])
+    expect(deletes).not.toContain("s3:DeleteObjectVersion")
   })
 
   /**
@@ -190,9 +199,17 @@ describe("the worker's IAM role (criterion 3)", () => {
    */
   it("can put and read objects, and nothing else in the bucket", () => {
     const s3 = workerActions().filter((a) => a.startsWith("s3:"))
-    expect([...new Set(s3)].sort()).toEqual(["s3:GetObject", "s3:PutObject"])
-    // Two statements, not one widened statement: raw/ and users/ have opposite rules.
-    expect(s3).toHaveLength(4)
+    expect([...new Set(s3)].sort()).toEqual([
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject",
+    ])
+    // Three statements: raw/, users/, and the delta GC. Never one widened statement — the
+    // three prefixes have different rules and a reviewer must see them separately.
+    expect(s3).toHaveLength(5)
+    // Still no listing. `bucket.grantRead()` would add `s3:List*` and `s3:GetBucket*` on the
+    // WHOLE bucket, which is what these exact-set assertions exist to catch.
+    expect(s3.filter((a) => a.startsWith("s3:List") || a.startsWith("s3:GetBucket"))).toEqual([])
   })
 
   /** The receipt, the credentials and the Activity row. */

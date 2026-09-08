@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from "node:zlib"
 
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { gridDisk, latLngToCell } from "h3-js"
 import { beforeEach, describe, expect, it } from "vitest"
@@ -14,10 +14,15 @@ import {
 } from "@/src/domain/explored-blob"
 import { RES } from "@/src/domain/fog"
 
+import { raiseGenerationTo } from "./explored-generation"
+
 import {
+  DELTA_CHAIN_KEEP,
   IMMUTABLE_CACHE_CONTROL,
   MANIFEST_CACHE_CONTROL,
+  expiringDeltaGenerations,
   objectKeys,
+  readDeltaChain,
   readManifest,
   regenerateExplored,
   type BlobStoreDeps,
@@ -50,7 +55,17 @@ class FakeS3 {
   /** Runs immediately before a PUT lands. Lets a test publish a rival generation mid-flight. */
   beforePut?: (key: string) => void
 
-  send = async (command: GetObjectCommand | PutObjectCommand): Promise<unknown> => {
+  /** Set to make every delete fail the way a missing grant would. */
+  failDeletes = false
+
+  send = async (
+    command: GetObjectCommand | PutObjectCommand | DeleteObjectCommand,
+  ): Promise<unknown> => {
+    if (command instanceof DeleteObjectCommand) {
+      if (this.failDeletes) throw new Error("AccessDenied")
+      this.objects.delete(command.input.Key!)
+      return {}
+    }
     if (command instanceof GetObjectCommand) {
       const key = command.input.Key!
       this.gets.push(key)
@@ -122,10 +137,21 @@ class FakeCounter {
       )
     }
     const input = command.input
+    const key = String(input.Key?.pk)
+    // The drill's step 7 (02 §8.3). Not a hot-path write — no test drives it through
+    // `regenerateExplored` — but the counter is the same item, so the fake must model it.
+    if (input.UpdateExpression === "SET generation = :n") {
+      const n = input.ExpressionAttributeValues![":n"] as number
+      const current = this.value.get(key)
+      if (current !== undefined && current >= n) {
+        throw Object.assign(new Error("refused"), { name: "ConditionalCheckFailedException" })
+      }
+      this.value.set(key, n)
+      return {}
+    }
     if (input.UpdateExpression !== "ADD generation :one") {
       throw new Error(`unexpected T6 write on the blob path: ${input.UpdateExpression}`)
     }
-    const key = String(input.Key?.pk)
     const next = (this.value.get(key) ?? 0) + 1
     this.value.set(key, next)
     return { Attributes: { generation: next } }
@@ -156,7 +182,7 @@ describe("objectKeys — 02 §6.1's layout, verbatim", () => {
     expect(objectKeys.cells("u", 42)).toBe("users/u/explored/explored-r10.42.bin")
     expect(objectKeys.agg("u", 42)).toBe("users/u/explored/explored-agg.42.json")
     expect(objectKeys.lastRun("u", 42)).toBe("users/u/explored/explored-lastrun-r10.42.bin")
-    expect(objectKeys.delta("u", 41, 42)).toBe("users/u/deltas/41-42.bin")
+    expect(objectKeys.delta("u", 42)).toBe("users/u/deltas/42.bin")
   })
 })
 
@@ -202,7 +228,7 @@ describe("regenerateExplored — the first ever run", () => {
       objectKeys.cells(USER, 1),
       objectKeys.agg(USER, 1),
       objectKeys.lastRun(USER, 1),
-      objectKeys.delta(USER, 0, 1),
+      objectKeys.delta(USER, 1),
     ]) {
       expect(s3.objects.get(key)!.cacheControl, key).toBe(IMMUTABLE_CACHE_CONTROL)
       expect(s3.objects.get(key)!.contentEncoding, key).toBe("gzip")
@@ -303,7 +329,7 @@ describe("regenerateExplored — the incremental path (02 §2.10)", () => {
     await regenerateExplored({ userId: USER, touched: run(2), day: 2444 }, deps)
     await regenerateExplored({ userId: USER, touched: run(3), day: 2450 }, deps)
 
-    const delta = decodeDeltaBlob(s3.plain(objectKeys.delta(USER, 1, 2)))
+    const delta = decodeDeltaBlob(s3.plain(objectKeys.delta(USER, 2)))
     expect(delta.fromGen).toBe(1)
     expect(delta.toGen).toBe(2)
     const before = new Set(run(2).map((c) => String(cellToBig(c))))
@@ -328,10 +354,16 @@ describe("regenerateExplored — the incremental path (02 §2.10)", () => {
     expect(s3.objects.get(objectKeys.cells(USER, 1))!.etag).toBe(first)
   })
 
-  it("points deltasFrom at the generation it merged from", async () => {
+  /**
+   * `deltasFrom` is `generation − DELTA_CHAIN_KEEP`, clamped at 0 — the oldest generation the
+   * chain still reaches (`0051`, D-220), not the generation this publish merged from. Below
+   * 20 published generations nothing has been expired yet, so the answer is 0 and every
+   * cached client can chain.
+   */
+  it("points deltasFrom at the oldest generation the chain still reaches", async () => {
     await regenerateExplored({ userId: USER, touched: run(2), day: 2444 }, deps)
     await regenerateExplored({ userId: USER, touched: run(3), day: 2450 }, deps)
-    expect(s3.json<{ deltasFrom: number }>(objectKeys.manifest(USER)).deltasFrom).toBe(1)
+    expect(s3.json<{ deltasFrom: number }>(objectKeys.manifest(USER)).deltasFrom).toBe(0)
   })
 })
 
@@ -486,5 +518,374 @@ describe("what actually crosses the wire", () => {
     const stored = s3.objects.get(objectKeys.agg(USER, 1))!
     expect(stored.body.length).toBeLessThan(s3.plain(objectKeys.agg(USER, 1)).length / 2)
     expect(stored.contentType).toBe("application/json")
+  })
+})
+
+/**
+ * Pretend `n` generations have already been published, without publishing them.
+ *
+ * The retention window is 20 hops, and driving it honestly would mean 25 real publishes per
+ * test. This copies the current generation's objects onto generation `n`'s keys, rewrites the
+ * manifest to name them, and moves the counter — so the NEXT real publish sees exactly the
+ * state it would have seen after 25 runs.
+ */
+function fastForward(n: number): void {
+  const manifest = s3.json<Record<string, unknown>>(objectKeys.manifest(USER))
+  const from = manifest.generation as number
+  for (const [key, to] of [
+    [objectKeys.cells(USER, from), objectKeys.cells(USER, n)],
+    [objectKeys.lastRun(USER, from), objectKeys.lastRun(USER, n)],
+    [objectKeys.agg(USER, from), objectKeys.agg(USER, n)],
+  ] as const) {
+    s3.objects.set(to, { ...s3.objects.get(key)! })
+  }
+  const existing = s3.objects.get(objectKeys.manifest(USER))!
+  s3.objects.set(objectKeys.manifest(USER), {
+    ...existing,
+    body: Buffer.from(
+      JSON.stringify({
+        ...manifest,
+        generation: n,
+        cells: objectKeys.cells(USER, n),
+        lastRun: objectKeys.lastRun(USER, n),
+        agg: objectKeys.agg(USER, n),
+      }),
+    ),
+  })
+  ddb.value.set(`U#${USER}#GEN`, n)
+}
+
+describe("delta retention — criterion 6 (02 §6.5)", () => {
+  it("keeps the newest ~20 hops and expires nothing before that", () => {
+    // Nothing to drop until 20 generations exist.
+    for (let g = 1; g <= DELTA_CHAIN_KEEP; g++) {
+      expect(expiringDeltaGenerations(g - 1, g), `gen ${g}`).toEqual([])
+    }
+    expect(expiringDeltaGenerations(20, 21)).toEqual([1])
+    expect(expiringDeltaGenerations(41, 42)).toEqual([22])
+  })
+
+  /**
+   * The counter burns a number whenever a worker loses the manifest race (D-219), so
+   * published generations are not contiguous. Deleting only `generation − KEEP` would step
+   * over the gap and leak every number inside it — so the GC deletes the RANGE, which is
+   * `generation − previousGeneration` wide and is 1 in the ordinary case.
+   */
+  it("expires the whole range when the counter skipped a burned generation", () => {
+    expect(expiringDeltaGenerations(41, 44)).toEqual([22, 23, 24])
+  })
+
+  it("never proposes a generation below 1", () => {
+    expect(expiringDeltaGenerations(0, 1)).toEqual([])
+    expect(expiringDeltaGenerations(0, 25)).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it("actually deletes them, and only from deltas/", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    for (let g = 1; g <= 24; g++) {
+      s3.objects.set(objectKeys.delta(USER, g), { body: Uint8Array.from([1]), etag: `"d${g}"` })
+    }
+    fastForward(24)
+
+    const result = await regenerateExplored({ userId: USER, touched: run(2), day: 2450 }, deps)
+
+    expect(result.generation).toBe(25)
+    expect(result.deltasExpired).toBe(1)
+    expect(s3.objects.has(objectKeys.delta(USER, 5))).toBe(false)
+    expect(s3.objects.has(objectKeys.delta(USER, 6))).toBe(true)
+    // The set, the sidecar and the aggregate are untouchable by the GC.
+    expect(s3.objects.has(objectKeys.cells(USER, 1))).toBe(true)
+  })
+
+  /**
+   * GC runs AFTER the commit point. The manifest already names `deltasFrom`, so a client is
+   * correct the instant it lands; an undeleted delta is an orphan, and `02` §6.4 already calls
+   * orphans harmless. Throwing would be far worse: the receipt is still `PROCESSING`, so the
+   * redelivery would allocate a fresh generation and republish an identical map, forever.
+   */
+  it("a delete that fails does NOT fail the publish", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    s3.objects.set(objectKeys.delta(USER, 10), { body: Uint8Array.from([1]), etag: '"d10"' })
+    fastForward(30)
+    s3.failDeletes = true
+
+    const result = await regenerateExplored({ userId: USER, touched: run(2), day: 2450 }, deps)
+    expect(result.generation).toBe(31)
+    expect(result.deltasExpired).toBe(0)
+    expect(s3.json<{ generation: number }>(objectKeys.manifest(USER)).generation).toBe(31)
+  })
+
+  it("deltasFrom tracks the window, so a client below it is told to refetch", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    fastForward(99)
+
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2450 }, deps)
+    expect(s3.json<{ deltasFrom: number }>(objectKeys.manifest(USER)).deltasFrom).toBe(
+      100 - DELTA_CHAIN_KEEP,
+    )
+  })
+})
+
+describe("readDeltaChain — the chain is walkable (D-220, criterion 4)", () => {
+  const publish = (cells: string[], day: number) =>
+    regenerateExplored({ userId: USER, touched: cells, day }, deps)
+
+  it("returns nothing to apply when the client is already current", async () => {
+    await publish(run(2), 2444)
+    expect(await readDeltaChain(USER, 1, deps)).toEqual([])
+  })
+
+  /**
+   * The whole point of naming the object by `toGen`. A client knows only its own cached
+   * generation; it walks BACKWARDS from the manifest's, reading each hop's `fromGen` out of
+   * the header, and never has to guess a key.
+   */
+  it("walks three hops backwards and returns them in APPLICATION order", async () => {
+    await publish(run(1), 2440)
+    await publish(run(2), 2441)
+    await publish(run(3), 2442)
+    await publish(run(4), 2443)
+
+    const chain = (await readDeltaChain(USER, 1, deps))!
+    expect(chain).toHaveLength(3)
+    expect(chain.map((h) => [h.fromGen, h.toGen])).toEqual([
+      [1, 2],
+      [2, 3],
+      [3, 4],
+    ])
+  })
+
+  it("the hops it returns are exactly the cells added since the cached generation", async () => {
+    await publish(run(2), 2440)
+    await publish(run(3), 2441)
+    await publish(run(4), 2442)
+
+    const chain = (await readDeltaChain(USER, 1, deps))!
+    const applied = new Set(chain.flatMap((h) => h.added).map(String))
+    const before = new Set(run(2).map((c) => String(cellToBig(c))))
+    const after = new Set(run(4).map((c) => String(cellToBig(c))))
+    expect([...applied].sort()).toEqual([...after].filter((c) => !before.has(c)).sort())
+  })
+
+  it("refuses when a hop in the middle is missing, rather than returning a short chain", async () => {
+    await publish(run(1), 2440)
+    await publish(run(2), 2441)
+    await publish(run(3), 2442)
+    s3.objects.delete(objectKeys.delta(USER, 2))
+
+    // A short chain would silently skip a run's cells — the map losing ground on the client.
+    expect(await readDeltaChain(USER, 1, deps)).toBeUndefined()
+  })
+
+  it("refuses a cached generation below deltasFrom", async () => {
+    await publish(run(1), 2440)
+    const prior = s3.json<Record<string, unknown>>(objectKeys.manifest(USER))
+    const existing = s3.objects.get(objectKeys.manifest(USER))!
+    s3.objects.set(objectKeys.manifest(USER), {
+      ...existing,
+      body: Buffer.from(JSON.stringify({ ...prior, deltasFrom: 40, generation: 60 })),
+    })
+    expect(await readDeltaChain(USER, 39, deps)).toBeUndefined()
+  })
+
+  it("refuses a cached generation ahead of the manifest", async () => {
+    await publish(run(1), 2440)
+    expect(await readDeltaChain(USER, 99, deps)).toBeUndefined()
+  })
+
+  it("returns nothing for a user with no manifest", async () => {
+    expect(await readDeltaChain("nobody", 1, deps)).toBeUndefined()
+  })
+})
+
+describe("the manifest is the commit point — fault injection (criterion 1)", () => {
+  /**
+   * CRITERION 1, literally: *"a fault-injection test killing the writer between blob PUT and
+   * manifest PUT leaves clients on the previous generation, still rendering correctly."*
+   *
+   * `02` §6.4: *"A crash before it leaves orphan blobs (harmless, garbage-collected); a crash
+   * after it would point clients at an object that does not exist. There is no third
+   * possibility, because the manifest PUT is a single atomic S3 operation."*
+   */
+  it("a crash before the manifest leaves the client on the previous generation, still rendering", async () => {
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2444 }, deps)
+    const good = s3.json<{ generation: number; cells: string; cellCount: number }>(
+      objectKeys.manifest(USER),
+    )
+
+    s3.beforePut = (key) => {
+      if (key === objectKeys.manifest(USER)) throw new Error("the worker died here")
+    }
+    await expect(
+      regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps),
+    ).rejects.toThrow("the worker died here")
+
+    // 1. The manifest is untouched, so every client still resolves generation 1.
+    const after = s3.json<typeof good>(objectKeys.manifest(USER))
+    expect(after).toEqual(good)
+
+    // 2. And what it points at is still there and still decodes — "still rendering correctly".
+    const cells = decodeExploredBlob(s3.plain(after.cells))
+    expect(cells.generation).toBe(1)
+    expect(cells.cells).toHaveLength(after.cellCount)
+
+    // 3. The orphaned generation-2 blobs exist and no manifest names them. Harmless.
+    expect(s3.objects.has(objectKeys.cells(USER, 2))).toBe(true)
+  })
+
+  it("and the redelivery republishes cleanly, losing none of the dead run's ground", async () => {
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2444 }, deps)
+    s3.beforePut = (key) => {
+      if (key === objectKeys.manifest(USER)) throw new Error("died")
+    }
+    await expect(
+      regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps),
+    ).rejects.toThrow("died")
+
+    // The receipt was never closed, so SQS redelivers the same activity.
+    s3.beforePut = undefined
+    const retry = await regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps)
+
+    expect(retry.generation).toBe(3)
+    const published = new Set(
+      decodeExploredBlob(s3.plain(objectKeys.cells(USER, 3))).cells.map(String),
+    )
+    for (const c of run(4)) expect(published.has(String(cellToBig(c)))).toBe(true)
+  })
+})
+
+describe("the Profile mirror rides along (criterion 7)", () => {
+  it("reports no-table today, because T1 does not exist", async () => {
+    const result = await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    expect(result.mirrored).toBe("no-table")
+  })
+
+  it("mirrors after the manifest PUT when a table is configured", async () => {
+    const rows = new Map<string, number>()
+    const order: string[] = []
+    const mirror = {
+      table: "Profile",
+      ddb: {
+        async send(command: { input: { Key: { id: string }; ExpressionAttributeValues: Record<string, number> } }) {
+          order.push("mirror")
+          rows.set(command.input.Key.id, command.input.ExpressionAttributeValues[":g"]!)
+          return {}
+        },
+      },
+    }
+    s3.beforePut = (key) => {
+      if (key === objectKeys.manifest(USER)) order.push("manifest")
+    }
+
+    const result = await regenerateExplored(
+      { userId: USER, touched: run(1), day: 2444 },
+      { ...deps, mirror: mirror as never },
+    )
+    expect(result.mirrored).toBe("mirrored")
+    expect(rows.get(USER)).toBe(result.generation)
+    // §6.4: mirrored AFTER the manifest PUT. The manifest is the commit point, not this.
+    expect(order).toEqual(["manifest", "mirror"])
+  })
+
+  it("a failing mirror does not fail the publish", async () => {
+    const mirror = {
+      table: "Profile",
+      ddb: {
+        async send() {
+          throw Object.assign(new Error("denied"), { name: "AccessDeniedException" })
+        },
+      },
+    }
+    const result = await regenerateExplored(
+      { userId: USER, touched: run(1), day: 2444 },
+      { ...deps, mirror: mirror as never },
+    )
+    expect(result.mirrored).toBe("failed")
+    expect(s3.json<{ generation: number }>(objectKeys.manifest(USER)).generation).toBe(1)
+  })
+})
+
+describe("monotonicity across a full rebuild — criterion 8, I-11", () => {
+  /**
+   * `02` §8.3 step 7: the drill rebuilds into **new, empty tables** and must *"set
+   * `generation` = the step-0 generation + 1, never 1."*
+   *
+   * The failure this prevents is silent and total: a generation that goes backwards leaves
+   * every cached client convinced it is already current, so the fog appears to regress on
+   * exactly the devices that were working correctly. Nothing errors and no one is told.
+   *
+   * The drill's S3 is the SAME bucket — only the tables are new — so the pre-drill blobs are
+   * still sitting there under their old generation names. That is what makes this testable
+   * end to end rather than as an assertion about a counter.
+   */
+  it("a rebuilt counter set forward never republishes a generation a client already holds", async () => {
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2440 }, deps)
+    fastForward(412)
+    const preDrill = s3.json<{ generation: number }>(objectKeys.manifest(USER)).generation
+    expect(preDrill).toBe(412)
+
+    // The drill: new, empty tables. The counter is gone; S3 is untouched.
+    ddb.value.clear()
+    expect(await raiseGenerationTo(USER, preDrill + 1, deps)).toBe(true)
+
+    const rebuilt = await regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps)
+
+    expect(rebuilt.generation).toBeGreaterThan(preDrill)
+    expect(rebuilt.generation).toBe(414)
+    expect(s3.json<{ generation: number }>(objectKeys.manifest(USER)).generation).toBe(414)
+    // And nothing overwrote a generation a client may be holding.
+    expect(s3.objects.has(objectKeys.cells(USER, 412))).toBe(true)
+  })
+
+  /**
+   * The same drill WITHOUT step 7 — and the publish **refuses** rather than stranding anyone.
+   *
+   * This was not designed in; it was found by writing the test. An empty counter returns 1
+   * while the manifest still names 412, so `encodeDeltaBlob` is asked for a hop from 412 to 1
+   * and throws on its own `toGen > fromGen` check. `05` §7.4 put that check there to keep the
+   * delta format honest; it turns out to be the last line of defence for I-11 as well.
+   *
+   * The failure mode it replaces is the one I-11 describes and is far worse than a thrown
+   * error: a manifest naming generation 1 leaves every client cached at 412 convinced it is
+   * ahead, so the fog silently stops updating on exactly the devices that were working.
+   * Failing the drill loudly at step 7 is the cheap outcome.
+   */
+  it("and a drill that SKIPS step 7 fails loudly instead of stranding every client", async () => {
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2440 }, deps)
+    fastForward(412)
+
+    ddb.value.clear() // new tables, and NO raiseGenerationTo
+    await expect(
+      regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps),
+    ).rejects.toThrow(/I-11/)
+
+    // And nothing was published: the manifest still names the pre-drill generation.
+    expect(s3.json<{ generation: number }>(objectKeys.manifest(USER)).generation).toBe(412)
+  })
+
+  /**
+   * What the first ORDINARY ingest after a drill does, which is the case that actually
+   * happens: the counter has been set forward, the manifest and blobs in S3 survived
+   * untouched (the drill rebuilds tables, not the bucket), so the publish merges from the
+   * pre-drill generation exactly as any other run would and a client cached at 412 gets a
+   * one-hop delta rather than a 300 KB refetch.
+   *
+   * Note the number in the hop: `fromGen` is 412 and `toGen` is 414, because 413 was consumed
+   * by `raiseGenerationTo`. That is the gap D-220 exists to survive — a client guessing
+   * `from + 1` would fetch `deltas/413.bin`, which was never written.
+   */
+  it("the first ingest after a drill still hands a current client a one-hop delta", async () => {
+    await regenerateExplored({ userId: USER, touched: run(2), day: 2440 }, deps)
+    fastForward(412)
+    ddb.value.clear()
+    await raiseGenerationTo(USER, 413, deps)
+    await regenerateExplored({ userId: USER, touched: run(4), day: 2450 }, deps)
+
+    const chain = (await readDeltaChain(USER, 412, deps))!
+    expect(chain).toHaveLength(1)
+    expect(chain[0]!.fromGen).toBe(412)
+    expect(chain[0]!.toGen).toBe(414)
+    // The generation the counter skipped was never written, and nothing looks for it.
+    expect(s3.objects.has(objectKeys.delta(USER, 413))).toBe(false)
   })
 })
