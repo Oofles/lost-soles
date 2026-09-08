@@ -1,6 +1,7 @@
 import { TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb"
 
 import type { Activity } from "@/src/domain/activity"
+import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
 
 import { doneTransactItem } from "./ingest-receipt"
 
@@ -122,7 +123,16 @@ export function userIdLocalDay(userId: string, startedAtLocal: string): string {
  * what makes criterion 2's "re-persisting writes identical bytes" a property a test
  * can actually assert rather than a hope.
  */
-export function activityItem(activity: Activity): Record<string, unknown> {
+export function activityItem(
+  activity: Activity,
+  /**
+   * `0048`. Defaults to `NO_CELLS` rather than being required, because §3.6 says a
+   * treadmill run still writes the record — so "no award" and "an award of nothing" are
+   * the same row, and a caller that has not scored yet writes the honest zeros instead of
+   * a shape a reader would have to special-case.
+   */
+  award: DiscoveryAward = NO_CELLS,
+): Record<string, unknown> {
   return {
     ...amplifyMetadata(activity.userId, activity.ingestedAt),
 
@@ -163,10 +173,31 @@ export function activityItem(activity: Activity): Record<string, unknown> {
      * rather than omitted for the same reason: the row shape must not vary.
      */
     xpAwarded: 0,
-    cellCount: 0,
-    newCellCount: 0,
-    rearmedCellCount: 0,
-    cooledCellCount: 0,
+
+    /**
+     * THE DISCOVERY AWARD (`0048`, 05 §3.2). **Stored, not recomputed** — this is what the
+     * post-run card and the activity list read, and asking the classifier again later
+     * gives a different answer because by then every one of these cells is in the store
+     * and would come back cooled. R3 §4(e) makes the same point about XP.
+     */
+    cellCount: award.cellCount,
+    newCellCount: award.newCellCount,
+    rearmedCellCount: award.rearmedCellCount,
+    cooledCellCount: award.cooledCellCount,
+    /**
+     * `05` §3.5 / T3. Part of the score-time idempotency key, and the record of WHICH
+     * classifier produced the four numbers above — without it, two activities scored under
+     * different rules are indistinguishable forever.
+     */
+    fogAlgoVersion: award.algoVersion,
+    /**
+     * `discoveryCredits` is deliberately NOT a column. It is exactly
+     * `newCellCount + 0.5 × rearmedCellCount`, so storing it would be a second copy of two
+     * numbers already here — the two-owners failure D-193 names — and the derivation is
+     * `creditOf` in `src/domain/discovery.ts`.
+     */
+
+    /** `0049`'s S3 per-activity cell blob. Null until it exists (02 §2.9). */
     cellsRef: null,
 
     /** ACTIVE | TOMBSTONED. A source-side delete tombstones; cells are never removed. */
@@ -225,12 +256,19 @@ export async function persistActivity(
   receipt: { ingestKey: string; xpAwarded?: number; newCellCount?: number },
   deps: PersistDeps,
   extraItems: NonNullable<TransactWriteCommandInput["TransactItems"]> = [],
+  /**
+   * `0048`. In the transaction rather than in a write of its own, so there is no state in
+   * which the receipt says `DONE` and the activity's cell counts are missing. It is NOT a
+   * cell write — `assertNoCellWrites` below still runs, and these are attributes on the
+   * T3 row, not items in T6.
+   */
+  award: DiscoveryAward = NO_CELLS,
 ): Promise<void> {
   const items: NonNullable<TransactWriteCommandInput["TransactItems"]> = [
     {
       Put: {
         TableName: deps.activityTable,
-        Item: activityItem(activity),
+        Item: activityItem(activity, award),
       },
     },
     /**

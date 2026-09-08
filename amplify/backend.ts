@@ -869,11 +869,22 @@ ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:Up
  * 2024 backfill stomp a 2026 `lastRunAt`. The absence makes that write unavailable rather
  * than merely discouraged.
  *
- * NO `Query`/`GetItem` — this ticket only writes. The ingest-time diff (AP-15) and the
- * blob rebuild (AP-16) belong to 0048 and 0049, and each should add the read it needs
- * where a reviewer can see it.
+ * NO `Query`/`GetItem`. 0047 granted no read at all and said each later ticket must add
+ * the one it needs here, where a reviewer can see it. **0048 is the first to do that** and
+ * adds `BatchGetItem` — AP-15, "which of this run's cells already exist". It is the whole
+ * read: 40–130 keys in one round trip, returning only the cells the run touched.
+ *
+ * NOT `Query`, which AP-15 originally specified and which was corrected in the same
+ * commit: a `Query` returns the entire res-6 partition — up to 2,401 cells — to classify
+ * the 45 this run crossed. `Scan` is absent for the reason it always is.
+ *
+ * The blob rebuild (AP-16) genuinely does want `Query`, and it is 0049's to add.
  */
-exploredCellTable.grant(processActivityLambda, "dynamodb:UpdateItem")
+exploredCellTable.grant(
+  processActivityLambda,
+  "dynamodb:UpdateItem",
+  "dynamodb:BatchGetItem",
+)
 
 /**
  * T7. READ **AND WRITE**, and this is a deliberate departure from ticket 0042's third

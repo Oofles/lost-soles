@@ -137,6 +137,15 @@ describe("T6 ExploredCell — the IAM (I-7)", () => {
   })
 
   /**
+   * `0048`, AP-15 — the ingest-time diff. The ONE read this worker performs, and it is a
+   * batch of known keys rather than a `Query` over the res-6 partition: the run crossed
+   * 45 cells and the partition may hold 2,401.
+   */
+  it("grants BatchGetItem, and only that read", () => {
+    expect(actionsOnTable()).toContain("dynamodb:BatchGetItem")
+  })
+
+  /**
    * THE POINT OF THIS FILE. Each of these would be handed out for free by
    * `grantReadWriteData`, and each one breaks a different invariant:
    *
@@ -163,11 +172,11 @@ describe("T6 ExploredCell — the IAM (I-7)", () => {
   })
 
   /**
-   * The reads AP-15 and AP-16 need belong to `0048` and `0049`. Asserting their absence
-   * now means each of those tickets has to add its own grant where a reviewer can see it,
-   * rather than inheriting one nobody chose.
+   * `Query` is AP-16's, the blob rebuild, and belongs to `0049`. Kept absent so that
+   * ticket adds it deliberately rather than inheriting a grant nobody chose — which is
+   * the discipline that made `0048`'s `BatchGetItem` above a visible line in a diff.
    */
-  it("grants no read yet — this ticket only writes", () => {
+  it("grants no Query, GetItem or Scan — those are 0049's to justify", () => {
     const granted = actionsOnTable()
     expect(granted).not.toContain("dynamodb:Query")
     expect(granted).not.toContain("dynamodb:GetItem")

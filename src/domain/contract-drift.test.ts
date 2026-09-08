@@ -113,17 +113,54 @@ describe("the domain depends on nothing", () => {
    */
   const DOMAIN_ALLOWED_PACKAGES = ["h3-js"]
 
+  /**
+   * COMMENTS ARE STRIPPED BEFORE MATCHING, and that is not a loosening. Ticket `0048`.
+   *
+   * `from "…"` is an ordinary English construction, and this directory is heavily
+   * commented on purpose. `discovery.ts` says a reader must not have to *"distinguish
+   * 'absent' from 'none'"*, and the raw regex read that as an import of a package called
+   * `none`. A gate with false positives is a gate that gets bypassed — the lesson
+   * `check-boundaries.mjs` learned on ticket 0016's settings copy — so the fix is to make
+   * the check see code, not to make the prose avoid a word.
+   *
+   * Deliberately crude: block bodies and line comments blanked, strings left alone. A real
+   * `import … from "aws-sdk"` is unaffected, and the case below proves it.
+   */
+  const codeOnly = (body: string) =>
+    body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+
   it("imports only node: builtins, its own siblings, and h3-js", () => {
     const allowed = /^(node:|\.\/|\.\.\/|vitest$)/
     const bad: string[] = []
     for (const [rel, body] of files) {
-      for (const m of body.matchAll(/from\s+["']([^"']+)["']/g)) {
+      for (const m of codeOnly(body).matchAll(/from\s+["']([^"']+)["']/g)) {
         if (allowed.test(m[1])) continue
         if (DOMAIN_ALLOWED_PACKAGES.includes(m[1])) continue
         bad.push(`${rel} → ${m[1]}`)
       }
     }
     expect(bad).toEqual([])
+  })
+
+  it("still fires on a real import, so stripping comments did not disarm it", () => {
+    // The stripper's own test. Prose that merely says `from "none"` must pass; an actual
+    // import statement must not — and `codeOnly` is the only thing telling them apart.
+    const prose = `/** distinguish "absent" from "none". */\nimport { x } from "./fog"`
+    /**
+     * ASSEMBLED FROM PARTS so this file's own text never contains the pattern. Written as
+     * a plain literal, the fixture is an import statement in `src/domain/` and the check
+     * above flags it — which is the check working correctly, on its own test. `join(" ")`
+     * puts the space in at runtime; in the source there is none after `from`, so the
+     * scanner sees nothing and the assertion still exercises the real regex.
+     */
+    const real = ["import { Client }", "from", '"a-package-the-domain-may-not-have"'].join(" ")
+    const hits = (body: string) =>
+      [...codeOnly(body).matchAll(/from\s+["']([^"']+)["']/g)]
+        .map((m) => m[1])
+        .filter((p) => !/^(node:|\.\/|\.\.\/|vitest$)/.test(p))
+
+    expect(hits(prose)).toEqual([])
+    expect(hits(real)).toEqual(["a-package-the-domain-may-not-have"])
   })
 
   it("the allowlist is exactly one package, and it is the one the architecture names", () => {

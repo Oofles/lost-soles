@@ -1189,7 +1189,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-12** | Webhook: `owner_id` → `userId`; worker: fetch tokens | T7 GSI1 `byExternalOwner` (KEYS_ONLY), then T7 base | `Query` + `GetItem` | 1 + 1 | **1 RRU**; the index cannot leak a token (§2 T7) |
 | **AP-13** | "Did I work out today" / a day's activities | T3 GSI3 `byUserAndDay` | `Query userIdLocalDay` | 0–4 | **0.5 RRU** — uses `startedAtLocal` (contract conflict #3) |
 | **AP-14** | Generation mirror for the AppSync subscription | T1 base | `GetItem` / subscription push | 1 | **0.5 RRU** |
-| **AP-15** | Ingest: which of this run's cells already exist | T6 `ExploredCell` base | `Query` per touched res-6 parent (1–2) | 1–2,401 | **~1–50 RRU** |
+| **AP-15** | Ingest: which of this run's cells already exist | T6 `ExploredCell` base | **`BatchGetItem`, 40–130 keys, one call** (was: `Query` per touched res-6 parent — corrected 2026-09-08, ticket `0048`: a `Query` returns the whole partition, up to 2,401 cells, to classify the ~45 this run crossed, and a point-to-point run through four parents is four calls instead of one) | 40–130 | **~3–10 RRU** |
 | **AP-16** | Blob rebuild: the user's whole explored set | T6 base | `Query AGG#6` then `Query` per parent | 20k–150k | **~1,000–3,000 RRU** — **repair path only** (§2.10) |
 | **AP-17** | Consistency scan / rebuild drill | T6 base | as AP-16 + verification | all | as AP-16 |
 | **AP-18** | Idempotency gates | T8 `IngestReceipt` base | `GetItem` / conditional writes | 1 | **0.5 RRU** |

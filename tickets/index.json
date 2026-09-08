@@ -4104,5 +4104,25 @@
       "checked": 0,
       "total": 6
     }
+  },
+  {
+    "id": 180,
+    "slug": "trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec",
+    "title": "Trace reject counts reach T3 — make a silently-garbage GPS record visible",
+    "type": "feature",
+    "priority": "medium",
+    "status": "open",
+    "size": "m",
+    "capability": "null",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T05:20:45Z",
+    "path": "tickets/open/0180-trace-reject-counts-reach-t3-make-a-silently-garbage-gps-rec.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

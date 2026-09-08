@@ -1,6 +1,12 @@
-import { UpdateCommand, type UpdateCommandInput } from "@aws-sdk/lib-dynamodb"
+import {
+  BatchGetCommand,
+  UpdateCommand,
+  type BatchGetCommandInput,
+  type UpdateCommandInput,
+} from "@aws-sdk/lib-dynamodb"
 import type { H3Index } from "h3-js"
 
+import { awardsDiscovery, type CellRecord, type ClassifiedCell } from "@/src/domain/discovery"
 import { parentOf } from "@/src/domain/fog"
 
 /**
@@ -53,9 +59,10 @@ import { parentOf } from "@/src/domain/fog"
  * ─── WHAT THIS FILE DELIBERATELY DOES NOT DO ────────────────────────────────
  *
  *   - **The AGG aggregate** (T6 item type B) belongs to `0049`, whose title carries it.
- *   - **`discoveryCount`** is classification output and belongs to `0048`. The `ADD` term
- *     ships here with a credit of zero so that `0048` supplies a number rather than
- *     restructuring the one expression in this system that must stay boring.
+ *   - **`discoveryCount`** was `0047`'s zero-credit placeholder and is now supplied by
+ *     `0048`'s classifier: `ADD discoveryCount :credit` receives 1 for a new or re-armed
+ *     cell and 0 for a cooled one (§2.4 — *"how many times it awarded credit"*). The
+ *     expression did not change, which was the point of shipping the term early.
  *   - **Deletion.** Not as a restriction but as an absence: there is no delete in this
  *     module and the worker's IAM role never asks for `dynamodb:DeleteItem` (I-7).
  */
@@ -108,6 +115,128 @@ export function lastRunDay(iso: string): number {
   return Math.floor((Date.parse(iso) - DAY_ZERO_MS) / MS_PER_DAY)
 }
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE READ. Ticket `0048`, AP-15 — *"which of this run's cells already exist"*.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/** DynamoDB's hard cap on keys in one `BatchGetItem`. Not tunable. */
+const BATCH_GET_LIMIT = 100
+
+export interface CellReadDeps {
+  ddb: { send(command: BatchGetCommand): Promise<BatchGetOutput> }
+  table?: string
+  /** Retries for keys DynamoDB declines to return. Distinct from a throttle retry. */
+  maxRetries?: number
+  sleep?(ms: number): Promise<void>
+}
+
+/** The shape of `BatchGetItem`'s reply this module reads. Narrow on purpose. */
+interface BatchGetOutput {
+  Responses?: Record<string, Record<string, unknown>[]>
+  UnprocessedKeys?: BatchGetCommandInput["RequestItems"]
+}
+
+/**
+ * WHAT THE STORE HELD BEFORE THIS ACTIVITY. One `BatchGetItem` per 100 cells.
+ *
+ * ─── WHY `BatchGetItem` AND NOT `Query`, WHICH IS WHAT AP-15 SAYS ───────────
+ *
+ * `02-data-model.md` AP-15 described this as *"`Query` per touched res-6 parent (1–2)"*.
+ * Both work; `BatchGetItem` is strictly better here and the ticket asks for it:
+ *
+ *   - **It reads what the run touched, and nothing else.** A `Query` returns the whole
+ *     res-6 partition — up to 2,401 cells, every street the user has ever run within
+ *     36 km² — to classify the 45 this activity crossed. AP-15's own estimate says so:
+ *     "1–2,401 items, ~1–50 RRU". A batch of 45 keys is ~45 items and a handful of RRU.
+ *   - **It is one round trip regardless of how many parents the run crosses.** A long
+ *     point-to-point run through four parents is four `Query` calls and one batch.
+ *
+ * The partition grouping still earns its place — it is what bounds the `Query` path
+ * `0049`'s rebuild needs, and what gives the client its viewport buckets. It is simply
+ * not what makes this read cheap. AP-15 was corrected in the same commit.
+ *
+ * ─── DUPLICATE KEYS ARE A HARD ERROR, SO THEY ARE REMOVED HERE ──────────────
+ *
+ * `BatchGetItem` rejects a request whose key list repeats an item — *"Provided list of
+ * item keys contains duplicates"*, a 400, not a partial result. In production the input is
+ * the `Set` from `traceToCells` and cannot repeat; but this function takes an `Iterable`
+ * and a caller with an array is one `concat` away from failing an entire ingest on a
+ * validation error that says nothing about cells. **Found by the live smoke test, which a
+ * `Map`-backed fake could not have caught** — a fake absorbs duplicates silently, which is
+ * exactly the fidelity gap that test exists to close.
+ *
+ * ─── UNPROCESSED KEYS ARE NORMAL, NOT AN ERROR ──────────────────────────────
+ *
+ * `BatchGetItem` may return fewer items than asked for — a 16 MB response cap, or
+ * throttling — and reports the shortfall in `UnprocessedKeys` **with a 200**. Treating a
+ * short read as complete is the dangerous failure here, not a slow one: a missing record
+ * classifies its cell as `new`, which awards full credit for ground the user already knew
+ * and writes it permanently. So a shortfall is retried, and exhausting the retries throws.
+ *
+ * @returns a map from cell id to record. **Absent means never seen** — and this function
+ *          guarantees the distinction, which is the entire reason it may not fail quietly.
+ */
+export async function readCells(
+  cells: Iterable<H3Index>,
+  userId: string,
+  deps: CellReadDeps,
+): Promise<Map<H3Index, CellRecord>> {
+  const table = deps.table ?? EXPLORED_CELL_TABLE
+  const maxRetries = deps.maxRetries ?? 4
+  const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
+
+  const found = new Map<H3Index, CellRecord>()
+  const all = [...new Set(cells)]
+
+  for (let i = 0; i < all.length; i += BATCH_GET_LIMIT) {
+    let keys = all.slice(i, i + BATCH_GET_LIMIT).map((cell) => cellKey(userId, cell))
+
+    for (let attempt = 0; keys.length > 0; attempt++) {
+      if (attempt > maxRetries) {
+        throw new Error(
+          `readCells: ${keys.length} of ${all.length} cells still unread after ` +
+            `${maxRetries} retries. Refusing to continue — an unread cell would ` +
+            "classify as new and award credit for ground already explored (05 §3.2).",
+        )
+      }
+      if (attempt > 0) await sleep(2 ** (attempt - 1) * 50)
+
+      const out = await deps.ddb.send(
+        new BatchGetCommand({
+          RequestItems: {
+            // CONSISTENT, and this is the one read in the system that needs to be. A cell
+            // written by the immediately preceding activity — two runs the same morning —
+            // must be visible, or the second run scores it `new` and double-awards ground
+            // that is already revealed. Eventual consistency is cheaper and wrong here.
+            [table]: { Keys: keys, ConsistentRead: true },
+          },
+        }),
+      )
+
+      for (const item of out.Responses?.[table] ?? []) {
+        const sk = item.sk as H3Index | undefined
+        const lastRunAt = item.lastRunAt
+        // A row with no `lastRunAt` cannot be classified against and must not silently
+        // read as "never seen" — I-9 says the attribute is always written, so its absence
+        // means something upstream is wrong rather than that the cell is new.
+        if (typeof sk !== "string" || typeof lastRunAt !== "string") {
+          throw new Error(
+            `readCells: T6 item ${JSON.stringify(item.sk)} has no string lastRunAt (I-9).`,
+          )
+        }
+        found.set(sk, { lastRunAt })
+      }
+
+      const unprocessed = out.UnprocessedKeys?.[table]?.Keys
+      keys = (unprocessed ?? []) as Array<{ pk: string; sk: string }>
+    }
+  }
+
+  return found
+}
+
 /** Everything the cell writer reads off an activity. Nothing else may influence a cell. */
 export interface CellWriteActivity {
   userId: string
@@ -151,6 +280,7 @@ export interface CellWriteDeps {
 export function cellUpdate(
   cell: H3Index,
   activity: CellWriteActivity,
+  credit: 0 | 1,
   table = EXPLORED_CELL_TABLE,
 ): UpdateCommandInput {
   return {
@@ -168,12 +298,12 @@ export function cellUpdate(
       ":day": lastRunDay(activity.startedAt),
       ":one": 1,
       /**
-       * ZERO, ALWAYS, IN THIS TICKET. `discoveryCount` separates "ran here 40 times" from
-       * "re-armed twice", and only `0048` can tell those apart. The term is present so the
-       * attribute exists from the first write and the row shape never varies — the same
-       * reasoning `persist.ts` applies to writing `cellCount: 0` on a treadmill run.
+       * 1 for a new or re-armed cell, 0 for a cooled one. §2.4: `discoveryCount` is *"how
+       * many times it awarded credit"*, which is what separates "ran here 40 times" from
+       * "re-armed twice". Supplied by `0048`'s classifier; `0047` shipped the term with a
+       * hard zero precisely so this became a parameter rather than an expression change.
        */
-      ":credit": 0,
+      ":credit": credit,
     },
   }
 }
@@ -202,6 +332,7 @@ export function cellUpdate(
 export function firstRunBackfill(
   cell: H3Index,
   activity: CellWriteActivity,
+  credit: 0 | 1,
   table = EXPLORED_CELL_TABLE,
 ): UpdateCommandInput {
   return {
@@ -214,7 +345,7 @@ export function firstRunBackfill(
       ":at": activity.startedAt,
       ":rid": activity.activityId,
       ":one": 1,
-      ":credit": 0,
+      ":credit": credit,
     },
   }
 }
@@ -259,7 +390,7 @@ const isThrottle = (e: unknown): boolean => THROTTLE.has((e as { name?: string }
  * reverse — and it is the reason this call goes above `persistActivity` and not below it.
  */
 export async function writeCells(
-  cells: Iterable<H3Index>,
+  classified: Iterable<ClassifiedCell>,
   activity: CellWriteActivity,
   deps: CellWriteDeps,
 ): Promise<CellWriteResult> {
@@ -268,7 +399,7 @@ export async function writeCells(
   const maxRetries = deps.maxRetries ?? 3
   const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
-  const queue = [...cells]
+  const queue = [...classified]
   const result: CellWriteResult = { advanced: 0, backfilled: 0, unchanged: 0 }
 
   async function send(input: UpdateCommandInput): Promise<"applied" | "condition-failed"> {
@@ -287,12 +418,17 @@ export async function writeCells(
     }
   }
 
-  async function one(cell: H3Index): Promise<void> {
-    if ((await send(cellUpdate(cell, activity, table))) === "applied") {
+  async function one({ cell, discovery }: ClassifiedCell): Promise<void> {
+    // The credit is decided by the CLASSIFIER, against pre-run state, and merely carried
+    // here. Deriving it in this function would mean re-reading the record — which is
+    // exactly the phase-2/phase-4 collapse §3.3's last bullet forbids.
+    const credit = awardsDiscovery(discovery) ? 1 : 0
+
+    if ((await send(cellUpdate(cell, activity, credit, table))) === "applied") {
       result.advanced++
       return
     }
-    if ((await send(firstRunBackfill(cell, activity, table))) === "applied") {
+    if ((await send(firstRunBackfill(cell, activity, credit, table))) === "applied") {
       result.backfilled++
       return
     }

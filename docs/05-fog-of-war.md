@@ -440,7 +440,7 @@ function scoreActivity(activity, trace, store):
   newShare      = newCells.length / cells.size
   wayfaringXp   = round(baseWayfaringXp(activity) * (newShare + 0.5 * (1 - newShare)))
 
-  # ---------- 4. WRITE (one transaction, see §3.3) ----------
+  # ---------- 4. WRITE (see the correction below) ----------
   # `rec` below is the record read in phase 2 and carried alongside each cell;
   # it is deliberately NOT re-read here, so writes cannot see this run's own effects.
   store.transact(() => {
@@ -481,6 +481,23 @@ function scoreActivity(activity, trace, store):
 
   return award
 ```
+
+> **PHASE 4 IS NOT ONE TRANSACTION, AND THE CELL WRITES ARE NOT IN IT. Corrected 2026-09-08
+> (tickets `0047`/`0048`).** This section predates D-144. A run produces 40–130 cells and
+> `TransactWriteItems` caps at **100 items**, so atomicity across cells and XP is not available
+> at any price — the pseudocode above would work for every activity under ~98 cells and then
+> begin failing silently on exactly the longest runs. I-10 fixes the split:
+>
+> - **Cells are written first, outside and before the transaction**, one conditional
+>   `UpdateItem` each (`02` §2 T6). The permitted skew is *map ahead of XP, never the reverse*:
+>   revealed-but-unscored ground self-heals on redelivery, and scored-but-unrevealed ground could
+>   only be repaired by re-fogging, which D-020 forbids. `src/pipeline/persist.ts`'s
+>   `assertNoCellWrites` throws if a cell key ever reaches the transaction.
+> - **`putLedgerEntry` is the T8 receipt's `DONE` transition plus the four counts on the T3 row**,
+>   and those *are* in the transaction, so an activity can never be `DONE` with its award missing.
+> - **`bumpAggregates` and `bumpGeneration` belong to ticket `0049`.**
+>
+> Everything else in phase 4 stands, including the rule the next paragraph states.
 
 **The award is stored, not recomputed.** Everything the UI shows about a run — "41 new cells",
 "+410 Cartography" — reads the ledger entry. Recomputing it later would give a different answer

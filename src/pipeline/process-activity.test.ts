@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { PutObjectCommand } from "@aws-sdk/client-s3"
-import { TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import { BatchGetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import { SourceRateLimitedError } from "@/src/adapters/errors"
@@ -88,6 +88,12 @@ interface Options {
   ingest?: { kind?: string; hasTrace?: boolean; trace?: Trace }
   /** Ticket `0047`. Every cell write throws this, to prove the ordering holds under failure. */
   cellsFail?: Error
+  /**
+   * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
+   * map classifies `new`. Given as a function of the run's cells so a test can seed "every
+   * cell is already known" without knowing which cells the fixture trace produces.
+   */
+  known?: (cells: string[]) => Record<string, string>
 }
 
 /** The real v1 ruleset, because D-189's answer must be the shipped one, not a stub's. */
@@ -181,7 +187,26 @@ function rig(options: Options = {}) {
       concurrency: 1,
       sleep: async () => {},
       ddb: {
-        async send(command: UpdateCommand) {
+        async send(command: UpdateCommand | BatchGetCommand) {
+          /**
+           * `0048`. The read comes first and is announced separately, so the ordering
+           * assertions can say READ-then-WRITE — which is §3.3's classify-then-write rule
+           * at the level this file can see it.
+           */
+          if (command instanceof BatchGetCommand) {
+            calls.push("cellsRead")
+            const keys = (command.input.RequestItems?.[CELL_TABLE]?.Keys ?? []) as Array<{
+              sk: string
+            }>
+            const known = options.known?.(keys.map((k) => k.sk)) ?? {}
+            return {
+              Responses: {
+                [CELL_TABLE]: keys
+                  .filter((k) => known[k.sk])
+                  .map((k) => ({ sk: k.sk, lastRunAt: known[k.sk] })),
+              },
+            }
+          }
           if (!cellWrites.length) calls.push("cells")
           cellWrites.push(command.input)
           if (options.cellsFail) throw options.cellsFail
@@ -592,5 +617,191 @@ describe("revealsGround gates the whole projection (D-189)", () => {
     const { deps, cellWrites } = rig({ ingest: { kind: "run", hasTrace: false } })
     await processActivity(JOB, deps)
     expect(cellWrites).toHaveLength(0)
+  })
+})
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET `0048` — classify against pre-run state, then write, then store the award.
+ * `05-fog-of-war.md` §3.2/§3.3/§3.6; D-120; I-12.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+const LONG_AGO = "2024-01-01T00:00:00.000Z"
+const RECENTLY = "2026-08-20T00:00:00.000Z"
+
+describe("discovery classification, end to end", () => {
+  it("reads BEFORE it writes — §3.3's classify-then-write, at the level this file sees", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+
+    expect(calls.indexOf("cellsRead")).toBeGreaterThan(calls.indexOf("gate"))
+    expect(calls.indexOf("cellsRead")).toBeLessThan(calls.indexOf("cells"))
+    expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("persist"))
+  })
+
+  it("a run over wholly new ground is all new, and every cell earns credit", async () => {
+    const { deps, cellWrites } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.award.newCellCount).toBe(result.award.cellCount)
+    expect(result.award.cooledCellCount).toBe(0)
+    expect(result.award.discoveryCredits).toBe(result.award.cellCount)
+    for (const input of cellWrites) {
+      expect(input.ExpressionAttributeValues![":credit"]).toBe(1)
+    }
+  })
+
+  it("a run over ground covered last month is all cooled, and earns nothing", async () => {
+    const { deps, cellWrites } = rig({
+      ingest: TRACED_RUN,
+      known: (cells) => Object.fromEntries(cells.map((c) => [c, RECENTLY])),
+    })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.award.cooledCellCount).toBe(result.award.cellCount)
+    expect(result.award.newCellCount).toBe(0)
+    expect(result.award.discoveryCredits).toBe(0)
+    // The cells are still written — visitCount advances, discoveryCount does not.
+    expect(cellWrites.length).toBeGreaterThan(0)
+    for (const input of cellWrites) {
+      expect(input.ExpressionAttributeValues![":credit"]).toBe(0)
+    }
+  })
+
+  it("a run over ground last covered two years ago re-arms at half credit", async () => {
+    const { deps } = rig({
+      ingest: TRACED_RUN,
+      known: (cells) => Object.fromEntries(cells.map((c) => [c, LONG_AGO])),
+    })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.award.rearmedCellCount).toBe(result.award.cellCount)
+    expect(result.award.discoveryCredits).toBe(result.award.cellCount * 0.5)
+  })
+
+  /**
+   * The whole point of reading in one shot. If the read were interleaved with the writes,
+   * the cells written early in this run would come back as `lastRunAt = now` and the rest
+   * of the run would classify `cooled` — halving the credit of the runs the game exists to
+   * reward, with nothing anywhere looking wrong.
+   */
+  it("later cells are NOT poisoned by the writes this same run performed", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.award.cooledCellCount).toBe(0)
+    // Exactly one read, up front — not one per cell.
+    expect(calls.filter((c) => c === "cellsRead")).toHaveLength(1)
+  })
+
+  it("an out-of-order activity fails the job rather than scoring as cooled (§3.4)", async () => {
+    const future = "2027-01-01T00:00:00.000Z"
+    const { deps, calls } = rig({
+      ingest: TRACED_RUN,
+      known: (cells) => Object.fromEntries(cells.map((c) => [c, future])),
+    })
+
+    await expect(processActivity(JOB, deps)).rejects.toThrow(/§3.4/)
+    // And it fails BEFORE anything is written — the classifier runs between read and write.
+    expect(calls).not.toContain("cells")
+    expect(calls).not.toContain("persist")
+  })
+})
+
+describe("the award is stored, not recomputed (criterion 9, §3.2)", () => {
+  it("lands on the T3 row inside the ingest transaction", async () => {
+    const transactions: unknown[] = []
+    const { deps } = rig({ ingest: TRACED_RUN })
+    const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
+    deps.persist.ddb = {
+      async send(command: TransactWriteCommand) {
+        transactions.push(command.input.TransactItems)
+        return inner(command)
+      },
+    }
+
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    const items = transactions[0] as Array<{ Put?: { Item: Record<string, unknown> } }>
+    const row = items.find((i) => i.Put)!.Put!.Item
+    expect(row.cellCount).toBe(result.award.cellCount)
+    expect(row.newCellCount).toBe(result.award.newCellCount)
+    expect(row.rearmedCellCount).toBe(result.award.rearmedCellCount)
+    expect(row.cooledCellCount).toBe(result.award.cooledCellCount)
+    expect(row.fogAlgoVersion).toBe(result.award.algoVersion)
+  })
+
+  it("closes the receipt with the same newCellCount, so a duplicate need not reclassify", async () => {
+    const transactions: unknown[] = []
+    const { deps } = rig({ ingest: TRACED_RUN })
+    const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
+    deps.persist.ddb = {
+      async send(command: TransactWriteCommand) {
+        transactions.push(command.input.TransactItems)
+        return inner(command)
+      },
+    }
+
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    const items = transactions[0] as Array<{
+      Update?: { ExpressionAttributeValues?: Record<string, unknown> }
+    }>
+    const done = items.find((i) => i.Update)!.Update!
+    expect(done.ExpressionAttributeValues![":newCellCount"]).toBe(result.award.newCellCount)
+  })
+
+  /**
+   * The reason the award is stored at all. A second delivery returns the WINNER's numbers
+   * off the receipt; reclassifying would give a different answer, because by now every one
+   * of those cells is in the store and would come back cooled.
+   */
+  it("a duplicate returns the stored numbers and never touches the classifier", async () => {
+    const { deps, calls } = rig({
+      ingest: TRACED_RUN,
+      claim: { kind: "duplicate", attributes: { status: "DONE", xpAwarded: 0, newCellCount: 41 } },
+    })
+
+    const result = await processActivity(JOB, deps)
+    expect(result).toEqual({ outcome: "already-done", xpAwarded: 0, newCellCount: 41 })
+    expect(calls).not.toContain("cellsRead")
+    expect(calls).not.toContain("cells")
+  })
+})
+
+describe("no cells still writes a record (§3.6)", () => {
+  it("a ride's award is zeros, so the T3 row shape never varies", async () => {
+    const { deps } = rig({ ingest: { kind: "ride", hasTrace: true, trace: TRACE } })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.cells).toBeNull()
+    expect(result.award).toEqual({
+      cellCount: 0,
+      newCellCount: 0,
+      rearmedCellCount: 0,
+      cooledCellCount: 0,
+      discoveryCredits: 0,
+      res: 10,
+      algoVersion: 1,
+    })
+  })
+
+  it("a traceless run's award is zeros too, and it is still persisted", async () => {
+    const { deps, calls } = rig({ ingest: { kind: "run", hasTrace: false } })
+    const result = await processActivity(JOB, deps)
+
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.award.cellCount).toBe(0)
+    expect(calls).toContain("persist")
+    // Nothing to read, so nothing was read.
+    expect(calls).not.toContain("cellsRead")
   })
 })

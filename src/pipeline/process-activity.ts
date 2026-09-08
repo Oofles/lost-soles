@@ -1,11 +1,23 @@
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
 import type { Activity, Trace } from "@/src/domain/activity"
+import {
+  awardOf,
+  classifyCells,
+  NO_CELLS,
+  type DiscoveryAward,
+} from "@/src/domain/discovery"
 import { traceToCells } from "@/src/domain/fog"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSkill } from "@/src/rules/schema"
 
 import type { ArchiveDeps } from "./archive"
-import { writeCells, type CellWriteDeps, type CellWriteResult } from "./explored-cells"
+import {
+  readCells,
+  writeCells,
+  type CellReadDeps,
+  type CellWriteDeps,
+  type CellWriteResult,
+} from "./explored-cells"
 import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
@@ -143,6 +155,13 @@ export type ProcessResult =
        * whose cells all happened to be replays.
        */
       cells: CellWriteResult | null
+      /**
+       * THE DISCOVERY AWARD (`0048`, §3.2). Never `null`: §3.6 requires a record even for
+       * a treadmill run, so a no-cell activity carries `NO_CELLS` rather than nothing, and
+       * the T3 row shape never varies. It is written, not returned for recomputation —
+       * asking for it again once the cells are in the store gives a different answer.
+       */
+      award: DiscoveryAward
     }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
@@ -177,7 +196,7 @@ export interface ProcessDeps<TCreds> {
   credentials(job: IngestJob): Promise<TCreds>
   archive: ArchiveDeps
   receipt: ReceiptDeps
-  cells: CellWriteDeps
+  cells: CellWriteDeps & CellReadDeps
   persist: PersistDeps
   /**
    * THE RULESET, AS AN ARGUMENT. D-189, D-217.
@@ -330,18 +349,32 @@ export async function processActivity<TCreds>(
    */
   phase("cells")
   const t3c = clock()
-  const cells = await projectCells(ingest, deps)
+  const { cells, award } = await projectCells(ingest, deps)
   const cellsMs = clock() - t3c
 
   phase("persist")
   const t3 = clock()
-  await persistActivity(ingest.activity, { ingestKey: job.ingestKey }, deps.persist)
+  /**
+   * THE AWARD GOES IN THE TRANSACTION, not in a write of its own. §3.2: *"the award is
+   * stored, not recomputed"* — and it is stored in the same atomic commit that closes the
+   * receipt, so there is no state in which an activity is `DONE` and its cell counts are
+   * missing. `newCellCount` also lands on the receipt, which is how a later duplicate
+   * answers without reclassifying against a store that has since changed.
+   */
+  await persistActivity(
+    ingest.activity,
+    { ingestKey: job.ingestKey, newCellCount: award.newCellCount },
+    deps.persist,
+    [],
+    award,
+  )
   const persistMs = clock() - t3
 
   return {
     outcome: "persisted",
     activityId: ingest.activity.activityId,
     cells,
+    award,
     timings: {
       credentialsMs,
       fetchMs,
@@ -356,7 +389,8 @@ export async function processActivity<TCreds>(
 }
 
 /**
- * TRACE → CELLS → T6, or nothing at all. Ticket `0047`; D-189, D-020.
+ * TRACE → CELLS → CLASSIFY → T6, or nothing at all. Tickets `0047` and `0048`;
+ * `05-fog-of-war.md` §3.2; D-189, D-120, D-020.
  *
  * THREE WAYS TO WRITE NOTHING, and they are not the same thing:
  *
@@ -364,26 +398,51 @@ export async function processActivity<TCreds>(
  *      verbatim: no trace ⇒ no projection ⇒ no cells ⇒ no `ExploredCell` write and no
  *      Cartography award. It falls out with no field and no branch of its own.
  *   2. **The rules say this activity does not open the map** (D-189). A road ride has a
- *      real trace and real geometry and must write **none** of it. Returned as `null`
- *      rather than an empty result so the caller can tell the two apart — the log line
+ *      real trace and real geometry and must write **none** of it. The write result is
+ *      `null` rather than an empty one so the caller can tell the two apart — the log line
  *      for "the rules refused" and for "every cell was a replay" must not be identical.
  *   3. **An empty cell set** from a trace too short or too degraded to qualify anything.
  *      A real result with zero writes, because the map was consulted and had nothing to
- *      add.
+ *      add. §3.6 treats an entirely-filtered trace as no-GPS, which is what this is.
+ *
+ * **The award is `NO_CELLS` in all three, never absent.** §3.6 requires the record to be
+ * written with `cellCount: 0` even for a treadmill run, so the idempotency gate covers
+ * no-GPS activities and re-import stays a no-op — and so no reader ever has to tell
+ * "absent" from "none".
  *
  * `revealsGround` is a DATA LOOKUP on the matched skill row, never a `switch` on
- * `ActivityKind` (D-031/D-141) — see `src/rules/reveals-ground.ts` for why that
- * distinction is the difference between adding a workout type as a row and adding it as
- * a code change.
+ * `ActivityKind` (D-031/D-141) — see `src/rules/reveals-ground.ts`.
+ *
+ * ─── READ, CLASSIFY, THEN WRITE. THE ORDER IS THE ALGORITHM ─────────────────
+ *
+ * §3.3's last bullet: every cell is classified against the store as it was **before this
+ * activity**, so the read is one shot up front and the classifier gets a map rather than a
+ * store handle. Interleaving them makes the second half of a long run through new
+ * territory come back "cooled" — the first half having already moved `lastRunAt` — which
+ * silently halves the credit of exactly the runs the game exists to reward.
  */
 async function projectCells<TCreds>(
   ingest: { activity: Activity; trace?: Trace },
   deps: ProcessDeps<TCreds>,
-): Promise<CellWriteResult | null> {
+): Promise<{ cells: CellWriteResult | null; award: DiscoveryAward }> {
   const { activity, trace } = ingest
+  const nothing = { cells: null, award: NO_CELLS }
 
-  if (!revealsGround(matchable(activity), deps.registry)) return null
-  if (!trace) return { advanced: 0, backfilled: 0, unchanged: 0 }
+  if (!revealsGround(matchable(activity), deps.registry)) return nothing
+  if (!trace) return { cells: null, award: NO_CELLS }
 
-  return writeCells(traceToCells(trace), activity, deps.cells)
+  const cells = traceToCells(trace)
+  if (cells.size === 0) {
+    // A trace with points but nothing that survived §2.2 is no-GPS (§3.6). Distinguished
+    // from "no trace" only in the log; both award nothing and write nothing.
+    return { cells: { advanced: 0, backfilled: 0, unchanged: 0 }, award: NO_CELLS }
+  }
+
+  // 2. CLASSIFY, against pre-run state, in one read.
+  const records = await readCells(cells, activity.userId, deps.cells)
+  const classified = classifyCells(cells, records, activity.startedAt)
+  const award = awardOf(classified)
+
+  // 4. WRITE, carrying each cell's verdict. Never re-reading.
+  return { cells: await writeCells(classified, activity, deps.cells), award }
 }
