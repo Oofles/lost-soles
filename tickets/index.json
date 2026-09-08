@@ -4199,5 +4199,25 @@
       "checked": 0,
       "total": 6
     }
+  },
+  {
+    "id": 184,
+    "slug": "the-two-audit-md-4-regression-rows-are-hardcoded-n-a-and-can",
+    "title": "The two AUDIT.md §4 regression rows are hardcoded n/a and can never activate",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T17:53:27Z",
+    "path": "tickets/open/0184-the-two-audit-md-4-regression-rows-are-hardcoded-n-a-and-can.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

@@ -72,6 +72,45 @@ audit procedure and it is the only reason these were caught.
 `0027` built the gate for is the thing `05` will be tempted to bend — the gate is mechanical and
 does not exempt test files (D-163), which is the point.
 
+---
+
+### Re-audit, 2026-09-08 — what four days changed
+
+The 2026-09-04 verdict was **forced**, on two grounds, and both have since been settled. `0161`
+closed on 2026-09-08 and `invariant-sweep` is now a ratchet: it reads
+**`9/30 invariants cited by a test name, none lost`** and fails only on a lost citation or once
+`0116` declares the set complete (D-224, D-225). `vigil-test` finds `registry-delta.test.ts` by the
+marker in the file rather than by its name, so the second lying `n/a` is gone too. The four
+divergences were resolved at the time through D-193 and `0162`. The mechanical half is now
+**10 passed, 0 failed, 2 n/a** with nothing overridden.
+
+**Two more of the same shape turned up, and one is a fifth instance of the very thing D-193 was
+written for.** `02` §3.2 — the canonical `RuleSkill` item shape — never listed `unitMultipliers`,
+though `cartography` has carried it in the shipped YAML since the first seed and `04` §1.3
+documents it. This is exactly the "fourth" that `0162`'s description says nothing stops; it is
+in fact a fifth, and it was found by reading the doc against the file by hand, which is the method
+`0162` exists to replace. **That ticket is now load-bearing rather than tidy-up.** The other was
+`D-145`, still stating a Total Level ceiling of 693 at its own entry with no marker, four days
+after D-192 superseded it — the supersession had been recorded only at the superseding end, so a
+reader arriving at D-145 met a falsified number stated flatly. Struck in place, following D-042's
+convention.
+
+**And a third detector was caught lying, which makes it a pattern rather than three bugs.** The two
+`AUDIT.md` §4 rows — `fog-no-refog` and `xp-not-lower`, the ones carrying D-020 and D-135, the
+project's two irreversibility promises — are literal `NA()` constants that read nothing and can
+never return anything else. `fog-no-refog`'s reason is already false: it says no fog pipeline
+exists while seven `src/pipeline/explored-*.ts` modules sit on disk. Filed as `0184`.
+`vigil-test` matched a filename, `invariant-sweep` matched any `I-n` anywhere, these two match
+nothing — **three different mechanisms, one failure: an `n/a` reason is free text written once and
+never made to face the repo again.** If a fourth appears, the finding is about `NA()` itself.
+
+**The lesson for every capability after this one.** The previous REFLECT said *"read every `n/a`
+reason and check it against the repo"*. Four days later that instruction caught a third one — and
+caught it only because a human re-ran the audit, not because anything got louder. The reason a
+green-looking row is worse than a red one is that nobody reads it twice; the answer is not more
+diligence, it is that `0184` and `0162` make the two remaining classes of "written once, never
+re-checked" mechanical.
+
 ## Audit — 2026-09-04 (`tickets.mjs audit --record`)
 
 **Verdict: FORCED.** Mechanical half: 8 passed, 1 failed, 3 n/a. See AUDIT.md §1, §4, §5.

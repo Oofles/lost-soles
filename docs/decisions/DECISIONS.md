@@ -376,8 +376,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 ## Knock-on effects of D-132 (Vigil) found by the UI/UX pass
 
-- **D-145** **Total Level ceiling is 693, not 594.** Adding Vigil as a fifth activity skill moved
-  it. `04-game-design.md` §1.2 still states the old figure and must be corrected.
+- ~~**D-145** **Total Level ceiling is 693, not 594.** Adding Vigil as a fifth activity skill moved
+  it. `04-game-design.md` §1.2 still states the old figure and must be corrected.~~ → **STRUCK.**
+  Superseded by **D-192**: the ceiling is stated as ARITHMETIC — enabled rows × `maxLevel` — and
+  never as a number. 693 was itself falsified by Roving and Cadence (`0157`) within the day.
+  D-145's *method* was right; its number was incidental and is now wrong. Struck in place at the
+  capability `04` re-audit (2026-09-08), because D-192 recorded the supersession only at its own
+  end, and a reader arriving here found 693 stated flatly with nothing to warn them.
 - **D-146** **Adding a skill mints a free Total Level point.** It must NEVER fire a level-up
   celebration. Any future workout type hits this. Guard it at the notification layer, not the
   scoring layer. (`06-ui-ux.md` §5.4, §10.5.)
