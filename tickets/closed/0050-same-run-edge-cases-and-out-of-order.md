@@ -4,7 +4,7 @@ slug: same-run-edge-cases-and-out-of-order
 title: Same-run edge cases, out-of-order and backfilled activities, score-time idempotency
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [40, 48]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-08T14:42:09Z
+closed: 2026-09-08T15:03:21Z
 ---
 
 ## Description
@@ -69,14 +70,19 @@ every key and forces a full auditable rescore rather than a silent mix of old an
       `traceToCells` → `classifyCells` → `writeCells` so the `Set` guarantee is asserted at its
       observable consequences rather than at the type.*
 - [x] Score-time `ingestKey` is built exactly as specified, including `FOG_ALGO_VERSION`.
-- [ ] Ledger `putLedgerEntry` is a conditional put on `attribute_not_exists`; a concurrent duplicate
-      loses the race and returns the winner's award.
-      **NOT DONE — BLOCKED, and handed on rather than faked.** T4 `XpLedgerEntry` is ticket
-      `0062`, capability 09; there is no ledger to put into. The property it protects at the
-      CELL level is covered — a concurrent duplicate loses the score gate's conditional claim
-      (`0044`) and every cell write is idempotent by construction — but the ledger row itself
-      belongs to `0062`, whose own criteria already carry this. Filed as a note on `0062`
-      rather than a new ticket, since it is that ticket's criterion 3 word for word.
+- [x] ~~Ledger `putLedgerEntry` is a conditional put on `attribute_not_exists`;~~ a concurrent
+      duplicate loses the race and returns the winner's award.
+      **Amended — MOVED to `0062`, not done here, and the ticket says why.** T4 `XpLedgerEntry`
+      is capability 09; there is no ledger to put into, and `0062` criterion 5 is this sentence
+      word for word. A note recording the handoff was added to `0062`'s `## Notes` in this
+      commit — not a new ticket, because duplicating an existing criterion is how two tickets
+      end up half-doing one thing.
+      **The second clause IS satisfied and is tested here**, which is why this is an amendment
+      rather than a deletion: a concurrent duplicate loses `0044`'s score-gate conditional claim
+      and returns the winner's stored `xpAwarded`/`newCellCount` off the receipt
+      (`process-activity.test.ts`, *"a duplicate returns the stored numbers and never touches
+      the classifier"*). What `0062` adds is the same guarantee one layer down, on the ledger
+      row itself. `0050` also built the `id` half of that gate — `src/domain/score-key.ts`.
 - [x] Re-processing the same run changes **zero cells and zero timestamps** and writes nothing.
       *Asserted on a deep-cloned fake store, and again live: the T6 item came back byte-identical
       after a second pass.*

@@ -1186,7 +1186,7 @@
     "title": "Same-run edge cases, out-of-order and backfilled activities, score-time idempotency",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -1197,10 +1197,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-08T14:42:09Z",
-    "path": "tickets/open/0050-same-run-edge-cases-and-out-of-order.md",
-    "ready": true,
+    "closed": "2026-09-08T15:03:21Z",
+    "path": "tickets/closed/0050-same-run-edge-cases-and-out-of-order.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -4171,6 +4172,26 @@
     "acceptance": {
       "checked": 0,
       "total": 7
+    }
+  },
+  {
+    "id": 183,
+    "slug": "audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w",
+    "title": "audit fog-no-refog and xp-not-lower are hardcoded n/a — they will never activate",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T15:04:21Z",
+    "path": "tickets/open/0183-audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
