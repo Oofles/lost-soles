@@ -141,3 +141,27 @@ re-checked" mechanical.
 - `capability-tickets-closed` — **pass** — 10 closed
 
 <!-- audit-record {"capability":"04-domain-contract-and-rules","audited":"2026-09-04T17:08:55Z","verdict":"forced","mechanical":{"pass":8,"fail":1,"na":3},"divergences":4,"forced":"Two overrides, recorded separately. (1) invariant-sweep FAILS on a defect in the CHECK, not in this capability: 0133 specified it to arm on the first I-n citation anywhere, and src/rules/validate.test.ts correctly cites I-26 — but the ticket that supplies the other 29 (0116) is in capability 18, so as written the row fails every audit from 04 to 17. Filed as 0161 with a reproduction; cannot be fixed inside this capability without doing 0161's work. (2) Four divergences over the budget of three, recorded as four rather than folded into three to buy a pass — the 02 audit rejected that folding and it is rejected again here. All four were the SAME SHAPE: a design doc restating a value rules/xp-rules-v1.yaml owns, falsified by a change D-031 promises is free. The prescribed DESIGN session was performed, scoped to the five sections the audit found, and its output is D-193 (generalising D-192 from the Total Level ceiling to every ruleset-owned value) plus 0162 for the enforcement D-193 admits it lacks. The code was correct in all four cases. Separately noted and not counted as a divergence: the vigil-test n/a reason is also stale — it says no vigil test exists yet, after 0030 closed and shipped src/rules/registry-delta.test.ts; 0161's Notes carry it."} -->
+
+## Audit — 2026-09-08 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 10 passed, 0 failed, 2 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (2 of a budget of 3):**
+
+1. **design-was-wrong** — `D-193` — 02 §3.2's RuleSkill item shape never listed unitMultipliers, shipped on cartography since the first seed and documented in 04 §1.3 — a fifth instance of the shape D-193 names, and the one 0162's description says nothing stops
+2. **design-was-wrong** — `D-192` — D-145 still stated a Total Level ceiling of 693 at its own entry four days after D-192 superseded it — the supersession was recorded only at the superseding end. Struck in place per D-042's convention
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 9/30 invariants cited by a test name, none lost, 9 new since the last recorded audit (I-5, I-7, I-8, I-9, I-10, I-11, I-12, I-13, I-14). Ratchet only: the remaining 21 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 10 closed
+
+<!-- audit-record {"capability":"04-domain-contract-and-rules","audited":"2026-09-08T17:54:58Z","verdict":"pass","mechanical":{"pass":10,"fail":0,"na":2},"divergences":2} -->

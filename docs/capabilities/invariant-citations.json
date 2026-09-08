@@ -1,0 +1,15 @@
+{
+  "note": "High-water mark for the AUDIT.md §1 invariant sweep (D-224/D-225, ticket 0161). An invariant is listed once a describe/it/test NAME cites it. Removing a listed invariant's citing test fails the next audit. Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an audit pass. Set \"complete\": true in ticket 0116, which turns the row all-or-nothing over the full I-1..I-30 set.",
+  "complete": false,
+  "cited": [
+    "I-5",
+    "I-7",
+    "I-8",
+    "I-9",
+    "I-10",
+    "I-11",
+    "I-12",
+    "I-13",
+    "I-14"
+  ]
+}
