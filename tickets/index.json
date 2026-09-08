@@ -1162,7 +1162,7 @@
     "title": "explored-r10.bin generation, aggregates, and the manifest generation counter",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -1172,10 +1172,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-08T13:28:29Z",
-    "path": "tickets/open/0049-explored-blob-and-manifest-generation.md",
-    "ready": true,
+    "closed": "2026-09-08T14:03:45Z",
+    "path": "tickets/closed/0049-explored-blob-and-manifest-generation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -1218,7 +1219,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0051-cache-invalidation-contract.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -4146,7 +4147,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 7
     }
   }
 ]

@@ -4,7 +4,7 @@ slug: explored-blob-and-manifest-generation
 title: explored-r10.bin generation, aggregates, and the manifest generation counter
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [47]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-08T13:28:29Z
+closed: 2026-09-08T14:03:45Z
 ---
 
 ## Description
