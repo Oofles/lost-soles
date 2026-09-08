@@ -4,7 +4,7 @@ slug: invariant-sweep-activation-rule
 title: The invariant sweep arms on the first citation and cannot go green until capability 18
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T17:03:08Z
 started: 2026-09-08T17:37:43Z
+closed: 2026-09-08T17:47:11Z
 ---
 
 ## Description

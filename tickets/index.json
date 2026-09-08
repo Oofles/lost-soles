@@ -3729,7 +3729,7 @@
     "title": "The invariant sweep arms on the first citation and cannot go green until capability 18",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3737,11 +3737,12 @@
     "source": "agent",
     "created": "2026-09-04T17:03:08Z",
     "started": "2026-09-08T17:37:43Z",
-    "path": "tickets/open/0161-invariant-sweep-activation-rule.md",
-    "ready": true,
+    "closed": "2026-09-08T17:47:11Z",
+    "path": "tickets/closed/0161-invariant-sweep-activation-rule.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 7
+      "checked": 10,
+      "total": 10
     }
   },
   {
