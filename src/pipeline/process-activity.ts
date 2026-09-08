@@ -1,4 +1,6 @@
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
+import type { H3Index } from "h3-js"
+
 import type { Activity, Trace } from "@/src/domain/activity"
 import {
   awardOf,
@@ -12,12 +14,19 @@ import type { RuleSkill } from "@/src/rules/schema"
 
 import type { ArchiveDeps } from "./archive"
 import {
+  lastRunDay,
   readCells,
+  writeAggregates,
   writeCells,
   type CellReadDeps,
   type CellWriteDeps,
   type CellWriteResult,
 } from "./explored-cells"
+import {
+  regenerateExplored,
+  type BlobStoreDeps,
+  type RegenerateResult,
+} from "./explored-blob-store"
 import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
@@ -97,6 +106,19 @@ export const INGEST_PHASES = [
    * become two numbers under one name.
    */
   "cells",
+  /**
+   * THE PUBLISH, ADDED BY `0049`, and it sits BETWEEN the cells and the transaction for
+   * the reason the cells sit above it (`02` §2.10, §6.4).
+   *
+   * If it ran after `persist`, a failure here would leave the receipt `DONE` with the
+   * activity's cells in T6 but in no blob — and the next run merges from the last
+   * PUBLISHED generation, so those cells would be absent from every generation after it,
+   * permanently, until an AP-17 repair. Running it first makes the failure self-healing:
+   * the receipt is still `PROCESSING`, and a redelivery re-merges the same cell set.
+   *
+   * The skew it chooses is the same one D-144 chose — map ahead of XP, never the reverse.
+   */
+  "blobs",
   "persist",
 ] as const
 
@@ -129,6 +151,11 @@ export interface PhaseTimings {
   gateMs: number
   /** The 40–130 conditional `UpdateItem`s. Zero when the activity reveals no ground. */
   cellsMs: number
+  /**
+   * The §2.10 regeneration: two S3 GETs, four PUTs, and one merge over 20k–150k cells.
+   * R3 §6 budgets it under 100 ms at the five-year worst case. Zero when nothing revealed.
+   */
+  blobsMs: number
   persistMs: number
   totalMs: number
 }
@@ -162,6 +189,12 @@ export type ProcessResult =
        * asking for it again once the cells are in the store gives a different answer.
        */
       award: DiscoveryAward
+      /**
+       * What the client will see, and when. `null` when nothing revealed ground — a
+       * treadmill run must not bump a generation, because every cached client would refetch
+       * a 300 KB blob identical to the one it holds (tickets `0069`, `0159`).
+       */
+      blobs: RegenerateResult | null
     }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
@@ -197,6 +230,8 @@ export interface ProcessDeps<TCreds> {
   archive: ArchiveDeps
   receipt: ReceiptDeps
   cells: CellWriteDeps & CellReadDeps
+  /** S3 + the generation counter. `0049`, `02` §2.10. */
+  blobs: BlobStoreDeps
   persist: PersistDeps
   /**
    * THE RULESET, AS AN ARGUMENT. D-189, D-217.
@@ -349,8 +384,30 @@ export async function processActivity<TCreds>(
    */
   phase("cells")
   const t3c = clock()
-  const { cells, award } = await projectCells(ingest, deps)
+  const { cells, award, touched } = await projectCells(ingest, deps)
   const cellsMs = clock() - t3c
+
+  /**
+   * THE PUBLISH. Above the transaction; see the `blobs` phase note on `INGEST_PHASES`.
+   *
+   * `touched` is EVERY cell the run crossed, not just the new ones: the merge works out
+   * which are new by itself, and the sidecar needs the whole set to advance `lastRunDay` on
+   * ground that was re-run. `day` comes from `activity.startedAt` (I-12), never the clock.
+   */
+  phase("blobs")
+  const t3b = clock()
+  const blobs =
+    touched === null || touched.size === 0
+      ? null
+      : await regenerateExplored(
+          {
+            userId: ingest.activity.userId,
+            touched,
+            day: lastRunDay(ingest.activity.startedAt),
+          },
+          deps.blobs,
+        )
+  const blobsMs = clock() - t3b
 
   phase("persist")
   const t3 = clock()
@@ -375,6 +432,7 @@ export async function processActivity<TCreds>(
     activityId: ingest.activity.activityId,
     cells,
     award,
+    blobs,
     timings: {
       credentialsMs,
       fetchMs,
@@ -382,6 +440,7 @@ export async function processActivity<TCreds>(
       normalizeMs,
       gateMs,
       cellsMs,
+      blobsMs,
       persistMs,
       totalMs: clock() - startedAt,
     },
@@ -424,18 +483,28 @@ export async function processActivity<TCreds>(
 async function projectCells<TCreds>(
   ingest: { activity: Activity; trace?: Trace },
   deps: ProcessDeps<TCreds>,
-): Promise<{ cells: CellWriteResult | null; award: DiscoveryAward }> {
+): Promise<{
+  cells: CellWriteResult | null
+  award: DiscoveryAward
+  /**
+   * Every cell the run crossed, or `null` when it crossed none. Handed on to the publish
+   * phase — which needs the whole set, not just the new part, because `lastRunDay` advances
+   * on re-run ground too. `null` and an empty set mean the same thing to that phase and are
+   * distinguished only for the reasons the three cases below are.
+   */
+  touched: ReadonlySet<H3Index> | null
+}> {
   const { activity, trace } = ingest
-  const nothing = { cells: null, award: NO_CELLS }
+  const nothing = { cells: null, award: NO_CELLS, touched: null }
 
   if (!revealsGround(matchable(activity), deps.registry)) return nothing
-  if (!trace) return { cells: null, award: NO_CELLS }
+  if (!trace) return nothing
 
   const cells = traceToCells(trace)
   if (cells.size === 0) {
     // A trace with points but nothing that survived §2.2 is no-GPS (§3.6). Distinguished
     // from "no trace" only in the log; both award nothing and write nothing.
-    return { cells: { advanced: 0, backfilled: 0, unchanged: 0 }, award: NO_CELLS }
+    return { cells: { advanced: 0, backfilled: 0, unchanged: 0 }, award: NO_CELLS, touched: null }
   }
 
   // 2. CLASSIFY, against pre-run state, in one read.
@@ -444,5 +513,16 @@ async function projectCells<TCreds>(
   const award = awardOf(classified)
 
   // 4. WRITE, carrying each cell's verdict. Never re-reading.
-  return { cells: await writeCells(classified, activity, deps.cells), award }
+  const written = await writeCells(classified, activity, deps.cells)
+
+  /**
+   * 5. THE AGGREGATE ITEMS, AFTER the cells and never before. T6 item type B exists so
+   * AP-17 can enumerate this user's res-6 partitions without a `Scan`, and an aggregate
+   * naming a partition whose cells failed to write would send the repair path looking for
+   * something that is not there. `writeCells` throws on partial failure, so reaching this
+   * line means every cell landed.
+   */
+  await writeAggregates(classified, activity, deps.cells)
+
+  return { cells: written, award, touched: cells }
 }

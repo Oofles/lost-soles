@@ -4,9 +4,10 @@ import {
   type BatchGetCommandInput,
   type UpdateCommandInput,
 } from "@aws-sdk/lib-dynamodb"
-import type { H3Index } from "h3-js"
+import { cellToParent, type H3Index } from "h3-js"
 
 import { awardsDiscovery, type CellRecord, type ClassifiedCell } from "@/src/domain/discovery"
+import { AGG_RESOLUTIONS, totalChildren } from "@/src/domain/explored-agg"
 import { parentOf } from "@/src/domain/fog"
 
 /**
@@ -58,7 +59,8 @@ import { parentOf } from "@/src/domain/fog"
  *
  * ─── WHAT THIS FILE DELIBERATELY DOES NOT DO ────────────────────────────────
  *
- *   - **The AGG aggregate** (T6 item type B) belongs to `0049`, whose title carries it.
+ *   - **The AGG aggregate** (T6 item type B) arrived with `0049` and is at the foot of this
+ *     file. It is written for AP-17's benefit, not the client's — see `writeAggregates`.
  *   - **`discoveryCount`** was `0047`'s zero-credit placeholder and is now supplied by
  *     `0048`'s classifier: `ADD discoveryCount :credit` receives 1 for a new or re-armed
  *     cell and 0 for a cooled one (§2.4 — *"how many times it awarded credit"*). The
@@ -445,6 +447,114 @@ export async function writeCells(
     for (let next = queue.pop(); next !== undefined; next = queue.pop()) await one(next)
   })
   await Promise.all(workers)
+
+  return result
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * T6 ITEM TYPE B — THE ZOOM-OUT AGGREGATE. Ticket `0049`.
+ * `02-data-model.md` T6 item type B, §2.4; `05-fog-of-war.md` §6.1.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * ```
+ * pk  = U#<uid>#AGG#<res>        res ∈ {6, 7, 8}
+ * sk  = <parentCellId>
+ *     exploredChildren : N       ADD (count of res-10 children newly added)
+ *     totalChildren    : N       constant = 7^(10-res)   (2401 / 343 / 49)
+ *     lastRunDay       : N       max
+ * ```
+ *
+ * ─── IT IS NOT WHAT SHIPS TO THE CLIENT, AND THAT IS THE POINT ──────────────
+ *
+ * `explored-agg.<gen>.json` is computed from the merged cell array in
+ * `explored-blob-store.ts`, not from these rows. So why write them at all?
+ *
+ * `02` T6: *"The `AGG#6` partition doubles as **the index of which parents a user has
+ * touched**, which is what makes a full blob rebuild possible without a table scan."*
+ * That is this item's real job. Without it, AP-17 has no way to enumerate a user's res-6
+ * partitions except a `Scan`, and the repair path — the thing that exists precisely for
+ * when the published blob is wrong — would be the most expensive operation in the system.
+ *
+ * The counts riding along are then a second, independent computation of a number the
+ * shipped JSON derives a different way, which is a cross-check available for free.
+ *
+ * ─── TWO WRITES, FOR THE SAME REASON THE CELL WRITE IS TWO ──────────────────
+ *
+ * `exploredChildren` is an `ADD` and **must not be conditional**: it is a running total,
+ * additive and order-independent, so a backfilled 2024 run contributes its new cells to
+ * the count no matter when it lands. `lastRunDay` is a `max` and must be, for the reason
+ * I-8 gives about `lastRunAt` — a plain `SET` lets that same backfill drag the parent's
+ * recency backwards.
+ *
+ * ─── WHY THE `ADD` IS STILL IDEMPOTENT UNDER REDELIVERY ─────────────────────
+ *
+ * An unconditional `ADD` on a redelivered message is normally how a counter doubles. It is
+ * safe here because of WHERE the number comes from: `newCellCount` is the count of cells
+ * the CLASSIFIER found absent from T6 during **this** delivery's read. A redelivery re-reads
+ * a table that now holds them, classifies them `cooled`, and adds zero. The idempotency is
+ * inherited from the read, not asserted about the write — which is the same property that
+ * makes `0048`'s whole classify-then-write ordering work.
+ */
+export interface AggWriteResult {
+  /** Aggregate items touched, across all three resolutions. 3–6 for a typical run. */
+  parents: number
+  /** Parents whose `lastRunDay` advanced. Fewer than `parents` on an out-of-order arrival. */
+  advanced: number
+}
+
+export async function writeAggregates(
+  classified: readonly ClassifiedCell[],
+  activity: CellWriteActivity,
+  deps: CellWriteDeps,
+): Promise<AggWriteResult> {
+  const table = deps.table ?? EXPLORED_CELL_TABLE
+  const day = lastRunDay(activity.startedAt)
+  const result: AggWriteResult = { parents: 0, advanced: 0 }
+
+  for (const res of AGG_RESOLUTIONS) {
+    /** parent → how many of this run's cells at that parent were NEVER SEEN BEFORE. */
+    const added = new Map<H3Index, number>()
+    for (const { cell, discovery } of classified) {
+      const parent = cellToParent(cell, res)
+      added.set(parent, (added.get(parent) ?? 0) + (discovery === "new" ? 1 : 0))
+    }
+
+    for (const [parent, count] of added) {
+      const Key = { pk: `U#${activity.userId}#AGG#${res}`, sk: parent }
+      result.parents++
+
+      /**
+       * Unconditional, and it runs even when `count` is 0 — a run entirely over known
+       * ground must still leave the parent enumerable by AP-17, and `totalChildren` must
+       * be present on an item that a previous partial failure may have left without it.
+       */
+      await deps.ddb.send(
+        new UpdateCommand({
+          TableName: table,
+          Key,
+          UpdateExpression: "SET totalChildren = :total ADD exploredChildren :added",
+          ExpressionAttributeValues: { ":total": totalChildren(res), ":added": count },
+        }),
+      )
+
+      try {
+        await deps.ddb.send(
+          new UpdateCommand({
+            TableName: table,
+            Key,
+            UpdateExpression: "SET lastRunDay = :day",
+            ConditionExpression: "attribute_not_exists(lastRunDay) OR lastRunDay < :day",
+            ExpressionAttributeValues: { ":day": day },
+          }),
+        )
+        result.advanced++
+      } catch (e) {
+        // The `max` holding, not a fault — identical in kind to the cell write's fallback.
+        if (!isConditionalFailure(e)) throw e
+      }
+    }
+  }
 
   return result
 }

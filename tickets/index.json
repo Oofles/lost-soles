@@ -1171,6 +1171,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-08T13:28:29Z",
     "path": "tickets/open/0049-explored-blob-and-manifest-generation.md",
     "ready": true,
     "acceptance": {
@@ -4126,6 +4127,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 181,
+    "slug": "cognito-client-drift-amplify-outputs-json-and-cloudformation",
+    "title": "Cognito client drift — amplify_outputs.json and CloudFormation name a client that does not exist",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "00-foundations",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-08T13:56:52Z",
+    "path": "tickets/open/0181-cognito-client-drift-amplify-outputs-json-and-cloudformation.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

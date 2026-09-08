@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 14,799 lines; three of
+**Read by section, never whole** (D-151). These documents total 14,876 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 557 sections · regenerated 2026-09-07
+13 documents · 557 sections · regenerated 2026-09-08
 
 
 ## `docs/00-vision.md`
@@ -258,7 +258,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/04-game-design.md`
 
-**Lost Soles — RPG Systems Design** — 1,476 lines
+**Lost Soles — RPG Systems Design** — 1,496 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -267,50 +267,50 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.1 The skills | `41-77` |  |
 | &nbsp;&nbsp;↳ 1.2 Total Level (D-033) | `78-113` | Total Level is the headline number on the home screen, not any individual skill. |
 | &nbsp;&nbsp;↳ 1.3 Skills are data, not code — the extensibility requirement (D-031) | `114-481` | This is the most load-bearing structural requirement in the document. |
-| 2. The XP curve | `482-659` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
+| 2. The XP curve | `482-662` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
 | &nbsp;&nbsp;↳ 2.1 Runescape's actual curve, and why it cannot be used | `484-526` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
 | &nbsp;&nbsp;↳ 2.2 The Lost Soles curve | `527-547` | That is a cubic in cumulative terms, C(L) ≈ (4/3)L³, versus Runescape's exponential. |
 | &nbsp;&nbsp;↳ 2.3 What this feels like in runs | `548-564` | Early levels arrive mid-run. |
-| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `565-644` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
-| &nbsp;&nbsp;↳ 2.5 Past 99 | `645-659` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
-| 3. XP awards, exactly | `660-834` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `662-685` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `686-739` | a 5-mile run is about 800. |
-| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `740-754` | three years and the skill flatlines forever. |
-| &nbsp;&nbsp;↳ 3.4 Constitution | `755-764` | Computed on post-multiplier XP — i.e. |
-| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `765-834` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
-| 4. Levels, milestones and feedback | `835-958` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.1 The guarantee | `837-857` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `858-906` | This is the core reward loop. |
-| &nbsp;&nbsp;↳ 4.3 Milestone levels | `907-948` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
-| &nbsp;&nbsp;↳ 4.4 Never punish | `949-958` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
-| 5. Combat — POST-MVP | `959-1097` | so the Slayer skill row already exists in the ruleset (disabled). |
-| &nbsp;&nbsp;↳ 5.1 Fiction | `970-980` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
-| &nbsp;&nbsp;↳ 5.2 Player Power | `981-996` | Power = round( 0.40 × Wayfaring |
-| &nbsp;&nbsp;↳ 5.3 Map encounters | `997-1052` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
-| &nbsp;&nbsp;↳ 5.4 Boss quests | `1053-1097` | The problem boss quests solve: rest days and strength days must matter (D-040). |
-| 6. Equipment and loot — POST-MVP | `1098-1160` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
-| &nbsp;&nbsp;↳ 6.1 Rules | `1102-1113` | durability, no consumables, no crafting. |
-| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1114-1141` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
-| &nbsp;&nbsp;↳ 6.3 Sources | `1142-1160` | That last row is the one that matters most. |
-| 7. Balance safety — rebalancing without rewriting history | `1161-1258` | The system will be mis-tuned on the first try. |
-| &nbsp;&nbsp;↳ 7.1 The invariant | `1166-1179` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
-| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1180-1197` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
-| &nbsp;&nbsp;↳ 7.3 The ledger | `1198-1214` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
-| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1215-1229` | the derived layer, §3.5, not be baked in at ingest) |
-| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1230-1245` | A rebalance that reduces rates would de-level the user. |
-| &nbsp;&nbsp;↳ 7.6 Operational notes | `1246-1258` | not a recompute path. |
-| 8. Worked examples | `1259-1428` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
-| &nbsp;&nbsp;↳ 8.1 The pipeline | `1264-1283` | segment < 5 m [§3.5] |
-| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1284-1380` | distance = 5.2 mi × 1.609344 = 8.369 km |
-| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1381-1428` | Pushups 3 × 25 = 75 reps |
-| 9. Summary of judgment calls, for overruling | `1429-1442` | Everything here is a call I made that no decision covers. |
-| 10. Open questions for later documents | `1443-1456` | (R4), but every Cartography number here scales with it linearly. |
-| ADDENDUM — Round 4 user decisions (2026-08-30) | `1457-1476` | Confirmed after this document was written. |
+| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `565-647` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
+| &nbsp;&nbsp;↳ 2.5 Past 99 | `648-662` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
+| 3. XP awards, exactly | `663-847` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `665-688` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `689-742` | a 5-mile run is about 800. |
+| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `743-767` | three years and the skill flatlines forever. |
+| &nbsp;&nbsp;↳ 3.4 Constitution | `768-777` | Computed on post-multiplier XP — i.e. |
+| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `778-847` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
+| 4. Levels, milestones and feedback | `848-971` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.1 The guarantee | `850-870` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `871-919` | This is the core reward loop. |
+| &nbsp;&nbsp;↳ 4.3 Milestone levels | `920-961` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
+| &nbsp;&nbsp;↳ 4.4 Never punish | `962-971` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
+| 5. Combat — POST-MVP | `972-1110` | so the Slayer skill row already exists in the ruleset (disabled). |
+| &nbsp;&nbsp;↳ 5.1 Fiction | `983-993` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
+| &nbsp;&nbsp;↳ 5.2 Player Power | `994-1009` | Power = round( 0.40 × Wayfaring |
+| &nbsp;&nbsp;↳ 5.3 Map encounters | `1010-1065` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
+| &nbsp;&nbsp;↳ 5.4 Boss quests | `1066-1110` | The problem boss quests solve: rest days and strength days must matter (D-040). |
+| 6. Equipment and loot — POST-MVP | `1111-1173` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
+| &nbsp;&nbsp;↳ 6.1 Rules | `1115-1126` | durability, no consumables, no crafting. |
+| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1127-1154` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
+| &nbsp;&nbsp;↳ 6.3 Sources | `1155-1173` | That last row is the one that matters most. |
+| 7. Balance safety — rebalancing without rewriting history | `1174-1271` | The system will be mis-tuned on the first try. |
+| &nbsp;&nbsp;↳ 7.1 The invariant | `1179-1192` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
+| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1193-1210` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
+| &nbsp;&nbsp;↳ 7.3 The ledger | `1211-1227` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
+| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1228-1242` | the derived layer, §3.5, not be baked in at ingest) |
+| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1243-1258` | A rebalance that reduces rates would de-level the user. |
+| &nbsp;&nbsp;↳ 7.6 Operational notes | `1259-1271` | not a recompute path. |
+| 8. Worked examples | `1272-1444` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
+| &nbsp;&nbsp;↳ 8.1 The pipeline | `1277-1296` | segment < 5 m [§3.5] |
+| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1297-1396` | distance = 5.2 mi × 1.609344 = 8.369 km |
+| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1397-1444` | Pushups 3 × 25 = 75 reps |
+| 9. Summary of judgment calls, for overruling | `1445-1458` | Everything here is a call I made that no decision covers. |
+| 10. Open questions for later documents | `1459-1476` | (R4), but every Cartography number here scales with it linearly. |
+| ADDENDUM — Round 4 user decisions (2026-08-30) | `1477-1496` | Confirmed after this document was written. |
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 1,449 lines
+**05 — Fog of War** — 1,506 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -319,59 +319,59 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.1 Two different things happen to the same cell | `41-66` | This is the single most important distinction in this document, and conflating them will |
 | &nbsp;&nbsp;↳ 1.2 Worked example | `67-79` | You run the same loop three times. |
 | &nbsp;&nbsp;↳ 1.3 What the fog is *not* | `80-87` |  |
-| 2. Territory representation | `88-332` |  |
+| 2. Territory representation | `88-372` |  |
 | &nbsp;&nbsp;↳ 2.1 H3 resolution 10, canonical, never mixed | `90-126` | the path (§2.3). At res 10 that is exactly k = 0 — the cell you are standing in. The |
-| &nbsp;&nbsp;↳ 2.2 Trace → cells | `127-262` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
-| &nbsp;&nbsp;↳ 2.3 The reveal radius | `263-293` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
-| &nbsp;&nbsp;↳ 2.4 The per-cell record | `294-332` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
-| 3. The discovery-scoring algorithm | `333-553` | (D-021, D-120). |
-| &nbsp;&nbsp;↳ 3.1 Definitions | `343-355` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
-| &nbsp;&nbsp;↳ 3.2 The algorithm | `356-448` | key = idempotencyKey(activity, trace) |
-| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `449-473` | All of these are solved by one design decision — traceToCells returns a Set — but each |
-| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `474-500` | Activities do not arrive in chronological order. |
-| &nbsp;&nbsp;↳ 3.5 Idempotency | `501-529` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
-| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `530-553` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
-| 4. Rendering | `554-818` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
-| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `568-601` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
-| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `602-679` | MapLibre calls prerender during its offscreen pass. |
-| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `680-761` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
-| &nbsp;&nbsp;↳ 4.4 Layer order | `762-792` | map.on('style.load', () => { |
-| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `793-803` | Drifting mist does not benefit from 60 and it halves the battery cost. |
-| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `804-818` | Recorded so that a future session does not rediscover them the expensive way. |
-| 5. The two map modes | `819-890` | run) and adventure (full atmosphere, for admiring the map). |
-| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `828-845` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
-| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `846-868` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
-| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `869-881` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
-| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `882-890` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `891-1022` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `903-930` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `931-974` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `975-986` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `987-1022` | None of the above is true until measured. |
-| 7. Data delivery | `1023-1198` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1039-1071` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1072-1084` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1085-1136` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1137-1198` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1199-1341` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1204-1228` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1229-1249` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1250-1262` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1263-1328` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1329-1341` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1342-1433` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1347-1354` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1355-1359` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1360-1369` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — accepted, with an exit | `1370-1377` | On a tight downtown grid with 80–120 m block spacing, running one street can reveal cells whose |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1378-1385` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1386-1392` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1393-1399` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1400-1405` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1406-1411` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1412-1422` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1423-1433` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `1434-1449` | radius never feeds back into scoring. |
+| &nbsp;&nbsp;↳ 2.2 Trace → cells | `127-288` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
+| &nbsp;&nbsp;↳ 2.3 The reveal radius | `289-333` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
+| &nbsp;&nbsp;↳ 2.4 The per-cell record | `334-372` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
+| 3. The discovery-scoring algorithm | `373-610` | (D-021, D-120). |
+| &nbsp;&nbsp;↳ 3.1 Definitions | `383-395` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
+| &nbsp;&nbsp;↳ 3.2 The algorithm | `396-505` | key = idempotencyKey(activity, trace) |
+| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `506-530` | All of these are solved by one design decision — traceToCells returns a Set — but each |
+| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `531-557` | Activities do not arrive in chronological order. |
+| &nbsp;&nbsp;↳ 3.5 Idempotency | `558-586` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
+| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `587-610` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
+| 4. Rendering | `611-875` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
+| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `625-658` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
+| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `659-736` | MapLibre calls prerender during its offscreen pass. |
+| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `737-818` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
+| &nbsp;&nbsp;↳ 4.4 Layer order | `819-849` | map.on('style.load', () => { |
+| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `850-860` | Drifting mist does not benefit from 60 and it halves the battery cost. |
+| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `861-875` | Recorded so that a future session does not rediscover them the expensive way. |
+| 5. The two map modes | `876-947` | run) and adventure (full atmosphere, for admiring the map). |
+| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `885-902` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
+| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `903-925` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
+| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `926-938` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
+| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `939-947` | and style-layer switch, entirely client-side, with no path back to §3. |
+| 6. Performance | `948-1079` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `960-987` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `988-1031` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1032-1043` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1044-1079` | None of the above is true until measured. |
+| 7. Data delivery | `1080-1255` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1096-1128` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1129-1141` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1142-1193` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1194-1255` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1256-1398` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1261-1285` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1286-1306` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1307-1319` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1320-1385` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1386-1398` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1399-1490` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1404-1411` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1412-1416` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1417-1426` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — accepted, with an exit | `1427-1434` | On a tight downtown grid with 80–120 m block spacing, running one street can reveal cells whose |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1435-1442` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1443-1449` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1450-1456` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1457-1462` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1463-1468` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1469-1479` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1480-1490` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `1491-1506` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 

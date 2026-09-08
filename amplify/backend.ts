@@ -878,7 +878,17 @@ ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:Up
  * commit: a `Query` returns the entire res-6 partition — up to 2,401 cells — to classify
  * the 45 this run crossed. `Scan` is absent for the reason it always is.
  *
- * The blob rebuild (AP-16) genuinely does want `Query`, and it is 0049's to add.
+ * STILL NO `Query`, AND 0049 IS THE TICKET THAT DECIDED NOT TO ADD IT. The blob rebuild
+ * (AP-16/AP-17) is the one operation that wants it, and 0049 built that path —
+ * `src/pipeline/explored-rebuild.ts`. It is deliberately not reachable from this role.
+ * §5.6: *"AP-16 is the repair path. **Calling it from `process-activity` is a
+ * review-blocking bug.**"* A grant is what turns that sentence from a rule someone has to
+ * remember into a thing the role cannot do, so the repair path will take its `Query` when
+ * it gets an execution context of its own (the drill, `0105`), where the cost is chosen
+ * rather than inherited. `check-fog-hot-path.mjs` is the same guard at build time.
+ *
+ * 0049 adds NO new DynamoDB action at all: the generation counter (D-218) and the AGG
+ * items are both `UpdateItem` on this table, and both were already covered.
  */
 exploredCellTable.grant(
   processActivityLambda,
@@ -983,6 +993,39 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
+ * THE DELIVERY LAYER. `0049`, `02-data-model.md` §2.10 and §6.1.
+ *
+ * A SECOND STATEMENT ON A SECOND PREFIX, rather than widening the one above. The comment
+ * on that grant predicted this exact ticket — *"the same bucket holds `explored-r10.bin`
+ * and the aggregates (capability 07), which this function will also write — under their
+ * own grant, when that ticket adds it"* — and the reason it is separate is that the two
+ * prefixes have opposite rules. Under `raw/*` the bytes are the system of record and
+ * deletion is denied to every principal (I-3). Under `users/*` everything is derived and
+ * regenerable from `raw/` plus T6, and objects are added constantly.
+ *
+ * `GetObject` is not a convenience: §2.10's whole point is that regeneration READS the
+ * previous generation's blob instead of `Query`ing 24 MB out of DynamoDB. This grant is
+ * what makes the cheap path available, and the absent `dynamodb:Query` above is what makes
+ * the expensive one unavailable.
+ *
+ * STILL NO DELETE. Delta garbage collection (`0051`) is the first thing that will want
+ * `s3:DeleteObject` here, and it can argue for it in its own diff. Note what it would and
+ * would not reach: `users/*` only, and the bucket is versioned, so even that GC cannot
+ * destroy bytes — it writes a delete marker, and `s3:DeleteObjectVersion` is denied
+ * bucket-wide by the policy above.
+ *
+ * `users/*`, NOT `users/<uid>/*`: one worker serves every user, and the per-user scoping
+ * is the browser's, enforced by `entity('identity')` in `storage/resource.ts`.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteAndReadExploredDeliveryLayer",
+    actions: ["s3:PutObject", "s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
+  }),
+)
+
+/**
  * THE CLIENT CREDENTIALS, and this grant was missed on the first pass — worth recording
  * because the failure it causes is invisible until the first token expires.
  *
@@ -1029,6 +1072,16 @@ backend.processActivity.addEnvironment(
 backend.processActivity.addEnvironment(
   "ACTIVITY_INGEST_QUEUE_URL",
   activityIngestQueue.queueUrl,
+)
+/**
+ * `0049`. The same bucket as `RAW_ARCHIVE_BUCKET` — there is one `defineStorage` bucket —
+ * under its own name because the two prefixes carry different grants and different rules:
+ * `raw/*` is undeletable system-of-record bytes (I-3), `users/<uid>/*` is a derived,
+ * regenerable delivery layer whose objects are overwritten never but added to constantly.
+ */
+backend.processActivity.addEnvironment(
+  "USER_DATA_BUCKET",
+  backend.storage.resources.bucket.bucketName,
 )
 
 /**

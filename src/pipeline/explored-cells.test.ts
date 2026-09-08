@@ -1,8 +1,8 @@
 import { BatchGetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
-import { cellToParent, latLngToCell } from "h3-js"
+import { cellToParent, gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
-import type { Discovery } from "@/src/domain/discovery"
+import type { ClassifiedCell, Discovery } from "@/src/domain/discovery"
 import { RES, RES_PARENT } from "@/src/domain/fog"
 
 import {
@@ -12,6 +12,7 @@ import {
   cellUpdate,
   firstRunBackfill,
   lastRunDay,
+  writeAggregates,
   writeCells,
   type CellWriteActivity,
 } from "./explored-cells"
@@ -69,6 +70,10 @@ const PRIMARY_EXPRESSION =
 const BACKFILL_EXPRESSION =
   "SET firstRunAt = :at, firstRunId = :rid ADD visitCount :one, discoveryCount :credit"
 
+/** `0049`, T6 item type B. */
+const AGG_TOTAL_EXPRESSION = "SET totalChildren = :total ADD exploredChildren :added"
+const AGG_DAY_EXPRESSION = "SET lastRunDay = :day"
+
 type Item = Record<string, unknown>
 
 function conditionalFailure(): Error {
@@ -120,6 +125,24 @@ function fakeTable(seed: Record<string, Item> = {}) {
           visitCount: (Number(item.visitCount) || 0) + Number(v[":one"]),
           discoveryCount: (Number(item.discoveryCount) || 0) + Number(v[":credit"]),
         }
+        return {}
+      }
+
+      // `0049`, T6 item type B. Two writes: an unconditional running total and a `max`.
+      if (input.UpdateExpression === AGG_TOTAL_EXPRESSION) {
+        store[id] = {
+          ...item,
+          totalChildren: v[":total"],
+          exploredChildren: (Number(item?.exploredChildren) || 0) + Number(v[":added"]),
+        }
+        return {}
+      }
+
+      if (input.UpdateExpression === AGG_DAY_EXPRESSION) {
+        if (item?.lastRunDay !== undefined && !(Number(item.lastRunDay) < Number(v[":day"]))) {
+          throw conditionalFailure()
+        }
+        store[id] = { ...item, lastRunDay: v[":day"] }
         return {}
       }
 
@@ -657,5 +680,105 @@ describe("readCells — duplicate keys (found by the live smoke test)", () => {
     const f = fakeBatchGet({})
     await read([...cells, ...cells], f)
     expect(f.calls.map((c) => c.keys.length)).toEqual([new Set(cells).size])
+  })
+})
+
+describe("writeAggregates — T6 item type B (0049)", () => {
+  const cells = gridDisk(NEMO_CELL, 3)
+  const classified = (discovery: "new" | "cooled" = "new") =>
+    cells.map((cell) => ({ cell, discovery }) as ClassifiedCell)
+
+  it("writes one item per parent at each of res 6, 7 and 8", async () => {
+    const table = fakeTable()
+    const result = await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
+
+    const partitions = new Set(Object.keys(table.store).map((k) => k.split("|")[0]!))
+    for (const res of [6, 7, 8]) {
+      expect(partitions.has(`U#${RUN_2026.userId}#AGG#${res}`), `res ${res}`).toBe(true)
+    }
+    expect(result.parents).toBeGreaterThanOrEqual(3)
+  })
+
+  it("stores 7^(10-res) as the denominator, not a count", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
+    for (const [id, item] of Object.entries(table.store)) {
+      if (id.includes("#AGG#6")) expect(item.totalChildren).toBe(2401)
+      if (id.includes("#AGG#7")) expect(item.totalChildren).toBe(343)
+      if (id.includes("#AGG#8")) expect(item.totalChildren).toBe(49)
+    }
+  })
+
+  it("counts only the cells the classifier called new", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified("cooled"), RUN_2026, { ddb: table.ddb })
+    for (const [id, item] of Object.entries(table.store)) {
+      if (id.includes("#AGG#")) expect(item.exploredChildren).toBe(0)
+    }
+  })
+
+  it("sums to the number of new cells at every level", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
+    for (const res of [6, 7, 8]) {
+      const summed = Object.entries(table.store)
+        .filter(([id]) => id.includes(`#AGG#${res}`))
+        .reduce((n, [, item]) => n + Number(item.exploredChildren), 0)
+      expect(summed, `res ${res}`).toBe(cells.length)
+    }
+  })
+
+  /**
+   * THE SUBTLE ONE. `ADD exploredChildren` is unconditional, which is normally how a
+   * counter doubles on an SQS redelivery. It is safe because of where the number comes
+   * from: `discovery` is the classifier's verdict from THIS delivery's read of T6, and a
+   * redelivery re-reads a table that now holds the cells and classifies them cooled.
+   *
+   * So the redelivery is simulated the way it actually happens — by classifying again —
+   * rather than by calling this function twice with the same argument, which would prove
+   * the opposite of what the system does.
+   */
+  it("does not double-count on a redelivery, because the classifier answers differently", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified("new"), RUN_2026, { ddb: table.ddb })
+    const afterFirst = { ...table.store }
+
+    // The redelivery: every cell is now in T6, so the classifier returns cooled.
+    await writeAggregates(classified("cooled"), RUN_2026, { ddb: table.ddb })
+
+    for (const [id, item] of Object.entries(table.store)) {
+      if (id.includes("#AGG#")) {
+        expect(item.exploredChildren, id).toBe(afterFirst[id]!.exploredChildren)
+      }
+    }
+  })
+
+  /** The `max`, for the reason I-8 gives about `lastRunAt`: a backfill must not lower it. */
+  it("takes a max on lastRunDay, so a backfill cannot drag a parent backwards", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
+    const fresh = Object.entries(table.store).find(([id]) => id.includes("#AGG#6"))!
+    const day = fresh[1].lastRunDay
+
+    const backfill = { ...RUN_2026, startedAt: "2024-01-01T00:00:00.000Z" }
+    const result = await writeAggregates(classified("cooled"), backfill, { ddb: table.ddb })
+
+    expect(table.store[fresh[0]]!.lastRunDay).toBe(day)
+    expect(result.advanced).toBe(0)
+  })
+
+  it("still writes the parent for a run entirely over known ground — AP-17 must find it", async () => {
+    // Without this, a res-6 partition the user only ever re-runs would be invisible to
+    // `listTouchedParents`, and the repair path would silently rebuild an incomplete map.
+    const table = fakeTable()
+    await writeAggregates(classified("cooled"), RUN_2026, { ddb: table.ddb })
+    expect(Object.keys(table.store).some((k) => k.includes("#AGG#6"))).toBe(true)
+  })
+
+  it("is a handful of writes for one run, not one per cell", async () => {
+    const table = fakeTable()
+    await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
+    // 3 levels x 1-2 parents x 2 writes each. Against 37 cells.
+    expect(table.sent.length).toBeLessThan(20)
   })
 })

@@ -303,6 +303,15 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       archive: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
       receipt: { ddb },
       cells: { ddb, table: EXPLORED_CELL_TABLE },
+      /**
+       * `0049`. The same physical bucket as the archive today — one `defineStorage`
+       * bucket holds `raw/` and `users/` — but read from its own variable, because the
+       * two prefixes are granted separately in `amplify/backend.ts` and a single name
+       * would make a future split a search-and-replace across two unrelated concerns.
+       *
+       * `ddb` is shared: the generation counter is a T6 item (D-218).
+       */
+      blobs: { s3, bucket: required("USER_DATA_BUCKET"), ddb, table: EXPLORED_CELL_TABLE },
       registry: RULES,
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       onPhase: (entered) => {
@@ -337,6 +346,12 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
              * activity, the second is a run whose every cell was already known.
              */
             cells: result.cells ?? "revealsGround=false",
+            /**
+             * The generation the client will fetch, and what it cost. `null` means no
+             * generation was bumped — a traceless activity must leave every cached client
+             * exactly where it was (tickets `0069`, `0159`).
+             */
+            blobs: result.blobs,
           }
         : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })

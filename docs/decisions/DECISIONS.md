@@ -2444,3 +2444,70 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `rulesVersion` (04 §7.6) needs T5 and belongs to capability 09 — which is why
     `processActivity` takes the registry as an ARGUMENT: that day changes one line in the
     handler and nothing in the pipeline.
+
+- **D-218** **The `generation` counter is a THIRD item type in T6, `U#<uid>#GEN`, allocated by
+  an atomic `ADD`.** *(Ticket `0049`.)*
+  - **The design named a mechanism that no longer exists.** `05` §7.3 and `02` §6.4 both say
+    `generation` is *"bumped by the ingest Lambda inside the same transaction as the cell
+    writes"*. D-144/I-10 moved the cell writes OUT of `TransactWriteItems` — 40–130 cells
+    against a 100-item cap — so there is no such transaction to bump inside. Same shape of
+    staleness as AP-15, corrected by `0048`, and found the same way: by trying to implement it.
+  - **The obvious replacement is unsafe, and not theoretically.** Reading
+    `manifest.generation` and adding one is a read-modify-write. The ingest queue is a standard
+    SQS queue with `batchSize: 1` and no reserved concurrency, so a Sync that pulls five
+    activities runs five workers for one user at once. Two of them read 41 and both write
+    `explored-r10.42.bin` — two different cell sets under one name, served
+    `Cache-Control: immutable`. Nothing recovers from that, because `immutable` is a promise
+    the CDN and the browser have already believed.
+  - **`ADD generation :one` is monotonic by construction, not by condition.** The increment
+    happens inside DynamoDB, so there is no value a caller could supply that lowers it and no
+    read for a concurrent writer to race. Two simultaneous callers get 42 and 43, never 42
+    twice. A missing attribute is treated as 0, so a user's first call returns 1 with no
+    bootstrap write and no existence check — which is why the worker needs no `GetItem` grant
+    and nothing ever reads the counter back.
+  - **`raiseGenerationTo` is the conditional half, and it exists for the drill.** `02` §8.3
+    step 7 rebuilds into new, empty tables and must *"set `generation` = the step-0 generation
+    + 1, never 1"*. Its `ConditionExpression` is I-11 made executable: called with a value at
+    or below the current one it writes nothing and returns `false`, which turns "attempt to
+    lower it" into a test rather than a review comment.
+  - **A third item type in a table `02` T6 calls a bounded exception at two.** It is added
+    there rather than in a ninth table for the reasons that bounded the exception: same job,
+    same path, same partition-key convention — and T6 is the one table carrying `RETAIN` and
+    point-in-time recovery, which is exactly the durability a counter that must never go
+    backwards wants. A separate table for a single number would be the laziness §2.1 argues
+    against, inverted. `#GEN` shares no partition with `#C#` or `#AGG#`, so no existing
+    `Query` can return it and `assertNoCellWrites` is unaffected.
+  - **The manifest stays authoritative for what the client fetches** (`02` §6.4), and
+    `Profile.exploredGeneration` stays the mirror `0051` repairs. This item is authoritative
+    for a different question — which numbers have ever been handed out — and that is the one
+    immutability turns on.
+
+- **D-219** **The manifest PUT is conditional on the ETag its merge base was read from, and a
+  412 re-merges. The `LSFL` sidecar carries a header.** *(Ticket `0049`.)*
+  - **A unique generation is not enough on its own.** D-218 stops two concurrent workers
+    writing the same filename. It does not stop them merging from the same base: A and B both
+    read generation 41, A publishes 42 = blob41 + runA, B publishes 43 = blob41 + runB — and
+    runA's cells are gone from 43 and from every generation after it. T6 still holds them, so
+    this is not a re-fog and D-020 holds; the *payload* has silently lost ground, and only an
+    AP-17 repair would bring it back.
+  - **`IfMatch` makes the merge chain linear, as a precondition rather than as a convention.**
+    The loser gets a 412, discards its work, and re-merges against what the winner published.
+    `IfNoneMatch: "*"` is the same precondition spelled for a key that must not yet exist, so
+    two bootstraps cannot both win either.
+  - **This is why the allocator is a counter and not "manifest + 1".** The loser's blob 43 is
+    an orphan — `02` §6.4 already calls orphan blobs harmless and garbage-collected — and a
+    counter guarantees no later run ever writes DIFFERENT bytes to that same immutable name.
+    With "manifest + 1" the retry would compute 43 again and overwrite it, and anything that
+    had already fetched 43 would hold wrong bytes under a year-long cache header.
+  - **The sidecar's header is not in `05` §7.2, and is added.** §7.2 describes
+    `explored-lastrun-r10.bin` as bare parallel u16s whose length is implied by the set's
+    `count`. That shape's failure mode is invisible: a client holding cells for generation 41
+    that fetches the sidecar for 42 is off by however many cells the run added, and every
+    cold-territory verdict past the insertion point is attributed to the wrong hexagon.
+    Nothing errors. 20 bytes carrying `version`, `res`, `generation` and `count` make it
+    unrepresentable — the same discipline §6.4 already imposes on `version` and `res`.
+  - **A sidecar that does not decode is dropped, not thrown.** It feeds one optional overlay
+    (§8.5, D-133) and nothing else, so failing an ingest over it would block the map to
+    protect a cosmetic layer. It is reported on the result as `sidecarRebuilt` rather than
+    swallowed, because a `true` there means something upstream wrote a bad object — and T6
+    still holds the real days for an AP-17 repair to restore.

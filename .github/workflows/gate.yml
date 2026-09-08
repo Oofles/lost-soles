@@ -123,6 +123,17 @@ jobs:
       - name: the render radius never reaches the domain that owns REVEAL_R_M
         run: node scripts/check-fog-render-boundary.mjs
 
+      # 02 §5.6 / ticket 0049. AP-16's full-table Query is ~1,000-3,000 RRU against
+      # AP-15's ~3-10, and §5.6 calls reaching it from `process-activity` a
+      # review-blocking bug. A transitive import walk, because a grep is satisfied by
+      # moving the import one file away. The role's missing `dynamodb:Query` on T6 is
+      # the other half — a gate can be skipped, a missing action cannot.
+      - name: fog hot-path check self-test
+        run: node scripts/check-fog-hot-path.mjs --self-test
+
+      - name: the ingest worker cannot reach the full-table rebuild
+        run: node scripts/check-fog-hot-path.mjs
+
       # 08 §7.2 / D-199 (ticket 0168). This repo is PUBLIC, and the operator's
       # traces are the sensitive asset the whole of 08 §2 is about. §7.2 always
       # said "test fixtures are synthetic coordinates"; nothing enforced it, and

@@ -1139,6 +1139,15 @@ and **the fog itself does not need it** — revealed is permanent (D-020), so re
 presence alone. Only the optional "stale territory" surface (§8.5) needs it. Fetch it on demand,
 cache it separately, and never block first paint on it.
 
+**It carries a 20-byte header, and this paragraph originally said it did not** (ticket `0049`,
+D-219). Described as bare parallel u16s, its length implied by the set's `count`, the failure
+mode is invisible: a client holding cells for generation 41 that fetches the sidecar for 42 is
+off by however many cells the run added, and every cold-territory verdict past the insertion
+point lands on the wrong hexagon with nothing erroring. The header is `LSFL` + `version` + `res`
++ `flags` + `reserved` + `generation` u64 + `count` u32, then `count` × u16 — the same first
+eight bytes as `LSFG`, so the reader can refuse a mismatched generation or count exactly as
+§7.3's version-skew rule requires.
+
 ### 7.3 Cache and invalidation
 
 ```
@@ -1170,8 +1179,12 @@ s3://lost-soles-data/users/<uid>/
   }
   ```
 
-- **`generation` is bumped by the ingest Lambda inside the same transaction as the cell writes**
-  (§3.2). It is monotonic per user. It is the *only* cache key the client needs.
+- **`generation` is allocated by an atomic `ADD` on T6's counter item** (`02` §2 T6 item type C,
+  D-218, ticket `0049`). *Written here as "bumped inside the same transaction as the cell
+  writes" until `0049`; D-144 moved the cell writes out of `TransactWriteItems` entirely, so
+  there is no such transaction — and a read-modify-write on the manifest would let two
+  concurrent workers name one immutable object twice.* It is monotonic per user, and it is the
+  *only* cache key the client needs.
 - **Client cache: IndexedDB**, keyed `{uid, generation}`, storing the decoded `BigUint64Array`
   (not the encoded bytes — skip re-parsing on warm start). Keep the current generation and one
   previous; evict the rest.

@@ -172,14 +172,101 @@ describe("T6 ExploredCell — the IAM (I-7)", () => {
   })
 
   /**
-   * `Query` is AP-16's, the blob rebuild, and belongs to `0049`. Kept absent so that
-   * ticket adds it deliberately rather than inheriting a grant nobody chose — which is
-   * the discipline that made `0048`'s `BatchGetItem` above a visible line in a diff.
+   * `Query` is AP-16/AP-17's, the blob rebuild — and `0049` BUILT that path
+   * (`src/pipeline/explored-rebuild.ts`) and still did not add the grant.
+   *
+   * `02` §5.6: *"AP-16 is the repair path. Calling it from `process-activity` is a
+   * review-blocking bug."* A role that cannot perform the action is the version of that
+   * sentence which survives a refactor, so the repair path takes its `Query` when it gets
+   * an execution context of its own (the drill, `0105`), where the ~1,000-3,000 RRU is a
+   * cost someone chose rather than one the worker inherited.
+   * `scripts/check-fog-hot-path.mjs` is the same rule at build time, over the import graph.
    */
-  it("grants no Query, GetItem or Scan — those are 0049's to justify", () => {
+  it("STILL grants no Query, GetItem or Scan, even though 0049 built the rebuild", () => {
     const granted = actionsOnTable()
     expect(granted).not.toContain("dynamodb:Query")
     expect(granted).not.toContain("dynamodb:GetItem")
     expect(granted).not.toContain("dynamodb:Scan")
+  })
+
+  /**
+   * `0049` added a THIRD item type to this table (D-218): the generation counter at
+   * `U#<uid>#GEN`. It needs no new action — `ADD generation :one` is an `UpdateItem`, which
+   * the worker already holds — and that is worth an assertion rather than a comment,
+   * because "we added storage and no permission" is the kind of claim that quietly stops
+   * being true.
+   */
+  it("needs no new action for the generation counter or the aggregate items", () => {
+    const dynamo = actionsOnTable().filter((a) => a.startsWith("dynamodb:"))
+    expect([...new Set(dynamo)].sort()).toEqual(["dynamodb:BatchGetItem", "dynamodb:UpdateItem"])
+  })
+})
+
+/**
+ * `0049`, `02` §2.10 and §6.1. The delivery layer's own prefix, granted separately from
+ * `raw/*` because the two have opposite rules — one is undeletable system-of-record bytes
+ * (I-3), the other is derived and republished on every run.
+ */
+describe("the explored delivery layer in S3", () => {
+  const s3Statements = () => {
+    const out: { sid?: string; actions: string[]; resource: string }[] = []
+    for (const t of [workerTemplate, template]) {
+      for (const policy of Object.values(t.findResources("AWS::IAM::Policy"))) {
+        const doc = (policy.Properties as { PolicyDocument?: { Statement?: unknown[] } })
+          .PolicyDocument
+        for (const raw of doc?.Statement ?? []) {
+          const st = raw as { Sid?: string; Action?: string | string[]; Resource?: unknown }
+          const actions = [st.Action ?? []].flat()
+          if (!actions.some((a) => a.startsWith("s3:"))) continue
+          out.push({ sid: st.Sid, actions, resource: JSON.stringify(st.Resource ?? "") })
+        }
+      }
+    }
+    return out
+  }
+
+  const delivery = () => s3Statements().find((s) => s.sid === "WriteAndReadExploredDeliveryLayer")
+
+  it("grants the worker Get and Put under users/", () => {
+    const statement = delivery()
+    expect(statement, "the delivery-layer grant must exist").toBeDefined()
+    expect([...statement!.actions].sort()).toEqual(["s3:GetObject", "s3:PutObject"])
+    expect(statement!.resource).toContain("users/*")
+  })
+
+  /**
+   * `GetObject` is the whole of §2.10: regeneration READS the previous generation's blob
+   * instead of `Query`ing 24 MB out of DynamoDB. This grant is what makes the cheap path
+   * available, and the absent `dynamodb:Query` above is what makes the expensive one
+   * unavailable. The pair is the design.
+   */
+  it("can read, which is what makes the incremental path possible at all", () => {
+    expect(delivery()!.actions).toContain("s3:GetObject")
+  })
+
+  /**
+   * Delta GC (`0051`) is the first thing that will want a delete here, and it can argue for
+   * it in its own diff. Note what it would still not reach: the bucket is versioned and
+   * `s3:DeleteObjectVersion` is denied bucket-wide, so even that GC could not destroy bytes.
+   */
+  it("cannot delete anything, in the delivery layer or the archive", () => {
+    const statements = s3Statements()
+    expect(statements.length).toBeGreaterThan(0)
+    for (const statement of statements) {
+      for (const action of statement.actions) {
+        expect(action, `${statement.sid} grants ${action}`).not.toMatch(/^s3:Delete/)
+        expect(action).not.toBe("s3:*")
+      }
+    }
+  })
+
+  /**
+   * The two prefixes stay separate. A single statement covering both would work and would
+   * erase the distinction the two comments in `backend.ts` exist to keep visible.
+   */
+  it("keeps the archive grant scoped to raw/ and nothing else", () => {
+    const archive = s3Statements().find((s) => s.sid === "WriteAndReadRawArchive")!
+    expect(archive.resource).toContain("raw/*")
+    expect(archive.resource).not.toContain("users/*")
   })
 })

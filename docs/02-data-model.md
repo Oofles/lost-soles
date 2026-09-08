@@ -383,9 +383,12 @@ new ddb.Table(custom, "ExploredCell", {
 })
 ```
 
-**Two item types share this table.** That is a deliberate, bounded exception to §2.1 — the two
-are written inside the same `TransactWriteItems` and read by the same job, so splitting them
-would buy nothing and cost atomicity.
+**Three item types share this table.** That is a deliberate, bounded exception to §2.1: all
+three are written by the same job, on the same path, under the same partition-key convention,
+so splitting them would buy nothing. *(Written as two until ticket `0049`; the counter below is
+the third. The original clause justified the pairing by a shared `TransactWriteItems`, which
+D-144 removed — cell writes now run outside the transaction entirely, and the justification is
+the shared writer, not shared atomicity.)*
 
 **Item type A — the cell** (05 §2.4, verbatim, plus provenance):
 
@@ -436,7 +439,35 @@ sk  = <parentCellId>
 ```
 
 The `AGG#6` partition doubles as **the index of which parents a user has touched**, which is
-what makes a full blob rebuild possible without a table scan (§2.4).
+what makes a full blob rebuild possible without a table scan (§2.4). That is the item's real
+job: the aggregate shipped to the browser (`explored-agg.<gen>.json`) is computed from the
+merged cell array, not read back from here, so these counts are a second and independent
+derivation of the same number — a cross-check available for free.
+
+`exploredChildren` is an unconditional `ADD` and `lastRunDay` a conditional `max`, for the same
+reasons the cell item splits into two writes: a running total is additive and order-independent,
+a clock is not (I-8). The `ADD` stays idempotent under SQS redelivery because of **where its
+number comes from** — the count of cells this delivery's read found absent from T6. A
+redelivery re-reads a table that now holds them, classifies them cooled, and adds zero.
+
+**Item type C — the generation counter** (ticket `0049`, D-218, I-11):
+
+```
+pk  = U#<uid>#GEN
+sk  = GEN
+    generation : N       ADD 1 per publish; monotonic, never reused
+```
+
+`ADD generation :one` with `ReturnValues: UPDATED_NEW` **allocates** the number that names
+`explored-r10.<gen>.bin`. It is atomic inside DynamoDB, so two workers running concurrently for
+one user — the ordinary case when a Sync enqueues several activities — cannot be handed the same
+number and cannot write two different cell sets to one `immutable` object name. A missing
+attribute is treated as 0, so a first call returns 1 with no bootstrap write; nothing ever reads
+the counter back, which is why the worker holds no `GetItem` on this table.
+
+A second, **conditional** write (`SET generation = :n` under
+`attribute_not_exists(generation) OR generation < :n`) is the rebuild drill's, §8.3 step 7. It
+refuses to lower the counter, which is I-11 expressed as something a test can attempt.
 
 **Access patterns:** AP-15 (ingest diff), AP-16 (blob rebuild), AP-17 (repair scan).
 No GSIs. None are needed: every read is by known partition.
@@ -1353,8 +1384,8 @@ discovery during a slow-phone bug report.
 
 ### 6.4 Invalidation — the contract between the Lambda and the browser
 
-**`generation` is the only cache key.** It is a monotonic per-user counter, bumped by the ingest
-Lambda **inside the same transaction as the cell writes** (05 §7.3, §4.3 above), and mirrored to
+**`generation` is the only cache key.** It is a monotonic per-user counter, allocated by an
+atomic `ADD` on T6's item type C (§2 T6, D-218) and mirrored to
 `Profile.exploredGeneration` (T1) purely so the AppSync subscription has something to push
 (AP-14). **The manifest is authoritative; the Profile attribute is a notification channel.** If
 they ever disagree, the manifest wins and the mirror is repaired — which is why T1 documents it as
@@ -1365,6 +1396,13 @@ before writing the new `manifest.json`.** The manifest is the commit point. A cr
 leaves orphan blobs (harmless, garbage-collected); a crash after it would point clients at an
 object that does not exist. There is no third possibility, because the manifest PUT is a single
 atomic S3 operation.
+
+**And it is a CONDITIONAL PUT** — `IfMatch` on the ETag the writer's merge base was read from,
+or `IfNoneMatch: "*"` on a first publish (ticket `0049`, D-219). A unique generation stops two
+concurrent workers writing the same filename; it does not stop them merging from the same base,
+which would drop one run's cells from the payload permanently. The precondition makes the merge
+chain linear: the loser gets a 412, discards its work, and re-merges against what the winner
+published. Its allocated generation becomes one more harmless orphan.
 
 Boot sequence (05 §7.3, restated as an obligation rather than a suggestion):
 

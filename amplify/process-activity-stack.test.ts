@@ -138,7 +138,12 @@ describe("the worker's configuration (criterion 2)", () => {
       workerFunction().Properties.Environment as { Variables?: Record<string, unknown> }
     ).Variables
     expect(Object.keys(environment ?? {})).toEqual(
-      expect.arrayContaining(["ACTIVITY_TABLE", "RAW_ARCHIVE_BUCKET", "ACTIVITY_INGEST_QUEUE_URL"]),
+      expect.arrayContaining([
+        "ACTIVITY_TABLE",
+        "RAW_ARCHIVE_BUCKET",
+        "ACTIVITY_INGEST_QUEUE_URL",
+        "USER_DATA_BUCKET",
+      ]),
     )
   })
 })
@@ -177,11 +182,17 @@ describe("the worker's IAM role (criterion 3)", () => {
    * is what `bucket.grantRead()` would do (`s3:List*` and `s3:GetBucket*` on the whole
    * bucket, since bucket-level access cannot be scoped to a prefix).
    */
-  it("can put and read raw objects, and nothing else in the bucket", () => {
-    expect(workerActions().filter((a) => a.startsWith("s3:")).sort()).toEqual([
-      "s3:GetObject",
-      "s3:PutObject",
-    ])
+  /**
+   * `0049` added a second S3 statement — `users/*`, the explored delivery layer — so the
+   * action list now carries each verb twice, once per prefix. The claim under test is
+   * unchanged and is the one that matters: **only these two verbs**, on either prefix.
+   * `explored-cells-table.test.ts` asserts which prefix each statement is scoped to.
+   */
+  it("can put and read objects, and nothing else in the bucket", () => {
+    const s3 = workerActions().filter((a) => a.startsWith("s3:"))
+    expect([...new Set(s3)].sort()).toEqual(["s3:GetObject", "s3:PutObject"])
+    // Two statements, not one widened statement: raw/ and users/ have opposite rules.
+    expect(s3).toHaveLength(4)
   })
 
   /** The receipt, the credentials and the Activity row. */

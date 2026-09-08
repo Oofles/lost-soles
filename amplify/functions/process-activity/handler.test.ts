@@ -67,6 +67,8 @@ vi.mock("@/src/pipeline/ingest-receipt", () => ({ recordFailure }))
 
 process.env.ACTIVITY_TABLE = "Activity-test"
 process.env.RAW_ARCHIVE_BUCKET = "bucket-test"
+/** `0049`. The same physical bucket, under the name the delivery layer reads. */
+process.env.USER_DATA_BUCKET = "bucket-test"
 process.env.ACTIVITY_INGEST_QUEUE_URL = "https://sqs.test/queue"
 
 const { handler } = await import("./handler")

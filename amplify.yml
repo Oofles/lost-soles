@@ -34,6 +34,7 @@ frontend:
         - node scripts/check-design-tokens.mjs # 06 §8 — the palette does not leak
         - node scripts/check-fixture-geography.mjs # 08 §7.2 / D-199 — no real GPS in a public repo
         - node scripts/check-fog-render-boundary.mjs # 05 §2.3 — REVEAL_R_M is scoring, revealScale is a look
+        - node scripts/check-fog-hot-path.mjs  # 02 §5.6 — AP-16 must not reach the ingest hot path
         - node scripts/build-rules-json.mjs --check # D-217 — the .json the ingest Lambda imports
         # The one expensive check here (~6s): it copies the tree to /tmp, stubs the
         # adapter, and runs tsc over the result. Worth it — it is the only thing

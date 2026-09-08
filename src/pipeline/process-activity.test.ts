@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 
-import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { BatchGetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
@@ -88,6 +88,8 @@ interface Options {
   ingest?: { kind?: string; hasTrace?: boolean; trace?: Trace }
   /** Ticket `0047`. Every cell write throws this, to prove the ordering holds under failure. */
   cellsFail?: Error
+  /** `0049`. A failed blob PUT, to prove it happens above the transaction. */
+  blobsFail?: Error
   /**
    * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
    * map classifies `new`. Given as a function of the run's cells so a test can seed "every
@@ -122,6 +124,8 @@ const TRACE: Trace = {
 function rig(options: Options = {}) {
   const calls: string[] = []
   const cellWrites: UpdateCommand["input"][] = []
+  const aggWrites: UpdateCommand["input"][] = []
+  const blobPuts: string[] = []
   let ticks = 0
   const clock = () => {
     ticks += 1
@@ -207,12 +211,55 @@ function rig(options: Options = {}) {
               },
             }
           }
+          /**
+           * `0049`. T6's item type B rides on the same client, and it must not be counted
+           * as a cell write — the assertions below are about the 40-130 conditional cell
+           * updates, and folding three aggregate rows into them would make every count
+           * off by a number that varies with the fixture's geography.
+           */
+          if (String(command.input.Key?.pk).includes("#AGG#")) {
+            if (!aggWrites.length) calls.push("cellsAgg")
+            aggWrites.push(command.input)
+            if (options.cellsFail) throw options.cellsFail
+            return {}
+          }
           if (!cellWrites.length) calls.push("cells")
           cellWrites.push(command.input)
           if (options.cellsFail) throw options.cellsFail
           return {}
         },
       },
+    },
+    /**
+     * `0049`. §2.10's regeneration, faked at the two seams it actually uses: a counter on
+     * T6 and object storage. The GET always misses, so every test in this file publishes
+     * generation 1 from an empty base — which is the bootstrap case and keeps the
+     * assertions about ORDER rather than about merge arithmetic (that is
+     * `explored-blob-store.test.ts`'s job).
+     */
+    blobs: {
+      bucket: BUCKET,
+      table: CELL_TABLE,
+      now: () => new Date("2026-09-06T09:00:02.000Z"),
+      ddb: {
+        async send() {
+          calls.push("generation")
+          return { Attributes: { generation: 1 } }
+        },
+      } as never,
+      s3: {
+        async send(command: unknown) {
+          if (command instanceof GetObjectCommand) {
+            const e = new Error("no such key") as Error & { name: string }
+            e.name = "NoSuchKey"
+            throw e
+          }
+          if (!blobPuts.length) calls.push("blobs")
+          blobPuts.push(String((command as PutObjectCommand).input.Key))
+          if (options.blobsFail) throw options.blobsFail
+          return { ETag: '"b"' }
+        },
+      } as never,
     },
     registry: REGISTRY,
     persist: {
@@ -273,7 +320,7 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls, cellWrites }
+  return { deps, calls, cellWrites, aggWrites, blobPuts }
 }
 
 describe("the fixed order", () => {
@@ -803,5 +850,92 @@ describe("no cells still writes a record (§3.6)", () => {
     expect(calls).toContain("persist")
     // Nothing to read, so nothing was read.
     expect(calls).not.toContain("cellsRead")
+  })
+})
+
+describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
+  /**
+   * The ordering that makes a failure self-healing. Cells first (D-144), then the blobs,
+   * then the transaction — so a crash anywhere above `persist` leaves the receipt
+   * `PROCESSING` and a redelivery repeats the whole thing idempotently.
+   */
+  it("runs after the cell writes and before the transaction", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+
+    expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("blobs"))
+    expect(calls.indexOf("blobs")).toBeLessThan(calls.indexOf("persist"))
+  })
+
+  it("publishes the four objects and commits with the manifest last", async () => {
+    const { deps, blobPuts } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    expect(blobPuts).toEqual([
+      "users/u-1/explored/explored-r10.1.bin",
+      "users/u-1/explored/explored-lastrun-r10.1.bin",
+      "users/u-1/explored/explored-agg.1.json",
+      "users/u-1/deltas/0-1.bin",
+      "users/u-1/manifest.json",
+    ])
+    expect(result.blobs).toMatchObject({ generation: 1, previousGeneration: 0 })
+    expect(result.blobs!.cellCount).toBe(result.award.cellCount)
+  })
+
+  it("times the phase separately from the cells and the transaction", async () => {
+    const { deps } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.timings.blobsMs).toBeGreaterThan(0)
+  })
+
+  /**
+   * Tickets `0069` and `0159` state this as an acceptance criterion of their own: a
+   * traceless activity *"bumps no generation"*. It is not an optimisation — a bump makes
+   * every cached client refetch a 300 KB blob byte-identical to the one it already holds.
+   */
+  it("a traceless activity publishes NOTHING and bumps no generation", async () => {
+    const { deps, calls, blobPuts } = rig({ ingest: { kind: "run", hasTrace: false } })
+    const result = await processActivity(JOB, deps)
+
+    expect(blobPuts).toEqual([])
+    expect(calls).not.toContain("generation")
+    expect(calls).not.toContain("blobs")
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.blobs).toBeNull()
+  })
+
+  /** D-189: a traced ride has real geometry and must reveal none of it, blob included. */
+  it("an activity the rules refuse publishes nothing either", async () => {
+    const { deps, calls, blobPuts } = rig({ ingest: { kind: "ride", hasTrace: true, trace: TRACE } })
+    await processActivity(JOB, deps)
+    expect(blobPuts).toEqual([])
+    expect(calls).not.toContain("generation")
+  })
+
+  /**
+   * The whole reason the phase sits where it does. A publish failure must not leave a
+   * `DONE` receipt behind — the cells would be in T6 and in no blob, and every generation
+   * after this one would inherit the hole until an AP-17 repair.
+   */
+  it("a failed publish throws before the transaction, leaving the receipt PROCESSING", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN, blobsFail: new Error("s3 is down") })
+    await expect(processActivity(JOB, deps)).rejects.toThrow("s3 is down")
+    expect(calls).toContain("cells")
+    expect(calls).not.toContain("persist")
+  })
+
+  it("writes T6's aggregate items, and only after the cells", async () => {
+    const { deps, calls, aggWrites } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+
+    expect(aggWrites.length).toBeGreaterThan(0)
+    expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("cellsAgg"))
+    // Three levels, and `02` T6's own partition math says 1-2 res-6 parents for one run.
+    const partitions = new Set(aggWrites.map((w) => String(w.Key!.pk)))
+    expect(partitions).toEqual(
+      new Set(["U#u-1#AGG#6", "U#u-1#AGG#7", "U#u-1#AGG#8"]),
+    )
   })
 })
