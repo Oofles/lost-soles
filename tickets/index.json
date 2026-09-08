@@ -1209,7 +1209,7 @@
     "title": "Cache invalidation contract between the ingest Lambda and the browser",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [
@@ -1219,10 +1219,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-08T14:18:19Z",
-    "path": "tickets/open/0051-cache-invalidation-contract.md",
-    "ready": true,
+    "closed": "2026-09-08T14:38:01Z",
+    "path": "tickets/closed/0051-cache-invalidation-contract.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -4168,7 +4169,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 7
     }
   }
 ]

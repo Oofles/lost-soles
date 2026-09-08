@@ -4,7 +4,7 @@ slug: cache-invalidation-contract
 title: Cache invalidation contract between the ingest Lambda and the browser
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [49]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-08T14:18:19Z
+closed: 2026-09-08T14:38:01Z
 ---
 
 ## Description
