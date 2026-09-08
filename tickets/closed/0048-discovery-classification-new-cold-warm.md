@@ -4,13 +4,14 @@ slug: discovery-classification-new-cold-warm
 title: Discovery classification — new / re-armed (>6mo, 50%) / cooled (<6mo, 0%)
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [47]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-08T05:37:22Z
 ---
 
 ## Description
