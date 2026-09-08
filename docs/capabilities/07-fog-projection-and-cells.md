@@ -127,3 +127,25 @@ exists on a screen. Everything `07` proved is invisible until `08` draws it, so 
 first genuine operator-validation dependency in the project: an audit here cannot be closed by the
 agent alone, and `0049`'s Operator validation already names what is waiting for a human eye.
 
+## Audit — 2026-09-08 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 10 passed, 0 failed, 2 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (1 of a budget of 3):**
+
+1. **design-was-wrong** — `D-221` — 05 §3.1's definitions block listed three credit constants where the code has four — CREDIT_DEFERRED (0050) is specified in §3.4 and in 02 T3 but absent from the summary a reader goes to for the vocabulary. Invisible to every mechanical check, because CREDIT_DEFERRED and CREDIT_COOLED are both 0.0
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 9/30 invariants cited by a test name, none lost. Ratchet only: the remaining 21 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)
+- `xp-not-lower` — **na** — no XP ledger exists yet — activates with capability 09 (D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 9 closed
+
+<!-- audit-record {"capability":"07-fog-projection-and-cells","audited":"2026-09-08T19:55:16Z","verdict":"pass","mechanical":{"pass":10,"fail":0,"na":2},"divergences":1} -->
