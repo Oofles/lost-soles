@@ -84,5 +84,46 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+**The design was right, and unusually so — one divergence across nine tickets and six documents.**
+That is the lowest count of any capability audited so far, and the reason is visible in the docs
+themselves: `05-fog-of-war.md` §2.2 and §2.3 carry inline amendment blocks from `0045`, `0046` and
+`0180` (D-212, D-215, D-216, D-222), written *at the time the code disagreed with them* rather than
+recovered at audit. **The doc was maintained as a working surface, not consulted as a monument.**
+Every constant matched on inspection — `REVEAL_R_M = 65`, `MAX_ACC_M = 50`, the dwell pair, the
+split pair, `DENSIFY_STEP_M = 30`, `SIX_MONTHS_MS`, the three credit values — and so did the step
+order of `traceToCells`, the manifest's conditional-PUT protocol and T3's `traceRejectCounts`.
+
+**The one divergence is the shape worth remembering.** §3.1's definitions block listed three
+credit constants; the code has four. `CREDIT_DEFERRED` was `0050`'s, fully specified in §3.4 and
+in `02` T3 — so the *document* was correct and its *summary* was not. What makes it worth a
+divergence rather than a shrug: `CREDIT_DEFERRED = 0.0` and `CREDIT_COOLED = 0.0` are the same
+number, so no test, no type and no downstream consumer could ever have caught the omission. **A
+summary that drifts from the body it summarises is invisible to every mechanical check there is**,
+and §3.1 is exactly where a reader goes for the vocabulary. Same family as `02` §3.2's missing
+`unitMultipliers`, found in the `04` re-audit four hours earlier, and a second argument for `0162`.
+
+**What went wrong was the instrument, not the work.** `fog-no-refog` — the AUDIT.md §4 row that
+carries **D-020 and I-7, this capability's entire promise** — reported *"no explored blob or fog
+pipeline exists yet — activates with capability 07"* **during capability 07's own audit**, with
+seven `src/pipeline/explored-*.ts` modules and 6,600 lines on disk. It is a literal `NA()`
+constant that reads nothing and can never return anything else (`0184`). The check that ought to
+have been this capability's headline was the one thing in the table that could not run, so §4 was
+performed by hand instead: `rebuildFromTable` produces a blob byte-identical to the incremental
+path, and `explored-cells.ts` emits no `DeleteItem` and no `REMOVE` on any path. Both green, both
+by a human deciding to look.
+
+**The pattern this capability closes on.** Four detectors were caught reporting something other
+than the truth in a single day — `vigil-test` matched a filename, `invariant-sweep` matched any
+`I-n` in any file (`0161`), the two §4 rows match nothing (`0184`), and `validate` reported an
+unauditable capability as a *warning* while it gated eighteen tickets (`0185`). **Three could not
+see; one saw and spoke quietly.** The instruction that caught every one of them is the same line
+`04`'s reflection already carried — *read every `n/a` reason and check it against the repo* — and
+it is now the highest-yield thirty seconds in the whole procedure. It should stay in AUDIT.md §1
+whatever else changes.
+
+**For the next capability (`08-map-and-fog-renderer`).** It is one of the three where the USE step
+means an actual run with the build on the phone, and it is the first capability whose output only
+exists on a screen. Everything `07` proved is invisible until `08` draws it, so budget for the
+first genuine operator-validation dependency in the project: an audit here cannot be closed by the
+agent alone, and `0049`'s Operator validation already names what is waiting for a human eye.
 

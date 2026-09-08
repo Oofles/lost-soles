@@ -383,11 +383,21 @@ Per **D-120**, verbatim:
 ### 3.1 Definitions
 
 ```
-SIX_MONTHS_MS = 183 * 24 * 60 * 60 * 1000     # see §9.2 — 183 days, UTC, not calendar months
-CREDIT_NEW    = 1.0
-CREDIT_REARM  = 0.5
-CREDIT_COOLED = 0.0
+SIX_MONTHS_MS   = 183 * 24 * 60 * 60 * 1000   # see §9.2 — 183 days, UTC, not calendar months
+CREDIT_NEW      = 1.0
+CREDIT_REARM    = 0.5
+CREDIT_COOLED   = 0.0
+CREDIT_DEFERRED = 0.0                        # the FOURTH class — §3.4, ticket 0050, D-221
 ```
+
+> **There are four classes, not three, and this block said three until the capability `07`
+> audit (2026-09-08).** `"deferred"` is `0050`'s: a cell this activity cannot be scored
+> against incrementally, because the activity is *earlier* than the cell's `lastRunAt`. It is
+> fully specified in **§3.4** and its durable record is `Activity.deferredCellCount` (`02` T3,
+> D-221) — but a reader who came to §3.1 for the vocabulary left with three-quarters of it,
+> and `CREDIT_DEFERRED = 0.0` is indistinguishable from `CREDIT_COOLED` at the value level, so
+> nothing downstream would have caught the omission. **Zero here is a safety property, not a
+> verdict**: the award is provisional until a replay folds the history.
 
 **Scoring time is the activity's `startedAt`, never the ingest time.** A run uploaded three days
 late must score as it would have on the day it happened. Using wall-clock ingest time makes
