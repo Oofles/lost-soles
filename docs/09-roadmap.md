@@ -741,7 +741,7 @@ Not defects, but they expire silently if nobody holds them. Each is a named tick
 | **D-123 revisit trigger** — no special home-location handling holds *only* for the single-owner case. Friends, family, sharing or screenshots reopen it. Three hard gates in `08-security-privacy.md` §2.4 | `08` §2.3–2.5 | `18`/3 |
 | **O-004** — does Strava write *routes* to Health Connect? Five-minute device check | D-113 | Post-MVP, gates adapter order (§6.4) |
 | **Amplify Hosting free-tier perpetuity** — verify in the Billing console | `01` §8 Risk 2 | `02`/1 |
-| **Reveal radius 65 m is an assumption** — every Cartography number scales linearly with it | `04` §10 | `07`/2, noted in the capability doc |
+| ~~**Reveal radius 65 m is an assumption**~~ — **RESOLVED 2026-09-07, ticket `0046`.** 65 m is implemented and measured at 7.67 cells/km; `04` §10 had assumed 50 m and 6.5, and Cartography moved 15 → 13 XP/cell to hold parity (D-215). The rule survives: every Cartography number scales linearly with the radius | `04` §10, `05` §2.3 | `07`/2, noted in the capability doc |
 | **Region boundaries are an unchosen input** — neighbourhood completion needs an OSM boundary source | `05` §9.8, `04` §10 | Post-MVP; explicitly not in D-122 |
 
 ---

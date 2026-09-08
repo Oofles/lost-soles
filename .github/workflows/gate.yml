@@ -104,6 +104,17 @@ jobs:
       - name: design tokens — no raw colour outside app/tokens.css
         run: node scripts/check-design-tokens.mjs
 
+      # 05 §2.3 / ticket 0046. REVEAL_R_M (65 m, scoring, permanent under D-020) and
+      # revealScale (~102 m, a shader look) are different numbers for different jobs.
+      # Landed while the renderer does not exist yet, for the same reason the D-100 grep
+      # landed while the domain was empty: after the leak is too late, and a map that
+      # cannot re-fog cannot be corrected by editing the constant back.
+      - name: fog/render boundary check self-test
+        run: node scripts/check-fog-render-boundary.mjs --self-test
+
+      - name: the render radius never reaches the domain that owns REVEAL_R_M
+        run: node scripts/check-fog-render-boundary.mjs
+
       # 08 §7.2 / D-199 (ticket 0168). This repo is PUBLIC, and the operator's
       # traces are the sensitive asset the whole of 08 §2 is about. §7.2 always
       # said "test fixtures are synthetic coordinates"; nothing enforced it, and

@@ -1,18 +1,19 @@
-import { gridDisk, latLngToCell, type H3Index } from "h3-js"
+import { cellToLatLng, gridDisk, latLngToCell, type H3Index } from "h3-js"
 
 import type { GeoPoint, Trace } from "./activity"
 import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
 
 /**
- * TRACE → TERRITORY. Ticket `0045`. `05-fog-of-war.md` §2.2 is the specification and its
- * pseudocode is normative.
+ * TRACE → TERRITORY. Tickets `0045` and `0046`. `05-fog-of-war.md` §2.2 is the
+ * specification and its pseudocode is normative.
  *
  * `traceToCells` turns a normalised `Trace` into the set of H3 res-10 cells a run
- * qualifies. It owns steps 1–4 — clean, collapse dwells, split, densify and collect
- * candidates. **Step 5, the exact 65 m radius filter, is ticket `0046`**, and it is the
- * step that turns this generous candidate set into the definition of the word "revealed".
- * Nothing may treat this function's output as revealed ground until `0046` lands;
- * `0047`, which writes `ExploredCell`, depends on `0046` for exactly that reason.
+ * reveals. `0045` built steps 0–4 — split on gaps, clean, collapse dwells, split on
+ * implausible jumps, densify and collect a deliberately generous candidate set. `0046`
+ * added **step 5, the exact `REVEAL_R_M` filter**, and step 5 is where the word
+ * "revealed" acquires its meaning: before it the output was candidates and nothing was
+ * allowed to treat them as ground. `0047`, which writes `ExploredCell`, depended on
+ * `0046` for exactly that reason and may now read this function's output directly.
  *
  * PURE. No clock, no network, no randomness, no store access. It runs server-side in the
  * ingest Lambda, always (§2.2) — the client never computes cells for scoring. With one
@@ -36,6 +37,46 @@ import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
 
 /** The one resolution. D-115; see the header. */
 export const RES = 10
+
+/**
+ * **THE DEFINITION OF THE WORD "REVEALED": 65 metres either side of the path.** A ~130 m
+ * corridor. Ticket `0046`; `05-fog-of-war.md` §2.3; D-115.
+ *
+ * **It is not a tuning knob and it has no fudge factor.** Res 10's inradius is **65.7 m**,
+ * so the game rule and the geometry land on the same number: the reveal is, to within
+ * rounding, *"the cell you ran through"* — `gridDisk(c, 0)` — with the step-5 filter
+ * correcting the cases where the path clips a cell's corner without passing near its
+ * centre. That coincidence is one of the three reasons D-115 could settle on res 10 at all.
+ *
+ * Why not `k = 1`, which is what step 4 collects: `gridDisk(c, 1)` is 7 cells and ~394 m
+ * across, effective radius near 200 m (R3 §1.1). On a US grid with 80–120 m block spacing,
+ * running one street would reveal both parallel streets. D-012 says the point is running
+ * new places, and a map that gifts you ground you never saw attacks that directly.
+ *
+ * Defensible in both directions: 65 m is the far side of a street plus a front garden, so
+ * you can genuinely claim to have seen it; and it is generous enough to swallow consumer
+ * GPS error (5–15 m in the open, 20–40 m in an urban canyon) with no per-sample error
+ * modelling.
+ *
+ * ─── NOT THE RENDER RADIUS. THEY MUST NEVER MEET ────────────────────────────
+ *
+ * `REVEAL_R_M` is scoring and set membership: server-side, authoritative, permanent under
+ * D-020. The renderer's `revealScale × circumradius ≈ 1.35 × 75.9 ≈ 102 m` (§4, ticket
+ * `0055`) is a soft disc splatted into the mask shader that **overspills the hexagon on
+ * purpose**, so neighbouring discs merge without scalloping. It is a look, not a fact, and
+ * it must never feed back into what counts as explored. `scripts/check-fog-render-boundary.mjs`
+ * enforces both halves: no renderer import reaches `src/domain/`, and `revealScale` may not
+ * appear under `src/` at all.
+ *
+ * ─── CHANGING IT IS A REBALANCE, NOT A TWEAK ────────────────────────────────
+ *
+ * Every Cartography number scales linearly with this constant (`04-game-design.md` §10,
+ * D-215). §9.4 accepts that a 131 m corridor over-reveals slightly in dense grids and names
+ * the exit — raw traces are archived (`0039`), so the whole cell set can be re-derived at a
+ * finer resolution or a tighter radius. Nothing here is one-way. But it is expensive once
+ * XP has been awarded against it: change it before ship, or not at all.
+ */
+export const REVEAL_R_M = 65
 
 /** Drop samples with worse reported accuracy. Absent accuracy is unknown, NOT bad. */
 export const MAX_ACC_M = 50
@@ -112,13 +153,21 @@ export const DENSIFY_STEP_M = 30
 const MEDIAN_ITERATIONS = 32
 
 /**
- * TRACE → CANDIDATE CELLS. §2.2 steps 1–4.
+ * TRACE → REVEALED CELLS. §2.2, all six steps.
  *
- * @returns res-10 cell ids only. Generous by construction — `0046`'s exact radius filter
- *          is what makes the answer mean "revealed".
+ * @returns res-10 cell ids only, every one of them within `REVEAL_R_M` of ground the
+ *          runner actually covered.
  */
 export function traceToCells(trace: Trace): Set<H3Index> {
-  const cells = new Set<H3Index>()
+  const candidates = new Set<H3Index>()
+
+  // The segments accumulate ACROSS runs, because step 5 filters once at the end against
+  // all of them. A cell qualified as a candidate by one run may be within 65 m of a
+  // different run's path — the runner was there, and the answer is a set, not a per-run
+  // tally. Only the joining chords — the gaps and the implausible jumps — are absent from
+  // this list, which is exactly how "the chord contributes no distance" is implemented:
+  // it is not skipped, it never exists.
+  const segments: GeoPoint[][] = []
 
   for (const run of splitOnGaps(trace)) {
     // 1. clean ─────────────────────────────────────────────────────────────
@@ -130,19 +179,117 @@ export function traceToCells(trace: Trace): Set<H3Index> {
 
     // 3. split on implausible jumps ────────────────────────────────────────
     for (const segment of splitImplausible(collapsed)) {
-      // 4. densify + collect candidates ────────────────────────────────────
+      segments.push(segment)
+
+      // 4. densify + collect candidates ──────────────────────────────────
       for (const p of densify(segment)) {
         const cell = latLngToCell(p.lat, p.lng, RES)
-        // k=1 so a path grazing a cell's edge still qualifies it. NOT the answer —
-        // `gridDisk(c, 1)` is 7 cells and ~394 m across, which would gift the two
-        // parallel streets either side and attack D-012 directly. `0046` corrects it.
-        for (const candidate of gridDisk(cell, 1)) cells.add(candidate)
+        // k=1 so a path grazing a cell's edge still qualifies it for CONSIDERATION.
+        // `gridDisk(c, 1)` is 7 cells and ~394 m across — far too much to reveal, which
+        // is why step 5 exists and why nothing may read this set.
+        for (const candidate of gridDisk(cell, 1)) candidates.add(candidate)
       }
     }
   }
 
-  return cells
+  // 5. exact radius filter — the definition of "revealed" ──────────────────
+  //
+  // Measured against the RAW segments, not the densified ones. §2.2 passes `segments`,
+  // the output of step 3, and the distinction is load-bearing: densification puts a
+  // vertex every 30 m, so a nearest-vertex measure would be within ~1.7 m of the truth
+  // there and the bug would hide. Against the raw segments a 400 m sampling gap is a
+  // single 400 m edge, and only a genuine point-to-SEGMENT measure keeps the corridor
+  // between its endpoints.
+  const revealed = new Set<H3Index>()
+  for (const c of candidates) {
+    const [lat, lng] = cellToLatLng(c)
+    if (distancePointToSegments({ lat, lng }, segments) <= REVEAL_R_M) revealed.add(c)
+  }
+  return revealed
 }
+
+/**
+ * METRES FROM A POINT TO THE NEAREST POINT ON THE PATH — to the **segments**, never to the
+ * vertices. §2.2 step 5. Ticket `0046`.
+ *
+ * **§2.2 calls this `distancePointToPolyline` and that name cannot live here.**
+ * `scripts/check-boundaries.mjs`'s STRICT tier bans the word `polyline` throughout
+ * `src/domain` and `src/pipeline`, because D-121 is explicit that a `summary_polyline` is a
+ * degraded trace and D-100 says the domain speaks in `GeoPoint`s. The gate caught the first
+ * draft of this function, and it was right to: the argument is not a polyline, it is the
+ * list of segments step 3 produced. §2.2's pseudocode was corrected to match rather than the
+ * gate weakened — a naming preference is not a reason to soften the strongest check in the
+ * project.
+ *
+ * `segments` is a list of polylines rather than one, because that is what step 3 produces
+ * and because the emptiness between them is the point: a gap (D-198) or an implausible
+ * jump is not an edge of this geometry, so the chord across it contributes no distance and
+ * cannot reveal the buildings underneath it. Splitting is the conservative direction and
+ * D-020 is why — under-revealing is recoverable by running it again, over-revealing is
+ * permanent.
+ *
+ * A one-vertex segment measures as a point. That is the wild-outlier case: a lost fix that
+ * reacquires 400 m away trips step 3 on both sides and becomes a segment of its own, so it
+ * qualifies a small blob around itself and draws no spike out from the path.
+ *
+ * ─── WHY PLANAR ARITHMETIC IS NOT A SHORTCUT HERE ───────────────────────────
+ *
+ * The frame is anchored at the query point and longitude is scaled by `cos(lat)`, which
+ * makes the neighbourhood Euclidean to well under a centimetre at the 65 m scale that
+ * decides the answer. A spherical cross-track formula would add trigonometry per vertex to
+ * change no verdict. Longitude differences are normalised into ±180° so a segment straddling
+ * the antimeridian measures across it rather than the long way round.
+ *
+ * COST: O(candidates × vertices), with no spatial index. A 6 km run is ~150 candidates over
+ * ~2,500 vertices — single-digit milliseconds. A marathon is roughly 40× that and still well
+ * inside an ingest Lambda that runs once per activity. Do not add a quadtree until something
+ * measures slow; the clarity is worth more than the constant factor.
+ */
+export function distancePointToSegments(
+  point: { lat: number; lng: number },
+  segments: readonly (readonly { lat: number; lng: number }[])[],
+): number {
+  const k = Math.cos((point.lat * Math.PI) / 180)
+
+  // Local metres from the query point, which therefore sits at the origin.
+  const x = (p: { lat: number; lng: number }) => {
+    let dLng = p.lng - point.lng
+    if (dLng > 180) dLng -= 360
+    else if (dLng < -180) dLng += 360
+    return dLng * k * METRES_PER_DEGREE
+  }
+  const y = (p: { lat: number; lng: number }) => (p.lat - point.lat) * METRES_PER_DEGREE
+
+  let best = Infinity
+  for (const segment of segments) {
+    if (segment.length === 0) continue
+    if (segment.length === 1) {
+      best = Math.min(best, Math.hypot(x(segment[0]), y(segment[0])))
+      continue
+    }
+    for (let i = 0; i < segment.length - 1; i++) {
+      const ax = x(segment[i])
+      const ay = y(segment[i])
+      const bx = x(segment[i + 1])
+      const by = y(segment[i + 1])
+
+      const dx = bx - ax
+      const dy = by - ay
+      const lenSq = dx * dx + dy * dy
+
+      // A zero-length edge is a repeated vertex; `clean` removes those, but this is a
+      // public function and a caller may hand it anything.
+      const t = lenSq === 0 ? 0 : clamp01(-(ax * dx + ay * dy) / lenSq)
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy))
+    }
+  }
+  return best
+}
+
+/** Metres per degree of latitude on the same sphere `metresBetween` uses. */
+const METRES_PER_DEGREE = (6_371_008.8 * Math.PI) / 180
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
 
 /**
  * STEP 0, WHICH §2.2 DOES NOT HAVE — split on `Trace.gaps` before anything else.

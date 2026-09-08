@@ -1,4 +1,4 @@
-import { getResolution, gridDisk, latLngToCell } from "h3-js"
+import { cellToLatLng, getResolution, gridDisk, latLngToCell } from "h3-js"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { GeoPoint, Trace } from "./activity"
@@ -9,7 +9,9 @@ import {
   DWELL_SPEED_MS,
   MAX_ACC_M,
   RES,
+  REVEAL_R_M,
   TELEPORT_SPEED_MS,
+  distancePointToSegments,
   traceToCells,
 } from "./fog"
 
@@ -520,5 +522,168 @@ describe("traceToCells — the teleport gate (criterion 11, D-197)", () => {
     // No split means the run is one segment, so the midpoint is revealed.
     expect(cells.has(cellOf(step(NEMO, 12.2, 0)))).toBe(true)
     expect(cells.size).toBe(traceToCells(trace([a, b, c])).size)
+  })
+})
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TICKET `0046` — step 5, the exact radius filter. `05-fog-of-war.md` §2.2/§2.3.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/** A straight road through a known cell, offset `offsetM` metres to its north. */
+function roadPast(
+  centre: { lat: number; lng: number },
+  offsetM: number,
+  lengthM = 800,
+  speedMs = 3,
+): GeoPoint[] {
+  const from = step(step(centre, offsetM, 0), -lengthM / 2, Math.PI / 2)
+  return line(from, Math.PI / 2, lengthM / 10 + 1, 10, speedMs)
+}
+
+describe("distancePointToSegments — to the SEGMENTS, not the vertices", () => {
+  it("measures perpendicular to a long edge, not to its far-apart endpoints", () => {
+    // One 1 km edge, two vertices. The query point sits 40 m off its midpoint, so the
+    // nearest VERTEX is ~501 m away and the nearest point ON THE SEGMENT is 40 m. A
+    // vertex-only implementation returns 501 and is wrong by an order of magnitude.
+    const a = NEMO
+    const b = step(NEMO, 1000, Math.PI / 2)
+    const mid = step(step(NEMO, 500, Math.PI / 2), 40, 0)
+
+    const toVertex = Math.min(metres(mid, a), metres(mid, b))
+    expect(toVertex).toBeGreaterThan(500)
+
+    expect(distancePointToSegments(mid, [[a, b]])).toBeCloseTo(40, 0)
+  })
+
+  it("clamps to the endpoint when the perpendicular foot is off the end", () => {
+    // Beyond the segment there is no foot, and the honest answer is the endpoint
+    // distance. An unclamped projection would report a negative-side foot and reveal
+    // ground past the end of the run.
+    const a = NEMO
+    const b = step(NEMO, 200, Math.PI / 2)
+    const past = step(b, 150, Math.PI / 2)
+    expect(distancePointToSegments(past, [[a, b]])).toBeCloseTo(150, 0)
+  })
+
+  it("a one-vertex segment measures as a point", () => {
+    const solo = step(NEMO, 90, 0)
+    expect(distancePointToSegments(NEMO, [[solo]])).toBeCloseTo(90, 0)
+  })
+
+  it("takes the minimum across segments, and an empty list is Infinity", () => {
+    const near = step(NEMO, 30, 0)
+    const far = step(NEMO, 900, 0)
+    expect(distancePointToSegments(NEMO, [[far, far], [near, near]])).toBeCloseTo(30, 0)
+    expect(distancePointToSegments(NEMO, [])).toBe(Infinity)
+  })
+
+  it("THE JOINING CHORD IS NOT A SEGMENT, so it contributes no distance", () => {
+    // Two segments 600 m apart — the shape a teleport or a `gaps` entry leaves behind.
+    // A point halfway between them is 300 m from both. If the chord were an edge of this
+    // geometry the answer would be 0, and the buildings under it would be revealed.
+    const endA = step(NEMO, 100, Math.PI / 2)
+    const startB = step(NEMO, 700, Math.PI / 2)
+    const between = step(NEMO, 400, Math.PI / 2)
+
+    const split = distancePointToSegments(between, [[NEMO, endA], [startB, step(startB, 100, Math.PI / 2)]])
+    expect(split).toBeCloseTo(300, 0)
+
+    // The same vertices as ONE polyline — i.e. if the split had not happened — is 0.
+    const joined = distancePointToSegments(between, [[NEMO, endA, startB, step(startB, 100, Math.PI / 2)]])
+    expect(joined).toBeLessThan(1)
+  })
+
+  it("measures across the antimeridian rather than the long way round", () => {
+    const east = { lat: 0, lng: 179.9995 }
+    const west = { lat: 0, lng: -179.9995 }
+    // ~111 m apart across the seam; a naive lng difference makes it ~40,000 km.
+    expect(distancePointToSegments(east, [[west, west]])).toBeLessThan(200)
+  })
+})
+
+describe("traceToCells — step 5, the reveal radius", () => {
+  it("REVEAL_R_M is 65, the number §2.3 justifies against res 10's inradius", () => {
+    expect(REVEAL_R_M).toBe(65)
+  })
+
+  it("includes a cell whose centre is 64 m from the path", () => {
+    const cell = cellOf(NEMO)
+    const [lat, lng] = cellToLatLng(cell)
+    const cells = traceToCells(trace(roadPast({ lat, lng }, 64)))
+    expect(cells.has(cell)).toBe(true)
+  })
+
+  it("excludes a cell whose centre is 66 m from the path", () => {
+    // One metre the other side of the constant, and the answer flips. This is the
+    // boundary the whole ticket is about: 65 m is not a soft edge.
+    const cell = cellOf(NEMO)
+    const [lat, lng] = cellToLatLng(cell)
+    const cells = traceToCells(trace(roadPast({ lat, lng }, 66)))
+    expect(cells.has(cell)).toBe(false)
+  })
+
+  it("every revealed cell is within REVEAL_R_M of the path, and nothing else is", () => {
+    // The k=1 candidate disc is ~394 m across; if step 5 were skipped this fails loudly.
+    const points = walk(NEMO, [{ bearing: 0, metres: 500 }, { bearing: Math.PI / 2, metres: 500 }])
+    const cells = traceToCells(trace(points))
+    expect(cells.size).toBeGreaterThan(0)
+    for (const c of cells) {
+      const [lat, lng] = cellToLatLng(c)
+      expect(distancePointToSegments({ lat, lng }, [points])).toBeLessThanOrEqual(REVEAL_R_M)
+    }
+  })
+
+  it("is a strict subset of the cells the path actually entered", () => {
+    // Not a coincidence and not an implementation detail: 65 < res 10's 65.7 m inradius,
+    // so a centre within 65 m of the path has the nearest path point INSIDE its own
+    // inscribed circle, hence inside the cell. D-216. It is the reason step 4's k=1 disc
+    // can never contribute a cell of its own at this radius.
+    const points = walk(NEMO, [
+      { bearing: 0, metres: 900 },
+      { bearing: Math.PI / 3, metres: 900 },
+      { bearing: Math.PI, metres: 600 },
+    ])
+    const cells = traceToCells(trace(points))
+    const entered = new Set(points.map((p) => cellOf(p)))
+    for (const c of cells) expect(entered.has(c), `${c} was never entered`).toBe(true)
+    expect(cells.size).toBeGreaterThan(10)
+  })
+})
+
+describe("traceToCells — a wild outlier draws no spike (§2.2 note on noise)", () => {
+  /** A clean east–west run, with an optional single fix flung `offM` metres north of it. */
+  function withOutlier(offM: number | null): GeoPoint[] {
+    const clean = line(NEMO, Math.PI / 2, 61, 10) // 600 m at 3 m/s, 10 m spacing
+    if (offM == null) return clean
+    const at = clean[30]
+    const rogue = { ...step(at, offM, 0), t: at.t + 1000 }
+    // One second later and 300 m away: 300 m/s. Step 3 cuts on both sides, which is what
+    // isolates it — exactly the failure the sanitizer's gate also catches.
+    return [...clean.slice(0, 31), rogue, ...clean.slice(31).map((p) => ({ ...p, t: p.t + 2000 }))]
+  }
+
+  it("qualifies only cells within 65 m of the outlier itself", () => {
+    const withRogue = traceToCells(trace(withOutlier(300)))
+    const withoutRogue = traceToCells(trace(withOutlier(null)))
+    const extra = [...withRogue].filter((c) => !withoutRogue.has(c))
+
+    const at = line(NEMO, Math.PI / 2, 61, 10)[30]
+    const rogue = step(at, 300, 0)
+    for (const c of extra) {
+      const [lat, lng] = cellToLatLng(c)
+      expect(metres({ lat, lng }, rogue)).toBeLessThanOrEqual(REVEAL_R_M)
+    }
+  })
+
+  it("draws no chain of cells stretching from the path toward it", () => {
+    // A 300 m spike densified at 30 m would be ~5 extra cells in a line. The outlier is
+    // its own segment, so the corridor between is never drawn and the cost is bounded to
+    // the outlier's own neighbourhood.
+    const withRogue = traceToCells(trace(withOutlier(300)))
+    const withoutRogue = traceToCells(trace(withOutlier(null)))
+    const extra = [...withRogue].filter((c) => !withoutRogue.has(c))
+    expect(extra.length).toBeLessThanOrEqual(2)
   })
 })

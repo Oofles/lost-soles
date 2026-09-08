@@ -283,7 +283,7 @@ skills:
     logMode: derived
     unit: cell               # H3 res-10 (D-115)
     match: null
-    xpPerUnit: 15
+    xpPerUnit: 13            # D-215: 15 assumed 6.5 cells/km; the measured density is 7.67
     unitMultipliers: { new: 1.0, rearmed: 0.5, recent: 0.0 }   # D-120 discovery credit
     softCapUnits: null
     sanityCeilingUnits: null
@@ -588,9 +588,12 @@ is then held up permanently by the 6-month re-arm (D-120). Modelled as:
 | years 4–5 | 14% | 40% | 46% |
 | year 6+ | 12% | 42% | 46% |
 
-*Cell density* — H3 resolution 10 (D-115) averages ~15,048 m² per cell (~66 m edge). With a
-~50 m soft-disc reveal radius (per R4's splatting), a kilometre of path sweeps a ~100 m
-corridor ≈ 100,000 m² ≈ **6.5 cells/km**.
+*Cell density* — **7.67 cells/km, measured** (ticket `0046`, D-215). H3 resolution 10 (D-115)
+averages ~15,048 m² per cell (~66 m edge) with a 131.4 m centre-to-centre spacing, and
+`05-fog-of-war.md` §2.3 fixes the reveal radius at **65 m**, not the 50 m this document
+originally assumed. The corridor is one cell wide, so the density is set by the spacing rather
+than by the area: 1,000 / 131.4 ≈ 7.6 cells/km, and the measured mean over 60 straight 5 km
+lines is **7.67**. The real 6.0 km fixture yields 45 cells — 7.5 cells/km.
 
 **Result:**
 
@@ -666,8 +669,8 @@ Every explored cell carries its visit history. Discovery scoring is a function o
 
 | Class | Condition | Wayfaring XP | Cartography credit |
 |---|---|---|---|
-| **New** | cell has never been entered | **100%** | **100%** (15 XP/cell) |
-| **Re-armed** | `lastRunAt` more than 6 months ago | **50%** | **50%** (7.5 XP/cell) |
+| **New** | cell has never been entered | **100%** | **100%** (13 XP/cell) |
+| **Re-armed** | `lastRunAt` more than 6 months ago | **50%** | **50%** (6.5 XP/cell) |
 | **Recent** | `lastRunAt` within 6 months | **50%** | **0%** |
 
 The map **never re-fogs** (D-120). Re-armed ground is visually identical to any other explored
@@ -694,7 +697,7 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 | Might | pushup | **4** | 75 = 300 |
 | Fortitude | situp | **3** | 90 = 270 |
 | Endurance | plank-second | **1.5** (90/min) | 180 s = 270 |
-| Cartography | new cell | **15** | 58 cells = 870 |
+| Cartography | new cell | **13** | 68 cells = 884 |
 | Constitution | — | 1/3 of activity XP | run 295 / strength 280 |
 
 **100 XP/km is the anchor**, chosen to be legible: a kilometre is a hundred, a mile is 161,
@@ -724,8 +727,8 @@ Those match, deliberately. Within the strength session, the internal ratios are:
   nearly the same rate under the assumed volume, which looks tidy and coherent on the skill
   panel and means a strength session usually produces *some* level-up somewhere.
 
-**Cartography is tuned to parity with Wayfaring, on purpose.** At 6.5 cells/km × 15 XP,
-a kilometre of brand-new ground yields ~97.5 Cartography XP against Wayfaring's 100. The
+**Cartography is tuned to parity with Wayfaring, on purpose.** At 7.67 cells/km × 13 XP,
+a kilometre of brand-new ground yields ~99.7 Cartography XP against Wayfaring's 100. The
 statement is clean and memorable: **a kilometre of new ground is worth roughly double —
 once in Wayfaring, once in Cartography.** Since novelty is the stated core motivator (D-012),
 the highest-value thing the user can do is exactly the thing they already want to do.
@@ -739,13 +742,23 @@ the strength `xpPerUnit` values, which is a one-line ruleset change.
 
 ### 3.3 Cartography, specifically
 
-`CartographyXP = 15 × (new cells) + 7.5 × (re-armed cells)`. Recent cells contribute nothing
+`CartographyXP = 13 × (new cells) + 6.5 × (re-armed cells)`. Recent cells contribute nothing
 (D-120).
+
+> **The rate was 15 and 7.5 until 2026-09-07 (ticket `0046`, D-215).** The reveal radius this
+> document assumed — 50 m, giving 6.5 cells/km — was never the radius `05-fog-of-war.md` §2.3
+> specifies, which is 65 m. The measured density is 7.67 cells/km. The rate was cut so that
+> **Cartography XP per kilometre is unchanged**: 7.67 × 13 = 99.7 against the old 6.5 × 15 =
+> 97.5. Everything downstream that is expressed per kilometre — the parity claim above, the
+> steady-state floor below, the §5 projections — therefore still holds; the per-*run* cell
+> counts in §8.2 moved and were recomputed. This was a pre-ship rebalance with no ledger to
+> disturb, so D-135 and the D-142 XP floor were not engaged.
 
 **Why Cartography does not die.** The obvious failure mode: the user maps their whole city in
 three years and the skill flatlines forever. The 6-month re-arm is what prevents it. At steady
-state (year 6+), 42% of a typical run is on re-armed ground, worth 7.5/cell — a permanent
-floor of ~31 Cartography XP/km even after every street nearby is known. And because the re-arm
+state (year 6+), 42% of a typical run is on re-armed ground, worth 6.5/cell — a permanent
+floor of ~31 Cartography XP/km even after every street nearby is known. (Unchanged by D-215:
+the floor is proportional to cells/km × XP/cell, and that product was held constant.) And because the re-arm
 is a *rotation* incentive, it pushes the user to spread their routes across the whole map
 instead of grinding the same three loops, which is the behaviour D-012 says they want anyway.
 
@@ -872,10 +885,10 @@ a decision.
 
    ```
    Wayfaring      +576      ▓▓▓▓▓▓▓░░░  L47   8,003 to 48
-   Cartography    +375      ▓▓▓▓▓░░░░░  L41   4,572 to 42
+   Cartography    +383      ▓▓▓▓▓░░░░░  L41   4,564 to 42
    Constitution   +192      ▓░░░░░░░░░  L41 ↑  6,645 to 42
    ─────────────────────────────────────────────────────
-   21 cells claimed · 8 remembered · 3.18 km never run before
+   25 cells claimed · 9 remembered · 3.18 km never run before
    ```
 
    Rows are itemised by *reason*, not just by skill, on tap: `318 new ground · 62 remembered ·
@@ -1116,7 +1129,7 @@ Out of MVP (D-122). **D-013 is the whole design brief here: upkeep is the enemy.
 | Slot | Unlocked at | Effect |
 |---|---|---|
 | **Soles** | Wayfaring 25 | `gearPower` |
-| **Lantern** | Cartography 25 | **+reveal radius** (50 m base → up to +20%) |
+| **Lantern** | Cartography 25 | **+reveal radius** (65 m base → up to +20%) |
 | **Bracers** | any strength skill 25 | `gearPower` |
 | **Cloak** | Total Level 200 | `gearPower`, and lowers loss severity in the chronicle |
 | **Charm** | Slayer 75 | `gearPower`, plus one flavour effect (e.g. +1 max encounters/activity) |
@@ -1273,7 +1286,7 @@ Unambiguous, end-to-end. This is the section to build from. All numbers use
    (new | rearmed | recent) from CellVisit history                  [§3.1, D-115, D-120]
 6. Accumulate distance per class; accumulate distinct cells per class
 7. Award Wayfaring:    Σ (class distance × 100 × classMultiplier)
-8. Award Cartography:  15 × newCells + 7.5 × rearmedCells
+8. Award Cartography:  13 × newCells + 6.5 × rearmedCells
 9. Award Constitution: floor(activitySkillXP / 3)
 10. Write CellVisit rows (append-only)                              [D-020]
 11. Write XpLedger rows; recompute SkillState                       [§7.3]
@@ -1293,10 +1306,13 @@ distance = 5.2 mi × 1.609344 = 8.369 km
 
 | Class | Distance | Distinct cells (state before this run) |
 |---|---|---|
-| New — never entered | 3.180 km (38.0%) | **21** |
-| Re-armed — last run 211 days ago | 1.255 km (15.0%) | **8** |
-| Recent — last run 34 days ago | 3.933 km (47.0%) | 26 |
-| **Total** | **8.369 km** | 55 |
+| New — never entered | 3.180 km (38.0%) | **25** |
+| Re-armed — last run 211 days ago | 1.255 km (15.0%) | **9** |
+| Recent — last run 34 days ago | 3.933 km (47.0%) | 30 |
+| **Total** | **8.369 km** | 64 |
+
+(8.369 km × 7.67 cells/km ≈ 64. These counts were 21 / 8 / 26 = 55 while this document
+assumed 6.5 cells/km; D-215 corrected the density and they were rescaled with it.)
 
 **Step 7 — Wayfaring.**
 
@@ -1314,11 +1330,11 @@ itemisation the user reads then always adds up exactly, which matters because §
 **Step 8 — Cartography.**
 
 ```
-new cells        21 × 15.0 = 315.0
-rearmed cells     8 ×  7.5 =  60.0      (D-120: 50% discovery credit past 6 months)
-recent cells     26 ×  0   =   0.0      (D-120: zero discovery credit inside 6 months)
+new cells        25 × 13.0 = 325.0
+rearmed cells     9 ×  6.5 =  58.5      (D-120: 50% discovery credit past 6 months)
+recent cells     30 ×  0   =   0.0      (D-120: zero discovery credit inside 6 months)
                              ───────
-                              375 XP
+                              383 XP     (floor per ledger row: 325 + 58)
 ```
 
 **Step 9 — Constitution.**
@@ -1335,18 +1351,18 @@ floor(576 / 3) = 192 XP
 | A-1041 | wayfaring | `new_ground` | 3.180 km | 318 |
 | A-1041 | wayfaring | `rearmed_ground` | 1.255 km | 62 |
 | A-1041 | wayfaring | `recent_ground` | 3.933 km | 196 |
-| A-1041 | cartography | `cells_new` | 21 cells | 315 |
-| A-1041 | cartography | `cells_rearmed` | 8 cells | 60 |
+| A-1041 | cartography | `cells_new` | 25 cells | 325 |
+| A-1041 | cartography | `cells_rearmed` | 9 cells | 58 |
 | A-1041 | constitution | `constitution_share` | — | 192 |
 
-(318 + 62 + 196 = 576 Wayfaring; 315 + 60 = 375 Cartography.)
+(318 + 62 + 196 = 576 Wayfaring; 325 + 58 = 383 Cartography.)
 
 **Result.** Starting from the one-year state in §2.4:
 
 | Skill | Before | Award | After | Level | Next level at | Remaining |
 |---|---|---|---|---|---|---|
 | Wayfaring | 134,301 (L47) | +576 | 134,877 | **47** | 142,880 | 8,003 (~14 runs) |
-| Cartography | 90,337 (L41) | +375 | 90,712 | **41** | 95,284 | 4,572 |
+| Cartography | 90,337 (L41) | +383 | 90,720 | **41** | 95,284 | 4,564 |
 | Constitution | 88,447 (L40) | +192 | 88,639 | **41 ↑** | 95,284 | 6,645 |
 
 **Total Level +1. Constitution 40 → 41.** Level-up card fires (§4.2 step 3).
@@ -1360,14 +1376,14 @@ floor(576 / 3) = 192 XP
     fog peeling back in soft discs behind it]
 
    Wayfaring      +576   ▓▓▓▓▓▓▓░░░  47      8,003 to 48  (~14 runs)
-   Cartography    +375   ▓▓▓▓▓░░░░░  41      4,572 to 42
+   Cartography    +383   ▓▓▓▓▓░░░░░  41      4,564 to 42
    Constitution   +192   ▓░░░░░░░░░  41 ↑    6,645 to 42
 
    ┌──────────────────────────────┐
    │   CONSTITUTION   40 → 41     │
    └──────────────────────────────┘
 
-   21 cells claimed · 8 remembered · 3.18 km never run before
+   25 cells claimed · 9 remembered · 3.18 km never run before
 
    "You returned to Ashgrove Lane after two hundred and eleven days.
     It remembered you."
@@ -1442,9 +1458,13 @@ Everything here is a call I made that no decision covers. Each is cheap to rever
 
 ## 10. Open questions for later documents
 
-- **Reveal radius** is assumed at 50 m, giving 6.5 cells/km. It belongs to the map document
-  (R4), but every Cartography number here scales with it linearly. If it lands at 30 m,
-  Cartography XP/cell should rise to ~25 to preserve the parity in §3.3.
+- ~~**Reveal radius** is assumed at 50 m, giving 6.5 cells/km.~~ **CLOSED 2026-09-07
+  (ticket `0046`, D-215).** It was never 50 m: `05-fog-of-war.md` §2.3 has always specified
+  **65 m**, justified against res 10's 65.7 m inradius, and the measured density is **7.67
+  cells/km**. Cartography XP/cell moved 15 → 13 to hold the §3.3 parity, which is exactly the
+  linear rescaling this entry predicted would be needed. The rule it states survives it:
+  **every Cartography number scales linearly with the reveal radius**, so changing that radius
+  after ship is a rebalance, not a tweak.
 - **Walking vs running.** GPSLogger run continuously (D-112) would reveal every street *walked*.
   Recommend: walks earn full Cartography and **50% Wayfaring**, as a distinct
   `activityType` multiplier in the ruleset — one more data row, no code. Flagged, not decided.

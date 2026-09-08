@@ -12,7 +12,8 @@ import type { StravaIngestMeta } from "./adapter"
 import { normalizeStrava } from "./normalize"
 
 /**
- * TICKET `0045`, CRITERION 10 — a real captured trace, end to end, all the way to cells.
+ * TICKET `0045` CRITERION 10 and `0046` CRITERION 6 — a real captured trace, end to end,
+ * all the way to revealed territory.
  *
  * ─── WHY THIS FILE IS HERE AND NOT IN `src/domain/` ─────────────────────────
  *
@@ -29,17 +30,17 @@ import { normalizeStrava } from "./normalize"
  * `Trace` the shipped pipeline actually produces, `gaps` and all, rather than one written
  * to suit the assertion.
  *
- * ─── WHY THE BAND IS NOT THE TICKET'S 40–130 ────────────────────────────────
+ * ─── THE BAND MOVED WHEN `0046` LANDED, AND THAT WAS THE PLAN ───────────────
  *
- * `0045` criterion 10 asked for 40–130 cells. That is `0046`'s number: the size of the
- * FILTERED set, after the exact 65 m radius test defines the word "revealed", and `0046`
- * criterion 6 asserts it there. This ticket stops one step earlier, at §2.2's k=1 candidate
- * set, which is ~2.5x larger by construction. Asserting 40–130 on the candidates would
- * have meant either skipping step 4's `gridDisk` — which §2.2 makes normative — or
- * shipping a filter this ticket does not own. The criterion was amended; see the ticket's
- * Resolution.
+ * `0045` shipped `traceToCells` returning §2.2's k=1 CANDIDATE set — ~2.5× larger than the
+ * answer by construction — so its band here was 120–200 and its criterion 10 was amended
+ * to say so. `0046` added step 5 and the function now returns the FILTERED set, which is
+ * the 40–130 band `09-roadmap.md` quotes and `0046` criterion 6 owns. The candidate
+ * assertion is gone rather than kept alongside: it measured an intermediate value that is
+ * no longer observable from outside the module, and a test that has to reach inside to
+ * stay true is a test that will be deleted the first time it fails.
  *
- * Both numbers below were measured, not guessed.
+ * Every number below was measured, not guessed.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -94,28 +95,29 @@ describe("a real captured trace projects to territory", () => {
     expect(metres).toBeLessThan(6_500)
   })
 
-  it("yields a candidate set consistent with a 6 km run", () => {
-    // Measured at 145. The band is wide enough that a rounding change does not fail it and
-    // narrow enough that a change in densification, dwell handling or the k of the
-    // candidate disc does — which is the only reason to assert a number at all.
+  it("reveals a set inside the 40–130 band `09-roadmap.md` quotes", () => {
+    // Measured at 45 for a 6.0 km run — 7.5 cells/km, which is the corridor being one
+    // cell wide: 6,000 m / res 10's 131.4 m centre spacing = 45.7. The band is wide
+    // enough that a rounding change does not fail it and narrow enough that a change in
+    // densification, dwell handling or `REVEAL_R_M` does, which is the only reason to
+    // assert a number at all.
     const cells = traceToCells(traceOf("real-run-outdoor"))
-    expect(cells.size).toBeGreaterThanOrEqual(120)
-    expect(cells.size).toBeLessThanOrEqual(200)
+    expect(cells.size).toBeGreaterThanOrEqual(40)
+    expect(cells.size).toBeLessThanOrEqual(130)
   })
 
-  it("leaves 0046 a filtered set inside ITS 40–130 band", () => {
-    // NOT the filter — that is `0046`. This is the count of cells the path actually passes
-    // through, which is the floor of what the filter can return and the number
-    // `01-architecture.md` §11 quotes. If it drifts out of band, `0046`'s criterion 6
-    // becomes unreachable, and the failure should surface HERE, in the ticket that
-    // controls the input, rather than there.
-    //
-    // Measured at 58. It was **2** before this ticket corrected the fixture generator —
-    // see the Resolution and D-213.
+  it("reveals only ground the run actually crossed", () => {
+    // `REVEAL_R_M` (65 m) is below res 10's inradius (65.7 m), so a centre within 65 m of
+    // the path has its nearest path point inside its own inscribed circle — inside the
+    // cell. The filtered set is therefore a STRICT SUBSET of the cells entered, always.
+    // D-216. Measured: 45 revealed out of 58 entered; the 13 that fall out are cells the
+    // path clipped near a corner without passing near the centre, which is exactly the
+    // correction §2.3 asks step 5 to make.
     const trace = traceOf("real-run-outdoor")
-    const onPath = new Set(trace.points.map((p) => latLngToCell(p.lat, p.lng, RES)))
-    expect(onPath.size).toBeGreaterThanOrEqual(40)
-    expect(onPath.size).toBeLessThanOrEqual(130)
+    const entered = new Set(trace.points.map((p) => latLngToCell(p.lat, p.lng, RES)))
+    const cells = traceToCells(trace)
+    for (const c of cells) expect(entered.has(c), `${c} was never entered`).toBe(true)
+    expect(entered.size).toBeGreaterThan(cells.size)
   })
 
   it("emits res 10 and nothing else", () => {
@@ -125,9 +127,23 @@ describe("a real captured trace projects to territory", () => {
   })
 
   it("is a connected corridor, not a scatter", () => {
+    // ─── WHY THE RING IS 2 AND NOT 1. `0046` CRITERION 6, AMENDED. D-216. ───
+    //
+    // The criterion asked for a `gridDisk(c, 1)` neighbour in the set for every cell,
+    // "except for genuinely split segments". This fixture has NO splits — `gaps` is empty
+    // — and one cell still fails that test. It is not a defect in the filter; it is what
+    // dropping the corner-clipped cells does to a chain. Two cells the path entered in
+    // sequence can be left non-adjacent when the one between them is dropped, and the
+    // survivors are then two rings apart.
+    //
+    // Measured, so the amendment is not a guess: over 60 straight 5 km lines at one-degree
+    // bearing increments, ring-1 isolation occurs at 8 of 60 bearings (at most 3 cells) and
+    // **ring-2 isolation never occurs at all**. Ring 2 is therefore the honest statement of
+    // "one corridor" — and it keeps every tooth the criterion wanted, because a spike, a
+    // scatter or a second parallel street all fail it just as hard.
     const cells = traceToCells(traceOf("real-run-outdoor"))
     for (const c of cells) {
-      const touching = gridDisk(c, 1).filter((n) => n !== c && cells.has(n))
+      const touching = gridDisk(c, 2).filter((n) => n !== c && cells.has(n))
       expect(touching.length, `isolated cell ${c}`).toBeGreaterThan(0)
     }
   })

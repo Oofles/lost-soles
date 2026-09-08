@@ -233,9 +233,35 @@ function traceToCells(trace):
 
   # ---- 5. exact radius filter -----------------------------------------
   # Candidate set is generous; this is the definition of "revealed".
+  #
+  # `segments` is the RAW output of step 3, NOT the densified polylines.
+  # Densification puts a vertex every 30 m, so measuring against `dense`
+  # would put a nearest-vertex bug within ~1.7 m of the truth and hide it.
+  # Against the raw segments a 400 m sampling gap is one 400 m edge, and
+  # only a genuine point-to-SEGMENT measure keeps the corridor between its
+  # endpoints. (Ticket `0046`.)
+  #
+  # RENAMED from `distancePointToPolyline` by ticket `0046`. The domain may not
+  # say the word `polyline` — check-boundaries.mjs's STRICT tier bans it under
+  # src/domain and src/pipeline, because D-121 makes `summary_polyline` a
+  # degraded trace and D-100 says the domain speaks in GeoPoints. The gate
+  # caught the first draft. The argument is not a polyline anyway: it is the
+  # list of segments step 3 produced.
   return filter(cells, c =>
-      distancePointToPolyline(cellToLatLng(c), segments) <= REVEAL_R_M)
+      distancePointToSegments(cellToLatLng(c), segments) <= REVEAL_R_M)
 ```
+
+> **STEP 5 CAN ONLY EVER REMOVE, AND STEP 4's `gridDisk` IS THEREFORE DEAD WEIGHT AT
+> `REVEAL_R_M = 65`. Measured 2026-09-07 (ticket `0046`, D-216).**
+> `REVEAL_R_M` (65 m) is below res 10's inradius (65.7 m), so if a cell's centre is within
+> 65 m of the path then the nearest path point lies inside that cell's own inscribed
+> circle — inside the cell. **The filtered set is a strict subset of the cells the path
+> entered, always**, and step 4's k=1 disc cannot contribute a single cell of its own.
+>
+> The disc is kept anyway, for one reason: it stops being redundant the instant
+> `REVEAL_R_M` is raised past 65.7. Removing it would make the pipeline silently wrong for
+> any future radius rather than merely wasteful for this one, and the cost is one
+> `gridDisk` call per densified point.
 
 Notes on the steps that matter:
 
@@ -266,10 +292,24 @@ Notes on the steps that matter:
 
 Justification:
 
-- **It matches the geometry.** Res 10's inradius is 65.7 m. A 65 m radius means the algorithm is,
-  to within rounding, "the cell you ran through" — `gridDisk(c, 0)` — with the §2.2 step-5 filter
-  correcting the cases where the path clips a cell's corner without passing near its centre. One
-  cell wide, one honest street-shaped corridor.
+- **It matches the geometry.** Res 10's inradius is 65.7 m. A 65 m radius means the algorithm is
+  *approximately* "the cell you ran through" — `gridDisk(c, 0)` — with the §2.2 step-5 filter
+  removing the cells where the path clipped a corner without passing near the centre. One cell
+  wide, one street-shaped corridor.
+
+  > **"To within rounding" was optimistic. It is 18% fewer, measured** (ticket `0046`, D-216).
+  > On the real 6.0 km fixture the path enters 58 cells and 45 survive step 5 — 7.5 cells/km.
+  > Over 60 straight 5 km lines at one-degree bearing increments the mean is **7.67 cells/km**
+  > against `gridDisk(c, 0)`'s ~9.3. The direction is always *under*-revealing, which is the
+  > recoverable one (§9.4, D-020), but it is not rounding and the Cartography rates were
+  > rebalanced against the measured number rather than the assumed one — see D-215.
+  >
+  > **One consequence to expect and not treat as a bug:** dropping a corner-clipped cell can
+  > leave the two cells either side of it two rings apart, so the corridor is contiguous at
+  > `gridDisk(c, 2)` but not always at `gridDisk(c, 1)`. Ring-1 breaks occurred at 8 of those
+  > 60 bearings (at most 3 cells each) and **ring-2 breaks at none**. The renderer splats
+  > ~102 m discs (§4.1), so a single dropped cell is invisible on screen; it is real in the
+  > data and in Cartography XP, and a later run at a different GPS offset fills it.
 - **`k = 1` is far too much.** `gridDisk(c, 1)` is 7 cells, ~394 m across. R3 §1.1 puts its
   effective radius near 200 m. On a typical US grid with 80–120 m block spacing, running one
   street would reveal the two parallel streets on either side. That directly attacks D-012: the

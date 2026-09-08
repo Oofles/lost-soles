@@ -270,7 +270,12 @@ skills:
     logMode: derived
     unit: cell                    # H3 res-10 (D-115)
     match: null
-    xpPerUnit: 15
+    # 13, not 15. D-215 (ticket 0046). 04 §3.2 tuned Cartography to parity with Wayfaring
+    # — ~100 XP per kilometre of brand-new ground — against an assumed 6.5 cells/km, which
+    # came from a 50 m reveal radius the fog document never specified. The real radius is
+    # 65 m (05 §2.3) and the measured density is 7.67 cells/km, so 15 would have paid 115
+    # XP/km and quietly made Cartography the dominant skill. 7.67 × 13 = 99.7.
+    xpPerUnit: 13
     unitMultipliers:              # D-120 discovery credit. NOT groundMultipliers: this is
       new: 1.0                    # scored per CELL, not per km of ground.
       rearmed: 0.5

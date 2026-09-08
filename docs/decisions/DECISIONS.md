@@ -2351,3 +2351,63 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The dependency-free claim is a test, not a comment.** A transitive dependency arriving in
     a minor bump is exactly the drift the file is named for, and a portability argument nobody
     re-checks is a portability argument that expires.
+
+- **D-215** **Cartography is 13 XP per new cell, not 15, because the reveal radius was never
+  50 m and the measured density is 7.67 cells/km.** *(Ticket `0046`. Operator-authorised
+  widening of that ticket's scope — see its Resolution.)*
+  - **Two documents disagreed and one of them was doing arithmetic.** `05-fog-of-war.md` §2.3
+    has always specified **65 m**, justified against res 10's 65.7 m inradius. `04-game-design.md`
+    §10 said *"Reveal radius is assumed at 50 m, giving 6.5 cells/km"*, §6.2 gave the Lantern a
+    50 m base, and §3.2 then tuned Cartography's rate **against that 6.5** to reach parity with
+    Wayfaring's 100 XP/km. So the stale assumption was not a stray sentence; it was an input to
+    a live rate. `0046` criterion 8 pointed at `09-roadmap.md`, which had already been corrected
+    by the `06` audit — the surviving 50 m was in the document that mattered more.
+  - **7.67 cells/km, measured, not derived from area.** The corridor is one cell wide, so the
+    density is set by res 10's 131.4 m centre spacing rather than by cell area: 1,000 / 131.4 ≈
+    7.6. Measured mean over 60 straight 5 km lines at one-degree bearing increments: **7.67**.
+    The real 6.0 km fixture yields 45 cells — 7.5 cells/km. (An area-based estimate gives 8.6
+    and is wrong, because it assumes the corridor tiles perfectly; §2.3's corner-clip removal is
+    why it does not. See D-216.)
+  - **The rate was cut to hold XP-PER-KILOMETRE constant, which is the quantity §3.2 actually
+    tuned.** 7.67 × 13 = 99.7, against the old 6.5 × 15 = 97.5 and Wayfaring's 100. Everything
+    §3.2 and §3.3 state per kilometre therefore survives untouched — the parity claim, and the
+    ~31 XP/km steady-state floor that §3.3 calls "the mechanism that makes the whole system
+    survive year five". Only the per-*run* cell counts moved, and §8.2's worked example was
+    recomputed with them (55 cells → 64; 375 XP → 383).
+  - **Why not leave 15 and accept the drift.** 15 × 7.67 = 115 XP/km, which makes a kilometre of
+    new ground worth 215 XP against Wayfaring's 100 and quietly makes Cartography the dominant
+    skill. §3.2 calls cross-discipline fairness "the biggest judgment call in §3"; letting it
+    move 15% because a radius in a different document was never reconciled is not a decision,
+    it is an accident.
+  - **Pre-ship, so D-135 and the D-142 XP floor are not engaged.** No ledger row exists and no
+    XP has been displayed. `04` §10's own rule is what licensed this: *every Cartography number
+    scales linearly with the reveal radius*, so **after ship this same change would be a
+    rebalance with a ratchet, not an edit.** Change the radius before ship or not at all.
+
+- **D-216** **At `REVEAL_R_M = 65` the filtered cell set is a strict subset of the cells the
+  path entered, the corridor is contiguous at `gridDisk(c, 2)` and not always at
+  `gridDisk(c, 1)`, and step 4's k=1 candidate disc contributes nothing.** *(Ticket `0046`.)*
+  - **It is a theorem, not a measurement.** 65 m is below res 10's 65.7 m inradius, so if a
+    cell's centre is within 65 m of the path then the nearest path point lies inside that
+    cell's inscribed circle — inside the cell. Step 5 can therefore only ever *remove*. It
+    follows that §2.2's step 4 `gridDisk(c, 1)` cannot contribute a cell of its own at this
+    radius, confirmed on the real fixture: 0 revealed cells were not entered.
+  - **The disc stays anyway.** It stops being redundant the moment `REVEAL_R_M` is raised past
+    65.7, and the cost is one call per densified point. Deleting it would make the pipeline
+    silently wrong for a future radius rather than merely wasteful for this one.
+  - **§2.3's "to within rounding, the cell you ran through" was optimistic: it is 18% fewer.**
+    The 6.0 km fixture enters 58 cells and reveals 45. The direction is always *under*-revealing,
+    which §9.4 and D-020 make the recoverable one, and the missing cells are genuinely the
+    corner clips §2.3 asks step 5 to remove — but 18% is not rounding, and D-215's rate depends
+    on saying so.
+  - **Dropping a corner-clipped cell can break the chain, and `0046` criterion 6 was amended
+    to ring 2 because of it.** Two cells entered in sequence can be left two rings apart when
+    the one between them is dropped. Measured: ring-1 isolation at 8 of 60 bearings (≤3 cells);
+    **ring-2 isolation at none**, and none on either real fixture. Ring 2 keeps every tooth the
+    criterion wanted — a spike, a scatter, or a second parallel street each fail it just as hard.
+  - **Why this is not treated as a defect to fix.** The alternative — unioning the filtered set
+    with the cells the path entered — would guarantee contiguity, but by the theorem above it
+    reduces to *exactly* `gridDisk(c, 0)`, making `REVEAL_R_M` decorative and step 5 a no-op.
+    A hole is also invisible on screen: §4.1's renderer splats ~102 m discs, so a neighbour
+    covers it. It is real in the data and in XP, and a later run at a different GPS offset
+    fills it.
