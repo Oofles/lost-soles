@@ -4,13 +4,14 @@ slug: explored-cell-writes-first-last-run-at
 title: ExploredCell writes — firstRunAt via min, lastRunAt via max, outside the ingest transaction
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: [41, 46]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-08T04:49:25Z
 ---
 
 ## Description
