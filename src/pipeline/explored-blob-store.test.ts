@@ -16,8 +16,12 @@ import { RES } from "@/src/domain/fog"
 
 import { raiseGenerationTo } from "./explored-generation"
 
+import { foldActivities } from "@/src/domain/fold"
+
 import {
   DELTA_CHAIN_KEEP,
+  appendCellsToRun,
+  readRunCells,
   IMMUTABLE_CACHE_CONTROL,
   MANIFEST_CACHE_CONTROL,
   expiringDeltaGenerations,
@@ -887,5 +891,86 @@ describe("monotonicity across a full rebuild — criterion 8, I-11", () => {
     expect(chain[0]!.toGen).toBe(414)
     // The generation the counter skipped was never written, and nothing looks for it.
     expect(s3.objects.has(objectKeys.delta(USER, 413))).toBe(false)
+  })
+})
+
+describe("appendCellsToRun — the per-run cell record (0050, 02 §8.3 step 4)", () => {
+  it("writes the run's cells under users/<uid>/cells/<activityId>.bin", async () => {
+    const cells = run(3)
+    const count = await appendCellsToRun(USER, "a-1", cells, deps)
+
+    expect(count).toBe(cells.length)
+    expect(s3.objects.has("users/u-test/cells/a-1.bin")).toBe(true)
+    expect(await readRunCells(USER, "a-1", deps)).toEqual(
+      cells.map(cellToBig).sort((a, b) => (a < b ? -1 : 1)).map(String).map((n) =>
+        BigInt(n).toString(16).padStart(15, "0"),
+      ),
+    )
+  })
+
+  it("round-trips through the shipped decoder — same set, sorted", async () => {
+    await appendCellsToRun(USER, "a-2", run(4), deps)
+    const readBack = await readRunCells(USER, "a-2", deps)!
+    expect(new Set(readBack)).toEqual(new Set(run(4)))
+    expect(readBack).toHaveLength(run(4).length)
+  })
+
+  /**
+   * `generation: 0` is a SENTINEL, not a coincidence. `bumpGeneration` returns 1 on a user's
+   * first ever call and only increases, so a per-run record can never be mistaken for a
+   * published generation — and every `res`/`version`/reserved-byte check applies to it free.
+   */
+  it("stamps generation 0, which no published blob can ever carry", async () => {
+    await appendCellsToRun(USER, "a-3", run(1), deps)
+    const decoded = decodeExploredBlob(s3.plain("users/u-test/cells/a-3.bin"))
+    expect(decoded.generation).toBe(0)
+    expect(decoded.res).toBe(RES)
+  })
+
+  it("de-duplicates and sorts, so a caller may pass a raw list", async () => {
+    const cells = run(2)
+    const count = await appendCellsToRun(USER, "a-4", [...cells, ...cells], deps)
+    expect(count).toBe(cells.length)
+    const readBack = (await readRunCells(USER, "a-4", deps))!
+    for (let i = 1; i < readBack.length; i++) {
+      expect(cellToBig(readBack[i]!) > cellToBig(readBack[i - 1]!)).toBe(true)
+    }
+  })
+
+  /**
+   * NOT immutable and NOT generation-named: an activity is legitimately re-scored after a
+   * revision (§3.5), and the newest projection is the only one anybody wants. Nothing caches
+   * it — the browser never fetches it.
+   */
+  it("is no-store, and a rescore overwrites in place", async () => {
+    await appendCellsToRun(USER, "a-5", run(4), deps)
+    expect(s3.objects.get("users/u-test/cells/a-5.bin")!.cacheControl).toBe("no-store")
+
+    await appendCellsToRun(USER, "a-5", run(1), deps)
+    expect(await readRunCells(USER, "a-5", deps)).toHaveLength(run(1).length)
+  })
+
+  it("handles a treadmill run — zero cells, still a record", async () => {
+    expect(await appendCellsToRun(USER, "a-6", [], deps)).toBe(0)
+    expect(await readRunCells(USER, "a-6", deps)).toEqual([])
+  })
+
+  it("returns undefined for an activity that was never scored", async () => {
+    expect(await readRunCells(USER, "never", deps)).toBeUndefined()
+  })
+
+  /**
+   * The reason this object exists at all (§3.5, `02` §8.3 step 4): a replay must fold the
+   * FACTS, not re-project the traces. Re-projecting would run under today's `fogAlgoVersion`
+   * and silently rewrite what history was.
+   */
+  it("feeds the fold without re-deriving geometry", async () => {
+    await appendCellsToRun(USER, "a-7", run(3), deps)
+    const cells = (await readRunCells(USER, "a-7", deps))!
+    const folded = foldActivities([
+      { activityId: "a-7", startedAt: "2026-01-01T08:00:00.000Z", cells },
+    ])
+    expect(folded.cells.size).toBe(run(3).length)
+    expect(folded.awards.get("a-7")!.newCellCount).toBe(run(3).length)
   })
 })

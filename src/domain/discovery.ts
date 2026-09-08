@@ -27,6 +27,12 @@ import { RES } from "./fog"
  * available and are not exceptions to the rule: a function that can only answer a
  * question you already asked it cannot tell the time.
  *
+ * ─── AND IT NEVER GUESSES WHEN IT CANNOT KNOW ───────────────────────────────
+ *
+ * `0050` added `"deferred"`. An activity earlier than a cell's `lastRunAt` cannot be scored
+ * against a store that keeps a first and a last timestamp rather than a history, so it is
+ * counted, awarded zero, and marked for a fold. See `Discovery`.
+ *
  * ─── CLASSIFY FULLY, THEN WRITE ─────────────────────────────────────────────
  *
  * Every cell is classified against the store as it was **before this activity**. That is
@@ -57,6 +63,11 @@ export const CREDIT_NEW = 1.0
 export const CREDIT_REARM = 0.5
 /** Last run inside the window. **Zero** — written out for symmetry, per §3.1. */
 export const CREDIT_COOLED = 0.0
+/**
+ * A cell this activity cannot be scored against incrementally. **Zero, and the zero is the
+ * safety property** — see `Discovery`'s `"deferred"` and `05` §3.4.
+ */
+export const CREDIT_DEFERRED = 0.0
 
 /**
  * THE VERSION OF THIS ALGORITHM, and it is part of an idempotency key.
@@ -73,8 +84,26 @@ export const CREDIT_COOLED = 0.0
  */
 export const FOG_ALGO_VERSION = 1
 
-/** The three classes. Disjoint, exhaustive, and the only vocabulary downstream may use. */
-export type Discovery = "new" | "rearmed" | "cooled"
+/**
+ * The four classes. Disjoint, exhaustive, and the only vocabulary downstream may use.
+ *
+ * `"deferred"` is `0050`'s, and it is the one that is not a verdict. `05` §3.4: activities do
+ * not arrive in chronological order — a backfill imports years at once, a webhook redelivers,
+ * a future GPX import lands an old run — and when this activity is EARLIER than the cell's
+ * `lastRunAt`, its correct credit depends on history that T6 does not keep. A cell holds a
+ * first and a last timestamp, not a list; nothing incremental can say whether this activity
+ * was the one that discovered the ground.
+ *
+ * So the answer is deferred rather than guessed. `05` §3.4's naive form of the same case —
+ * *"the naive `at - rec.lastRunAt` goes negative and the comparison silently yields cooled"* —
+ * is what this replaces, and the difference is that a deferred cell is COUNTED
+ * (`deferredCellCount`) and marks the user for a replay.
+ *
+ * **Its credit is zero, and the zero is the safety property, not a placeholder.** D-135 says
+ * XP never decreases and corrections may only add; awarding zero now means the replay can only
+ * ever raise the number. Guessing "cooled" would look identical and be permanent.
+ */
+export type Discovery = "new" | "rearmed" | "cooled" | "deferred"
 
 /** The subset of a T6 record this classifier reads. Nothing else may influence credit. */
 export interface CellRecord {
@@ -112,6 +141,12 @@ export interface DiscoveryAward {
   rearmedCellCount: number
   cooledCellCount: number
   /**
+   * Cells whose verdict could not be decided incrementally (§3.4). **Non-zero means this
+   * activity needs a replay**, and it is the only signal that says so — which is why it is
+   * a stored column on T3 and not a derived one.
+   */
+  deferredCellCount: number
+  /**
    * `new × 1.0 + rearmed × 0.5`. Capability 09 multiplies it by the Cartography rate
    * (13 XP/cell, D-215) — this subsystem never names an XP number.
    */
@@ -121,8 +156,16 @@ export interface DiscoveryAward {
   algoVersion: number
 }
 
+/** Does this activity need a replay before its credit is final? §3.4, ticket `0050`. */
+export const needsReplay = (award: DiscoveryAward): boolean => award.deferredCellCount > 0
+
 /**
- * Thrown when `at − lastRunAt` is negative. §3.4's guard, as a type.
+ * NO LONGER THROWN BY `classifyCells` — ticket `0050` turned that case into the `"deferred"`
+ * class. Kept, exported and still meaningful: **the FOLD may never produce one.**
+ *
+ * `foldActivities` walks history in ascending order, so a negative delta there is not an
+ * out-of-order arrival — it is a sorting bug in the one function whose entire contract is that
+ * it is sorted (I-14). That is worth failing loudly for, and `fold.ts` throws this.
  *
  * A negative delta means an activity is being classified against a cell whose `lastRunAt`
  * is in its future — which can only happen if the replay queue (`0050`) let an
@@ -176,7 +219,10 @@ export function classifyCells(
     }
 
     const delta = atMs - Date.parse(record.lastRunAt)
-    if (delta < 0) throw new OutOfOrderScoringError(cell, at, record.lastRunAt)
+    if (delta < 0) {
+      out.push({ cell, discovery: "deferred", record })
+      continue
+    }
 
     // `< SIX_MONTHS_MS` is cooled, so exactly 183 days is RE-ARMED. §3.2's comparison,
     // transcribed rather than reasoned about: "more than 6 months ago" re-arms, and the
@@ -190,6 +236,7 @@ export function classifyCells(
 export function creditOf(discovery: Discovery): number {
   if (discovery === "new") return CREDIT_NEW
   if (discovery === "rearmed") return CREDIT_REARM
+  if (discovery === "deferred") return CREDIT_DEFERRED
   return CREDIT_COOLED
 }
 
@@ -201,7 +248,8 @@ export function creditOf(discovery: Discovery): number {
  * are only accidentally the same. If a future rule ever awards partial credit without
  * re-arming, this is the one that has to change.
  */
-export const awardsDiscovery = (discovery: Discovery): boolean => discovery !== "cooled"
+export const awardsDiscovery = (discovery: Discovery): boolean =>
+  discovery === "new" || discovery === "rearmed"
 
 /**
  * THE AWARD, SUMMED. §3.2 phase 4.
@@ -214,11 +262,13 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
   let newCellCount = 0
   let rearmedCellCount = 0
   let cooledCellCount = 0
+  let deferredCellCount = 0
   let discoveryCredits = 0
 
   for (const { discovery } of classified) {
     if (discovery === "new") newCellCount++
     else if (discovery === "rearmed") rearmedCellCount++
+    else if (discovery === "deferred") deferredCellCount++
     else cooledCellCount++
     discoveryCredits += creditOf(discovery)
   }
@@ -228,6 +278,7 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
     newCellCount,
     rearmedCellCount,
     cooledCellCount,
+    deferredCellCount,
     /**
      * Rounded to one place. `CREDIT_REARM` is 0.5, so every reachable total is a multiple
      * of 0.5 — but summing 130 floats in a loop can land on 64.99999999999999, and this
@@ -252,6 +303,7 @@ export const NO_CELLS: DiscoveryAward = Object.freeze({
   newCellCount: 0,
   rearmedCellCount: 0,
   cooledCellCount: 0,
+  deferredCellCount: 0,
   discoveryCredits: 0,
   res: RES,
   algoVersion: FOG_ALGO_VERSION,

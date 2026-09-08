@@ -284,7 +284,8 @@ GSI3 byUserAndDay        PK userIdLocalDay  SK startedAtLocal   (INCLUDE: kind, 
 | `fogAlgoVersion` | N | | 05 §3.5. Part of the idempotency key. |
 | `xpAwarded` | N | | total across skills. Denormalised for the activity list; the ledger is authoritative. |
 | `cellCount`, `newCellCount`, `rearmedCellCount`, `cooledCellCount` | N | | 05 §8.2. Written even when zero (treadmill) so the row shape never varies. |
-| `cellsRef` | S/NULL | | S3 key `cells/<uid>/<id>.cells.bin` — the per-activity cell set, needed for un-award (05 §3.5). |
+| `deferredCellCount` | N | | **Ticket `0050`, D-221.** Cells whose verdict could not be decided incrementally because this activity is EARLIER than their `lastRunAt` (05 §3.4). They earned zero, and a non-zero value here is the durable record that this activity's award is **provisional** until a replay folds the history. The user's replay marker says *when* to re-fold from; this says *which rows* the re-fold may change. |
+| `cellsRef` | S/NULL | | S3 key `users/<uid>/cells/<id>.bin` — the per-activity cell set, needed for un-award (05 §3.5) and by the fold. *Written as `cells/<uid>/<id>.cells.bin` until ticket `0050`: a top-level prefix no other per-user object uses, outside the `users/<uid>/` prefix the worker's S3 grant is scoped to (§6.1).* |
 | `status` | S | | `ACTIVE \| TOMBSTONED`. A Strava `aspect_type: delete` sets `TOMBSTONED`; **cells are never removed** (D-020, 01 §4). |
 | `traceRejectCounts` | M | | `{speedGate, accuracy, duplicate}` — makes a silently-garbage GPS record visible (05 §3.6). |
 
@@ -453,10 +454,21 @@ redelivery re-reads a table that now holds them, classifies them cooled, and add
 **Item type C — the generation counter** (ticket `0049`, D-218, I-11):
 
 ```
-pk  = U#<uid>#GEN
+pk  = U#<uid>#GEN                          the user's FOG CONTROL ITEM
 sk  = GEN
     generation : N       ADD 1 per publish; monotonic, never reused
+    replayFrom : S       ISO 8601 UTC, `min` — the earliest activity awaiting a fold
 ```
+
+Named for `generation`, its first and principal attribute. Ticket `0050` added `replayFrom`
+beside it rather than minting a fourth partition shape: both are per-user fog state written by
+the same job, and one control item is easier to reason about than two.
+
+`replayFrom` is written by a conditional `SET` under
+`attribute_not_exists(replayFrom) OR replayFrom > :at` — a `min`, for the reason `firstRunAt`
+takes one (I-8). The replay must begin at the EARLIEST activity that needs it, so two backfills
+in flight cannot stomp each other and the later one cannot leave the marker after the run that
+made it necessary.
 
 `ADD generation :one` with `ReturnValues: UPDATED_NEW` **allocates** the number that names
 `explored-r10.<gen>.bin`. It is atomic inside DynamoDB, so two workers running concurrently for
@@ -1708,7 +1720,7 @@ Walk the activities in the same sorted order, maintaining an in-memory map
 
 ```
 for activity in sorted:
-    cells = read cells/<uid>/<activity.id>.cells.bin
+    cells = read users/<uid>/cells/<activity.id>.bin
     for c in cells:
         prev = map.get(c)
         if prev is None:

@@ -5,6 +5,7 @@ import type { Activity, Trace } from "@/src/domain/activity"
 import {
   awardOf,
   classifyCells,
+  needsReplay,
   NO_CELLS,
   type DiscoveryAward,
 } from "@/src/domain/discovery"
@@ -23,10 +24,12 @@ import {
   type CellWriteResult,
 } from "./explored-cells"
 import {
+  appendCellsToRun,
   regenerateExplored,
   type BlobStoreDeps,
   type RegenerateResult,
 } from "./explored-blob-store"
+import { markReplayPending } from "./explored-generation"
 import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
@@ -523,6 +526,25 @@ async function projectCells<TCreds>(
    * line means every cell landed.
    */
   await writeAggregates(classified, activity, deps.cells)
+
+  /**
+   * 6. THE PER-RUN CELL RECORD (`0050`; `02` §8.3 step 4, `05` §3.5). Written for every scored
+   * activity, so a revision can be un-awarded and a fold can be run without re-deriving
+   * geometry under a `fogAlgoVersion` that has since moved.
+   */
+  await appendCellsToRun(activity.userId, activity.activityId, cells, deps.blobs)
+
+  /**
+   * 7. IF ANY CELL COULD NOT BE SCORED, MARK THE USER FOR A REPLAY (§3.4).
+   *
+   * The cells are already written and the deferred ones earned zero, so the map is correct and
+   * the XP is deliberately low. D-135 permits only additions, so a replay can raise this and
+   * never lower it. The marker is a conditional `min`, so the earliest activity needing one
+   * wins and two backfills in flight cannot stomp each other.
+   */
+  if (needsReplay(award)) {
+    await markReplayPending(activity.userId, activity.startedAt, deps.cells)
+  }
 
   return { cells: written, award, touched: cells }
 }

@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// TWO THINGS THE FOG CODE MAY NEVER DO.
+//
+//   1. Reach AP-16/AP-17, the full-table rebuild, from the ingest hot path.
+//   2. Delete an ExploredCell. Anywhere, by any API, ever.
+//
+// ─── RULE 1 ─────────────────────────────────────────────────────────────────
 // THE INGEST HOT PATH MAY NOT REACH THE FULL-TABLE REBUILD.
 // `02-data-model.md` §2.10, §5.1 (AP-16/AP-17) and §5.6; ticket 0049 criterion 6.
 //
@@ -27,7 +33,7 @@
 //   node scripts/check-fog-hot-path.mjs              check
 //   node scripts/check-fog-hot-path.mjs --self-test  prove it FAILS on a real hit
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -47,6 +53,28 @@ const FORBIDDEN = [
     why: "AP-16/AP-17, the full-table Query. 02 §5.6: calling it from process-activity is a review-blocking bug.",
   },
 ];
+
+// ─── RULE 2 ─────────────────────────────────────────────────────────────────
+// NO CODE PATH DELETES AN ExploredCell. `02-data-model.md` I-7, D-020; ticket 0050
+// criterion 9: "No code path anywhere calls DeleteItem on T6; a grep test enforces this."
+//
+// I-7 is classified [S] Structural, which means it must not be removable without the removal
+// showing up in a diff. Three mechanisms carry it and this is the cheapest:
+//
+//   - IAM: the worker's role holds no dynamodb:DeleteItem or BatchWriteItem on T6
+//     (amplify/explored-cells-table.test.ts asserts the absence, non-vacuously).
+//   - The module: there is no delete in src/pipeline/explored-cells.ts.
+//   - HERE: no file that knows T6's name may import a delete-capable command.
+//
+// SCOPED TO FILES THAT NAME T6, not to the whole repo, because deletion is legitimate
+// elsewhere and will be needed soon: 0051 expires deltas from S3, and 0066 step 2 deletes
+// non-floor XpLedgerEntry rows. A blanket ban would be a gate someone has to switch off, which
+// is worse than no gate. A file that both knows the cell table and imports a delete command is
+// the actual shape of the mistake.
+const T6_NAMES = /EXPLORED_CELL_TABLE|LostSolesExploredCell|explored-cells/;
+const DELETE_COMMANDS =
+  /\b(DeleteItemCommand|DeleteCommand|BatchWriteCommand|BatchWriteItemCommand)\b|["']dynamodb:(DeleteItem|BatchWriteItem)["']/;
+const DELETE_ROOTS = ["src", "amplify"];
 
 const EXTS = [".ts", ".tsx", ".mjs", ".js"];
 
@@ -121,6 +149,47 @@ function scan(base = ROOT) {
     if (graph.has(full)) hits.push({ ...rule, chain: graph.get(full) });
   }
   return { hits, files: graph.size };
+}
+
+// RULE 2's scan. Independent of the import graph: this is about what a file CONTAINS.
+function scanDeletes(base = ROOT) {
+  const hits = [];
+  let scanned = 0;
+  for (const root of DELETE_ROOTS) {
+    for (const file of walkFiles(join(base, root))) {
+      scanned++;
+      const rel = relative(base, file).split(sep).join("/");
+      // This file names T6 and the commands, in prose, to explain the rule.
+      if (rel.endsWith("scripts/check-fog-hot-path.mjs")) continue;
+      // TESTS ARE NOT CODE PATHS, and the tests that matter here NAME the forbidden actions
+      // on purpose: amplify/explored-cells-table.test.ts asserts the worker's role grants
+      // neither dynamodb:DeleteItem nor BatchWriteItem, which it cannot do without writing
+      // both strings. Firing on the assertion that enforces the invariant is the false
+      // positive that gets a gate switched off — the lesson check-boundaries.mjs learned on
+      // 0016 and contract-drift.test.ts learned again on 0048.
+      if (/\.test\.(ts|tsx|mjs|js)$/.test(rel)) continue;
+      const src = codeOnly(readFileSync(file, "utf8"));
+      if (!T6_NAMES.test(src)) continue;
+      const lines = src.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (DELETE_COMMANDS.test(lines[i])) {
+          hits.push({ rel, n: i + 1, line: lines[i].trim() });
+        }
+      }
+    }
+  }
+  return { hits, scanned };
+}
+
+function walkFiles(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === ".next" || name === ".git") continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) walkFiles(full, out);
+    else if (EXTS.some((e) => name.endsWith(e))) out.push(full);
+  }
+  return out;
 }
 
 if (process.argv.includes("--self-test")) {
@@ -198,7 +267,67 @@ if (process.argv.includes("--self-test")) {
     },
   ];
 
+  const DELETE_CASES = [
+    {
+      name: "clean — the cell writer imports UpdateCommand only",
+      files: { "src/pipeline/explored-cells.ts": ['import { UpdateCommand }', "from", '"@aws-sdk/lib-dynamodb"'].join(" ") + "\nexport const EXPLORED_CELL_TABLE = \"LostSolesExploredCell\"" },
+      mustFire: false,
+    },
+    {
+      name: "a file that knows T6 imports DeleteCommand",
+      files: { "src/pipeline/explored-cells.ts": ['import { DeleteCommand }', "from", '"@aws-sdk/lib-dynamodb"'].join(" ") + "\nconst t = EXPLORED_CELL_TABLE" },
+      mustFire: true,
+    },
+    {
+      name: "BatchWriteCommand counts — a batch carries DeleteRequest",
+      files: { "src/pipeline/x.ts": "import { BatchWriteCommand } from \"@aws-sdk/lib-dynamodb\"\nconst t = EXPLORED_CELL_TABLE" },
+      mustFire: true,
+    },
+    {
+      name: "an IAM grant string counts too",
+      files: { "amplify/backend.ts": 'const a = ["dynamodb:DeleteItem"]\nconst t = "LostSolesExploredCell"' },
+      mustFire: true,
+    },
+    {
+      name: "deletion elsewhere is fine — 0051 expires deltas, 0066 clears ledger rows",
+      files: { "src/pipeline/ledger.ts": "import { DeleteCommand } from \"@aws-sdk/lib-dynamodb\"\nconst t = \"LostSolesXpLedgerEntry\"" },
+      mustFire: false,
+    },
+    {
+      name: "a TEST asserting the absence does not fire — it must name what it forbids",
+      files: {
+        "src/pipeline/explored-cells.test.ts":
+          'expect(actions).not.toContain("dynamodb:DeleteItem")\nconst t = EXPLORED_CELL_TABLE',
+      },
+      mustFire: false,
+    },
+    {
+      name: "PROSE naming both does not fire — the rule must be explainable",
+      files: { "src/pipeline/explored-cells.ts": "// EXPLORED_CELL_TABLE never sees a DeleteCommand or BatchWriteCommand (I-7)\nexport const x = 1" },
+      mustFire: false,
+    },
+  ];
+
   let failed = 0;
+  for (const testCase of DELETE_CASES) {
+    const base = mkdtempSync(join(tmpdir(), "fogdel-"));
+    try {
+      for (const [rel, body] of Object.entries(testCase.files)) {
+        const full = join(base, rel);
+        mkdirSync(dirname(full), { recursive: true });
+        writeFileSync(full, `${body}\n`);
+      }
+      const { hits, scanned } = scanDeletes(base);
+      const ok = hits.length > 0 === testCase.mustFire && scanned > 0;
+      if (!ok) failed++;
+      console.log(
+        `  ${ok ? "ok" : "FAIL"}  ${testCase.mustFire ? "must fire " : "must pass"}  ${testCase.name}`,
+      );
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  }
+
   for (const testCase of CASES) {
     const base = mkdtempSync(join(tmpdir(), "foghot-"));
     try {
@@ -224,7 +353,7 @@ if (process.argv.includes("--self-test")) {
     process.exit(1);
   }
   console.log(
-    `\nself-test: ${CASES.length} cases passed — the gate follows imports transitively, through the handler, and stays quiet when a file merely explains the rule.`,
+    `\nself-test: ${CASES.length + DELETE_CASES.length} cases passed — the gate follows imports transitively, refuses a delete in any file that knows T6, and stays quiet when a file merely explains the rule.`,
   );
   process.exit(0);
 }
@@ -248,4 +377,22 @@ if (hits.length) {
   process.exit(1);
 }
 
-console.log(`fog hot path: ${files} files reachable from ingest, none of them AP-16/AP-17.`);
+const deletes = scanDeletes();
+if (deletes.scanned === 0) {
+  console.error("FOG DELETE GUARD: scanned 0 files — the scan roots are wrong.");
+  process.exit(1);
+}
+if (deletes.hits.length) {
+  console.error("I-7 VIOLATION — a file that knows T6 can delete from DynamoDB:\n");
+  for (const h of deletes.hits) console.error(`  ${h.rel}:${h.n}\n    ${h.line}`);
+  console.error(
+    "\nNo code path deletes an ExploredCell, at any level of retreat (02 §9 I-7, D-020).\n" +
+      "The map only ever grows. A source-side delete TOMBSTONES an activity; it removes no cells.",
+  );
+  process.exit(1);
+}
+
+console.log(
+  `fog hot path: ${files} files reachable from ingest, none of them AP-16/AP-17.\n` +
+    `I-7: ${deletes.scanned} files scanned, no delete reachable from anything that knows T6.`,
+);

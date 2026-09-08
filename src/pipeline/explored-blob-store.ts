@@ -11,6 +11,7 @@ import type { H3Index } from "h3-js"
 import { computeAgg, type ExploredAgg } from "@/src/domain/explored-agg"
 import {
   BlobFormatError,
+  bigToCell,
   cellToBig,
   decodeExploredBlob,
   decodeLastRunBlob,
@@ -108,6 +109,15 @@ export const objectKeys = {
    * object, and an arithmetic guess of `from + 1` would land on it.
    */
   delta: (userId: string, toGen: number) => `users/${userId}/deltas/${toGen}.bin`,
+  /**
+   * THE PER-RUN CELL RECORD. `02` §8.3 step 4, ticket `0050`.
+   *
+   * *Written there as `cells/<uid>/<activityId>.cells.bin` — a top-level prefix that no other
+   * per-user object uses.* Everything else the user owns lives under `users/<uid>/` (`02` §6.1,
+   * `05` §7.3, including `traces/`), and the worker's S3 grant is scoped to that prefix, so a
+   * top-level `cells/` would need a third grant for no reason. Corrected in §8.3.
+   */
+  runCells: (userId: string, activityId: string) => `users/${userId}/cells/${activityId}.bin`,
 }
 
 /**
@@ -536,6 +546,63 @@ export async function readDeltaChain(
     at = hop.fromGen
   }
   return undefined
+}
+
+/**
+ * WHAT THIS RUN COVERED, KEPT. `02` §8.3 step 4; `05` §3.5; ticket `0050`.
+ *
+ * ─── WHY THE FOLD MAY NOT RE-DERIVE GEOMETRY ────────────────────────────────
+ *
+ * `05` §3.5 gives one reason: *"`store.appendCellsToRun(activity.id, cells)` exists precisely
+ * so un-award is possible without re-deriving geometry."* An edited activity has to have its
+ * previous contribution subtracted, and by then the previous trace is gone.
+ *
+ * There is a second and larger one. A replay or a drill that re-projected each trace would do
+ * it under **today's** `fogAlgoVersion`, silently rewriting what history was. `02` §8.3 step 4
+ * is careful about this — it projects at the current version and stores the result, so every
+ * later step folds the same facts rather than recomputing them. This object is those facts.
+ *
+ * ─── SAME FORMAT AS THE PUBLISHED SET, WITH GENERATION 0 ────────────────────
+ *
+ * `LSFG`, because it is the same thing: a sorted cell set. `generation` is 0, which is a
+ * SENTINEL and not a coincidence — `bumpGeneration` returns 1 on a user's first ever call and
+ * only increases, so no published generation is ever 0 and a per-run record can never be
+ * mistaken for one. That also means every decoder's `res` and `version` checks apply here for
+ * free.
+ *
+ * NOT `immutable`, and not versioned by generation: an activity may legitimately be re-scored
+ * after a revision (§3.5), and the newest projection of a given activity is the only one
+ * anybody wants. Nothing caches this — the browser never fetches it.
+ */
+export async function appendCellsToRun(
+  userId: string,
+  activityId: string,
+  cells: Iterable<H3Index>,
+  deps: BlobStoreDeps,
+): Promise<number> {
+  const sorted = [...new Set([...cells].map(cellToBig))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  await deps.s3.send(
+    new PutObjectCommand({
+      Bucket: deps.bucket,
+      Key: objectKeys.runCells(userId, activityId),
+      Body: gzipSync(encodeExploredBlob(sorted, 0)),
+      ContentType: "application/octet-stream",
+      ContentEncoding: "gzip",
+      CacheControl: "no-store",
+    }),
+  )
+  return sorted.length
+}
+
+/** The un-award path's and the fold's read. `undefined` when the activity was never scored. */
+export async function readRunCells(
+  userId: string,
+  activityId: string,
+  deps: BlobStoreDeps,
+): Promise<H3Index[] | undefined> {
+  const object = await getBytes(objectKeys.runCells(userId, activityId), deps)
+  if (object === undefined) return undefined
+  return decodeExploredBlob(gunzipIfNeeded(object.bytes)).cells.map(bigToCell)
 }
 
 /**

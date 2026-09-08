@@ -6,6 +6,7 @@ import {
   awardsDiscovery,
   classifyCells,
   creditOf,
+  needsReplay,
   CREDIT_COOLED,
   CREDIT_NEW,
   CREDIT_REARM,
@@ -206,33 +207,60 @@ describe("classifyCells — classify-then-write (criterion 6, §3.3)", () => {
   })
 })
 
-describe("classifyCells — out-of-order arrival (criterion 8, §3.4)", () => {
+describe("classifyCells — out-of-order arrival (§3.4, revised by 0050)", () => {
   /**
-   * A negative delta means an activity reached the incremental scorer whose `startedAt`
-   * precedes a cell's `lastRunAt` — the replay queue's job, not this one's. The naive
-   * comparison yields "cooled" and awards zero credit for ground the user genuinely
-   * discovered first, permanently.
+   * A negative delta means this activity's `startedAt` precedes a cell's `lastRunAt` — a
+   * backfill, a redelivered webhook, an old GPX import. The naive comparison yields "cooled"
+   * and awards zero for ground the user genuinely discovered first, permanently.
+   *
+   * `0048` THREW HERE, on the reasoning that the replay queue should have caught it first.
+   * `0050` built the replay path and found the throw was the wrong end of the trade: it sent
+   * the activity to the DLQ, so the ground never reached the map at all and a backfill — the
+   * case §3.4 names FIRST — was unusable. The cell is now `"deferred"`: counted, awarded zero,
+   * and the user marked for a fold.
+   *
+   * **The zero is the safety property.** D-135 permits only additions, so a replay can raise
+   * this and never lower a number the user has seen. Guessing "cooled" would look identical
+   * today and be permanent.
    */
-  it("throws rather than scoring a future lastRunAt as cooled", () => {
+  it("DEFERS rather than scoring a future lastRunAt as cooled", () => {
     const future = new RealDate(AT_MS + days(30)).toISOString()
-    expect(() => classifyCells([CELLS[0]], store({ [CELLS[0]]: future }), AT)).toThrow(
-      OutOfOrderScoringError,
-    )
+    const classified = classifyCells([CELLS[0]], store({ [CELLS[0]]: future }), AT)
+    expect(classified[0].discovery).toBe("deferred")
+    expect(creditOf(classified[0].discovery)).toBe(0)
+    expect(awardsDiscovery(classified[0].discovery)).toBe(false)
   })
 
-  it("names the cell, both timestamps and §3.4, so the log is actionable", () => {
+  it("carries the record forward, so the replay knows what it is correcting", () => {
     const future = new RealDate(AT_MS + days(1)).toISOString()
-    try {
-      classifyCells([CELLS[0]], store({ [CELLS[0]]: future }), AT)
-      expect.unreachable("should have thrown")
-    } catch (e) {
-      expect(e).toBeInstanceOf(OutOfOrderScoringError)
-      const err = e as OutOfOrderScoringError
-      expect(err.cell).toBe(CELLS[0])
-      expect(err.at).toBe(AT)
-      expect(err.lastRunAt).toBe(future)
-      expect(err.message).toContain("§3.4")
-    }
+    const classified = classifyCells([CELLS[0]], store({ [CELLS[0]]: future }), AT)
+    expect(classified[0].record).toEqual({ lastRunAt: future })
+  })
+
+  it("counts them, and needsReplay is the only signal that says so", () => {
+    const future = new RealDate(AT_MS + days(1)).toISOString()
+    const award = awardOf(classifyCells(CELLS.slice(0, 2), store({ [CELLS[0]]: future }), AT))
+    expect(award.deferredCellCount).toBe(1)
+    expect(award.newCellCount).toBe(1)
+    expect(award.discoveryCredits).toBe(1)
+    expect(needsReplay(award)).toBe(true)
+  })
+
+  it("does not mark a replay when nothing was deferred", () => {
+    expect(needsReplay(awardOf(classifyCells(CELLS, store({}), AT)))).toBe(false)
+  })
+
+  /**
+   * `OutOfOrderScoringError` survives, and its home moved: the FOLD may never produce one,
+   * because the fold's input is sorted and a negative delta there is a sorting bug in the one
+   * function whose whole contract is that it is sorted (I-14). See `fold.test.ts`.
+   */
+  it("still exports an error that names the cell, both timestamps and §3.4", () => {
+    const err = new OutOfOrderScoringError(CELLS[0], AT, "2027-01-01T00:00:00.000Z")
+    expect(err.cell).toBe(CELLS[0])
+    expect(err.at).toBe(AT)
+    expect(err.message).toContain("§3.4")
+    expect(err.name).toBe("OutOfOrderScoringError")
   })
 
   it("a delta of exactly zero is NOT out of order — it is the same instant, and cooled", () => {
@@ -272,6 +300,7 @@ describe("awardOf", () => {
       newCellCount: 4,
       rearmedCellCount: 2,
       cooledCellCount: 2,
+      deferredCellCount: 0,
       discoveryCredits: 5,
       res: RES,
       algoVersion: FOG_ALGO_VERSION,

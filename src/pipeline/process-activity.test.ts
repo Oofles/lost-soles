@@ -92,6 +92,8 @@ interface Options {
   blobsFail?: Error
   /** `0051`. T1's table name, when a test wants the mirror to actually write. */
   profileTable?: string
+  /** `0050`. Called with the `startedAt` a replay was marked from. */
+  onReplayMark?: (at: string) => void
   /**
    * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
    * map classifies `new`. Given as a function of the run's cells so a test can seed "every
@@ -219,6 +221,15 @@ function rig(options: Options = {}) {
            * updates, and folding three aggregate rows into them would make every count
            * off by a number that varies with the fixture's geography.
            */
+          if (String(command.input.Key?.pk).endsWith("#GEN")) {
+            calls.push("replayMark")
+            options.onReplayMark?.(
+              String(
+                (command.input.ExpressionAttributeValues as Record<string, string>)[":at"],
+              ),
+            )
+            return {}
+          }
           if (String(command.input.Key?.pk).includes("#AGG#")) {
             if (!aggWrites.length) calls.push("cellsAgg")
             aggWrites.push(command.input)
@@ -758,17 +769,53 @@ describe("discovery classification, end to end", () => {
     expect(calls.filter((c) => c === "cellsRead")).toHaveLength(1)
   })
 
-  it("an out-of-order activity fails the job rather than scoring as cooled (§3.4)", async () => {
+  /**
+   * `0050` REPLACED `0048`'s THROW. §3.4's case is a backfill, a redelivered webhook or an old
+   * GPX import — the first thing the section names — and failing the job sent it to the DLQ, so
+   * the ground never reached the map at all. The activity now completes: its cells are written,
+   * the undecidable ones earn ZERO, and the user is marked for a fold.
+   *
+   * The zero is what makes deferring safe. D-135 permits only additions, so the replay can
+   * raise this and never lower a number the user has already seen.
+   */
+  it("an out-of-order activity completes, awards zero, and marks a replay (§3.4)", async () => {
     const future = "2027-01-01T00:00:00.000Z"
-    const { deps, calls } = rig({
+    const { deps, calls, cellWrites } = rig({
       ingest: TRACED_RUN,
       known: (cells) => Object.fromEntries(cells.map((c) => [c, future])),
     })
 
-    await expect(processActivity(JOB, deps)).rejects.toThrow(/§3.4/)
-    // And it fails BEFORE anything is written — the classifier runs between read and write.
-    expect(calls).not.toContain("cells")
-    expect(calls).not.toContain("persist")
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    // Every cell was undecidable, so every cell earned nothing.
+    expect(result.award.deferredCellCount).toBe(result.award.cellCount)
+    expect(result.award.newCellCount).toBe(0)
+    expect(result.award.discoveryCredits).toBe(0)
+
+    // The GROUND still landed — that is the half the DLQ used to lose.
+    expect(cellWrites.length).toBeGreaterThan(0)
+    expect(calls).toContain("persist")
+    expect(calls).toContain("replayMark")
+  })
+
+  it("does not mark a replay when every cell was decidable", async () => {
+    const { deps, calls } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+    expect(calls).not.toContain("replayMark")
+  })
+
+  it("marks the replay from the ACTIVITY's startedAt, never the clock (I-12)", async () => {
+    const future = "2027-01-01T00:00:00.000Z"
+    const marks: string[] = []
+    const { deps } = rig({
+      ingest: TRACED_RUN,
+      known: (cells) => Object.fromEntries(cells.map((c) => [c, future])),
+      onReplayMark: (at) => marks.push(at),
+    })
+
+    await processActivity(JOB, deps)
+    expect(marks).toEqual([INGEST.activity.startedAt])
   })
 })
 
@@ -847,6 +894,7 @@ describe("no cells still writes a record (§3.6)", () => {
       newCellCount: 0,
       rearmedCellCount: 0,
       cooledCellCount: 0,
+      deferredCellCount: 0,
       discoveryCredits: 0,
       res: 10,
       algoVersion: 1,
@@ -885,6 +933,8 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
     if (result.outcome !== "persisted") throw new Error("expected persisted")
 
     expect(blobPuts).toEqual([
+      // `0050`'s per-run cell record is written inside the `cells` phase, before the publish.
+      "users/u-1/cells/a-1.bin",
       "users/u-1/explored/explored-r10.1.bin",
       "users/u-1/explored/explored-lastrun-r10.1.bin",
       "users/u-1/explored/explored-agg.1.json",

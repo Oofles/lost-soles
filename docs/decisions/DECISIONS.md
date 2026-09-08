@@ -2540,3 +2540,35 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     cached a step lower is correctly told to take the full blob. Erring high is safe (an
     unnecessary 300 KB immutable GET, which `02` §6.5 already calls the correct outcome);
     erring low would send a client after an object that has been deleted.
+
+- **D-221** **An out-of-order activity DEFERS its undecidable cells rather than failing, and
+  out-of-order is detected at the cell, not against a watermark.** *(Ticket `0050`.)*
+  - **`0048`'s throw was the wrong end of the trade, and building the replay path is what
+    showed it.** `05` §3.4 says a negative `at − lastRunAt` *"should assert/log rather than pass
+    silently. If a negative delta reaches the classifier, the replay queue has a bug."* `0048`
+    read that as "throw", which sent the activity to the DLQ — so the ground never reached the
+    map, the redrive failed identically every time, and a historical backfill (the case §3.4
+    names **first**) was unusable until the replay consumer shipped. Which it has not.
+  - **The cell becomes a fourth `Discovery` class, `"deferred"`, worth zero.** It is counted in
+    `deferredCellCount` on T3 and it marks the user for a fold. The activity completes: its
+    cells are written, its receipt reaches `DONE`, and the map gains the ground.
+  - **The under-award is the safety property, not a placeholder.** D-135: XP never decreases and
+    corrections may only add. Zero now means a later fold can only ever raise the number —
+    never lower one the user has already seen. The alternative §3.4 warns against, guessing
+    "cooled", looks identical today and is permanently wrong.
+  - **Detection is at the CELL.** §3.4 defines out-of-order as *"the incoming `startedAt`
+    precedes an already-scored activity"*, which needs a per-user high-water mark nothing
+    stores. It is also stricter than the truth: incremental scoring and the canonical fold
+    differ **only when the late activity shares a cell with a later one** — which is exactly
+    when that cell's `lastRunAt` is ahead of it, which is exactly what the classifier's existing
+    `BatchGetItem` already returns. A run that predates others but crosses none of their ground
+    scores identically either way, and is correctly not deferred.
+  - **The marker is a `min` on the fog control item** (`U#<uid>#GEN`), so the fold starts at the
+    earliest activity that needs one and two backfills in flight cannot stomp each other. Not
+    an SQS enqueue: the consumer is `0103`'s (the drill's fold) and `0066`'s (the XP half), both
+    in later capabilities, and a message sent to nothing is worse than an obligation recorded
+    durably.
+  - **`OutOfOrderScoringError` survives, and its home moved.** The FOLD may never produce one:
+    its input is sorted, so a negative delta there is a sorting bug in the one function whose
+    entire contract is that it is sorted (I-14). That is worth failing loudly for, and
+    `fold.ts` is where it now throws.

@@ -1196,6 +1196,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-08T14:42:09Z",
     "path": "tickets/open/0050-same-run-edge-cases-and-out-of-order.md",
     "ready": true,
     "acceptance": {

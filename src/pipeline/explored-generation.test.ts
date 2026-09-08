@@ -2,7 +2,12 @@ import { UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import { EXPLORED_CELL_TABLE } from "./explored-cells"
-import { bumpGeneration, generationKey, raiseGenerationTo } from "./explored-generation"
+import {
+  bumpGeneration,
+  generationKey,
+  markReplayPending,
+  raiseGenerationTo,
+} from "./explored-generation"
 
 /**
  * `0049`, **I-11**: *"`manifest.generation` is monotonic per user — it never decreases and
@@ -189,5 +194,95 @@ describe("raiseGenerationTo — the drill's step 7 (02 §8.3)", () => {
       },
     }
     await expect(raiseGenerationTo("u1", 5, { ddb: boom } as never)).rejects.toThrow("throughput")
+  })
+})
+
+describe("markReplayPending — §3.4's marker (0050)", () => {
+  const AT = "2026-03-01T08:00:00.000Z"
+  const EARLIER = "2024-01-01T08:00:00.000Z"
+  const LATER = "2026-09-01T08:00:00.000Z"
+
+  /** The fake's `SET replayFrom` branch, evaluated rather than recorded. */
+  class FakeControlItem {
+    readonly items = new Map<string, string>()
+    readonly commands: UpdateCommand[] = []
+
+    send = async (command: UpdateCommand): Promise<Record<string, unknown>> => {
+      this.commands.push(command)
+      const input = command.input
+      const key = `${String(input.Key?.pk)}|${String(input.Key?.sk)}`
+      const v = input.ExpressionAttributeValues ?? {}
+      if (input.UpdateExpression !== "SET replayFrom = :at") {
+        throw new Error(`unexpected: ${input.UpdateExpression}`)
+      }
+      const current = this.items.get(key)
+      if (current !== undefined && !(current > (v[":at"] as string))) {
+        throw Object.assign(new Error("refused"), { name: "ConditionalCheckFailedException" })
+      }
+      this.items.set(key, v[":at"] as string)
+      return {}
+    }
+  }
+
+  const d = (t: FakeControlItem) => ({ ddb: t, table: "T" })
+
+  it("marks a user who has none", async () => {
+    const table = new FakeControlItem()
+    expect(await markReplayPending("u1", AT, d(table))).toBe(true)
+    expect(table.items.get("U#u1#GEN|GEN")).toBe(AT)
+  })
+
+  /**
+   * A `min`. The replay must start from the EARLIEST activity that needs one, so two
+   * backfilled runs a year apart leave the marker at the older — otherwise the fold would
+   * start after the run that made it necessary and reproduce the same wrong answer.
+   */
+  it("moves EARLIER when an older activity needs a replay", async () => {
+    const table = new FakeControlItem()
+    await markReplayPending("u1", AT, d(table))
+    expect(await markReplayPending("u1", EARLIER, d(table))).toBe(true)
+    expect(table.items.get("U#u1#GEN|GEN")).toBe(EARLIER)
+  })
+
+  it("REFUSES to move later, and reports it without throwing", async () => {
+    const table = new FakeControlItem()
+    await markReplayPending("u1", EARLIER, d(table))
+    expect(await markReplayPending("u1", LATER, d(table))).toBe(false)
+    expect(table.items.get("U#u1#GEN|GEN")).toBe(EARLIER)
+  })
+
+  it("refuses an identical mark too — strictly earlier, or nothing", async () => {
+    const table = new FakeControlItem()
+    await markReplayPending("u1", AT, d(table))
+    expect(await markReplayPending("u1", AT, d(table))).toBe(false)
+  })
+
+  /** It rides on the fog control item, beside `generation`, rather than a fourth partition. */
+  it("writes to the same item the generation counter lives on", async () => {
+    const table = new FakeControlItem()
+    await markReplayPending("u1", AT, d(table))
+    expect(table.commands[0]!.input.Key).toEqual(generationKey("u1"))
+  })
+
+  it("keeps users independent", async () => {
+    const table = new FakeControlItem()
+    await markReplayPending("a", EARLIER, d(table))
+    expect(await markReplayPending("b", LATER, d(table))).toBe(true)
+    expect(table.items.get("U#a#GEN|GEN")).toBe(EARLIER)
+  })
+
+  it("rejects an unparseable timestamp before it reaches DynamoDB", async () => {
+    const table = new FakeControlItem()
+    await expect(markReplayPending("u1", "not-a-date", d(table))).rejects.toThrow(RangeError)
+    expect(table.commands).toHaveLength(0)
+  })
+
+  it("propagates a real failure rather than reporting it as a refusal", async () => {
+    const boom = {
+      send: async () => {
+        throw Object.assign(new Error("throughput"), { name: "ThrottlingException" })
+      },
+    }
+    await expect(markReplayPending("u1", AT, { ddb: boom } as never)).rejects.toThrow("throughput")
   })
 })

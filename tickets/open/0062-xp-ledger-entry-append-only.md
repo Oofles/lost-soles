@@ -72,6 +72,16 @@ bug in one is detectable against the other.
 
 ## Notes
 
+**Ticket `0050` handed one of its criteria here rather than faking it (2026-09-08).** `0050`
+criterion 3 asked for *"`putLedgerEntry` is a conditional put on `attribute_not_exists`; a
+concurrent duplicate loses the race and returns the winner's award"* — `05-fog-of-war.md` §3.5's
+layer-1 gate. There was no T4 to put into, and criterion 5 above is that sentence word for word,
+so it is closed here rather than duplicated. Two things `0050` did build that this can lean on:
+the score-time key (`src/domain/score-key.ts`) is the `id` half of the gate, and the CELL half of
+the same property already holds — every cell write is idempotent by construction, and a
+concurrent duplicate loses `0044`'s score-gate claim before any of this runs.
+
+
 **Cross-capability dependency added during backlog validation (2026-08-30):** 0012 provides the Amplify backend the ledger table is defined in.
 
 

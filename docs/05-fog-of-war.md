@@ -550,8 +550,20 @@ sorted ascending by `startedAt`.** Concretely:
   `firstRunAt`, `discoveryCount` and XP awards. It never deletes a cell — D-020 forbids that
   outright, and in any case a replay of a superset of activities can only ever produce a superset
   of cells.
-- Guard: `at - rec.lastRunAt < 0` should assert/log rather than pass silently. If a negative
-  delta reaches the classifier, the replay queue has a bug.
+- Guard: `at - rec.lastRunAt < 0` must not pass silently. **Ticket `0050` (D-221) made it a
+  fourth `Discovery` class, `"deferred"`, rather than a throw.** *`0048` threw here, on this
+  section's reasoning that the replay queue should have caught it first; building the replay
+  path showed that was the wrong end of the trade — the activity went to the DLQ, so the ground
+  never reached the map at all and a backfill, the case this section names first, was unusable.*
+  A deferred cell earns **zero**, is counted in `deferredCellCount`, and marks the user for a
+  fold. The under-award is what makes deferring safe: D-135 permits only additions, so the
+  replay can raise the number and never lower one the user has seen.
+- **Detection is at the CELL, not against a watermark** (D-221). This section says out-of-order
+  means *"the incoming `startedAt` precedes an already-scored activity"*, which would need a
+  per-user high-water mark that nothing stores. It is also stricter than necessary: incremental
+  scoring and the fold differ **only when the late activity shares a cell with a later one** —
+  which is exactly when a cell's `lastRunAt` is already ahead of it, which is exactly what the
+  classifier's existing read already sees. Free, and no new state.
 
 Risk: replay can *lower* a previously displayed XP total. See §9.3.
 

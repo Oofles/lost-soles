@@ -3,6 +3,7 @@ import { TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/l
 import type { Activity } from "@/src/domain/activity"
 import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
 
+import { objectKeys } from "./explored-blob-store"
 import { doneTransactItem } from "./ingest-receipt"
 
 /**
@@ -185,11 +186,28 @@ export function activityItem(
     rearmedCellCount: award.rearmedCellCount,
     cooledCellCount: award.cooledCellCount,
     /**
+     * `0050`, §3.4. Cells whose verdict could not be decided incrementally because this
+     * activity is EARLIER than their `lastRunAt` — a backfill, a redelivered webhook, an old
+     * GPX import. They earned zero, and a non-zero count here is the durable record that this
+     * activity's award is **provisional** until a replay folds the history.
+     *
+     * Stored rather than derived, and stored on the ACTIVITY rather than only on the user's
+     * replay marker, because the marker says *when* to re-fold from and this says *which rows*
+     * the re-fold is allowed to change. `0066` and `0103` both need the second question.
+     */
+    deferredCellCount: award.deferredCellCount,
+    /**
      * `05` §3.5 / T3. Part of the score-time idempotency key, and the record of WHICH
      * classifier produced the four numbers above — without it, two activities scored under
      * different rules are indistinguishable forever.
      */
     fogAlgoVersion: award.algoVersion,
+    /**
+     * `replayPending` is deliberately NOT a column either: it is exactly
+     * `deferredCellCount > 0` (`needsReplay`), and a boolean beside the count it is derived
+     * from is the same two-owners failure.
+     */
+
     /**
      * `discoveryCredits` is deliberately NOT a column. It is exactly
      * `newCellCount + 0.5 × rearmedCellCount`, so storing it would be a second copy of two
@@ -197,8 +215,20 @@ export function activityItem(
      * `creditOf` in `src/domain/discovery.ts`.
      */
 
-    /** `0049`'s S3 per-activity cell blob. Null until it exists (02 §2.9). */
-    cellsRef: null,
+    /**
+     * THE PER-RUN CELL BLOB (`0050`; `02` §2.9, §8.3 step 4). `users/<uid>/cells/<id>.bin`.
+     *
+     * DERIVED FROM THE KEY HELPER rather than passed in, so the convention has exactly one
+     * owner and a row can never name a key the writer would not have used. `cellCount > 0` is
+     * the same condition `projectCells` writes the object under — an activity with no cells
+     * has no object, and `null` says so rather than pointing at a 404.
+     *
+     * A REFERENCE, NOT A DERIVED NUMBER, which is why it earns a column where
+     * `discoveryCredits` did not: if the key convention ever moves, rows written before the
+     * move must still find their objects.
+     */
+    cellsRef:
+      award.cellCount > 0 ? objectKeys.runCells(activity.userId, activity.activityId) : null,
 
     /** ACTIVE | TOMBSTONED. A source-side delete tombstones; cells are never removed. */
     status: "ACTIVE",

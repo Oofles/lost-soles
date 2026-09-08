@@ -50,7 +50,12 @@ import { EXPLORED_CELL_TABLE } from "./explored-cells"
  */
 
 /**
- * `U#<uid>#GEN` / `GEN`. One item per user, forever.
+ * `U#<uid>#GEN` / `GEN` — **the user's fog control item.** One per user, forever.
+ *
+ * Named for `generation`, its first and principal attribute; `0050` added `replayFrom` beside
+ * it rather than minting a fourth partition shape in a table `02` T6 already describes as a
+ * bounded exception. Both are per-user fog state written by the same job, and one control item
+ * is easier to reason about than two.
  *
  * The `#GEN` suffix keeps it out of both existing key spaces by construction: a cell
  * partition is `U#<uid>#C#<res6parent>` and an aggregate is `U#<uid>#AGG#<res>`, so no
@@ -61,9 +66,21 @@ export function generationKey(userId: string): { pk: string; sk: string } {
   return { pk: `U#${userId}#GEN`, sk: "GEN" }
 }
 
-export interface GenerationDeps {
-  ddb: { send(command: UpdateCommand): Promise<{ Attributes?: Record<string, unknown> }> }
+/**
+ * The conditional writers' surface. Narrower than `GenerationDeps` because neither
+ * `raiseGenerationTo` nor `markReplayPending` reads anything back — they are `SET`s guarded by
+ * a `ConditionExpression`, and the refusal IS the answer. Keeping them off `Attributes` means
+ * the cell writer's own client satisfies them, which is what lets `process-activity` mark a
+ * replay without threading a second DynamoDB dependency through the pipeline.
+ */
+export interface GenerationWriteDeps {
+  ddb: { send(command: UpdateCommand): Promise<unknown> }
   table?: string
+}
+
+/** `bumpGeneration`'s surface: it is the one call whose whole point is the returned value. */
+export interface GenerationDeps extends GenerationWriteDeps {
+  ddb: { send(command: UpdateCommand): Promise<{ Attributes?: Record<string, unknown> }> }
 }
 
 /**
@@ -125,10 +142,63 @@ export async function bumpGeneration(userId: string, deps: GenerationDeps): Prom
  * a recovery path that has never been executed is not a recovery path, and code in a
  * module has tests.
  */
+/**
+ * MARK THIS USER FOR A REPLAY, FROM THE EARLIEST TIMESTAMP THAT NEEDS ONE.
+ * Ticket `0050`; `05-fog-of-war.md` §3.4.
+ *
+ * ─── WHAT MARKING MEANS, GIVEN THE CONSUMER DOES NOT EXIST ──────────────────
+ *
+ * §3.4 says an out-of-order activity should *"enqueue a replay from that timestamp forward"*.
+ * The job that consumes it is `0103`'s (the drill's fold) and `0066`'s (the XP half), both in
+ * later capabilities. So this records the obligation durably rather than enqueuing into
+ * nothing, and the activity itself completes: its cells are written, its deferred cells earn
+ * **zero**, and the receipt reaches `DONE`.
+ *
+ * **That under-award is what makes it safe to defer.** D-135: XP never decreases and
+ * corrections may only add. Zero now means the replay can only ever raise the number — never
+ * lower one the user has already seen. Guessing "cooled" instead would look identical today and
+ * be permanently wrong.
+ *
+ * ─── A `min`, EXPRESSED AS A CONDITION (I-8) ────────────────────────────────
+ *
+ * The replay must start from the EARLIEST activity that needs one, so two backfilled runs a
+ * year apart leave the marker at the older. Written as a conditional `SET` rather than a
+ * read-modify-write for the reason `firstRunAt` is: the two runs can be in flight at once, and
+ * a read-then-write would let the later one stomp the earlier.
+ *
+ * @returns `true` when the marker moved earlier, `false` when an earlier one already stood.
+ */
+export async function markReplayPending(
+  userId: string,
+  fromStartedAt: string,
+  deps: GenerationWriteDeps,
+): Promise<boolean> {
+  if (Number.isNaN(Date.parse(fromStartedAt))) {
+    throw new RangeError(`markReplayPending: unparseable startedAt "${fromStartedAt}"`)
+  }
+
+  try {
+    await deps.ddb.send(
+      new UpdateCommand({
+        TableName: deps.table ?? EXPLORED_CELL_TABLE,
+        Key: generationKey(userId),
+        UpdateExpression: "SET replayFrom = :at",
+        ConditionExpression: "attribute_not_exists(replayFrom) OR replayFrom > :at",
+        ExpressionAttributeValues: { ":at": fromStartedAt },
+      }),
+    )
+    return true
+  } catch (e) {
+    // An earlier marker already stands, which is the `min` working — not a fault.
+    if ((e as { name?: string })?.name === "ConditionalCheckFailedException") return false
+    throw e
+  }
+}
+
 export async function raiseGenerationTo(
   userId: string,
   generation: number,
-  deps: GenerationDeps,
+  deps: GenerationWriteDeps,
 ): Promise<boolean> {
   if (!Number.isInteger(generation) || generation < 1) {
     throw new RangeError(`raiseGenerationTo: ${generation} is not a positive integer`)
