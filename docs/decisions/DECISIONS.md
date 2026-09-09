@@ -2712,3 +2712,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **This is the fifth use of the CDK escape hatch**, against the four `01-architecture.md` §2
     sanctions and `amplify/backend.ts` enumerates. The count in that comment is updated rather than
     left to drift.
+
+- **D-227** **The desktop browser is the primary VIEWING surface; the Android phone is the primary
+  CAPTURE device.** Partially supersedes D-124, which said "desktop browser is a secondary target
+  for planning and admin". *(Operator, during ticket `0053`'s validation, 2026-09-09.)*
+  - **The operator's own framing, stated twice and unprompted:** *"I plan to use this app primarily
+    through a browser on my computer, not trying to view it through a phone. Phone for tracking the
+    runs, and computer for viewing all the data via the webapp."*
+  - **D-124's platform half is untouched and still correct.** Capture shortcuts, share targets and
+    companion tooling remain **Android** — Tasker/MacroDroid HTTP tasks, PWA `share_target`, never
+    iOS Shortcuts. The run is recorded on the phone and always was. What flips is only which screen
+    the *data* is read on.
+  - **What this changes in practice, and it is mostly about evidence rather than code.** Twenty open
+    tickets carry an `## Operator validation` step naming "the 6.8in Android phone". Most of them
+    are asking a question about legibility or layout that is now better asked of a desktop browser,
+    and a validation performed on the wrong surface is worse than none — it reports a pass for a
+    screen nobody uses. **Default the validation surface to the desktop browser.** Keep the phone
+    where the check is genuinely phone-specific: capture, the share target, sunlight legibility for
+    a mid-run glance, and **the USE step of a capability audit, which D-153 defines as an actual
+    run** and which does not change.
+  - **It does NOT reprioritise the fog or the map.** D-051 (legibility beats atmosphere) is
+    surface-independent and if anything easier to satisfy on a large screen. The DPR cap, the
+    perf budget in `05` §6.4 and ticket `0059`'s mid-range-Android harness all stand: the phone
+    remains the *worst* case even when it is not the *common* case, and a renderer tuned for it
+    is not wasted work.
+  - **`06-ui-ux.md` is written phone-first and now has a stale premise.** §1 opens with D-124's
+    primacy, the IA is built around a thumb-arc plinth, and desktop is one paragraph (§4.8) of
+    adaptation. That is a real doc/intent divergence, but it is a **design session**, not an edit
+    to make in passing during a renderer ticket — the two references that state the primacy
+    outright are amended to point here, and ticket `0187` carries the pass.

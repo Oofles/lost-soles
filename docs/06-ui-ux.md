@@ -14,7 +14,9 @@ Binding constraints this document is written under, restated so no reader has to
 - **D-053** — parchment basemap, dark fog. Not dark-on-dark.
 - **D-061 / D-062** — one "Add workout" button → one dedicated page → one row per type, one tap.
 - **D-013 / P3** — zero upkeep. Nothing in this UI may ask for maintenance.
-- **D-124** — **Android phone is the primary target.** Desktop is for planning and admin.
+- **D-124 / D-227** — **Android phone is the primary CAPTURE device; the desktop browser is the
+  primary VIEWING surface.** The run is recorded on the phone; the data is read on the computer.
+  This document is still written phone-first — see D-227 and ticket `0187`.
 - **D-122** — MVP scope. No combat, no route planner, no loot. Do not draw them.
 
 > **The one-line brief for every screen in this document:** the app is a place you go *after*
@@ -791,7 +793,8 @@ is D-051 discharged, and it is the reason atlas exists at all.
 - **WebGL context loss** (05 §4.5) rebuilds silently. If the rebuild fails, the map falls back to
   a static parchment basemap with the trace web drawn as plain DOM-free canvas lines, and the
   plinth is untouched. The numbers never depend on the graphics (§3.4).
-- **Desktop (D-124, secondary).** Same routes, same modes. The plinth becomes a fixed left rail
+- **Desktop (D-227, PRIMARY for viewing — this bullet is now the main case, not the exception).**
+  Same routes, same modes. The plinth becomes a fixed left rail
   at ≥1024px; scroll-wheel zooms, hovering a route line shows the same three facts as the tap
   card, and the mode toggle gains a keyboard shortcut (`M`). No desktop-only features, because a
   desktop-only feature is a second product to maintain (P9).

@@ -1272,7 +1272,7 @@
     "path": "tickets/open/0053-maplibre-shell-home-route.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 8
     }
   },
@@ -4260,6 +4260,26 @@
     "created": "2026-09-09T02:55:10Z",
     "path": "tickets/open/0186-default-the-map-camera-to-the-most-recent-activity-centroid.md",
     "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 187,
+    "slug": "design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s",
+    "title": "Design pass over 06-ui-ux.md for a desktop-primary viewing surface",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-09T16:54:51Z",
+    "path": "tickets/open/0187-design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s.md",
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6
