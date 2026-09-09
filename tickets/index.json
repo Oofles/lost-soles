@@ -4242,5 +4242,27 @@
       "checked": 5,
       "total": 5
     }
+  },
+  {
+    "id": 186,
+    "slug": "default-the-map-camera-to-the-most-recent-activity-centroid",
+    "title": "Default the map camera to the most recent activity centroid",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      54
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-09T02:55:10Z",
+    "path": "tickets/open/0186-default-the-map-camera-to-the-most-recent-activity-centroid.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
   }
 ]

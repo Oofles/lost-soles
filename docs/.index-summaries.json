@@ -79,7 +79,7 @@
  "docs/01-architecture.md#What never reaches the client": "happens entirely inside /api/strava/callback; the browser only ever sees a redirect and",
  "docs/01-architecture.md#Standing conditions": "account, map shown only to the owner; full-fidelity traces are stored, nothing truncated",
  "docs/01-architecture.md#8. Cost model": "All figures us-east-1, verified 2026-08-30 (R5 §8).",
- "docs/01-architecture.md#Risk 1 — pmtiles egress": "Amplify data transfer out is $0.15/GB after 15 GB free.",
+ "docs/01-architecture.md#Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)*": "Amplify data transfer out is $0.15/GB after 15 GB free.",
  "docs/01-architecture.md#Risk 2 — free-tier perpetuity is genuinely ambiguous": "Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage,",
  "docs/01-architecture.md#What would actually blow the budget": "own. This is what D-081 exists to prevent.",
  "docs/01-architecture.md#9. Conventions": "R5 read /home/vivicat/devaultsecurity/ directly.",

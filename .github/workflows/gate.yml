@@ -134,6 +134,18 @@ jobs:
       - name: the ingest worker cannot reach the full-table rebuild
         run: node scripts/check-fog-hot-path.mjs
 
+      # 05 §4.6 / ticket 0053. deck.gl is the ruled-out approach most likely to be
+      # retried, because it is the one that is nearly right: correct architecture,
+      # wrong ergonomics. Its MaskExtension tests the mask as a BOOLEAN in the
+      # fragment shader, so there is no feather, no alpha ramp and no noise hook —
+      # which is most of what the fog design is. Reads the LOCKFILE, because deck.gl
+      # arriving transitively costs the bundle exactly as much as installing it.
+      - name: deck.gl check self-test
+        run: node scripts/check-no-deckgl.mjs --self-test
+
+      - name: deck.gl is not in the dependency tree
+        run: node scripts/check-no-deckgl.mjs
+
       # 08 §7.2 / D-199 (ticket 0168). This repo is PUBLIC, and the operator's
       # traces are the sensitive asset the whole of 08 §2 is about. §7.2 always
       # said "test fixtures are synthetic coordinates"; nothing enforced it, and
