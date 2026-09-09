@@ -51,3 +51,8 @@ Thumbs.db
 # stays in lockstep with the exact maplibre-gl pin. Vendoring it into git would let
 # the served worker drift from the bundled library (ticket 0053).
 public/maplibre/
+
+# Written by amplify.yml at preBuild from the Amplify environment (ticket 0053).
+# Never committed: it carries the operator home coordinate that 08 §7.2 keeps out
+# of this public repo.
+.env.production

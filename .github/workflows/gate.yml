@@ -134,6 +134,12 @@ jobs:
       - name: the ingest worker cannot reach the full-table rebuild
         run: node scripts/check-fog-hot-path.mjs
 
+      # Ticket 0053. The gate has no LOST_SOLES_HOME_* values, so only the self-test
+      # is meaningful here; the real scan runs in the Amplify build container, which
+      # does. A self-test that passes proves the detector still bites.
+      - name: home coordinate client-bundle check self-test
+        run: node scripts/check-home-not-in-client.mjs --self-test
+
       # Ticket 0053. MapLibre 6 derives its worker URL from `import.meta.url`, which
       # webpack inlines as a build-machine file:// path — so MapLibre's own guard
       # yields an empty worker URL, the browser resolves it against the page, and the

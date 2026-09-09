@@ -23,6 +23,28 @@ frontend:
       commands:
         - nvm use            # .nvmrc — pin Node, do not inherit the unpinned setup
         - npm install --no-save --cache .npm --prefer-offline   # D-162, see above
+        # THE HOME COORDINATE, INTO .env.production (ticket 0053, D-226-era work).
+        #
+        # Amplify environment variables reach the BUILD container but NOT the SSR
+        # compute runtime. Set at app level and again at branch level, `process.env
+        # .LOST_SOLES_HOME_LAT` was still undefined in the server component, so
+        # homeCameraForSession() returned null and the map opened on the extract-wide
+        # fallback instead of the operator's neighbourhood. Both were verified live,
+        # in that order, before resorting to this.
+        #
+        # This is AWS's documented pattern for the gap. Next.js replaces
+        # `process.env.X` with its value AT BUILD TIME, so a variable present in
+        # .env.production during the build is present in the deployed server bundle
+        # at request time. It reaches the client only if prefixed NEXT_PUBLIC_ —
+        # which these deliberately are not — so Next's own rule keeps the coordinate
+        # server-side, and the 0053 smoke test asserts the signed-out payload carries
+        # no coordinate.
+        #
+        # VALUES ARE NEVER ECHOED. The redirect writes to the file, not to stdout,
+        # and the confirmation prints a COUNT. Amplify build logs are not a place to
+        # put the operator's home address (08 §7.2, D-199).
+        - env | grep -e '^LOST_SOLES_HOME_' >> .env.production || true
+        - echo "home camera vars written to .env.production:" $(grep -c '^LOST_SOLES_HOME_' .env.production || echo 0)
     build:
       commands:
         # These run BEFORE the build, cheapest first. There is no branch
@@ -53,6 +75,13 @@ frontend:
         # bundles the backend phase wrote earlier in this same container.
         - node scripts/check-bundle-leak.mjs --self-test
         - node scripts/check-bundle-leak.mjs --require-literals
+        # Ticket 0053. next.config.ts inlines LOST_SOLES_HOME_* at build time because
+        # Amplify's SSR compute has no runtime environment. Static replacement follows
+        # the reference, so a client component reading it would put the operator's
+        # neighbourhood into a publicly served chunk. Runs HERE, after the build, in
+        # the container that actually has the values.
+        - node scripts/check-home-not-in-client.mjs --self-test
+        - node scripts/check-home-not-in-client.mjs
   artifacts:
     baseDirectory: .next
     files:
