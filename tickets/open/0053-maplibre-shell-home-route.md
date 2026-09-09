@@ -41,15 +41,25 @@ Chrome is deliberately unstyled beyond the 0016 design tokens. No parchment, no 
 ## Acceptance criteria
 
 - [ ] `maplibre-gl` pinned to `6.6.0`; the map renders full-bleed on the home route.
-- [ ] `pixelRatio` is `Math.min(devicePixelRatio, 2)`.
-- [ ] The app detects WebGL2 at boot and renders an explicit, readable "this device cannot run the
+      **Half proven.** The pin is exact in `package.json` and the lockfile. *Renders full-bleed*
+      needs an eye — operator check 2.
+- [x] `pixelRatio` is `Math.min(devicePixelRatio, 2)`.
+- [x] The app detects WebGL2 at boot and renders an explicit, readable "this device cannot run the
       map" state instead of a blank canvas if it is absent.
 - [ ] `webglcontextlost` is handled — preventDefault, then full rebuild on restore — with a manual
       test using `WEBGL_lose_context`.
+      **Built, not yet exercised.** The criterion itself specifies a *manual* test, and it cannot
+      be run without a session — operator check 4.
 - [ ] Camera position persists across reload; first-ever load centres on the configured home.
-- [ ] No deck.gl in the dependency tree (a CI check on the lockfile).
+      **Unit-tested, not yet observed.** `localStorage` and the session-gated env read are both
+      covered by tests, but neither can be exercised from a terminal: the map is behind `AuthGate`,
+      so no headless run can reach it — operator checks 5 and 6.
+- [x] No deck.gl in the dependency tree (a CI check on the lockfile).
 - [ ] Map resize is handled on orientation change without a stretched canvas.
-- [ ] Bundle size of the map route is recorded in the capability doc as a baseline.
+      **Built** (`ResizeObserver` on the container, because MapLibre's `window.resize` listener
+      misses both an orientation change that keeps window size briefly identical and the URL bar
+      collapsing). Needs a device — operator check 3.
+- [x] Bundle size of the map route is recorded in the capability doc as a baseline.
 
 ## Notes
 
@@ -67,3 +77,54 @@ capability doc, is what stops a minor bump from silently breaking projection.
 3. Rotate the phone to landscape and back. The map resizes cleanly, no stretching.
 4. Background the browser for a few minutes, then return. The map is still there (or has rebuilt
    itself), not a black rectangle.
+
+## Notes — 2026-09-08, work complete and deployed, awaiting operator checks
+
+**The code is built, deployed and live**; this ticket stays open only because four of its eight
+criteria need a browser and a session, and one of them (`WEBGL_lose_context`) says "manual test"
+in its own wording. Ticking them from a terminal would be inventing evidence.
+
+**Why a headless run could not stand in.** Chromium is available on this machine, but `/` is
+behind `AuthGate` and the agent has no session — a signed-out load never reaches the map at all.
+That is confirmed rather than assumed: the smoke test below asserts the signed-out payload
+contains no map markup.
+
+**Verified by the agent against the live deploy** (`https://soles.devaultsecurity.com`, Amplify
+job 152 `SUCCEED`):
+
+```
+PASS  signed-out GET / returns 200
+PASS  signed-out / carries no home coordinate
+PASS  signed-out / carries no map markup
+PASS  maplibre is not referenced in the signed-out HTML
+```
+
+The second line is the one worth keeping: it is the live proof of the privacy design below, and
+the first version of that check was **silently broken** — `grep -qF "-81.4046"` parsed the leading
+minus as an option and errored out while the suite still printed PASS. Fixed with `--`. Two
+smoke-test bugs in two tickets now, both the same shape: an assertion that cannot fail is
+indistinguishable from one that passes.
+
+**Also verified:** `npm run build` (baseline recorded in the capability doc), the full suite
+(1582 passing), all seven gate scripts including the new `check-no-deckgl.mjs`, and the Amplify app
+now carries `LOST_SOLES_HOME_LAT` / `_LNG` / `_ZOOM`.
+
+**One risk the operator's first load will settle.** Amplify app-level environment variables are
+inherited by the branch, but whether they reach the **SSR runtime** (as opposed to the build) is
+not introspectable through any API the agent has. If they do not, `homeCameraForSession()` returns
+`null` and the map opens on the Florida-wide fallback instead of Nocatee. **That is the tell**: if
+the first load shows the whole state rather than your neighbourhood, the wiring is right and the
+variable did not arrive — set it at branch level rather than app level and redeploy.
+
+### Decisions taken while building
+
+- **The home coordinate is a session-gated environment variable, not a constant.** `08 §7.2` and
+  D-199 keep the operator's coordinates out of this public repo; `/` being the signed-out landing
+  route means it must also stay out of the rendered payload. Full reasoning in the capability doc
+  and in `lib/map-home.ts`.
+- **A blank env var is treated as unset.** `Number("")` is `0`, which would centre the map on Null
+  Island — a valid-looking camera with no tiles under it. The test predicted this in a comment and
+  then caught it.
+- **The activity-centroid default became ticket `0186`.** `0053`'s Description asks for it; there
+  is no client-side activity data before `0054`, so building it here would mean inventing a query
+  path `0054` then replaces.
