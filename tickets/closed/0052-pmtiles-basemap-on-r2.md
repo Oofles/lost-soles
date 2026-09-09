@@ -4,7 +4,7 @@ slug: pmtiles-basemap-on-r2
 title: Protomaps PMTiles basemap on S3 + CloudFront with the stock light flavour
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: [12]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-09T01:54:37Z
+closed: 2026-09-09T02:35:38Z
 ---
 
 ## Description
