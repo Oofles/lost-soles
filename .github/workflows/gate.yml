@@ -134,6 +134,16 @@ jobs:
       - name: the ingest worker cannot reach the full-table rebuild
         run: node scripts/check-fog-hot-path.mjs
 
+      # Ticket 0053. MapLibre 6 derives its worker URL from `import.meta.url`, which
+      # webpack inlines as a build-machine file:// path — so MapLibre's own guard
+      # yields an empty worker URL, the browser resolves it against the page, and the
+      # server answers with HTML. The map then paints its background layer and no
+      # tiles. The self-test proves the copy script still recognises the worker's
+      # import shape; if MapLibre changes it, this fails here rather than shipping a
+      # worker whose sibling import 404s.
+      - name: maplibre worker copy self-test
+        run: node scripts/copy-maplibre-worker.mjs --self-test
+
       # 05 §4.6 / ticket 0053. deck.gl is the ruled-out approach most likely to be
       # retried, because it is the one that is nearly right: correct architecture,
       # wrong ergonomics. Its MaskExtension tests the mask as a BOOLEAN in the

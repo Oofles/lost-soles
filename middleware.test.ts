@@ -42,7 +42,7 @@ vi.mock("@/lib/amplify-server", () => ({
   }) => operation({}),
 }))
 
-const { middleware } = await import("./middleware")
+const { middleware, config } = await import("./middleware")
 
 const get = (pathname: string, headers?: HeadersInit) =>
   middleware(new NextRequest(new URL(`https://soles.devaultsecurity.com${pathname}`), { headers }))
@@ -143,5 +143,44 @@ describe("bearer token (0149)", () => {
     bearerSub = undefined
     const res = await get("/api/tickets/capture", { authorization: "Bearer forged.token.sig" })
     expect(res.status).toBe(200)
+  })
+})
+
+/**
+ * THE MATCHER ITSELF, tested as a regex rather than through the handler.
+ *
+ * Every test above calls `middleware()` directly, which means none of them can see
+ * whether a path reaches it at all — that is the matcher's job, and it is a string in
+ * `config` that no test touched. Ticket 0053 shipped a bug in exactly that gap: the
+ * MapLibre worker at `/maplibre/…` took a 307 to `/`, the browser refused it for a
+ * "non-JavaScript MIME type text/html", and the map painted its background layer and
+ * no tiles. A worker is fetched as a subresource; a redirect is not an answer.
+ */
+describe("the matcher (0053)", () => {
+  const pattern = new RegExp(`^${config.matcher[0]}$`)
+
+  it.each([
+    "/maplibre/maplibre-gl-worker.js",
+    "/maplibre/maplibre-gl-shared.js",
+    "/_next/static/chunks/main.js",
+    "/favicon.ico",
+  ])("exempts %s — a static asset must not be redirected", (path) => {
+    expect(pattern.test(path)).toBe(false)
+  })
+
+  it.each(["/", "/settings", "/dev/tickets", "/api/tickets/capture", "/skills/running"])(
+    "still covers %s",
+    (path) => {
+      expect(pattern.test(path)).toBe(true)
+    },
+  )
+
+  /**
+   * The exemption is a PREFIX, not "anything ending in .js". A route that merely looks
+   * like an asset must stay behind the gate, or the exemption becomes a way past it.
+   */
+  it("does not exempt a path that only resembles the worker", () => {
+    expect(pattern.test("/not-maplibre/secret.js")).toBe(true)
+    expect(pattern.test("/dev/maplibre/worker.js")).toBe(true)
   })
 })

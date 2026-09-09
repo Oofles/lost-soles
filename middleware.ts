@@ -91,10 +91,24 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   /**
-   * Everything except Next's own static output and the favicon. Note this
-   * deliberately DOES cover `/dev/tickets`: it is owner-only, and with one user
+   * Everything except Next's own static output, the favicon, and `/maplibre/`. Note
+   * this deliberately DOES cover `/dev/tickets`: it is owner-only, and with one user
    * (P9) owner-only and authenticated are the same thing — but it must stay
    * behind the gate for the day that stops being true.
+   *
+   * `/maplibre/` is MapLibre's own worker, copied out of node_modules at prebuild by
+   * `scripts/copy-maplibre-worker.mjs` (ticket 0053). It is exempt for the same reason
+   * `_next/static` is: it is a vendored, BSD-licensed library file that Next would
+   * serve from `_next/static` itself if MapLibre could be bundled normally, and it
+   * carries nothing about the operator.
+   *
+   * IT IS NOT COSMETIC. A worker is fetched as a subresource, so without this exemption
+   * it takes a 307 to `/` and the browser refuses it — "non-JavaScript MIME type
+   * text/html" — leaving a map that paints its background layer and no tiles. That is
+   * the second half of the bug 0053 shipped: fixing only the worker URL would still
+   * have failed here.
    */
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|maplibre/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+  ],
 }

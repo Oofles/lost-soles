@@ -46,3 +46,8 @@ dist/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Copied from node_modules by scripts/copy-maplibre-worker.mjs at prebuild, so it
+# stays in lockstep with the exact maplibre-gl pin. Vendoring it into git would let
+# the served worker drift from the bundled library (ticket 0053).
+public/maplibre/

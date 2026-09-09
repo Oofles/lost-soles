@@ -120,6 +120,22 @@ export function MapShell({ home }: { home: Camera | null }) {
        * stating, because the v5 idiom is `maplibregl.addProtocol` off a default import and
        * it fails here as a type error rather than at runtime.
        */
+      /**
+       * WITHOUT THIS THE MAP RENDERS ITS BACKGROUND AND NOTHING ELSE.
+       *
+       * MapLibre 6 derives its worker URL from `import.meta.url`, which webpack
+       * inlines at BUILD time as `file:///…/node_modules/maplibre-gl/dist/…`. That is
+       * not `http(s):`, so MapLibre's own guard returns the empty string, the browser
+       * resolves "" against the current page, and the server answers with the app's
+       * HTML — "Failed to load module script: non-JavaScript MIME type text/html".
+       *
+       * The style still loads on the main thread, so the background layer paints and
+       * nothing is ever parsed into a tile: a flat #cccccc screen. Nothing about that
+       * symptom points at a worker, which is why the mechanism is written out here and
+       * in scripts/copy-maplibre-worker.mjs rather than summarised.
+       */
+      lib.setWorkerUrl("/maplibre/maplibre-gl-worker.js")
+
       registerPmtilesProtocol(lib)
 
       const instance = new lib.Map({
