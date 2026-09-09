@@ -128,3 +128,33 @@ variable did not arrive — set it at branch level rather than app level and red
 - **The activity-centroid default became ticket `0186`.** `0053`'s Description asks for it; there
   is no client-side activity data before `0054`, so building it here would mean inventing a query
   path `0054` then replaces.
+
+## Notes — 2026-09-09, the map was grey; two worker faults, both fixed and deployed
+
+Reported: grey screen on desktop and phone. Console: *"Failed to load module script: The server
+responded with a non-JavaScript MIME type of `text/html`."*
+
+`#cccccc` is the `light` flavour's **background layer**, so the map had constructed and the style
+had loaded — no tile was ever parsed. Root causes, both on the worker's path (full write-up in
+`docs/capabilities/08-map-and-fog-renderer.md`):
+
+1. MapLibre 6 derives its worker URL from `import.meta.url`; webpack inlines that as a build-machine
+   `file://` path, so MapLibre's `if (!/^https?:/.test(t)) return ""` guard produced an **empty**
+   worker URL and the browser fetched the page's own HTML.
+2. `/maplibre/` was not exempt from `middleware.ts`'s matcher, so the worker took a `307` to `/`.
+
+Fixed in `4bc8c6f`, deployed (job SUCCEED). Verified against the live site:
+
+```
+PASS  maplibre-gl-worker.js serves 200, text/javascript
+PASS  maplibre-gl-shared.js serves 200, text/javascript
+PASS  the worker imports the .js sibling, not .mjs
+PASS  signed-out / carries no home coordinate / no map markup
+```
+
+**Correction to the previous note:** it claimed `addProtocol` throws on a second registration and
+that the context-loss rebuild therefore had a bug. Tested rather than assumed — MapLibre 6 silently
+replaces. There is no such bug and nothing was changed for it.
+
+**Still unverified, and still the operator's:** everything that needs a session and a screen. The
+worker now loads, but whether the map *renders legibly* is the reason those criteria are unticked.

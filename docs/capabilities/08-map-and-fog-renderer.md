@@ -118,6 +118,46 @@ during SSR, so the WebGL bundle never enters the server render or the initial pa
 replaces `next/dynamic` with `ssr: false`, which cannot be called from a Server Component in
 Next 15 and would need a client wrapper whose only job is to hold the dynamic call.
 
+#### The worker, and why the map was grey (ticket `0053`)
+
+**This shipped broken and is the most useful thing in this document.** The symptom was a flat grey
+screen on desktop and phone. Grey is not "nothing rendered": `#cccccc` is the Protomaps `light`
+flavour's **background layer**, so the map had constructed and the style had loaded — only no tile
+was ever parsed. The console said:
+
+```
+Failed to load module script: The server responded with a non-JavaScript MIME type of "text/html".
+```
+
+Two independent faults, both on the worker's path, either of which alone produces that exact line:
+
+1. **MapLibre 6 derives its worker URL from `import.meta.url`, and webpack inlines that at build
+   time** as `file:///…/node_modules/maplibre-gl/dist/maplibre-gl.mjs`. MapLibre's own guard is
+   `if (!/^https?:/.test(t)) return ""`, so the worker URL became the **empty string**, the browser
+   resolved `""` against the current page, and the server answered with the app's HTML.
+2. **`/maplibre/` was not exempt from `middleware.ts`'s matcher**, so even with a correct URL the
+   worker took a `307` to `/`. A worker is fetched as a subresource; a redirect is not an answer.
+
+The fix is `scripts/copy-maplibre-worker.mjs` (runs at `prebuild`) plus `setWorkerUrl`, and the
+matcher exemption. Both files are copied with a **`.js`** extension — `.mjs` is not universally
+served as JavaScript, and getting that wrong reproduces the identical error — with the worker's
+relative import rewritten to match and that rewrite **asserted**, so a future MapLibre that changes
+its import shape fails the build instead of shipping a worker whose sibling 404s.
+
+**Three lessons worth more than the fix.**
+
+- **Nothing in the symptom pointed at a worker.** The investigation that found it went the other
+  way: prove the archive, the protocol handler, the deployed URL, the style↔data contract and the
+  sprite/glyph URLs all correct, until only the client runtime was left. Each of those was checkable
+  from a terminal; none of them was the bug.
+- **A stale `next start` cost twenty minutes.** The matcher fix appeared not to work because an
+  older server still held the port. Verify what is *running*, not what was *built*.
+- **The tests could not have caught either fault**, and still cannot catch the first. `middleware.test.ts`
+  called `middleware()` directly, so nothing tested which paths *reach* it — the matcher was an
+  untested string. It is tested now, including the negative case (the exemption is a prefix, not
+  "anything ending in `.js`"). The worker URL itself is only provable against a running server, which
+  is what the `0053` smoke test does.
+
 #### Bundle size baseline (ticket `0053` criterion 8)
 
 Measured with `npm run build` at the close of `0053`:
