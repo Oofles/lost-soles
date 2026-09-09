@@ -207,10 +207,30 @@ audit rule — the code changed and so did the doc.
 - **The bucket holds no `users/` objects.** `aws s3 ls s3://amplify-…-lostsolesuserdatabucket5-…/`
   shows one prefix, `raw/`. Nothing has completed `regenerateExplored`, so the live endpoint's
   correct answer today is `plan: "empty"` — which is exactly the branch added for it.
-- **The SSR compute role has zero S3 statements today.** `aws iam get-role-policy` over both inline
-  policies on `LostSolesAmplifyComputeRole` returns `[]` for every statement mentioning s3. So the
-  grant added in `amplify/backend.ts` is genuinely load-bearing: before this deploy, `/api/fog`
-  would fail on the first `GetObject`. Re-verify after the Amplify build lands.
+- **The SSR compute role had zero S3 statements before this deploy.** `aws iam get-role-policy` over
+  both inline policies on `LostSolesAmplifyComputeRole` returned `[]` for every statement mentioning
+  s3 — so the grant is genuinely load-bearing rather than tidy-up: `/api/fog` would have failed on
+  its first `GetObject`.
+- **Amplify job 160 SUCCEED**, commit `b7f2f4e`. Re-read after it landed, the role's *entire* S3
+  reach is one statement, and it is the intended one:
+
+  ```json
+  { "Sid": "ReadExploredDeliveryLayerForTheBrowser",
+    "Effect": "Allow",
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::amplify-…-lostsolesuserdatabucket5-…/users/*" }
+  ```
+
+  No `PutObject`, no `DeleteObject`, no `List`, and nothing reaching `raw/*` — the asymmetry the
+  synth test asserts, confirmed against the deployed role rather than against a template.
+- **Both routes are live and gated.** Against `https://soles.devaultsecurity.com`, unauthenticated:
+  `GET /api/fog?since=0` → **404** `{"error":"not found"}`; `GET /api/fog/blob/42` → **404**; and the
+  conditional form `If-None-Match: "42"` → **404** as well, so the 304 path cannot be reached without
+  a session either. Byte-identical to what `middleware.ts` returns for every other signed-out API
+  request, which is the property `07` §6.5 asks for: an outsider cannot tell the route exists.
+- **The authenticated paths are not agent-verifiable.** They need a session in the production pool
+  and the agent holds no credential for it. That is what the operator checklist below is for, and it
+  is a real gap in this record rather than a formality.
 - Gate scripts: `check-boundaries`, `check-fog-render-boundary`, `check-fog-hot-path`,
   `check-no-deckgl`, `check-skills`, `check-fixture-geography`, `check-adapter-deletion`,
   `check-bundle-leak` all pass. `check-design-tokens` passes on the project's own code (see `0188`).
