@@ -4,7 +4,7 @@ slug: explored-blob-loader-and-decoder
 title: Client blob loader and decoder — explored-r10.bin to a sorted typed array
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [49, 51, 53]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-09T21:27:52Z
+closed: 2026-09-09T23:55:20Z
 ---
 
 ## Description

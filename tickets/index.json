@@ -1283,7 +1283,7 @@
     "title": "Client blob loader and decoder — explored-r10.bin to a sorted typed array",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -1295,10 +1295,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-09T21:27:52Z",
-    "path": "tickets/open/0054-explored-blob-loader-and-decoder.md",
-    "ready": true,
+    "closed": "2026-09-09T23:55:20Z",
+    "path": "tickets/closed/0054-explored-blob-loader-and-decoder.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -4261,7 +4262,7 @@
     "source": "agent",
     "created": "2026-09-09T02:55:10Z",
     "path": "tickets/open/0186-default-the-map-camera-to-the-most-recent-activity-centroid.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6
@@ -4304,7 +4305,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 4
+      "total": 6
     }
   }
 ]
