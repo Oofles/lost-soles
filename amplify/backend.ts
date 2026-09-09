@@ -26,13 +26,19 @@ import {
   Distribution,
   HttpVersion,
   PriceClass,
+  OriginRequestPolicy,
   ResponseHeadersPolicy,
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront"
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
 import { Key } from "aws-cdk-lib/aws-kms"
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
-import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+  HttpMethods,
+} from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
@@ -1298,12 +1304,42 @@ const tilesBucket = new Bucket(tilesStack, "TilesBucket", {
    */
   removalPolicy: RemovalPolicy.DESTROY,
   autoDeleteObjects: true,
+  /**
+   * S3-SIDE CORS, WHICH EXISTS FOR EXACTLY ONE REQUEST: the preflight.
+   *
+   * An earlier revision of this file argued that bucket CORS was configuration for
+   * a request that cannot happen, since the browser only ever talks to CloudFront.
+   * That was WRONG, and 0052's smoke test caught it. `OPTIONS` is forwarded to the
+   * origin, and a bucket with no CORS configuration answers it `403` — whereupon the
+   * response headers policy below cheerfully decorates that 403 with correct-looking
+   * CORS headers. A browser rejects any preflight that is not 2xx, so the headers
+   * being right is worth nothing.
+   *
+   * It survives today only because `Range` with a simple `bytes=a-b` value is a
+   * CORS-safelisted request header, so pmtiles does not normally preflight at all.
+   * That is a property of the Fetch spec, not of this app, and "works until someone
+   * adds a header" is the shape of the desktop-works/phone-fails bug 0052's
+   * Description warns about.
+   */
+  cors: [
+    {
+      allowedMethods: [HttpMethods.GET, HttpMethods.HEAD],
+      allowedOrigins: [
+        "https://soles.devaultsecurity.com",
+        "https://main.d14fhvl4rp79nn.amplifyapp.com",
+        "http://localhost:3000",
+      ],
+      allowedHeaders: ["Range", "If-Match", "If-None-Match"],
+      exposedHeaders: ["Content-Length", "Content-Range", "ETag"],
+      maxAge: 3600,
+    },
+  ],
 })
 
 /**
- * CORS lives on the DISTRIBUTION, not on the bucket, because the browser never talks
- * to the bucket — an S3 CORS rule here would be configuration that can only ever be
- * evaluated by a request that cannot happen.
+ * The CORS headers the BROWSER actually sees, added by CloudFront to every response.
+ * The bucket rule above answers the preflight; this one dresses the GETs, and
+ * `originOverride` makes it authoritative when both have an opinion.
  *
  * `Range` is the load-bearing header: pmtiles works by asking for byte ranges of one
  * large archive, so a policy that forgets it produces the exact failure the ticket
@@ -1365,6 +1401,13 @@ const tilesDistribution = new Distribution(tilesStack, "TilesDistribution", {
      */
     cachePolicy: CachePolicy.CACHING_OPTIMIZED,
     responseHeadersPolicy: tilesCors,
+    /**
+     * Forwards `Origin` and the two `Access-Control-Request-*` headers to S3, which
+     * is what lets the bucket rule above see a preflight at all. Without it
+     * CloudFront strips them and S3 answers 403 no matter how the bucket is
+     * configured. Not part of the cache key, so it does not fragment the cache.
+     */
+    originRequestPolicy: OriginRequestPolicy.CORS_S3_ORIGIN,
     compress: false, // pmtiles bodies are already gzipped per tile; re-compressing spends CPU to add bytes
   },
   httpVersion: HttpVersion.HTTP2_AND_3,

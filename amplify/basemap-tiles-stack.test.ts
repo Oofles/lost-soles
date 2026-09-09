@@ -104,6 +104,38 @@ describe("basemap distribution (0052, D-226)", () => {
     expect(origins).toContain("https://soles.devaultsecurity.com")
   })
 
+  /**
+   * REGRESSION, and it was a live one. The first deploy shipped with no bucket CORS
+   * rule, so CloudFront forwarded the preflight to S3, S3 answered 403, and the
+   * response headers policy decorated that 403 with perfectly correct CORS headers.
+   * The smoke test reported PASS because it asserted the headers and not the status.
+   *
+   * Nothing broke, because `Range` with a simple `bytes=a-b` value is CORS-safelisted
+   * and pmtiles therefore does not preflight. That is a reprieve, not a fix.
+   */
+  it("answers the preflight at the origin — CORS on the bucket, not just the CDN", () => {
+    tiles.hasResourceProperties("AWS::S3::Bucket", {
+      CorsConfiguration: {
+        CorsRules: Match.arrayWith([
+          Match.objectLike({
+            AllowedHeaders: Match.arrayWith(["Range"]),
+            AllowedMethods: Match.arrayWith(["GET", "HEAD"]),
+          }),
+        ]),
+      },
+    })
+  })
+
+  it("forwards Origin to the bucket, or the preflight never reaches the rule", () => {
+    const policies = tiles.findResources("AWS::CloudFront::Distribution")
+    const behaviour = Object.values(policies).map(
+      (p) =>
+        (p.Properties as { DistributionConfig: { DefaultCacheBehavior: Record<string, unknown> } })
+          .DistributionConfig.DefaultCacheBehavior,
+    )[0]
+    expect(behaviour.OriginRequestPolicyId).toBeDefined()
+  })
+
   it("serves over HTTPS and reads from the tile prefix only", () => {
     tiles.hasResourceProperties("AWS::CloudFront::Distribution", {
       DistributionConfig: Match.objectLike({

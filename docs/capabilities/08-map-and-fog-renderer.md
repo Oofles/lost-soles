@@ -21,6 +21,93 @@
 
 _Filled in at the DESIGN step, before TICKET-WRITE._
 
+### The basemap: where the ground comes from (ticket `0052`, D-226)
+
+**Hosting is a dedicated private S3 bucket, `lost-soles-tiles`, behind our own CloudFront
+distribution** — not Cloudflare R2, which is what the ticket and `01-architecture.md` originally
+specified. D-226 carries the full reasoning; the short version is that §8 Risk 1's
+"100 GB/month = $15/month" sizes a map-heavy *multi-user* app, and at one user the measured figure
+is ~1 GB/month, which is inside Amplify's own free allowance. The rule that was load-bearing —
+**tiles never route through Amplify Hosting** — is unchanged.
+
+Both resources are provisioned in `amplify/backend.ts` (the fifth and last use of the CDK escape
+hatch) and asserted in `amplify/basemap-tiles-stack.test.ts`. The bucket blocks all public access;
+CloudFront reaches it through Origin Access Control scoped to the `tiles/` prefix.
+
+#### Regenerating the extract
+
+The source is the Protomaps daily planet build. **Builds are retained for about a week**, so
+`YYYYMMDD` must be a recent date — a 404 on the source URL means the date has aged out, not that
+the command is wrong.
+
+```bash
+# 1. The CLI (Go release binary; there is no npm equivalent that does `extract`)
+curl -sL -o pmtiles.tar.gz \
+  https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
+tar xzf pmtiles.tar.gz
+
+# 2. Cut the region. --dry-run first if you are changing the bbox: it prints the
+#    resulting archive size without downloading anything, in about three seconds.
+./pmtiles extract https://build.protomaps.com/20260908.pmtiles basemap-fl-20260908.pmtiles \
+  --bbox=-87.7,24.4,-79.9,31.1 --maxzoom=15
+
+# 3. Upload under the dated key, immutable for its whole life (see below)
+aws s3 cp basemap-fl-20260908.pmtiles s3://lost-soles-tiles/tiles/ \
+  --cache-control "public, max-age=31536000, immutable" \
+  --content-type application/octet-stream --profile devault
+
+# 4. Point the app at it — ONE line
+#    lib/basemap.ts: export const BASEMAP_ARCHIVE = "basemap-fl-YYYYMMDD.pmtiles"
+```
+
+| | |
+|---|---|
+| Source build | `https://build.protomaps.com/20260908.pmtiles` |
+| Region | Florida, bbox `-87.7,24.4,-79.9,31.1` |
+| Zoom | `0–15` (MapLibre overzooms past 15; the z14–17 legibility floor is met by overzoom) |
+| Archive size | **1.1 GB**, 1.2 GB transferred, 46 HTTP requests, ~40 s |
+| Storage cost | ~**$0.025/month** at S3's $0.023/GB-mo |
+
+**Why Florida and not a box around Nocatee.** A 100 km box around the operator's actual running
+area (`-81.9,29.6,-80.9,30.6`) is only 62 MB, so the statewide extract costs about two extra cents
+a month. It buys every in-state travel run a real street map with no regeneration. Out-of-state
+travel is the four steps above — but note that **nothing about ingest, H3 cells, fog reveal or XP
+is region-scoped**: a run anywhere in the world imports, scores and reveals correctly, and the only
+thing missing outside the extract is the ground underneath. Tickets `0113` and `0087` already
+specify what that looks like — *missing tiles render flat parchment, never a checkerboard, never a
+spinner* — so an un-extracted region degrades to a design that already exists.
+
+#### Two decisions that look like details and are not
+
+**The archive key carries its source build date.** Replacing a `.pmtiles` archive in place under a
+stable key is a genuine correctness bug, not a staleness annoyance: the client caches the archive's
+directory and then reads byte ranges against it, so ranges served from a *different* archive still
+resolve — to the wrong bytes. The reader gets coherent-looking garbage rather than an error. A
+dated key makes that unrepresentable; the cost is step 4 above.
+
+**CORS is needed in BOTH places, and the first deploy got this wrong.** The reasoning that felt
+obvious — the browser only ever talks to CloudFront, so a bucket CORS rule is configuration for a
+request that cannot happen — is false for `OPTIONS`, which CloudFront forwards to the origin. A
+bucket with no CORS configuration answers it `403`, and the distribution's response headers policy
+then decorates that 403 with entirely correct CORS headers. A browser rejects any preflight that is
+not 2xx, so the headers being right buys nothing.
+
+It went unnoticed because the smoke test asserted the header and not the status, and it broke
+nothing because `Range` with a simple `bytes=a-b` value is a CORS-safelisted request header, so
+pmtiles does not preflight at all. That is a property of the Fetch spec rather than of this app —
+"works until someone adds a header" is precisely the desktop-works/phone-fails shape `0052` warns
+about. The bucket now carries its own CORS rule, the distribution forwards `Origin` via
+`OriginRequestPolicy.CORS_S3_ORIGIN` so the rule is reachable, and
+`amplify/basemap-tiles-stack.test.ts` asserts both. `Range` remains the load-bearing entry in every
+allow-list here.
+
+#### Sandbox note
+
+`lost-soles-tiles` is an explicit, globally-unique bucket name, so an `ampx sandbox` deploy
+**cannot coexist** with the `main` branch's stack — the same trade-off `LostSolesCaptureGuard`
+documents, taken for operability (a runbook that opens with "look up the generated bucket name"
+is a runbook that stops being followed).
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
