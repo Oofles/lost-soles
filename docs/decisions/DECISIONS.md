@@ -2674,3 +2674,41 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **A corrupt ratchet file FAILs rather than reading as an empty one.** An unreadable high-water
     mark means a lost citation passes unnoticed, which is worse than the bug this fixed. The same
     instinct as `NA`-with-a-reason: "could not check" must never render as "checked".
+
+- **D-226** **The pmtiles basemap is hosted on a dedicated public-read S3 bucket behind our OWN
+  CloudFront distribution, not on Cloudflare R2.** Supersedes the R2 choice in `01-architecture.md`
+  §1, §8 Risk 1 and inventory row 20. *(Ticket `0052`.)*
+  - **The risk R2 was chosen to eliminate is real, but it was sized for a different app.** §8 Risk 1
+    prices Amplify Hosting egress at $0.15/GB after 15 GB free and reasons from a map-heavy app
+    pulling **100 GB/month = $15/month**, 3–5× the whole D-083 budget. That figure assumes many
+    users. Measured against this one: the Florida extract is **1.1 GB stored**, and `pmtiles`
+    range-requests only the tiles in view — urban vector tiles run 30–100 KB and a phone viewport
+    holds under a dozen, so a hard 30-second pan moves 2–6 MB. Forty sessions a month is **~200 MB,
+    call it 1 GB with cold caches.** That is inside Amplify's free 15 GB, and *past* it would bill
+    **about $0.15/month.** R2 was buying insurance against a volume a single user cannot generate.
+  - **The mitigation ladder always had a second rung, and this is it.** R5 §cost-risk and §8 both
+    list "(b) S3 + your own CloudFront distribution (cheaper per GB than Amplify's markup)" as the
+    sanctioned fallback. This is not a shortcut around the design; it is the design's own second
+    choice, taken because the premise for the first did not hold.
+  - **CloudFront's 1 TB/month egress and 10M requests are ALWAYS-free, not 12-month free.** That
+    matters more here than the headline price: Risk 2 records genuine ambiguity over whether
+    Amplify Hosting's allowances expired with the account's first year. The always-free tier carries
+    no such ambiguity, so the fallback is *less* exposed to the unresolved question than the thing
+    it replaces. Usage is ~1 GB and a few thousand requests against those ceilings.
+  - **What R2 actually cost, weighed honestly.** A second vendor and a card; a long-lived credential
+    outside the `devault` profile, in a project where **O-005 was a credential leak**; a manual
+    provisioning step outside Amplify/CDK, which is exactly the kind of step that rots unrecorded;
+    and then a choice between `r2.dev`, which Cloudflare rate-limits and documents as not for
+    production, or moving `devaultsecurity.com`'s nameservers off Route 53 — a change enormously
+    larger than the ticket that would have caused it. Set against saving at most $0.15/month.
+  - **Serving on the distribution's default `*.cloudfront.net` hostname is load-bearing, not lazy.**
+    It needs no ACM certificate and no Route 53 record, so it walks around the retired
+    S3/CloudFront/ACM architecture whose teardown R5 (lines 142, 354) records as **unverified** and
+    names as the precondition for `CNAMEAlreadyExistsException`. Tiles are a machine-read asset
+    behind a URL in one config module; nobody types this hostname.
+  - **The rule that was actually load-bearing survives intact: tiles NEVER route through Amplify
+    Hosting.** That is what §8 Risk 1 was protecting and it is unchanged. What changed is which of
+    its own two listed alternatives carries it.
+  - **This is the fifth use of the CDK escape hatch**, against the four `01-architecture.md` §2
+    sanctions and `amplify/backend.ts` enumerates. The count in that comment is updated rather than
+    left to drift.

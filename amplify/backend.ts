@@ -20,8 +20,19 @@ import {
   PolicyStatement,
   Role,
 } from "aws-cdk-lib/aws-iam"
+import {
+  AllowedMethods,
+  CachePolicy,
+  Distribution,
+  HttpVersion,
+  PriceClass,
+  ResponseHeadersPolicy,
+  ViewerProtocolPolicy,
+} from "aws-cdk-lib/aws-cloudfront"
+import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
 import { Key } from "aws-cdk-lib/aws-kms"
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
+import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
@@ -37,10 +48,16 @@ import { storage } from "./storage/resource"
  * Each is near-empty; what matters is that the stack deploys and that every later
  * capability extends these rather than introduces them.
  *
- * The CDK escape hatch (01-architecture.md §2) is used in exactly four places
+ * The CDK escape hatch (01-architecture.md §2) is used in exactly five places
  * later on — machine-only DynamoDB tables, the SQS queue and DLQ, the webhook
- * Function URL, and the scheduled token refresh. The first of those arrives at
- * the bottom of this file in ticket 0019.
+ * Function URL, the scheduled token refresh, and the basemap tiles bucket and
+ * its CloudFront distribution. The first of those arrives at the bottom of this
+ * file in ticket 0019.
+ *
+ * The fifth was FOUR until ticket 0052. D-226 moved the pmtiles basemap off
+ * Cloudflare R2 and into this account, which is what added it; the count is
+ * updated here rather than left to drift, because "keep it to these N uses" is
+ * only a constraint while N is true.
  */
 /**
  * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
@@ -1211,3 +1228,170 @@ const dlqNotEmpty = new Alarm(ingestStack, "IngestDlqNotEmpty", {
 })
 
 dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms))
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE BASEMAP TILES BUCKET AND ITS DISTRIBUTION
+ * (ticket 0052, D-226, 01-architecture.md §8 Risk 1, inventory row 20)
+ *
+ * The fifth and last use of the CDK escape hatch. `defineStorage` cannot express
+ * this: Amplify Storage is auth-scoped user data behind signed URLs, and these are
+ * anonymous public reads by a map library that speaks HTTP Range.
+ *
+ * WHY IT IS HERE AT ALL, given the ticket said Cloudflare R2. Because the number
+ * R2 was chosen against does not survive contact with this app. §8 Risk 1 prices a
+ * map-heavy app at 100 GB/month = $15/month, 3-5x the entire D-083 budget. Measured
+ * for real in 0052: the Florida extract is 1.1 GB stored, pmtiles range-requests
+ * only the tiles in view, and a hard 30-second pan moves 2-6 MB. Forty sessions a
+ * month is ~200 MB. That is inside Amplify's own free 15 GB, and past it would bill
+ * about $0.15/month. R2 was insurance against a volume one person cannot generate,
+ * priced at a second vendor, a long-lived credential outside `devault` (O-005 was a
+ * credential leak) and a manual step outside IaC. R5 and §8 always listed S3 + our
+ * own CloudFront as rung (b); this is that rung, not a stopgap.
+ *
+ * THE RULE THAT SURVIVED INTACT: tiles never route through Amplify Hosting, whose
+ * egress bills at $0.15/GB. That is what Risk 1 was actually protecting.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+const tilesStack = backend.createStack("BasemapTiles")
+
+const tilesBucket = new Bucket(tilesStack, "TilesBucket", {
+  /**
+   * NAMED EXPLICITLY, with the same trade-off `LostSolesCaptureGuard` above states
+   * and for a different reason. Nothing in the app resolves this name — CloudFront
+   * reaches the bucket through the origin, and the browser never sees S3 at all.
+   * The name is for the OPERATOR: regenerating the extract is `aws s3 cp` against a
+   * name a human can type, and a runbook that opens with "first look up the
+   * generated bucket name in CloudFormation" is a runbook that stops being followed.
+   * It also keeps 01-architecture.md inventory row 20 literally true.
+   *
+   * THE COST, identical to the table's: the name is globally unique, so an
+   * `ampx sandbox` deploy cannot coexist with the `main` branch's stack. Acceptable
+   * at one branch and one operator; recorded in the capability doc.
+   */
+  bucketName: "lost-soles-tiles",
+  /**
+   * BLOCK ALL PUBLIC ACCESS, which reads backwards against a ticket criterion that
+   * said "public-read for the tile prefix only" and is strictly better than it.
+   * That criterion was written for R2, where the browser fetches the bucket
+   * directly and public-read is the only way in. Here CloudFront is in front, so
+   * Origin Access Control below grants exactly one principal — this distribution —
+   * read on exactly one prefix. A publicly readable bucket would additionally let
+   * anyone bypass the CDN and bill S3 egress at $0.09/GB *outside* CloudFront's
+   * always-free tier, which is the one cost this whole decision exists to avoid.
+   */
+  blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+  /**
+   * SSE-S3, not the CMK the token table uses. This is a public street map cut from
+   * an open planet build — there is nothing here an attacker could not download
+   * from build.protomaps.com themselves. A CMK would add key cost and a decrypt
+   * grant to protect data that is public by construction.
+   */
+  encryption: BucketEncryption.S3_MANAGED,
+  enforceSSL: true,
+  /**
+   * DESTROY plus autoDelete, and the reasoning is the CaptureGuard table's exactly:
+   * the contents are regenerable in about forty seconds from a command recorded in
+   * the capability doc, while an orphaned bucket holding a globally-unique name
+   * would block the next deploy with a CREATE_FAILED. Losing tiles costs a
+   * re-extract; keeping an orphan costs the name.
+   */
+  removalPolicy: RemovalPolicy.DESTROY,
+  autoDeleteObjects: true,
+})
+
+/**
+ * CORS lives on the DISTRIBUTION, not on the bucket, because the browser never talks
+ * to the bucket — an S3 CORS rule here would be configuration that can only ever be
+ * evaluated by a request that cannot happen.
+ *
+ * `Range` is the load-bearing header: pmtiles works by asking for byte ranges of one
+ * large archive, so a policy that forgets it produces the exact failure the ticket
+ * warns about — tiles that load on desktop and fail on the phone. `Content-Range`,
+ * `Content-Length` and `ETag` are exposed because the client reads them back.
+ */
+const tilesCors = new ResponseHeadersPolicy(tilesStack, "TilesCorsPolicy", {
+  responseHeadersPolicyName: "LostSolesTilesCors",
+  corsBehavior: {
+    accessControlAllowCredentials: false,
+    accessControlAllowHeaders: ["Range"],
+    accessControlAllowMethods: ["GET", "HEAD", "OPTIONS"],
+    /**
+     * Restricted rather than `*`. CORS does not stop a determined hotlinker — a
+     * non-browser client ignores it entirely — so this is a low fence, not a wall.
+     * It is still worth having, because casual embedding by someone else's web page
+     * is the one hotlinking shape it DOES stop, and egress is the entire cost story
+     * of this bucket. Preview branches are deliberately absent: a PR preview that
+     * cannot draw a basemap is a cheap failure, and widening this list to a wildcard
+     * subdomain would undo the point of having it.
+     */
+    accessControlAllowOrigins: [
+      "https://soles.devaultsecurity.com",
+      "https://main.d14fhvl4rp79nn.amplifyapp.com",
+      "http://localhost:3000",
+    ],
+    accessControlExposeHeaders: ["Content-Length", "Content-Range", "ETag"],
+    accessControlMaxAge: Duration.hours(1),
+    originOverride: true,
+  },
+})
+
+const tilesDistribution = new Distribution(tilesStack, "TilesDistribution", {
+  comment: "Lost Soles pmtiles basemap (ticket 0052, D-226)",
+  defaultBehavior: {
+    /**
+     * Origin Access Control, scoped to the tile prefix by the bucket policy CDK
+     * generates from it. The bucket has no other reader.
+     */
+    origin: S3BucketOrigin.withOriginAccessControl(tilesBucket, {
+      originPath: "/tiles",
+    }),
+    viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    /**
+     * GET and HEAD only. Nothing about a basemap is writable, and the app holds no
+     * credential that could write here — uploads are an operator action from the
+     * CLI against the bucket, never through the distribution.
+     */
+    allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+    /**
+     * CACHING_OPTIMIZED, and the archive key carries its source build date
+     * (`basemap-YYYYMMDD.pmtiles`) so the object is immutable for its whole life.
+     *
+     * THIS IS NOT COSMETIC. Replacing an archive in place under a stable key is a
+     * genuine correctness bug with pmtiles, not just a staleness annoyance: a client
+     * that has cached the directory of the old archive and then reads byte ranges
+     * served from the new one gets coherent-looking garbage. A dated key makes that
+     * unrepresentable, at the price of a one-line config change per re-extract.
+     */
+    cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+    responseHeadersPolicy: tilesCors,
+    compress: false, // pmtiles bodies are already gzipped per tile; re-compressing spends CPU to add bytes
+  },
+  httpVersion: HttpVersion.HTTP2_AND_3,
+  /**
+   * PRICE_CLASS_100 (North America + Europe). The operator runs in Florida and this
+   * is a single-user app; paying for Asia-Pacific and South America edges would buy
+   * latency for nobody. Reversible in one line if that ever stops being true.
+   */
+  priceClass: PriceClass.PRICE_CLASS_100,
+  /**
+   * NO custom domain, and this is deliberate rather than unfinished. A
+   * `*.cloudfront.net` name needs no ACM certificate and no Route 53 record, which
+   * keeps this ticket clear of the retired S3/CloudFront/ACM architecture whose
+   * teardown R5 (lines 142, 354) records as UNVERIFIED and names as the precondition
+   * for CNAMEAlreadyExistsException. Nobody types this hostname; it lives in one
+   * config module and is read by a map library.
+   */
+})
+
+backend.addOutput({
+  custom: {
+    /**
+     * Read by `lib/basemap.ts`, which is the single place the app knows where tiles
+     * come from. Capability 15's parchment fork changes the style there and nothing
+     * else — that is why the URL is a config value and not a literal in a component.
+     */
+    basemapTilesUrl: `https://${tilesDistribution.distributionDomainName}`,
+    basemapDistributionId: tilesDistribution.distributionId,
+  },
+})

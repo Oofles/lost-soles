@@ -46,7 +46,7 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 | Object storage | **S3** via `defineStorage` (raw trace archive, `explored.bin`) | D-101, D-121.2 |
 | Compute | **Lambda** — Node 22, pure-JS deps only | R5 §5 |
 | Queue | **SQS** standard + DLQ, added via CDK | R5 topology |
-| Basemap tiles | **pmtiles on Cloudflare R2** (zero egress) | R5 cost risk |
+| Basemap tiles | **pmtiles on a dedicated S3 bucket + our own CloudFront** (always-free egress) | D-226 |
 | Geo model | **H3 res 10 cells in DynamoDB**. No PostGIS, no VPC. | D-082, D-115, D-081 |
 
 ### Why Next.js and not Astro
@@ -168,7 +168,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
                               ▼
                        Browser: MapLibre GL + Set<h3Cell> in memory
                               │
-                              └── HTTP range GETs ──▶ Cloudflare R2 (pmtiles, $0 egress)
+                              └── HTTP range GETs ──▶ CloudFront ──▶ S3 (pmtiles, always-free)
 
   Scheduled (EventBridge, no VPC):
     token-refresh     every 4 h   → refresh Strava tokens nearing expiry
@@ -200,7 +200,7 @@ Every resource, what it does, and what would make it cost money.
 | 17 | SSM Parameter Store | `/amplify/<app-id>/<branch>-branch-<hash>/*` | `secret()` | Static secrets (§7) | Standard params free |
 | 18 | ACM certificate | Amplify-managed | Domain association | TLS for `soles.devaultsecurity.com` | Free |
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
-| 20 | Cloudflare R2 bucket | `lost-soles-tiles` | Outside AWS | pmtiles basemap, fetched by HTTP range from the browser | **$0 egress** — that is the entire reason it exists |
+| 20 | S3 bucket + CloudFront distribution | `lost-soles-tiles` | `backend.createStack` | pmtiles basemap, fetched by HTTP range from the browser. Public-read on the tile prefix only; served on the distribution's default `*.cloudfront.net` name, so **no ACM cert and no Route 53 record** (D-226) | ~$0.03/mo storage; egress inside CloudFront's **always-free** 1 TB + 10M requests |
 | 21 | DynamoDB (CDK) | `LostSolesCaptureGuard` | `backend.createStack` | Capture-endpoint rate-limit counters and idempotency records. `PK = pk`, TTL 2 h / 2 d / 24 h. Read and written by the **SSR compute**, not by a Lambda (ticket 0019, D-180) | Negligible |
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
@@ -994,8 +994,9 @@ have drifted out of sync.
 server rendering and attempting it wastes SSR duration. The map component is the one place
 in the app that is genuinely client-heavy; everything else is a server component.
 
-**Basemap: pmtiles from Cloudflare R2** via `pmtiles` + a MapLibre protocol handler, fetched
-by HTTP range request. Not from Amplify Hosting — that egress bills at $0.15/GB (§8).
+**Basemap: pmtiles from a dedicated S3 bucket behind our own CloudFront distribution** (D-226)
+via `pmtiles` + a MapLibre protocol handler, fetched by HTTP range request. Not from Amplify
+Hosting — that egress bills at $0.15/GB (§8), and that prohibition is the load-bearing rule here.
 D-051 is non-negotiable: **the map must remain a real, legible street map.** D-052's two
 modes are two MapLibre style objects over the *same* tiles — "atlas" (high-legibility, for
 planning where to run) and "adventure" (full parchment/ink/gold-leaf atmosphere, D-050).
@@ -1364,25 +1365,35 @@ All figures us-east-1, verified 2026-08-30 (R5 §8). Assumes 1 primary user, ≤
 | EventBridge | 2 rules, ~200 invocations | **$0.00** |
 | ACM certificate | Public cert for CloudFront/Amplify | **$0.00** |
 | Route 53 hosted zone | `devaultsecurity.com` already exists | **$0.00 marginal** |
-| Cloudflare R2 — pmtiles | 10 GB stored @ $0.015/GB-mo; **egress $0.00** | **$0.15** |
-| **Total** | | **≈ $1.05 / month** |
+| S3 + CloudFront — pmtiles | 1.1 GB stored @ $0.023/GB-mo; ~1 GB egress + ~5k requests, inside CloudFront's **always-free** 1 TB / 10M | **$0.03** |
+| **Total** | | **≈ $0.93 / month** |
 
 R5's estimate before the R2 line was **~$0.90/month**. **Budget $3–5/month** to absorb
 variance. That leaves roughly 4× headroom, which is what makes it safe to be relaxed about
 the small stuff and rigid about the two things below.
 
-### Risk 1 — pmtiles egress
+### Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)*
 
 Amplify data transfer out is **$0.15/GB after 15 GB free**. A map-heavy app pulling 100 GB a
 month would cost **$15/month** — 3–5× the entire budget, from tiles alone. A basemap can be
 100 MB–2 GB, and a single browsing session pulls tens of megabytes.
 
-**Mitigation, and it is designed in rather than bolted on: pmtiles live on Cloudflare R2,
-which has zero egress fees**, fetched by HTTP range request straight from the browser.
-This is a genuinely good hybrid even inside an otherwise-all-AWS stack, and it is the single
-line item most worth being deliberate about. Fallbacks in order: (b) a public S3 bucket with
-our own CloudFront distribution, cheaper per GB than Amplify's markup; (c) keep tiles small
-and cache aggressively. Do **not** serve tiles through Amplify Hosting.
+**The 100 GB figure assumes many users, and this app has one.** Measured in ticket `0052`: the
+Florida extract is 1.1 GB stored, `pmtiles` range-requests only the tiles in view, and a hard
+30-second pan moves 2–6 MB. Forty sessions a month is ~200 MB — ~1 GB with cold caches, which is
+*inside* Amplify's free 15 GB and would bill about **$0.15/month** past it. The risk is real in
+kind and 100–500× smaller in degree than priced here.
+
+**Mitigation, taken at rung (b) rather than (a) — see D-226: pmtiles live on a dedicated
+public-read S3 bucket behind our own CloudFront distribution**, fetched by HTTP range request
+straight from the browser. CloudFront's 1 TB/month egress and 10M requests are **always-free**,
+not 12-month free, so this rung is *less* exposed to Risk 2's unresolved question than Amplify
+Hosting is. Rung (a), Cloudflare R2, was rejected on total cost rather than on price: a second
+vendor, a long-lived credential outside `devault` (O-005 was a credential leak), a manual step
+outside IaC, and either `r2.dev` throttling or moving DNS off Route 53 — to save at most
+$0.15/month. Remaining fallback: (c) keep tiles small and cache aggressively.
+
+**The load-bearing rule is unchanged: do NOT serve tiles through Amplify Hosting.**
 
 The explored-set blob is a different matter: 450 KB × ~30 sessions × 5 users ≈ 68 MB/month,
 and most of those are `304`s. It stays on S3 via Amplify Storage.
@@ -1478,7 +1489,7 @@ commit one.
 | **Aurora Serverless v2** | $6–12/mo compute + $1–3 storage even at min 0 ACU, plus **~$33/mo NAT Gateway** the moment a Lambda needs both the DB and Strava, plus $11–15/mo RDS Proxy that then **disables auto-pause**; 15–30 s resume after idle. 10–50× budget. **D-081, D-082, D-083.** |
 | **PostGIS (anywhere: RDS, Aurora, Neon)** | Explored territory is a set of discrete integers, not arbitrary geometry — DynamoDB models it for ~$0 and the whole dataset fits in a browser tab. Amplify Data maps `point`/`linestring` to `a.string()` with no spatial operators or filters. **D-082.** Revisit only for true geometry ops (polygon dissolve, road snapping, isochrones) — and then reach for **Neon's free tier over public TLS**, called directly from a Lambda, bypassing Amplify Data entirely. No VPC, no NAT. |
 | **Vercel + Neon** | Hobby is non-commercial and caps cron at 1/day; Pro is $20/seat/mo — 4–7× the whole budget for zero capability win, while splitting the stack across two vendors and two billing relationships and abandoning an AWS account already in use. |
-| **Cloudflare Workers + D1** | D1 is SQLite: **no PostGIS, no SpatiaLite, no spatial index**, 10 GB hard cap per database, and Workers' CPU limits are hostile to the geometry job. $5/mo Workers Paid on top. **Rejected for the app — adopted for tiles**, where R2's free egress is the single best cost decision available (§8). |
+| **Cloudflare Workers + D1** | D1 is SQLite: **no PostGIS, no SpatiaLite, no spatial index**, 10 GB hard cap per database, and Workers' CPU limits are hostile to the geometry job. $5/mo Workers Paid on top. **Rejected for the app, and since D-226 for tiles too** — at one user, R2's free egress saves at most $0.15/mo and costs a second vendor and credential (§8, Risk 1). |
 | **A routing container (OSRM / Valhalla on Lightsail, Hetzner, or ECS Fargate)** | Multi-GB OSM extracts, a graph build measured in minutes to hours, and several GB of resident RAM. Not a Lambda and not an Amplify workload under any configuration, and $5–7/mo minimum doubles-to-triples the budget. Route planning (D-070) is **out of MVP** (D-122); when it lands, prefer a hosted routing API (Mapbox Directions, OpenRouteService) and skip the infrastructure entirely. |
 | **SST / raw CDK on AWS** | Maximum control, but you rebuild hosting, CI/CD, cert management, and preview environments — the exact things that drove the move *to* Amplify. Gen 2 already *is* CDK where it matters (§2). |
 | **Astro + community SSR adapter** | Amplify SSR for Astro depends on a community-maintained adapter and the `.amplify-hosting` deploy spec. A community adapter on the deploy path of a project meant to last years is the wrong risk. |

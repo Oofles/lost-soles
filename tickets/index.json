@@ -1232,7 +1232,7 @@
   {
     "id": 52,
     "slug": "pmtiles-basemap-on-r2",
-    "title": "Protomaps PMTiles basemap on Cloudflare R2 with the stock light flavour",
+    "title": "Protomaps PMTiles basemap on S3 + CloudFront with the stock light flavour",
     "type": "feature",
     "priority": "high",
     "status": "open",
@@ -1244,6 +1244,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-09T01:54:37Z",
     "path": "tickets/open/0052-pmtiles-basemap-on-r2.md",
     "ready": true,
     "acceptance": {
