@@ -1259,7 +1259,7 @@
     "title": "MapLibre GL JS 6.x shell as the home route, DPR capped at 2",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -1269,10 +1269,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0053-maplibre-shell-home-route.md",
-    "ready": true,
+    "closed": "2026-09-09T21:22:00Z",
+    "path": "tickets/closed/0053-maplibre-shell-home-route.md",
+    "ready": false,
     "acceptance": {
-      "checked": 4,
+      "checked": 8,
       "total": 8
     }
   },
@@ -1294,7 +1295,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0054-explored-blob-loader-and-decoder.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -2787,7 +2788,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0118-spike-glmax-r8-fbo-on-target-device.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8

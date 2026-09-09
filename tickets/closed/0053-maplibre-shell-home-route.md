@@ -4,13 +4,14 @@ slug: maplibre-shell-home-route
 title: MapLibre GL JS 6.x shell as the home route, DPR capped at 2
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: [16, 52]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-09T21:22:00Z
 ---
 
 ## Description
