@@ -62,11 +62,16 @@ not that the code is sloppy. Stop shipping tickets and run a DESIGN session on t
 - [ ] Every closed ticket has a real `## Operator validation` result — an operator's dated report,
       or **the agent's smoke test against real infrastructure** (D-181), not a restatement of the
       instruction and not "None" where something was observable.
-- [ ] **The real-run requirement applies to `08-map-and-fog-renderer`, `09-xp-engine-and-ledger`
-      and `12-post-run-moment`** — for those, the USE step means *you went for an actual run with
-      this build on your phone*, and it is not a metaphor. It is **not** a blanket rule: a
-      backend capability with no screen has no run to go for, and demanding one there is the
-      ceremony D-181 removes.
+- [ ] **The USE step applies to `08-map-and-fog-renderer`, `09-xp-engine-and-ledger` and
+      `12-post-run-moment`** — for those, the capability must have been exercised with real data
+      through the real path and LOOKED AT on the desktop browser (D-227), not merely unit-tested.
+      It is **not** a blanket rule: a backend capability with no screen has nothing to look at, and
+      demanding a ritual there is the ceremony D-181 removes.
+- [ ] **A real run is welcome evidence and is never a precondition** (D-229). *Written here until
+      then as "you went for an actual run with this build on your phone".* The operator runs to
+      enjoy the app, not to unblock an audit — so the data comes from the manual adapter (`0069`), a
+      replayed archived activity, or a synthetic one through the ingest queue, and a genuine run is
+      used when one happens to exist.
 - [ ] Anything that looked wrong but passed its tests is filed as a ticket, not tolerated.
 
 ## 4. Regression against earlier capabilities

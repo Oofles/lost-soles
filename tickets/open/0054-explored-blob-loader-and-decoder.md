@@ -67,14 +67,14 @@ frame path.
 - [x] `res !== 10` or unknown `version` → cache discarded, render refused, a visible message.
 - [x] `applyDelta` invalidates only the touched res-6 parents, asserted by a spy on the bucket
       invalidator.
-- [ ] **(operator)** Decode of a 150k fixture completes in under ~150 ms on the target phone; the
-      number is recorded. *Marked `(operator)` during the ticket, not as written. There is no
-      instrument here that can answer it: the claim is about D-124's mid-range Android and the
-      agent has a laptop. The measurement itself is built and shipped — `?fog=debug` reports
-      `parse` and `parse + Set build` in milliseconds against a cell count — so the operator's part
-      is to read a number, not to construct one. D-227 defaults validation to the desktop browser;
-      this is one of the cases it names as genuinely phone-specific, because "the phone remains the
-      worst case even when it is not the common case".*
+- [x] Decode of a 150k fixture completes well inside the ~150 ms budget; the number is recorded.
+      *Amended (D-229): as written this said "on the target phone", and it is not the operator's to
+      produce. The measurement ships — `?fog=debug` reports parse and parse-plus-Set-build in
+      milliseconds against a cell count, so the figure is readable on any surface the moment there
+      is data. The recorded number is **15.7 ms parse / 46.9 ms parse + `Set` build at 152,551
+      cells**, from the test suite on the dev machine, against `02` §6.3's ~50 ms estimate for a
+      mid-range Android and a 150 ms budget. D-227 already made the desktop browser the viewing
+      surface; D-229 removes the phone trip.*
 
 ## Notes
 
@@ -88,11 +88,31 @@ phone, that must be known in session one of `08`, not session five.
 
 ## Resolution
 
-**THE TICKET IS NOT CLOSED.** Criteria 1-9 are met and the code is committed; criterion 10 needs a
-number only the operator's phone can produce. This section is written now rather than at close so
-that the reasoning survives the context boundary — per `CLAUDE.md`, the Resolution *is* the handoff.
-A later session reads the operator's number, ticks criterion 10, appends the result, and runs
-`close`.
+### How this ticket nearly failed to close, and the rule that came out of it
+
+It was first written up as *"criteria 1-9 met, criterion 10 needs the operator's phone"*, with a
+four-item validation checklist handed over. **Three of those four items were not the operator's to
+do**, and saying so is the most useful thing in this Resolution:
+
+- *"Reproduce the offline state in DevTools and confirm the note appears"* — already a passing unit
+  test. Asking a human to redo a green test by hand is pure cost.
+- *"Sync a run from another device and watch the delta land"* — **asking the operator to go running
+  so a low-risk assertion could be watched.** The app exists to encourage running; running to
+  service a validation task inverts the entire point of the project.
+- *"Read the decode time on the phone"* — the operator reads this app on a desktop browser (D-227)
+  and had already said so.
+
+The operator raised it as the **third** occurrence across sessions. **D-229** is the fix, and it is
+written into `CLAUDE.md`, `docs/capabilities/AUDIT.md` and the `/tickets` skill rather than left as
+a resolve to do better: operator validation is for PERCEPTION — *would two competent people disagree
+by looking at it?* — and never for constructing a scenario, re-verifying a passing test, using the
+phone, or producing test data by exercising. Everything else is the agent's, with a smoke test.
+D-153's USE step is amended with it: a capability audit needs the capability exercised with real
+data through the real path, not a real run.
+
+What replaced the checklist is in `## Operator validation` below: a live smoke test against real S3,
+driving the shipped writer and the shipped reader, which proves what the "go for a run" item was
+reaching for — a stale client converging on the current set through the real delta chain.
 
 ### The decision this ticket turned on — D-228
 
@@ -238,30 +258,46 @@ audit rule — the code changed and so did the doc.
 
 ## Operator validation
 
-**Restated for D-227** — the desktop browser is the primary viewing surface, so the first three
-checks move there, where DevTools is at hand. Only the decode measurement stays on the phone,
-because that is the one claim that is genuinely about the phone.
+### What the operator checked
 
-**There is no fog renderer yet** (`0055`–`0057`), so nothing draws a hexagon. What these checks read
-is the `?fog=debug` readout — `phase`, `source`, `generation`, `cells`, `decode`, `deltas` — which is
-the data half of every check below. The visual half ("no blank-then-populate flash", "only the new
-area changes") is validated again when there is something to see.
+**Desktop browser, `/?fog=debug` — loaded, and the readout came up.** Reported 2026-09-09. That
+was the one question here a person had to answer: does the thing render on the surface it is
+actually used on. It does.
 
-**Note the current state of the data.** The bucket holds no `users/` objects at all — no activity has
-completed `regenerateExplored` yet — so the readout will say `phase ready / source empty / cells 0`
-until one has. That is the correct answer for a user who has not ingested a run, not a failure. The
-delta check (3) needs an ingested run first.
+### What was checked with a live smoke test instead (D-229)
 
-1. **Desktop browser, `/?fog=debug`.** The readout appears top-right. Sign in, load once, then open
-   DevTools → Network and reload: `/api/fog?since=<n>` should be a **304** on the second load, and
-   no request to `/api/fog/blob/…` should appear at all.
-2. **Desktop browser, offline.** With the app loaded once, tick DevTools → Network → *Offline* and
-   reload. The readout must come up `source cache` with the same `generation` and `cells`, and a
-   `note` saying it is offline. Nothing may say "refused".
-3. **A run landing mid-session.** With the map open, sync a run from another device (or press Sync),
-   then focus the tab. `generation` increments, `source` becomes `delta`, `cells` grows — and
-   `decode` stays at its previous value, because a delta parses no `LSFG`.
-4. **Android phone, `/?fog=debug` — the one phone-specific check.** Read the `decode` line and
-   report both numbers and the cell count. Criterion 10 wants the parse + Set build under ~150 ms.
-   *For reference, this machine reports 15.7 ms parse / 46.9 ms parse + Set build at 152,551 cells;
-   `02` §6.3's estimate for a mid-range Android is ~50 ms, so the criterion has real headroom.*
+The first pass of this section asked for four things, three of which were not the operator's to do:
+reproducing an offline state by hand that a passing unit test already covers, **going for a run** so
+a delta could be watched landing, and a phone measurement. D-229 records why that was wrong. What
+replaced it, driving the **shipped** writer and the **shipped** reader against **real S3** — a
+throwaway bucket, torn down afterwards:
+
+| # | What it proved |
+|---|---|
+| 1 | `regenerateExplored` published three real generations: 37 → 61 → 80 cells, `addedCount` 37 / 24 / 19 |
+| 2 | `since=0` → `plan: full`, `generation 3`, `cellCount 80`, `deltasFrom 0` |
+| 3 | `since=3` → `plan: up-to-date`, nothing else fetched |
+| 4 | `since=2` → `plan: delta`, **1 hop**; `since=1` → `plan: delta`, **2 hops**, oldest first |
+| 5 | **THE CONVERGENCE.** A client that took the full blob at generation 1 (37 cells) and applied the two real hops ended **byte-identical** to a client that fetched generation 3 whole — same generation, same 80 cells, same order, and `has()` agreeing on every one. This is what the "sync a run and watch it land" check was for. |
+| 6 | An unknown user → `plan: empty`, `generation 0` — the branch `02` §6.4 does not have |
+| 7 | Bucket listed and deleted; nothing left behind |
+
+### What was checked against the deployed app
+
+- **Amplify job 160 SUCCEED** (`b7f2f4e`). The SSR compute role's *entire* S3 reach afterwards is
+  one statement — `s3:GetObject` on `users/*`, Sid `ReadExploredDeliveryLayerForTheBrowser`. No Put,
+  no Delete, no List, nothing reaching `raw/*`. It had **zero** S3 statements before, so the grant
+  is load-bearing rather than tidy-up.
+- **Both routes live and gated.** Unauthenticated against `https://soles.devaultsecurity.com`:
+  `/api/fog?since=0` → 404 `{"error":"not found"}`, `/api/fog/blob/42` → 404, and the conditional
+  form with `If-None-Match: "42"` → 404 — so the 304 path is unreachable without a session. Byte-
+  identical to every other signed-out API response, which is the property `07` §6.5 asks for.
+- **The bucket holds no `users/` objects**, only `raw/`. Nothing has completed `regenerateExplored`
+  for the real account, so the live endpoint's correct answer today is `plan: "empty"`.
+
+### Left to real use
+
+The offline note, the mid-session delta and the 304 all have passing unit tests and, for the S3
+half, the live smoke test above. Whether they *feel* right in the browser is a question for when
+there is fog to look at — `0055`–`0057`. Bugs found in use get tickets then; that is cheaper than
+manufacturing the scenarios now.

@@ -59,16 +59,33 @@ Read `docs/decisions/DECISIONS.md` in full at the **start of a capability**, not
   settle a question, or implementation shows the design is wrong, **stop and ask**. Never widen a
   ticket's scope — file a new one with `source: agent`. A wrong design doc is a finding, not an
   obstacle: surface it, get a decision, record a new `D-xxx`.
-- **Operator validation is for JUDGEMENT, not verification** (D-181). A criterion earns `(operator)`
-  only when a human eye or hand is the *only* instrument that can answer it — does the fog read,
-  does the card land, did a real run appear on the map. **Everything reachable with AWS credentials,
-  `curl` or a script is yours to run**, and the result goes in `## Operator validation` as a smoke
-  test. You have AWS access; see *AWS credentials* above. The burden did not shrink, it **moved** —
-  a close with neither an operator check nor a smoke test is worse than what this replaced.
+- **Operator validation is for PERCEPTION only** (D-181, narrowed by **D-229** after this rule was
+  broken in three separate sessions). The test is not *"can a human see it"* — that is true of
+  nearly everything and is what turns the section into a chore list. The test is: **would two
+  competent people disagree about the answer by looking at it?** Does the fog read, does the card
+  land, is this layout right, is it rendering the way the ticket intended. On the **desktop
+  browser** (D-227).
+  - **Never ask the operator to construct a scenario** — go offline, sync from a second device, wait
+    for an expiry, switch accounts. If it is worth testing it is worth faking, in a test or against
+    throwaway AWS resources. `0049` and `0054` both show how cheap that is.
+  - **Never ask them to re-verify what the suite already proves.** Duplicating a green test by hand
+    is pure cost.
+  - **Never ask them to use the phone**, unless the ticket is *about* phone capture.
+  - **Never ask them to go for a run to give you data.** The app exists to encourage running;
+    running to service a validation task inverts the whole point. Use the manual adapter, a replayed
+    archived activity, or a synthetic one through the queue.
+  - **Everything reachable with AWS credentials, `curl` or a script is yours to run** and goes in
+    `## Operator validation` as a smoke test. You have AWS access; see *AWS credentials* above.
+    The burden did not shrink, it **moved onto you** — a close with neither a perceptual check nor a
+    smoke test is worse than what this replaced.
+  - **This is an MVP for one person.** Usable soon beats exhaustively proven; a bug hit in real use
+    is cheaper than a ritual that delays real use.
 - **Every capability closes with a drift audit** (D-153) — `docs/capabilities/AUDIT.md`.
   The rule: *if the code diverged from the design, either the code changes or the doc changes —
   never neither.* Capabilities `00` and `01` are audited by hand; from `02` onward
-  `/tickets audit` runs it and blocks starting the next capability.
+  `/tickets audit` runs it and blocks starting the next capability. **The USE step does not require
+  a real run** (D-229): exercise the capability with real data through the real path by whatever
+  means does not oblige the operator to go running.
 
 ## Ticket workflow before the `/tickets` skill exists (through ticket 0010)
 

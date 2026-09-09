@@ -119,9 +119,13 @@ time, and degrades silently as the backlog grows. That is why `depends_on` is a 
    The honest record of what happened, not what was planned.
 3. **`## Operator validation`** — evidence of verification, **by whoever could actually perform
    it** (D-181). Two shapes, and picking the wrong one is the common mistake:
-   - **Visual or experiential** → name a screen and a device. For Lost Soles this frequently means
-     *going for an actual run with the build on the phone*; the defects that matter (a shimmering
-     fog edge, a banner 4px off, a map unreadable in sunlight) pass every automated test.
+   - **Perceptual** → name the screen. The test is *"would two competent people disagree about the
+     answer by looking at it?"* — a shimmering fog edge, a banner 4px off, a card that does not
+     land. Those pass every automated test. **The surface is the desktop browser** (D-227), and the
+     check must be answerable by opening the app as it already is: **never ask the operator to
+     construct a scenario, re-verify a passing test, use the phone, or go for a run to produce test
+     data** (D-229). If a scenario is worth testing it is worth faking — in a test, or against
+     throwaway AWS resources.
    - **Everything else** → **you run it, and write down what it proved.** You have AWS credentials
      (`AWS_PROFILE=devault`; see `CLAUDE.md`). Do not route a table, a status code or an IAM policy
      to the operator. A smoke test against real infrastructure reaches strictly further than a unit

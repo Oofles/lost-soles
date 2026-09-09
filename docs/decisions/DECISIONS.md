@@ -2778,3 +2778,43 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `amplify/fog-delivery-read-grant.test.ts` asserts it in the synthesized template.
   - **`raw/*` remains unreachable from the app.** The archive has no read path through any
     browser-facing grant, which is I-3's disposition and does not change here.
+
+- **D-229** **Operator validation is for PERCEPTION only. Everything else the agent proves itself,
+  and a validation step may never require the operator to construct a scenario, use the phone, or go
+  for a run.** Narrows how D-181 is applied and amends D-153's USE step.
+  *(Operator, after ticket `0054`, 2026-09-09.)*
+  - **The operator's own framing, after the third occurrence:** *"When you want me to validate
+    whether I like the layout of something, or check to see whether it's actually rendering how you
+    expect — those are fine and expected operator validation tasks. When it's to validate whether the
+    app shows a note saying it's offline, forcing me to create that scenario? That's unnecessary."*
+    And: *"I'm not going to consistently keep running so you can have a run to sync and import for
+    testing. The whole point of the app is to encourage me to run and see gamified progress, not
+    encouraging me to run so you can accomplish a low-risk validation task."*
+  - **D-181 was right and was being applied wrongly.** It says a criterion earns `(operator)` only
+    when a human eye or hand is the *only* instrument that can answer it. The failure mode is
+    reading that as *"a human eye CAN see it"* — which is true of nearly everything and turns the
+    section into a checklist. `0054` closed a four-item list of which one item was a real question:
+    one asked the operator to reproduce by hand a scenario an already-passing unit test covers, one
+    asked for a phone measurement, and one asked them **to go running** so a delta could be watched
+    landing.
+  - **What earns `(operator)`.** Taste and perception, on the desktop browser (D-227): does the fog
+    read, does the card land, is the layout right, is it rendering the way the ticket intended.
+    Roughly: *would two competent people disagree about the answer by looking at it?*
+  - **What never earns it.** (a) **Constructing a scenario** — going offline, syncing from a second
+    device, waiting for an expiry, switching accounts. If it is worth testing it is worth faking, in
+    a test or against throwaway AWS resources, which `0049` and `0054` both show is cheap.
+    (b) **Re-verifying what the suite already proves.** (c) **Anything on the phone**, unless the
+    ticket is *about* phone capture — D-227 already made the desktop browser the viewing surface and
+    this closes the remaining gap. (d) Status codes, headers, IAM, DynamoDB, S3, logs — D-181
+    already assigned these to the agent and they stay there.
+  - **D-153's USE step is amended.** It defines a capability audit's USE step as *"an actual run with
+    the build on the phone"*. That is now: **exercise the capability with real data through the real
+    path, by whatever means does not require the operator to go running** — the manual adapter
+    (`0069`), a replayed archived activity, or a synthetic activity through the ingest queue. A real
+    run is welcome evidence when one happens to exist; it is never a precondition for closing an
+    audit. The original wording made the project's own purpose into a chore, which is D-013's
+    complaint pointed at the wrong target.
+  - **The governing reason, stated so it is not re-litigated: this is a single-user hobby project
+    aiming at MVP.** Usable soon beats exhaustively proven. A bug the operator hits in real use is
+    cheaper to fix than a validation ritual that delays real use — and real use is the only thing
+    that produces the runs the whole system is for.

@@ -173,8 +173,11 @@ and the script refuses to record a result until you have.
    drift and the part no script can do.
 3. **§3** — check every closed ticket in the capability has a real `## Operator validation` result,
    not a restatement of the instruction and not "None" where the ticket was operator-visible. For a
-   capability touching the map, the run log or XP, the USE step means **an actual run with the build
-   on the phone**; if that did not happen, say so and stop.
+   capability touching the map, the run log or XP, the USE step means the capability was **exercised
+   with real data through the real path and looked at** on the desktop browser; if that did not
+   happen, say so and stop. **It does not require a real run** (D-229) — use the manual adapter, a
+   replayed archived activity or a synthetic one, and never ask the operator to go running to
+   unblock an audit.
 4. **Resolve each divergence, explicitly.** `code-was-wrong` → file a ticket (`SCRIPT create …
    --source agent`). `design-was-wrong` → amend the doc **now** and record a `D-xxx`. There is no
    third option; "we'll remember" is the drift.
