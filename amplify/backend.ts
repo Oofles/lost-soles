@@ -1081,6 +1081,46 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
+ * THE BROWSER'S READ PATH, THROUGH THE SSR COMPUTE. `0054`, D-228.
+ * `05-fog-of-war.md` §7.3; `02-data-model.md` §6.4; `01-architecture.md` §5.
+ *
+ * ─── WHY THE COMPUTE ROLE AND NOT THE BROWSER'S OWN CREDENTIAL ──────────────
+ *
+ * `storage/resource.ts` grants `users/{entity_id}/*` to `allow.entity("identity")`, where
+ * `{entity_id}` is the Cognito **identity-pool identity id**. The worker writes
+ * `users/<sub>/…`, where `<sub>` is the **user-pool sub** (`02` T1: *"the `<uid>` in every
+ * S3 key"*). Those are different strings, so that grant has never covered a single object
+ * in the delivery layer. `0049` found it and assigned it to `0054`.
+ *
+ * The fix is not to widen the browser's grant. `05` §7.4's chain is walked BACKWARDS
+ * (D-220), so a browser holding S3 credentials would still need a round trip to this app
+ * per hop to learn the next key; and a credential in a browser is a credential in a
+ * browser. The map is fetched through `/api/fog`, which re-derives `sub` from the verified
+ * session (`08-security-privacy.md` §5.3) and reads S3 as this role.
+ *
+ * ─── READ ONLY, AND NOTHING ELSE ON THIS PREFIX ─────────────────────────────
+ *
+ * `s3:GetObject`, no `PutObject`, no `DeleteObject`, no `s3:List*`. The SSR compute
+ * serves a map; it never publishes one. Every write to `users/*` belongs to
+ * `processActivityLambda` above, and the asymmetry is the point: a bug in a route handler
+ * cannot alter a delivery-layer object, and a map that cannot re-fog (D-020) is exactly
+ * the kind of thing to keep a reader away from write verbs.
+ *
+ * `users/*` and not `users/<uid>/*` for the same reason the worker's grant is: one role
+ * serves every user, and the per-user scoping is the ROUTE's, from a verified session.
+ * Note what this does NOT reach — `raw/*` is absent here as it is from every browser-facing
+ * grant (I-3, `storage/resource.ts`): a lifetime GPS archive has no read path through the
+ * app at all.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "ReadExploredDeliveryLayerForTheBrowser",
+    actions: ["s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
+  }),
+)
+
+/**
  * THE CLIENT CREDENTIALS, and this grant was missed on the first pass — worth recording
  * because the failure it causes is invisible until the first token expires.
  *

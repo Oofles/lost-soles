@@ -2741,3 +2741,40 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     adaptation. That is a real doc/intent divergence, but it is a **design session**, not an edit
     to make in passing during a renderer ticket — the two references that state the primacy
     outright are amended to point here, and ticket `0187` carries the pass.
+
+- **D-228** **The browser fetches the explored set from this app's own origin, not from S3.**
+  Supersedes the delivery half of `01-architecture.md` §5, which had a server component minting a
+  presigned `getUrl()` on `explored-r10.bin`. *(Agent, ticket `0054`, 2026-09-09.)*
+  - **The blocking reason is an identity mismatch that has always been there.** The ingest worker
+    writes `users/<uid>/…` where `<uid>` is the Cognito **user-pool `sub`** (`02` T1: *"the `<uid>`
+    in every S3 key"*). `amplify/storage/resource.ts` grants the browser `users/{entity_id}/*`,
+    where `{entity_id}` is the **identity-pool identity id** — a different string. No browser
+    credential has ever covered a single object in the delivery layer. `0049` found this and
+    assigned it to `0054`; this is that decision.
+  - **The second reason is D-220, and it rules out presigning even if the identity matched.** The
+    delta chain is walked BACKWARDS: a client learns hop *N−1*'s key only after reading hop *N*'s
+    `LSFD` header. Presigning a chain is therefore one round trip to this app **per hop**, to save
+    transferring ~350 bytes each. Served inline, the whole retained chain is ~7 KB in one response.
+  - **What it costs.** One transfer of ~370 KB through the SSR compute role, per generation change,
+    per client — and only when the delta chain does not reach. `02` §6.2 already treats the varint
+    size as the floor and gzip's gain over it as near-nothing, so decompressing server-side and
+    serving plain bytes gives that back at no meaningful size cost while removing a whole class of
+    double-encoding failure.
+  - **What it does NOT change.** `generation` is still the only cache key; the immutable objects are
+    still immutable and are served `private, max-age=31536000, immutable` from
+    `/api/fog/blob/<gen>`; `manifest.json` is still the only mutable object and is still revalidated
+    on every load, now as an `ETag` of the generation with a genuine **304**. `05` §7's prohibition
+    stands untouched and is worth restating because this decision looks superficially like a breach
+    of it: *"do not build a tile server, do not build a spatial index service, do not build a
+    per-viewport query API."* This is none of those. It is one request that returns the whole set,
+    exactly as designed — the bytes simply take one more hop.
+  - **`private`, not `public`, on both routes.** The app sits behind a CDN and both responses
+    describe one person's map. This is the one new security-relevant property the change introduces,
+    and it is the reason the change is cheap rather than free.
+  - **The grant is read-only and asymmetric, deliberately.** The SSR compute role gets `s3:GetObject`
+    on `users/*` and nothing else — no `PutObject`, no `DeleteObject`, no bucket-level `List`. Every
+    write to the delivery layer belongs to `processActivity`. A map that can never re-fog (D-020) is
+    exactly the kind of artifact to keep a reader away from write verbs, and
+    `amplify/fog-delivery-read-grant.test.ts` asserts it in the synthesized template.
+  - **`raw/*` remains unreachable from the app.** The archive has no read path through any
+    browser-facing grant, which is I-3's disposition and does not change here.

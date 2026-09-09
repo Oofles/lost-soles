@@ -1,5 +1,8 @@
+import { ExploredProvider } from "@/components/map/explored-provider"
+import { FogStatus } from "@/components/map/fog-status"
 import { MapShell } from "@/components/map/map-shell"
 import { SyncButton } from "@/components/sync-button"
+import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
 
 // §2.1 — fullscreen map plus one card at the bottom: the plinth. §4.1 is emphatic
@@ -27,10 +30,23 @@ import { homeCameraForSession } from "@/lib/map-home"
  */
 export default async function Home() {
   const home = await homeCameraForSession()
+  /**
+   * The IndexedDB key for the explored set (`02-data-model.md` §6.4, ticket 0054), read
+   * here because the session is already being read one line above and a client component
+   * cannot read it at all.
+   *
+   * `null` for a signed-out visitor, exactly like `home` — `/` is the signed-out landing
+   * route, so nothing here may assume a session. A `sub` is not a secret in the way the
+   * home coordinate is (it identifies an account, not a neighbourhood, and the browser
+   * already holds it inside the ID token cookie), but a signed-out page has no use for
+   * one and does not get one.
+   */
+  const uid = (await currentUserId()) ?? null
 
   return (
-    <>
+    <ExploredProvider uid={uid}>
       <MapShell home={home} />
+      <FogStatus />
       {/*
         `position: fixed` and a z-index above the map's own canvas. MapLibre puts its
         attribution control at the bottom right, so this sits bottom LEFT: the Protomaps
@@ -47,6 +63,6 @@ export default async function Home() {
       >
         <SyncButton />
       </div>
-    </>
+    </ExploredProvider>
   )
 }

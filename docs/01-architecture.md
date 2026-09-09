@@ -1006,11 +1006,18 @@ rather than dark-on-dark, because a dark basemap plus dark fog destroys reveal c
 
 **The delivery path for the explored set:**
 
-1. `(app)/layout.tsx` (server component) reads the Cognito session and calls
-   `getUrl()` on `users/<uid>/explored-r10.bin`, producing a short-lived presigned GET.
-2. `<ExploredProvider>` (client) fetches it once, on mount, with
-   `If-None-Match: <cached etag>`. Cached in **IndexedDB** keyed by ETag, so a returning
-   session usually gets a `304` and pays nothing.
+1. `GET /api/fog?since=<generation>` — a route handler that re-derives `sub` from the verified
+   session, reads `users/<uid>/manifest.json` with the **SSR compute role**, and answers with a
+   plan: `up-to-date`, `delta` (the chain, inline), `full`, or `empty`. *Written here until ticket
+   `0054` as a presigned `getUrl()` on the blob; D-228 replaced it. Two reasons: the browser's S3
+   grant is keyed by identity-pool id while the objects are keyed by Cognito `sub` — so a presigned
+   URL was never reachable — and D-220's backwards-walked delta chain would need one round trip to
+   this app per hop to presign.*
+2. `<ExploredProvider>` (client) reads **IndexedDB first and renders immediately**, keyed
+   `{uid, generation}` and storing the DECODED array, then revalidates. The request carries
+   `If-None-Match: "<generation>"`, so the common case is a genuine `304` that costs nothing.
+   *Keyed by ETag here until `0054`; `05` §7.3 and `02` §6.4 both key it by generation, which is
+   the authority.*
 3. Decode delta-varint → `BigUint64Array` → `Set<string>` of res-10 cell IDs. R3 measures
    `Set` construction at ~50 ms for 150k entries. Held in a React context for the session.
 4. Every consumer reads that `Set` synchronously:
@@ -1034,7 +1041,11 @@ rather than hexagonal. At low zoom, substitute the res 6/7/8 parent aggregates f
 `explored-agg.json` so the far-out view is a coverage gradient instead of static.
 
 **Live updates.** When `process-activity` finishes, the AppSync subscription fires (step 17).
-The client refetches `explored-r10.bin` — the ETag has changed — and rebuilds the `Set`. The
+The client revalidates and applies the **delta** for the generations it is behind, rebuilding only
+the touched res-6 buckets (`05` §7.4) rather than refetching and re-decoding the whole set. Until
+that subscription exists (capability `14`), the trigger is `visibilitychange`/`focus` — never a
+timer (D-013). *Written here as "refetches `explored-r10.bin`"; the incremental path is `05` §7.4's
+and landed in `0054`.* The
 XP/skill numbers come through the subscription payload directly. This is the workaround for
 Amplify's missing on-demand ISR: **the server cannot invalidate a page, so the client is
 told to refetch.**

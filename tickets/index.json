@@ -1294,6 +1294,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-09T21:27:52Z",
     "path": "tickets/open/0054-explored-blob-loader-and-decoder.md",
     "ready": true,
     "acceptance": {
@@ -4284,6 +4285,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 188,
+    "slug": "npm-run-lint-fails-after-a-build-public-maplibre-is-linted",
+    "title": "npm run lint fails after a build: public/maplibre/ is linted",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-09T21:46:54Z",
+    "path": "tickets/open/0188-npm-run-lint-fails-after-a-build-public-maplibre-is-linted.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]
