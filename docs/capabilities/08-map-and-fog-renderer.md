@@ -144,6 +144,15 @@ served as JavaScript, and getting that wrong reproduces the identical error — 
 relative import rewritten to match and that rewrite **asserted**, so a future MapLibre that changes
 its import shape fails the build instead of shipping a worker whose sibling 404s.
 
+**A fourth, which cost more than any single bug: three separate assertions this ticket shipped
+could not fail.** The `0052` CORS smoke test read the preflight's `allow-headers` and ignored its
+`403` status. The `0053` leak check ran `grep -qF "-81.4046"`, whose leading minus grep parsed as an
+option — it errored on every run while the suite printed PASS. And the server-vs-client bundle
+comparison piped `grep -rl` into `head`, which masks grep's exit status, so both branches reported
+success. Each was written in a hurry to confirm something already believed true. **An assertion that
+cannot fail is indistinguishable from one that passes, and it is worse than no assertion, because it
+is counted.**
+
 **Three lessons worth more than the fix.**
 
 - **Nothing in the symptom pointed at a worker.** The investigation that found it went the other
@@ -196,17 +205,37 @@ explored set *on the grounds that the map is shown only to its owner* — an arg
 precisely because the map is behind auth. An unauthenticated landing page carrying the same
 information is the one hole in it.
 
-Set on the Amplify app (**not** committed, **not** `NEXT_PUBLIC_`):
+**Getting the value to the server took three attempts, and the two failures are the useful part.**
+Amplify environment variables reach the **build container** but not the **SSR compute runtime**:
+
+| Attempt | Result |
+|---|---|
+| `update-app --environment-variables` (app level) | Reaches the build. `process.env` undefined at request time. Map opened on the extract-wide fallback. |
+| `update-branch --environment-variables` (branch level) | Identical. Also does not reach the compute. |
+| `.env.production` written at preBuild | Next *loaded* the file, but an App Router server component's `process.env` read happens at **request** time — Next only statically replaces `NEXT_PUBLIC_*` on its own — so the reference still resolved against an empty runtime environment. Verified: the value was in neither `.next/server` nor `.next/static`. |
+| **`next.config.ts` `env`** | **Works.** Next replaces the reference during the build, which the Amplify container does have. Verified in `.next/server`, absent from `.next/static`. |
+
+Set the values on the Amplify app (or branch), then **redeploy** — the coordinate is baked in at
+build time, so changing it needs a rebuild rather than a variable edit. For a value that changes
+when the operator moves house, that is the right trade.
 
 ```bash
 aws amplify update-app --app-id d14fhvl4rp79nn --profile devault \
   --environment-variables LOST_SOLES_HOME_LAT=…,LOST_SOLES_HOME_LNG=…,LOST_SOLES_HOME_ZOOM=14
+# then a rebuild: aws amplify start-job --job-type RELEASE …
 ```
 
-A **blank** variable is treated as unset. `Number("")` is `0`, not `NaN`, so a half-finished
-console entry would otherwise pass every finite-and-in-range check and centre the map on Null
-Island — a valid-looking camera thousands of kilometres from any tile, whose symptom is an empty
-grey map that reads as a broken basemap. A unit test covers it.
+**Build-time inlining has a sharp edge, and it is guarded.** Static replacement follows the
+reference, so the coordinate *would* land in a publicly served chunk if a client component ever
+read it — and `/` is the signed-out landing route, so that chunk needs no session.
+`scripts/check-home-not-in-client.mjs` scans `.next/static` in the Amplify build (the only place
+the values exist) and fails the build if either appears. It never echoes the coordinate, and an
+unset variable reports *"NOT a pass — nothing was checked"* rather than a tick.
+
+A **blank** variable is treated as unset. `Number("")` is `0`, not `NaN`, so a half-finished console
+entry would otherwise pass every finite-and-in-range check and centre the map on Null Island — a
+valid-looking camera thousands of kilometres from any tile, whose symptom is an empty grey map that
+reads as a broken basemap. A unit test covers it.
 
 #### What `0053` does NOT do
 

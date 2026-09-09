@@ -40,25 +40,23 @@ Chrome is deliberately unstyled beyond the 0016 design tokens. No parchment, no 
 
 ## Acceptance criteria
 
-- [ ] `maplibre-gl` pinned to `6.6.0`; the map renders full-bleed on the home route.
-      **Half proven.** The pin is exact in `package.json` and the lockfile. *Renders full-bleed*
-      needs an eye — operator check 2.
+- [x] `maplibre-gl` pinned to `6.6.0`; the map renders full-bleed on the home route.
+      — verified 2026-09-09: operator, desktop browser and phone. "Street map did appear… loads
+      perfectly on my phone (landscape and vertical)."
 - [x] `pixelRatio` is `Math.min(devicePixelRatio, 2)`.
 - [x] The app detects WebGL2 at boot and renders an explicit, readable "this device cannot run the
       map" state instead of a blank canvas if it is absent.
-- [ ] `webglcontextlost` is handled — preventDefault, then full rebuild on restore — with a manual
+- [x] `webglcontextlost` is handled — preventDefault, then full rebuild on restore — with a manual
       test using `WEBGL_lose_context`.
-      **Built, not yet exercised.** The criterion itself specifies a *manual* test, and it cannot
-      be run without a session — operator check 4.
-- [ ] Camera position persists across reload; first-ever load centres on the configured home.
-      **Unit-tested, not yet observed.** `localStorage` and the session-gated env read are both
-      covered by tests, but neither can be exercised from a terminal: the map is behind `AuthGate`,
-      so no headless run can reach it — operator checks 5 and 6.
+      — verified 2026-09-09: operator ran the `loseContext()`/`restoreContext()` snippet in the
+      desktop console. "2 worked successfully and reloaded with the map."
+- [x] Camera position persists across reload; first-ever load centres on the configured home.
+      — verified 2026-09-09: persistence confirmed on the first pass ("on refresh it cached where I
+      was at before"). The home default took three attempts and was confirmed last: "It opened on
+      Nocatee at street level."
 - [x] No deck.gl in the dependency tree (a CI check on the lockfile).
-- [ ] Map resize is handled on orientation change without a stretched canvas.
-      **Built** (`ResizeObserver` on the container, because MapLibre's `window.resize` listener
-      misses both an orientation change that keeps window size briefly identical and the URL bar
-      collapsing). Needs a device — operator check 3.
+- [x] Map resize is handled on orientation change without a stretched canvas.
+      — verified 2026-09-09: operator, phone, landscape and portrait.
 - [x] Bundle size of the map route is recorded in the capability doc as a baseline.
 
 ## Notes
@@ -158,3 +156,111 @@ replaces. There is no such bug and nothing was changed for it.
 
 **Still unverified, and still the operator's:** everything that needs a session and a screen. The
 worker now loads, but whether the map *renders legibly* is the reason those criteria are unticked.
+
+## Resolution
+
+**This ticket shipped visibly broken and took four deploys to finish.** The record below is what
+happened, not what was planned.
+
+**What was built.** `maplibre-gl` pinned to exactly `6.6.0`, mounted as the home route via
+`components/map/map-shell.tsx`; the library is imported inside the mount effect so the WebGL bundle
+never enters the server render or First Load JS (`/` grew ~19 kB rather than ~139 kB gzipped).
+WebGL2 is detected before construction with an explicit unsupported state, `pixelRatio` capped at 2,
+camera persisted to `localStorage` with every field validated on the way back in, `ResizeObserver`
+on the container, and a full teardown-and-rebuild on `webglcontextrestored`.
+
+**Files touched:** `components/map/map-shell.tsx`, `lib/map-camera.ts` (+ tests),
+`lib/map-home.ts` (+ tests), `app/page.tsx`, `middleware.ts` (+ matcher tests),
+`next.config.ts`, `amplify.yml`, `.github/workflows/gate.yml`, and three new scripts —
+`check-no-deckgl.mjs`, `copy-maplibre-worker.mjs`, `check-home-not-in-client.mjs`.
+
+### Fault 1 — the map was grey, and the cause was two faults deep
+
+Deployed, it rendered a flat grey screen on every device. `#cccccc` is the Protomaps `light`
+flavour's **background layer**, so the map had constructed and the style had loaded; no tile was ever
+parsed. The console said *"Failed to load module script: non-JavaScript MIME type text/html"*.
+
+Two independent faults, both on the worker's path, either sufficient alone:
+
+1. MapLibre 6 derives its worker URL from `import.meta.url`, which webpack inlines at build time as
+   a `file://` path. MapLibre's own guard is `if (!/^https?:/.test(t)) return ""`, so the URL became
+   the empty string and the browser fetched the page's own HTML.
+2. `/maplibre/` was not exempt from `middleware.ts`'s matcher, so the worker took a `307` to `/`.
+   A worker is fetched as a subresource; a redirect is not an answer.
+
+Fixing only the first would have shipped a second grey deploy. The local check caught the second.
+
+**Nothing in the symptom pointed at a worker.** It was found by eliminating everything checkable
+from a terminal — the archive, the protocol handler with MapLibre 6's exact signature, the deployed
+bundle's URL, the style↔data layer contract, the sprite and glyph URLs — until only the client
+runtime remained. Every one of those was correct.
+
+### Fault 2 — the camera opened on the whole of Florida
+
+Amplify environment variables reach the build container but **not the SSR compute runtime**.
+App-level failed; branch-level failed identically; `.env.production` failed too, because an App
+Router server component's `process.env` read happens at request time and Next only statically
+replaces `NEXT_PUBLIC_*` on its own. `next.config.ts`'s `env` fixed it by replacing the reference
+during the build. The full table is in the capability doc.
+
+That inlining follows the reference wherever it appears, so `scripts/check-home-not-in-client.mjs`
+now scans `.next/static` in the Amplify build and fails on a leak — the reasoning about why the
+inlining is safe is a control rather than a comment.
+
+### What I got wrong about my own work
+
+- **Three assertions shipped that could not fail.** `0052`'s CORS check read the preflight's
+  headers and ignored its `403`; the leak check's `grep -qF "-81.4046"` had its leading minus parsed
+  as an option and errored on every run while printing PASS; and a bundle comparison piped
+  `grep -rl` into `head`, masking the exit status so both branches reported success. Written up in
+  the capability doc as one pattern rather than three incidents, because it is one.
+- **I claimed `addProtocol` throws on re-registration** and that the context-loss rebuild was
+  therefore buggy. Tested rather than assumed: MapLibre 6 silently replaces. No such bug.
+- **A stale `next start` cost twenty minutes** — the middleware fix looked ineffective because an
+  older server still held the port. Verify what is running, not what was built.
+
+### Scope held
+
+The activity-centroid camera default in the Description became ticket `0186`; there is no
+client-side activity data before `0054`, so building it here would have invented a query path
+`0054` replaces. `maplibre-gl` was left out of `0052` for the same reason it belongs here.
+
+D-227 was recorded during this ticket's validation, superseding half of D-124: the desktop browser
+is the primary **viewing** surface. It changes no code here, and `0187` carries the `06-ui-ux.md`
+design pass.
+
+## Operator validation
+
+**Operator, 2026-09-09, desktop browser (primary surface per D-227) and Android phone.**
+
+| Check | Result |
+|---|---|
+| Map renders full-bleed | **Pass.** "Street map did appear." |
+| Legible at neighbourhood zoom | **Pass.** "Zooming in to my neighborhood worked great." |
+| Camera persists across reload | **Pass.** "On refresh it cached where I was at before." |
+| Phone, portrait and landscape | **Pass.** "Loads perfectly on my phone (landscape and vertical)." |
+| Attribution visible | **Pass.** Protomaps + OpenStreetMap. |
+| `WEBGL_lose_context` rebuild | **Pass.** Ran the console snippet; "worked successfully and reloaded with the map." |
+| First-ever load centres on home | **Pass, after three attempts.** "It opened on Nocatee at street level." |
+
+**Agent smoke test against the live deploy** (`https://soles.devaultsecurity.com`, job 158
+`SUCCEED`), 9 checks, all passing:
+
+```
+PASS  signed-out GET / returns 200
+PASS  signed-out / carries no home coordinate
+PASS  signed-out / carries no map markup
+PASS  maplibre is not referenced in the signed-out HTML
+PASS  maplibre-gl-worker.js serves 200, text/javascript
+PASS  maplibre-gl-shared.js serves 200, text/javascript
+PASS  the worker imports the .js sibling, not .mjs
+```
+
+**And from inside the Amplify build container**, where the values actually exist:
+
+```
+check-home-not-in-client: 2 value(s) scanned, none in .next/static
+```
+
+That last line is the privacy property of D-199 / `08` §7.2 verified against the deployed bundle
+rather than asserted in a comment.
