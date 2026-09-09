@@ -11,7 +11,31 @@ vi.mock("@/amplify_outputs.json", () => ({
   default: { custom: { basemapTilesUrl: "https://dexample123.cloudfront.net" } },
 }))
 
-const { BASEMAP_ARCHIVE, basemapArchiveUrl, basemapStyle } = await import("./basemap")
+const { BASEMAP_ARCHIVE, basemapArchiveUrl, basemapStyle, registerPmtilesProtocol } =
+  await import("./basemap")
+
+describe("pmtiles protocol registration (0052)", () => {
+  /**
+   * TESTED AGAINST A FAKE, because the real `maplibre-gl` is ticket 0053's dependency
+   * and is deliberately not installed here — see `registerPmtilesProtocol`'s comment.
+   * What this can prove is the half that lives in 0052: the scheme string matches the
+   * `pmtiles://` URLs the style emits, and a handler is actually passed. 0053 wires
+   * the same function to a real map, which is where a wrong scheme would show up as a
+   * blank canvas.
+   */
+  it("registers a handler under the same scheme the style URLs use", () => {
+    const registered: Array<[string, unknown]> = []
+    registerPmtilesProtocol({
+      addProtocol: (name, handler) => registered.push([name, handler]),
+    })
+
+    expect(registered).toHaveLength(1)
+    const [scheme, handler] = registered[0]
+    expect(scheme).toBe("pmtiles")
+    expect(typeof handler).toBe("function")
+    expect(basemapArchiveUrl().startsWith(`${scheme}://`)).toBe(true)
+  })
+})
 
 describe("basemap style (0052)", () => {
   /**
