@@ -269,7 +269,7 @@ whole point of splitting it out of that ticket.
 | Mask | half the drawing buffer, `R8`, `LINEAR`, `CLAMP_TO_EDGE`, bound inside MapLibre's `prerender` |
 | MapLibre | 6.6.0, real `shaderData.vertexShaderPrelude` — `variant=mercator`, 664 bytes, `#define PROJECTION_MERCATOR` |
 | Headless | Chromium 152 / SwiftShader (ANGLE over Vulkan 1.3), `FRAMEBUFFER_COMPLETE` |
-| Desktop browser | *(appended at close — the operator's perceptual check, D-227)* |
+| Desktop browser | **verified 2026-09-09** — the overlap reads as one region of uniform brightness, and the basemap is unchanged across a remove/reinstall A/B |
 
 **The `MAX` probe, which is the actual finding.** Two discs at coverage 0.55 and 0.35 were drawn into
 the real mask inside `prerender` and read back with `gl.readPixels`: `low(89)=88687 high(140)=160989
@@ -313,8 +313,11 @@ wrong answer would have invalidated the whole two-pass architecture.
 
 #### For whoever writes `0055`
 
-Everything in `lib/fog/spike-*.ts` and `tools/spike-harness/` is deleted at `0118`'s close. Four
-things are worth carrying forward rather than rediscovering:
+**The spike's code is gone.** `app/dev/fog-spike/`, `lib/fog/spike-mask.ts`,
+`lib/fog/spike-cells.ts`, their tests and `tools/spike-harness/` were deleted when `0118` closed, as
+that ticket instructed — *"nothing here is meant to survive; 0055 rebuilds it properly."* It is in
+git at commit `9dfcd89` if a line of it is ever wanted; these five findings are here because they are
+what the code was FOR, and rediscovering them costs a session each:
 
 - **`defaultProjectionData`'s six uniforms are named in MapLibre's own type docs** —
   `u_projection_matrix`, `u_projection_tile_mercator_coords`, `u_projection_clipping_plane`,
@@ -328,9 +331,13 @@ things are worth carrying forward rather than rediscovering:
   outputs **premultiplied** `vec4(rgb * a, a)` with alpha carrying the mask, because MapLibre's
   `render` pass sets `blendFunc(ONE, ONE_MINUS_SRC_ALPHA)`. An opaque full-screen blit satisfies
   "visible" and breaks "the basemap renders unchanged".
-- **The spike uses FLAT discs, not §4.2's `1.0 - smoothstep(0.45, 1.0, d)` falloff.** Deliberate: a
+- **The spike used FLAT discs, not §4.2's `1.0 - smoothstep(0.45, 1.0, d)` falloff.** Deliberate: a
   flat disc writes one exact byte, so the probe compares integers. The soft edge is §4.1's whole
   argument and is `0055`'s to build.
+- **If `0059` rebuilds the probe for the device check (D-230), rebuild it as a COUNT comparison.**
+  The whole argument is three paragraphs up: a driver that ignores the blend equation produces the
+  same bytes as one that honours it, and only the areas differ. A probe that compares values would
+  pass the phone and mean nothing.
 
 ## Audit
 

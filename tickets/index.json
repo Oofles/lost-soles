@@ -4325,7 +4325,7 @@
     "path": "tickets/open/0189-d121-guard-fires-on-prose.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 1,
       "total": 4
     }
   },
@@ -4347,6 +4347,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 191,
+    "slug": "stale-bundle-baseline-first-load-js",
+    "title": "The 0053 bundle baseline is stale — / First Load JS is 188 kB, the table says 121 kB",
+    "type": "bug",
+    "priority": "medium",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T02:12:26Z",
+    "path": "tickets/open/0191-stale-bundle-baseline-first-load-js.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

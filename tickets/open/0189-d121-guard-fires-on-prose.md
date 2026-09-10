@@ -46,8 +46,11 @@ statements and stays as it is. Only the substring scan is wrong, and only for co
 - [ ] A shipped file that names a privacy-tooling script **in a comment** passes.
 - [ ] A shipped file that `import`s or `require`s one, or names it in a string literal, still FAILS —
       asserted by a fixture, not by reasoning, because this guard protects a map that cannot re-fog.
-- [ ] `lib/fog/spike-cells.ts`'s workaround comment is removed if that file still exists; if `0118`
+- [x] `lib/fog/spike-cells.ts`'s workaround comment is removed if that file still exists; if `0118`
       has already deleted it, say so in the Resolution instead.
+      — **discharged 2026-09-09: `0118` closed and deleted that file.** Nothing in the tree carries
+      the workaround now, which also means **nothing currently reproduces this bug** — use the
+      `## Steps to reproduce` below to recreate it before fixing.
 
 ## Steps to reproduce
 
@@ -61,6 +64,12 @@ statements and stays as it is. Only the substring scan is wrong, and only for co
 **Actual:** `expected [ 'lib/fog/spike-cells.ts' ] to deeply equal []` — reported as a D-121 breach.
 
 ## Notes
+
+**2026-09-09 — `0118` closed and took the triggering file with it.** The guard is still wrong in
+exactly the way described; there is simply no file in the tree tripping it any more. That makes this
+slightly *more* worth fixing rather than less: the next person to name one of those scripts in a
+comment will hit a failure that reads as a D-121 breach, with nothing in the tree to suggest the
+guard is the problem.
 
 Low priority and genuinely harmless today: the failure is loud, immediate, and the workaround is to
 reword a comment. It is filed because the cost is paid in the wrong currency — a guard that has to be
