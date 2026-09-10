@@ -1334,7 +1334,7 @@
     "title": "Pass 2 — noisy composite: fBm-perturbed smoothstep with a warm rim glow",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -1344,10 +1344,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-10T19:52:40Z",
-    "path": "tickets/open/0056-noisy-composite-pass.md",
-    "ready": true,
+    "closed": "2026-09-10T20:46:08Z",
+    "path": "tickets/closed/0056-noisy-composite-pass.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -1368,7 +1369,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0057-layer-order-and-run-polyline.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -1878,7 +1879,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0079-fog-reveal-animation-api.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -2817,7 +2818,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0119-tune-fog-atmosphere-against-legibility.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6
@@ -4431,7 +4432,7 @@
     "source": "agent",
     "created": "2026-09-10T19:35:00Z",
     "path": "tickets/open/0194-decide-res-10-vs-res-11-before-capability-09-bakes-cell-coun.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5

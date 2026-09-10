@@ -4,7 +4,7 @@ slug: noisy-composite-pass
 title: Pass 2 — noisy composite: fBm-perturbed smoothstep with a warm rim glow
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [55]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-10T19:52:40Z
+closed: 2026-09-10T20:46:08Z
 ---
 
 ## Description
