@@ -6,6 +6,7 @@ import { fakeGl, GL, type FakeGl } from "./__fixtures__/fake-gl"
 import { packBucket } from "./instances"
 import { FogMaskLayer, maskDebugEnabled, type MaskStats } from "./mask-layer"
 import { STUB_PRELUDE } from "./mask"
+import { V1 } from "./fog-uniforms"
 
 /**
  * Ticket `0055`, criteria 1, 9 and 10. `05-fog-of-war.md` §4.2, §6.4.
@@ -18,7 +19,28 @@ const NEMO = { lat: -48.876, lng: -123.393 }
  * `CustomRenderMethodInput`, as MapLibre hands it to `prerender`. `variantName` is MapLibre's own
  * cache key for the projection, and it is the input this layer's rebuild logic keys on.
  */
-function renderInput(variantName = "mercator"): CustomRenderMethodInput {
+/**
+ * A real, invertible mercator `mainMatrix` — `0056` needs one. `0055` passed sixteen zeros because
+ * nothing read it; the composite inverts it to anchor its noise to the ground (D-233), and a
+ * singular matrix takes the degenerate screen-space path, which is precisely the branch that must
+ * not be the one the tests exercise by accident.
+ */
+function mainMatrix(centreX = 0.2739, centreY = 0.3767, zoom = 14): Float32Array {
+  const s = 512 * 2 ** zoom
+  const m = new Float32Array(16)
+  m[0] = (2 * s) / 800
+  m[5] = (-2 * s) / 600
+  m[10] = 1
+  m[15] = 1
+  m[12] = (-centreX * 2 * s) / 800
+  m[13] = (centreY * 2 * s) / 600
+  return m
+}
+
+function renderInput(
+  variantName = "mercator",
+  matrix: ArrayLike<number> = mainMatrix(),
+): CustomRenderMethodInput {
   return {
     farZ: 1,
     nearZ: 0,
@@ -31,7 +53,7 @@ function renderInput(variantName = "mercator"): CustomRenderMethodInput {
       define: "#define PROJECTION_MERCATOR",
     },
     defaultProjectionData: {
-      mainMatrix: new Float32Array(16),
+      mainMatrix: matrix,
       tileMercatorCoords: [0, 0, 1, 1],
       clippingPlane: [0, 0, 0, 0],
       projectionTransition: 0,
@@ -49,7 +71,9 @@ const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 10), 4)
  */
 const BUCKET = packBucket(cells)
 
-function layerOn(options: { debug?: boolean } = {}): {
+function layerOn(
+  options: { debug?: boolean; timeSource?: () => number; octaves?: number } = {},
+): {
   layer: FogMaskLayer
   fake: FakeGl
   rebuilds: MaskStats[]
@@ -219,31 +243,124 @@ describe("visibleInstanceCount — criterion 9, §6.4 item 1", () => {
   })
 })
 
-describe("render — criterion 1's passthrough and criterion 10's debug blit", () => {
-  it("does nothing at all with the debug flag off", () => {
-    const { layer, fake } = layerOn()
-    layer.setBucket(packBucket(cells))
-    layer.prerender(fake.gl, renderInput())
-    fake.calls.length = 0
-    layer.render(fake.gl)
-    // 0056 fills this in. Until then the layer must be invisible rather than approximately right —
-    // a placeholder veil would be mistaken for the fog and tuned instead of replaced.
-    expect(fake.calls).toHaveLength(0)
+describe("render — 0056's composite and 0055's debug blit", () => {
+  /** `prerender` once so there is a mask to composite, then start counting. */
+  function primed(options: Parameters<typeof layerOn>[0] = {}) {
+    const ctx = layerOn(options)
+    ctx.layer.setBucket(packBucket(cells))
+    ctx.layer.prerender(ctx.fake.gl, renderInput())
+    ctx.fake.calls.length = 0
+    return ctx
+  }
+
+  it("composites one full-screen triangle with the flag off", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput())
+
+    const draws = fake.of("drawArrays")
+    expect(draws).toHaveLength(1)
+    expect(draws[0]!.args).toEqual([GL.TRIANGLES, 0, 3])
+    expect(layer.stats().composites).toBe(1)
   })
 
-  it("blits the mask as greyscale with the debug flag on", () => {
-    const { layer, fake } = layerOn({ debug: true })
-    layer.setBucket(packBucket(cells))
-    layer.prerender(fake.gl, renderInput())
-    fake.calls.length = 0
-    layer.render(fake.gl)
+  it("anchors the noise to the ground, and says so in stats", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput())
+
+    const noise = layer.stats().noise
+    expect(noise?.degenerate).toBe(false)
+    expect(noise?.scale).toBeGreaterThan(0)
+    expect(Number.isInteger(noise?.origin[0])).toBe(true)
+  })
+
+  it("falls back to screen space rather than to a blank frame on a singular mainMatrix", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput("mercator", new Float32Array(16)))
+    expect(layer.stats().noise?.degenerate).toBe(true)
+    expect(fake.of("drawArrays")).toHaveLength(1)
+  })
+
+  it("reads the time source once per composite and sends it to the GPU", () => {
+    let clock = 0
+    const { layer, fake } = primed({ timeSource: () => clock })
+    clock = 12.5
+    layer.render(fake.gl, renderInput())
+    expect(layer.stats().fogTime).toBe(12.5)
+    expect(fake.of("uniform1f").map((c) => c.args[1])).toContain(12.5)
+  })
+
+  it("defaults to a frozen fog rather than a broken one when there is no animator", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput())
+    expect(layer.stats().fogTime).toBe(0)
+  })
+
+  it("ships V1's palette by default", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput())
+    expect(fake.of("uniform3f").map((c) => c.args.slice(1))).toEqual([
+      [...V1.fogDeep],
+      [...V1.fogEdge],
+      [...V1.rimGlow],
+    ])
+  })
+
+  /**
+   * `render` runs every frame. Building the program there is correct — it is the first moment the
+   * context is ours — and rebuilding it there would be a compile per frame, which is the shape of
+   * bug that shows up as a mysterious 4 fps rather than as an error.
+   */
+  it("builds the composite program ONCE across many frames", () => {
+    const { layer, fake } = primed()
+    for (let i = 0; i < 20; i++) layer.render(fake.gl, renderInput())
+    expect(fake.of("createProgram")).toHaveLength(1)
+    expect(layer.stats().composites).toBe(20)
+  })
+
+  it("blits the raw mask instead, with the debug flag on", () => {
+    const { layer, fake } = primed({ debug: true })
+    layer.render(fake.gl, renderInput())
     expect(fake.of("drawArrays")[0]!.args).toEqual([GL.TRIANGLES, 0, 3])
+    // The blit is 0055's program; the composite never ran, so there is nothing to report.
+    expect(layer.stats().composites).toBe(0)
+    expect(fake.of("uniformMatrix3fv")).toHaveLength(0)
   })
 
   it("renders nothing before the first prerender has built resources", () => {
-    const { layer, fake } = layerOn({ debug: true })
-    layer.render(fake.gl)
+    const { layer, fake } = layerOn()
+    layer.render(fake.gl, renderInput())
     expect(fake.calls).toHaveLength(0)
+  })
+
+  it("passes the octave lever through to the shader it compiles", () => {
+    const { layer, fake } = primed({ octaves: 2 })
+    layer.render(fake.gl, renderInput())
+    expect(fake.sources.fragment.at(-1)).toContain("#define FBM_OCTAVES 2")
+  })
+
+  it("reports a composite compile failure once, and stops rather than retrying per frame", () => {
+    const { layer, fake } = primed()
+    fake.failCompile = true
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    for (let i = 0; i < 5; i++) layer.render(fake.gl, renderInput())
+    error.mockRestore()
+
+    expect(layer.stats().compositeError).toMatch(/fake compile failure/)
+    expect(layer.stats().composites).toBe(0)
+    expect(fake.of("drawArrays")).toHaveLength(0)
+    // ONE attempt across five frames. The vertex shader throws before `createProgram` is reached,
+    // so the shader count is what shows a per-frame retry — and a per-frame retry here is sixty
+    // identical console lines a second with the finding buried inside the flood it caused.
+    expect(fake.of("createShader")).toHaveLength(1)
+  })
+
+  it("disposes the composite's program and VAO on removal", () => {
+    const { layer, fake } = primed()
+    layer.render(fake.gl, renderInput())
+    const before = fake.of("deleteProgram").length
+    layer.onRemove(null as never, fake.gl)
+    // 0055's two mask programs plus 0056's composite.
+    expect(fake.of("deleteProgram").length - before).toBe(3)
   })
 })
 

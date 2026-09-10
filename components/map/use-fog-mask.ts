@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react"
 
+import { FogAnimator, browserAnimationHost } from "@/lib/fog/animation"
+import { maskDebugEnabled } from "@/lib/fog/debug-flags"
 import { blobCellsToIds, packBucket } from "@/lib/fog/instances"
-import { FogMaskLayer, maskDebugEnabled } from "@/lib/fog/mask-layer"
+import { FogMaskLayer } from "@/lib/fog/mask-layer"
 
 import { useExplored } from "./explored-provider"
 
@@ -26,6 +28,12 @@ import { useExplored } from "./explored-provider"
  * A stored res-10 cell is fully explored by definition (§1.1), so its `fraction` is 1.0 and no
  * aggregate is fetched here. `a_fraction` still ships in the instance layout and still multiplies
  * coverage in the shader — proved by fixture rather than by a coarse bucket that does not exist yet.
+ *
+ * ─── AND, SINCE `0056`, THE ANIMATION CLOCK ─────────────────────────────────
+ *
+ * §4.5's rAF loop. It lives here rather than in the layer because it is a browser lifecycle
+ * concern — `requestAnimationFrame`, `visibilitychange`, `matchMedia` — and the layer is the part
+ * that must stay drivable from a harness with none of those.
  */
 export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer | null {
   const explored = useExplored()
@@ -64,16 +72,26 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
   // The layer's lifetime is the map's. A context-loss rebuild constructs a new `Map`, which lands
   // here as a new identity and gets a new layer — the old one's GPU resources went with the lost
   // context and there is nothing to dispose.
+  //
+  // `0056`: THE ANIMATOR'S LIFETIME IS THE LAYER'S, and it is created here rather than inside the
+  // layer for the reason `FogMaskLayer` creates no GL resources in `onAdd` — a custom layer's job
+  // is the two render hooks. An animator owns a rAF loop and two `window` listeners, which is a
+  // React effect's job. The seam between them is one function: `timeSource`.
   useEffect(() => {
     if (!map) {
       setLayer(null)
       return
     }
-    const created = new FogMaskLayer({ debug })
+    const animator = new FogAnimator(browserAnimationHost(() => map.triggerRepaint()))
+    const created = new FogMaskLayer({ debug, timeSource: () => animator.time() })
     map.addLayer(created)
+    // Started AFTER the layer is added: the first thing it does is repaint, and a repaint before
+    // there is anything to composite is a wasted frame.
+    animator.start()
     setLayer(created)
     return () => {
       setLayer(null)
+      animator.stop()
       try {
         if (map.getLayer(created.id)) map.removeLayer(created.id)
       } catch {

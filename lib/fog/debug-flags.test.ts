@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { decodeDebugEnabled, fogFlags, maskDebugEnabled } from "./debug-flags"
+import {
+  decodeDebugEnabled,
+  fogFlags,
+  hudEnabled,
+  maskDebugEnabled,
+  noiseDebugEnabled,
+} from "./debug-flags"
 
 /**
  * THE REGRESSION THIS FILE EXISTS FOR, stated plainly so it is not undone by a later tidy-up:
@@ -39,5 +45,31 @@ describe("fogFlags", () => {
       expect(maskDebugEnabled(search)).toBe(false)
       expect(decodeDebugEnabled(search)).toBe(false)
     }
+  })
+
+  it("is off with no parameter, an empty one, or an unknown flag — 0056's flags too", () => {
+    for (const search of ["", "?", "?fog=", "?fog=on", "?foggy=noise", "?a=1"]) {
+      expect(noiseDebugEnabled(search)).toBe(false)
+      expect(hudEnabled(search)).toBe(false)
+    }
+  })
+})
+
+describe("0056's ?fog=noise", () => {
+  it("leaves the composite running, unlike ?fog=mask", () => {
+    expect(noiseDebugEnabled("?fog=noise")).toBe(true)
+    expect(maskDebugEnabled("?fog=noise")).toBe(false)
+  })
+
+  /** Both debug views want 0055's cell count, so both bring the HUD up. */
+  it("brings the HUD up, and so does ?fog=mask", () => {
+    expect(hudEnabled("?fog=noise")).toBe(true)
+    expect(hudEnabled("?fog=mask")).toBe(true)
+    expect(hudEnabled("?fog=debug")).toBe(false)
+  })
+
+  it("composes with the other two", () => {
+    expect(noiseDebugEnabled("?fog=noise,debug")).toBe(true)
+    expect(decodeDebugEnabled("?fog=noise,debug")).toBe(true)
   })
 })

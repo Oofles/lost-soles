@@ -7,6 +7,16 @@ import type {
 import { log } from "@/lib/log"
 
 import {
+  createCompositeResources,
+  disposeCompositeResources,
+  noiseFrame,
+  runCompositePass,
+  type CompositeResources,
+  type CompositeRestore,
+  type NoiseFrame,
+} from "./composite"
+import { V1, type FogPalette } from "./fog-uniforms"
+import {
   createMaskResources,
   disposeMaskResources,
   resizeMask,
@@ -20,13 +30,16 @@ import {
 import type { PackedBucket } from "./instances"
 
 /**
- * THE CUSTOM LAYER. Ticket `0055`, criteria 1, 2, 9 and 10. `05-fog-of-war.md` §4.2, §6.4.
+ * THE CUSTOM LAYER. Tickets `0055` and `0056`. `05-fog-of-war.md` §4.2, §4.3, §6.4.
  *
- * A MapLibre `CustomLayerInterface` whose `prerender` runs pass 1 — §4.2's coverage mask — and whose
- * `render` is a **passthrough until `0056`** unless the debug flag is set. That is criterion 1's own
- * wording, and it is why the debug blit exists at all: with no pass 2, the mask this ticket builds
- * is a texture nobody can see, and "is the corridor continuous, with no scalloping" is not a
- * question you can ask of an invisible texture.
+ * A MapLibre `CustomLayerInterface` with both passes: `prerender` runs §4.2's coverage mask into a
+ * half-resolution `R8` framebuffer, and `render` runs §4.3's noisy composite over MapLibre's own.
+ * `0055` shipped the first with an empty `render`; `0056` filled it in.
+ *
+ * `?fog=mask` still swaps the composite for `0055`'s greyscale blit of the raw mask. It is not
+ * redundant now that there is something to look at: the composite is a threshold plus noise plus a
+ * rim, and when the fog is wrong the first question is always whether the COVERAGE is wrong, which
+ * the finished picture cannot answer.
  *
  * ─── RESOURCES ARE BUILT ON FIRST `prerender`, NOT IN `onAdd` ───────────────
  *
@@ -54,6 +67,20 @@ export interface MaskStats {
   restore: RestoreCheck | null
   /** A compile or link failure, verbatim. Its presence means the layer is drawing nothing. */
   shaderError: string | null
+  /** `0056`. How many times `render` has run the composite. */
+  composites: number
+  /** `0056`. What the composite pass restored, read from the driver. `null` before the first one. */
+  compositeRestore: CompositeRestore | null
+  /**
+   * `0056`. The last frame's ground anchoring (D-233). `degenerate` here means `mainMatrix` was
+   * singular and that frame fell back to screen-space noise — the one condition under which the
+   * fog can crawl under a pan, and therefore the one worth being able to read.
+   */
+  noise: NoiseFrame | null
+  /** `0056`. `u_time` as of the last composite, in seconds. 0 whenever the fog is static. */
+  fogTime: number
+  /** `0056`. A composite compile or link failure. Its presence means there is no fog on screen. */
+  compositeError: string | null
 }
 
 /**
@@ -89,13 +116,29 @@ export class FogMaskLayer implements CustomLayerInterface {
   #passes = 0
   #restore: RestoreCheck | null = null
   #shaderError: string | null = null
+  /* ─── 0056, pass 2 ────────────────────────────────────────────────────────── */
+  #composite: CompositeResources | null = null
+  #compositeError: string | null = null
+  #compositeRestore: CompositeRestore | null = null
+  #composites = 0
+  #noise: NoiseFrame | null = null
+  #fogTime = 0
 
   constructor(
     private readonly options: {
-      /** Criterion 10. When false, `render` does nothing at all until `0056`. */
+      /** `0055` criterion 10. When set, `render` blits the raw mask instead of compositing. */
       debug?: boolean
       /** Called once per instance-buffer rebuild with the new count. Defaults to `log.info`. */
       onRebuild?: (stats: MaskStats) => void
+      /**
+       * `0056`. Seconds of animation for `u_time`, read once per composite. Defaults to a frozen
+       * 0, which is the correct static fog — a layer with no animator is not a broken animator.
+       */
+      timeSource?: () => number
+      /** `0056`. The six per-mode uniforms. Defaults to `V1`; capability 15 is what passes another. */
+      palette?: FogPalette
+      /** `0056`. Lever (c): fBm octaves. Defaults to `FBM_OCTAVES`. */
+      octaves?: number
     } = {},
   ) {}
 
@@ -122,6 +165,11 @@ export class FogMaskLayer implements CustomLayerInterface {
       passes: this.#passes,
       restore: this.#restore,
       shaderError: this.#shaderError,
+      composites: this.#composites,
+      compositeRestore: this.#compositeRestore,
+      noise: this.#noise,
+      fogTime: this.#fogTime,
+      compositeError: this.#compositeError,
     }
   }
 
@@ -143,6 +191,12 @@ export class FogMaskLayer implements CustomLayerInterface {
     if (this.#resources) disposeMaskResources(gl, this.#resources)
     this.#resources = null
     this.#variant = null
+    // The composite is independent of the projection prelude, so it survives a variant change —
+    // but not the context going away. A style change removes and re-adds custom layers, and its
+    // program and VAO belong to the context that is being torn down.
+    if (this.#composite) disposeCompositeResources(gl, this.#composite)
+    this.#composite = null
+    this.#compositeError = null
     // The bucket is not dropped, it is re-queued. A style change removes and re-adds custom layers,
     // and the GPU buffer goes with the resources — so without this the layer comes back holding a
     // bucket it believes is uploaded and draws nothing.
@@ -210,15 +264,53 @@ export class FogMaskLayer implements CustomLayerInterface {
   }
 
   /**
-   * Criterion 1 — a passthrough until `0056`, except for criterion 10's debug blit.
+   * `0056` criterion 1 — the noisy composite. §4.3.
    *
-   * `0056` replaces this body with the fBm-perturbed composite. The mask texture it will sample is
-   * already correct and already the right size; nothing about this method's emptiness is a
-   * placeholder for missing mask work.
+   * ONE `render`, TWO THINGS IT CAN DRAW, and the debug blit wins. `?fog=mask` exists to answer
+   * "is the coverage right", which is a different question from "does the fog look right" and is
+   * always the first one worth asking. Compositing underneath the blit would put both on screen
+   * and answer neither.
+   *
+   * THE NOISE FRAME IS REBUILT EVERY FRAME, and it is nine floats of double-precision arithmetic
+   * on the CPU — not a per-cell cost, and not something that can be cached: it is a function of the
+   * camera, and the camera is what changes. `05` §6.1's rule is about projecting CELLS per frame,
+   * and nothing here touches a cell.
    */
-  render(gl: WebGL2RenderingContext): void {
-    if (!this.options.debug || !this.#resources) return
-    runDebugBlit(gl, this.#resources)
+  render(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
+    if (!this.#resources) return
+    if (this.options.debug) {
+      runDebugBlit(gl, this.#resources)
+      return
+    }
+
+    if (!this.#composite) {
+      // ONE ATTEMPT, for `prerender`'s reason: `render` runs every frame, and a compile failure
+      // retried per frame is sixty identical console lines a second with the finding buried in
+      // them. Unlike the mask's, this program does not depend on the projection prelude, so there
+      // is no variant change that could make a second attempt succeed.
+      if (this.#compositeError !== null) return
+      try {
+        this.#composite = createCompositeResources(gl, { octaves: this.options.octaves })
+      } catch (error) {
+        this.#compositeError = error instanceof Error ? error.message : String(error)
+        log.error("fog composite: shader build failed", this.#compositeError)
+        return
+      }
+    }
+
+    this.#noise = noiseFrame(
+      (options.defaultProjectionData as unknown as ProjectionLike).mainMatrix,
+      gl.drawingBufferWidth,
+      gl.drawingBufferHeight,
+    )
+    this.#fogTime = this.options.timeSource?.() ?? 0
+    this.#compositeRestore = runCompositePass(gl, this.#composite, {
+      mask: this.#resources.texture,
+      noise: this.#noise,
+      time: this.#fogTime,
+      palette: this.options.palette ?? V1,
+    })
+    this.#composites++
   }
 
   /* ─── Instrumentation ─────────────────────────────────────────────────────── */

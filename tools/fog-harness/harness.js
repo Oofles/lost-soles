@@ -14,6 +14,10 @@
 //   T4  GL state is restored, read back from the driver — criterion 4
 //   S1  the same probes, sabotaged, to prove they can fail
 //
+// Ticket 0056 added a second half — see `compositeProbes` at the bottom. Same split, same rule:
+// the composite's shader source and call sequence are `composite.test.ts`'s, and everything that
+// needs a rasteriser to answer is down there.
+//
 // S1 IS NOT OPTIONAL. A probe that can only report success is a decoration — the same argument
 // every scripts/check-*.mjs --self-test in this repo makes, and the reason 0118's verdict was
 // trustworthy. T2's pixel is re-measured under a forced FUNC_ADD and with blending disabled; if
@@ -345,8 +349,275 @@ function main() {
     )
   }
 
+  /* ══ 0056 — PASS 2, THE NOISY COMPOSITE ═════════════════════════════════ */
+  //
+  // C1  the warm rim appears at the BOUNDARY and nowhere else       criterion 3
+  // C2  u_maxOpacity = 0.94 lets 6% of the basemap through          criterion 4
+  // C3  the noise is anchored to the GROUND, not to the screen      criterion 9  (D-233)
+  // C4  what the composite costs per frame                          criterion 8  (recorded)
+  //
+  // Every one of them has its sabotage case, for 0118's reason. C1 and C2 sabotage the uniform they
+  // are measuring (rimAmt -> 0, maxOpacity -> 1.0) and must lose the signal entirely; C3 re-runs on
+  // the SAME two camera positions with §4.3's original screen-space noise, which must move.
+  compositeProbes(gl, res)
+
   disposeMaskResources(gl, res)
   results.unshift({ id: "renderer", pass: true, detail: renderer })
+}
+
+/* ─── 0056's probes ───────────────────────────────────────────────────────── */
+
+/** A mid-grey stand-in for the basemap. Not black: C2 measures what shows THROUGH the fog. */
+const BG = [0.5, 0.5, 0.5]
+
+/** The orthographic projection above, re-centred — one pan, one matrix. */
+function projectionAt(cx, cy) {
+  return {
+    ...PROJECTION,
+    mainMatrix: new Float32Array([
+      1 / HALF_W, 0, 0, 0,
+      0, -1 / HALF_H, 0, 0,
+      0, 0, 1, 0,
+      -cx / HALF_W, cy / HALF_H, 0, 1,
+    ]),
+  }
+}
+
+/** Mercator → the index of that pixel in a bottom-up RGBA readback of the full canvas. */
+function screenIndex(cx, cy, mx, my) {
+  const ndcX = (mx - cx) / HALF_W
+  const ndcY = -(my - cy) / HALF_H
+  const col = Math.round((ndcX * 0.5 + 0.5) * CANVAS_W)
+  const rowFromBottom = Math.round((-ndcY * 0.5 + 0.5) * CANVAS_H)
+  if (col < 0 || col >= CANVAS_W || rowFromBottom < 0 || rowFromBottom >= CANVAS_H) return -1
+  return (rowFromBottom * CANVAS_W + col) * 4
+}
+
+function compositeProbes(gl, res) {
+  let compositeRes
+  try {
+    compositeRes = createCompositeResources(gl)
+  } catch (error) {
+    record("C0 composite compiles", false, String((error && error.message) || error))
+    return
+  }
+  record("C0 composite compiles", true, `#define FBM_OCTAVES ${compositeRes.octaves}, ${Object.values(compositeRes.uniforms).filter(Boolean).length}/10 uniforms live`)
+
+  const pixels = new Uint8Array(CANVAS_W * CANVAS_H * 4)
+
+  /**
+   * One frame, end to end: pass 1 into the mask FBO, then pass 2 over a known background into the
+   * default framebuffer, then read it back. `readPixels` is a full pipeline stall and that is fine
+   * — nothing here is measuring a frame time except C4, which does not read back.
+   */
+  function frame(options) {
+    const projection = options.projection || PROJECTION
+    uploadInstances(gl, res, options.instances || new Float32Array(0))
+    runMaskPass(gl, res, projection)
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, CANVAS_W, CANVAS_H)
+    gl.clearColor(BG[0], BG[1], BG[2], 1)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    runCompositePass(gl, compositeRes, {
+      mask: res.texture,
+      noise: options.noise || noiseFrame(projection.mainMatrix, CANVAS_W, CANVAS_H),
+      time: options.time || 0,
+      palette: options.palette || V1,
+    })
+    gl.readPixels(0, 0, CANVAS_W, CANVAS_H, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+    return pixels.slice()
+  }
+
+  /* ── C1 — the rim glow is a BAND, not a wash. Criterion 3. ─────────────── */
+  //
+  // Measured by DIFFERENCING two renders that differ only in u_rimAmt. That isolates the glow's own
+  // contribution from everything else in the frame: `alpha` does not depend on u_rimAmt, so the
+  // difference at a pixel is exactly `u_rimGlow * rim * u_rimAmt * alpha` and nothing else.
+  //
+  // `rim = reveal * (1 - reveal) * 4` is zero at reveal 0 and at reveal 1, which is the whole claim:
+  // deep inside revealed ground and deep inside the fog the difference must be ZERO, and it must be
+  // large in between. A profile across the boundary is what shows that.
+  {
+    // THREE TIMES THE DISC RADIUS, NOT SIX, AND THE DIFFERENCE IS THE WHOLE PROBE. At 6x the blob
+    // is wider than the camera window, so no sample on screen has zero coverage — `outside` comes
+    // back EMPTY, `Math.max()` of nothing is -Infinity, and `-Infinity <= 1` reports a pass. The
+    // probe read green while measuring nothing at all, which is 0055's SEAM_FLOOR lesson in a
+    // different costume. The population guard below is the fix; this radius is what makes it
+    // satisfiable.
+    const bigR = RADIUS * 3
+    const blob = pack([{ x: CX, y: CY, r: bigR, fraction: 1 }])
+    const withRim = frame({ instances: blob, palette: V1 })
+    const noRim = frame({ instances: blob, palette: { ...V1, rimAmt: 0 } })
+    const { red: coverage } = { red: readMaskRed(gl, res).red }
+
+    // A radial profile east from the centre, out past the disc edge and stopping inside the window.
+    const reach = HALF_W * 0.95
+    const profile = []
+    for (let mercOffset = 0; mercOffset <= reach; mercOffset += HALF_W / 200) {
+      const mx = CX + mercOffset
+      const i = screenIndex(CX, CY, mx, CY)
+      if (i < 0) continue
+      profile.push({ mx, cover: sample(coverage, mx, CY) / 255, d: withRim[i] - noRim[i] })
+    }
+
+    const inside = profile.filter((p) => p.cover >= 0.95)
+    const outside = profile.filter((p) => p.cover <= 0.02)
+    const peak = profile.reduce((best, p) => (p.d > best.d ? p : best), profile[0])
+    const populated = inside.length >= 5 && outside.length >= 5
+    const insideMax = populated ? Math.max(...inside.map((p) => Math.abs(p.d))) : NaN
+    const outsideMax = populated ? Math.max(...outside.map((p) => Math.abs(p.d))) : NaN
+
+    record(
+      "C1 rim is a band at the edge",
+      populated &&
+        peak.d >= 4 &&
+        insideMax <= 1 &&
+        outsideMax <= 1 &&
+        peak.cover > 0.1 &&
+        peak.cover < 0.95,
+      `peak +${peak.d}/255 at coverage ${peak.cover.toFixed(2)}; ` +
+        `well inside (${inside.length} samples, cover>=0.95) max ${insideMax}, ` +
+        `well outside (${outside.length} samples, cover<=0.02) max ${outsideMax}`,
+    )
+
+    // THE DIFFERENCING ITSELF HAS TO BE PROVED. Two identical renders must difference to nothing,
+    // or C1's "max 0 inside" is measuring a constant rather than an absence.
+    const again = frame({ instances: blob, palette: { ...V1, rimAmt: 0 } })
+    let selfDiff = 0
+    for (const p of profile) {
+      const i = screenIndex(CX, CY, p.mx, CY)
+      if (i >= 0) selfDiff = Math.max(selfDiff, Math.abs(again[i] - noRim[i]))
+    }
+    record(
+      "S1 the rim probe can read zero",
+      selfDiff === 0 && peak.d > 0,
+      `rimAmt=0 differenced against itself reads ${selfDiff} (want 0), against 0.08 reads +${peak.d}`,
+    )
+  }
+
+  /* ── C2 — 0.94, not 1.0. Criterion 4. ──────────────────────────────────── */
+  //
+  // An empty mask, so every pixel is fully fogged, rendered over black and over white. What comes
+  // through is `(1 - u_maxOpacity) x background`, so the DIFFERENCE between the two backgrounds is
+  // 6% of 255 wherever the fog is at full strength — and it is exactly 0 if u_maxOpacity is 1.0.
+  {
+    const transmission = (maxOpacity) => {
+      const palette = { ...V1, maxOpacity }
+      const saved = BG.slice()
+      BG[0] = BG[1] = BG[2] = 0
+      const dark = frame({ palette })
+      BG[0] = BG[1] = BG[2] = 1
+      const light = frame({ palette })
+      BG[0] = saved[0]
+      BG[1] = saved[1]
+      BG[2] = saved[2]
+      const i = screenIndex(CX, CY, CX, CY)
+      return [light[i] - dark[i], light[i + 1] - dark[i + 1], light[i + 2] - dark[i + 2]]
+    }
+
+    const real = transmission(V1.maxOpacity)
+    const want = (1 - V1.maxOpacity) * 255
+    record(
+      "C2 6% of the basemap survives",
+      real.every((v) => Math.abs(v - want) <= 2),
+      `rgb ${real.join(",")} of 255 with u_maxOpacity=${V1.maxOpacity} (want ~${want.toFixed(1)})`,
+    )
+
+    const opaque = transmission(1)
+    record(
+      "S1 a hole in the map reads 0",
+      opaque.every((v) => v === 0),
+      `u_maxOpacity=1.0 transmits ${opaque.join(",")} — if this is not 0,0,0 the probe is not measuring transmission`,
+    )
+  }
+
+  /* ── C3 — the noise is on the GROUND. Criterion 9, D-233. ──────────────── */
+  //
+  // The claim the whole ticket turns on, and the one no still image can make. An empty mask, so the
+  // only thing varying across the frame is the noise field: `col = mix(fogDeep, fogEdge, ...)`
+  // drives ~47 levels of the 8-bit range, which is plenty of signal.
+  //
+  // Two camera positions, 300 px of pan apart. Nine ground points, each read at whatever SCREEN
+  // pixel it landed on in each frame. Anchored to the ground, the colour follows the point. Anchored
+  // to the screen, it does not.
+  {
+    const panMerc = 300 * ((2 * HALF_W) / CANVAS_W)
+    const before = projectionAt(CX, CY)
+    const after = projectionAt(CX + panMerc, CY)
+
+    const points = []
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        points.push({ x: CX + i * HALF_W * 0.3, y: CY + j * HALF_H * 0.3 })
+      }
+    }
+
+    const compare = (noiseFor) => {
+      const a = frame({ projection: before, noise: noiseFor(before) })
+      const b = frame({ projection: after, noise: noiseFor(after) })
+      let worst = 0
+      for (const pt of points) {
+        const ia = screenIndex(CX, CY, pt.x, pt.y)
+        const ib = screenIndex(CX + panMerc, CY, pt.x, pt.y)
+        if (ia < 0 || ib < 0) continue
+        for (let c = 0; c < 3; c++) worst = Math.max(worst, Math.abs(a[ia + c] - b[ib + c]))
+      }
+      return worst
+    }
+
+    const anchored = compare((p) => noiseFrame(p.mainMatrix, CANVAS_W, CANVAS_H))
+    // §4.3's own recipe: `noiseFrame` produces exactly it when it cannot invert the matrix.
+    const screenSpace = compare(() => noiseFrame(new Float32Array(16), CANVAS_W, CANVAS_H))
+
+    record(
+      "C3 noise stays on the ground",
+      anchored <= 2,
+      `same ground point across a 300 px pan differs by ${anchored}/255`,
+    )
+    record(
+      "S1 screen-space noise crawls",
+      screenSpace >= 6 && screenSpace > anchored,
+      `§4.3's original recipe differs by ${screenSpace}/255 across the same pan ` +
+        `(ground-anchored: ${anchored}) — if these ever match, C3 is measuring nothing`,
+    )
+  }
+
+  /* ── C4 — what it costs. Criterion 8, RECORDED not gated. ──────────────── */
+  //
+  // SwiftShader is not a phone and this number is not the ticket's 2 ms budget — 0059 is the hard
+  // gate, on real hardware, and D-230 parked that question there deliberately. What this measures
+  // is the shape of the cost: a per-fragment shader over the full drawing buffer, with no readback
+  // in the timed region.
+  {
+    const projection = PROJECTION
+    const noise = noiseFrame(projection.mainMatrix, CANVAS_W, CANVAS_H)
+    uploadInstances(gl, res, new Float32Array(0))
+    runMaskPass(gl, res, projection)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, CANVAS_W, CANVAS_H)
+
+    const run = (n) => {
+      for (let i = 0; i < n; i++) {
+        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1 })
+      }
+      gl.finish()
+    }
+    run(10) // warm the pipeline; the first draw carries the program switch
+    const started = performance.now()
+    const frames = 60
+    run(frames)
+    const per = (performance.now() - started) / frames
+
+    record(
+      "C4 composite cost",
+      gl.getError() === gl.NO_ERROR,
+      `${per.toFixed(2)} ms/frame at ${CANVAS_W}x${CANVAS_H} on THIS software rasteriser — ` +
+        `not the 2 ms phone budget, which is 0059's gate`,
+    )
+  }
+
+  disposeCompositeResources(gl, compositeRes)
 }
 
 try {
@@ -358,5 +629,5 @@ try {
 const failed = results.filter((r) => !r.pass)
 const lines = results.map((r) => `${r.pass ? "  ok  " : " FAIL "} ${r.id.padEnd(28)} ${r.detail}`)
 document.getElementById("out").textContent =
-  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass\n${lines.join("\n")}`
-document.title = failed.length === 0 ? "0055 PASS" : "0055 FAIL"
+  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass + 0056 composite\n${lines.join("\n")}`
+document.title = failed.length === 0 ? "PASS" : "FAIL"

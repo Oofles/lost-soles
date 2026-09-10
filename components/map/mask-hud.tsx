@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react"
 
-import { maskDebugEnabled } from "@/lib/fog/debug-flags"
+import { hudEnabled } from "@/lib/fog/debug-flags"
 import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 
 import { useExplored } from "./explored-provider"
 
 /**
- * WHAT `?fog=mask` IS ACTUALLY DRAWING. Ticket `0055`, criterion 10.
+ * WHAT `?fog=mask` IS ACTUALLY DRAWING. Ticket `0055` criterion 10, extended by `0056`.
+ *
+ * Since `0056` it also comes up under `?fog=noise`, over the real fog rather than over the raw
+ * mask, and carries the composite's ground anchoring. Same argument as the paragraph below: a
+ * screen-anchored noise field and a ground-anchored one look identical until you pan, so the one
+ * number that separates them has to be readable without panning.
  *
  * ─── WHY THIS EXISTS, WRITTEN DOWN BECAUSE IT WAS LEARNED THE EXPENSIVE WAY ─
  *
@@ -48,6 +53,31 @@ const hud: React.CSSProperties = {
   whiteSpace: "pre",
 }
 
+/**
+ * `0056`. Two lines, and between them they answer the only two questions the composite raises that
+ * looking at it cannot: is it running at all, and is its noise attached to the ground.
+ *
+ * `origin` is the giveaway. Pan the map and it should tick through whole numbers while the mist
+ * stays put; if it is stuck at `0,0` the frame fell back to screen space (`noiseFrame`'s
+ * `degenerate` path) and the fog WILL crawl.
+ */
+function compositeLine(stats: { composites: number; fogTime: number } | null): string {
+  if (!stats) return "—"
+  if (stats.composites === 0) return "not running (?fog=mask blits the raw mask instead)"
+  return `${stats.composites.toLocaleString()} frames · u_time ${stats.fogTime.toFixed(1)}s${
+    stats.fogTime === 0 ? " (static)" : ""
+  }`
+}
+
+function noiseLine(
+  stats: { noise: { origin: [number, number]; scale: number; degenerate: boolean } | null } | null,
+): string {
+  const n = stats?.noise
+  if (!n) return "—"
+  if (n.degenerate) return "SCREEN SPACE — mainMatrix was singular this frame"
+  return `ground · origin ${n.origin[0]},${n.origin[1]} · ${n.scale.toExponential(2)} cells/merc`
+}
+
 const empty: React.CSSProperties = {
   ...hud,
   color: "var(--text-primary)",
@@ -68,7 +98,7 @@ export function MaskHud({
   const [, setTick] = useState(0)
 
   useEffect(() => {
-    setOn(maskDebugEnabled(window.location.search))
+    setOn(hudEnabled(window.location.search))
   }, [])
 
   /**
@@ -100,8 +130,11 @@ export function MaskHud({
     `res        ${stats?.res ?? "—"}`,
     `mask       ${stats?.maskSize ?? "—"}`,
     `fog        ${explored.phase} / ${explored.source}`,
+    `composite  ${compositeLine(stats)}`,
+    `noise      ${noiseLine(stats)}`,
   ]
   if (stats?.shaderError) lines.push(`SHADER     ${stats.shaderError.slice(0, 120)}`)
+  if (stats?.compositeError) lines.push(`COMPOSITE  ${stats.compositeError.slice(0, 120)}`)
 
   /**
    * THE EMPTY CASE GETS A SENTENCE, NOT A ZERO. `instances 0` is the correct number and it still

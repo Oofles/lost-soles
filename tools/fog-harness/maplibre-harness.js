@@ -1,4 +1,4 @@
-// Ticket 0055 — the half `harness.js` cannot prove: a real `maplibre-gl` Map, the real
+// Tickets 0055 and 0056 — the half `harness.js` cannot prove: a real `maplibre-gl` Map, the real
 // `FogMaskLayer`, and MapLibre's OWN `shaderData.vertexShaderPrelude` compiling against this
 // ticket's attribute names inside the real `prerender` hook.
 //
@@ -35,9 +35,9 @@ let renderCalls = 0
  * works, not that the one `map-shell.tsx` installs does.
  */
 class ObservedLayer extends FogMaskLayer {
-  render(gl) {
+  render(gl, options) {
     renderCalls++
-    super.render(gl)
+    super.render(gl, options)
   }
 
   prerender(gl, options) {
@@ -72,7 +72,20 @@ const map = new maplibre.Map({
 // broken `vertexAttribDivisor` would render one disc instead of a field.
 const bucket = packBucket(gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 10), 25))
 
-let layer = new ObservedLayer({ debug: true, onRebuild: (s) => rebuilds.push(s) })
+/**
+ * THE SHIPPED CONFIGURATION, and `0055` ran this with `debug: true` for a reason that has expired.
+ *
+ * With no pass 2 there was nothing to look at, so the blit was the only way to prove `render` did
+ * anything at all. It now hides the thing under test: `?fog=mask` deliberately draws the raw mask
+ * INSTEAD of compositing, so a harness with it on would report a green `render` while never once
+ * running the shader this ticket is about.
+ *
+ * `timeSource` returns a non-zero constant so the animated path — `u_time` reaching the GPU inside
+ * MapLibre's own frame — is the one exercised, rather than the frozen one that happens to be the
+ * default when no animator is attached.
+ */
+const observedOptions = { timeSource: () => 7.5, onRebuild: (s) => rebuilds.push(s) }
+let layer = new ObservedLayer(observedOptions)
 
 map.on("load", () => {
   map.addLayer(layer)
@@ -89,7 +102,7 @@ map.once("idle", () => {
   try {
     map.removeLayer(layer.id)
     map.redraw()
-    layer = new ObservedLayer({ debug: true, onRebuild: (s) => rebuilds.push(s) })
+    layer = new ObservedLayer(observedOptions)
     map.addLayer(layer)
     layer.setBucket(bucket)
     // `redraw()`, NOT `triggerRepaint()` plus a timer. Under Chromium's
@@ -116,6 +129,25 @@ function report() {
     fail.push(`the mask shader did not compile against MapLibre's real prelude: ${stats.shaderError}`)
   }
   if (stats.passes === 0) fail.push("prerender never ran the mask pass")
+
+  // ─── 0056 ───────────────────────────────────────────────────────────────
+  //
+  // The composite declares no MapLibre uniforms and needs no prelude, so `harness.js` already
+  // proves its pixels. What it cannot prove is that it survives MapLibre's OWN translucent pass:
+  // a program left bound, a texture left on unit 0, or a blend state MapLibre did not expect shows
+  // up here as a non-zero `gl.getError` or a failed restore, and nowhere else.
+  if (stats.compositeError) {
+    fail.push(`the composite did not compile inside MapLibre's render: ${stats.compositeError}`)
+  }
+  if (stats.composites === 0) fail.push("render never ran the composite pass")
+  if (stats.fogTime !== 7.5) fail.push(`u_time did not reach the pass: ${stats.fogTime}`)
+  if (!stats.noise) fail.push("the composite never built a noise frame")
+  else if (stats.noise.degenerate) {
+    fail.push(
+      "MapLibre's mainMatrix could not be inverted, so the fog fell back to SCREEN-SPACE noise " +
+        "(D-233) — this is the one state in which panning makes the mist crawl",
+    )
+  }
   if (stats.visibleInstanceCount !== bucket.count) {
     fail.push(`visibleInstanceCount=${stats.visibleInstanceCount}, expected ${bucket.count}`)
   }
@@ -141,6 +173,9 @@ function report() {
     `instances      ${stats.visibleInstanceCount} at res ${stats.res}, one drawArraysInstanced each frame`,
     `mask           ${stats.maskSize} (half the drawing buffer)`,
     `passes         ${stats.passes} prerender frames across the remove/re-add`,
+    `composites     ${stats.composites} render frames, u_time ${stats.fogTime}`,
+    `noise          ${stats.noise ? `ground-anchored, origin ${stats.noise.origin.join(",")}, ` +
+      `${stats.noise.scale.toExponential(2)} cells/merc, ${stats.noise.mercPerPixel.toExponential(2)} merc/px` : "none"}`,
     `rebuilds       ${rebuilds.length} instance-buffer uploads (one per install)`,
     `restored       ${JSON.stringify(stats.restore)}`,
     `gl.getError    0x${glError.toString(16)}`,

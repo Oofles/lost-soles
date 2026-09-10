@@ -14,7 +14,8 @@
  *
  *   ?fog=debug        the decode readout        (0054, unchanged)
  *   ?fog=mask         the greyscale mask + HUD  (0055)
- *   ?fog=mask,debug   both
+ *   ?fog=noise        the composite + the HUD   (0056)
+ *   ?fog=mask,debug   any combination
  */
 export function fogFlags(search: string): ReadonlySet<string> {
   const raw = new URLSearchParams(search).get("fog")
@@ -35,4 +36,22 @@ export function maskDebugEnabled(search: string): boolean {
 /** `0054`'s decode readout. */
 export function decodeDebugEnabled(search: string): boolean {
   return fogFlags(search).has("debug")
+}
+
+/**
+ * `0056`. The HUD over the REAL fog, rather than over the raw mask.
+ *
+ * `?fog=mask` answers "is the coverage right" by replacing the fog with the mask. It cannot answer
+ * "is the noise anchored to the ground" (D-233), because that is a property of the pass it turns
+ * off — and a ground-anchoring failure looks exactly like a working fog until you pan. This flag
+ * leaves the composite alone and puts its numbers on screen: the mercator scale, the lattice
+ * origin, and whether the frame fell back to screen space.
+ */
+export function noiseDebugEnabled(search: string): boolean {
+  return fogFlags(search).has("noise")
+}
+
+/** Either debug view shows the HUD. `0055`'s cell-count readout is useful under both. */
+export function hudEnabled(search: string): boolean {
+  return maskDebugEnabled(search) || noiseDebugEnabled(search)
 }

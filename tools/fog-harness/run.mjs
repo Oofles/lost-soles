@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Ticket 0055 — compile lib/fog/mask.ts alone, run it against a real WebGL2 context in headless
-// Chromium, print the verdict. See harness.js for what is measured and why.
+// Tickets 0055 and 0056 — compile the fog's GL modules, run them against a real WebGL2 context in
+// headless Chromium, print the verdict. See harness.js for what is measured and why.
 //
 //   node tools/fog-harness/run.mjs
 //
@@ -31,11 +31,21 @@ import { join } from "node:path"
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const work = mkdtempSync(join(process.env.HOME ?? tmpdir(), "fog-0055-"))
 
+// THREE MODULES NOW, NOT ONE. 0055 compiled `mask.ts` alone because it had no imports at all;
+// 0056's `composite.ts` has exactly one, to `fog-uniforms.ts`, which is constants and nothing else.
+// Rather than duplicate those constants into the shader module — where a taste pass would then have
+// two places to edit and one of them wrong — the concatenation strips `import` lines as well as
+// `export` keywords and lets the three files share one top-level scope, in dependency order.
+//
+// THE CONSTRAINT THAT MATTERS IS UNCHANGED: nothing in these files may import anything that needs a
+// DOM, MapLibre, or a bundler. That is what keeps the GPU claims measurable at all.
+const MODULES = ["lib/fog/fog-uniforms.ts", "lib/fog/composite.ts", "lib/fog/mask.ts"]
+
 execFileSync(
   "npx",
   [
     "tsc",
-    join(ROOT, "lib/fog/mask.ts"),
+    ...MODULES.map((m) => join(ROOT, m)),
     "--target", "es2020",
     "--module", "es2020",
     "--moduleResolution", "bundler",
@@ -45,7 +55,14 @@ execFileSync(
   { stdio: "inherit" },
 )
 
-const compiled = readFileSync(join(work, "mask.js"), "utf8").replace(/^export /gm, "")
+const compiled = MODULES.map((module) => {
+  const name = module.split("/").pop().replace(/\.ts$/, ".js")
+  return readFileSync(join(work, name), "utf8")
+    // A local import is resolved by the shared scope instead. A BARE import would not be, so it is
+    // left alone and shows up as a syntax error in the page rather than as a silent wrong answer.
+    .replace(/^import\s[^;]*?from\s*["']\.[^"']*["'];?\s*$/gm, "")
+    .replace(/^export /gm, "")
+}).join("\n")
 const driver = readFileSync(join(ROOT, "tools/fog-harness/harness.js"), "utf8")
 const page = join(work, "harness.html")
 writeFileSync(

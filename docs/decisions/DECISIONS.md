@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-08-30
+Last updated: 2026-09-10
 
 ---
 
@@ -2943,3 +2943,64 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     D-115-scale decision, though `0192`'s replay path has just made re-deriving from the archive
     cheap.
 
+- **D-233** **The fog's noise is sampled in GROUND space, not screen space — and `05-fog-of-war.md`
+  §4.3's shader sketch was wrong.** *(2026-09-10, ticket `0056`. Amends §4.3.)*
+  - **The design document carried the exact defect its own ticket warned about.** §4.3 sketched
+    `vec2 q = uv * u_screen / 260.0` — the noise coordinate taken from the fragment's position on
+    the display. Ticket `0056`'s Notes say, in its own words, *"screen-space noise is the classic
+    mistake here: it looks fine on a still map and crawls distractingly the moment you pan"*, and its
+    criterion 9 forbids it outright. The recipe and the prohibition were three paragraphs apart.
+  - **It would have shipped green.** Screen-space noise renders correctly in every still frame, so
+    every unit test, every pixel probe and every screenshot passes. The only thing that shows it is
+    a hand on the map — which is the same shape as D-231, where a harness threshold calibrated to
+    the code reported `ok` on a seam a person called broken on sight.
+  - **The fix is a homography, and it is exact rather than approximate.** The ground under a
+    mercator camera is a plane, so screen and ground are related by a 3x3 projective map however the
+    camera is pitched or rotated — `mainMatrix` with its Z column dropped. `noiseFrame()` inverts it
+    on the CPU per frame and hands the shader one `mat3`; the fragment does one divide. Measured on
+    a real GPU: the same ground point across a 300 px pan differs by **0/255**, where §4.3's original
+    recipe differs by **41/255**.
+  - **The frequency tracks the screen, the phase tracks the ground.** A noise cell stays ~260 px at
+    every zoom. Anchoring at a fixed ground size instead would give a 16 px cell at z10 — aliasing —
+    and a 4,000 px cell at z18, which is a flat wash. The accepted cost is that the field drifts
+    smoothly during a **zoom**, when everything on screen is scaling anyway.
+  - **An integer lattice origin is not an optimisation, it is what makes the whole thing possible.**
+    Ground-anchored, the noise coordinate reaches ~2 million at z18 on a DPR-2 display; a `float`
+    then resolves `fract()` to eighths of a cell and the third octave is blocky. The origin is
+    subtracted here in double precision, folded into the same matrix, and added back in the shader
+    **after** `floor()` — so when it ticks over during a pan the absolute cell index does not change
+    and there is no pop. It is reduced modulo 2^20 to stay inside a `float`'s exact-integer range
+    after the largest octave multiplier; a test asserts that headroom rather than a comment claiming
+    it.
+  - **Two knock-on changes, both forced.** `fract(sin(dot(p, k)) * 43758.5453)` quantises
+    catastrophically once its argument reaches 1e8, which a lattice index at z18 does — so the hash
+    is an integer bit-mix. And the lacunarity is exactly **2.0** with a per-octave integer
+    translation rather than 2.03, because 2.03 times an integer is not an integer and the origin
+    would stop being exact at the second octave.
+  - **When it cannot invert, it falls back to §4.3's original rather than to nothing.** MapLibre
+    hands out a singular `mainMatrix` during style transitions. A crawling frame nobody will notice
+    beats a frame with no fog, which everybody would; `stats().noise.degenerate` and `?fog=noise`
+    make the state readable, because a screen-anchored field and a ground-anchored one are
+    indistinguishable until someone pans.
+  - **Under globe projection the inversion is an approximation.** The app is mercator-only and the
+    layer already rebuilds on a `variantName` change; if globe is ever adopted, this is a known
+    edge rather than a discovery.
+
+- **D-234** **Ticket `0056` ships one rendering — adventure's colours and opacity with atlas's
+  restraint — and §5.2's two columns stay recorded but unused.** *(2026-09-10, ticket `0056`.)*
+  - **The ticket says "ship atlas-leaning values" and then lists adventure's.** Not a contradiction:
+    `u_maxOpacity` 0.94 and the near-black-blue palette are §5.2's adventure column, while
+    `u_noiseAmp` 0.10 and `u_rimAmt` 0.08 are atlas's. One rendering, atmospheric in colour and
+    restrained in edge treatment, which is what `09-roadmap.md` §2.3's milestone carries.
+  - **The one genuine disagreement is `u_maxOpacity`: 0.94 here, 0.55 in §5.2's atlas column.**
+    §4.3 defends 0.94 at length and the ticket restates the defence, so 0.94 ships. Atlas's 0.55 is
+    not lost — it is `ATLAS.maxOpacity` in `lib/fog/fog-uniforms.ts`, waiting for the mode switch
+    that makes a second value mean anything.
+  - **Both columns are written down now, in code, unused.** §5.2 is explicit that the modes differ
+    in *"shader uniforms only — no second tileset, no second code path"*, and a pair that exists
+    only as a table in a design document is a pair capability 15 re-derives wrongly. Recording them
+    costs two object literals; there is no mode switcher, which the ticket forbids.
+  - **`SEAM_FLOOR` in `mask.ts` stays derived from ADVENTURE's `noiseAmp`, not from what ships.**
+    It was measured once on a real GPU (D-231) and will not be re-measured when capability 15 raises
+    the amplitude. A test asserts the derivation so raising it cannot silently invalidate the
+    constant.

@@ -64,6 +64,27 @@ const ENUM = {
   MAX_TEXTURE_SIZE: 0x0d33,
 } as const
 
+/**
+ * `0056`. The composite's uniforms all resolve; the mask's globe uniforms still do not.
+ *
+ * The asymmetry is the real compiler's, not a convenience: under mercator the globe uniforms are
+ * unused and stripped, so their locations come back null and `setProjectionUniforms`'s guards are
+ * load-bearing. Every uniform the composite declares is genuinely used by its shader, so a null
+ * location there would mean a typo — which is what makes asserting the `uniform*` calls meaningful.
+ */
+const COMPOSITE_UNIFORMS = new Set([
+  "u_mask",
+  "u_noiseMatrix",
+  "u_noiseOrigin",
+  "u_time",
+  "u_fogDeep",
+  "u_fogEdge",
+  "u_rimGlow",
+  "u_maxOpacity",
+  "u_noiseAmp",
+  "u_rimAmt",
+])
+
 export interface GlCall {
   name: string
   args: readonly unknown[]
@@ -204,9 +225,12 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
       // Only the mercator uniforms resolve, exactly as a real compiler leaves them: under mercator
       // the globe uniforms are unused and stripped, so their locations come back null. That is what
       // makes the null-guards in `setProjectionUniforms` load-bearing rather than decorative.
-      name === "u_projection_matrix" || name === "u_mask" ? handle(name) : null,
+      name === "u_projection_matrix" || COMPOSITE_UNIFORMS.has(name) ? handle(name) : null,
     uniformMatrix4fv: (...args: unknown[]) => record("uniformMatrix4fv", ...args),
+    uniformMatrix3fv: (...args: unknown[]) => record("uniformMatrix3fv", ...args),
     uniform4fv: (...args: unknown[]) => record("uniform4fv", ...args),
+    uniform3f: (...args: unknown[]) => record("uniform3f", ...args),
+    uniform2f: (...args: unknown[]) => record("uniform2f", ...args),
     uniform1f: (...args: unknown[]) => record("uniform1f", ...args),
     uniform1i: (...args: unknown[]) => record("uniform1i", ...args),
 

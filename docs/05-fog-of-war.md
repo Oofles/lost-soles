@@ -820,8 +820,9 @@ One full-screen triangle into MapLibre's framebuffer, in the translucent pass.
 precision highp float;
 
 uniform sampler2D u_mask;
-uniform vec2  u_screen;      // drawing-buffer size, px
-uniform float u_time;        // seconds
+uniform mat3  u_noiseMatrix; // NDC -> ground noise coords, homogeneous (D-233)
+uniform vec2  u_noiseOrigin; // integer lattice origin, re-added inside the hash (D-233)
+uniform float u_time;        // seconds, wrapped at 24 h
 uniform vec3  u_fogDeep;     // e.g. vec3(0.035, 0.045, 0.075)  near-black blue
 uniform vec3  u_fogEdge;     // e.g. vec3(0.22,  0.24,  0.30)   lit mist
 uniform vec3  u_rimGlow;     // e.g. vec3(0.85,  0.70,  0.42)   warm parchment
@@ -831,33 +832,51 @@ uniform float u_noiseAmp;    // 0.30 adventure / 0.10 atlas   (§5)
 uniform float u_rimAmt;      // 0.30 adventure / 0.08 atlas   (§5)
 
 // --- cheap value-noise fBm ---
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+//
+// AMENDED BY D-233 (ticket 0056). The sketch this block used to carry hashed with
+// `fract(sin(dot(p, k)) * 43758.5453)` and took `p` from `gl_FragCoord`. Both had
+// to go, and the second one is the important one — see the note under this block.
+uint uhash(uvec2 c){
+    uint h = c.x * 0x27d4eb2du ^ (c.y + 0x9e3779b9u) * 0x85ebca6bu;
+    h ^= h >> 15; h *= 0x2545f491u; h ^= h >> 13; h *= 0x27d4eb2du; h ^= h >> 16;
+    return h;
+}
+float hashCell(vec2 cell){ return float(uhash(uvec2(cell + 65536.0))) * (1.0/4294967296.0); }
 
-float vnoise(vec2 p){
-    vec2 i = floor(p), f = fract(p);
+// `p` is small and local to this frame; `o` is the large integer lattice origin and
+// is added AFTER the floor, so `fract` never loses precision to the world coordinate.
+float vnoise(vec2 p, vec2 o){
+    vec2 i = floor(p) + o, f = fract(p);
     vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i + vec2(0,0)), hash(i + vec2(1,0)), u.x),
-               mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
+    return mix(mix(hashCell(i + vec2(0,0)), hashCell(i + vec2(1,0)), u.x),
+               mix(hashCell(i + vec2(0,1)), hashCell(i + vec2(1,1)), u.x), u.y);
 }
 
-float fbm(vec2 p){
+float fbm(vec2 p, vec2 o){
     float v = 0.0, a = 0.5;
-    for (int i = 0; i < 3; i++) { v += a * vnoise(p); p *= 2.03; a *= 0.5; }
+    for (int i = 0; i < 3; i++) {
+        v += a * vnoise(p, o + vec2(17,43) * float(i));   // integer jitter, not 2.03
+        p *= 2.0; o *= 2.0; a *= 0.5;                     // lacunarity must keep `o` integral
+    }
     return v;
 }
 
+in  vec2 v_uv;        // from the full-screen triangle
+in  vec3 v_noiseH;    // u_noiseMatrix * vec3(ndc, 1.0), interpolated homogeneously
 out vec4 fragColor;
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / u_screen;
+    float coverage = texture(u_mask, v_uv).r;
 
-    float coverage = texture(u_mask, uv).r;
+    // THE PROJECTIVE DIVIDE — this is what puts the noise on the ground (D-233).
+    // `u_noiseMatrix` is the inverse of the mercator->clip homography, with the noise
+    // scale and the lattice origin folded in on the CPU in double precision.
+    vec2 q = v_noiseH.xy / v_noiseH.z;
 
     // Two noise fields drifting at different speeds/scales. The slow one
     // shapes the boundary; the fast one animates wisps.
-    vec2  q  = uv * u_screen / 260.0;
-    float n1 = fbm(q * 1.0 + vec2( 0.013, 0.008) * u_time);
-    float n2 = fbm(q * 2.7 + vec2(-0.021, 0.017) * u_time);
+    float n1 = fbm(q       + vec2( 0.013, 0.008) * u_time, u_noiseOrigin);
+    float n2 = fbm(q * 3.0 + vec2(-0.021, 0.017) * u_time, u_noiseOrigin * 3.0);
     float n  = mix(n1, n2, 0.35);
 
     // Perturb the reveal threshold with noise => a ragged, organic mist edge
@@ -883,12 +902,42 @@ void main() {
 Composite GL state: `gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);` then
 `gl.drawArrays(gl.TRIANGLES, 0, 3)`.
 
+**D-233 — the noise is anchored to the GROUND, and this block used to say otherwise.**
+
+Until ticket `0056` this section sampled the noise at `uv * u_screen / 260.0`. That is screen
+space: pan the map and the noise field stays nailed to the display while the ground slides
+underneath it, which reads as the mist crawling in step with your finger. §4.6's own table calls
+resampling shimmer a reason to reject `deck.gl`, and this recipe produced it directly.
+
+`defaultProjectionData.mainMatrix` maps mercator `(x, y, 0, 1)` to clip. Drop its Z column and what
+is left is a 3x3 homography — which is exact, because the ground under a mercator camera *is* a
+plane, however the camera is pitched or rotated. `lib/fog/composite.ts`'s `noiseFrame()` inverts it
+on the CPU each frame and folds two more things into the same matrix:
+
+- **the noise scale**, so a lattice cell stays ~260 screen pixels at every zoom. Anchored at a
+  fixed ground size instead, the field would be 16 px across at z10 (aliasing) and 4,000 px at z18
+  (a flat wash);
+- **an integer lattice origin**, subtracted here in double precision and added back in the shader
+  *after* `floor()`. Without it the noise coordinate reaches ~2 million at z18, a `float` resolves
+  `fract()` to eighths of a cell, and the third octave is visibly blocky. Because the origin is
+  added after the floor, the absolute cell index is unchanged when the origin ticks over during a
+  pan — so there is no pop.
+
+Two knock-on changes, both forced by the integer origin rather than chosen: the hash is an integer
+bit-mix instead of `fract(sin(dot(...)))`, which quantises catastrophically once its argument
+reaches 1e8; and the lacunarity is exactly 2.0 with a per-octave integer translation instead of
+2.03, because 2.03 times an integer is not an integer.
+
+The cost is that the noise field drifts smoothly during a *zoom*, since its frequency tracks the
+screen scale while the ground does not. That is accepted: a zoom already scales everything on
+screen, and a pan does not.
+
 Two constants worth defending:
 
 - **`u_maxOpacity` must never reach 1.0.** Letting 5–8% of the basemap bleed through is what
   makes it read as *mist over a map* rather than *a hole cut in a black sheet*. It is also a
   direct contribution to D-051 — even fully fogged ground retains a ghost of its street grid.
-- **The noise scale (`/ 260.0`) must not match the parchment grain.** Parchment grain is fine
+- **The noise scale (260 px per cell) must not match the parchment grain.** Parchment grain is fine
   (~2–4 px), mist noise is coarse (~150–300 px). Matching frequencies produces a beat pattern
   that looks like video compression artefacts (R4 §6.6).
 
