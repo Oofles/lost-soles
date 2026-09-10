@@ -1016,7 +1016,9 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
- * LISTING ONE ACTIVITY'S ARCHIVE — the replay path. Ticket `0192`, `src/pipeline/replay.ts`.
+ * `s3:ListBucket`, SCOPED BY PREFIX — and it is needed for TWO independent reasons. Ticket `0192`.
+ *
+ * ─── REASON 1, `raw/`: FINDING A CONTENT-ADDRESSED KEY ──────────────────────
  *
  * A `command: "reingest"` job re-runs the pipeline over the ARCHIVED bytes rather than re-fetching,
  * because a source can return a different payload for the same activity and ground revealed from
@@ -1024,23 +1026,43 @@ processActivityLambda.addToRolePolicy(
  * those bytes means listing `raw/<uid>/<source>/<externalId>/`, because the key carries a content
  * digest that only the bytes themselves produce.
  *
- * `s3:ListBucket` IS A BUCKET-LEVEL ACTION, hence a separate statement on the bucket ARN rather than
- * an addition to the one above — the grant above deliberately holds only object-level actions on
- * `arnForObjects("raw/*")`, and appending a bucket action to it would silently change what its
- * `resources` line means.
+ * `s3:ListBucket` IS A BUCKET-LEVEL ACTION, hence its own statement on the bucket ARN rather than an
+ * addition to the object grants above — those deliberately hold only object-level actions on
+ * `arnForObjects(...)`, and appending a bucket action would silently change what `resources` means.
  *
- * IT IS STILL SCOPED TO `raw/`. The comment on the grant above warns that `bucket.grantRead` hands
- * out `s3:List*` on the WHOLE bucket, which would let the worker enumerate every user's explored
- * blob under `users/`. An `s3:prefix` condition is the answer that comment implies but does not
- * spell out: bucket-level access cannot be scoped by resource ARN, and it CAN be scoped by
- * condition. A request for any prefix outside `raw/` is denied.
+ * ─── REASON 2, `users/`: A MISSING OBJECT MUST READ AS MISSING ──────────────
+ *
+ * This one is a latent bug that has nothing to do with replay, and it would have bitten the
+ * operator's first ever real run. **S3 returns `403 AccessDenied` instead of `404 NoSuchKey` when
+ * the caller lacks `s3:ListBucket` on the bucket** — deliberately, so a probe cannot learn whether
+ * an object exists. `explored-blob-store.ts`'s `getBytes` catches `NoSuchKey` and returns
+ * `undefined`, which is how "there is no previous generation" is expressed; with only `GetObject`
+ * granted it receives an `AccessDenied` it cannot recognise and throws instead.
+ *
+ * That only happens when the object is genuinely absent, which is only true on the FIRST publish —
+ * so no test, no review and no ordinary deploy could have surfaced it. It took an account with cells
+ * and no manifest, which is exactly the state this ticket created. Found on the first replay:
+ * `phase: "blobs"`, `errorClass: "AccessDenied"`, after 12 cells had already been written.
+ *
+ * ─── SCOPED BY CONDITION, WHICH IS THE PART THAT MATTERS ────────────────────
+ *
+ * The grant above warns that `bucket.grantRead` hands out `s3:List*` on the WHOLE bucket. An
+ * `s3:prefix` condition is the answer that comment implies but does not spell out: bucket-level
+ * access cannot be scoped by resource ARN, and it CAN be scoped by condition. A request for any
+ * prefix outside these two is denied.
+ *
+ * ONE STATEMENT RATHER THAN TWO, unlike the object-level grants above, and the difference is real:
+ * those are separate because the two prefixes have OPPOSITE rules — `raw/` is immutable and
+ * deletion is denied to every principal, `users/` is derived and rewritten constantly. For listing
+ * the rule is identical ("may enumerate"), so splitting it would suggest a distinction that does
+ * not exist.
  */
 processActivityLambda.addToRolePolicy(
   new PolicyStatement({
-    sid: "ListOneActivitysRawArchive",
+    sid: "ListOwnPrefixes",
     actions: ["s3:ListBucket"],
     resources: [backend.storage.resources.bucket.bucketArn],
-    conditions: { StringLike: { "s3:prefix": "raw/*" } },
+    conditions: { StringLike: { "s3:prefix": ["raw/*", "users/*"] } },
   }),
 )
 

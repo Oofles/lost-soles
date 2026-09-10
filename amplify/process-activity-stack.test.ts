@@ -241,14 +241,17 @@ describe("the worker's IAM role (criterion 3)", () => {
    * CAN be scoped by condition, and this asserts that it is. Without the condition the worker could
    * enumerate every explored blob under `users/`, and the exact-set test above would still pass.
    */
-  it("can list ONLY under raw/, by condition — the one List it holds", () => {
+  it("can list ONLY its own two prefixes, by condition — the one List it holds", () => {
     const listing = workerStatements().filter((statement) => {
       const action = statement.Action
       const actions = typeof action === "string" ? [action] : (action ?? [])
       return actions.includes("s3:ListBucket")
     })
     expect(listing).toHaveLength(1)
-    expect(listing[0]!.Condition).toEqual({ StringLike: { "s3:prefix": "raw/*" } })
+    // BOTH prefixes, and nothing else. `users/*` is not a convenience: without it S3 answers a
+    // GetObject on an ABSENT key with 403 rather than 404, and `explored-blob-store.ts` reads
+    // "no previous generation" as exactly that 404. See the grant's own comment.
+    expect(listing[0]!.Condition).toEqual({ StringLike: { "s3:prefix": ["raw/*", "users/*"] } })
   })
 
   /** The receipt, the credentials and the Activity row. */
