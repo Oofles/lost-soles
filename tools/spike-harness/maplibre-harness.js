@@ -60,11 +60,13 @@ class SpikeLayer {
   }
 }
 
-// A style with no sources: the basemap is irrelevant to whether prerender fires, and a
-// headless run has no business fetching a 1.1 GB pmtiles archive over CloudFront.
+// A style with no sources AND NO LAYERS: the basemap is irrelevant to whether prerender
+// fires, and a headless run has no business fetching a 1.1 GB pmtiles archive over
+// CloudFront. No background layer either — it would need a colour, and a raw hex here
+// fails check-design-tokens.mjs, correctly. (It did. See ticket 0190.)
 const map = new maplibre.Map({
   container: "map",
-  style: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#f5edd9" } }] },
+  style: { version: 8, sources: {}, layers: [] },
   center: [SPIKE_CENTRE.lng, SPIKE_CENTRE.lat],
   zoom: 14,
   attributionControl: false,

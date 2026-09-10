@@ -81,6 +81,14 @@ hand-maintained-list failure `check-design-tokens.mjs`'s header argues against a
 unit is "the directory `copy-maplibre-worker.mjs` writes", which is one path and is already named in
 `.gitignore`.
 
+**This has already cost a deploy, which is the reason it is filed rather than shrugged at.** During
+ticket `0118`, `check-design-tokens.mjs` was run locally and its output filtered down to the one known
+`public/maplibre` hit — so when a later edit introduced a *real* raw hex in a new file, the local run
+still printed the same single familiar line and the hit was missed. Amplify job 164 failed on it.
+Noise in a guard's output is not cosmetic: it trains the reader to filter, and a filtered guard is a
+disabled guard. That is the same argument `check-design-tokens.mjs`'s own header makes about guards
+that have to be dodged.
+
 Worth considering while in there, but NOT in scope unless it falls out for free: the general shape of
 this bug is "a derived-roots scanner has no notion of generated output". There may be a third tool
 with the same blind spot. Filing one is better than widening this.
