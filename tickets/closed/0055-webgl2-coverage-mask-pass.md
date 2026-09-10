@@ -4,7 +4,7 @@ slug: webgl2-coverage-mask-pass
 title: Custom WebGL2 layer, pass 1 — instanced soft-disc coverage mask in prerender
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [53, 118]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-10T03:38:14Z
+closed: 2026-09-10T19:37:58Z
 ---
 
 ## Description

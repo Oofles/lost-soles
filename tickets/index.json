@@ -1309,7 +1309,7 @@
     "title": "Custom WebGL2 layer, pass 1 — instanced soft-disc coverage mask in prerender",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -1320,8 +1320,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-10T03:38:14Z",
-    "path": "tickets/open/0055-webgl2-coverage-mask-pass.md",
-    "ready": true,
+    "closed": "2026-09-10T19:37:58Z",
+    "path": "tickets/closed/0055-webgl2-coverage-mask-pass.md",
+    "ready": false,
     "acceptance": {
       "checked": 11,
       "total": 11
@@ -1343,7 +1344,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0056-noisy-composite-pass.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -1389,7 +1390,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0058-zoom-bucketing-and-viewport-culling.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
