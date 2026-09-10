@@ -4412,5 +4412,27 @@
       "checked": 0,
       "total": 4
     }
+  },
+  {
+    "id": 194,
+    "slug": "decide-res-10-vs-res-11-before-capability-09-bakes-cell-coun",
+    "title": "DECIDE res 10 vs res 11 before capability 09 bakes cell counts into the XP economy",
+    "type": "design",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [
+      56
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T19:35:00Z",
+    "path": "tickets/open/0194-decide-res-10-vs-res-11-before-capability-09-bakes-cell-coun.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
   }
 ]
