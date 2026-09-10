@@ -9,7 +9,7 @@ import {
   NO_CELLS,
   type DiscoveryAward,
 } from "@/src/domain/discovery"
-import { traceToCells, type TraceRejects } from "@/src/domain/fog"
+import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSkill } from "@/src/rules/schema"
 
@@ -39,6 +39,7 @@ import {
   type ReceiptStatus,
 } from "./ingest-receipt"
 import { persistActivity, type PersistDeps } from "./persist"
+import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
 
 /**
  * THE WORKER, AS A FUNCTION. Ticket 0042, `01-architecture.md` §4 steps 6-15.
@@ -123,6 +124,18 @@ export const INGEST_PHASES = [
    * The skew it chooses is the same one D-144 chose — map ahead of XP, never the reverse.
    */
   "blobs",
+  /**
+   * THE ROUTE GEOMETRY, ADDED BY `0195` (`02` §5.1's S-7). Above the transaction, for the
+   * reason `cells` and `blobs` are: the PUT is idempotent under a deterministic key, so a
+   * failure here leaves the receipt `PROCESSING` with no `Activity` row and redelivery
+   * repeats the whole set. Below the transaction it would leave rows carrying a `traceRef`
+   * pointing at an object that was never written.
+   *
+   * Its own phase rather than folded into `persist` for `cells`' reason: a failure here means
+   * "the map has the ground but not the line", which self-heals, and a transaction failure
+   * means nothing was written at all. One name for both would erase that.
+   */
+  "traces",
   "persist",
 ] as const
 
@@ -160,6 +173,11 @@ export interface PhaseTimings {
    * R3 §6 budgets it under 100 ms at the five-year worst case. Zero when nothing revealed.
    */
   blobsMs: number
+  /**
+   * `0195`. One gzip and one S3 PUT of a few KB. Zero when the activity carries no trace —
+   * a treadmill run, a manual entry, a strength session.
+   */
+  tracesMs: number
   persistMs: number
   totalMs: number
 }
@@ -247,6 +265,16 @@ export interface ProcessDeps<TCreds> {
   cells: CellWriteDeps & CellReadDeps
   /** S3 + the generation counter. `0049`, `02` §2.10. */
   blobs: BlobStoreDeps
+  /**
+   * `0195`. Where the per-activity route geometry is written (`02` §5.1, S-7).
+   *
+   * OPTIONAL, and its absence is a no-op rather than a throw. The rebuild drill (`0102`/`0103`)
+   * re-derives cells over thousands of archived activities and has no reason to rewrite geometry
+   * that is already there; `required()` would make it provide a bucket to skip the work.
+   * `traceRef` is then left as `normalize()` produced it, which is exactly what a re-derivation
+   * that did not touch the object should do.
+   */
+  traces?: RouteTraceDeps
   persist: PersistDeps
   /**
    * THE RULESET, AS AN ARGUMENT. D-189, D-217.
@@ -448,6 +476,36 @@ export async function processActivity<TCreds>(
         )
   const blobsMs = clock() - t3b
 
+  /**
+   * `0195` — THE ROUTE GEOMETRY (`02` §5.1's S-7). See the `traces` note on `INGEST_PHASES`.
+   *
+   * WRITTEN FOR ANY ACTIVITY WITH A TRACE, whether or not it revealed ground. `traceRef` is a
+   * fact about the recording — *"here is where this went"* — not a game-layer verdict, and T3
+   * documents its null case as *"treadmill, manual, strength"*, which is a statement about
+   * having a trace and not about `revealsGround`. A traced ride that D-189's rules refuse still
+   * has a line worth drawing; deciding otherwise here would put a rules question in the store.
+   *
+   * `traceToSegments` runs a SECOND TIME here — `traceToCells` already ran it internally, and
+   * the function is pure so the answer is identical. Steps 1-3 are one linear pass over the
+   * points; step 4's densify-and-`gridDisk` and step 5's point-to-segment filter dominate the
+   * projection by orders of magnitude. Threading the segments out of `projectCells` to save it
+   * would widen two signatures to dodge a cost that does not show up in `cellsMs`.
+   */
+  phase("traces")
+  const t3t = clock()
+  const traceRef =
+    ingest.trace && deps.traces
+      ? await writeRouteTrace(
+          {
+            userId: ingest.activity.userId,
+            activityId: ingest.activity.activityId,
+            segments: traceToSegments(ingest.trace).segments,
+          },
+          deps.traces,
+        )
+      : null
+  const tracesMs = clock() - t3t
+
   phase("persist")
   const t3 = clock()
   /**
@@ -458,7 +516,12 @@ export async function processActivity<TCreds>(
    * answers without reclassifying against a store that has since changed.
    */
   await persistActivity(
-    ingest.activity,
+    /**
+     * `traceRef` REACHES T3 HERE AND NOWHERE ELSE. `normalize()` sets it to `null` and says the
+     * pipeline fills it in (`strava/normalize.ts`); until `0195` nothing did, so the column was
+     * null on every row ever written. `null` stays `null` when there was no trace to store.
+     */
+    traceRef === null ? ingest.activity : { ...ingest.activity, traceRef },
     { ingestKey: job.ingestKey, newCellCount: award.newCellCount },
     deps.persist,
     [],
@@ -482,6 +545,7 @@ export async function processActivity<TCreds>(
       gateMs,
       cellsMs,
       blobsMs,
+      tracesMs,
       persistMs,
       totalMs: clock() - startedAt,
     },

@@ -256,16 +256,35 @@ export const NO_REJECTS: TraceRejects = Object.freeze({
   segments: 0,
 })
 
-export function traceToCells(trace: Trace): CellSet {
-  const candidates = new Set<H3Index>()
+/**
+ * The path the runner actually took, as §2.2 steps 1-3 leave it: split on gaps, cleaned,
+ * dwells collapsed, split again on implausible jumps. Ticket `0195`.
+ *
+ * ─── EXTRACTED SO THE DRAWN ROUTE AND THE REVEALED GROUND ARE ONE COMPUTATION ─
+ *
+ * This was a local `const` inside `traceToCells` until `0195` needed to STORE it. It is the
+ * geometry step 5 measures every candidate cell against, so storing it means the line drawn on
+ * the map and the ground that line revealed can never disagree about where the runner was. A
+ * second sanitation path written for the renderer would drift from this one, and the map never
+ * re-fogs (D-020), so that drift would be permanent.
+ *
+ * ─── THE JOINING CHORDS ARE NOT FILTERED OUT; THEY NEVER EXIST ──────────────
+ *
+ * Worth stating because it is what both consumers rely on. `splitOnGaps` and `splitImplausible`
+ * each END one segment and BEGIN another — D-212 splits rather than drops — so the chord between
+ * two segments is a member of neither. That is how "the chord contributes no distance" is
+ * implemented for step 5, and it is equally how a renderer gets "no line drawn across the gap"
+ * for free: there is nothing there for it to decline to draw.
+ *
+ * The segments accumulate ACROSS runs, because step 5 filters once at the end against all of
+ * them. A cell qualified as a candidate by one run may be within 65 m of a different run's path
+ * — the runner was there, and the answer is a set, not a per-run tally.
+ *
+ * `rejects` rides along rather than costing a second traversal: `clean` counts per-sample drops
+ * as it goes, and `segments` is the count of pieces steps 1-3 left behind.
+ */
+export function traceToSegments(trace: Trace): { segments: GeoPoint[][]; rejects: TraceRejects } {
   const rejects: TraceRejects = { accuracy: 0, duplicate: 0, nonFinite: 0, segments: 0 }
-
-  // The segments accumulate ACROSS runs, because step 5 filters once at the end against
-  // all of them. A cell qualified as a candidate by one run may be within 65 m of a
-  // different run's path — the runner was there, and the answer is a set, not a per-run
-  // tally. Only the joining chords — the gaps and the implausible jumps — are absent from
-  // this list, which is exactly how "the chord contributes no distance" is implemented:
-  // it is not skipped, it never exists.
   const segments: GeoPoint[][] = []
 
   for (const run of splitOnGaps(trace)) {
@@ -280,15 +299,24 @@ export function traceToCells(trace: Trace): CellSet {
     for (const segment of splitImplausible(collapsed)) {
       segments.push(segment)
       rejects.segments++
+    }
+  }
 
-      // 4. densify + collect candidates ──────────────────────────────────
-      for (const p of densify(segment)) {
-        const cell = latLngToCell(p.lat, p.lng, RES)
-        // k=1 so a path grazing a cell's edge still qualifies it for CONSIDERATION.
-        // `gridDisk(c, 1)` is 7 cells and ~394 m across — far too much to reveal, which
-        // is why step 5 exists and why nothing may read this set.
-        for (const candidate of gridDisk(cell, 1)) candidates.add(candidate)
-      }
+  return { segments, rejects }
+}
+
+export function traceToCells(trace: Trace): CellSet {
+  const candidates = new Set<H3Index>()
+  const { segments, rejects } = traceToSegments(trace)
+
+  for (const segment of segments) {
+    // 4. densify + collect candidates ──────────────────────────────────
+    for (const p of densify(segment)) {
+      const cell = latLngToCell(p.lat, p.lng, RES)
+      // k=1 so a path grazing a cell's edge still qualifies it for CONSIDERATION.
+      // `gridDisk(c, 1)` is 7 cells and ~394 m across — far too much to reveal, which
+      // is why step 5 exists and why nothing may read this set.
+      for (const candidate of gridDisk(cell, 1)) candidates.add(candidate)
     }
   }
 

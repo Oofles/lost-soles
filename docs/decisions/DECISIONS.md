@@ -3004,3 +3004,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     It was measured once on a real GPU (D-231) and will not be re-measured when capability 15 raises
     the amplitude. A test asserts the derivation so raising it cannot silently invalidate the
     constant.
+
+- **D-235** **The per-activity route artefact is `users/<uid>/traces/<activityId>.segments.json.gz`,
+  and `02-data-model.md` §5.1's S-7 row is amended to match. It is not called a polyline.**
+  *(2026-09-10, ticket `0195`.)*
+  - **The designed name cannot be written in the directory that writes the object.**
+    `scripts/check-boundaries.mjs`'s STRICT tier bans `/polyline/i` throughout `src/domain` and
+    `src/pipeline` (D-100, D-121), in code and in prose, so a writer holding the string
+    `traces/<id>.polyline.gz` fails CI. The two available dodges — define the key one directory
+    away and import it, or add a file exemption — are the "a guard that has to be dodged is a
+    guard that gets disabled" failure that `check-design-tokens.mjs` and `.githooks/pre-commit`
+    both warn about in their own comments.
+  - **The precedent was already set, one function away, and it went the same direction.** §2.2's
+    step-5 helper was specified as `distancePointToPolyline`; the same gate caught it, and
+    `05-fog-of-war.md` §2.2 was corrected rather than the code, because the argument is not a
+    polyline — it is the list of segments step 3 produced. `src/domain/fog.ts` records that
+    correction in place.
+  - **The rename is not cosmetic; it is what D-121 is about.** D-121's substance is that a
+    `summary_polyline` is a DEGRADED trace and that a degraded trace permanently corrupts a map
+    which cannot re-fog (D-020). Naming our own full-fidelity artefact after the thing the guard
+    exists to keep out is exactly the confusion it exists to prevent — and this object is
+    genuinely not one: it is `traceToSegments`'s output, the same geometry step 5 measured every
+    revealed cell against.
+  - **`users/<uid>/` rather than a top-level `traces/` is not a second divergence.** `02` §6.1 and
+    `05` §7.3 already put every per-user object there — *"including `traces/`"* — and
+    `explored-blob-store.ts` records the same correction for `cells/`. The worker's S3 grant is
+    scoped to that prefix, so a top-level one would need a second grant for nothing.
+  - **`no-cache`, though §5.1 says "one immutable GET".** T3 carries a `revision` field precisely
+    because a source-side edit re-ingests the same activity, which rewrites this object under the
+    same key. A year-long immutable header on a rewritable object is the pmtiles trap
+    `lib/basemap.ts` sets out at length: the stale copy is not detectably stale, it is just wrong.
+
+- **D-236** **`traceRef` is written for any activity that has a trace, including one the XP rules
+  refuse to project.** *(2026-09-10, ticket `0195`.)*
+  - **It is a fact about the recording, not a game-layer verdict.** T3 documents its null case as
+    *"treadmill, manual, strength"* — a statement about whether a trace exists, not about whether
+    `revealsGround` returned true. A traced ride that D-189 declines to score still has a line
+    worth drawing on the map.
+  - **The alternative puts a rules question inside the store.** Writing geometry only for
+    ground-revealing activities would mean the set of drawable routes silently changes whenever
+    the ruleset does — and D-020 makes the map permanent, so a rules edit would retroactively
+    decide which past runs are drawable.
+  - **The write is therefore its own phase, not part of `projectCells`.** `traces` sits between
+    `blobs` and `persist`: above the transaction, so a failure leaves the receipt `PROCESSING`
+    with no `Activity` row and redelivery repeats the whole set idempotently.

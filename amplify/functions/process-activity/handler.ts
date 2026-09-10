@@ -333,6 +333,14 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
          */
         mirror: { ddb, table: process.env.PROFILE_TABLE },
       },
+      /**
+       * `0195`. The per-activity route geometry (`02` §5.1, S-7). The SAME physical bucket as
+       * the blobs — `users/<uid>/traces/…` sits beside `users/<uid>/explored/…` and is covered
+       * by the same grant — read from its own variable for the reason `blobs` gives: the
+       * prefixes are granted separately in `amplify/backend.ts`, and one shared name would make
+       * a future split a search-and-replace across unrelated concerns.
+       */
+      traces: { s3, bucket: required("USER_DATA_BUCKET") },
       registry: RULES,
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       onPhase: (entered) => {

@@ -115,6 +115,7 @@
     "activityIngestQueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/EXAMPLE-ActivityIngestQueue",
     "activityIngestDlqUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/EXAMPLE-ActivityIngestDLQ",
     "basemapTilesUrl": "https://dEXAMPLE0000000.cloudfront.net",
-    "basemapDistributionId": "EEXAMPLE00000000"
+    "basemapDistributionId": "EEXAMPLE00000000",
+    "activityTableName": "Activity-EXAMPLE000000000000000000-NONE"
   }
 }

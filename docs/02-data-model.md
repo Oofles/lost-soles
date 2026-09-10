@@ -1252,7 +1252,21 @@ them entirely:
 | **S-4** | "Unexplored near me" | in-memory `frontier()` (05 §8.4) | **zero** |
 | **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r10.<gen>.bin` | one GET, on demand only |
 | **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<toGen>.bin` GET | ~1 KB (05 §7.4) |
-| **S-7** | Trace polyline on activity detail | `traces/<activityId>.polyline.gz` | one immutable GET |
+| **S-7** | Route geometry on activity detail | `users/<uid>/traces/<activityId>.segments.json.gz` | one GET, `no-cache` |
+
+**S-7 was renamed by D-235 (ticket `0195`), and the name is load-bearing.** This row originally
+read `traces/<activityId>.polyline.gz`. Three corrections, all recorded there:
+
+- **`.segments.json.gz`, not `.polyline.gz`.** `scripts/check-boundaries.mjs` bans `/polyline/i`
+  throughout `src/domain` and `src/pipeline` under D-100/D-121, so the writer could not name its
+  own key. The same collision was already resolved the same way for §2.2's step-5 helper, which
+  `05-fog-of-war.md` renamed to `distancePointToSegments`. The object holds `traceToSegments`'s
+  output — the gap-split, teleport-split path the reveal filter itself measured against — and a
+  `summary_polyline` is the degraded thing D-121 exists to keep out.
+- **`users/<uid>/`, not a top-level `traces/`.** §6.1 and `05` §7.3 already put every per-user
+  object under that prefix, and the worker's S3 grant is scoped to it.
+- **`no-cache`, not immutable.** T3's `revision` exists because a source-side edit re-ingests the
+  same activity, rewriting this object under the same key.
 
 ### 5.2 By screen — what actually fires
 
@@ -1637,7 +1651,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 |---|---|---|
 | `raw/<uid>/<source>/<externalId>/<sha256>.<ext>` | **forever** | D-101/D-121.2. Bedrock. The only thing on this list that cannot be regenerated. |
 | `rules/xp-rules-vN.yaml` (git + S3 mirror) | **forever** | 04 §7.6. A `v1` ledger row is meaningless without `v1`. |
-| `traces/<activityId>.polyline.gz` | forever in practice, **purgeable** | derived from raw; kept because regenerating it costs a `normalize()` and it is served on every activity detail (S-7) |
+| `users/<uid>/traces/<activityId>.segments.json.gz` | forever in practice, **purgeable** | derived from raw; kept because regenerating it costs a `normalize()` and it is served on every activity detail (S-7) |
 | `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
 | T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny; PITR on |
@@ -1711,7 +1725,7 @@ is **under two minutes** and embarrassingly parallel.
 **Everything after this point is order-dependent and must run single-threaded per user.**
 
 **Step 4 — persist facts and per-activity derivations.** In sorted order, for each activity:
-`PutItem` the `Activity` row (T3); write `traces/<activityId>.polyline.gz`; sanitise the trace and
+`PutItem` the `Activity` row (T3); write `users/<uid>/traces/<activityId>.segments.json.gz`; sanitise the trace and
 project to H3 res 10 (D-115, 05 §2.2) at the **current** `fogAlgoVersion`; write
 `cells/<uid>/<activityId>.cells.bin`. **No XP and no `ExploredCell` writes yet.**
 

@@ -61,6 +61,13 @@ function ingestOf(over: Options["ingest"] = {}): NormalizedIngest {
       userId: "u-1",
       kind: over.kind ?? "run",
       hasTrace: over.hasTrace ?? false,
+      /**
+       * `0195`. What `normalize()` actually produces — the contract says the pipeline fills it
+       * in, so the value arriving here is always null and never absent. The fixture omitted it
+       * entirely, which made `traceRef: undefined` reach the row and hid the difference between
+       * "no geometry" and "this column did not exist yet".
+       */
+      traceRef: null,
       source: { source: SOURCE },
       startedAt: "2026-09-06T03:00:00.000Z",
       startedAtLocal: "2026-09-05T21:00:00",
@@ -95,6 +102,14 @@ interface Options {
   /** `0050`. Called with the `startedAt` a replay was marked from. */
   onReplayMark?: (at: string) => void
   /**
+   * `0195`. Omitted by default, which is the rebuild drill's configuration — no `traces` dep,
+   * no geometry written, `traceRef` left as `normalize()` produced it. Every test that predates
+   * this ticket therefore exercises exactly the behaviour it exercised before.
+   */
+  traces?: boolean
+  /** `0195`. A failed geometry PUT, to prove it happens above the transaction. */
+  tracesFail?: Error
+  /**
    * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
    * map classifies `new`. Given as a function of the run's cells so a test can seed "every
    * cell is already known" without knowing which cells the fixture trace produces.
@@ -127,6 +142,7 @@ const TRACE: Trace = {
  */
 function rig(options: Options = {}) {
   const calls: string[] = []
+  const tracePuts: PutObjectCommand["input"][] = []
   const cellWrites: UpdateCommand["input"][] = []
   const aggWrites: UpdateCommand["input"][] = []
   const blobPuts: string[] = []
@@ -286,6 +302,23 @@ function rig(options: Options = {}) {
         },
       } as never,
     },
+    /**
+     * `0195`. The per-activity route geometry (`02` §5.1, S-7). Present only when a test asks
+     * for it, so the default rig keeps the pre-`0195` shape.
+     */
+    traces: options.traces
+      ? {
+          bucket: BUCKET,
+          s3: {
+            async send(command: PutObjectCommand) {
+              calls.push("traces")
+              tracePuts.push(command.input)
+              if (options.tracesFail) throw options.tracesFail
+              return { ETag: '"t"' }
+            },
+          } as never,
+        }
+      : undefined,
     registry: REGISTRY,
     persist: {
       activityTable: ACTIVITY_TABLE,
@@ -345,7 +378,7 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls, cellWrites, aggWrites, blobPuts }
+  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts }
 }
 
 describe("the fixed order", () => {
@@ -1231,5 +1264,119 @@ describe("trace reject counts reach T3 (0180, §3.6)", () => {
     await processActivity(JOB, deps)
     expect(blobPuts).toEqual([])
     expect(calls).not.toContain("generation")
+  })
+})
+
+/**
+ * Ticket `0195`. `02-data-model.md` §5.1 (S-7); `05-fog-of-war.md` §4.4.
+ *
+ * The route geometry is written above the transaction and its key reaches T3. Both halves
+ * matter: a `traceRef` on a row whose object was never written is a 404 the map cannot
+ * distinguish from a new account, and an object with no `traceRef` is unreachable.
+ */
+describe("the route geometry phase (0195, 02 §5.1 S-7)", () => {
+  const rowOf = async (options: Options) => {
+    const transactions: unknown[] = []
+    const rigged = rig(options)
+    const inner = rigged.deps.persist.ddb.send.bind(rigged.deps.persist.ddb)
+    rigged.deps.persist.ddb = {
+      async send(command: TransactWriteCommand) {
+        transactions.push(command.input.TransactItems)
+        return inner(command)
+      },
+    }
+    const result = await processActivity(JOB, rigged.deps)
+    const items = transactions[0] as Array<{ Put?: { Item: Record<string, unknown> } }>
+    return { ...rigged, row: items.find((i) => i.Put)!.Put!.Item, result }
+  }
+
+  it("writes the geometry under the activity's own key", async () => {
+    const { tracePuts } = await rowOf({ ingest: TRACED_RUN, traces: true })
+    expect(tracePuts).toHaveLength(1)
+    expect(String(tracePuts[0]!.Key)).toBe("users/u-1/traces/a-1.segments.json.gz")
+  })
+
+  /**
+   * THE COLUMN WAS NULL ON EVERY ROW EVER WRITTEN before this ticket — `normalize()` sets it
+   * to null and said the pipeline would fill it in, and nothing did. This is the assertion
+   * that says it now does.
+   */
+  it("puts the key on the T3 row", async () => {
+    const { row } = await rowOf({ ingest: TRACED_RUN, traces: true })
+    expect(row.traceRef).toBe("users/u-1/traces/a-1.segments.json.gz")
+  })
+
+  /**
+   * §3.6. A treadmill run, a manual entry, a strength session. `traceRef: null` is the normal
+   * outcome and the column stays PRESENT — `persist.test.ts` already asserts the row shape must
+   * not vary, and a reader must never distinguish "absent" from "none".
+   */
+  it("writes nothing and keeps traceRef null for a traceless activity", async () => {
+    const { row, tracePuts } = await rowOf({
+      ingest: { kind: "run", hasTrace: false },
+      traces: true,
+    })
+    expect(tracePuts).toHaveLength(0)
+    expect(row.traceRef).toBeNull()
+    expect("traceRef" in row).toBe(true)
+  })
+
+  /**
+   * D-189 REFUSES TO PROJECT A RIDE, AND THE LINE IS STILL DRAWN. `traceRef` is a fact about
+   * the recording — "here is where this went" — not a game-layer verdict, and T3 documents its
+   * null case as treadmill/manual/strength, which is a statement about having a trace. A ride
+   * that reveals no ground still has a route worth showing.
+   */
+  it("writes geometry for a traced activity the rules refuse to project", async () => {
+    const { row, tracePuts } = await rowOf({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE },
+      traces: true,
+    })
+    expect(tracePuts).toHaveLength(1)
+    expect(row.traceRef).toBe("users/u-1/traces/a-1.segments.json.gz")
+    // The projection still did not run — this ticket did not weaken D-189 on its way past.
+    expect(row.cellCount).toBe(0)
+  })
+
+  /**
+   * ABOVE THE TRANSACTION, the property the phase ordering exists for. A failure here must
+   * leave NO `Activity` row, so a redelivery repeats the whole set idempotently. Below it,
+   * rows would accumulate carrying a `traceRef` pointing at nothing.
+   */
+  it("fails above the transaction, so no row is written", async () => {
+    const { deps, calls } = rig({
+      ingest: TRACED_RUN,
+      traces: true,
+      tracesFail: new Error("s3 is down"),
+    })
+    await expect(processActivity(JOB, deps)).rejects.toThrow("s3 is down")
+    expect(calls).toContain("traces")
+    expect(calls).not.toContain("persist")
+  })
+
+  it("runs after the publish and before the transaction", async () => {
+    const { calls } = await rowOf({ ingest: TRACED_RUN, traces: true })
+    expect(calls.indexOf("traces")).toBeGreaterThan(calls.indexOf("blobs"))
+    expect(calls.indexOf("traces")).toBeLessThan(calls.indexOf("persist"))
+  })
+
+  it("announces itself as a phase, so 0044 can time it", async () => {
+    const seen: string[] = []
+    const { deps } = rig({ ingest: TRACED_RUN, traces: true })
+    const result = await processActivity(JOB, { ...deps, onPhase: (p) => seen.push(p) })
+    expect(seen).toContain("traces")
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(result.timings.tracesMs).toBeGreaterThanOrEqual(0)
+  })
+
+  /**
+   * THE REBUILD DRILL'S CONFIGURATION (`0102`/`0103`): no `traces` dep at all. It re-derives
+   * cells over thousands of archived activities and has no reason to rewrite geometry that is
+   * already there, so the absence is a no-op rather than a throw.
+   */
+  it("is a no-op when no traces dep is supplied", async () => {
+    const { row, tracePuts } = await rowOf({ ingest: TRACED_RUN })
+    expect(tracePuts).toHaveLength(0)
+    expect(row.traceRef).toBeNull()
   })
 })

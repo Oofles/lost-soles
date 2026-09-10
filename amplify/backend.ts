@@ -1240,8 +1240,42 @@ backend.addOutput({
   custom: {
     activityIngestQueueUrl: activityIngestQueue.queueUrl,
     activityIngestDlqUrl: activityIngestDlq.queueUrl,
+    /**
+     * `0195`. `/api/runs/latest` reads T3 directly, on the SSR compute, for the same reason
+     * `0043`'s Sync action reads the queue URL from here: the route has no CloudFormation
+     * output of its own. A TABLE NAME IS NOT A SECRET — possessing it grants nothing without
+     * the `dynamodb:Query` granted a few lines below, which is scoped to this table alone.
+     */
+    activityTableName: activityTable.tableName,
   },
 })
+
+/**
+ * `0195`. THE SSR COMPUTE READS T3, AND ONLY QUERIES IT.
+ *
+ * `/api/runs/latest` answers "where did my last run go" from the `byUserAndStart` index. This
+ * is the same shape as the S3 delivery grant D-228 records for `/api/fog`: the browser's whole
+ * reach into T3 is this one action, on this one table, and the route re-derives the partition
+ * key from the verified session so a caller can only ever read their own rows.
+ *
+ * `dynamodb:Query` ALONE, and deliberately not `grantReadData` — which would add `GetItem`,
+ * `BatchGetItem` and `Scan`. A `Scan` on T3 is every activity of every user in one call, which
+ * is precisely what the per-user partition key exists to make impossible; handing it to the
+ * public-facing compute role to save one line is the trap the comment at the CDK grants above
+ * warns about ("EVERY GRANT BELOW IS AN EXPLICIT ACTION LIST").
+ *
+ * THE SECOND RESOURCE IS NOT OPTIONAL. A GSI is a separate ARN — `<table>/index/*` — and a
+ * grant naming only the table authorises a query of the base table and fails, at runtime and
+ * only in a deploy, on every query that names an index. `grantReadData` would have covered it
+ * for free, which is exactly how this is normally discovered the expensive way.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "QueryActivityForLatestRun",
+    actions: ["dynamodb:Query"],
+    resources: [activityTable.tableArn, `${activityTable.tableArn}/index/*`],
+  }),
+)
 
 /** The Sync action is the only producer today. It sends; it never receives. */
 activityIngestQueue.grantSendMessages(computeRole)

@@ -4,11 +4,11 @@ slug: layer-order-and-run-polyline
 title: Layer order — fog above labels, run polyline above the fog
 type: feature
 priority: high
-status: open
+status: blocked
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [54, 56]
-blocked_by: []
+blocked_by: [195]
 source: operator
 created: 2026-08-30T00:00:00Z
 ---
@@ -61,6 +61,9 @@ from the cell set.
 - [ ] Route rendering is correct across a trace with a split (0045) — no chord drawn across the gap.
 
 ## Notes
+
+
+**Blocked 2026-09-10 on 0195:** 0057 draws route geometry from a stored per-activity object that is never written — traceRef is null on every row, no object exists under traces/, and no endpoint serves one. 0195 writes the artefact and serves the latest run.
 
 The hex grid is not drawn, at all. If the game-y grid read is ever wanted, it is a *separate* faint
 decorative `line` layer of hex boundaries, clipped to revealed ground, at high zoom only — and kept
