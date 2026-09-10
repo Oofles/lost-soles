@@ -100,28 +100,28 @@ endpoint built now would be built against no client that can page it.
 
 ## Acceptance criteria
 
-- [ ] `src/domain/fog.ts` exports the sanitised segments — §2.2 steps 1–3 — and `traceToCells`
+- [x] `src/domain/fog.ts` exports the sanitised segments — §2.2 steps 1–3 — and `traceToCells`
       consumes that same function rather than computing them a second time. A test asserts the
       cell set is byte-identical to what it was before the extraction.
-- [ ] The word `polyline` appears nowhere under `src/domain` or `src/pipeline`, and
+- [x] The word `polyline` appears nowhere under `src/domain` or `src/pipeline`, and
       `node scripts/check-boundaries.mjs` passes.
-- [ ] The ingest pipeline writes `users/<uid>/traces/<activityId>.segments.json.gz` — gzipped
+- [x] The ingest pipeline writes `users/<uid>/traces/<activityId>.segments.json.gz` — gzipped
       GeoJSON `MultiLineString`, one line per segment — as its own phase between `blobs` and
       `persist`.
-- [ ] A trace that produced a split writes more than one line, and no line joins two segments'
+- [x] A trace that produced a split writes more than one line, and no line joins two segments'
       endpoints. Asserted against `0045`'s split fixture.
-- [ ] An activity with no trace (treadmill, manual, strength) writes no object and keeps
+- [x] An activity with no trace (treadmill, manual, strength) writes no object and keeps
       `traceRef: null`. That is a normal outcome, not an error.
-- [ ] `persistActivity` writes the object's key to T3's `traceRef` for a traced activity, and a
+- [x] `persistActivity` writes the object's key to T3's `traceRef` for a traced activity, and a
       test asserts a non-null value reaches the item — the column is null on every row today.
-- [ ] Re-delivering the same message overwrites the same key and changes nothing observable.
-- [ ] `GET /api/runs/latest` returns the most recent traced activity's geometry as a GeoJSON
+- [x] Re-delivering the same message overwrites the same key and changes nothing observable.
+- [x] `GET /api/runs/latest` returns the most recent traced activity's geometry as a GeoJSON
       `FeatureCollection`, and 404s for a signed-out caller.
-- [ ] The route derives the uid from the session only. A test asserts a uid supplied in the query
+- [x] The route derives the uid from the session only. A test asserts a uid supplied in the query
       string is ignored.
-- [ ] A caller with no traced activity at all gets a well-formed empty `FeatureCollection`, not a
+- [x] A caller with no traced activity at all gets a well-formed empty `FeatureCollection`, not a
       404 and not a 500 — "no runs yet" is the first-load state, not an error.
-- [ ] `02-data-model.md` §5.1's S-7 row names the key that is actually written, and a `D-xxx`
+- [x] `02-data-model.md` §5.1's S-7 row names the key that is actually written, and a `D-xxx`
       records why it is not the one the doc shipped with.
 
 ## Notes
@@ -144,6 +144,186 @@ filing it into 06 would re-open an audited capability and fail its `capability-t
 check. `AUDIT.md` §4's *"did this capability change anything an earlier one depends on"* is the
 mechanism built for exactly this, and 08's audit is where it gets re-validated.
 
+## Resolution
+
+Built as specified, with one design divergence (D-235), one decision the ticket did not settle
+(D-236), and three self-inflicted failures worth recording because two of them were caused by the
+same mistake in how I verified.
+
+### What was built
+
+| File | What it owns |
+|---|---|
+| `src/domain/fog.ts` | `traceToSegments` — §2.2 steps 1-3, extracted out of `traceToCells` |
+| `src/pipeline/route-trace-store.ts` | the key, the GeoJSON shape, the gzipped PUT |
+| `src/pipeline/process-activity.ts` | the `traces` phase, and `traceRef` reaching `persistActivity` |
+| `amplify/functions/process-activity/handler.ts` | the worker's `traces` dep |
+| `amplify/backend.ts` | `custom.activityTableName`, and `dynamodb:Query` on T3 for the SSR compute |
+| `lib/runs/server.ts` | the T3 query, the row selection, the S3 read |
+| `app/api/runs/latest/route.ts` | the endpoint |
+| `docs/02-data-model.md` §5.1 | S-7 amended, with the reasoning inline |
+
+**The extraction is the load-bearing part.** `traceToCells` already computed
+`segments: GeoPoint[][]` and threw it away after step 5's filter ran. Storing *that* array —
+rather than sanitising the trace a second time for the renderer — is what makes the drawn line and
+the revealed ground incapable of disagreeing. It also hands `0057` its criterion 8 for free: the
+chords between segments are not filtered out, they never enter the array, so a renderer cannot
+draw one.
+
+**The extraction was proved behaviour-preserving against the pre-extraction code**, not against
+itself. `git show HEAD:src/domain/fog.ts` was compiled alongside the new one and the two compared
+over six trace shapes; the resulting cell ids for four of them are pinned as literals in
+`src/domain/trace-segments.test.ts`. A snapshot taken after the change would have asserted that
+the refactor agrees with itself, which is the assurance a refactor cannot give itself.
+
+### D-235 — the artefact is not called what `02` §5.1 called it
+
+`02` §5.1 specified `traces/<activityId>.polyline.gz`. That string cannot exist in `src/pipeline`:
+`scripts/check-boundaries.mjs`'s STRICT tier bans `/polyline/i` there under D-100/D-121, in code
+*and* in prose. The two dodges available — defining the key one directory away and importing it,
+or a file exemption — are the *"a guard that has to be dodged is a guard that gets disabled"*
+failure that `check-design-tokens.mjs` and `.githooks/pre-commit` both warn about in their own
+comments.
+
+**The precedent was already set one function away and went the same direction.** §2.2's step-5
+helper was specified as `distancePointToPolyline`; the same gate caught it, and `05-fog-of-war.md`
+was corrected rather than the code. The rename is not cosmetic: D-121's substance is that a
+`summary_polyline` is a *degraded* trace which permanently corrupts a map that cannot re-fog, and
+this object is the opposite — full fidelity, the same geometry the reveal filter measured against.
+`users/<uid>/` and `no-cache` are the other two corrections; both are argued in D-235.
+
+### D-236 — geometry is written for any traced activity, D-189 or not
+
+The ticket did not settle whether a traced ride the rules refuse to score should still get a line.
+It should: `traceRef` is a fact about the recording, and T3 documents its null case as
+*"treadmill, manual, strength"* — a statement about having a trace. Deciding otherwise would put a
+rules question inside the store, and since D-020 makes the map permanent, a later ruleset edit
+would retroactively change which past runs are drawable.
+
+### What went wrong
+
+**1. `check-boundaries` failed in CI (Amplify job 186) and had passed locally.** Both hits were
+real — the store's test used `strava#9001` as an activity id inside `src/pipeline`, which D-100
+forbids, and the assertion that the key does *not* carry the banned spelling had to write the
+banned spelling to say so. The local run had passed because I piped the guard's output to `tail`,
+which discards the exit code.
+
+**2. `tsc` was silently reusing `tsconfig.tsbuildinfo` and skipping my new file.** A real type
+error — `activityItem`'s second parameter is a `DiscoveryAward`, and I passed
+`{ ingestKey, newCellCount }` — sat undetected through several `npx tsc --noEmit` runs that all
+reported success. `check-adapter-deletion.mjs` found it, because that check runs
+`tsc --incremental false` in a staged copy; it reported it as an adapter leak, which is what it
+was looking for rather than what was there. **Every gate was re-run afterwards by exit code, with
+`--incremental false` and with `public/maplibre` moved aside.**
+
+**3. The reader read an attribute the store does not have, and every unit test passed.**
+`latestRun` read `row.activityId`. `persist.ts:148` writes `id: activity.activityId` — I-5's
+deterministic id under the Amplify model's own primary key — so there is no `activityId` attribute
+on a T3 item at all. My fixtures had invented one, so eleven tests certified a reader against a
+store that does not exist. **Only the live smoke test found it**, returning an empty collection
+over a row that plainly had geometry.
+
+The fix is not just the attribute name: `lib/runs/server.test.ts` now builds its rows by calling
+the shipped `activityItem`, so a fixture cannot describe a shape the writer does not produce.
+Reverting `server.ts` to the old attribute now fails 3 of the 11 tests; before, it failed none.
+
+### Not done, deliberately
+
+No permanent trace layer (`0085`, capability 12), no client-side Amplify Data, no list endpoint —
+`0057`'s criteria name *"the latest run"* twice and never ask for more, and a list endpoint built
+now would be built against no caller. No backfill script: the rebuild drill (`0102`/`0103`) is the
+mechanism, and the replay below used `0192`'s existing tool rather than a second one.
+
 ## Operator validation
 
-TODO — written at close.
+**Nothing here is the operator's.** This ticket ships an S3 object, a T3 column and an HTTP
+endpoint — no screen, no perceptual judgement, nothing two competent people could disagree about
+by looking at it (D-181, narrowed by D-229). Everything below I ran myself with AWS credentials.
+`0057` is where the operator's eyes are actually needed, and this ticket exists to unblock it.
+
+### Deploy
+
+Amplify job **186 FAILED** on `check-boundaries` (see Resolution), **187 SUCCEED** (`ff7a273`).
+
+### The live IAM grant, read back from the deployed role
+
+`LostSolesAmplifyComputeRole` now carries exactly one statement touching T3:
+
+```
+QueryActivityForLatestRun | dynamodb:Query |
+  ["…:table/Activity-nog4xy2l7baqlhghpndh2565qe-NONE",
+   "…:table/Activity-nog4xy2l7baqlhghpndh2565qe-NONE/index/*"]
+```
+
+No `Scan`, no `GetItem`, no write. The role's four pre-existing `Scan` grants are on the CDK
+tables it owns outright (capture guard, source accounts, OAuth state, ingest receipts) and none
+reaches T3.
+
+**The table name is in the client bundle**, like `basemapTilesUrl` before it — so I checked what
+that actually grants. The browser's authenticated Cognito role
+(`amplify-…-amplifyAuthauthenticatedU-3AL7rBieBPqs`) has **no DynamoDB access at all**: four S3
+statements scoped to `users/${cognito-identity.amazonaws.com:sub}/*` and nothing else. The name
+grants nothing.
+
+### The endpoint, live and gated
+
+Against `https://soles.devaultsecurity.com`, unauthenticated:
+
+| Request | Result |
+|---|---|
+| `GET /api/runs/latest` | `404 {"error":"not found"}` |
+| `POST /api/runs/latest` | `404` |
+| `GET /api/fog?since=0` (comparison) | `404 {"error":"not found"}` — byte-identical |
+
+### The write, through the real pipeline
+
+Ten `reingest` jobs through the deployed SQS queue and the deployed worker, using `0192`'s
+`tools/replay/replay-activities.ts`. **No run was required and none was performed** (D-229): the
+bytes were already in `raw/` under D-101, which is what that archive is for.
+
+- **Queue drained to `0/0`, DLQ `0`, 10 geometry objects written, 10 of 11 T3 rows now carry
+  `traceRef`.** The eleventh is the 2025-08-04 activity with archived bytes and no receipt —
+  ticket `0193`, untouched by this.
+- **Cell counts did not move** (12, 28, 10, 16, 78, 10, 27, 18, 9, 10 before and after). The
+  replay re-derived the same ground from the same bytes; D-020's append-only writes held.
+- **One job hit a `ConditionalRequestConflict` (S3 409)** on the manifest — ten workers racing on
+  one `regenerateExplored` publish, which `explored-blob-store.ts`'s `maxAttempts` exists for and
+  which exhausted its retries under a bulk replay. **It self-healed on SQS redelivery** 16 minutes
+  later (the queue's visibility timeout), which is exactly what the phase ordering is built for:
+  the failure was above the transaction, so no row was written and the redelivery repeated the
+  whole set. Nothing reached the DLQ. Not caused by this ticket; filed as `0196`.
+- **The PUT is idempotent on real S3** — the object written by the single-activity replay is
+  byte-identical to the one written by the bulk replay that followed it.
+
+### The stored geometry, all ten objects
+
+| | |
+|---|---|
+| Content type / encoding / cache | `application/geo+json` / `gzip` / `no-cache` |
+| Coordinate precision | 6 dp, as documented |
+| Sizes | 2.1 KB – 20.2 KB gzipped |
+
+**Three of the nine runs are genuinely split into two lines** — real gap or teleport splits from
+real recordings, not a fixture. Across all nine, 15,926 vertices, **the longest edge anywhere is
+16.8 m**. A chord across a split would be hundreds of metres to kilometres. `0057`'s criterion 8
+holds against real data, which is a stronger claim than the synthetic test makes.
+
+The 8.64 km run reads as a loop: 3,603 vertices, first `[-81.41001, 30.128103]` and last
+`[-81.410045, 30.128052]` — about 5 m apart.
+
+### The shipped reader, against real DynamoDB and real S3
+
+`latestRun` driven with the deployed table and bucket:
+
+| # | What it proved |
+|---|---|
+| 1 | **Before the bulk replay** — returned the 2026-08-30 run, correctly **skipping five newer activities** whose `traceRef` was still null. The page-and-filter path, on real rows. |
+| 2 | **After** — returns 2026-09-10 "Night Run", 648 vertices, the genuinely latest run |
+| 3 | An unknown user → `{"type":"FeatureCollection","features":[]}`, not a 404 and not a throw |
+| 4 | Run #1 is what caught the `id`/`activityId` bug; a fixture-only suite had certified it green |
+
+### The whole CI set, by exit code
+
+Nine guard scripts, `tsc --noEmit --incremental false`, `npm run lint`, and **1,881 tests across
+102 files** (37 new) — all exit 0, with the generated `public/maplibre` moved aside (tickets
+`0188`/`0190`). `npm run build` succeeds; `/api/runs/latest` appears in the route table.

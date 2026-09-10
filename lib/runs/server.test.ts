@@ -3,6 +3,8 @@ import { gzipSync } from "node:zlib"
 import { QueryCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it, vi } from "vitest"
 
+import { activityItem } from "@/src/pipeline/persist"
+
 import { EMPTY_COLLECTION, LATEST_SCAN_LIMIT, latestRun, type RunReadDeps } from "./server"
 
 /**
@@ -45,11 +47,34 @@ vi.mock("@/lib/fog/server", async (importOriginal) => ({
 
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 
+/**
+ * ROWS BUILT BY THE SHIPPED WRITER, NOT BY HAND — and this is the whole reason the file
+ * imports from `src/pipeline`.
+ *
+ * The first draft of this suite hand-wrote `{ activityId: "a-9", … }`. Every test passed and the
+ * reader was broken: `persist.ts` writes `id`, not `activityId`, so `latestRun` matched nothing
+ * and returned an empty collection over a real row that plainly had geometry. Only the live
+ * smoke test found it. A fixture that invents its own column shape is a fixture that certifies
+ * the reader against a store that does not exist — so this one is produced by `activityItem`,
+ * the same function the ingest worker persists through, and a renamed column breaks the test.
+ */
 const row = (over: Record<string, unknown> = {}) => ({
-  activityId: "a-9",
-  startedAt: "2026-09-09T11:00:00.000Z",
-  traceRef: "users/u-1/traces/a-9.segments.json.gz",
-  name: "Morning Run",
+  ...activityItem(
+    {
+      activityId: "a-9",
+      userId: "u-1",
+      kind: "run",
+      hasTrace: true,
+      traceRef: "users/u-1/traces/a-9.segments.json.gz",
+      source: { source: "manual" },
+      startedAt: "2026-09-09T11:00:00.000Z",
+      startedAtLocal: "2026-09-09T07:00:00",
+      timezone: "America/New_York",
+      ingestedAt: "2026-09-09T11:30:00.000Z",
+      name: "Morning Run",
+      sets: [],
+    } as unknown as Parameters<typeof activityItem>[0],
+  ),
   ...over,
 })
 
@@ -101,9 +126,9 @@ describe("latestRun — choosing the row", () => {
   it("skips untraced activities in front of the run", async () => {
     getObject.mockResolvedValueOnce(bytes(GEOMETRY))
     const { deps } = rig([
-      row({ activityId: "gym-2", traceRef: null }),
-      row({ activityId: "gym-1", traceRef: null }),
-      row({ activityId: "a-9" }),
+      row({ id: "gym-2", traceRef: null }),
+      row({ id: "gym-1", traceRef: null }),
+      row(),
     ])
     const out = await latestRun("u-1", deps)
     expect(out.features[0]!.properties.activityId).toBe("a-9")
@@ -155,8 +180,8 @@ describe("latestRun — an empty collection is a result, not an error", () => {
     expect(await latestRun("u-1", deps)).toEqual(EMPTY_COLLECTION)
   })
 
-  it("answers empty for a row with no activityId to build a key from", async () => {
-    const { deps } = rig([row({ activityId: undefined })])
+  it("answers empty for a row with no id to build a key from", async () => {
+    const { deps } = rig([row({ id: undefined })])
     expect(await latestRun("u-1", deps)).toEqual(EMPTY_COLLECTION)
   })
 })

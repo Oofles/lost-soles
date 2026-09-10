@@ -95,8 +95,18 @@ export const EMPTY_COLLECTION: RunFeatureCollection = { type: "FeatureCollection
  */
 export const LATEST_SCAN_LIMIT = 20
 
+/**
+ * ONE ROW OF T3, AS DYNAMODB ACTUALLY HOLDS IT.
+ *
+ * **`id`, NOT `activityId`.** `persist.ts:148` writes `id: activity.activityId` — I-5's
+ * deterministic id under the Amplify model's own primary key — so there is no `activityId`
+ * attribute on the item at all. The first draft of this module read `activityId`, every unit
+ * test passed against fixtures that invented it, and the live smoke test returned an empty
+ * collection over a row that plainly had geometry. `server.test.ts` now builds its rows with the
+ * shipped `activityItem`, so a fixture cannot describe a store that does not exist.
+ */
 type ActivityRow = {
-  activityId?: string
+  id?: string
   startedAt?: string
   traceRef?: string | null
   name?: string | null
@@ -137,15 +147,15 @@ export async function latestRun(
 
   const rows = (out.Items ?? []) as ActivityRow[]
   const row = rows.find((r) => typeof r.traceRef === "string" && r.traceRef.length > 0)
-  if (!row?.activityId || !row.startedAt) return EMPTY_COLLECTION
+  if (!row?.id || !row.startedAt) return EMPTY_COLLECTION
 
   /**
    * THE KEY IS REBUILT, NOT READ OFF THE ROW. `row.traceRef` holds the same string, and using
    * it would let a value written by some future code path — or a hand-edited row — choose which
-   * object this account's session reads. `routeTraceKey(userId, activityId)` can only ever
-   * address the caller's own prefix, which is the property `08` §5.3 is actually asking for.
+   * object this account's session reads. `routeTraceKey(userId, row.id)` can only ever address
+   * the caller's own prefix, which is the property `08` §5.3 is actually asking for.
    */
-  const bytes = await getObject(routeTraceKey(userId, row.activityId), deps)
+  const bytes = await getObject(routeTraceKey(userId, row.id), deps)
   if (bytes === undefined) return EMPTY_COLLECTION
 
   return {
@@ -155,7 +165,7 @@ export async function latestRun(
         type: "Feature",
         geometry: JSON.parse(new TextDecoder().decode(bytes)) as RouteTraceGeometry,
         properties: {
-          activityId: row.activityId,
+          activityId: row.id,
           startedAt: row.startedAt,
           name: row.name ?? null,
         },
