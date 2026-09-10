@@ -2789,10 +2789,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-10T02:00:41Z",
     "path": "tickets/open/0118-spike-glmax-r8-fbo-on-target-device.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 8
     }
   },
@@ -4325,13 +4326,13 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   },
   {
     "id": 190,
     "slug": "lint-ignores-copied-maplibre-worker",
-    "title": "npm run lint fails locally after a build — public/maplibre is not in eslint's ignores",
+    "title": "lint and the design-token scan both fail locally after a build — public/maplibre is not excluded",
     "type": "bug",
     "priority": "low",
     "status": "open",
@@ -4340,12 +4341,12 @@
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
-    "created": "2026-09-10T01:26:56Z",
+    "created": "2026-09-10T01:27:10Z",
     "path": "tickets/open/0190-lint-ignores-copied-maplibre-worker.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   }
 ]
