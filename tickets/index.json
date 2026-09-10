@@ -4388,8 +4388,28 @@
     "path": "tickets/open/0192-nine-ingested-runs-produced-zero-exploredcells-the-receipts.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
+    }
+  },
+  {
+    "id": 193,
+    "slug": "the-2025-08-04-run-has-archived-bytes-but-no-ingest-receipt",
+    "title": "The 2025-08-04 run has archived bytes but no ingest receipt, so it cannot be replayed",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T15:20:00Z",
+    "path": "tickets/open/0193-the-2025-08-04-run-has-archived-bytes-but-no-ingest-receipt.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]
