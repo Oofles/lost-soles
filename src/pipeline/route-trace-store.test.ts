@@ -39,18 +39,29 @@ const bodyOf = (input: { Body?: unknown }): RouteTraceGeometry =>
   JSON.parse(gunzipSync(input.Body as Uint8Array).toString("utf8")) as RouteTraceGeometry
 
 describe("routeTraceKey", () => {
+  /**
+   * THE ACTIVITY ID IS SOURCE-AGNOSTIC, and so is this fixture. `src/pipeline` may not know a
+   * concrete source exists (D-100), which `scripts/check-boundaries.mjs` enforces — it rejected
+   * this test's first draft for using a vendor-shaped id here, and it was right to.
+   */
   it("scopes the object to the owning user, under users/", () => {
-    expect(routeTraceKey("u-1", "strava#9001")).toBe("users/u-1/traces/strava#9001.segments.json.gz")
+    expect(routeTraceKey("u-1", "a-9001")).toBe("users/u-1/traces/a-9001.segments.json.gz")
   })
 
   /**
-   * The rule `check-boundaries.mjs` enforces, asserted here as well because the name is a
-   * DESIGN divergence (D-235) and not an implementation detail. A future session that "fixes"
-   * the key back to what `02` §5.1 originally said fails CI — and then fails here, with the
-   * reason attached, which is the half CI cannot supply.
+   * THE EXACT NAME, NOT A SHAPE — because the name is a DESIGN DIVERGENCE (D-235) rather than an
+   * implementation detail, and a future session may well try to "fix" it back to what `02` §5.1
+   * originally said. That attempt fails `check-boundaries.mjs` first; this fails second, with the
+   * reason attached, which is the half a grep cannot supply.
+   *
+   * The banned spelling is deliberately not written out here even to assert its absence. The
+   * guard bans the word in this directory in PROSE as well as in code — ticket `0189` — and a
+   * test that has to dodge a guard to assert the guard's own rule is the dodge that teaches the
+   * next person the guard is negotiable. The exact-match above constrains the name completely.
    */
-  it("does not name the artefact after a degraded Strava trace (D-121, D-235)", () => {
-    expect(routeTraceKey("u-1", "a-1")).not.toMatch(/polyline/i)
+  it("names the artefact after the segments it holds (D-121, D-235)", () => {
+    expect(routeTraceKey("u-1", "a-1")).toBe("users/u-1/traces/a-1.segments.json.gz")
+    expect(routeTraceKey("u-1", "a-1").endsWith(".segments.json.gz")).toBe(true)
   })
 })
 
