@@ -352,5 +352,14 @@ thing to read — it should tick through whole numbers as you pan, and the line 
   Output goes to the gitignored `tmp/` (commit `f9577a2` — a screenshot of the real fog is a
   location leak; these are Point Nemo, and the directory is the right home regardless).
 
-- **Deployed.** Amplify job **181** on commit `dc89d22`. The post-deploy smoke test goes in the
-  close commit, once the operator has looked.
+- **Post-deploy smoke test** (Amplify job **181**, `SUCCEED`, commit `dc89d22`):
+  `/` -> 200 · `/?fog=noise` -> 200 · `/?fog=mask,debug` -> 200, all the signed-out landing page
+  rather than an error. The signed-out payload carries no home-shaped coordinate.
+
+  The deployed route chunk `/_next/static/chunks/app/page-43628c0352879dfc.js` contains
+  `u_noiseMatrix`, `u_noiseOrigin`, `hashCell`, `v_noiseH`, `u_maxOpacity`, `FBM_OCTAVES`,
+  `prefers-reduced-motion` and `visibilitychange` — so the composite and its animator genuinely
+  shipped rather than being tree-shaken out of a route nobody visits signed out.
+
+  **And it contains neither `43758.5453` nor `u_screen`.** D-233 confirmed on the deployed artifact
+  rather than only in the source: §4.3's screen-space recipe is not in the bundle.
