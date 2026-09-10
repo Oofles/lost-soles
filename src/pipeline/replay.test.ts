@@ -14,6 +14,12 @@ import {
 /**
  * Ticket `0192`. `01-architecture.md` §3, D-101, D-020.
  *
+ * SOURCE ID: `gpslogger`, NOT `strava`, and `check-boundaries.mjs` is why. `src/pipeline` is
+ * source-agnostic under D-100/D-121.1, and the guard greps for a Strava-shaped identifier anywhere
+ * outside the adapter directory — including in a test. It caught this file on Amplify job 172 after
+ * a local run of the same guard was misread. The rule is right: nothing here should care which
+ * source it is replaying, and a test that names one is quietly asserting otherwise.
+ *
  * The load-bearing assertion in this file is the one that looks negative: **a replay never touches
  * the source**. Everything else is plumbing around it. The reason is in `replay.ts`'s header — a
  * source can return different bytes for the same activity, and ground revealed from bytes the
@@ -23,7 +29,7 @@ import {
 const JOB: IngestJob = {
   ingestKey: "key-1",
   userId: "user-1",
-  source: "strava",
+  source: "gpslogger",
   externalId: "555",
   command: "reingest",
   startedAt: "2026-01-01T00:00:00.000Z",
@@ -31,12 +37,12 @@ const JOB: IngestJob = {
   enqueuedAt: "2026-01-02T00:00:00.000Z",
 }
 
-const KEY = "raw/user-1/strava/555/abc123.json"
+const KEY = "raw/user-1/gpslogger/555/abc123.json"
 
 function s3({
   objects = [{ Key: KEY, LastModified: new Date("2026-01-01T00:00:00Z") }],
   body = Buffer.from('{"detail":{},"streams":{}}'),
-  metadata = { schemahint: "strava/raw-envelope@1" } as Record<string, string> | undefined,
+  metadata = { schemahint: "gpslogger/raw-envelope@1" } as Record<string, string> | undefined,
   contentType = "application/json" as string | undefined,
 }: {
   objects?: Array<{ Key?: string; LastModified?: Date }>
@@ -64,11 +70,11 @@ function s3({
 
 describe("archivePrefix", () => {
   it("is archive.ts's key layout with the digest left off", () => {
-    expect(archivePrefix({ userId: "u", source: "strava", externalId: "9" })).toBe(
-      "raw/u/strava/9/",
+    expect(archivePrefix({ userId: "u", source: "gpslogger", externalId: "9" })).toBe(
+      "raw/u/gpslogger/9/",
     )
     // The trailing slash is not cosmetic: without it the prefix would also match `/90`, `/91`…
-    expect(archivePrefix({ userId: "u", source: "strava", externalId: "9" })).toMatch(/\/$/)
+    expect(archivePrefix({ userId: "u", source: "gpslogger", externalId: "9" })).toMatch(/\/$/)
   })
 })
 
@@ -81,7 +87,7 @@ describe("readArchivedRaw", () => {
     // From the content-addressed key's suffix — `archive.ts` puts the adapter's declared `ext` there.
     expect(raw.ext).toBe("json")
     // From the user metadata `archiveRaw` writes, lower-cased in transit by S3.
-    expect(raw.schemaHint).toBe("strava/raw-envelope@1")
+    expect(raw.schemaHint).toBe("gpslogger/raw-envelope@1")
     expect(raw.key).toBe(KEY)
   })
 
@@ -93,33 +99,33 @@ describe("readArchivedRaw", () => {
   it("takes the newest object when an activity has more than one", async () => {
     const { deps, gets } = s3({
       objects: [
-        { Key: "raw/user-1/strava/555/old.json", LastModified: new Date("2026-01-01T00:00:00Z") },
-        { Key: "raw/user-1/strava/555/new.json", LastModified: new Date("2026-03-01T00:00:00Z") },
+        { Key: "raw/user-1/gpslogger/555/old.json", LastModified: new Date("2026-01-01T00:00:00Z") },
+        { Key: "raw/user-1/gpslogger/555/new.json", LastModified: new Date("2026-03-01T00:00:00Z") },
       ],
     })
     await readArchivedRaw(JOB, deps)
-    expect(gets).toEqual(["raw/user-1/strava/555/new.json"])
+    expect(gets).toEqual(["raw/user-1/gpslogger/555/new.json"])
   })
 
   it("breaks a timestamp tie on the key, so the choice is deterministic", async () => {
     const at = new Date("2026-01-01T00:00:00Z")
     const { deps, gets } = s3({
       objects: [
-        { Key: "raw/user-1/strava/555/bbb.json", LastModified: at },
-        { Key: "raw/user-1/strava/555/aaa.json", LastModified: at },
+        { Key: "raw/user-1/gpslogger/555/bbb.json", LastModified: at },
+        { Key: "raw/user-1/gpslogger/555/aaa.json", LastModified: at },
       ],
     })
     await readArchivedRaw(JOB, deps)
-    expect(gets).toEqual(["raw/user-1/strava/555/aaa.json"])
+    expect(gets).toEqual(["raw/user-1/gpslogger/555/aaa.json"])
     // Deterministic means the same answer twice, which is what makes a replay a replay.
     const second = s3({
       objects: [
-        { Key: "raw/user-1/strava/555/aaa.json", LastModified: at },
-        { Key: "raw/user-1/strava/555/bbb.json", LastModified: at },
+        { Key: "raw/user-1/gpslogger/555/aaa.json", LastModified: at },
+        { Key: "raw/user-1/gpslogger/555/bbb.json", LastModified: at },
       ],
     })
     await readArchivedRaw(JOB, second.deps)
-    expect(second.gets).toEqual(["raw/user-1/strava/555/aaa.json"])
+    expect(second.gets).toEqual(["raw/user-1/gpslogger/555/aaa.json"])
   })
 
   it("throws rather than returning nothing when the activity was never archived", async () => {
@@ -140,7 +146,7 @@ describe("readArchivedRaw", () => {
   it("ignores the prefix placeholder some S3 listings return", async () => {
     const { deps, gets } = s3({
       objects: [
-        { Key: "raw/user-1/strava/555/", LastModified: new Date("2027-01-01T00:00:00Z") },
+        { Key: "raw/user-1/gpslogger/555/", LastModified: new Date("2027-01-01T00:00:00Z") },
         { Key: KEY, LastModified: new Date("2026-01-01T00:00:00Z") },
       ],
     })
@@ -152,7 +158,7 @@ describe("readArchivedRaw", () => {
 describe("replayAdapter", () => {
   function adapter(): SourceAdapter<{ token: string }> & { fetched: number } {
     const stub = {
-      id: "strava" as const,
+      id: "gpslogger" as const,
       fetched: 0,
       accept: vi.fn(),
       fetchRaw: vi.fn(async () => {
@@ -161,7 +167,7 @@ describe("replayAdapter", () => {
           body: Buffer.from("FROM THE NETWORK"),
           contentType: "application/json",
           ext: "json",
-          schemaHint: "strava/raw-envelope@1",
+          schemaHint: "gpslogger/raw-envelope@1",
         }
       }),
       normalize: vi.fn(() => ({ activity: { marker: "shipped-normalizer" } }) as never),
