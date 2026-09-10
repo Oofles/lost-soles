@@ -1358,20 +1358,18 @@
     "title": "Layer order — fog above labels, run polyline above the fog",
     "type": "feature",
     "priority": "high",
-    "status": "blocked",
+    "status": "open",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
       54,
       56
     ],
-    "blocked_by": [
-      195
-    ],
+    "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0057-layer-order-and-run-polyline.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -4446,7 +4444,7 @@
     "title": "Persist the per-activity route polyline (S-7) and serve the latest run as GeoJSON",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4454,8 +4452,9 @@
     "source": "agent",
     "created": "2026-09-10T22:06:02Z",
     "started": "2026-09-10T22:08:01Z",
-    "path": "tickets/open/0195-activity-route-polyline-and-latest-run-endpoint.md",
-    "ready": true,
+    "closed": "2026-09-10T23:18:53Z",
+    "path": "tickets/closed/0195-activity-route-polyline-and-latest-run-endpoint.md",
+    "ready": false,
     "acceptance": {
       "checked": 11,
       "total": 11
@@ -4478,7 +4477,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   }
 ]

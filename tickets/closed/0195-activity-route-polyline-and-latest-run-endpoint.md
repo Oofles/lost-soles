@@ -4,7 +4,7 @@ slug: activity-route-polyline-and-latest-run-endpoint
 title: Persist the per-activity route polyline (S-7) and serve the latest run as GeoJSON
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-10T22:06:02Z
 started: 2026-09-10T22:08:01Z
+closed: 2026-09-10T23:18:53Z
 ---
 
 ## Description
