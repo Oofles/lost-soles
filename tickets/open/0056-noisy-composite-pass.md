@@ -271,6 +271,28 @@ seam, so buying raggedness there trades one artefact for the other.
 - **`npm run lint` still fails locally after a build** (tickets `0188`/`0190`), so every check here
   was run with `public/maplibre` moved aside and **unfiltered**.
 
+### And one more thing went wrong, after the operator had already passed it
+
+**Amplify job 182 failed on `check-design-tokens.mjs`** — five raw hex literals in
+`tools/fog-harness/render-png.js`, the throwaway stand-in basemap the render tool draws. The guard
+was right, and `0055`'s own harness comment predicted this failure verbatim one ticket earlier:
+*"a raw hex here fails check-design-tokens.mjs, correctly. (It did, in 0118. See ticket 0190.)"*
+
+**The mistake was ordering, not judgement.** The eleven guard scripts were run before that file
+existed and never re-run after it did, so the gate was bypassed by sequence. Worth stating plainly
+because it is the failure mode a green local checklist is most prone to: the checklist was accurate
+when it ran and stale by the time it was reported.
+
+`render-png.mjs` now reads `app/tokens.css` and injects the ramp, throwing if a token it needs has
+gone. That is the better picture as well as the legal one — D-051's question is whether labels stay
+readable against the **actual** parchment, and now they are being asked against it. Amplify job
+**184** on commit `3503ef7`: `SUCCEED`.
+
+**Also worth knowing for anyone running the guards locally:** `check-design-tokens.mjs` fires on the
+generated `public/maplibre` bundle, which Amplify never sees because it runs the guards before
+`prebuild` generates it. Tickets `0188`/`0190` own that; locally, delete the directory before
+running the guards and let `npm run build` regenerate it.
+
 ### Not done here, on purpose
 
 - **Tuning is `0119`.** The ticket is explicit and it is right: *"it has no passing test and will
@@ -294,10 +316,32 @@ it — the backlog was written before those decisions existed.
 Step 4 is kept but restated: *"Enable Remove animations in Android accessibility"* becomes the
 browser's own reduced-motion setting, which is one toggle and needs no device.
 
-### ★ WHAT THE OPERATOR STILL HAS TO LOOK AT ★ — desktop browser, `/`
+### ★ OPERATOR RESULT — desktop browser, `/`, 2026-09-10: ALL FIVE PASS ★
 
-Five minutes. Every one of these is a judgement two competent people could disagree about by
-looking; nothing here is a scenario to construct and nothing needs the phone.
+**First attempt, no defects.** `0055` needed three rounds; this needed one, and the difference is
+that D-233 was caught by reading §4.3 against the ticket's own Notes before writing the shader
+rather than by the operator's eye afterwards.
+
+1. **Legibility** — *"street names are visible on revealed ground"*. D-051 holds.
+2. **Panning** — *"panning works great"*. The mist stays on the ground. This is the one the whole
+   ticket turned on: 0/255 across a synthetic pan said the noise was anchored, and this says it
+   reads that way to a person.
+3. **Drift** — *"The drift of fog is such a cool effect! Working great!"* So the animation is
+   perceptible as atmosphere without reading as motion, at `u_noiseAmp = 0.10` and 30 fps. Worth
+   recording against the possibility that `0119` raises it: the value that ships already lands.
+4. **Reduced motion** — *"reload works"*. Static, still correct, not flat grey.
+5. **Water and parks** — *"lakes and water features are covered as expected on overlap"*. No 120°
+   corners; §4.1's claim that hex geometry never reaches the screen still holds under pass 2.
+
+**Not raised:** the two things the render tool predicted would not be visible — the warm rim at
+`u_rimAmt = 0.08`, and any raggedness at the boundary. Both are filed on `0119` with their
+arithmetic. The operator called the result *"working great"* without either, which is itself useful
+input to that ticket: the effect lands on drift and contrast, not on the rim.
+
+### The checklist that was asked, kept for the record
+
+Five minutes on the desktop browser at `/`. Every one is a judgement two competent people could
+disagree about by looking; nothing needed constructing and nothing needed the phone.
 
 1. **Legibility, which is D-051 and therefore a blocker rather than a nit.** Over the edge of your
    explored territory: **street names inside revealed ground must stay readable.** If names inside
