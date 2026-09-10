@@ -2818,3 +2818,45 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     aiming at MVP.** Usable soon beats exhaustively proven. A bug the operator hits in real use is
     cheaper to fix than a validation ritual that delays real use — and real use is the only thing
     that produces the runs the whole system is for.
+
+- **D-230** **The `MAX`-into-`R8` spike is decided on the desktop browser, and the residual
+  "does ANGLE on a real Android GPU honour it" risk is knowingly accepted and deferred to `0059`.**
+  Resolves the conflict between ticket `0118` (written 2026-08-30, requires the real device) and
+  D-227/D-229 (both 2026-09-09, which moved validation off the phone).
+  *(Operator, during ticket `0118`, 2026-09-09.)*
+  - **The conflict was real and not a misreading.** `0118` criterion 5 says *"Run on the real target
+    device, not only desktop Chrome and not only an emulator"*, and `05-fog-of-war.md` §9.6 names the
+    unvalidated assumption precisely: *"unvalidated: `MAX` blending against `R8` on older Android GPUs
+    via ANGLE. Verify on a real mid-range Android device in the first week of implementation."*
+    D-229(c) says anything on the phone never earns `(operator)` unless the ticket is about phone
+    *capture*. This ticket is about phone *rendering* — inside neither the rule nor its exception.
+  - **The operator's own framing, asked before any code was written:** *"if it can be validated on the
+    web browser I don't need extra validation on the phone — I'm ok to keep that low-risk. If it's only
+    a phone thing, then that's fine."*
+  - **What the desktop browser genuinely settles, and it is more than it sounds.** The technique
+    itself: that `R8` is renderable, that `gl.blendEquation(gl.MAX)` unions rather than sums, that
+    MapLibre's `prerender` tolerates a foreign framebuffer, that the projection prelude compiles, that
+    no GL state leaks. Those are properties of the code and the API, not of one driver, and every one
+    of them was a way this could have failed.
+  - **What it does NOT settle, stated plainly so it is not later claimed as proven.** One specific
+    thing: Qualcomm/Mali ANGLE honouring `MIN`/`MAX` blending into a single-channel normalised target.
+    That is a driver conformance question and only the device answers it.
+  - **Why accepting it is cheap, which is the whole argument.** The failure, if it comes, is *loud and
+    local*: the fog looks wrong on the phone in a way nobody could miss, and the fix — a `MAX`-free
+    mask, or the `05` §4.6 raster escape hatch — is a change to the mask pass, not to the data model,
+    the scoring, the ledger or the delivery format. Nothing downstream of `0055` is built on the blend
+    equation. Contrast the risk the spike DID retire: a wrong answer there would have invalidated the
+    whole two-pass architecture, which is why it was worth a ticket of its own.
+  - **It is deferred, not dropped, and it has a named owner.** `0059` is a perf harness against the
+    §6.4 budget **on a real mid-range Android phone**, and D-227 kept that standing explicitly — *"the
+    phone remains the worst case even when it is not the common case, and a renderer tuned for it is
+    not wasted work"*. The probe built for `0118` is ~40 lines and `0059` can carry it, so the device
+    check costs that ticket almost nothing when it arrives with a device in hand anyway.
+  - **The `0118` page self-asserts numerically for exactly this reason.** It prints one `GO`/`NO-GO`
+    line and the unmasked GPU string, so if the operator ever does open it on the phone the task is
+    "read one line" rather than "judge a rendering". A deferred risk with a two-second check attached
+    is a different thing from a deferred risk with a procedure attached.
+  - **This narrows §9.6's instruction rather than contradicting it.** §9.6 says verify on a real
+    device "in the first week of implementation, before the rest of the layer is built on the
+    assumption". What is preserved is the ordering claim that mattered: the *technique* is verified
+    before `0055` builds on it. What is relaxed is which GPU does the verifying first.

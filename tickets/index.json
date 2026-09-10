@@ -4307,5 +4307,45 @@
       "checked": 0,
       "total": 6
     }
+  },
+  {
+    "id": 189,
+    "slug": "d121-guard-fires-on-prose",
+    "title": "The D-121 polyline guard fires on prose, not just on code",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T01:26:56Z",
+    "path": "tickets/open/0189-d121-guard-fires-on-prose.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 190,
+    "slug": "lint-ignores-copied-maplibre-worker",
+    "title": "npm run lint fails locally after a build — public/maplibre is not in eslint's ignores",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T01:26:56Z",
+    "path": "tickets/open/0190-lint-ignores-copied-maplibre-worker.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
