@@ -278,10 +278,11 @@ against a solid 255 on a real GPU, which is a stronger answer than the eye could
 
 ### ★ For the operator — desktop browser, `https://soles.devaultsecurity.com/?fog=mask` ★
 
-**BLOCKED ON `0192` AND NOT YET PERFORMABLE.** The account has zero explored cells, so the mask
-correctly draws nothing. `0192` replays the ten archived runs; until it does, every check below has
-no subject. The HUD says so on screen in as many words rather than leaving an empty view to be
-guessed at.
+**UNBLOCKED — `0192` closed 2026-09-10.** The first check of this section found the account had zero
+explored cells, so the mask correctly drew nothing; that turned out to be nine runs ingested a day
+before the `ExploredCell` writer existed. They have been replayed from the S3 archive and the account
+now holds **85 res-10 cells** (generation 25). The HUD reports the count on screen, so an empty view
+can never again be mistaken for a broken one.
 
 The mask renders as a **dark greyscale veil**: dark where you have run, untouched basemap where you
 have not. It is deliberately not the fog — `0056` builds that. A readout sits bottom-right with the
