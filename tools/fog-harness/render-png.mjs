@@ -36,6 +36,20 @@ const compiled = MODULES.map((m) =>
     .replace(/^export /gm, ""),
 ).join("\n")
 
+/**
+ * THE PALETTE COMES FROM `app/tokens.css`, NOT FROM THIS FILE. `check-design-tokens.mjs` bans a raw
+ * hex anywhere outside that one file and it is right to: the first draft of `render-png.js` carried
+ * five, and the guard failed an Amplify build over them. Reading the real ramp is also the better
+ * picture — D-051's question is whether labels stay legible against the ACTUAL parchment.
+ */
+const tokensCss = readFileSync(join(ROOT, "app/tokens.css"), "utf8")
+const TOKENS = Object.fromEntries(
+  [...tokensCss.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8})\s*;/g)].map((m) => [m[1], m[2]]),
+)
+for (const name of ["parch-100", "parch-400", "ink-600", "verdigris-300", "cold-wash"]) {
+  if (!TOKENS[name]) throw new Error(`app/tokens.css no longer defines --${name}`)
+}
+
 const driver = readFileSync(join(ROOT, "tools/fog-harness/render-png.js"), "utf8")
 const page = join(work, "render.html")
 writeFileSync(
@@ -45,7 +59,8 @@ writeFileSync(
 <canvas id="c" width="1280" height="800"></canvas>
 <pre id="out">pending</pre>
 <script>\n${compiled}\n</script>
-<script>const PALETTE_NAME = ${JSON.stringify(PALETTE_NAME)}; const HALF_W_M = ${HALF_W_M}</script>
+<script>const PALETTE_NAME = ${JSON.stringify(PALETTE_NAME)}; const HALF_W_M = ${HALF_W_M};
+const TOKENS = ${JSON.stringify(TOKENS)}</script>
 <script>\n${driver}\n</script>
 </body>`,
 )

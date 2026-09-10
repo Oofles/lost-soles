@@ -50,23 +50,34 @@ const PROJECTION = {
   clipAntimeridian: false,
 }
 
-/** A parchment street grid, drawn to a 2D canvas and uploaded as the "basemap" behind the fog. */
+/**
+ * A parchment street grid, drawn to a 2D canvas and uploaded as the "basemap" behind the fog.
+ *
+ * EVERY COLOUR COMES FROM `app/tokens.css`, injected by `render-png.mjs` as `TOKENS`. Not a
+ * formality — the first draft of this file had five raw hex literals in it and
+ * `check-design-tokens.mjs` failed the Amplify build over them, which is `0055`'s harness comment
+ * warning about exactly this (*"a raw hex here fails check-design-tokens.mjs, correctly"*) coming
+ * true one ticket later. Reading the real ramp is also the better picture: D-051's question is
+ * whether labels stay readable against the ACTUAL parchment, not against something close to it.
+ */
 function basemap() {
   const bg = document.getElementById("bg")
   const ctx = bg.getContext("2d")
-  ctx.fillStyle = "#efe7d6"
+  ctx.fillStyle = TOKENS["parch-100"]
   ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = "#dfe9df"
+  ctx.fillStyle = TOKENS["verdigris-300"]
+  ctx.globalAlpha = 0.25
   ctx.fillRect(760, 90, 330, 210)          // a park
-  ctx.fillStyle = "#cfe0ea"
+  ctx.fillStyle = TOKENS["cold-wash"]
   ctx.beginPath()
   ctx.ellipse(230, 620, 190, 105, 0.3, 0, Math.PI * 2)
   ctx.fill()                                // a lake
-  ctx.strokeStyle = "#c9bfa8"
+  ctx.globalAlpha = 1
+  ctx.strokeStyle = TOKENS["parch-400"]
   ctx.lineWidth = 9
   for (let x = 80; x < W; x += 160) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
   for (let y = 70; y < H; y += 150) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
-  ctx.fillStyle = "#5c5340"
+  ctx.fillStyle = TOKENS["ink-600"]
   ctx.font = "500 15px system-ui, sans-serif"
   for (let x = 96; x < W; x += 160) {
     for (let y = 60; y < H; y += 150) ctx.fillText("Deer Ridge Dr", x, y)
