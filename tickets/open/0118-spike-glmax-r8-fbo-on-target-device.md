@@ -40,16 +40,19 @@ consequences for capabilities `12` and `15`, not a local workaround.
 
 ## Acceptance criteria
 
-- [ ] A throwaway branch renders ~500 hard-coded discs into a half-res `R8` FBO via one
+- [x] A throwaway branch renders ~500 hard-coded discs into a half-res `R8` FBO via one
       `drawArraysInstanced`, inside MapLibre's `prerender`.
-- [ ] `gl.blendEquation(gl.MAX)` is used; two deliberately overlapping discs are asserted to
+- [x] `gl.blendEquation(gl.MAX)` is used; two deliberately overlapping discs are asserted to
       produce `max(a, b)` and **not** a summed brighter spot.
-- [ ] The mask is blitted to screen as greyscale so the result is visible without pass 2 existing.
+- [x] The mask is blitted to screen as greyscale so the result is visible without pass 2 existing.
 - [ ] GL state (blend equation, blend func, bound FBO, viewport) is restored; MapLibre's own
-      basemap renders unchanged with the layer installed.
+      basemap renders unchanged with the layer installed. *Half proven: the state read-back is green
+      in the real `prerender` (`run-maplibre.mjs`), but that harness runs on an empty style, so
+      "the basemap renders unchanged" still needs an eye on a real one — the A/B in
+      `## Operator validation`.*
 - [ ] **(operator)** Run in the **desktop browser** — amended 2026-09-09, see `## Notes`. The phone
       is welcome confirmation and is not a precondition (D-230).
-- [ ] `EXT_color_buffer_half_float` / `R8` renderability is feature-detected and the result recorded,
+- [x] `EXT_color_buffer_half_float` / `R8` renderability is feature-detected and the result recorded,
       rather than assumed.
 - [ ] The outcome is written into `docs/capabilities/08-map-and-fog-renderer.md` as GO or NO-GO with
       the device, browser version, and what was observed — **one paragraph minimum, either way.**

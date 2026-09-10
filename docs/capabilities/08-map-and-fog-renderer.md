@@ -253,6 +253,85 @@ the centroid.
 documents, taken for operability (a runbook that opens with "look up the generated bucket name"
 is a runbook that stops being followed).
 
+### The `gl.MAX` spike — GO, with one risk knowingly deferred (ticket `0118`, D-230)
+
+**Verdict: GO.** `05-fog-of-war.md` §4's technique works. `09-roadmap.md` §8.2 called this the
+mitigation for the project's largest technical risk and §4 has no plan B, so this is the paragraph
+that unblocks the rest of capability `08` — and it is written before `0055` starts, which was the
+whole point of splitting it out of that ticket.
+
+#### What was observed, and on what
+
+| | |
+|---|---|
+| Route | `/dev/fog-spike` on `soles.devaultsecurity.com` — throwaway, removed at `0118`'s close |
+| Geometry | 469 H3 res-10 cells (`gridDisk` k=12) around **downtown Tampa**, plus 2 isolated overlapping discs, in **one** `drawArraysInstanced` |
+| Mask | half the drawing buffer, `R8`, `LINEAR`, `CLAMP_TO_EDGE`, bound inside MapLibre's `prerender` |
+| MapLibre | 6.6.0, real `shaderData.vertexShaderPrelude` — `variant=mercator`, 664 bytes, `#define PROJECTION_MERCATOR` |
+| Headless | Chromium 152 / SwiftShader (ANGLE over Vulkan 1.3), `FRAMEBUFFER_COMPLETE` |
+| Desktop browser | *(appended at close — the operator's perceptual check, D-227)* |
+
+**The `MAX` probe, which is the actual finding.** Two discs at coverage 0.55 and 0.35 were drawn into
+the real mask inside `prerender` and read back with `gl.readPixels`: `low(89)=88687 high(140)=160989
+summed(230)=0 maxByte=140`. Coverage never exceeds the higher of the two inputs, so the discs are
+being **unioned and not summed** — which is the union semantics D-020 rests on. Blend equation, blend
+func, bound framebuffer and viewport all read back restored; `gl.getError()` stayed `NO_ERROR` across
+32 blitted frames and across a remove-and-reinstall of the layer.
+
+#### Three things the spike found that the ticket had wrong
+
+1. **"Flat white discs" would have made the spike unable to fail.** `R8` is a normalised unsigned
+   format, so under an additive blend `1.0 + 1.0` clamps to `1.0` — byte-identical to
+   `max(1.0, 1.0)`. Two overlapping white discs look the same whether `MAX` is honoured or silently
+   ignored. The discs are **mid-grey (0.45)** and the probe pair is deliberately unequal, which is
+   what makes the two outcomes separable at all. `lib/fog/spike-mask.test.ts` asserts the summed
+   overlap stays representable so nobody reverts it to match the ticket's wording.
+2. **A value-based assertion cannot see the worst failure mode.** Three behaviours, two of them
+   indistinguishable by value: `MAX` gives an overlap of 0.55, an additive blend gives 0.90 — loud —
+   and **a driver ignoring the blend equation entirely gives 0.35, with the same maximum byte and the
+   same distinct values as `MAX`**. Silent, and it would have destroyed the union semantics while
+   reporting a pass. The verdict is therefore decided on **pixel counts**: both discs have the same
+   radius, so under `MAX` the high disc keeps all of its pixels and the low one loses the overlap, and
+   under last-write-wins it is the other way round. `count(high) > count(low)` *is* "`MAX` was
+   honoured", and it needs no knowledge of where on screen the discs landed.
+3. **`EXT_color_buffer_half_float` has nothing to do with `R8`.** Criterion 6 named it as though the
+   mask depended on it. `R8` is **core colour-renderable in WebGL2**; the extension would matter only
+   for an `R16F` mask, which §4.2's is not. Both are detected and recorded, but
+   `checkFramebufferStatus` on a real `R8` attachment is what the verdict gates on.
+
+#### What this does NOT prove — read before treating §9.6 as closed
+
+§9.6's exact words are *"unvalidated: `MAX` blending against `R8` on older Android GPUs via ANGLE"*.
+The evidence above is desktop and SwiftShader. **Qualcomm/Mali ANGLE honouring `MIN`/`MAX` into a
+single-channel normalised target is still unverified**, and D-230 records the operator's decision to
+accept that and defer it to **`0059`**, which already carries a real mid-range Android phone.
+
+Why that is a cheap deferral rather than a gap: the failure, if it comes, is loud and local — the fog
+looks wrong on the phone in a way nobody could miss, and the fix is confined to the mask pass. Nothing
+downstream of `0055` is built on the blend equation. Contrast the risk that WAS retired here, where a
+wrong answer would have invalidated the whole two-pass architecture.
+
+#### For whoever writes `0055`
+
+Everything in `lib/fog/spike-*.ts` and `tools/spike-harness/` is deleted at `0118`'s close. Four
+things are worth carrying forward rather than rediscovering:
+
+- **`defaultProjectionData`'s six uniforms are named in MapLibre's own type docs** —
+  `u_projection_matrix`, `u_projection_tile_mercator_coords`, `u_projection_clipping_plane`,
+  `u_projection_transition`, `u_projection_fallback_matrix`, `u_projection_clip_antimeridian`. Under
+  mercator the compiler strips the globe ones, so every `getUniformLocation` must be null-guarded.
+- **Resources cannot be built in `onAdd`.** The vertex shader needs
+  `shaderData.vertexShaderPrelude`, which only exists on the render-method input. Build on first
+  `prerender`, and rebuild when `shaderData.variantName` changes — that is MapLibre's own cache key
+  for a changed projection.
+- **Criteria 3 and 4 only hold together if the veil is transparent where the mask is zero.** The blit
+  outputs **premultiplied** `vec4(rgb * a, a)` with alpha carrying the mask, because MapLibre's
+  `render` pass sets `blendFunc(ONE, ONE_MINUS_SRC_ALPHA)`. An opaque full-screen blit satisfies
+  "visible" and breaks "the basemap renders unchanged".
+- **The spike uses FLAT discs, not §4.2's `1.0 - smoothstep(0.45, 1.0, d)` falloff.** Deliberate: a
+  flat disc writes one exact byte, so the probe compares integers. The soft edge is §4.1's whole
+  argument and is `0055`'s to build.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
