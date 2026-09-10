@@ -57,21 +57,17 @@ export interface MaskStats {
 }
 
 /**
- * Criterion 10's flag. `?fog=mask` on any route holding the map.
+ * Criterion 10's flag lives in `debug-flags.ts` now, with `0054`'s. Re-exported here because this
+ * is where callers look for it, and moved there because the two flags shared one query parameter
+ * and silently cancelled each other — see that file's header.
  *
  * A QUERY PARAMETER RATHER THAN A BUILD FLAG OR A SETTING, for one reason: the operator check for
  * this ticket is *"open the map with the debug flag on and look for scalloping"*, and a flag that
  * needs a rebuild or a trip through settings turns a ten-second look into a task. It is also
  * self-clearing — the next normal navigation drops it — so a debug view cannot become the app's
  * quiet default the way a persisted toggle can.
- *
- * Takes the search string rather than reading `location` so it is testable and so this module holds
- * no browser globals at import time (it is imported by a Next client component, which is still
- * evaluated during SSR).
  */
-export function maskDebugEnabled(search: string): boolean {
-  return new URLSearchParams(search).get("fog") === "mask"
-}
+export { maskDebugEnabled } from "./debug-flags"
 
 export class FogMaskLayer implements CustomLayerInterface {
   readonly id = "fog-mask"

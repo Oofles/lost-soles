@@ -1323,7 +1323,7 @@
     "path": "tickets/open/0055-webgl2-coverage-mask-pass.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -4369,6 +4369,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 192,
+    "slug": "nine-ingested-runs-produced-zero-exploredcells-the-receipts",
+    "title": "Nine ingested runs produced zero ExploredCells — the receipts are DONE so a re-sync cannot re-score them",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-10T13:06:45Z",
+    "path": "tickets/open/0192-nine-ingested-runs-produced-zero-exploredcells-the-receipts.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
     }
   }
 ]

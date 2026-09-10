@@ -10,6 +10,7 @@ import {
   type Camera,
 } from "@/lib/map-camera"
 
+import { MaskHud } from "./mask-hud"
 import { useFogMask } from "./use-fog-mask"
 
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -245,7 +246,7 @@ export function MapShell({ home }: { home: Camera | null }) {
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
    * Called unconditionally and before the early return below, because hooks are.
    */
-  useFogMask(loaded)
+  const fogLayer = useFogMask(loaded)
 
   if (unsupported) {
     return (
@@ -258,7 +259,17 @@ export function MapShell({ home }: { home: Camera | null }) {
     )
   }
 
-  return <div ref={container} style={shell} data-testid="map-shell" />
+  return (
+    <>
+      <div ref={container} style={shell} data-testid="map-shell" />
+      {/*
+        Ticket 0055, criterion 10. Renders only under `?fog=mask`, and it is what makes an EMPTY
+        mask distinguishable from a broken one — see mask-hud.tsx. It also carries the zoom, which
+        this ticket's operator validation names and the UI otherwise never shows.
+      */}
+      <MaskHud map={loaded} layer={fogLayer} />
+    </>
+  )
 }
 
 export default MapShell

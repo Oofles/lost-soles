@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { decodeStats } from "@/lib/fog/decode"
+import { decodeDebugEnabled } from "@/lib/fog/debug-flags"
 
 import { useExplored } from "./explored-provider"
 
@@ -33,9 +34,6 @@ import { useExplored } from "./explored-provider"
  * is that chrome is deliberately absent, and a permanently visible panel would be
  * something a later capability has to delete.
  */
-
-const DEBUG_PARAM = "fog"
-const DEBUG_VALUE = "debug"
 
 const notice: React.CSSProperties = {
   position: "fixed",
@@ -76,7 +74,9 @@ export function FogStatus() {
    * affordance quietly becomes part of the render contract.
    */
   useEffect(() => {
-    setDebug(new URLSearchParams(window.location.search).get(DEBUG_PARAM) === DEBUG_VALUE)
+    // `decodeDebugEnabled`, not an equality check on the parameter: `0055` added `?fog=mask` to
+    // the same parameter, so `fog=mask,debug` has to show both. See `lib/fog/debug-flags.ts`.
+    setDebug(decodeDebugEnabled(window.location.search))
   }, [])
 
   if (state.phase === "refused") {

@@ -91,7 +91,9 @@ it is the canary for the entire performance claim.
       — `FogMaskLayer.stats()` for per-frame sampling, plus one log line per instance-buffer
       rebuild. See `## Resolution` for why "per rebuild" is not "per frame".
 - [x] A debug flag renders the raw mask to screen as greyscale, for eyeballing coverage.
-      — `?fog=mask`. Verified present in the deployed page chunk.
+      — `?fog=mask`, composable with `0054`'s `?fog=debug` as `?fog=mask,debug`. Carries a HUD with
+      the zoom, the instance count and the fog phase; see `## Notes` for why the blit alone was not
+      enough.
 - [x] 0118 has been completed with a recorded **GO** before this ticket starts. (The spike was
       split out during backlog validation — see 0118. Do not re-do it here.)
       — closed 2026-09-10, verdict **GO**, in `docs/capabilities/08-map-and-fog-renderer.md`. Its
@@ -212,6 +214,28 @@ gl.getError 0x0
   under `MAX`; below 0 it vanishes. `explored-agg.json` is generated and ought to be in range — this
   is the boundary where an out-of-range number stops being data and becomes a rendering bug.
 
+### Two defects found by the first operator check, and fixed here
+
+Both are mine, both were invisible to every test in the suite, and both are the same shape: a debug
+affordance that satisfies its criterion's words while failing its purpose.
+
+1. **`?fog=mask` collided with `0054`'s `?fog=debug`.** Same query parameter, so each silently turned
+   the other off — and `0054`'s readout prints `cells 0`, which is the entire answer to "why is the
+   mask empty". The one URL used to look at the mask was the one URL that hid the instrument
+   explaining it, and establishing the answer instead took an hour of DynamoDB and S3 spelunking.
+   The value is now a comma-separated set in `lib/fog/debug-flags.ts`: `?fog=mask,debug` gives both,
+   and each flag alone behaves exactly as before.
+2. **An empty mask and a broken mask looked identical: nothing on screen.** `components/map/mask-hud.tsx`
+   now shows the zoom, the instance count, the resolution, the mask size and the fog phase — every
+   one a number the layer already had — and says *"this account has no explored cells; the mask is
+   working, there is no territory yet"* when the count is zero.
+
+The zoom line also repairs this ticket's own operator validation. It asked for checks "at zoom 16"
+and "at zoom 18" — web-map zoom levels, a MapLibre concept with **no presence anywhere in this UI**.
+The instruction named a quantity the operator had no way to read, which makes it unperformable
+however carefully it is worded. Worth generalising: a validation step must name something visible on
+the screen it is asking about.
+
 ### What went wrong while doing it
 
 - **The "stop trying every frame" comment on the shader-failure path was a lie when written**, and the
@@ -254,14 +278,21 @@ against a solid 255 on a real GPU, which is a stronger answer than the eye could
 
 ### ★ For the operator — desktop browser, `https://soles.devaultsecurity.com/?fog=mask` ★
 
-Signed in. The mask renders as a **dark greyscale veil** over the parchment basemap: dark where you
-have run, untouched basemap where you have not. It is deliberately not the fog — `0056` builds that.
+**BLOCKED ON `0192` AND NOT YET PERFORMABLE.** The account has zero explored cells, so the mask
+correctly draws nothing. `0192` replays the ten archived runs; until it does, every check below has
+no subject. The HUD says so on screen in as many words rather than leaving an empty view to be
+guessed at.
 
-1. **At zoom 16 over a street you have run**, the veil must be a **continuous corridor**. Look
-   specifically for **scalloping**: a repeating semicircular notch pattern along the edges, as though
-   the corridor were made of overlapping coins. There must be none.
-2. **Zoom to 18 and look at the corridor edge.** It must stay a smooth curve. Straight segments
-   meeting at blunt corners would mean hexagons are reaching the mask.
+The mask renders as a **dark greyscale veil**: dark where you have run, untouched basemap where you
+have not. It is deliberately not the fog — `0056` builds that. A readout sits bottom-right with the
+**zoom**, the instance count and the fog phase; the zoom numbers below refer to it.
+
+1. **At zoom 16 over a street you have run** (the HUD's `zoom` line reads ~16 — a few streets across,
+   building footprints just appearing), the veil must be a **continuous corridor**. Look specifically
+   for **scalloping**: a repeating semicircular notch along the edges, as though the corridor were
+   made of overlapping coins. There must be none.
+2. **Zoom in until the HUD reads ~18** — one street filling the screen. The corridor edge must stay a
+   smooth curve. Straight segments meeting at blunt corners would mean hexagons are reaching the mask.
 3. **Pan hard for 20 seconds** while watching the basemap underneath. MapLibre's own labels and roads
    must render exactly as they do with the flag off. Any tint, flicker or missing label means GL state
    is not being restored. (Compare by opening `/` without the query parameter.)

@@ -238,13 +238,13 @@ describe("render — criterion 1's passthrough and criterion 10's debug blit", (
 })
 
 describe("maskDebugEnabled", () => {
-  it("is on only for ?fog=mask", () => {
+  // The flag itself is `debug-flags.test.ts`'s subject — including the `?fog=mask,debug`
+  // composition that this module's own copy of the parser got wrong. Re-exported here because this
+  // is where callers import it from, so the re-export is what needs asserting.
+  it("is re-exported from this module and reads ?fog=mask", () => {
     expect(maskDebugEnabled("?fog=mask")).toBe(true)
-    expect(maskDebugEnabled("?a=1&fog=mask&b=2")).toBe(true)
-    expect(maskDebugEnabled("")).toBe(false)
-    expect(maskDebugEnabled("?fog=1")).toBe(false)
-    expect(maskDebugEnabled("?fog=")).toBe(false)
-    expect(maskDebugEnabled("?foggy=mask")).toBe(false)
+    expect(maskDebugEnabled("?fog=mask,debug")).toBe(true)
+    expect(maskDebugEnabled("?fog=debug")).toBe(false)
   })
 })
 
