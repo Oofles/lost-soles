@@ -42,6 +42,12 @@ function renderInput(variantName = "mercator"): CustomRenderMethodInput {
 }
 
 const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 10), 4)
+/**
+ * `visibleInstanceCount` is DISCS, not cells — `packBucket` adds a bridge disc per adjacent revealed
+ * pair (D-232) and every one of them is drawn. Asserted through the packer rather than as a literal,
+ * because the multiplier is the packer's business and `instances.test.ts` is where it is pinned.
+ */
+const BUCKET = packBucket(cells)
 
 function layerOn(options: { debug?: boolean } = {}): {
   layer: FogMaskLayer
@@ -97,19 +103,19 @@ describe("the custom layer interface — criterion 1", () => {
 
   it("re-uploads the bucket after a variant rebuild instead of drawing an empty mask", () => {
     const { layer, fake } = layerOn()
-    layer.setBucket(packBucket(cells))
+    layer.setBucket(BUCKET)
     layer.prerender(fake.gl, renderInput("mercator"))
-    expect(layer.stats().visibleInstanceCount).toBe(cells.length)
+    expect(layer.stats().visibleInstanceCount).toBe(BUCKET.count)
 
     layer.prerender(fake.gl, renderInput("globe"))
-    expect(layer.stats().visibleInstanceCount).toBe(cells.length)
+    expect(layer.stats().visibleInstanceCount).toBe(BUCKET.count)
     const draw = fake.of("drawArraysInstanced").at(-1)!
-    expect(draw.args[3]).toBe(cells.length)
+    expect(draw.args[3]).toBe(BUCKET.count)
   })
 
   it("frees its GPU resources on remove and re-queues the bucket for a re-add", () => {
     const { layer, fake } = layerOn()
-    layer.setBucket(packBucket(cells))
+    layer.setBucket(BUCKET)
     layer.prerender(fake.gl, renderInput())
     layer.onRemove(null as never, fake.gl)
 
@@ -120,7 +126,7 @@ describe("the custom layer interface — criterion 1", () => {
     // A style change removes and re-adds custom layers. The bucket must survive that round trip,
     // or the map comes back fogless until the next delta.
     layer.prerender(fake.gl, renderInput())
-    expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(cells.length)
+    expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(BUCKET.count)
   })
 })
 
@@ -177,7 +183,10 @@ describe("visibleInstanceCount — criterion 9, §6.4 item 1", () => {
     layer.prerender(fake.gl, renderInput())
 
     expect(rebuilds).toHaveLength(1)
-    expect(rebuilds[0]!.visibleInstanceCount).toBe(cells.length)
+    // Discs, not cells: the count the pass actually draws, which is what §6.4 wants a histogram of.
+    expect(rebuilds[0]!.visibleInstanceCount).toBe(BUCKET.count)
+    expect(BUCKET.count).toBe(BUCKET.cells + BUCKET.bridges)
+    expect(BUCKET.bridges).toBeGreaterThan(0)
     expect(rebuilds[0]!.res).toBe(10)
     expect(rebuilds[0]!.maskSize).toBe("400x300")
     expect(layer.stats().passes).toBe(3)
@@ -186,14 +195,15 @@ describe("visibleInstanceCount — criterion 9, §6.4 item 1", () => {
   it("reports again for a coarse bucket, at that bucket's resolution", () => {
     const { layer, fake, rebuilds } = layerOn()
     const parents = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 6), 1)
-    layer.setBucket(packBucket(cells))
+    const coarse = packBucket(parents, { res: 6, fractions: new Map() })
+    layer.setBucket(BUCKET)
     layer.prerender(fake.gl, renderInput())
-    layer.setBucket(packBucket(parents, { res: 6, fractions: new Map() }))
+    layer.setBucket(coarse)
     layer.prerender(fake.gl, renderInput())
 
     expect(rebuilds.map((r) => [r.res, r.visibleInstanceCount])).toEqual([
-      [10, cells.length],
-      [6, parents.length],
+      [10, BUCKET.count],
+      [6, coarse.count],
     ])
   })
 

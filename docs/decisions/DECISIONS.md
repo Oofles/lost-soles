@@ -2899,3 +2899,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     because both were asking whether the code did what it was written to do. The operator asked
     whether it looked right. That is D-181's whole argument, arriving on schedule.
 
+- **D-232** **The mask draws a bridge disc at the midpoint of every adjacent revealed pair. A run is
+  one cell wide, and a bare disc field's SILHOUETTE pearls even when its coverage field does not.**
+  `05-fog-of-war.md` §4.1 amended. *(Operator, on the second look at `?fog=mask`, during ticket
+  `0055`, 2026-09-10.)*
+  - **D-231 fixed the interior and the operator could still see the joins.** *"There's still a
+    separation between each of the bubbles, especially when zooming into about 18."* Coverage between
+    two centres was by then 0.98 — so the crease was gone and something else was not.
+  - **The something else is the outline, and it is geometric.** Measured on the operator's own nine
+    runs: 40 of 98 revealed cells have exactly two revealed neighbours, so the corridor is **one cell
+    wide**. Discs of 102.5 m radius at 121 m spacing overlap enough to leave no gap in coverage, but
+    the union's boundary pinches to **0.79** of its bulge at every junction — and at the tighter
+    contour where §4.3 puts the visible fog edge, to **0.61**. Two circles that overlap only a little
+    have a waisted union; no falloff constant and no `revealScale` inside R4's bounds changes that.
+  - **§4.1's claim was true of the coverage field and false of the silhouette.** *"A contiguous run
+    of cells becomes one continuous region with no seams and no scalloping"* — the seams are the
+    interior (D-231) and the scalloping is the outline, and the design only ever addressed the first.
+  - **It would have got worse in `0056`, not better.** The visible boundary sits at a tighter contour
+    than the mask's own edge, so the waist deepens from 0.79 to 0.61 exactly when the effect ships.
+  - **The fix is a render-side densification and nothing more.** One disc at the midpoint of each
+    adjacent revealed pair halves the effective spacing; measured on a real GPU, a bare seven-cell
+    chain reads **0.50** of its bulge at the waist and a bridged one reads **1.00**. Same shader,
+    same single instanced draw, same `MAX`.
+  - **A bridge is a look, not a cell.** It has no H3 id, is never written anywhere, and exists only
+    as four floats in a vertex buffer. `explored-set.ts`'s rule that *"the client never invents
+    cells"* is untouched, `REVEAL_R_M` is untouched, and `check-fog-render-boundary.mjs` still keeps
+    the scoring radius and the render radius apart. It is the move `DENSIFY_STEP_M` already makes on
+    the trace before projection, one layer further out.
+  - **`fraction` is the `min` of the two endpoints, not the average.** Under `MAX` a bridge brighter
+    than its dimmer endpoint would raise the mask above what either cell earned — inventing coverage
+    rather than filling a waist. A no-op at res 10 where every fraction is 1.0; it matters for
+    `0058`'s coarse buckets, where two adjacent parents can differ sharply.
+  - **The costs, stated rather than discovered later.** Instances rise by up to 3x on a solid field
+    and about 2x on a chain, which `0058`'s culling and `0059`'s *"≤ 6,000 at every zoom"* assertion
+    must both account for — a test pins the multiplier so it is not a surprise. And the waists fill
+    with ground up to 119 m from a real cell centre instead of 102.5 m: the corridor gets no longer,
+    only less pinched.
+  - **What was NOT chosen, and why.** `revealScale ≈ 2.05` would smooth the silhouette by inflating
+    the territory to a 310 m corridor, past R4's 1.6 bound, on a map where over-revealing is
+    permanent. Letting §4.3's noise hide it does not work — the noise displaces the boundary by ~6 m
+    against a 40 m waist. Re-deriving at **res 11** (§2.1's documented escape hatch) would smooth it
+    naturally, because a corridor there is three cells wide, and is held in reserve: it is a
+    D-115-scale decision, though `0192`'s replay path has just made re-deriving from the archive
+    cheap.
+

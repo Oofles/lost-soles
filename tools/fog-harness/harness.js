@@ -266,6 +266,62 @@ function main() {
     )
   }
 
+  /* ── T6 — the corridor silhouette, with and without bridge discs. D-232. ─ */
+  //
+  // THE THING A CONSTANT CANNOT FIX, and the reason bridges exist. A run reveals a chain of cells
+  // one cell wide at ~121 m spacing. Discs of 102 m radius overlap, so the coverage field has no
+  // gap — but the union's OUTLINE pinches at every junction, which is what reads as a string of
+  // pearls. Measured here as the corridor's WIDTH along its length: bulge at each centre, waist
+  // between. The interior seam (T3) can be perfect while this is not, which is exactly what
+  // happened.
+  {
+    const SPAN = 7
+    const chain = []
+    for (let i = 0; i < SPAN; i++) chain.push({ x: east((i - 3) * SPACING_M), y: CY, r: RADIUS, fraction: 1 })
+    const bridged = []
+    for (let i = 0; i < SPAN; i++) {
+      bridged.push(chain[i])
+      if (i < SPAN - 1) {
+        bridged.push({ x: (chain[i].x + chain[i + 1].x) / 2, y: CY, r: RADIUS, fraction: 1 })
+      }
+    }
+
+    // Corridor half-width at a given mercator x, at 0056's visible boundary (coverage 0.72).
+    const halfWidth = (red, mx) => {
+      const { col } = maskPixel(mx, CY)
+      const mid = maskPixel(mx, CY).row
+      let up = 0
+      while (mid + up < MASK_H && red[(mid + up) * MASK_W + col] >= byte(0.72)) up++
+      return up
+    }
+    const profile = (discs) => {
+      const { red } = draw(pack(discs))
+      const at = []
+      // One full period either side of centre: two cell centres and the waist between them.
+      for (const mx of [east(-SPACING_M), east(-SPACING_M / 2), CX, east(SPACING_M / 2), east(SPACING_M)]) {
+        at.push(halfWidth(red, mx))
+      }
+      const bulge = Math.max(...at)
+      const waist = Math.min(...at)
+      return { bulge, waist, ratio: bulge === 0 ? 0 : waist / bulge }
+    }
+
+    const plain = profile(chain)
+    const dense = profile(bridged)
+    record(
+      "T6 bridges smooth the silhouette",
+      dense.ratio >= 0.9 && dense.ratio > plain.ratio,
+      `cells only: waist/bulge ${plain.waist}/${plain.bulge} = ${plain.ratio.toFixed(2)}  ->  ` +
+        `with bridges ${dense.waist}/${dense.bulge} = ${dense.ratio.toFixed(2)} ` +
+        `(${bridged.length} discs for ${chain.length} cells)`,
+    )
+    record(
+      "S1 the pearls are detectable",
+      plain.ratio < 0.9,
+      `a bare cell chain measures ${plain.ratio.toFixed(2)} — if this ever passes 0.9 the probe has stopped measuring`,
+    )
+  }
+
   /* ── One instanced draw, whatever the count. Criterion 3, on a real GPU. ─ */
   {
     const many = []

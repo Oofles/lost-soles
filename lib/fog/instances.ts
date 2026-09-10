@@ -1,4 +1,4 @@
-import { cellToLatLng, getHexagonEdgeLengthAvg, type H3Index } from "h3-js"
+import { cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, type H3Index } from "h3-js"
 
 import { bigToCell } from "@/src/domain/explored-blob"
 
@@ -23,6 +23,26 @@ import { INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
  * WHAT THIS FILE DOES NOT DO: choose a resolution for the current zoom, cull against the viewport,
  * or cache buckets. That is `0058`, and it is deliberately not started here — this file takes the
  * cells it is given and the resolution it is told.
+ *
+ * ─── BRIDGE DISCS (D-232) ───────────────────────────────────────────────────
+ *
+ * It packs MORE discs than there are cells, and the extra ones are not cells.
+ *
+ * A run reveals a chain of cells one cell wide — measured on real data, 40 of 98 cells had exactly
+ * two revealed neighbours. Discs of 102 m radius at 121 m spacing DO overlap, so the coverage field
+ * has no gap; but the union's **silhouette** pinches to 0.79 of its bulge at every junction, and at
+ * the tighter contour where `0056` puts the visible boundary, to 0.61. That is a string of pearls,
+ * it is what the operator saw, and no falloff constant fixes it — it is the geometry of two circles
+ * that overlap only a little.
+ *
+ * So the field is densified: one disc at the midpoint of every adjacent revealed pair. That halves
+ * the effective spacing and takes the silhouette to 0.95. It is the same move `DENSIFY_STEP_M`
+ * already makes on the trace before projecting it, one layer further out.
+ *
+ * **A BRIDGE IS A LOOK, NOT A CELL.** Nothing here writes to the explored set, and nothing about
+ * what counts as explored changes — `check-fog-render-boundary.mjs` guards that line and this stays
+ * on the render side of it. `explored-set.ts` is explicit that the client never invents cells; a
+ * bridge is not a cell, has no id, and exists only as four floats in a vertex buffer.
  */
 
 /**
@@ -83,15 +103,24 @@ export function metresToMercator(metres: number, lat: number): number {
 export interface PackedBucket {
   /** The H3 resolution these cells are at. Res 10 is canonical (D-115); coarser is `0058`'s. */
   res: number
-  /** `INSTANCE_FLOATS` per cell, in criterion 5's order. Uploaded whole; never rewritten per frame. */
+  /** `INSTANCE_FLOATS` per instance, in criterion 5's order. Uploaded whole; never rewritten per frame. */
   instances: Float32Array
   /** `visibleInstanceCount` (§6.4 item 1) — the canary for the entire performance claim. */
   count: number
+  /** How many of `count` are real cells. */
+  cells: number
+  /** How many are bridge discs (D-232). `count === cells + bridges`. */
+  bridges: number
 }
 
 export interface PackOptions {
   /** Defaults to 10, the canonical stored resolution. */
   res?: number
+  /**
+   * Bridge discs between adjacent revealed cells. **D-232.** Defaults on; `false` is for tests that
+   * want the bare cell field, and for measuring what the bridges are worth.
+   */
+  densify?: boolean
   /**
    * Per-cell coverage weight, 0..1 — `explored-agg.json`'s `fraction` for a coarse parent (§6.1,
    * `src/domain/explored-agg.ts`). Absent means 1.0, which is what every res-10 cell is: a stored
@@ -111,20 +140,66 @@ export interface PackOptions {
 export function packBucket(cells: readonly H3Index[], options: PackOptions = {}): PackedBucket {
   const res = options.res ?? 10
   const radiusM = discRadiusM(res)
-  const instances = new Float32Array(cells.length * INSTANCE_FLOATS)
+  const clamp = (f: number) => (f < 0 ? 0 : f > 1 ? 1 : f)
 
-  for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i]!
+  /**
+   * Every disc, cells first. Built as a plain array rather than written straight into the typed
+   * array because the bridge count is not known until the adjacency walk has run, and sizing the
+   * `Float32Array` twice would cost more than the intermediate.
+   */
+  const discs: Array<{ x: number; y: number; r: number; fraction: number }> = []
+  /** Mercator centre, radius and fraction per cell, kept so the bridge pass does not re-project. */
+  const byCell = new Map<H3Index, { x: number; y: number; r: number; fraction: number }>()
+
+  for (const cell of cells) {
     const [lat, lng] = cellToLatLng(cell)
-    const fraction = options.fractions?.get(cell) ?? 1
-    const at = i * INSTANCE_FLOATS
-    instances[at + 0] = mercatorX(lng)
-    instances[at + 1] = mercatorY(lat)
-    instances[at + 2] = metresToMercator(radiusM, lat)
-    instances[at + 3] = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction
+    const disc = {
+      x: mercatorX(lng),
+      y: mercatorY(lat),
+      r: metresToMercator(radiusM, lat),
+      fraction: clamp(options.fractions?.get(cell) ?? 1),
+    }
+    discs.push(disc)
+    byCell.set(cell, disc)
   }
 
-  return { res, instances, count: cells.length }
+  let bridges = 0
+  if (options.densify !== false) {
+    for (const cell of cells) {
+      const here = byCell.get(cell)!
+      for (const neighbour of gridDisk(cell, 1)) {
+        // Each edge once. A string compare is enough and needs no second set.
+        if (neighbour === cell || neighbour <= cell) continue
+        const there = byCell.get(neighbour)
+        if (!there) continue
+        discs.push({
+          x: (here.x + there.x) / 2,
+          y: (here.y + there.y) / 2,
+          r: (here.r + there.r) / 2,
+          /**
+           * `min`, not the average. A bridge exists to fill the waist between two discs, never to
+           * invent coverage: under `MAX` a bridge brighter than its dimmer endpoint would raise the
+           * mask above what either cell earned. At res 10 both are 1.0 and this is a no-op; it
+           * matters for `0058`'s coarse buckets, where two parents can differ sharply.
+           */
+          fraction: Math.min(here.fraction, there.fraction),
+        })
+        bridges++
+      }
+    }
+  }
+
+  const instances = new Float32Array(discs.length * INSTANCE_FLOATS)
+  for (let i = 0; i < discs.length; i++) {
+    const d = discs[i]!
+    const at = i * INSTANCE_FLOATS
+    instances[at + 0] = d.x
+    instances[at + 1] = d.y
+    instances[at + 2] = d.r
+    instances[at + 3] = d.fraction
+  }
+
+  return { res, instances, count: discs.length, cells: cells.length, bridges }
 }
 
 /**

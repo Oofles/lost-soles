@@ -686,6 +686,20 @@ give coverage `max(a, b)`, so twice-covered ground is not twice as revealed. (We
 `gl.blendEquation(gl.MAX)` is unavailable in WebGL1, which is one more reason MapLibre 6's
 WebGL2-only pipeline suits us.)
 
+**A disc field pearls unless it is densified, and a run is one cell wide (D-232).** The three good
+things above are all about the COVERAGE FIELD, and they hold. The union's **silhouette** is a
+separate matter and §4.1 did not address it: a run reveals a chain one cell wide (measured: 40 of 98
+cells with exactly two revealed neighbours), and discs of 102.5 m at 121 m spacing leave no gap in
+coverage while their outline pinches to **0.79** of its bulge at every junction — **0.61** at the
+tighter contour where §4.3 puts the visible edge. That is a string of pearls and no constant in this
+section fixes it.
+
+So the renderer draws **one extra disc at the midpoint of every adjacent revealed pair**, which
+halves the effective spacing and takes the silhouette to 0.95 (1.00 measured on a GPU for a straight
+chain). A bridge disc is a LOOK: it has no cell id, is never written anywhere, and takes the `min` of
+its two endpoints' fractions so it can fill a waist without inventing coverage. See D-232 for the
+alternatives that were rejected — `revealScale ≈ 2.05`, relying on §4.3's noise, and res 11.
+
 **The hexagons remain in the data and never appear on screen.** If we ever want the game-y grid
 read, it is a *separate* faint decorative `line` layer of hex boundaries, clipped to revealed
 ground, at high zoom only — kept strictly out of the mask (R4 §4.4).

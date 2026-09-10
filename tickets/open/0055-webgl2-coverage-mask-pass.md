@@ -216,6 +216,33 @@ gl.getError 0x0
   under `MAX`; below 0 it vanishes. `explored-agg.json` is generated and ought to be in range — this
   is the boundary where an out-of-range number stops being data and becomes a rendering bug.
 
+### A fourth, found by the THIRD look — the silhouette, which is not the coverage field
+
+**D-231 fixed the interior and the joins were still visible.** *"There's still a separation between
+each of the bubbles, especially when zooming into about 18."* Coverage between two centres was by
+then 0.98, so the crease was genuinely gone and something else was not.
+
+The operator also mentioned, and discounted, the thing that cracked it: *"in some areas the bubbles
+are stacked in a way that zig-zags back and forth along the path I ran."* That zig-zag is the H3
+lattice — a straight path crosses a hex grid on an alternating chain — and it says the corridor is
+**one cell wide**. Measured on their nine runs: 40 of 98 revealed cells have exactly two revealed
+neighbours.
+
+Discs of 102.5 m at 121 m spacing leave **no gap in coverage**, and their union's **outline** still
+pinches to 0.79 of its bulge at every junction — 0.61 at the tighter contour where `0056` puts the
+visible edge. Two circles that overlap only a little have a waisted union. No falloff constant fixes
+it, and no `revealScale` inside R4's bounds does either.
+
+Fixed by densifying: **one bridge disc at the midpoint of each adjacent revealed pair** (D-232).
+Measured on a real GPU, a bare seven-cell chain reads **0.50** of its bulge at the waist and a
+bridged one reads **1.00**. Same shader, same single instanced draw. A bridge has no cell id and is
+never written anywhere — `explored-set.ts`'s "the client never invents cells" is untouched.
+
+**Instance count is now discs, not cells**, and the multiplier is pinned by a test: up to 3x on a
+solid field, about 2x on a chain. The MapLibre harness draws 7,651 for 1,951 cells. `0058`'s culling
+and `0059`'s *"≤ 6,000 at every zoom"* both have to account for it, which is why it is stated here
+rather than discovered there.
+
 ### A third defect, found by the SECOND operator check — and it is the one that matters
 
 **`?fog=mask` rendered a chain of discs with a clean crease at every join.** Reported on sight:

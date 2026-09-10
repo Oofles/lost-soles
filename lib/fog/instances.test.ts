@@ -154,11 +154,104 @@ describe("packBucket — criterion 5's layout", () => {
    * happens once per cell, here. `no-per-frame-projection.test.ts` is the other half — it proves
    * nothing on the frame path can reach `cellToLatLng` at all.
    */
-  it("projects each cell exactly once", () => {
+  it("projects each cell exactly once, and each bridge without projecting at all", () => {
     const cells = gridDisk(origin, 3)
-    const { count } = packBucket(cells)
-    expect(count).toBe(cells.length)
-    expect(count).toBe(37) // 3k^2 + 3k + 1 at k = 3
+    const { count, cells: n, bridges } = packBucket(cells)
+    expect(n).toBe(cells.length)
+    expect(n).toBe(37) // 3k^2 + 3k + 1 at k = 3
+    // Bridges are midpoints of two already-projected centres — no `cellToLatLng`, no mercator call.
+    expect(count).toBe(n + bridges)
+    expect(bridges).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * BRIDGE DISCS. **D-232**, and the reason is in `instances.ts`'s header: a run reveals a chain one
+ * cell wide, and the union of discs at 121 m spacing has no coverage gap but a badly pinched
+ * silhouette. `tools/fog-harness` measures the fix on a real GPU — a bare chain reads 0.50 of its
+ * bulge at the waist, a bridged one reads 1.00.
+ */
+describe("bridge discs", () => {
+  const origin = latLngToCell(NEMO.lat, NEMO.lng, 10)
+
+  /** `gridDisk(c, 1)` includes `c` itself, so a neighbour is anything in it that is not `c`. */
+  const neighboursOf = (c: string) => gridDisk(c, 1).filter((x) => x !== c)
+
+  it("adds one disc per adjacent revealed pair, and each edge only once", () => {
+    const pair = [origin, neighboursOf(origin)[0]!]
+    const { cells, bridges } = packBucket(pair)
+    expect(cells).toBe(2)
+    // One edge, one bridge. The `neighbour <= cell` guard is what stops it being two.
+    expect(bridges).toBe(1)
+
+    // Three mutually adjacent cells form a triangle: three edges, three bridges, not six.
+    const a = origin
+    const b = neighboursOf(a)[0]!
+    const c = neighboursOf(a).find((x) => neighboursOf(b).includes(x))!
+    expect(packBucket([a, b, c]).bridges).toBe(3)
+  })
+
+  it("bridges only cells that are actually adjacent", () => {
+    // Two cells four steps apart share no edge, so there is nothing to bridge.
+    const far = gridDisk(origin, 4).filter((c) => !gridDisk(origin, 1).includes(c))
+    const { cells, bridges } = packBucket([origin, far[0]!])
+    expect(cells).toBe(2)
+    expect(bridges).toBe(0)
+  })
+
+  it("puts the bridge at the midpoint, at the same radius", () => {
+    const pair = [origin, neighboursOf(origin)[0]!]
+    const { instances, cells } = packBucket(pair)
+    const at = (i: number) => ({
+      x: instances[i * INSTANCE_FLOATS]!,
+      y: instances[i * INSTANCE_FLOATS + 1]!,
+      r: instances[i * INSTANCE_FLOATS + 2]!,
+    })
+    const a = at(0)
+    const b = at(1)
+    const bridge = at(cells) // bridges follow the cells
+    // Ratios, not absolute differences: these are float32 values near 0.157 whose difference is
+    // ~1e-6, so an absolute tolerance measures the storage format rather than the arithmetic.
+    expect(bridge.x / ((a.x + b.x) / 2)).toBeCloseTo(1, 7)
+    expect(bridge.y / ((a.y + b.y) / 2)).toBeCloseTo(1, 7)
+    expect(bridge.r / ((a.r + b.r) / 2)).toBeCloseTo(1, 6)
+  })
+
+  /**
+   * `min`, not the average. Under `MAX` a bridge brighter than its dimmer endpoint would raise the
+   * mask above what either cell earned — inventing coverage rather than filling a waist. A no-op at
+   * res 10 where everything is 1.0; it matters for `0058`'s coarse buckets.
+   */
+  it("takes the dimmer endpoint's fraction, never a brighter one", () => {
+    const pair = [origin, neighboursOf(origin)[0]!]
+    const { instances, cells } = packBucket(pair, {
+      fractions: new Map([
+        [pair[0]!, 0.2],
+        [pair[1]!, 0.9],
+      ]),
+    })
+    expect(instances[cells * INSTANCE_FLOATS + 3]).toBeCloseTo(0.2, 6)
+  })
+
+  it("can be turned off, so the bare cell field stays measurable", () => {
+    const cells = gridDisk(origin, 2)
+    const bare = packBucket(cells, { densify: false })
+    expect(bare.bridges).toBe(0)
+    expect(bare.count).toBe(cells.length)
+    expect(packBucket(cells).bridges).toBeGreaterThan(0)
+  })
+
+  /**
+   * §6.4 item 1 asserts `visibleInstanceCount <= 6,000`. Bridges count toward it, so the multiplier
+   * belongs in a test rather than in a surprise on `0059`'s histogram. A hex field's interior cell
+   * has 6 neighbours and each edge is emitted once, so the ceiling is 3 bridges per cell.
+   */
+  it("costs at most three bridges per cell, and about two on a solid field", () => {
+    const solid = gridDisk(origin, 4)
+    const { cells, bridges, count } = packBucket(solid)
+    expect(bridges).toBeLessThanOrEqual(cells * 3)
+    expect(count / cells).toBeLessThan(4)
+    expect(count / cells).toBeGreaterThan(2)
   })
 })
 
