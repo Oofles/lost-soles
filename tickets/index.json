@@ -1319,6 +1319,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-10T03:38:14Z",
     "path": "tickets/open/0055-webgl2-coverage-mask-pass.md",
     "ready": true,
     "acceptance": {

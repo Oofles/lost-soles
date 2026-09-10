@@ -10,13 +10,15 @@ import {
   type Camera,
 } from "@/lib/map-camera"
 
+import { useFogMask } from "./use-fog-mask"
+
 import "maplibre-gl/dist/maplibre-gl.css"
 
 /**
  * The map. Ticket 0053, `09-roadmap.md` §2.3.
  *
- * A plain MapLibre map and nothing else — no fog, no plinth, no chrome. `05-fog-of-war.md`
- * §4.6 rules out deck.gl explicitly ("correct architecture, wrong ergonomics": the mask is
+ * A plain MapLibre map, plus 0055's fog mask layer via `useFogMask` — no plinth, no chrome.
+ * `05-fog-of-war.md` §4.6 rules out deck.gl explicitly ("correct architecture, wrong ergonomics": the mask is
  * a boolean in the fragment shader, so no feather, no alpha ramp, no noise hook, and
  * fixing it means forking a ~500 KB dependency's shader module). `scripts/check-no-deckgl.mjs`
  * keeps it out of the lockfile so that stays true without anyone remembering it.
@@ -80,6 +82,15 @@ export function MapShell({ home }: { home: Camera | null }) {
   const container = useRef<HTMLDivElement | null>(null)
   const map = useRef<MapInstance | null>(null)
   const [unsupported, setUnsupported] = useState(false)
+  /**
+   * THE LOADED MAP, IN STATE AND NOT ONLY IN THE REF ABOVE. Ticket 0055.
+   *
+   * `useFogMask` has to add a custom layer, and `addLayer` needs a style that has finished loading
+   * — so it needs both a re-render when that happens and a new identity when a context-loss rebuild
+   * constructs a different Map. A ref gives neither. It is set on `load` and cleared in `teardown`,
+   * which is what makes the layer's lifetime exactly the map's.
+   */
+  const [loaded, setLoaded] = useState<MapInstance | null>(null)
 
   /**
    * The camera is held in a ref as well as in `localStorage` so that a context-loss
@@ -154,6 +165,9 @@ export function MapShell({ home }: { home: Camera | null }) {
       })
 
       map.current = instance
+      // `once`, not `on`: a style change re-fires `load`, and a second setState with the same
+      // instance would remount the fog layer for no reason.
+      instance.once("load", () => setLoaded(instance))
 
       instance.on("moveend", () => {
         const centre = instance.getCenter()
@@ -197,6 +211,7 @@ export function MapShell({ home }: { home: Camera | null }) {
     }
 
     function teardown() {
+      setLoaded(null)
       resizeObserver?.disconnect()
       resizeObserver = null
       const instance = map.current
@@ -225,6 +240,12 @@ export function MapShell({ home }: { home: Camera | null }) {
       teardown()
     }
   }, [home])
+
+  /**
+   * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
+   * Called unconditionally and before the early return below, because hooks are.
+   */
+  useFogMask(loaded)
 
   if (unsupported) {
     return (
