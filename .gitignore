@@ -56,3 +56,11 @@ public/maplibre/
 # Never committed: it carries the operator home coordinate that 08 §7.2 keeps out
 # of this public repo.
 .env.production
+
+# Operator screenshots of the live map. `08-security-privacy.md` §7.2 and D-199: this repo is
+# public, and a screenshot of the fog IS the leak the coordinate rules exist to prevent — it names
+# the streets, and the revealed corridor traces the route through them. `check-fixture-geography.mjs`
+# scans committed fixtures for coordinates and cannot read a JPEG, so this is the only thing standing
+# between a dropped screenshot and a permanent public record of where the operator runs.
+# Drop them in `tmp/` freely; nothing there is ever committed.
+tmp/
