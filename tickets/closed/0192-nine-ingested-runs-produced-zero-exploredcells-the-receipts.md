@@ -4,7 +4,7 @@ slug: nine-ingested-runs-produced-zero-exploredcells-the-receipts
 title: Nine ingested runs produced zero ExploredCells — the receipts are DONE so a re-sync cannot re-score them
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-10T13:06:45Z
 started: 2026-09-10T13:24:10Z
+closed: 2026-09-10T15:08:50Z
 ---
 
 ## Description

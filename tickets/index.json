@@ -4377,7 +4377,7 @@
     "title": "Nine ingested runs produced zero ExploredCells — the receipts are DONE so a re-sync cannot re-score them",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [],
@@ -4385,8 +4385,9 @@
     "source": "agent",
     "created": "2026-09-10T13:06:45Z",
     "started": "2026-09-10T13:24:10Z",
-    "path": "tickets/open/0192-nine-ingested-runs-produced-zero-exploredcells-the-receipts.md",
-    "ready": true,
+    "closed": "2026-09-10T15:08:50Z",
+    "path": "tickets/closed/0192-nine-ingested-runs-produced-zero-exploredcells-the-receipts.md",
+    "ready": false,
     "acceptance": {
       "checked": 7,
       "total": 7
