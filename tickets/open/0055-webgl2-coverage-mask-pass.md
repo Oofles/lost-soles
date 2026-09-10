@@ -334,27 +334,28 @@ parent cells must read as a dim wash"* needs zoom bucketing, which is **`0058`**
 bucket to look at yet. `a_fraction` still ships and still multiplies coverage — measured at 64/255
 against a solid 255 on a real GPU, which is a stronger answer than the eye could give anyway.
 
-### ★ For the operator — desktop browser, `https://soles.devaultsecurity.com/?fog=mask` ★
+### ★ Operator result — desktop browser, `/?fog=mask,debug`, 2026-09-10 ★
 
-**UNBLOCKED — `0192` closed 2026-09-10.** The first check of this section found the account had zero
-explored cells, so the mask correctly drew nothing; that turned out to be nine runs ingested a day
-before the `ExploredCell` writer existed. They have been replayed from the S3 archive and the account
-now holds **85 res-10 cells** (generation 25). The HUD reports the count on screen, so an empty view
-can never again be mistaken for a broken one.
+**All three checks pass, on the third attempt.** The first two attempts found real defects and both
+are recorded above (D-231, then D-232); this is the state after them.
 
-The mask renders as a **dark greyscale veil**: dark where you have run, untouched basemap where you
-have not. It is deliberately not the fog — `0056` builds that. A readout sits bottom-right with the
-**zoom**, the instance count and the fog phase; the zoom numbers below refer to it.
+1. **Continuous corridor, no scalloping** — *"overlap looks good now"*. Screenshots at z14 and z16
+   (in the gitignored `tmp/`) show one continuous ribbon around a ~5 km loop with no crease at any
+   junction and no pinch between cells. Before D-232 the same view was, verbatim, *"a dark circle
+   fading lighter and a clean line where it meets up with another circle"*.
+2. **Discs, not hexagons** — the boundary is composed of circular arcs throughout, at every zoom
+   looked at. §4.1's central claim — that hex geometry never reaches the screen — holds visibly.
+   No straight segments, no 120° corners.
+3. **The basemap is unaffected** — *"The labels and roads are also still the same and readable
+   outside the circles"*. In the z16 screenshot `Deer Ridge Drive`, `Big Horn` and `Bear Point` are
+   legible right up to the fog edge, and the parchment, water and park polygons render normally. GL
+   state is being restored.
 
-1. **At zoom 16 over a street you have run** (the HUD's `zoom` line reads ~16 — a few streets across,
-   building footprints just appearing), the veil must be a **continuous corridor**. Look specifically
-   for **scalloping**: a repeating semicircular notch along the edges, as though the corridor were
-   made of overlapping coins. There must be none.
-2. **Zoom in until the HUD reads ~18** — one street filling the screen. The corridor edge must stay a
-   smooth curve. Straight segments meeting at blunt corners would mean hexagons are reaching the mask.
-3. **Pan hard for 20 seconds** while watching the basemap underneath. MapLibre's own labels and roads
-   must render exactly as they do with the flag off. Any tint, flicker or missing label means GL state
-   is not being restored. (Compare by opening `/` without the query parameter.)
+**What the operator raised that is NOT this ticket's:** *"the zig-zagging is still there which
+doesn't actually follow my run super well"*. Measured — the revealed cell centres sit a median 28 m
+(p95 63 m) off the path, which is `REVEAL_R_M`, not the grid and not the renderer. Filed as **`0194`**
+as a design decision with a deadline: res 10 vs res 11, to be settled after `0056` and **before
+capability `09` bakes cell counts into the XP economy**.
 
 ### Agent-side, not routed to the operator (D-181/D-229)
 
