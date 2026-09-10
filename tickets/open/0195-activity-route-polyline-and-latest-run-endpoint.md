@@ -243,7 +243,8 @@ by looking at it (D-181, narrowed by D-229). Everything below I ran myself with 
 
 ### Deploy
 
-Amplify job **186 FAILED** on `check-boundaries` (see Resolution), **187 SUCCEED** (`ff7a273`).
+Amplify job **186 FAILED** on `check-boundaries` (see Resolution), **187 SUCCEED** (`ff7a273`),
+**188 SUCCEED** (`b645afa`, the reader fix).
 
 ### The live IAM grant, read back from the deployed role
 
