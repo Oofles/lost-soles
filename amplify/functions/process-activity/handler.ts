@@ -301,6 +301,13 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       adapter: getAdapter(job.source),
       credentials: async (j) => oauthCredentialsFor(j),
       archive: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
+      /**
+       * `0192`. Where a `command: "reingest"` job reads its bytes: the SAME archive, read back
+       * instead of written. Supplied unconditionally because the verb belongs to the message, not
+       * to the worker's configuration — a replay must not require a redeploy to become possible,
+       * and `processActivity` throws rather than falling back if this is ever missing.
+       */
+      replay: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
       receipt: { ddb },
       cells: { ddb, table: EXPLORED_CELL_TABLE },
       /**

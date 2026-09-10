@@ -51,6 +51,22 @@ const workerFunction = () => {
   return functions[0] as { Properties: Record<string, unknown> }
 }
 
+/** Every statement on the worker's role, from its inline policies. */
+function workerStatements(): Array<{
+  Sid?: string
+  Action?: string | string[]
+  Condition?: Record<string, Record<string, string>>
+}> {
+  const policies = Object.values(workerStack.findResources("AWS::IAM::Policy"))
+  const out: Array<{ Sid?: string; Action?: string | string[]; Condition?: never }> = []
+  for (const policy of policies) {
+    const document = (policy.Properties as { PolicyDocument?: { Statement?: unknown[] } })
+      .PolicyDocument
+    out.push(...((document?.Statement ?? []) as Array<{ Sid?: string; Condition?: never }>))
+  }
+  return out
+}
+
 /** Every IAM action the worker's role holds, from its inline policies, flattened. */
 function workerActions(): string[] {
   const policies = Object.values(workerStack.findResources("AWS::IAM::Policy"))
@@ -202,14 +218,37 @@ describe("the worker's IAM role (criterion 3)", () => {
     expect([...new Set(s3)].sort()).toEqual([
       "s3:DeleteObject",
       "s3:GetObject",
+      "s3:ListBucket",
       "s3:PutObject",
     ])
-    // Three statements: raw/, users/, and the delta GC. Never one widened statement — the
-    // three prefixes have different rules and a reviewer must see them separately.
-    expect(s3).toHaveLength(5)
-    // Still no listing. `bucket.grantRead()` would add `s3:List*` and `s3:GetBucket*` on the
-    // WHOLE bucket, which is what these exact-set assertions exist to catch.
-    expect(s3.filter((a) => a.startsWith("s3:List") || a.startsWith("s3:GetBucket"))).toEqual([])
+    // Four statements: raw/, users/, the delta GC, and 0192's raw/ listing. Never one widened
+    // statement — the prefixes have different rules and a reviewer must see them separately.
+    expect(s3).toHaveLength(6)
+    // `bucket.grantRead()` would add `s3:GetBucket*` on the WHOLE bucket. Still never that.
+    expect(s3.filter((a) => a.startsWith("s3:GetBucket"))).toEqual([])
+  })
+
+  /**
+   * `0192` ADDED THE ONE `s3:List*` THIS ROLE HAS, AND THE ASSERTION MOVED RATHER THAN WEAKENED.
+   *
+   * The invariant was never "no listing" for its own sake — it is *"the worker cannot enumerate
+   * other users' derived data"*, and until now that was implemented as no listing at all. Replay
+   * needs to find one activity's archived object, whose key carries a content digest only the bytes
+   * produce, so it must list `raw/<uid>/<source>/<externalId>/`.
+   *
+   * `s3:ListBucket` is a BUCKET-level action, so it cannot be scoped by resource ARN — which is
+   * exactly what the older comment meant by "bucket-level access cannot be scoped to a prefix". It
+   * CAN be scoped by condition, and this asserts that it is. Without the condition the worker could
+   * enumerate every explored blob under `users/`, and the exact-set test above would still pass.
+   */
+  it("can list ONLY under raw/, by condition — the one List it holds", () => {
+    const listing = workerStatements().filter((statement) => {
+      const action = statement.Action
+      const actions = typeof action === "string" ? [action] : (action ?? [])
+      return actions.includes("s3:ListBucket")
+    })
+    expect(listing).toHaveLength(1)
+    expect(listing[0]!.Condition).toEqual({ StringLike: { "s3:prefix": "raw/*" } })
   })
 
   /** The receipt, the credentials and the Activity row. */

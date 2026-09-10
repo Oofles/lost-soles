@@ -194,6 +194,35 @@ export function receiptTtl(now: Date): number {
 export type AcceptResult = { kind: "accepted" } | { kind: "duplicate" }
 
 /**
+ * THE ONLY WAY PAST LAYER 2, and it is deliberately explicit rather than a status the caller can
+ * arrange. Ticket `0192`.
+ *
+ * `replay: true` lets a `DONE` receipt be re-claimed. Nothing in the ordinary path sets it: it comes
+ * from `command: "reingest"` on the job, which only an operator action produces. A redelivered SQS
+ * message, a duplicate webhook and a re-run sweep all still lose this race exactly as before.
+ *
+ * ─── WHY THIS IS SAFE, IN THE DESIGN'S OWN WORDS ────────────────────────────
+ *
+ * The module header names four idempotency layers and says of the fourth: *"`delta = newCells \
+ * explored` is empty on a replay, so a re-run awards nothing even if layers 1-3 all failed"* — and
+ * then, of the 90-day TTL, *"Layer 4 is why the TTL below is safe. A replay after a receipt has aged
+ * out re-derives cells that are already present and awards nothing."*
+ *
+ * So replay-after-the-gate is not a hole being opened here. It is a path the design already declares
+ * safe and already takes automatically every 90 days; this flag is that same path, on request,
+ * without waiting a quarter for it. Set semantics — not the receipt — are what stop a double award,
+ * and a receipt that has expired and one that is being deliberately re-claimed present the identical
+ * situation to everything downstream.
+ *
+ * What it does NOT make safe is replaying different bytes. That is `replay.ts`'s problem and it
+ * solves it by reading the archive rather than the source.
+ */
+export interface ClaimOptions {
+  /** `true` only for a `reingest` job. See above. */
+  replay?: boolean
+}
+
+/**
  * LAYER 2's outcomes. `claimed` means this caller owns the work; anything else means
  * it must stop without writing.
  *
@@ -347,6 +376,7 @@ export async function recordDelivery(
 export async function claimForScoring(
   ingestKey: string,
   deps: ReceiptDeps,
+  options: ClaimOptions = {},
 ): Promise<ClaimResult> {
   const now = nowOf(deps)
   try {
@@ -359,6 +389,7 @@ export async function claimForScoring(
           "REMOVE failedUserId, failedAt, errorClass, rawArchived",
         ConditionExpression:
           "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
+          (options.replay ? "#status = :done OR " : "") +
           "(#status = :processing AND processingStartedAt < :stale))",
         ExpressionAttributeNames: { "#status": "status" },
         ExpressionAttributeValues: {
@@ -367,6 +398,7 @@ export async function claimForScoring(
           ":failed": "FAILED",
           ":now": now.toISOString(),
           ":stale": new Date(now.getTime() - PROCESSING_STALE_MS).toISOString(),
+          ...(options.replay ? { ":done": "DONE" } : {}),
         },
         ReturnValues: "ALL_NEW",
       }),

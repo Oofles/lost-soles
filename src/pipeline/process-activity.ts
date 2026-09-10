@@ -30,6 +30,7 @@ import {
   type RegenerateResult,
 } from "./explored-blob-store"
 import { markReplayPending } from "./explored-generation"
+import { replayAdapter, type ReplayDeps } from "./replay"
 import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
@@ -236,6 +237,12 @@ export interface ProcessDeps<TCreds> {
    */
   credentials(job: IngestJob): Promise<TCreds>
   archive: ArchiveDeps
+  /**
+   * REPLAY'S BYTE SOURCE. Ticket `0192`. Required for a `command: "reingest"` job and unused by an
+   * ordinary one — a `reingest` that arrives without it fails loudly rather than quietly falling
+   * back to the network, which is the whole point of `replay.ts`.
+   */
+  replay?: ReplayDeps
   receipt: ReceiptDeps
   cells: CellWriteDeps & CellReadDeps
   /** S3 + the generation counter. `0049`, `02` §2.10. */
@@ -287,6 +294,27 @@ export async function processActivity<TCreds>(
   const startedAt = clock()
 
   /**
+   * `reingest` — THE REPLAY VERB. Ticket `0192`.
+   *
+   * `IngestCommandKind` has declared `"ingest" | "reingest"` since `0026` and nothing read it until
+   * now, so this is completing the contract rather than extending it. Two things change and nothing
+   * else does: the bytes come from the S3 archive instead of the source (`replay.ts` — a re-fetch
+   * could return DIFFERENT bytes and reveal different ground on a map that never re-fogs), and the
+   * score gate will re-claim a `DONE` receipt.
+   *
+   * It is read from the job rather than from a deps flag so that the deployed worker needs no
+   * configuration to serve one: a replay is a property of the message, which is what makes it
+   * auditable in the queue.
+   */
+  const isReplay = job.command === "reingest"
+  if (isReplay && !deps.replay) {
+    throw new Error(
+      `job ${job.ingestKey} is a reingest but no replay deps were supplied. Refusing to fall back ` +
+        "to the source: replaying different bytes can reveal different ground permanently (D-020).",
+    )
+  }
+
+  /**
    * COUNTED FIRST, BEFORE ANYTHING CAN FAIL. T8's `attempts` is "ADD 1 per delivery" and
    * 0040's note is explicit that folding it into the claim would break that sentence,
    * because a failed `ConditionExpression` writes nothing — so the delivery worth
@@ -312,14 +340,15 @@ export async function processActivity<TCreds>(
    */
   let fetchMs = 0
   let normalizeMs = 0
+  const source = isReplay ? replayAdapter(deps.adapter, deps.replay!) : deps.adapter
   const timedAdapter: SourceAdapter<TCreds> = {
-    ...deps.adapter,
+    ...source,
     fetchRaw: async (j, c) => {
       phase("fetch")
       const at = clock()
       let raw
       try {
-        raw = await deps.adapter.fetchRaw(j, c)
+        raw = await source.fetchRaw(j, c)
       } finally {
         fetchMs = clock() - at
       }
@@ -337,7 +366,9 @@ export async function processActivity<TCreds>(
       phase("normalize")
       const at = clock()
       try {
-        return deps.adapter.normalize(raw, ref, j)
+        // `source.normalize` IS `deps.adapter.normalize` even under replay — `replayAdapter`
+        // replaces `fetchRaw` and nothing else, so there is exactly one normalizer in the system.
+        return source.normalize(raw, ref, j)
       } finally {
         normalizeMs = clock() - at
       }
@@ -354,7 +385,7 @@ export async function processActivity<TCreds>(
    */
   phase("gate")
   const t2 = clock()
-  const claim = await claimForScoring(job.ingestKey, deps.receipt)
+  const claim = await claimForScoring(job.ingestKey, deps.receipt, { replay: isReplay })
   const gateMs = clock() - t2
 
   if (claim.kind === "duplicate") {

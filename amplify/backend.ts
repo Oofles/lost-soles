@@ -1016,6 +1016,35 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
+ * LISTING ONE ACTIVITY'S ARCHIVE — the replay path. Ticket `0192`, `src/pipeline/replay.ts`.
+ *
+ * A `command: "reingest"` job re-runs the pipeline over the ARCHIVED bytes rather than re-fetching,
+ * because a source can return a different payload for the same activity and ground revealed from
+ * bytes the original ingest never saw is permanent on a map that never re-fogs (D-020). Finding
+ * those bytes means listing `raw/<uid>/<source>/<externalId>/`, because the key carries a content
+ * digest that only the bytes themselves produce.
+ *
+ * `s3:ListBucket` IS A BUCKET-LEVEL ACTION, hence a separate statement on the bucket ARN rather than
+ * an addition to the one above — the grant above deliberately holds only object-level actions on
+ * `arnForObjects("raw/*")`, and appending a bucket action to it would silently change what its
+ * `resources` line means.
+ *
+ * IT IS STILL SCOPED TO `raw/`. The comment on the grant above warns that `bucket.grantRead` hands
+ * out `s3:List*` on the WHOLE bucket, which would let the worker enumerate every user's explored
+ * blob under `users/`. An `s3:prefix` condition is the answer that comment implies but does not
+ * spell out: bucket-level access cannot be scoped by resource ARN, and it CAN be scoped by
+ * condition. A request for any prefix outside `raw/` is denied.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ListOneActivitysRawArchive",
+    actions: ["s3:ListBucket"],
+    resources: [backend.storage.resources.bucket.bucketArn],
+    conditions: { StringLike: { "s3:prefix": "raw/*" } },
+  }),
+)
+
+/**
  * THE DELIVERY LAYER. `0049`, `02-data-model.md` §2.10 and §6.1.
  *
  * A SECOND STATEMENT ON A SECOND PREFIX, rather than widening the one above. The comment

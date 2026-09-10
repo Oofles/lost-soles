@@ -259,6 +259,59 @@ describe("layer 2 — the score gate", () => {
   })
 })
 
+describe("the replay claim — ticket 0192", () => {
+  /**
+   * `claimForScoring(key, deps, { replay: true })` is the ONLY way past a `DONE` receipt, and it is
+   * reachable only from `command: "reingest"` on the job. The safety argument is not "DONE was not
+   * really final" — it is the module header's own layer 4: *"`delta = newCells \ explored` is empty
+   * on a replay, so a re-run awards nothing even if layers 1-3 all failed"*, which is also why the
+   * 90-day TTL is safe. This flag is the path the TTL already takes every quarter, on request.
+   */
+  it("adds DONE to the claimable statuses, and only when asked", async () => {
+    const replay = stub([{ Attributes: receipt({ status: "PROCESSING", attempts: 2 }) }])
+    expect(await claimForScoring(KEY, replay.deps, { replay: true })).toEqual({
+      kind: "claimed",
+      attempts: 2,
+    })
+    const withReplay = (replay.sent[0] as UpdateCommand).input
+    expect(withReplay.ConditionExpression).toBe(
+      "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
+        "#status = :done OR (#status = :processing AND processingStartedAt < :stale))",
+    )
+    expect(withReplay.ExpressionAttributeValues?.[":done"]).toBe("DONE")
+  })
+
+  /**
+   * THE REGRESSION THAT MATTERS. A redelivered SQS message, a duplicate webhook and the ordinary
+   * reconciliation sweep must all still lose to a DONE receipt exactly as before — the replay path
+   * is an operator action, not a relaxation of layer 2.
+   */
+  it("leaves the ordinary claim byte-for-byte unchanged", async () => {
+    for (const options of [undefined, {}, { replay: false }]) {
+      const plain = stub([{ Attributes: receipt({ status: "PROCESSING", attempts: 1 }) }])
+      await claimForScoring(KEY, plain.deps, options)
+      const input = (plain.sent[0] as UpdateCommand).input
+      expect(input.ConditionExpression).toBe(
+        "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
+          "(#status = :processing AND processingStartedAt < :stale))",
+      )
+      expect(input.ExpressionAttributeValues).not.toHaveProperty(":done")
+    }
+  })
+
+  it("still reports a duplicate when DynamoDB refuses the replay claim", async () => {
+    // A replay racing a live delivery, say. The flag widens the condition; it does not ignore it.
+    const { deps } = stub([
+      conditionFailed(),
+      { Item: receipt({ status: "PROCESSING", processingStartedAt: NOW.toISOString() }) },
+    ])
+    expect(await claimForScoring(KEY, deps, { replay: true })).toMatchObject({
+      kind: "duplicate",
+      status: "PROCESSING",
+    })
+  })
+})
+
 describe("two concurrent identical jobs (criterion 7)", () => {
   /**
    * The race, played out: both callers count their delivery, both attempt the claim,
