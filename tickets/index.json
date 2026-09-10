@@ -1320,7 +1320,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0055-webgl2-coverage-mask-pass.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -2780,7 +2780,7 @@
     "title": "Spike — prove gl.MAX on a half-res R8 FBO inside MapLibre's prerender works on the target Android phone",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -2790,10 +2790,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-10T02:00:41Z",
-    "path": "tickets/open/0118-spike-glmax-r8-fbo-on-target-device.md",
-    "ready": true,
+    "closed": "2026-09-10T02:15:15Z",
+    "path": "tickets/closed/0118-spike-glmax-r8-fbo-on-target-device.md",
+    "ready": false,
     "acceptance": {
-      "checked": 4,
+      "checked": 8,
       "total": 8
     }
   },
@@ -4354,19 +4355,19 @@
     "slug": "stale-bundle-baseline-first-load-js",
     "title": "The 0053 bundle baseline is stale — / First Load JS is 188 kB, the table says 121 kB",
     "type": "bug",
-    "priority": "medium",
+    "priority": "med",
     "status": "open",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
-    "created": "2026-09-10T02:12:26Z",
+    "created": "2026-09-10T02:11:00Z",
     "path": "tickets/open/0191-stale-bundle-baseline-first-load-js.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   }
 ]
