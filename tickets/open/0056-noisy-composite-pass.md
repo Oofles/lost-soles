@@ -222,6 +222,34 @@ Two decisions inside it:
   MapLibre draws only when asked — without it the frozen frame left on screen is the last *animated*
   one.
 
+### I looked at it before asking the operator to, and it changed what to ask
+
+`tools/fog-harness/render-png.mjs` renders one frame of the finished composite over a stand-in
+parchment basemap — a street grid, labels, a park, a lake — and writes a PNG. Ten seconds, and it
+is the difference between handing over five judgement calls and handing over five judgement calls
+on something that has at least been seen once.
+
+What it shows, at the values this ticket specifies:
+
+- **Legibility is not in question.** Inside revealed ground the parchment, the road casings and
+  every street label are untouched. Outside it, at 6% transmission, the grid survives as a ghost
+  exactly as §5.3 promises. D-051 is comfortable in both directions.
+- **The interior density variation works** — the fog is mottled rather than a flat wash, which is
+  the noise field doing its job.
+- **The warm rim is not perceptible at `u_rimAmt = 0.08`.** It measures +10/255 and reads as
+  nothing against the luminance step it sits on. At adventure's 0.30 it is a clear parchment band.
+  §4.3 calls the rim *"the single detail that sells the effect"*, so this is worth stating plainly
+  rather than leaving for someone to notice.
+- **The boundary reads as a clean soft gradient, not as ragged mist** — and the arithmetic says it
+  cannot be otherwise. D-231's own formula puts the noise displacement at `amp/2 x (1 - inner) x
+  radius` = **2 m** at 0.10 and 6 m at 0.30, against a reveal ramp **17 m** wide. A 2 m wobble on a
+  17 m gradient is invisible.
+
+**None of that is fixed here** — `0119` owns taste and this ticket says so twice. Both findings are
+recorded on `0119` with their arithmetic, including the part that makes it a design question rather
+than a knob: the other lever is `FALLOFF_INNER`, and D-231 raised it to 0.60 to kill the neighbour
+seam, so buying raggedness there trades one artefact for the other.
+
 ### What went wrong while doing it
 
 - **The rim probe passed vacuously on its first run, and the output said so if you read it.**
@@ -317,5 +345,12 @@ thing to read — it should tick through whole numbers as you pan, and the line 
 - **The full CI set, unfiltered**, with the generated `public/maplibre` moved aside: eleven guard
   scripts, `tsc --noEmit`, `eslint . --max-warnings 0`, **1,831 tests** (98 new), `npm run build`.
 
-- **Not yet deployed.** The close commit is what triggers Amplify, so the post-deploy smoke test
-  belongs with it rather than here.
+- **`node tools/fog-harness/render-png.mjs tmp/out.png <palette> <half-width-m>`** — a rendered
+  frame of the finished fog over a stand-in basemap, at `V1`, `ATLAS` or `ADVENTURE` and at any
+  zoom. Looked at, at a neighbourhood scale and at a two-street scale, before writing the checklist
+  above. See the Resolution for what it showed and what was filed onto `0119` as a result.
+  Output goes to the gitignored `tmp/` (commit `f9577a2` — a screenshot of the real fog is a
+  location leak; these are Point Nemo, and the directory is the right home regardless).
+
+- **Deployed.** Amplify job **181** on commit `dc89d22`. The post-deploy smoke test goes in the
+  close commit, once the operator has looked.

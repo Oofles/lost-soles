@@ -59,6 +59,33 @@ Tune on the **target phone in daylight**, not on a desktop monitor indoors. Valu
 bright calibrated display at night are consistently too subtle outdoors — which is where this app
 is actually used.
 
+### 2026-09-10, from `0056` — two measurements to start from rather than rediscover
+
+`0056` shipped the composite and rendered it to a PNG against a stand-in parchment basemap
+(`node tools/fog-harness/render-png.mjs tmp/out.png <V1|ATLAS|ADVENTURE> <half-width-m>`). Two
+things it found, both arithmetic rather than taste, so this ticket does not have to find them by
+eye:
+
+1. **The warm rim is invisible at the value that ships.** §4.3 calls it *"the single detail that
+   sells the effect"*. At `u_rimAmt = 0.08` it contributes **+10/255** at its peak — measurable
+   (harness probe C1) and not perceptible against the luminance step it sits on. At adventure's
+   0.30 it reads clearly as a parchment-coloured band. The renders are the comparison; the honest
+   summary is that 0.08 buys a hairline that is not there.
+
+2. **`u_noiseAmp` cannot produce a ragged edge on its own, at any value in §5.2's range.** The
+   noise displaces the boundary by `amp/2 x (1 - FALLOFF_INNER) x radius` — D-231's own formula —
+   which is **2 m** at 0.10 and **6 m** at 0.30. The reveal ramp it has to roughen is
+   `(REVEAL_HI - REVEAL_LO) x (1 - FALLOFF_INNER) x radius` = **17 m** wide. A 2 m wobble on a 17 m
+   gradient is invisible; 6 m is subtle. So §4.3's *"ragged, organic mist edge instead of a smooth
+   blurred blob"* is a promise about the RATIO of those two numbers, and raising `u_noiseAmp` alone
+   moves it slowly. The other lever is `FALLOFF_INNER`, and **D-231 raised it to 0.60 to kill the
+   neighbour seam** — so lowering it to buy raggedness trades one artefact for the other and is a
+   design decision, not a tuning knob. Check `SEAM_FLOOR` before touching it.
+
+Also worth knowing: the edge treatment is **scale dependent**. Both numbers above are ground
+metres, so the wobble is a couple of pixels at a neighbourhood zoom and tens of pixels zoomed in.
+Tune at the zoom the map is actually used at.
+
 ## Operator validation
 
 Go outside in direct sunlight with the phone. At z16 over a street you have run:
