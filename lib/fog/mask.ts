@@ -51,6 +51,50 @@ export const REVEAL_SCALE_MIN = 1.15
 export const REVEAL_SCALE_MAX = 1.6
 
 /**
+ * WHERE THE DISC STOPS BEING SOLID AND STARTS FADING, as a fraction of the radius. **D-231.**
+ *
+ * §4.2 shipped this as `0.45` and it was wrong, in a way only a person looking at a real corridor
+ * could have caught. The arithmetic:
+ *
+ *   adjacent H3 res-10 centres are 131.4 m apart, so their midpoint is 65.7 m from each
+ *   the disc radius is 1.35 x 75.9 = 102.5 m, so that midpoint sits at 0.64 of the radius
+ *   0.64 is OUTSIDE a flat core of 0.45 — it is a third of the way up the ramp
+ *
+ * So every junction between two adjacent cells dipped to **0.72 of peak**, and a run's corridor
+ * rendered as a chain of discs with a visible crease at each join rather than as one region. That is
+ * precisely the scalloping §4.1 promises 1.35 removes; the scale was never the problem.
+ *
+ * **`0056` WOULD HAVE MADE IT WORSE, NOT HIDDEN IT** — which is the part worth keeping. §4.3
+ * thresholds at `smoothstep(0.30, 0.72, coverage + noise)` with the noise swinging +-0.15, so a seam
+ * needs **>= 0.87** coverage to stay fully revealed at every phase of the animation. At 0.72 the
+ * seams sat exactly ON the upper threshold and would have pulsed in and out of the mist as the noise
+ * drifted: a chain of breathing pinch points along every route, diagnosable as a noise bug for as
+ * long as anyone cared to look in the wrong place.
+ *
+ * At **0.60** the seam measures **0.98** on a real GPU — a flat interior with genuine margin — while
+ * 40% of the radius stays feather. Going further costs `0056` its wisps for nothing: the noise
+ * displaces the boundary by roughly `amplitude x (1 - inner) x radius`, so a steeper ramp moves the
+ * edge less, and the seam is already saturated by 0.65.
+ *
+ * **THE DISC RADIUS IS UNCHANGED AND SO IS THE GROUND REVEALED.** This is the shape of the ramp
+ * inside a disc that still ends at 102.5 m. `REVEAL_R_M` in `src/domain/fog.ts` — what counts as
+ * explored, permanently, under D-020 — is a different number in a different file and is not touched.
+ */
+export const FALLOFF_INNER = 0.6
+
+/**
+ * The floor a seam must clear to stay fully revealed under `0056`'s animated threshold, derived from
+ * §4.3's own constants rather than chosen: `smoothstep(0.30, 0.72, coverage + (n - 0.5) * 0.30)`
+ * puts the worst-case noise at `-0.15`, so `coverage - 0.15 >= 0.72`.
+ *
+ * IT EXISTS AS A CONSTANT BECAUSE THE PREVIOUS THRESHOLD WAS INVENTED. `tools/fog-harness` asserted
+ * `seam >= 179/255` — a number picked to sit clearly above the sabotage case, related to nothing —
+ * and it passed the 0.72 seam that a person then reported as broken on sight. A threshold that comes
+ * from the consuming pass cannot be calibrated to whatever the code currently does.
+ */
+export const SEAM_FLOOR = 0.87
+
+/**
  * §4.2 — the mask is allocated at **half** the drawing buffer, and that is both cheaper and
  * *better*: the bilinear upsample in `0056`'s composite contributes a free extra feather (R4 §7.2).
  */
@@ -101,12 +145,11 @@ void main() {
  * §4.2's fragment shader. **THIS is where the mist edge comes from** — it costs nothing and it is
  * why there is no blur pass anywhere in this design.
  *
- * `1.0 - smoothstep(0.45, 1.0, d)` is a Gaussian-*like* ramp rather than an actual Gaussian:
- * `smoothstep` is a cubic Hermite, evaluated in one instruction, and it reaches exactly 0 at the
- * quad's edge. A true `exp(-d²)` never does, so it would either clip visibly at the quad boundary
- * or need a larger quad for the same visual radius — more overdraw for a difference nobody can see
- * under `0056`'s noise. The flat inner 45% is what keeps a solidly-run corridor reading as solid
- * rather than as a field of hotspots.
+ * `1.0 - smoothstep(FALLOFF_INNER, 1.0, d)` is a Gaussian-*like* ramp rather than an actual
+ * Gaussian: `smoothstep` is a cubic Hermite, evaluated in one instruction, and it reaches exactly 0
+ * at the quad's edge. A true `exp(-d²)` never does, so it would either clip visibly at the quad
+ * boundary or need a larger quad for the same visual radius — more overdraw for a difference nobody
+ * can see under `0056`'s noise.
  *
  * `a_fraction` MULTIPLIES the coverage (criterion 8, §6.1's last bullet). At the canonical res-10
  * bucket it is 1.0 and this is a no-op. At `0058`'s coarse buckets it is the explored fraction from
@@ -127,7 +170,7 @@ out vec4  fragColor;
 void main() {
     float d = length(v_uv);
     if (d > 1.0) discard;                        // square quad, round disc
-    float c = (1.0 - smoothstep(0.45, 1.0, d)) * v_fraction;
+    float c = (1.0 - smoothstep(${FALLOFF_INNER.toFixed(2)}, 1.0, d)) * v_fraction;
     fragColor = vec4(c, 0.0, 0.0, 1.0);
 }`
 

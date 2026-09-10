@@ -217,14 +217,23 @@ function main() {
     }
     const at135 = seamOf(RADIUS)
     const at115 = seamOf(metresToMercator(1.15 * CIRCUMRADIUS_M, NEMO.lat))
+    // THE THRESHOLD COMES FROM 0056, NOT FROM ME. `SEAM_FLOOR` is derived in mask.ts from §4.3's
+    // own constants: the composite thresholds at smoothstep(0.30, 0.72, coverage + noise) with the
+    // noise swinging +-0.15, so a seam below 0.87 pulses in and out of the mist as the animation
+    // drifts. The previous assertion here was `seam >= 179/255` — a number I picked to sit clearly
+    // above the sabotage case, related to nothing — and it PASSED the 0.72 seam that the operator
+    // then reported as broken on sight. A threshold calibrated to what the code already does cannot
+    // fail; this one can, and did.
+    const floor = Math.round(SEAM_FLOOR * 255)
     record(
       "T3 no scalloping",
-      at135.seam >= 179 && at135.peak >= 250,
-      `seam=${at135.seam} of peak=${at135.peak} at revealScale ${REVEAL_SCALE} (want seam >= 179)`,
+      at135.seam >= floor && at135.peak >= 250,
+      `seam=${at135.seam} of peak=${at135.peak} = ${(at135.seam / at135.peak).toFixed(3)} at ` +
+        `revealScale ${REVEAL_SCALE}, falloff ${FALLOFF_INNER} (floor ${floor} = SEAM_FLOOR ${SEAM_FLOOR}, from 0056's threshold)`,
     )
     record(
       "S1 scalloping is detectable",
-      at115.seam < 120,
+      at115.seam < floor,
       `seam=${at115.seam} at revealScale 1.15 — R4's stated lower bound, where §4.1 says the notch appears`,
     )
   }

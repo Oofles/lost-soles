@@ -79,7 +79,9 @@ it is the canary for the entire performance claim.
 - [x] Disc falloff is a smooth Gaussian-like radial ramp at `revealScale = 1.35`; the constant is
       named and commented with the 1.15/1.6 bounds.
       — `REVEAL_SCALE`, with `REVEAL_SCALE_MIN`/`MAX` exported so the bounds are testable rather
-      than a comment. The harness measures the seam at 190/255 and at 115/255 under 1.15.
+      than a comment. **The ramp's inner edge moved 0.45 → 0.60 after the operator saw it (D-231)**;
+      the seam now measures **250/255** against a floor of 222 derived from `0056`, and the 1.15
+      sabotage case still fails that floor at 181.
 - [x] Projection uses `shaderData.vertexShaderPrelude`; no `map.project()` in any per-frame path
       (grep test).
       — `lib/fog/no-per-frame-projection.test.ts`, non-vacuous. The real 664-byte mercator prelude
@@ -213,6 +215,35 @@ gl.getError 0x0
 - **`fraction` is clamped at the packer.** Above 1 a coarse cell would out-write a fully-explored one
   under `MAX`; below 0 it vanishes. `explored-agg.json` is generated and ought to be in range — this
   is the boundary where an out-of-range number stops being data and becomes a rendering bug.
+
+### A third defect, found by the SECOND operator check — and it is the one that matters
+
+**`?fog=mask` rendered a chain of discs with a clean crease at every join.** Reported on sight:
+*"no overlap with the circles, just a dark circle fading lighter and a clean line where it meets up
+with another circle."* That is scalloping — the exact artifact §4.1 says `revealScale = 1.35`
+removes — and the cause was not the scale.
+
+§4.2 specified the falloff as `1.0 - smoothstep(0.45, 1.0, d)`. Adjacent res-10 centres are 131.4 m
+apart, the disc radius is 102.5 m, so the midpoint between neighbours sits at **0.64 of the radius**
+— outside a flat core of 0.45. Every junction dipped to **0.72 of peak**. Moved to **0.60**, seam
+measured at **0.98** on a real GPU. **D-231**, and `05-fog-of-war.md` §4.2 amended.
+
+**`0056` would have made it worse rather than hidden it**, which is why this was worth stopping for.
+§4.3 thresholds at `smoothstep(0.30, 0.72, coverage + noise)` with the noise swinging ±0.15, so a
+seam below **0.87** pulses in and out of the mist as the animation drifts. At 0.72 the seams sat
+exactly ON the threshold: a chain of breathing pinch points along every route, in a pass that had not
+been written yet, presenting as a noise bug.
+
+**And the harness passed it.** `T3 no scalloping` asserted `seam >= 179/255` — a number chosen while
+writing the harness to sit clearly above the deliberate sabotage case, and derived from nothing. It
+reported `ok` on a value a person called broken on sight. The floor is now `SEAM_FLOOR = 0.87`,
+computed in `mask.ts` from §4.3's own constants, and the harness prints the derivation beside the
+measurement. **A numeric guard has to come from whatever consumes the value, not from whatever
+produces it** — otherwise it records rather than checks.
+
+This is D-181 doing precisely what it is for. Both halves of the verification were green, because
+both were asking whether the code did what it was written to do. Only the operator asked whether it
+looked right.
 
 ### Two defects found by the first operator check, and fixed here
 

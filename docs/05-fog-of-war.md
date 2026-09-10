@@ -730,11 +730,39 @@ out vec4 fragColor;
 void main() {
     // Soft radial falloff. THIS is where the mist edge comes from —
     // it costs nothing and it is why we do not need a blur pass.
+    // 0.60 is FALLOFF_INNER — see the note below. It was 0.45 and that was wrong.
     float d = length(v_uv);
-    float c = 1.0 - smoothstep(0.45, 1.0, d);
+    float c = 1.0 - smoothstep(0.60, 1.0, d);
     fragColor = vec4(c, 0.0, 0.0, 1.0);
 }
 ```
+
+**`FALLOFF_INNER = 0.60`, and it was `0.45` until ticket `0055` put a real corridor on a screen
+(D-231).** The arithmetic that makes 0.45 wrong is short and nobody did it:
+
+- adjacent res-10 centres are **131.4 m** apart, so their midpoint is **65.7 m** from each
+- the disc radius is `1.35 x 75.9` = **102.5 m**, so that midpoint sits at **0.64 of the radius**
+- 0.64 is outside a flat core of 0.45 — it is a third of the way up the ramp
+
+So every junction between two adjacent cells dipped to **0.72 of peak**, and a run rendered as a
+chain of discs with a visible crease at each join. That is exactly the scalloping §4.1 promises 1.35
+removes: `revealScale` was never the problem, and raising it would have masked a falloff bug by
+inflating the territory.
+
+**§4.3 would have made this worse rather than hidden it.** The composite thresholds at
+`smoothstep(0.30, 0.72, coverage + noise)` with the noise swinging ±0.15, so a seam needs **≥ 0.87**
+coverage to stay fully revealed at every phase of the animation. At 0.72 the seams sat exactly ON the
+upper threshold and would have pulsed in and out of the mist as the noise drifted — a chain of
+breathing pinch points along every route, and a defect that reads as a noise problem.
+
+At 0.60 the seam measures **0.98** on a real GPU (`tools/fog-harness`), leaving 40% of the radius as
+feather. Going further is not free: §4.3's noise displaces the boundary by roughly
+`amplitude x (1 - FALLOFF_INNER) x radius`, so a steeper ramp gives shallower wisps, and the seam is
+already saturated by 0.65.
+
+**The disc radius is unchanged and so is the ground revealed** — this is the shape of the ramp inside
+a disc that still ends at 102.5 m. `REVEAL_R_M` (§2.3) is a different number in a different file and
+is not touched by it.
 
 GL state for the pass:
 

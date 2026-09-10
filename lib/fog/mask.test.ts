@@ -7,7 +7,9 @@ import {
   MASK_SCALE,
   REVEAL_SCALE,
   REVEAL_SCALE_MAX,
+  FALLOFF_INNER,
   REVEAL_SCALE_MIN,
+  SEAM_FLOOR,
   STUB_PRELUDE,
   createMaskResources,
   disposeMaskResources,
@@ -84,21 +86,38 @@ describe("REVEAL_SCALE — §4.1's disc radius", () => {
    * same trough. Kept anyway because it is what turns "1.35 is the right number" from a quotation
    * into something a later session can argue with.
    */
-  it("keeps the seam between neighbours far above where 1.15 would leave it", () => {
+  it("holds the seam above 0056's threshold, which is what 0.45 failed to do", () => {
     const smoothstep = (a: number, b: number, x: number) => {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
       return t * t * (3 - 2 * t)
     }
-    const seam = (scale: number) =>
-      1 - smoothstep(0.45, 1, 131.4 / 2 / (scale * 75.9))
+    /** Coverage at the midpoint between two adjacent res-10 cells, 131.4 m apart. */
+    const seam = (inner: number, scale = REVEAL_SCALE) =>
+      1 - smoothstep(inner, 1, 131.4 / 2 / (scale * 75.9))
 
-    expect(seam(REVEAL_SCALE)).toBeGreaterThan(0.7)
-    // At R4's stated lower bound the trough is barely half as deep-filled, which is the scalloping
-    // §4.1 says appears "below ~1.15".
-    expect(seam(REVEAL_SCALE_MIN)).toBeLessThan(0.45)
-    // And at the upper bound the discs have swallowed the spacing entirely — "inflated and
-    // imprecise", territory that no longer means "where I ran".
-    expect(seam(REVEAL_SCALE_MAX)).toBeGreaterThan(0.9)
+    // D-231. The floor comes from §4.3's own constants, not from what the code happens to produce.
+    expect(seam(FALLOFF_INNER)).toBeGreaterThan(SEAM_FLOOR)
+    expect(seam(FALLOFF_INNER)).toBeGreaterThan(0.96)
+
+    /**
+     * THE REGRESSION THIS FILE EXISTS TO PREVENT. `0.45` is what §4.2 originally specified, and it
+     * puts the seam at 0.72 — below the floor, and visible on sight as a chain of discs with a
+     * crease at every join. Asserted explicitly so a later "restore the doc's value" edit fails.
+     */
+    expect(seam(0.45)).toBeLessThan(SEAM_FLOOR)
+    expect(seam(0.45)).toBeCloseTo(0.72, 2)
+  })
+
+  it("still needs revealScale itself, not just the falloff — the discs must overlap at all", () => {
+    const smoothstep = (a: number, b: number, x: number) => {
+      const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+      return t * t * (3 - 2 * t)
+    }
+    const seam = (scale: number) => 1 - smoothstep(FALLOFF_INNER, 1, 131.4 / 2 / (scale * 75.9))
+    // Below R4's lower bound the neighbour is past the ramp entirely and the trough collapses,
+    // whatever the falloff does — which is why the two constants are both load-bearing.
+    expect(seam(REVEAL_SCALE_MIN)).toBeLessThan(seam(REVEAL_SCALE))
+    expect(seam(REVEAL_SCALE_MAX)).toBe(1)
   })
 })
 
@@ -123,7 +142,10 @@ describe("the shaders", () => {
   })
 
   it("multiplies coverage by a_fraction and ramps with smoothstep, not a hard edge", () => {
-    expect(MASK_FRAGMENT_SOURCE).toContain("1.0 - smoothstep(0.45, 1.0, d)")
+    // The constant is interpolated from `FALLOFF_INNER`, so this asserts the wiring as well as the
+    // value — a shader with the number typed in twice is a shader that drifts from its own constant.
+    expect(MASK_FRAGMENT_SOURCE).toContain(`1.0 - smoothstep(${FALLOFF_INNER.toFixed(2)}, 1.0, d)`)
+    expect(FALLOFF_INNER).toBe(0.6)
     expect(MASK_FRAGMENT_SOURCE).toContain("* v_fraction")
     // The disc is round even though the quad is square.
     expect(MASK_FRAGMENT_SOURCE).toContain("discard")

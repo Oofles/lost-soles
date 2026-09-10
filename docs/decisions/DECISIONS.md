@@ -2860,3 +2860,42 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     device "in the first week of implementation, before the rest of the layer is built on the
     assumption". What is preserved is the ordering claim that mattered: the *technique* is verified
     before `0055` builds on it. What is relaxed is which GPU does the verifying first.
+
+- **D-231** **The mask's disc falloff starts at 0.60 of the radius, not 0.45 — and the threshold that
+  guards it is derived from `0056`, never chosen.** `05-fog-of-war.md` §4.2 shipped
+  `1.0 - smoothstep(0.45, 1.0, d)`; a real corridor on a real screen showed it as a chain of discs
+  with a crease at every join. *(Operator, on first sight of `?fog=mask`, during ticket `0055`,
+  2026-09-10.)*
+  - **The arithmetic is three lines and nobody did it.** Adjacent H3 res-10 centres are 131.4 m
+    apart, so their midpoint is 65.7 m from each; the disc radius is `1.35 x 75.9` = 102.5 m, so that
+    midpoint sits at **0.64 of the radius** — outside a flat core of 0.45, a third of the way up the
+    ramp. Coverage at every junction was **0.72 of peak**.
+  - **This is the scalloping §4.1 promises `revealScale = 1.35` removes.** The scale was not the
+    problem and raising it would have been the wrong fix: it would have masked a falloff bug by
+    inflating the territory, past R4's 1.6 bound, on a map where over-revealing is permanent.
+  - **`0056` would have made it worse, not hidden it, and this is the part worth remembering.** §4.3
+    thresholds at `smoothstep(0.30, 0.72, coverage + noise)` with the noise swinging ±0.15, so a seam
+    needs **≥ 0.87** to stay fully revealed at every phase. At 0.72 the seams sat exactly ON the upper
+    threshold: they would have pulsed in and out of the mist as the noise drifted, giving a chain of
+    breathing pinch points along every route — a defect that presents as a noise problem, in a pass
+    that had not been written yet.
+  - **0.60 rather than 0.65 or 0.70.** The seam measures 0.98 on a real GPU at 0.60 and saturates by
+    0.65, but §4.3's noise displaces the boundary by roughly `amplitude x (1 - inner) x radius`, so a
+    steeper ramp buys nothing and costs wisp depth. 0.60 keeps 40% of the radius as feather.
+  - **Nothing about the revealed ground changes.** The disc still ends at 102.5 m; only the shape of
+    the ramp inside it moves. `REVEAL_R_M = 65` in `src/domain/fog.ts` — what counts as explored,
+    permanently, under D-020 — is untouched, and `check-fog-render-boundary.mjs` still keeps the two
+    apart.
+  - **THE TEST THAT SHOULD HAVE CAUGHT THIS PASSED IT, AND THAT IS THE REAL FINDING.**
+    `tools/fog-harness` asserted `seam >= 179/255` — a number chosen while writing the harness to sit
+    clearly above the deliberate sabotage case, derived from nothing. It passed 0.72 and reported
+    `ok`. A threshold calibrated against what the code currently produces cannot fail; it only
+    records. The floor is now `SEAM_FLOOR = 0.87`, computed in `lib/fog/mask.ts` from §4.3's own
+    constants, and the harness prints that derivation beside the measurement. **Generalises: a
+    numeric guard must come from the thing that consumes the value, not from the thing that produces
+    it.**
+  - **It took a person, and no amount of testing would have replaced them.** Both halves of `0055`'s
+    verification were green — 55 unit tests and a GPU harness with sabotage cases on every probe —
+    because both were asking whether the code did what it was written to do. The operator asked
+    whether it looked right. That is D-181's whole argument, arriving on schedule.
+
