@@ -1,4 +1,12 @@
-import { cellToLatLng, getResolution, gridDisk, latLngToCell } from "h3-js"
+import {
+  UNITS,
+  cellToLatLng,
+  getHexagonAreaAvg,
+  getHexagonEdgeLengthAvg,
+  getResolution,
+  gridDisk,
+  latLngToCell,
+} from "h3-js"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { GeoPoint, Trace } from "./activity"
@@ -80,6 +88,23 @@ function trace(points: GeoPoint[], gaps: Array<[number, number]> = []): Trace {
 
 const cellOf = (p: { lat: number; lng: number }) => latLngToCell(p.lat, p.lng, RES)
 
+/**
+ * The midpoint of the straight line between two points — where a BRIDGED corridor actually
+ * runs, as opposed to where the two legs happen to point.
+ *
+ * Added by `0194` (res 10 → 11), and it fixed two tests that had been passing for the wrong
+ * reason. Both probed `step(NEMO, 350, π/2)` for "the corridor was bridged", and that point
+ * is **91.7 m from the bridging segment** — outside `REVEAL_R_M` entirely. They passed at
+ * res 10 because that one cell's centre happened to sit 61.3 m from the line, 30 m nearer
+ * than the probe itself; at res 11 the smaller cell's centre lands at 75.1 m and the same
+ * assertion fails. The corridor was never the thing being measured — grid slop was.
+ *
+ * Probing the real midpoint measures the bridge at any resolution.
+ */
+function midOf(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 }
+}
+
 /** Metres between two points — the test's own yardstick, independent of the module. */
 function metres(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const dLat = toRad(b.lat - a.lat)
@@ -119,12 +144,12 @@ function walk(
 }
 
 describe("traceToCells — resolution", () => {
-  it("emits res-10 ids and nothing else (D-115)", () => {
+  it("emits res-11 ids and nothing else (D-237, superseding D-115)", () => {
     const cells = traceToCells(trace(line(NEMO, 0, 200, 5)))
 
     expect(cells.size).toBeGreaterThan(0)
     for (const c of cells) expect(getResolution(c)).toBe(RES)
-    expect(RES).toBe(10)
+    expect(RES).toBe(11)
   })
 
   it("returns a Set, because §3.3's whole edge-case list depends on it", () => {
@@ -248,10 +273,23 @@ describe("traceToCells — step 2, dwells", () => {
     // The runner was standing there, so that ground is still revealed.
     expect(withPause.has(cellOf(at))).toBe(true)
 
-    // ...and the drift disc did not smear a halo of extra cells around it. Collapsing to
-    // ONE point means the pause contributes no more than standing still would.
-    expect(withPause.size).toBe(without.size)
-    expect([...withPause].sort()).toEqual([...without].sort())
+    // ...and the drift disc did not smear a halo of extra cells around it. Collapsing to ONE
+    // point means the pause reaches no further than a single point can.
+    //
+    // **Was `expect(withPause.size).toBe(without.size)` until 0194.** Exact equality held at
+    // res 10 by coarseness: the collapsed median sits a few metres off `at`, and at a 65.7 m
+    // inradius a few metres never crossed a cell boundary. At res 11 it crosses two, and the
+    // ground those two cells cover is ground the runner genuinely stood on — so the equality
+    // was measuring the grid, not the collapse. The property that actually matters is that the
+    // pause cannot reach beyond ONE point's reveal radius; an UNcollapsed spiral would reach
+    // 38 m further, which is the smear this guards against.
+    // The bound is ONE point's worth of cells — a disc, derived from the grid — because the
+    // collapsed median lands a few metres off `at` (measured: ~8 m, so its reveal reaches 73 m
+    // from `at`, which is right and is why a 65 m reach assertion is the wrong shape). An
+    // UNcollapsed spiral would paint a 103 m halo and dozens of cells; that is the smear.
+    const onepoint = Math.ceil((Math.PI * REVEAL_R_M ** 2) / getHexagonAreaAvg(RES, UNITS.m2)) + 1
+    const extra = [...withPause].filter((c) => !without.has(c))
+    expect(extra.length).toBeLessThanOrEqual(onepoint)
   })
 
   it("does not collapse a slow stretch shorter than the dwell minimum", () => {
@@ -316,7 +354,9 @@ describe("traceToCells — step 3, splitting", () => {
     const b = line(step(NEMO, 700, Math.PI / 2), 0, 20, 10, 3, a[19].t + 117_000)
 
     const cells = traceToCells(trace([...a, ...b]))
-    expect(cells.has(cellOf(step(NEMO, 350, Math.PI / 2)))).toBe(true)
+    // ON the bridging segment — a[19] to b[0] — not 350 m east of the start, which is 91.7 m
+    // off that line and outside REVEAL_R_M. See `midOf`.
+    expect(cells.has(cellOf(midOf(a[19]!, b[0]!)))).toBe(true)
   })
 })
 
@@ -337,9 +377,11 @@ describe("traceToCells — gaps (D-198)", () => {
     const bridged = traceToCells(trace(points))
     const cut = traceToCells(trace(points, [[19, 20]]))
 
-    // 350 m from either leg — comfortably outside the ~197 m reach of a k=1 candidate
-    // disc, so this probe answers the question it is asking and not a rounding one.
-    const mid = step(NEMO, 350, Math.PI / 2)
+    // The midpoint OF THE BRIDGE, ~362 m from either leg's nearest end — comfortably outside
+    // the reach of a k=1 candidate disc around any real sample, so `cut` answers the question
+    // being asked and not a rounding one, while `bridged` sits exactly on the corridor. See
+    // `midOf` for why the previous probe (350 m east) measured grid slop instead.
+    const mid = midOf(a[19]!, b[0]!)
     expect(bridged.has(cellOf(mid))).toBe(true)
     expect(cut.has(cellOf(mid))).toBe(false)
   })
@@ -389,10 +431,13 @@ describe("traceToCells — step 4, densification", () => {
     }
   })
 
-  it("densifies at a spacing under res 10's inradius", () => {
-    // 65.7 m is the inradius; anything at or above it can skip a cell.
-    expect(DENSIFY_STEP_M).toBeLessThan(65.7)
-    expect(DENSIFY_STEP_M).toBe(30)
+  it("densifies at a spacing under the grid's inradius, whatever the grid is", () => {
+    // Anything at or above the inradius can skip a cell. Derived rather than quoted, because
+    // 0194 moved RES and the old assertion (`< 65.7`) would have stayed green at 30 m while
+    // res 11's inradius fell to 24.8 m — passing, and wrong, which is the worst outcome.
+    const inradius = getHexagonEdgeLengthAvg(RES, UNITS.m) * Math.cos(Math.PI / 6)
+    expect(DENSIFY_STEP_M).toBeLessThan(inradius)
+    expect(DENSIFY_STEP_M).toBe(12)
   })
 
   it("a single-point trace still qualifies its own cell", () => {
@@ -635,19 +680,35 @@ describe("traceToCells — step 5, the reveal radius", () => {
     }
   })
 
-  it("is a strict subset of the cells the path actually entered", () => {
-    // Not a coincidence and not an implementation detail: 65 < res 10's 65.7 m inradius,
-    // so a centre within 65 m of the path has the nearest path point INSIDE its own
-    // inscribed circle, hence inside the cell. D-216. It is the reason step 4's k=1 disc
-    // can never contribute a cell of its own at this radius.
+  it("reveals only ground within REVEAL_R_M of a point actually covered", () => {
+    // **This test asserted `revealed ⊆ entered` until 0194, and D-216 was why.** At res 10,
+    // 65 m sat just under the 65.7 m inradius, so a centre within 65 m of the path had the
+    // nearest path point inside its own inscribed circle — hence inside the cell, hence
+    // entered. D-237 moved the grid to res 11, where 65 m is 2.6 inradii, and the implication
+    // is simply false: a revealed cell two rings off the path was never entered.
+    //
+    // What did NOT change is the ground. The reveal is, and always was, "within 65 m of where
+    // you ran" — res 10 merely expressed it coarsely enough to look like cell containment.
+    // So this now asserts the invariant itself, measured with the test's own yardstick against
+    // the RAW samples rather than through the module's segment maths.
+    //
+    // The tolerance is the sample spacing: `walk` samples every 10 m, and membership is
+    // measured to the SEGMENTS, so a centre can be up to half a step further from the nearest
+    // sampled point than from the path. Anything beyond that is a real over-reveal.
+    const SPACING_M = 10
     const points = walk(NEMO, [
       { bearing: 0, metres: 900 },
       { bearing: Math.PI / 3, metres: 900 },
       { bearing: Math.PI, metres: 600 },
     ])
     const cells = traceToCells(trace(points))
-    const entered = new Set(points.map((p) => cellOf(p)))
-    for (const c of cells) expect(entered.has(c), `${c} was never entered`).toBe(true)
+    for (const c of cells) {
+      const [lat, lng] = cellToLatLng(c)
+      const nearest = Math.min(...points.map((p) => metres({ lat, lng }, p)))
+      expect(nearest, `${c} is ${nearest.toFixed(1)} m from any sample`).toBeLessThanOrEqual(
+        REVEAL_R_M + SPACING_M / 2,
+      )
+    }
     expect(cells.size).toBeGreaterThan(10)
   })
 })
@@ -678,13 +739,20 @@ describe("traceToCells — a wild outlier draws no spike (§2.2 note on noise)",
   })
 
   it("draws no chain of cells stretching from the path toward it", () => {
-    // A 300 m spike densified at 30 m would be ~5 extra cells in a line. The outlier is
-    // its own segment, so the corridor between is never drawn and the cost is bounded to
-    // the outlier's own neighbourhood.
+    // A 300 m spike densified along its length would be a line of extra cells. The outlier is
+    // its own segment, so the corridor between is never drawn and the cost is bounded to the
+    // outlier's own neighbourhood — a DISC, not a line.
+    //
+    // The bound is that disc's cell count, derived rather than quoted: 0194 moved RES and a
+    // hard-coded 2 would have failed at res 11 for no reason but cell size. It comes out at 2
+    // for res 10 — exactly the number this test carried before — and 8 for res 11, against a
+    // 300 m chain that would be ~12.
+    const discCells =
+      Math.ceil((Math.PI * REVEAL_R_M ** 2) / (getHexagonAreaAvg(RES, UNITS.m2))) + 1
     const withRogue = traceToCells(trace(withOutlier(300)))
     const withoutRogue = traceToCells(trace(withOutlier(null)))
     const extra = [...withRogue].filter((c) => !withoutRogue.has(c))
-    expect(extra.length).toBeLessThanOrEqual(2)
+    expect(extra.length).toBeLessThanOrEqual(discCells)
   })
 })
 

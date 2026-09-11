@@ -1,3 +1,5 @@
+import { UNITS, getHexagonEdgeLengthAvg } from "h3-js"
+
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -114,9 +116,12 @@ describe("one physical run, two adapters, the same territory", () => {
 
   it("and it is a real run, not a degenerate one that would agree trivially", () => {
     const primary = primaryCells()
-    // 6,043 m at res 10's ~131 m centre-to-centre. Two empty sets would also "agree".
-    expect(primary.size).toBeGreaterThan(30)
-    expect(RES).toBe(10)
+    // 6,043 m of run. Two empty sets would also "agree", so this guards the guard. The floor
+    // is derived from the grid rather than typed: one cell wide along the route is
+    // length / (2 x inradius), which is 46 at res 10 and 122 at res 11 (D-237).
+    const spacing = 2 * getHexagonEdgeLengthAvg(RES, UNITS.m) * Math.cos(Math.PI / 6)
+    expect(primary.size).toBeGreaterThan((6_043 / spacing) * 0.6)
+    expect(RES).toBe(11)
   })
 
   /**

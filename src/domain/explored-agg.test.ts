@@ -11,10 +11,13 @@ const sortBig = (cells: readonly string[]): bigint[] =>
   cells.map(cellToBig).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 
 describe("totalChildren", () => {
-  it("is 7^(10-res) — the constant 02 T6 fixes", () => {
-    expect(totalChildren(6)).toBe(2401)
-    expect(totalChildren(7)).toBe(343)
-    expect(totalChildren(8)).toBe(49)
+  it("is 7^(RES-res) — the constant 02 T6 fixes", () => {
+    // Derived, not typed: D-237 moved RES from 10 to 11 and every one of these shifted by a
+    // factor of 7. A literal here would have to be re-typed on the next move and would look
+    // like a deliberate value while being a stale one.
+    expect(totalChildren(6)).toBe(7 ** (RES - 6))
+    expect(totalChildren(7)).toBe(7 ** (RES - 7))
+    expect(totalChildren(8)).toBe(7 ** (RES - 8))
   })
 })
 

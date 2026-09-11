@@ -103,7 +103,7 @@ describe("LSFG — the explored set", () => {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     expect(String.fromCharCode(...bytes.subarray(0, 4))).toBe("LSFG")
     expect(bytes[4]).toBe(BLOB_VERSION)
-    expect(bytes[5]).toBe(10)
+    expect(bytes[5]).toBe(RES)
     expect(bytes[6]).toBe(0)
     expect(bytes[7]).toBe(0)
     expect(view.getBigUint64(8, true)).toBe(7n)
@@ -142,10 +142,15 @@ describe("LSFG — the explored set", () => {
   })
 
   /** CRITERION 2's second half: reject rather than guess (D-115, `02` §6.4). */
-  it("REJECTS res !== 10 rather than decoding it", () => {
+  it("REJECTS a res that is not the canonical one rather than decoding it", () => {
     const bytes = encodeExploredBlob(sortBig(gridDisk(ORIGIN, 1)), 1)
-    bytes[5] = 9
-    expect(() => decodeExploredBlob(bytes)).toThrow(/res 9, expected 10/)
+    // Any resolution but ours. D-237 made this concrete rather than theoretical: the account
+    // holds res-10 blobs written before the move, and this throw is what stops a client
+    // rendering them alongside res-11 cells.
+    bytes[5] = RES - 1
+    expect(() => decodeExploredBlob(bytes)).toThrow(
+      new RegExp(`res ${RES - 1}, expected ${RES}`),
+    )
   })
 
   it("REJECTS an unknown version rather than decoding it", () => {

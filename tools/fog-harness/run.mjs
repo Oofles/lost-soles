@@ -24,12 +24,13 @@
 // the mask shader changes, and its output goes in the ticket's `## Operator validation` as the
 // evidence for the claims a fake GL context cannot make.
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { harnessWorkdir } from "./workdir.mjs"
+
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
-const work = mkdtempSync(join(process.env.HOME ?? tmpdir(), "fog-0055-"))
+const work = harnessWorkdir("fog-0055")
 
 // THREE MODULES NOW, NOT ONE. 0055 compiled `mask.ts` alone because it had no imports at all;
 // 0056's `composite.ts` has exactly one, to `fog-uniforms.ts`, which is constants and nothing else.

@@ -699,13 +699,13 @@ describe("writeAggregates — T6 item type B (0049)", () => {
     expect(result.parents).toBeGreaterThanOrEqual(3)
   })
 
-  it("stores 7^(10-res) as the denominator, not a count", async () => {
+  it("stores 7^(RES-res) as the denominator, not a count", async () => {
     const table = fakeTable()
     await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
     for (const [id, item] of Object.entries(table.store)) {
-      if (id.includes("#AGG#6")) expect(item.totalChildren).toBe(2401)
-      if (id.includes("#AGG#7")) expect(item.totalChildren).toBe(343)
-      if (id.includes("#AGG#8")) expect(item.totalChildren).toBe(49)
+      if (id.includes("#AGG#6")) expect(item.totalChildren).toBe(7 ** (RES - 6))
+      if (id.includes("#AGG#7")) expect(item.totalChildren).toBe(7 ** (RES - 7))
+      if (id.includes("#AGG#8")) expect(item.totalChildren).toBe(7 ** (RES - 8))
     }
   })
 

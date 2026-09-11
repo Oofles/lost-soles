@@ -10,9 +10,10 @@
 //
 // The same three constraints as run.mjs — file://, no ES modules, under $HOME — and the same fix.
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+
+import { harnessWorkdir } from "./workdir.mjs"
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const OUT = process.argv[2] ?? join(ROOT, "tmp", "fog-0056.png")
@@ -20,7 +21,7 @@ const OUT = process.argv[2] ?? join(ROOT, "tmp", "fog-0056.png")
 const PALETTE_NAME = process.argv[3] ?? "V1"
 /** Half the camera width in metres. 900 is a neighbourhood; 120 is a couple of streets. */
 const HALF_W_M = Number(process.argv[4] ?? 900)
-const work = mkdtempSync(join(process.env.HOME ?? tmpdir(), "fog-0056-png-"))
+const work = harnessWorkdir("fog-0056-png")
 
 const MODULES = ["lib/fog/fog-uniforms.ts", "lib/fog/composite.ts", "lib/fog/mask.ts"]
 execFileSync(

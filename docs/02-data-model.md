@@ -502,10 +502,13 @@ invalidation key (05 §7.4) — the same grouping, three uses.
 rebuild) and res-5 (16,807 children, ~2.7 MB partitions, and the client's bucket granularity
 becomes too coarse to invalidate cheaply).
 
-**5-year item count:** R3's absolute worst case (zero route overlap, which will never happen)
-is **147,782** cells; realistically **20,000–50,000** because a home-based runner re-runs the
-same streets constantly. Plus ~1 AGG item per ~50 cells at res 8 → +3k. At ~160 B/item that is
-**~4–24 MB**. Storage cost: zero (25 GB free tier).
+**5-year item count** *(res 11 since D-237, ticket `0194`; multiply the old res-10 figures by 7)*:
+R3's absolute worst case (zero route overlap, which will never happen) is **~1,034,000** cells
+(147,782 at res 10); realistically **140,000–350,000** (20,000–50,000 at res 10) because a
+home-based runner re-runs the same streets constantly. Plus ~1 AGG item per ~50 cells at res 8.
+At ~160 B/item that is **~22–56 MB**. Storage cost: still zero (25 GB free tier), and DynamoDB is
+billed per request rather than per stored item, so the 7× lands on storage headroom rather than on
+the monthly bill.
 
 ---
 
@@ -1377,6 +1380,20 @@ one-year figure is a large fraction of the five-year one, and growth after that 
 | **5 years, realistic** | 20,000–50,000 | 160–400 KB | 50–125 KB | **~45–110 KB** |
 | **5 years, pessimistic** (R3 §6) | **147,782** | 1.18 MB | ~370 KB | **~300–450 KB** — R3's headline figure |
 | 10 years, pessimistic (headroom check) | ~250,000 | 2.0 MB | ~625 KB | ~500–750 KB |
+
+**The table above is res 10 and is kept as the baseline; D-237 moved the canonical grid to res 11.**
+Multiply the cell counts by **7** — the same ground, described seven times more finely — and then
+re-price the bytes, because the per-cell cost *falls* as the set densifies: **measured 2.02 B/cell
+at res 11 against 3.01 B/cell at res 10**, since finer cells mean smaller delta gaps.
+
+| Horizon (res 11) | Cells | Raw varint | Measured reference |
+|---|---|---|---|
+| **5 years, realistic** | 140,000–350,000 | ~280–700 KB | decode scales from `0054`'s 46.9 ms @ 152,551 |
+| **5 years, pessimistic** | ~1,034,000 | ~2.1 MB | past the 150 ms budget — but R3 §2 calls this case physically impossible |
+| *Reference point actually measured* | **100,369** (the whole 5-mile disc around home, fully explored) | **198 KB** | **8.1 ms decode** |
+
+The realistic range fits the 150 ms budget; the headroom thins at the top, which is what makes
+`0058`'s viewport culling load-bearing rather than an optimisation.
 
 **Why gzip buys so little on top of varint, and why that is fine.** Delta-encoded LEB128 is close
 to entropy already — the redundancy gzip lives on has been removed by the delta step. R3's

@@ -311,10 +311,25 @@ want good routes; it's the substrate.
 |---:|---:|---:|---:|---:|
 | 8 | 2,727 | 13,630 | 0.11 MB | 1.4 MB |
 | 9 | 8,298 | 41,485 | 0.33 MB | 4.1 MB |
-| **10** | **29,559** | **147,782** | **1.18 MB** | **14.8 MB** |
-| 11 | 131,465 | 657,289 | 5.26 MB | 65.7 MB |
+| 10 | 29,559 | 147,782 | 1.18 MB | 14.8 MB |
+| **11** | ~~131,465~~ **207,000** | ~~657,289~~ **~1,034,000** | ~~5.26 MB~~ **8.3 MB** | 65.7 MB |
 | 12 | 720,719 | 3,603,448 | 28.8 MB | 360 MB |
 | 13 | 4,517,341 | 22,585,874 | 181 MB | 2.26 GB |
+
+>  **CORRECTED 2026-09-10 BY D-237 (ticket `0194`), and the res-11 row was wrong by 57%.**
+>  This table's res-11 figures were derived as if the revealed corridor narrows at a finer
+>  resolution. It does not: membership is *"cell centre within `REVEAL_R_M` of the path"* at
+>  every resolution, so the same GROUND is revealed and only its description gets finer.
+>  Measured on eleven real archived runs: **1.343 km² at res 10 against 1.359 km² at res 11**,
+>  a 1.2% difference. The cell ratio is therefore the child count — **694/98 = 7.08×**, not
+>  4.45× — and the corrected row above is the res-10 row times 7.
+>
+>  **The MB columns are also the wrong format** and are left only for comparability. They price
+>  8-byte raw ids; the shipped wire format (`0049`, `05` §7.1) is delta-varint over a sorted set
+>  and measures **3.01 B/cell at res 10 and 2.02 B/cell at res 11** — finer sets have smaller
+>  gaps, so the per-cell cost *falls* as the count rises. Measured end to end: the entire 5-mile
+>  disc around home, fully explored, is 100,369 res-11 cells in **198 KB raw**, decoding in
+>  **8.1 ms** against `0054`'s 150 ms budget.
 
 ### Realistic case: heavy overlap
 

@@ -321,9 +321,9 @@ describe("awardOf", () => {
     expect(awardOf(classifyCells(cells, store(known), AT)).discoveryCredits).toBe(65.5)
   })
 
-  it("records res 10 and the algorithm version on every award", () => {
+  it("records the canonical res and the algorithm version on every award", () => {
     const award = awardOf(classifyCells([CELLS[0]], store({}), AT))
-    expect(award.res).toBe(10)
+    expect(award.res).toBe(RES)
     expect(award.algoVersion).toBe(FOG_ALGO_VERSION)
   })
 

@@ -151,7 +151,7 @@ describe("GET /api/fog/blob/<generation>", () => {
 
     expect(response.status).toBe(200)
     expect(getObject).toHaveBeenCalledWith(
-      "users/sub-under-test/explored/explored-r10.42.bin",
+      `users/sub-under-test/explored/explored-r${RES}.42.bin`,
       expect.anything(),
     )
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes)

@@ -299,13 +299,14 @@ identically.
 |---|---|---|
 | 1 | ▸ **`domain/fog.ts` — trace → H3 res-10 cell set** | `05-fog-of-war.md` §2.2. Res 10 canonical, never mixed (D-115). |
 | 2 | ▸ **Reveal radius (65 m) and corridor fill** | §2.3. Note: every Cartography number scales linearly with this (04 §10) — changing it later is a rebalance. |
-| 3 | ▸ **`ExploredCell` writes with `lastRunAt`, outside the ingest transaction** | D-120, D-144. Failure mode is deliberately "map ahead of XP", never the reverse. DynamoDB's 100-item cap vs 40–130 cells/run. |
+| 3 | ▸ **`ExploredCell` writes with `lastRunAt`, outside the ingest transaction** | D-120, D-144. Failure mode is deliberately "map ahead of XP", never the reverse. DynamoDB's 100-item cap vs 130–430 cells/run (40–130 before D-237 moved the grid to res 11); the write path is per-item `UpdateItem` with a worker pool, never a 100-item transaction, precisely so the cap does not bind. |
 | 4 | ▸ **Discovery classification: new / cold (>6mo, 50%) / warm (<6mo, 0%)** | D-120. Pure function of `now - lastRunAt`; unit-tested at the boundaries. Feeds `09`, not consumed yet. |
 | 5 | ▸ **`explored-r10.bin` generation + `manifest.json` generation counter** | `05-fog-of-war.md` §7.1, `02-data-model.md` §6. Regeneration does not re-read the table (§2.10). |
 | 6 | ▸ **Same-run edge cases, out-of-order and backfilled activities, idempotency** | `05-fog-of-war.md` §3.3–3.5. |
 | 7 | **Cache invalidation contract between the Lambda and the browser** | `02-data-model.md` §6.4. |
 
-**Depends on:** `06`. **Done when:** a real run produces 40–130 cells; re-processing the same run
+**Depends on:** `06`. **Done when:** a real run produces 130–430 cells (40–130 before D-237; a
+6.0 km run measures 312 at res 11 against 45 at res 10); re-processing the same run
 changes zero cells and zero timestamps; the blob round-trips to the exact same cell set; a cell
 run 7 months ago classifies cold and one run 5 months ago classifies warm.
 

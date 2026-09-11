@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest"
 import { SourceRateLimitedError } from "@/src/adapters/errors"
 import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
 import type { NormalizedIngest, Trace } from "@/src/domain/activity"
+import { RES } from "@/src/domain/fog"
 import { RawArchiveError } from "@/src/pipeline/archive"
 import { loadRuleSet } from "@/src/rules/load"
 import {
@@ -1078,7 +1079,7 @@ describe("no cells still writes a record (§3.6)", () => {
       cooledCellCount: 0,
       deferredCellCount: 0,
       discoveryCredits: 0,
-      res: 10,
+      res: RES,
       algoVersion: 1,
     })
   })
@@ -1117,8 +1118,8 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
     expect(blobPuts).toEqual([
       // `0050`'s per-run cell record is written inside the `cells` phase, before the publish.
       "users/u-1/cells/a-1.bin",
-      "users/u-1/explored/explored-r10.1.bin",
-      "users/u-1/explored/explored-lastrun-r10.1.bin",
+      `users/u-1/explored/explored-r${RES}.1.bin`,
+      `users/u-1/explored/explored-lastrun-r${RES}.1.bin`,
       "users/u-1/explored/explored-agg.1.json",
       "users/u-1/deltas/1.bin",
       "users/u-1/manifest.json",

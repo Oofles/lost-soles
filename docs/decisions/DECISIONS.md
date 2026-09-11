@@ -3048,3 +3048,68 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The write is therefore its own phase, not part of `projectCells`.** `traces` sits between
     `blobs` and `persist`: above the transaction, so a failure leaves the receipt `PROCESSING`
     with no `Activity` row and redelivery repeats the whole set idempotently.
+
+- **D-237** **The canonical H3 resolution is 11, not 10. Supersedes D-115; retires D-216.**
+  *(2026-09-10, ticket `0194`.)*
+  - **The operator asked for it by describing the artefact, not the fix.** *"The zig-zagging is
+    still there which doesn't actually follow my run super well."* §9.4 had accepted res 10's
+    over-reveal *"with an exit"* since D-115; `0194` existed to make taking or declining that exit
+    a dated decision rather than a paragraph, and the exit was taken.
+  - **The cause is the BRUSH, not the grid, and this is the part everyone gets backwards.** Cell
+    centres sit a median 28 m off the route because that is what `REVEAL_R_M = 65` does, and **res
+    11 does not change it** — measured across the operator's eleven archived runs, median 32 m and
+    p95 61 m against res 10's 28 m and 62 m. What changes is the render disc: `revealScale ×
+    circumradius` falls from **102 m to 39 m**, and a 28 m wander painted with a 102 m brush reads
+    as a zig-zag where the same wander painted with a 39 m brush reads as a line. Anyone reaching
+    for res 11 to make the fog "follow the run" should read the p95 row twice.
+  - **Decided on two rendered pictures, not on the prose.** `tools/fog-harness/res-compare.ts` and
+    `render-cells.mjs` re-derive the real archived traces at both resolutions and composite them
+    through the shipped `0056` fog over the same ground, at 800 m and 2.8 km across, with the run
+    polyline underneath. The ticket forbids judging this against the `?fog=mask` debug blit; it is
+    equally not judgeable against a table.
+  - **The ground revealed did not change — only how finely it is described.** Membership is
+    "centre within 65 m of the path" at either resolution, so the same territory is revealed:
+    **1.343 km² at res 10 against 1.359 km² at res 11**, a 1.2% difference that is the finer grid
+    resolving the same boundary. This is why the migration is safe under D-020: nothing is
+    un-revealed, the res-10 cells are superseded rather than deleted, and they keep their own
+    object names.
+  - **R3 §2's 4.4× cost multiplier is wrong; the real one is 7×.** R3 priced five years at 147,782
+    res-10 cells against 657,289 res-11. Because the same ground is revealed at both resolutions,
+    the ratio is the child count — measured 694/98 = **7.08×** — so the pessimistic five-year figure
+    is ~1.03M cells, not 657k. R3's table is corrected rather than left to be re-quoted.
+  - **And it is still affordable, because the ticket priced the wrong format.** §2.1's "1.5–2 MB
+    gzipped" assumed 8-byte raw ids. The delta-varint format that actually shipped gets *cheaper*
+    per cell as the set densifies: measured **3.01 B/cell at res 10 against 2.02 B/cell at res 11**.
+    The entire 5-mile disc around home, fully explored, is 100,369 res-11 cells in **198 KB raw,
+    decoding in 8.1 ms** — against `0054`'s recorded 46.9 ms at 152,551 cells and a 150 ms budget.
+    Realistic five-year range (142k–354k cells) fits with headroom that thins only at the top, which
+    is what makes `0058`'s viewport culling load-bearing rather than an optimisation.
+  - **D-216 is retired, not violated.** It observed that 65 m sat just under res 10's 65.7 m
+    inradius, so a revealed cell had necessarily been *entered*. At res 11 the inradius is 24.8 m,
+    65 m is 2.6 inradii, and revealed no longer implies entered. Two tests asserted the implication
+    as an invariant and now assert the thing that was always true — every revealed centre is within
+    `REVEAL_R_M` of a sample — measured against the raw points rather than through the module.
+  - **D-216 was also load-bearing in the CODE, which is the part that nearly shipped broken.** It is
+    why step 4's `gridDisk(cell, 1)` was wide enough. At res 11 k=1 **misses cells**: measured 694
+    revealed at k=1 against 695 at k=2 on the operator's own runs. One cell in 695, and under D-020
+    that miss is permanent. `CANDIDATE_K` now derives the disc from the grid
+    (`⌈(REVEAL_R_M + DENSIFY_STEP_M/2 + circumradius) / (2 × inradius)⌉` = 3 at res 11, 2 at res 10)
+    rather than trusting a coincidence that had already stopped holding.
+  - **`DENSIFY_STEP_M` moves 30 → 12 for the same reason.** Its contract is "comfortably under the
+    inradius"; 30 m is 1.2× res 11's 24.8 m, which is exactly the cell-skip it exists to prevent.
+    The preserved quantity is the ratio (~0.46), not the number.
+  - **`RES_PARENT` stays 6 and is now wrong, deliberately and visibly.** A res-6 parent has 7⁵ =
+    16,807 res-11 children rather than 7⁴ = 2,401 — precisely the figure the same comment rejected
+    for res 5. Nothing breaks (2.7 MB partitions are still far under the 10 GB limit) but viewport
+    reads pull up to 7× the items per `Query`. The fix is res 7, restoring 2,401 exactly, and it
+    re-keys every T6 row plus AP-15/AP-16, §6.2 and §7.4 — filed as `0198` rather than smuggled in
+    behind a constant change.
+  - **Why now and not after capability `09`:** XP is per-cell discovery credit, so the resolution
+    bakes into the ledger the moment `09` writes a row, against D-135's add-only rule. The account
+    held 85 cells and `0192`'s replay path already existed. The cost of this decision will never be
+    lower than it was this week.
+  - **The XP economy question resolves to calibration, not constraint.** 7× the cells means 7× the
+    discovery events, but XP-per-cell is a free parameter `09` has not yet set — 7× cells at ⅐ the
+    credit is the same curve. `09` must derive its numbers from res-11 counts; there is no ledger to
+    invalidate because there is no ledger. (The ticket's worry about "the 693 ceiling" was a
+    misreading: 693 is 7 skills × 99 levels and has nothing to do with cell counts.)

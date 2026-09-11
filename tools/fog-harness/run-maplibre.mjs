@@ -8,13 +8,14 @@
 // This is what run.mjs cannot do: that one substitutes STUB_PRELUDE, so it proves the rasterisation
 // and nothing about MapLibre's shader plumbing. See maplibre-harness.js.
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+
+import { harnessWorkdir } from "./workdir.mjs"
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 // Under $HOME because a snap-confined Chromium cannot read a file:// path outside it.
-const work = mkdtempSync(join(process.env.HOME ?? tmpdir(), "fog-0055-ml-"))
+const work = harnessWorkdir("fog-0055-ml")
 
 // IIFE, not ESM: the page is loaded over file:// (a snap Chromium will not serve over 127.0.0.1
 // without --dump-dom hanging), and a module script from a null origin is blocked by CORS. Bundling

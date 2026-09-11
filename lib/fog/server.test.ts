@@ -225,7 +225,11 @@ describe("walking the chain backwards (D-220)", () => {
    * is then smaller, browser-cacheable and one merge instead of twenty.
    */
   it("gives up on a chain larger than the blob it exists to avoid", async () => {
-    const big = sortBig(gridDisk(ORIGIN, 180))
+    // k=180 until D-237; at res 11 the same disk encodes to 197,963 B — under the cap — because
+    // the delta gaps depend on the id layout, not just the cell count. The assertion below is
+    // the real guard, and it caught this rather than letting the test pass while measuring the
+    // wrong branch.
+    const big = sortBig(gridDisk(ORIGIN, 240))
     const bytes = encodeDeltaBlob(big, 41, 42)
     expect(bytes.length).toBeGreaterThan(MAX_CHAIN_BYTES)
 

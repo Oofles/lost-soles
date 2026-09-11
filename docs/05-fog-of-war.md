@@ -98,24 +98,42 @@ scoring differs. A presence bit could not tell run 2 from run 3.
 | Centre-to-centre spacing of neighbours | **131.4 m** |
 | Average area | **15,048 m²** (~1.5 ha) |
 
-Three independent reasons res 10 is the answer:
+>  **SUPERSEDED BY D-237 (ticket `0194`, 2026-09-10). The canonical resolution is now 11.**
+>  The three reasons below are kept because two of them were sound and the third was wrong in a
+>  way worth being able to find again. Res 11's numbers: circumradius **28.7 m**, inradius
+>  **24.8 m**, centre-to-centre **49.6 m**, average area **2,150 m²**.
+
+Three independent reasons res 10 was the answer:
 
 1. **The inradius already *is* the reveal radius.** We want to reveal roughly 65 m either side of
    the path (§2.3). At res 10 that is exactly `k = 0` — the cell you are standing in. The
    geometry and the game rule land on the same number, so the algorithm is trivial and there is
    no fudge factor to tune.
-2. **Res 11 buys nothing visually.** R4's core rendering call (§4) is that explored cells are
-   splatted as **soft radial discs**, not hexagons. Hex geometry never reaches the screen. A
-   finer hex grid would only make the disc field slightly denser — an effect that is invisible
-   under a noise-perturbed mist edge. R4 §3.5.
-3. **Res 11 costs 4.4×.** R3 §2: five years, worst case, res 10 = 147,782 cells = 1.18 MB raw;
-   res 11 = 657,289 cells = 5.26 MB. Realistic (a home-based runner, heavy overlap) is
-   20k–50k res-10 cells. The whole point of the architecture (§7) is that the explored set fits
-   in a browser tab; res 10 keeps the wire payload at ~300–450 KB gzipped, res 11 pushes it to
-   ~1.5–2 MB. That is the difference between "ship it all, once" and "think about paging".
+2. ~~**Res 11 buys nothing visually.**~~ **THIS WAS THE WRONG ONE, and D-237 reversed it.** The
+   premise is right and the conclusion does not follow: cells *are* splatted as soft radial discs
+   and hex geometry never reaches the screen (R4 §3.5) — but the disc RADIUS is
+   `revealScale × circumradius`, so the grid sets the brush even though it never sets a silhouette.
+   Res 10's brush is 102 m, res 11's is 39 m. Cell centres wander a median 28 m off the route
+   (that is `REVEAL_R_M`, and it is the same at both resolutions — p95 61 m vs 62 m), and a 28 m
+   wander painted with a 102 m brush reads as a visible zig-zag on any street run at an angle,
+   while the same wander painted with a 39 m brush reads as a line. The operator reported exactly
+   that artefact against the finished `0056` mist. *"Slightly denser" understated a 2.6× change in
+   the only length scale the fog boundary has.*
+3. ~~**Res 11 costs 4.4×.**~~ **Both halves of this were wrong, and they point opposite ways.**
+   The multiplier is **7×, not 4.4×**: R3 §2 assumed the corridor narrows, but set membership is
+   "centre within 65 m of the path" at either resolution, so the same GROUND is revealed —
+   measured 1.343 km² at res 10 against 1.359 km² at res 11 — and the cell ratio is therefore the
+   child count, 694/98 = 7.08 on the operator's own eleven runs. Five years pessimistic is ~1.03M
+   cells, not 657,289.
+   **And it is far cheaper than 5.26 MB anyway**, because that figure prices 8-byte raw ids rather
+   than the delta-varint format `0049` actually shipped, which gets *cheaper* per cell as the set
+   densifies: measured **3.01 B/cell at res 10 against 2.02 B/cell at res 11**. The whole 5-mile
+   disc around home, fully explored, is 100,369 res-11 cells in **198 KB raw, decoding in 8.1 ms**
+   against `0054`'s 150 ms budget. §7's "the explored set fits in a browser tab" survives intact;
+   what it costs is that `0058`'s viewport culling stops being an optimisation.
 
-**Never store a mixed-resolution set.** A res-9 cell and its res-10 children are different IDs;
-`gridDisk`, `gridDistance` and `gridPathCells` all refuse to cross resolutions. Res 10 is the
+**Never store a mixed-resolution set.** A res-10 cell and its res-11 children are different IDs;
+`gridDisk`, `gridDistance` and `gridPathCells` all refuse to cross resolutions. Res 11 is the
 only resolution written to the store. Coarser resolutions exist *only* as derived render/zoom
 aggregates (§6.1) and *only* as a transport optimisation via `compactCells` (§7.2) — and a
 compacted array must be passed through `uncompactCells(arr, 10)` before any membership test.
@@ -1565,13 +1583,28 @@ newest scored one without an explicit user action. **Leaning (c) plus (a)** — 
 deliberate operation, so making it explicit is cheap. Needs a decision before the historical
 Strava import ships.
 
-### 9.4 Res 10's 131 m corridor over-reveals in dense grids — accepted, with an exit
-On a tight downtown grid with 80–120 m block spacing, running one street can reveal cells whose
-centres sit under the parallel street. D-115 accepts this; the §2.2 step-5 radius filter limits
-it (a cell only qualifies if its *centre* is within 65 m of the path), but it does not eliminate
-it. **The exit is real and cheap:** raw traces are archived immutably (D-101, D-121 mitigation 2),
-so the entire set can be re-derived at res 11 at any time. Cost is 4.4× data (~1.5–2 MB wire),
-which §7's architecture survives. Revisit only if the user reports the map feeling too generous.
+### 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN**
+**Closed 2026-09-10 by D-237, ticket `0194`.** This section stood for three months as "accepted,
+with an exit". The exit was taken and the section is kept so nobody re-opens the question without
+meeting what it cost.
+
+The original risk: on a tight downtown grid with 80–120 m block spacing, running one street can
+reveal cells whose centres sit under the parallel street. D-115 accepted it; the §2.2 step-5 radius
+filter limits it (a cell qualifies only if its *centre* is within 65 m of the path) without
+eliminating it. The exit was real and cheap — raw traces are archived immutably (D-101, D-121
+mitigation 2), so the entire set can be re-derived.
+
+**What actually triggered it was not over-reveal.** The operator never reported the map feeling too
+generous, which is the trigger this section named. They reported the corridor *zig-zagging* on runs
+at an angle — the same geometry seen from the other side, and visible only once `0056` replaced the
+debug blit with real mist. Worth noting as a lesson about risk registers: the failure mode was
+correctly identified and its *symptom* was predicted wrongly, so waiting for the predicted words
+would have waited forever.
+
+**What it cost**, measured rather than quoted, is in D-237: 7× the cells (not R3's 4.4×), 2.02
+B/cell encoded (better than res 10's 3.01), `DENSIFY_STEP_M` 30 → 12, a resolution-derived
+`CANDIDATE_K` replacing a coincidence that had stopped holding, `RES_PARENT` left knowingly wrong
+with ticket `0198` filed, and `0058`'s culling promoted from optimisation to requirement.
 
 ### 9.5 GPS quality in urban canyons, tunnels and under tree cover
 The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix

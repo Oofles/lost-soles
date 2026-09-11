@@ -90,10 +90,21 @@ export const MANIFEST_CACHE_CONTROL = "no-cache"
  */
 export const objectKeys = {
   manifest: (userId: string) => `users/${userId}/manifest.json`,
-  cells: (userId: string, gen: number) => `users/${userId}/explored/explored-r10.${gen}.bin`,
+  /**
+   * **`r${RES}`, INTERPOLATED, NEVER TYPED OUT.** D-237 moved the grid from res 10 to res 11 and
+   * these two keys were the only place the old resolution survived as a string literal. Had they
+   * stayed `r10`, a res-11 blob would have been written to the res-10 object name: the decoder
+   * rejects a res mismatch (`explored-blob.ts` `readHeader`), so every client would have hard
+   * failed on a cached generation instead of silently mixing resolutions — the safe failure, but
+   * a failure. Deriving the name means the two can never disagree again, and the res-10 objects
+   * keep their own names rather than being overwritten, which is what D-020 asks for: the old
+   * cells are SUPERSEDED, not deleted.
+   */
+  cells: (userId: string, gen: number) =>
+    `users/${userId}/explored/explored-r${RES}.${gen}.bin`,
   agg: (userId: string, gen: number) => `users/${userId}/explored/explored-agg.${gen}.json`,
   lastRun: (userId: string, gen: number) =>
-    `users/${userId}/explored/explored-lastrun-r10.${gen}.bin`,
+    `users/${userId}/explored/explored-lastrun-r${RES}.${gen}.bin`,
   /**
    * NAMED BY `toGen` ALONE, and `05` §7.3 tabulates it as `<fromGen>-<toGen>.bin`. D-220.
    *

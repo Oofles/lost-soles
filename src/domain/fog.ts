@@ -1,4 +1,12 @@
-import { cellToLatLng, cellToParent, gridDisk, latLngToCell, type H3Index } from "h3-js"
+import {
+  cellToLatLng,
+  cellToParent,
+  getHexagonEdgeLengthAvg,
+  gridDisk,
+  latLngToCell,
+  UNITS,
+  type H3Index,
+} from "h3-js"
 
 import type { GeoPoint, Trace } from "./activity"
 import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
@@ -7,7 +15,7 @@ import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
  * TRACE → TERRITORY. Tickets `0045` and `0046`. `05-fog-of-war.md` §2.2 is the
  * specification and its pseudocode is normative.
  *
- * `traceToCells` turns a normalised `Trace` into the set of H3 res-10 cells a run
+ * `traceToCells` turns a normalised `Trace` into the set of H3 res-11 cells a run
  * reveals. `0045` built steps 0–4 — split on gaps, clean, collapse dwells, split on
  * implausible jumps, densify and collect a deliberately generous candidate set. `0046`
  * added **step 5, the exact `REVEAL_R_M` filter**, and step 5 is where the word
@@ -26,24 +34,32 @@ import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
  * appearing in the set once or not at all, with no code anywhere that knows those cases
  * exist. Do not "optimise" it into an array; the deduplication IS the feature.
  *
- * ─── RESOLUTION 10, CANONICAL, NEVER MIXED (D-115) ──────────────────────────
+ * ─── RESOLUTION 11, CANONICAL, NEVER MIXED (D-237, superseding D-115) ───────
  *
- * A res-9 cell and its res-10 children are different ids, and `gridDisk`, `gridDistance`
- * and `gridPathCells` all refuse to cross resolutions. Res 10 is the only resolution this
+ * A res-10 cell and its res-11 children are different ids, and `gridDisk`, `gridDistance`
+ * and `gridPathCells` all refuse to cross resolutions. Res 11 is the only resolution this
  * function ever emits. Coarser resolutions exist only as derived render aggregates
  * (`0058`) and only as a transport option (`0049`) — and a compacted array must go back
- * through `uncompactCells(arr, 10)` before any membership test.
+ * through `uncompactCells(arr, RES)` before any membership test.
+ *
+ * **It was res 10 until `0194`.** D-115 chose 10 and §9.4 accepted its over-reveal *"with an
+ * exit"*; `0194` took the exit. The operator's complaint was specific and geometric — on a
+ * street run at an angle, the revealed corridor visibly zig-zagged rather than following the
+ * line. The cause is not the grid but the BRUSH: cell centres sit a median 28 m off the route
+ * (that is `REVEAL_R_M`, and res 11 does not change it — median 32 m, p95 61 m against res 10's
+ * 62 m), and a 28 m wander painted with res 10's 102 m render disc reads as a zig-zag where the
+ * same wander painted with res 11's 39 m disc reads as a line.
  */
 
-/** The one resolution. D-115; see the header. */
-export const RES = 10
+/** The one resolution. D-237, superseding D-115; see the header. */
+export const RES = 11
 
 /**
  * THE PARENT RESOLUTION — res 6, and it is one decision with three payoffs.
  * `02-data-model.md` T6 and §2.4; `05-fog-of-war.md` §6.2; ticket `0047`.
  *
- * A res-6 cell is ~36.13 km² and has exactly **7⁴ = 2,401** res-10 children, which is a
- * *hard ceiling*, not an average. That single fact does all three jobs:
+ * A res-6 cell is ~36.13 km² and had exactly **7⁴ = 2,401** res-10 children, which is a
+ * *hard ceiling*, not an average. That single fact did all three jobs:
  *
  *   1. **It bounds a DynamoDB partition.** 2,401 × ~160 B ≈ 384 KB, three orders of
  *      magnitude under the 10 GB limit, so T6's partition key can be the parent and no
@@ -56,6 +72,20 @@ export const RES = 10
  * Res 7 was rejected — 343 children makes partitions too small and multiplies rebuild
  * queries by 7 — and res 5 too, at 16,807 children and ~2.7 MB partitions.
  *
+ * ─── AND D-237 MOVED THE GRID OUT FROM UNDER IT. TICKET `0198` OWNS THE FIX ──
+ *
+ * At res 11 a res-6 parent has **7⁵ = 16,807** children, not 2,401 — *precisely the number
+ * rejected above for res 5*, at ~2.7 MB per partition. Nothing breaks today: 2.7 MB is still
+ * three orders of magnitude under the 10 GB partition limit and the account holds 695 cells,
+ * so payoff (1) survives with a smaller margin. What degrades is (2) — a viewport read pulls
+ * up to 7x the items per `Query`.
+ *
+ * **The fix is res 7, and it is exactly the arithmetic this comment already describes:** a
+ * res-7 parent has 7⁴ = 2,401 res-11 children, restoring every number above unchanged. It is
+ * not done here because it re-keys every T6 row and touches AP-15/AP-16, §6.2's client
+ * bucketing and §7.4's delta-invalidation key — a migration in its own right, filed as `0198`.
+ * Left as res 6 deliberately and visibly, rather than changed quietly along with `RES`.
+ *
  * NOT A SECOND CANONICAL RESOLUTION. Nothing is ever *stored* at res 6: it is a grouping
  * of res-10 ids, derived on demand, and `RES` remains the only resolution this module
  * emits (D-115).
@@ -63,7 +93,7 @@ export const RES = 10
 export const RES_PARENT = 6
 
 /**
- * The res-6 parent of a res-10 cell — T6's partition key, minus the `U#<uid>#C#` prefix
+ * The res-6 parent of a res-11 cell — T6's partition key, minus the `U#<uid>#C#` prefix
  * that `src/pipeline/explored-cells.ts` owns.
  *
  * Here rather than in the pipeline because it is pure H3 and because D-115's
@@ -79,16 +109,24 @@ export function parentOf(cell: H3Index): H3Index {
  * **THE DEFINITION OF THE WORD "REVEALED": 65 metres either side of the path.** A ~130 m
  * corridor. Ticket `0046`; `05-fog-of-war.md` §2.3; D-115.
  *
- * **It is not a tuning knob and it has no fudge factor.** Res 10's inradius is **65.7 m**,
- * so the game rule and the geometry land on the same number: the reveal is, to within
- * rounding, *"the cell you ran through"* — `gridDisk(c, 0)` — with the step-5 filter
- * correcting the cases where the path clips a cell's corner without passing near its
- * centre. That coincidence is one of the three reasons D-115 could settle on res 10 at all.
+ * **It is not a tuning knob and it has no fudge factor.** It is also, since D-237, no longer
+ * tied to the grid. At res 10 the inradius was **65.7 m** and the game rule and the geometry
+ * landed on the same number, so the reveal was to within rounding *"the cell you ran through"*
+ * (D-216). **That coincidence is gone**: res 11's inradius is 24.8 m, 65 m is 2.6 inradii, and
+ * a revealed cell need not have been entered. See `CANDIDATE_K`, which is what the coincidence
+ * used to make unnecessary.
  *
- * Why not `k = 1`, which is what step 4 collects: `gridDisk(c, 1)` is 7 cells and ~394 m
- * across, effective radius near 200 m (R3 §1.1). On a US grid with 80–120 m block spacing,
- * running one street would reveal both parallel streets. D-012 says the point is running
- * new places, and a map that gifts you ground you never saw attacks that directly.
+ * **The corridor on the ground did not move.** That is the point of changing the grid and not
+ * this number: membership is "centre within 65 m of the path" at either resolution, so the
+ * same ground is revealed — measured across the operator's eleven archived runs, 1.343 km² at
+ * res 10 against 1.359 km² at res 11, a 1.2% difference that is the finer grid resolving the
+ * same boundary. Only the RENDER brush narrowed, 102 m to 39 m.
+ *
+ * Why the reveal is not simply a wide candidate disc: at res 10 `gridDisk(c, 1)` was 7 cells
+ * and ~394 m across, effective radius near 200 m (R3 §1.1). On a US grid with 80–120 m block
+ * spacing, running one street would reveal both parallel streets. D-012 says the point is
+ * running new places, and a map that gifts you ground you never saw attacks that directly.
+ * Step 5 is what keeps the candidate disc from becoming the reveal.
  *
  * Defensible in both directions: 65 m is the far side of a street plus a front garden, so
  * you can genuinely claim to have seen it; and it is generous enough to swallow consumer
@@ -98,8 +136,8 @@ export function parentOf(cell: H3Index): H3Index {
  * ─── NOT THE RENDER RADIUS. THEY MUST NEVER MEET ────────────────────────────
  *
  * `REVEAL_R_M` is scoring and set membership: server-side, authoritative, permanent under
- * D-020. The renderer's `revealScale × circumradius ≈ 1.35 × 75.9 ≈ 102 m` (§4, ticket
- * `0055`) is a soft disc splatted into the mask shader that **overspills the hexagon on
+ * D-020. The renderer's `revealScale × circumradius ≈ 1.35 × 28.7 ≈ 39 m` (§4, ticket
+ * `0055`; 102 m before D-237) is a soft disc splatted into the mask shader that **overspills the hexagon on
  * purpose**, so neighbouring discs merge without scalloping. It is a look, not a fact, and
  * it must never feed back into what counts as explored. `scripts/check-fog-render-boundary.mjs`
  * enforces both halves: no renderer import reaches `src/domain/`, and `revealScale` may not
@@ -110,8 +148,10 @@ export function parentOf(cell: H3Index): H3Index {
  * Every Cartography number scales linearly with this constant (`04-game-design.md` §10,
  * D-215). §9.4 accepts that a 131 m corridor over-reveals slightly in dense grids and names
  * the exit — raw traces are archived (`0039`), so the whole cell set can be re-derived at a
- * finer resolution or a tighter radius. Nothing here is one-way. But it is expensive once
- * XP has been awarded against it: change it before ship, or not at all.
+ * finer resolution or a tighter radius. Nothing here is one-way — `0194` proved it by taking
+ * exactly that exit, re-deriving the whole set from the S3 archive through `0192`'s replay
+ * path. But it is expensive once XP has been awarded against it: change it before ship, or
+ * not at all. That is why `0194` was worked BEFORE capability `09` wrote its first ledger row.
  */
 export const REVEAL_R_M = 65
 
@@ -173,13 +213,48 @@ export const SPLIT_GAP_S = 120
 /**
  * Densify to at most this spacing before indexing.
  *
- * Comfortably under res 10's **65.7 m inradius**, so no cell along the path can be skipped
- * when the stream drops points in a tunnel or under tree cover. `gridPathCells(a, b)` is
- * the cheaper alternative and it is wrong: it returns a *grid* line rather than a geodesic
+ * Comfortably under the **24.8 m inradius** of res 11, so no cell along the path can be
+ * skipped when the stream drops points in a tunnel or under tree cover. `gridPathCells(a, b)`
+ * is the cheaper alternative and it is wrong: it returns a *grid* line rather than a geodesic
  * one, fails across pentagons, and errors outright on long distances. Densify-then-index
  * is boring and correct; prefer it.
+ *
+ * **Was 30 m at res 10** (D-115), where the inradius was 65.7 m. D-237 moved the grid and this
+ * had to move with it: 30 m is 1.2x res 11's inradius, which is exactly the skip this constant
+ * exists to prevent. The ratio to the inradius is what is preserved (~0.46), not the number.
  */
-export const DENSIFY_STEP_M = 30
+export const DENSIFY_STEP_M = 12
+
+/**
+ * HOW WIDE STEP 4's CANDIDATE DISC HAS TO BE — derived from the grid, never guessed.
+ *
+ * **This is the constant D-216 used to make unnecessary, and D-237 brought back.** At res 10,
+ * `REVEAL_R_M` (65 m) sat just under the inradius (65.7 m), so a cell whose centre was within
+ * 65 m of the path necessarily CONTAINED a path point — it had been entered — and `gridDisk(c, 1)`
+ * around each densified point was generous. The whole candidate question was a coincidence of
+ * two numbers landing 0.7 m apart.
+ *
+ * At res 11 the inradius is 24.8 m and 65 m is **2.6 inradii**, so revealed no longer implies
+ * entered and k=1 is too small. Measured on the operator's eleven archived runs during `0194`:
+ * k=1 collects 751 candidates and reveals **694** cells; k=2 collects 1,160 and reveals **695**.
+ * One cell in 695 — and under D-020 that miss is PERMANENT, curable only by running there again.
+ *
+ * The bound, rather than the measurement, is what ships. A revealed cell's centre is within
+ * `REVEAL_R_M` of some point P on the path; P is within `DENSIFY_STEP_M / 2` of a densified
+ * sample S; and S's own cell centre is within one circumradius of S. So the two centres are at
+ * most `REVEAL_R_M + DENSIFY_STEP_M / 2 + circumradius` apart, and the closest packing of grid
+ * distance k puts centres `k * 2 * inradius` apart. Hence the ceiling below.
+ *
+ *   res 10: (65 + 6 + 75.9) / 131.4 = 1.12  ->  k = 2   (k=1 also saturates, by D-216's accident)
+ *   res 11: (65 + 6 + 28.7) /  49.6 = 2.01  ->  k = 3
+ *
+ * Deliberately computed and not hard-coded: `RES`, `REVEAL_R_M` and `DENSIFY_STEP_M` have each
+ * moved once already, and the next person to move one must not have to rediscover this bound.
+ */
+export const CANDIDATE_K = Math.ceil(
+  (REVEAL_R_M + DENSIFY_STEP_M / 2 + getHexagonEdgeLengthAvg(RES, UNITS.m)) /
+    (2 * getHexagonEdgeLengthAvg(RES, UNITS.m) * Math.cos(Math.PI / 6)),
+)
 
 /**
  * How many Weiszfeld iterations the geometric median gets. Fixed, because purity means
@@ -192,7 +267,7 @@ const MEDIAN_ITERATIONS = 32
 /**
  * TRACE → REVEALED CELLS. §2.2, all six steps.
  *
- * @returns res-10 cell ids only, every one of them within `REVEAL_R_M` of ground the
+ * @returns res-11 cell ids only, every one of them within `REVEAL_R_M` of ground the
  *          runner actually covered.
  */
 /**
@@ -313,10 +388,11 @@ export function traceToCells(trace: Trace): CellSet {
     // 4. densify + collect candidates ──────────────────────────────────
     for (const p of densify(segment)) {
       const cell = latLngToCell(p.lat, p.lng, RES)
-      // k=1 so a path grazing a cell's edge still qualifies it for CONSIDERATION.
-      // `gridDisk(c, 1)` is 7 cells and ~394 m across — far too much to reveal, which
-      // is why step 5 exists and why nothing may read this set.
-      for (const candidate of gridDisk(cell, 1)) candidates.add(candidate)
+      // A generous disc, so a path grazing a cell's edge still qualifies it for
+      // CONSIDERATION — and at res 11 a cell 65 m off the path is 2.6 inradii out, so k=1
+      // would MISS one. `CANDIDATE_K` derives the width from the grid; see it for the bound.
+      // Far too much to reveal, which is why step 5 exists and why nothing may read this set.
+      for (const candidate of gridDisk(cell, CANDIDATE_K)) candidates.add(candidate)
     }
   }
 

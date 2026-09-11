@@ -183,9 +183,11 @@ const run = (k: number) => gridDisk(ORIGIN, k)
 describe("objectKeys — 02 §6.1's layout, verbatim", () => {
   it("puts everything under users/<uid>/ with the generation in the name", () => {
     expect(objectKeys.manifest("u")).toBe("users/u/manifest.json")
-    expect(objectKeys.cells("u", 42)).toBe("users/u/explored/explored-r10.42.bin")
+    expect(objectKeys.cells("u", 42)).toBe(`users/u/explored/explored-r${RES}.42.bin`)
     expect(objectKeys.agg("u", 42)).toBe("users/u/explored/explored-agg.42.json")
-    expect(objectKeys.lastRun("u", 42)).toBe("users/u/explored/explored-lastrun-r10.42.bin")
+    expect(objectKeys.lastRun("u", 42)).toBe(
+      `users/u/explored/explored-lastrun-r${RES}.42.bin`,
+    )
     expect(objectKeys.delta("u", 42)).toBe("users/u/deltas/42.bin")
   })
 })
@@ -217,7 +219,7 @@ describe("regenerateExplored — the first ever run", () => {
       "res",
       "updatedAt",
     ])
-    expect(manifest.res).toBe(10)
+    expect(manifest.res).toBe(RES)
     expect(manifest.generation).toBe(1)
     expect(manifest.cellCount).toBe(run(2).length)
     expect(manifest.updatedAt).toBe("2026-09-08T12:00:00.000Z")

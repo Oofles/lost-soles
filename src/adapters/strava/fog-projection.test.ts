@@ -1,4 +1,4 @@
-import { getResolution, gridDisk, latLngToCell } from "h3-js"
+import { cellToLatLng, getResolution, gridDisk } from "h3-js"
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest"
 
 import type { IngestJob } from "@/src/adapters/types"
 import type { RawArchiveRef } from "@/src/domain/activity"
-import { RES, traceToCells } from "@/src/domain/fog"
+import { RES, REVEAL_R_M, traceToCells } from "@/src/domain/fog"
+import { metresBetween } from "@/src/domain/geo"
 
 import type { StravaIngestMeta } from "./adapter"
 import { normalizeStrava } from "./normalize"
@@ -95,29 +96,50 @@ describe("a real captured trace projects to territory", () => {
     expect(metres).toBeLessThan(6_500)
   })
 
-  it("reveals a set inside the 40–130 band `09-roadmap.md` quotes", () => {
-    // Measured at 45 for a 6.0 km run — 7.5 cells/km, which is the corridor being one
-    // cell wide: 6,000 m / res 10's 131.4 m centre spacing = 45.7. The band is wide
-    // enough that a rounding change does not fail it and narrow enough that a change in
-    // densification, dwell handling or `REVEAL_R_M` does, which is the only reason to
-    // assert a number at all.
+  it("reveals a set inside the band `09-roadmap.md` quotes for the canonical res", () => {
+    // 45 cells for a 6.0 km run at res 10 — 7.5 cells/km, the corridor being one cell wide:
+    // 6,000 m / res 10's 131.4 m centre spacing = 45.7. **D-237 multiplied this by 7.**
+    // Measured after the move: 312, against 6,000 / 49.6 = 121 for a one-cell-wide corridor,
+    // so the real corridor runs ~2.6 cells wide at res 11 — which is exactly REVEAL_R_M (65 m)
+    // no longer coinciding with the inradius (24.8 m). `09-roadmap.md` §3 item 3's "40–130
+    // cells/run" was updated to 130–430 by this ticket; the write path was already per-item
+    // `UpdateItem` rather than a 100-item transaction, so nothing structural moved with it.
+    //
+    // The band stays proportionally as wide as it was: loose enough that rounding does not
+    // fail it, tight enough that a change in densification, dwell handling or REVEAL_R_M does.
     const cells = traceToCells(traceOf("real-run-outdoor"))
-    expect(cells.size).toBeGreaterThanOrEqual(40)
-    expect(cells.size).toBeLessThanOrEqual(130)
+    expect(cells.size).toBeGreaterThanOrEqual(130)
+    expect(cells.size).toBeLessThanOrEqual(430)
   })
 
-  it("reveals only ground the run actually crossed", () => {
-    // `REVEAL_R_M` (65 m) is below res 10's inradius (65.7 m), so a centre within 65 m of
-    // the path has its nearest path point inside its own inscribed circle — inside the
-    // cell. The filtered set is therefore a STRICT SUBSET of the cells entered, always.
-    // D-216. Measured: 45 revealed out of 58 entered; the 13 that fall out are cells the
-    // path clipped near a corner without passing near the centre, which is exactly the
-    // correction §2.3 asks step 5 to make.
+  it("reveals only ground within REVEAL_R_M of the run, on a real trace", () => {
+    // **This asserted `revealed ⊆ entered` until D-237, and D-216 was the reason.** At res 10,
+    // 65 m sat just under the 65.7 m inradius, so a centre within 65 m of the path had its
+    // nearest path point inside its own inscribed circle — inside the cell. Measured then: 45
+    // revealed out of 58 entered.
+    //
+    // At res 11, 65 m is 2.6 inradii and the implication is simply false — most revealed cells
+    // were never entered. The ground did not change; res 10 was expressing "within 65 m" coarsely
+    // enough that it looked like cell containment. So this asserts the real invariant, measured
+    // against the raw samples with the test's own yardstick rather than through the module.
+    //
+    // The tolerance is half the sample spacing: membership is measured to the SEGMENTS, so a
+    // centre can sit further from the nearest sampled POINT than from the path itself.
     const trace = traceOf("real-run-outdoor")
-    const entered = new Set(trace.points.map((p) => latLngToCell(p.lat, p.lng, RES)))
     const cells = traceToCells(trace)
-    for (const c of cells) expect(entered.has(c), `${c} was never entered`).toBe(true)
-    expect(entered.size).toBeGreaterThan(cells.size)
+    const pts = trace.points
+    const gaps: number[] = []
+    for (let i = 1; i < pts.length; i++) gaps.push(metresBetween(pts[i - 1]!, pts[i]!))
+    const tolerance = Math.max(...gaps) / 2
+
+    for (const c of cells) {
+      const [lat, lng] = cellToLatLng(c)
+      const nearest = Math.min(...pts.map((p) => metresBetween({ lat, lng }, p)))
+      expect(nearest, `${c} is ${nearest.toFixed(1)} m from any sample`).toBeLessThanOrEqual(
+        REVEAL_R_M + tolerance,
+      )
+    }
+    expect(cells.size).toBeGreaterThan(0)
   })
 
   it("emits res 10 and nothing else", () => {
