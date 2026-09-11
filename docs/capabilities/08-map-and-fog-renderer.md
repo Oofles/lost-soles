@@ -379,6 +379,90 @@ at res 11, twice, without asking the operator to go running (D-229):
   are the mechanical half.
 
 
+### The perf harness, and what its first run found (ticket `0059`, `05` §6.4)
+
+`?fog=perf` in the shipped app, `node tools/fog-harness/run-perf.mjs` headless. Seven instruments,
+three checked-in synthetic datasets, one deterministic camera path, one summary table.
+
+#### The split that makes the numbers mean something
+
+Two surfaces answer two halves of §6.4, and **the capability doc records which number came from
+which**, because conflating them is the failure mode this section exists to prevent.
+
+| | answers | why it and not the other |
+|---|---|---|
+| `run-perf.mjs`, headless | items **1, 4, 5, 7** — counts, allocations, synchronous wall-clock | Chromium runs it under `--virtual-time-budget`, which advances the clock instantly whenever the renderer would wait. Counts and heap are unaffected by that; frame deltas are meaningless under it. The report forces items 2, 3 and 6 to no verdict here rather than printing a `PASS` a virtual clock cannot support. |
+| `?fog=perf` in a real browser | items **2, 3, 6**, and everything else | A real clock. The phone is the only device §6.3's budget is actually about. |
+
+**`EXT_disjoint_timer_query_webgl2` is absent on Chrome for Android** and on SwiftShader, so item 2's
+per-pass split is a desktop-only measurement and item 3's frame time is what stands on the phone.
+That is not a workaround; it is stated up front so a missing row is never read as a broken shader.
+
+#### Baseline — headless, one Chromium per dataset, 2026-09-11
+
+`HeadlessChrome/152.0.0.0`, `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader
+driver)`, 400x800 CSS px — **D-238's reference viewport**, so §6.4's literal 6,000 is the number
+checked rather than an area-scaled one.
+
+| item | 50k | 150k | 500k | budget | |
+|---|---|---|---|---|---|
+| 1 `visibleInstanceCount` peak | 10,394 @ z13.5 | 10,394 @ z13.5 | 10,394 @ z13.5 | <= 6,000 | **FAIL — `0201`** |
+| 4 cull, net of derivation, pan | 0.10 ms max | 0.20 ms max | 0.20 ms max | < 2 ms | PASS |
+| 4 cull, gross, worst single pan | 17.8 ms | 19.6 ms | 20.0 ms | — | **finding — `0202`** |
+| 4 culls inside the padded region | 0 / 6 events | 0 / 6 | 0 / 6 | 0 | PASS |
+| 5 bucket cache hit rate | 77% | 77% | 78% | lazily, once | PASS |
+| 7 peak JS heap over baseline | 32.8 MB | 73.7 MB | 90.3 MB | low tens of MB | **50k passes, `0203`** |
+
+**The cross-dataset canary passes, and it is the result that matters most.** §6.4: *"an absolute
+ceiling can pass by luck, while a count that is the same at 50k and 500k cannot."* From z13 up the
+count is **10,394 at all three sizes** — ten times the stored cells, byte-identical draw. Below z13 it
+does track dataset size (303 / 720 / 1,976 at z9) and that is §6.1's bucket ladder working rather than
+the cull failing: at z9 the whole dataset is on screen, so what bounds the count is how many res-8
+cells exist, and the absolute numbers are tiny *because* the resolution is coarse. §6.4 scopes its
+claim to "from z13 up" for exactly this reason and the harness scopes its assertion the same way.
+
+#### Three findings, filed rather than fixed
+
+None of these is a regression; all three are the design meeting measurement for the first time.
+
+- **`0201` — the peak is at z13.5, not at an integer zoom.** `ZOOM_TO_RES`'s `{ maxZoom: 13, res: 10 }`
+  gives res 11 to every zoom **above 13.0**, while `zoom-buckets.ts`'s own header says twice that res
+  11 owns *"z14 and up"* and that at z13 the finer bucket *"is not available there at any price"*. The
+  band `(13, 14)` is the interval that argument excludes. §6.4's recorded *"peak is 5,271 at z14"*
+  reproduces exactly — it only ever sampled integer zooms, which is the whole argument for a scripted
+  path over a spot check.
+- **`0202` — group geometry is derived inside `cullBucket`, on the frame path.** §6.3 budgets the cull
+  at 1-5 ms and derivation at 30-80 ms *off* the frame path; `discsFor` runs the second inside the
+  first, inside a `move` handler. Separating the two clocks is what produced the two item-4 rows
+  above: the cull is 0.1-0.4 ms and does its job, and a single pan into new ground cost 19.6 ms of
+  synchronous main-thread work — a dropped frame on its own.
+- **`0203` — heap is 74-90 MB, not "low tens".** `ExploredSet` keeps a `Set<string>` of every cell id
+  beside the `BigUint64Array`. 50k passes; 150k does not. §6.3 already names the exit and
+  `explored-set.ts`'s `has()` already points at it.
+
+#### Things worth knowing before touching this
+
+- **The scripted path is measured in STEPS, not seconds.** `easeTo` is a function of wall-clock time,
+  so a 30 fps device visits half as many camera states as a 60 fps one and then reports a better p95
+  for having done less work. One camera state per animation frame makes every device visit the same
+  states in the same order.
+- **And in SCREEN PIXELS, not degrees.** Every claim §6.2 and §6.4 make is screen-relative — the
+  padded region is 20% of the viewport, the instance ceiling is per unit of screen area. A path in
+  degrees would pan a phone out of its padded region on a step a desktop absorbed, and `pan-inside`'s
+  zero-cull assertion would then mean two different things while reporting one number.
+- **`pan-across` goes out and back.** The first version panned 960 px one way, which left every later
+  phase over ground offset from the dataset centre — far enough at 50k for the disc's edge to enter
+  the viewport, which made the cross-dataset canary report geometry as drift.
+- **The fixtures live in `public/fog-fixtures/`** (100 KB / 306 KB / 1.0 MB) and are written by
+  `encodeExploredBlob`, the same function that writes the real `explored-r10.bin`.
+  `lib/fog/perf/fixtures.test.ts` is both the generator (`FOG_FIXTURES=write`) and the byte-for-byte
+  drift guard, so a change to the wire format, to `RES` or to h3's ordering fails on the commit that
+  made it rather than silently invalidating every number above.
+- **`?fog=perf:here` regenerates the same disc around the current camera**, because the fixtures sit
+  at 30°N 100°E where the Florida extract has no tiles — and fog over an empty background is a frame
+  that leaves out most of a frame. It also commits no coordinate.
+
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

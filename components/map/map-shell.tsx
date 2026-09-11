@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
+import { perfEnabled } from "@/lib/fog/debug-flags"
+import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import {
   EXTRACT_FALLBACK,
   readCamera,
@@ -11,6 +13,7 @@ import {
 } from "@/lib/map-camera"
 
 import { MaskHud } from "./mask-hud"
+import { PerfOverlay } from "./perf-overlay"
 import { useFogMask } from "./use-fog-mask"
 import { useLatestRun } from "./use-latest-run"
 
@@ -100,6 +103,22 @@ export function MapShell({ home }: { home: Camera | null }) {
    * last `moveend` fired.
    */
   const camera = useRef<Camera>(home ?? EXTRACT_FALLBACK)
+
+  /**
+   * `0059`. ONE HARNESS PER MOUNT, and `null` unless `?fog=perf` is on the URL.
+   *
+   * Built here rather than inside `useFogMask` because two things need it and they are in different
+   * trees: the hook threads it into the store, the controller and the layer, and `PerfOverlay` reads
+   * its snapshot. `useMemo` with an empty dependency list rather than `useRef` because the flag is
+   * read once — see `use-fog-mask.ts` on why a debug flag is not watched.
+   */
+  const harness: FogHarness | null = useMemo(
+    () =>
+      typeof window !== "undefined" && perfEnabled(window.location.search)
+        ? createFogHarness()
+        : null,
+    [],
+  )
 
   useEffect(() => {
     if (!hasWebGL2()) {
@@ -247,7 +266,7 @@ export function MapShell({ home }: { home: Camera | null }) {
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
    * Called unconditionally and before the early return below, because hooks are.
    */
-  const fogLayer = useFogMask(loaded)
+  const fogLayer = useFogMask(loaded, harness)
 
   /**
    * Ticket `0057`. The route above the fog, and the optimistic corridor inside the mask.
@@ -280,6 +299,8 @@ export function MapShell({ home }: { home: Camera | null }) {
         this ticket's operator validation names and the UI otherwise never shows.
       */}
       <MaskHud map={loaded} layer={fogLayer} />
+      {/* Ticket 0059. Renders only under `?fog=perf`; `harness` is null otherwise. */}
+      <PerfOverlay map={loaded} layer={fogLayer} harness={harness} />
     </>
   )
 }

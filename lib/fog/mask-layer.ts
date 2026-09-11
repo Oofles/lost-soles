@@ -57,6 +57,26 @@ import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
  * wrong place.
  */
 
+/**
+ * `0059`, §6.4 item 2 — *"GPU pass timings via `EXT_disjoint_timer_query_webgl2`, mask and composite
+ * separately"*.
+ *
+ * STRUCTURAL, for `CullObserver`'s reason in `viewport-controller.ts`: `GpuTimer` satisfies it
+ * without this file importing `perf/`, so the two render hooks stay free of a dependency on the
+ * thing that measures them. Absent in every normal session — `begin`/`end` are two optional-chained
+ * calls on `undefined`, which is what makes it acceptable to leave them in the frame path at all.
+ *
+ * ONE WINDOW AT A TIME IS THE EXTENSION'S RULE, not this interface's: WebGL2 permits a single active
+ * `TIME_ELAPSED_EXT` query, and `prerender` and `render` are sequential within a frame, so mask and
+ * composite never overlap. `GpuTimer.begin` drops a nested window rather than raising, because the
+ * bail-out paths below can reach `return` between a `begin` and its `end`.
+ */
+export interface PassTimer {
+  attach(gl: WebGL2RenderingContext): void
+  begin(label: string): void
+  end(): void
+}
+
 /** What the layer reports upward, for the plinth, the perf harness (`0059`) and tests. */
 export interface MaskStats {
   /** §6.4 item 1. *Assertion: <= 6,000 at every zoom, at every dataset size.* */
@@ -172,6 +192,8 @@ export class FogMaskLayer implements CustomLayerInterface {
       palette?: FogPalette
       /** `0056`. Lever (c): fBm octaves. Defaults to `FBM_OCTAVES`. */
       octaves?: number
+      /** `0059`, §6.4 item 2. Only `?fog=perf` passes one. */
+      timer?: PassTimer
     } = {},
   ) {}
 
@@ -403,7 +425,17 @@ export class FogMaskLayer implements CustomLayerInterface {
 
     this.#remember(projection.mainMatrix)
     this.#maskDirty = false
+    /**
+     * TIMED AROUND THE PASS, NOT AROUND `prerender`. Everything above this line is the `maskDirty`
+     * short-circuit, the resize check and the buffer upload — CPU work that §6.3 budgets on a
+     * different row, and which would otherwise be charged to a GPU number that claims to be the
+     * shader's. The early returns above mean most frames never open a window at all, which is
+     * exactly right: §6.4 item 2 asks what the mask pass costs, and on a still camera it does not run.
+     */
+    this.options.timer?.attach(gl)
+    this.options.timer?.begin("mask")
     this.#restore = runMaskPass(gl, this.#resources, projection)
+    this.options.timer?.end()
     this.#passes++
   }
 
@@ -462,12 +494,15 @@ export class FogMaskLayer implements CustomLayerInterface {
       gl.drawingBufferHeight,
     )
     this.#fogTime = this.options.timeSource?.() ?? 0
+    this.options.timer?.attach(gl)
+    this.options.timer?.begin("composite")
     this.#compositeRestore = runCompositePass(gl, this.#composite, {
       mask: this.#resources.texture,
       noise: this.#noise,
       time: this.#fogTime,
       palette: this.options.palette ?? V1,
     })
+    this.options.timer?.end()
     this.#composites++
   }
 

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { FogAnimator, browserAnimationHost, type AnimationHost } from "@/lib/fog/animation"
 import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
+import type { FogHarness } from "@/lib/fog/perf/harness"
 import { FogViewportController, type ControllerMap } from "@/lib/fog/viewport-controller"
 import { ZoomBucketStore } from "@/lib/fog/zoom-buckets"
 import { fogBeforeId } from "@/lib/map-layers"
@@ -42,7 +43,16 @@ import { useExplored } from "./explored-provider"
  * `AnimationHost`**, so there is one subscription and no way for them to disagree about whether the
  * tab is visible.
  */
-export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer | null {
+export function useFogMask(
+  map: import("maplibre-gl").Map | null,
+  /**
+   * `0059`. `null` in every normal session — `MapShell` builds one only under `?fog=perf`. It is
+   * threaded to the three places §6.4's items are actually measurable from: the store (item 5), the
+   * controller (item 4) and the layer (item 2). Items 1, 3, 6 and 7 are sampled by the overlay's own
+   * loop, which is where the frame clock lives.
+   */
+  harness: FogHarness | null = null,
+): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
   /**
@@ -92,7 +102,21 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
    * invalidator is what handles that case. A new identity means a full refetch, which needs a new
    * store because every group index it cached is indexed into the old array.
    */
-  const store = useMemo(() => (set ? new ZoomBucketStore(set) : null), [set])
+  const store = useMemo(
+    () =>
+      set
+        ? new ZoomBucketStore(
+            set,
+            harness
+              ? {
+                  onDerive: (event) => harness.perf.derive(event),
+                  onRequest: (hit) => harness.perf.bucketRequest(hit),
+                }
+              : {},
+          )
+        : null,
+    [set, harness],
+  )
 
   useEffect(() => {
     if (!set || !store) return
@@ -114,7 +138,11 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     }
     const host: AnimationHost = browserAnimationHost(() => map.triggerRepaint())
     const animator = new FogAnimator(host)
-    const created = new FogMaskLayer({ debug, timeSource: () => animator.time() })
+    const created = new FogMaskLayer({
+      debug,
+      timeSource: () => animator.time(),
+      timer: harness?.timer,
+    })
     /**
      * `0057` — UNDER THE ROUTE IF THE ROUTE IS ALREADY THERE, on top of everything otherwise.
      * Either way the fog lands above every symbol layer, which is what keeps unexplored place
@@ -148,7 +176,7 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
         // nothing left to free.
       }
     }
-  }, [map, debug, disabled])
+  }, [map, debug, disabled, harness])
 
   /**
    * THE CULL, attached to the camera. One controller per (map, layer, store) triple.
@@ -164,6 +192,7 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
       store,
       onInstances: (instances, _result, res, fromData) =>
         layer.setInstances(instances, res, { supersedesRoute: fromData }),
+      observer: harness?.perf,
     })
     // The subscription that keeps this in step with `document.hidden` belongs to the layer's effect
     // above, which holds the one `AnimationHost`; this is the initial read for a tab that was already
@@ -177,7 +206,7 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
       if (controller.current === created) controller.current = null
       drawn.current = null
     }
-  }, [map, layer, store])
+  }, [map, layer, store, harness])
 
   /**
    * A DATA CHANGE, which is not a camera change and will not be noticed by one.

@@ -82,6 +82,26 @@ export const browserControllerHost: ControllerHost = {
 /** §6.1's *"debounced ~250 ms"*. */
 export const BUCKET_DEBOUNCE_MS = 250
 
+/**
+ * `0059`, §6.4 item 4 — *"main-thread cull time via `performance.mark`/`measure`"*, and its second
+ * half, *"~0 ms for pans inside the padded region"*.
+ *
+ * STRUCTURAL, AND DECLARED HERE RATHER THAN IMPORTED FROM `perf/`. `FogPerf` satisfies it without
+ * knowing this file exists, and this file compiles with the harness deleted. That is not tidiness:
+ * `cull.ts` and this module are the hot path §6.2 exists to make cheap, and a hard import from the
+ * measurement code into the measured code is how an instrument ends up shipped in the frame loop.
+ *
+ * **The second half is a counter, not a timer.** "~0 ms inside the padded region" is not a fast cull,
+ * it is *no cull* — so what proves it is `cameraEvents` climbing while `culls` does not, which is
+ * exactly what `viewport-controller.test.ts` already asserts as zero uploads. A millisecond figure
+ * there would be measuring work that is supposed to be absent.
+ */
+export interface CullObserver {
+  cullStart(): void
+  cullEnd(result: CullResult): void
+  cameraEvent(): void
+}
+
 export interface ControllerStats {
   /** The resolution the uploaded buffer was built at, or `null` before the first rebuild. */
   res: number | null
@@ -129,6 +149,8 @@ export class FogViewportController {
   #eventsWhileHidden = 0
   #lastCull: CullResult | null = null
 
+  #observer: CullObserver | undefined
+
   #onCamera = () => this.#camera()
 
   constructor(options: {
@@ -151,12 +173,15 @@ export class FogViewportController {
     ) => void
     host?: ControllerHost
     debounceMs?: number
+    /** `0059`. Absent in every normal session; `?fog=perf` is the only thing that passes one. */
+    observer?: CullObserver
   }) {
     this.#map = options.map
     this.#store = options.store
     this.#onInstances = options.onInstances
     this.#host = options.host ?? browserControllerHost
     this.#debounceMs = options.debounceMs ?? BUCKET_DEBOUNCE_MS
+    this.#observer = options.observer
   }
 
   stats(): ControllerStats {
@@ -227,6 +252,7 @@ export class FogViewportController {
       return
     }
     this.#cameraEvents++
+    this.#observer?.cameraEvent()
 
     const res = resForZoom(this.#map.getZoom())
     if (res !== this.#builtRes) {
@@ -309,7 +335,9 @@ export class FogViewportController {
     }
 
     const padded = padBox(this.#viewport())
+    this.#observer?.cullStart()
     const result = cullBucket(bucket, padded, this.#buffer)
+    this.#observer?.cullEnd(result)
     this.#buffer = result.buffer
     this.#built = padded
     this.#builtRes = res

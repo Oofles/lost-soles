@@ -603,12 +603,41 @@ export class ZoomBucketStore implements BucketInvalidator {
   #set: ExploredSet
   #byRes = new Map<number, ZoomBucket>()
   #onDerive: ((event: DeriveEvent) => void) | undefined
+  #onRequest: ((hit: boolean) => void) | undefined
   #indexDerivations = 0
   #groupDerivations = 0
+  #requests = 0
+  #hits = 0
 
-  constructor(set: ExploredSet, options: { onDerive?: (event: DeriveEvent) => void } = {}) {
+  constructor(
+    set: ExploredSet,
+    options: {
+      onDerive?: (event: DeriveEvent) => void
+      /**
+       * `0059`, §6.4 item 5's *"and its cache hit rate"*. Called once per `bucketFor` with whether
+       * the store answered from its cache.
+       *
+       * A COUNTER HERE RATHER THAN A WRAPPER AROUND THE STORE, because the interesting requests come
+       * from `viewport-controller.ts` during a pinch — several a second, most of them hits — and a
+       * wrapper would have to be installed by whoever constructs the store. That is `useFogMask`,
+       * which does not know whether the harness is running. This is two integers and an optional
+       * call; the miss path already costs a bucket derivation.
+       */
+      onRequest?: (hit: boolean) => void
+    } = {},
+  ) {
     this.#set = set
     this.#onDerive = options.onDerive
+    this.#onRequest = options.onRequest
+  }
+
+  /** §6.4 item 5. `null` before the first request, rather than a `0/0` that reads as a miss. */
+  get cacheHitRate(): number | null {
+    return this.#requests === 0 ? null : this.#hits / this.#requests
+  }
+
+  get bucketRequests(): number {
+    return this.#requests
   }
 
   /** Criterion 2's spy: how many bucket indexes have been built, ever. */
@@ -627,8 +656,14 @@ export class ZoomBucketStore implements BucketInvalidator {
 
   /** The bucket for this resolution, built if it is new. */
   bucketFor(res: number): ZoomBucket {
+    this.#requests++
     const cached = this.#byRes.get(res)
-    if (cached) return cached
+    if (cached) {
+      this.#hits++
+      this.#onRequest?.(true)
+      return cached
+    }
+    this.#onRequest?.(false)
     const bucket = new ZoomBucket(this.#set, res, (event) => this.#record(event))
     this.#byRes.set(res, bucket)
     return bucket

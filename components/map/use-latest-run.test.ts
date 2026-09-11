@@ -25,7 +25,13 @@ const hook = readFileSync(new URL("./use-latest-run.ts", import.meta.url), "utf8
 
 describe("hook order in map-shell (criterion 5's clearing rule)", () => {
   it("calls useFogMask before useLatestRun", () => {
-    const fog = shell.indexOf("useFogMask(loaded)")
+    /**
+     * `useFogMask(loaded` — the PREFIX, not the whole call. `0059` added a second argument (the perf
+     * harness) and this assertion, which is about the ORDER of two hooks, failed on the argument
+     * list. A needle that has to be edited whenever a signature changes is a needle that will one
+     * day be edited to match rather than to check.
+     */
+    const fog = shell.indexOf("useFogMask(loaded")
     const run = shell.indexOf("useLatestRun(")
     expect(fog).toBeGreaterThan(-1)
     expect(run).toBeGreaterThan(-1)

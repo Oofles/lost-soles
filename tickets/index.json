@@ -1420,10 +1420,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-11T13:28:53Z",
     "path": "tickets/open/0059-perf-harness-and-first-usable.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 10
     }
   },
@@ -4559,6 +4560,106 @@
     "source": "operator",
     "created": "2026-09-11T13:12:36Z",
     "path": "tickets/open/0200-the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 201,
+    "slug": "zoom-to-res-gives-res-11-from-z13-0-not-z14-10-394-instances",
+    "title": "ZOOM_TO_RES gives res 11 from z13.0, not z14 — 10,394 instances at z13.5 against §6.4's 6,000",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T14:02:46Z",
+    "path": "tickets/open/0201-zoom-to-res-gives-res-11-from-z13-0-not-z14-10-394-instances.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 202,
+    "slug": "group-geometry-is-derived-inside-cullbucket-on-the-frame-pat",
+    "title": "Group geometry is derived inside cullBucket, on the frame path — up to 20 ms in a single pan",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T14:02:46Z",
+    "path": "tickets/open/0202-group-geometry-is-derived-inside-cullbucket-on-the-frame-pat.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 203,
+    "slug": "exploredset-s-set-string-puts-peak-heap-at-74-90-mb-not-6-4",
+    "title": "ExploredSet's Set<string> puts peak heap at 74-90 MB, not §6.4's low tens",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T14:02:46Z",
+    "path": "tickets/open/0203-exploredset-s-set-string-puts-peak-heap-at-74-90-mb-not-6-4.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 204,
+    "slug": "check-design-tokens-reads-typescript-private-fields-as-hex-c",
+    "title": "check-design-tokens reads TypeScript private fields as hex colours — this.#acc() is '#acc'",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T14:05:49Z",
+    "path": "tickets/open/0204-check-design-tokens-reads-typescript-private-fields-as-hex-c.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 205,
+    "slug": "npm-run-lint-fails-after-npm-run-build-eslint-scans-the-gene",
+    "title": "npm run lint fails after npm run build — eslint scans the generated public/maplibre worker",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T14:10:53Z",
+    "path": "tickets/open/0205-npm-run-lint-fails-after-npm-run-build-eslint-scans-the-gene.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

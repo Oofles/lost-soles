@@ -53,6 +53,14 @@ export type FogSource =
   | "full"
   /** The user has ingested nothing yet. A real, renderable, empty set. */
   | "empty"
+  /**
+   * `0059`. A synthetic `?fog=perf` dataset — NOT this account's territory, and never written
+   * anywhere. It earns a variant of its own rather than borrowing `"full"` because the HUD prints
+   * this word, and a perf page whose fog is indistinguishable from real ground is a page the
+   * operator can mistake for their own map. `05` §6.4's fixtures are 50k-500k cells of solid
+   * ground; nobody has run that.
+   */
+  | "synthetic"
   /** Nothing is loaded. */
   | "none"
 

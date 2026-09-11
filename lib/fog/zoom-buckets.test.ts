@@ -477,3 +477,40 @@ describe("delta invalidation — criterion 9", () => {
     expect(store.indexDerivations).toBe(1)
   })
 })
+
+/**
+ * `0059`, §6.4 item 5 — *"bucket-derivation time per resolution, **and its cache hit rate**"*.
+ *
+ * The derivation TIME already had a hook (`DeriveEvent.ms`, added by `0058`). The hit rate did not,
+ * and it is the number that says whether §6.1's *"derive a bucket lazily, once, and cache it"* is
+ * actually happening: a store that re-derived on every request would report the same per-derivation
+ * milliseconds and a hit rate of zero.
+ */
+describe("the cache hit rate — 0059, §6.4 item 5", () => {
+  it("is null before anything has been asked for, rather than a 0 that reads as a miss", () => {
+    const store = new ZoomBucketStore(disc(4))
+    expect(store.cacheHitRate).toBeNull()
+    expect(store.bucketRequests).toBe(0)
+  })
+
+  it("counts the first request for a resolution as a miss and every repeat as a hit", () => {
+    const store = new ZoomBucketStore(disc(4))
+    store.bucketFor(RES)
+    expect(store.cacheHitRate).toBe(0)
+
+    for (let i = 0; i < 9; i++) store.bucketFor(RES)
+    expect(store.bucketRequests).toBe(10)
+    expect(store.cacheHitRate).toBeCloseTo(0.9)
+    // One derivation for ten requests is the whole claim §6.1 makes.
+    expect(store.indexDerivations).toBe(1)
+  })
+
+  it("reports each request to the observer as it happens, for the harness's running total", () => {
+    const seen: boolean[] = []
+    const store = new ZoomBucketStore(disc(4), { onRequest: (hit) => seen.push(hit) })
+    store.bucketFor(RES)
+    store.bucketFor(RES)
+    store.bucketFor(RES_PARENT + 1)
+    expect(seen).toEqual([false, true, false])
+  })
+})

@@ -1,0 +1,208 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+
+import { perfDataset } from "@/lib/fog/debug-flags"
+import type { FogMaskLayer } from "@/lib/fog/mask-layer"
+import { driveScriptedPath, PATH_STEPS, type PathMap } from "@/lib/fog/perf/camera-path"
+import { FIXTURE_CENTRE, parsePerfDataset } from "@/lib/fog/perf/dataset-source"
+import type { FogHarness } from "@/lib/fog/perf/harness"
+import { formatReport, type ReportContext } from "@/lib/fog/perf/report"
+
+import { useExplored } from "./explored-provider"
+
+/**
+ * `?fog=perf` — THE HARNESS, ON SCREEN. Ticket `0059` criterion 1. `05-fog-of-war.md` §6.4.
+ *
+ * *"All seven instruments above exist behind a debug flag and print a single summary table."*
+ *
+ * ─── A BUTTON, NOT AN AUTORUN ──────────────────────────────────────────────
+ *
+ * The run starts on a tap. An autorun would begin while the basemap is still fetching its first
+ * tiles, and MapLibre's tile decode is exactly the kind of main-thread work item 6 would then report
+ * as a long task during `pan-across` — a red cell caused by the harness having started too early.
+ * It also matters on the phone: the operator is outdoors, and a measurement that begins before they
+ * are looking at it is a measurement they have to take twice.
+ *
+ * ─── WHAT THE OPERATOR'S JOB IS ────────────────────────────────────────────
+ *
+ * Open the URL, tap **Run**, wait, read the last line. D-230 argued for exactly this shape when it
+ * deferred the ANGLE question here: *"a deferred risk with a two-second check attached is a different
+ * thing from a deferred risk with a procedure attached."* Everything the ticket asks to be recorded
+ * is in the one block of text, and **Copy** puts it on the clipboard so it can be pasted into the
+ * ticket rather than transcribed from a photograph of a phone.
+ */
+
+const panel: React.CSSProperties = {
+  position: "fixed",
+  inset: "auto 0 0 0",
+  zIndex: 3,
+  maxHeight: "60dvh",
+  overflow: "auto",
+  padding: ".75rem",
+  borderTop: "1px solid var(--line)",
+  background: "var(--surface)",
+  color: "var(--text-primary)",
+  font: "400 .7rem/1.45 ui-monospace, monospace",
+}
+
+const bar: React.CSSProperties = {
+  display: "flex",
+  gap: ".5rem",
+  alignItems: "center",
+  flexWrap: "wrap",
+  marginBottom: ".5rem",
+}
+
+const button: React.CSSProperties = {
+  padding: ".4rem .9rem",
+  borderRadius: ".375rem",
+  border: "1px solid var(--line)",
+  background: "var(--bg)",
+  color: "var(--text-primary)",
+  font: "500 .8rem/1 system-ui, sans-serif",
+}
+
+/**
+ * The unmasked GPU string, which D-230 wants recorded alongside the numbers: the residual risk it
+ * deferred to this ticket is *"Qualcomm/Mali ANGLE honouring MIN/MAX into a single-channel normalised
+ * target"*, and a result with no renderer name attached cannot answer which driver it was measured on.
+ *
+ * `WEBGL_debug_renderer_info` is restricted in some configurations and returns null rather than
+ * throwing; the report prints "(masked)" rather than inventing one.
+ */
+function rendererString(canvas: HTMLCanvasElement | null): string | null {
+  if (!canvas) return null
+  try {
+    const gl = canvas.getContext("webgl2")
+    if (!gl) return null
+    const info = gl.getExtension("WEBGL_debug_renderer_info")
+    if (!info) return gl.getParameter(gl.RENDERER) as string
+    return gl.getParameter(info.UNMASKED_RENDERER_WEBGL) as string
+  } catch {
+    return null
+  }
+}
+
+export function PerfOverlay({
+  map,
+  layer,
+  harness,
+}: {
+  map: import("maplibre-gl").Map | null
+  layer: FogMaskLayer | null
+  harness: FogHarness | null
+}) {
+  const explored = useExplored()
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState<{ phase: string; step: number } | null>(null)
+  const [report, setReport] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const started = useRef(false)
+
+  const flag = useMemo(
+    () => (typeof window === "undefined" ? null : perfDataset(window.location.search)),
+    [],
+  )
+  const parsed = flag ? parsePerfDataset(flag) : null
+
+  /** The long-task observer runs for the whole session, not only during the path. */
+  useEffect(() => {
+    if (!harness) return
+    return harness.perf.start()
+  }, [harness])
+
+  const run = useCallback(async () => {
+    if (!map || !layer || !harness || !parsed || started.current) return
+    started.current = true
+    setRunning(true)
+    setReport(null)
+
+    const pathMap = map as unknown as PathMap
+    harness.timer.clear()
+
+    /**
+     * THE FIXTURE IS SOMEWHERE ELSE, so a fixture run has to fly there first — and the flight is
+     * OUTSIDE the measured path, in the `load` phase, because a 12,000 km jump is a tile fetch for
+     * every layer in the style and nothing about it is a frame-time measurement.
+     *
+     * `here` skips this: its whole point is that the camera is already over ground the basemap has.
+     */
+    harness.perf.beginPhase("load")
+    if (parsed.here) {
+      pathMap.jumpTo({ center: pathMap.getCenter(), zoom: 14 })
+    } else {
+      pathMap.jumpTo({ center: { ...FIXTURE_CENTRE }, zoom: 14 })
+    }
+    // One second of real frames so the first cull, the first cold bucket and the basemap's first
+    // tiles all land inside `load` rather than at the top of `settle`.
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    await driveScriptedPath(pathMap, harness.perf, {
+      gpuTimer: harness.timer,
+      onProgress: ({ phase, step }) => setProgress({ phase, step }),
+      /**
+       * §6.4 item 1, sampled per FRAME rather than per rebuild — and the difference matters for the
+       * histogram. The count only changes when the buffer is rebuilt, but the *zoom it is drawn at*
+       * changes every frame of a pinch, and during the 250 ms debounce the previous bucket's
+       * instances are genuinely on screen at the new zoom. Per-rebuild sampling would record seven
+       * points across a twelve-level zoom and miss exactly the transient §6.2's header warns about.
+       */
+      onSample: () => {
+        const stats = layer.stats()
+        harness.perf.instances(pathMap.getZoom(), stats.visibleInstanceCount, stats.res)
+      },
+    })
+
+    const canvas = map.getCanvas()
+    const context: ReportContext = {
+      dataset: parsed.here ? `${parsed.dataset.label} @ here` : parsed.dataset.label,
+      cells: explored.set?.size ?? parsed.dataset.cells,
+      viewportW: canvas.clientWidth,
+      viewportH: canvas.clientHeight,
+      devicePixelRatio: window.devicePixelRatio,
+      userAgent: navigator.userAgent,
+      renderer: rendererString(canvas),
+    }
+    const text = formatReport(harness.perf.snapshot(), harness.timer.stats(), context)
+    setReport(text)
+    setRunning(false)
+    setProgress(null)
+    started.current = false
+    console.log(text)
+  }, [map, layer, harness, parsed, explored.set])
+
+  if (!flag || !harness) return null
+
+  const ready = explored.phase === "ready" && !!layer
+
+  return (
+    <div style={panel} data-testid="fog-perf-overlay">
+      <div style={bar}>
+        <strong>fog perf · 0059</strong>
+        <span>{flag}</span>
+        <button style={button} onClick={() => void run()} disabled={!ready || running}>
+          {running ? "running…" : "Run scripted path"}
+        </button>
+        {report && (
+          <button
+            style={button}
+            onClick={() => {
+              void navigator.clipboard?.writeText(report).then(() => setCopied(true))
+            }}
+          >
+            {copied ? "copied" : "Copy"}
+          </button>
+        )}
+      </div>
+
+      {!ready && <div>{explored.message ?? `explored set: ${explored.phase}`}</div>}
+      {running && progress && (
+        <div>
+          {progress.phase} — {progress.step} / {PATH_STEPS} frames
+        </div>
+      )}
+      {report && <pre style={{ margin: 0, whiteSpace: "pre" }}>{report}</pre>}
+    </div>
+  )
+}

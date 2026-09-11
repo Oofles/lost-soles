@@ -3175,3 +3175,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     already grouped and the runs are found by galloping binary search rather than a pass. Ids,
     fractions, projection and bridges are derived per group on first sight, ~10 ms each. The same
     principle as the cull, applied to derivation: **bounded by screen area, not by database size.**
+
+- **D-239** **`0059`'s `★` end-to-end criterion is satisfied by re-syncing an ARCHIVED Strava
+  activity, not by going for a run. The phone is nevertheless the right surface for this one ticket.**
+  Resolves the conflict between ticket `0059` (written 2026-08-30, *"go for a real run"*) and D-229
+  (2026-09-09, *"never ask them to go for a run to give you data"*).
+  *(Operator, before any of `0059` was written, 2026-09-11.)*
+  - **The conflict is a date, not a disagreement.** `0059`'s `## Operator validation` opens *"This is
+    the USE step, and for this project it means going for a run"* — written nine days before D-229
+    said the USE step *"does not require a real run"* and amended D-153 to say so. Nothing reconciled
+    the two, because `0059` had not been opened since.
+  - **An archived activity is not a weaker test, it is the same test.** The criterion's substance is
+    *real trace data through the real path, landing on ground the operator recognises*: the same
+    `activity:read_all` fetch, the same full `latlng` stream (D-121), the same adapter, normalise,
+    score and cell write, the same manual Sync tap, the same delivery blob. The only clause that dies
+    is *"go running first"*, and that clause was never what made the criterion meaningful.
+  - **What IS lost, stated rather than glossed.** A re-synced activity crosses ground that is already
+    revealed, so it does not exercise *new* territory appearing. That is `0057`'s optimistic corridor
+    and `05` §7.4's mid-session delta, both of which already have their own coverage; and the first
+    genuinely new run the operator does will exercise it in the course of ordinary use, which is
+    D-229's whole argument — *"a bug hit in real use is cheaper than a ritual that delays real use."*
+  - **The phone half is untouched and is not the same question.** D-227 and D-230 both name `0059`
+    explicitly as the ticket that owns the real mid-range Android: *"the phone remains the worst case
+    even when it is not the common case"*, and D-230 deferred the ANGLE `MIN`/`MAX` conformance
+    question here by name. D-229(c) exempts a ticket that is *about* the phone, and this is the one.
+    The operator re-confirmed it for this instance.
+  - **The harness is built so that the device's job is reading, not judging.** Three URLs, a button,
+    and one table with a verdict column — D-230's own standard: *"a deferred risk with a two-second
+    check attached is a different thing from a deferred risk with a procedure attached."*

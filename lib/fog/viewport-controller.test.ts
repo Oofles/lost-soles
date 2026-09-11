@@ -376,3 +376,60 @@ describe("a data change", () => {
     expect(uploads).toHaveLength(1)
   })
 })
+
+/**
+ * `0059`, §6.4 item 4. The controller is where a `CullObserver` attaches, and the two things worth
+ * asserting are that it brackets the real work and that it is not called when there is no work —
+ * because *"~0 ms inside the padded region"* is a claim about absence, and an observer that fired on
+ * every camera event would make the absence unobservable.
+ */
+describe("the cull observer — 0059", () => {
+  function observed(options: { zoom?: number; k?: number } = {}) {
+    const events: string[] = []
+    const map = fakeMap(options.zoom ?? 15)
+    const host = fakeHost()
+    const store = new ZoomBucketStore(solidDisc(options.k ?? 30))
+    const controller = new FogViewportController({
+      map,
+      store,
+      host,
+      onInstances: () => {},
+      observer: {
+        cullStart: () => events.push("start"),
+        cullEnd: (result) => events.push(`end:${result.count > 0}`),
+        cameraEvent: () => events.push("camera"),
+      },
+    })
+    return { controller, map, host, events }
+  }
+
+  it("brackets each cull, in order, around a result that has instances in it", () => {
+    const { controller, events } = observed()
+    controller.start()
+    expect(events).toEqual(["start", "end:true"])
+  })
+
+  it("sees the camera events of a pan inside the padded region, and no cull between them", () => {
+    const { controller, map, events } = observed({ zoom: 15 })
+    controller.start()
+    events.length = 0
+
+    // Well inside the 20% padding — `viewport-controller.test.ts` asserts this as zero uploads.
+    for (let i = 1; i <= 4; i++) {
+      map.move({ lng: NEMO.lng + (400 / (512 * 2 ** 15)) * 360 * 0.02 * i })
+    }
+    expect(events).toEqual(["camera", "camera", "camera", "camera"])
+  })
+
+  it("is optional — the controller runs identically without one", () => {
+    const map = fakeMap(15)
+    const controller = new FogViewportController({
+      map,
+      store: new ZoomBucketStore(solidDisc(30)),
+      host: fakeHost(),
+      onInstances: () => {},
+    })
+    controller.start()
+    expect(controller.stats().culls).toBe(1)
+  })
+})
