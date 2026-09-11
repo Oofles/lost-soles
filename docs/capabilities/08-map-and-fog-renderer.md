@@ -339,6 +339,46 @@ what the code was FOR, and rediscovering them costs a session each:
   same bytes as one that honours it, and only the areas differ. A probe that compares values would
   pass the phone and mean nothing.
 
+### The grid moved under this capability mid-flight (ticket `0194`, D-237)
+
+**Recorded here because `08` was built entirely against res 10 and now renders res 11**, and the
+audit reads this section before it reads the code.
+
+The operator, looking at `0056`'s finished mist over ground they know, reported the revealed corridor
+*zig-zagging* rather than following runs taken at an angle. `0194` established that the cause is not
+the grid's silhouette — §4's discs mean hex geometry never reaches the screen, and that part of §2.1
+was right — but the disc **radius**, which is `revealScale × circumradius` and therefore set by the
+grid after all. Res 10's brush is 102 m, res 11's is 39 m, against a centre wander of a median 28 m
+that is `REVEAL_R_M` and identical at both resolutions.
+
+**What this capability inherits, none of it optional:**
+
+- **`0058`'s viewport culling is load-bearing, not an optimisation.** 7× the cells, times D-232's
+  ~2–3× bridge instances, against §6.4's `visibleInstanceCount <= 6,000` at every zoom.
+- **The render disc shrank by 2.6×**, so every judgement recorded against the old brush — `0119`'s
+  deferred tuning findings especially — was made at a scale that no longer ships. `0119` found the
+  warm rim imperceptible at `u_rimAmt = 0.08` and the boundary too smooth to read as ragged, both
+  computed against a 102 m disc and a 17 m reveal ramp. **Those arithmetic conclusions need redoing
+  at 39 m before they are acted on.**
+- **`SEAM_FLOOR` was measured once on a real GPU (D-231) and is derived from adventure's
+  `noiseAmp`**, not from cell size, so it is unaffected — but it is worth confirming rather than
+  assuming during the audit.
+
+**USE-step evidence, for §3.** The capability has been exercised with real data through the real path
+at res 11, twice, without asking the operator to go running (D-229):
+
+- **2026-09-11, ten archived activities replayed** through `0192`'s path after the cutover: manifest
+  `res: 11`, 590 cells, and the published `explored-r11.54.bin` decoded to exactly the set
+  `traceToCells` derives from the same archived bytes — 0 missing, 0 extra.
+- **2026-09-11, one genuinely new run** (`strava/20124614542`) through **normal ingest**, never
+  replayed: 246 cells, 169 of them new ground — 31% overlap with existing territory, which is R3 §2's
+  "heavy overlap" assumption appearing in live data. Blob at generation 56, 759 cells, again an exact
+  match against the shipped derivation.
+- **Looked at on the desktop browser** (D-227) by the operator, who reported it *"looks so much
+  better"* and the new run *"showing up perfectly"*. That is the perception half; the counts above
+  are the mechanical half.
+
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
