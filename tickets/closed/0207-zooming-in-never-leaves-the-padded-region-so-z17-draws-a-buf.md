@@ -4,7 +4,7 @@ slug: zooming-in-never-leaves-the-padded-region-so-z17-draws-a-buf
 title: Zooming in never leaves the padded region, so z17 draws a buffer built for z13 — 30,031 instances where ~120 are needed
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T17:08:55Z
 started: 2026-09-11T17:15:35Z
+closed: 2026-09-11T17:34:29Z
 ---
 
 ## Description

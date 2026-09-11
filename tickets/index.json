@@ -4583,7 +4583,7 @@
     "path": "tickets/open/0201-zoom-to-res-gives-res-11-from-z13-0-not-z14-10-394-instances.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 5
     }
   },
@@ -4604,7 +4604,7 @@
     "path": "tickets/open/0202-group-geometry-is-derived-inside-cullbucket-on-the-frame-pat.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 5
     }
   },
@@ -4695,7 +4695,7 @@
     "title": "Zooming in never leaves the padded region, so z17 draws a buffer built for z13 — 30,031 instances where ~120 are needed",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4703,10 +4703,11 @@
     "source": "agent",
     "created": "2026-09-11T17:08:55Z",
     "started": "2026-09-11T17:15:35Z",
-    "path": "tickets/open/0207-zooming-in-never-leaves-the-padded-region-so-z17-draws-a-buf.md",
-    "ready": true,
+    "closed": "2026-09-11T17:34:29Z",
+    "path": "tickets/closed/0207-zooming-in-never-leaves-the-padded-region-so-z17-draws-a-buf.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   }
