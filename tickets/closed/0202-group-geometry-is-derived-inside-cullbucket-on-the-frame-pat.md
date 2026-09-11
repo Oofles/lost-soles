@@ -4,7 +4,7 @@ slug: group-geometry-is-derived-inside-cullbucket-on-the-frame-pat
 title: Group geometry is derived inside cullBucket, on the frame path — up to 20 ms in a single pan
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T14:02:46Z
 started: 2026-09-11T17:15:35Z
+closed: 2026-09-11T18:38:55Z
 ---
 
 ## Description
