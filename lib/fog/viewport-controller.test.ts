@@ -88,13 +88,48 @@ function fakeMap(zoom = 15, centre = NEMO): FakeMap {
   return map
 }
 
-/** A clock that only moves when a test says so, and timers that only fire when a test runs them. */
-function fakeHost(): ControllerHost & { advance(ms: number): void; run(): number; pending: number } {
+/**
+ * A clock that only moves when a test says so, and timers that only fire when a test runs them.
+ *
+ * `0202`'s idle queue is separate from the timer queue and **drains only when a test asks**, which is
+ * the property that matters: every existing assertion in this file is about what happens on the frame
+ * path, and a prefetch that ran automatically would materialise groups behind those tests' backs and
+ * make "the cull derived nothing" unprovable.
+ */
+function fakeHost(): ControllerHost & {
+  advance(ms: number): void
+  run(): number
+  pending: number
+  runIdle(limit?: number): number
+  idlePending: number
+} {
   let clock = 1_000
   let next = 1
   const timers = new Map<number, { at: number; fire: () => void }>()
+  const idle: Array<{ task: () => void; cancelled: boolean }> = []
   return {
     now: () => clock,
+    requestIdle(task) {
+      const entry = { task, cancelled: false }
+      idle.push(entry)
+      return () => {
+        entry.cancelled = true
+      }
+    },
+    /** Drains the idle queue, including slices scheduled by earlier slices. Returns how many ran. */
+    runIdle(limit = 200) {
+      let ran = 0
+      while (idle.length > 0 && ran < limit) {
+        const entry = idle.shift()!
+        if (entry.cancelled) continue
+        entry.task()
+        ran++
+      }
+      return ran
+    },
+    get idlePending() {
+      return idle.filter((e) => !e.cancelled).length
+    },
     setTimeout(fire, ms) {
       const handle = next++
       timers.set(handle, { at: clock + ms, fire })
@@ -431,5 +466,190 @@ describe("the cull observer — 0059", () => {
     })
     controller.start()
     expect(controller.stats().culls).toBe(1)
+  })
+})
+
+/**
+ * `0207`, the controller half. Containment alone kept a buffer built several zoom levels out alive
+ * indefinitely, so the layer drew far more geometry than the screen could show.
+ */
+describe("zooming in rebuilds even without leaving the padded region — 0207", () => {
+  it("rebuilds after zooming in far enough, and does not on a small zoom change", () => {
+    const { controller, uploads, map } = controllerOn({ zoom: 14 })
+    controller.start()
+    expect(uploads).toHaveLength(1)
+
+    // Half a zoom level in. Still the same bucket, still contained, still served by the buffer —
+    // §6.2's whole point is that a pinch does not cost a cull per frame.
+    map.move({ zoom: 14.5 })
+    expect(uploads).toHaveLength(1)
+
+    // Three levels in. The buffer is now sized for sixteen times the ground on screen.
+    map.move({ zoom: 17 })
+    expect(uploads).toHaveLength(2)
+  })
+
+  it("does not rebuild on the way back out, where containment already fires", () => {
+    const { controller, uploads, map } = controllerOn({ zoom: 17 })
+    controller.start()
+    const before = uploads.length
+    // Zooming OUT grows the viewport, which leaves the padded region — the case §6.2 always handled.
+    map.move({ zoom: 16 })
+    expect(uploads.length).toBeGreaterThan(before)
+  })
+})
+
+/**
+ * `0202`, the half that matters: the derivation has to actually LEAVE the frame path. These drive a
+ * real `ZoomBucketStore` over a real `ExploredSet`, because the claim is about `discsFor` doing real
+ * work — a fake bucket could not tell a warm cull from a cold one.
+ */
+describe("prefetch moves group derivation off the frame path — 0202", () => {
+  it("schedules idle work after a rebuild, and the work happens without another cull", () => {
+    const { controller, host, store } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+
+    const cullsAfterStart = controller.stats().culls
+    const materialisedAfterCull = store.bucketFor(RES).materialisedGroups
+    expect(host.idlePending).toBeGreaterThan(0)
+    expect(controller.stats().prefetched).toBe(0)
+
+    host.runIdle()
+
+    /**
+     * Groups were materialised and NO cull ran to do it — which is the whole claim. It does not
+     * assert *more* groups than the cull needed: `groupResFor(11)` is res 7, whose cells are ~2.8 km
+     * across, so at a running zoom the padded box and the wider prefetch box often touch the same
+     * handful of groups. The prefetch earns its place on the PAN, which the next test measures.
+     */
+    expect(controller.stats().prefetched).toBeGreaterThan(0)
+    expect(controller.stats().culls).toBe(cullsAfterStart)
+    expect(store.bucketFor(RES).materialisedGroups).toBeGreaterThanOrEqual(materialisedAfterCull)
+  })
+
+  /**
+   * THE ASSERTION `0202` EXISTS FOR. A pan into ground the bucket has not seen derived ~20 ms inside
+   * a `move` handler. Warm that ground first and the same pan's cull finds everything cached.
+   */
+  it("makes the next pan's cull warm, so it derives nothing", () => {
+    const { controller, host, store, map } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    host.runIdle()
+
+    const before = store.bucketFor(RES).materialisedGroups
+    const cullsBefore = controller.stats().culls
+
+    // Out of the padded region, into ground the prefetch has already covered.
+    map.move({ lng: NEMO.lng + (400 / (512 * 2 ** 15)) * 360 * 0.45 })
+
+    // The cull ran — it must, it is rebuilding the buffer — and materialised NOTHING, because every
+    // group it asked for was already warm. Before `0202` this same pan derived on the frame path.
+    expect(controller.stats().culls).toBeGreaterThan(cullsBefore)
+    expect(store.bucketFor(RES).materialisedGroups).toBe(before)
+  })
+
+  it("does no idle work while hidden — §6.2's switch covers this too", () => {
+    const { controller, host } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    controller.setHidden(true)
+    const prefetchedBefore = controller.stats().prefetched
+    host.runIdle()
+    expect(controller.stats().prefetched).toBe(prefetchedBefore)
+  })
+
+  it("stops scheduling once the region is warm, rather than spinning on idle for ever", () => {
+    const { controller, host } = controllerOn({ zoom: 15, k: 20 })
+    controller.start()
+    host.runIdle()
+    expect(host.idlePending).toBe(0)
+  })
+
+  it("cancels the slice in flight when the camera moves on", () => {
+    const { controller, host, map } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    map.move({ lng: NEMO.lng + (400 / (512 * 2 ** 15)) * 360 * 0.45 })
+    // One live slice for the newest region, not one per rebuild piling up.
+    expect(host.idlePending).toBe(1)
+  })
+
+  it("drops its idle work on stop", () => {
+    const { controller, host } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    controller.stop()
+    const before = controller.stats().prefetched
+    host.runIdle()
+    expect(controller.stats().prefetched).toBe(before)
+  })
+})
+
+/**
+ * `0202`'s other half. A band crossing is the expensive derivation — a bucket with no index and no
+ * geometry — and the prefetch that runs after a rebuild cannot help, because the incoming bucket did
+ * not exist then. §6.1 already makes the camera wait out a ~250 ms debounce first, and that window
+ * is otherwise idle.
+ */
+describe("the debounce window warms the incoming bucket — 0202", () => {
+  it("derives the target bucket while the switch is pending, not when it fires", () => {
+    const { controller, host, store, map } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    host.runIdle()
+
+    // A band crossing, close enough behind the last switch to be debounced rather than immediate.
+    host.advance(10)
+    map.move({ zoom: 11 })
+    expect(host.pending).toBeGreaterThan(0)
+    expect(store.cachedResolutions).not.toContain(resForZoom(11))
+
+    // The window is where the work happens.
+    host.runIdle()
+    expect(store.cachedResolutions).toContain(resForZoom(11))
+    const warmed = controller.stats().prefetched
+    expect(warmed).toBeGreaterThan(0)
+
+    // And when the debounce fires, the rebuild finds it cached.
+    const materialisedBefore = store.bucketFor(resForZoom(11)).materialisedGroups
+    host.advance(BUCKET_DEBOUNCE_MS)
+    host.run()
+    expect(store.bucketFor(resForZoom(11)).materialisedGroups).toBe(materialisedBefore)
+  })
+
+  /**
+   * A pinch across several bands still schedules ONE rebuild (§6.1), and `#rebuild` resolves the
+   * resolution at fire time — so the prefetch has to follow the gesture or it warms a bucket nobody
+   * will use, which spends the work and leaves the derivation on the frame path anyway.
+   */
+  it("re-aims at the band the gesture is actually in, and keeps one slice alive", () => {
+    const { controller, host, store, map } = controllerOn({ zoom: 17, k: 60 })
+    controller.start()
+    host.runIdle()
+
+    host.advance(10)
+    map.move({ zoom: 13 })
+    map.move({ zoom: 9 })
+    map.move({ zoom: 6 })
+    // Still one rebuild pending, and one live slice — the newest target, not one per band crossed.
+    expect(host.pending).toBe(1)
+    expect(host.idlePending).toBe(1)
+
+    host.runIdle()
+    expect(store.cachedResolutions).toContain(resForZoom(6))
+
+    // And the debounced rebuild lands on that same bucket, warm.
+    const warm = store.bucketFor(resForZoom(6)).materialisedGroups
+    host.advance(BUCKET_DEBOUNCE_MS)
+    host.run()
+    expect(controller.stats().res).toBe(resForZoom(6))
+    expect(store.bucketFor(resForZoom(6)).materialisedGroups).toBe(warm)
+  })
+
+  it("does nothing while hidden", () => {
+    const { controller, host, map } = controllerOn({ zoom: 15, k: 60 })
+    controller.start()
+    host.runIdle()
+    const before = controller.stats().prefetched
+    controller.setHidden(true)
+    map.move({ zoom: 11 })
+    host.runIdle()
+    expect(controller.stats().prefetched).toBe(before)
   })
 })

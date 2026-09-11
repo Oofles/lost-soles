@@ -126,12 +126,47 @@ async function runDataset(dataset) {
   const layer = new FogMaskLayer({ timeSource: () => 3.25, timer })
   map.addLayer(layer)
 
+  /**
+   * `0202`'s prefetch needs an idle queue, and this page has no real one worth using: under
+   * `--virtual-time-budget` `requestIdleCallback` is as unreliable as rAF. The path is driven
+   * synchronously by `map.redraw()`, so the honest substitute is to run one slice immediately after
+   * each schedule — which is the WORST case for the measurement, since it puts the prefetch back on
+   * the same task as the cull. If `derive inside` falls for the pan phases even under that, it falls.
+   */
   const controller = new FogViewportController({
     map,
     store,
-    // The debounce is `viewport-controller.test.ts`'s subject and driven by an injected clock there.
-    // Here it would only mean a rebuild landing after the report — and a zoom sweep that never
-    // switched bucket would report item 1's ceiling against one resolution instead of seven.
+    host: {
+      setTimeout: (fn, ms) => setTimeout(fn, ms),
+      clearTimeout: (h) => clearTimeout(h),
+      now: () => performance.now(),
+      requestIdle: (task) => {
+        /**
+         * SYNCHRONOUS, and it has to be. A `setTimeout` here never runs: `driveScriptedPath` awaits a
+         * promise that `requestAnimationFrame` resolves synchronously, so the continuation is a
+         * MICROtask and the event loop never reaches the macrotask queue for the whole path. The
+         * slices simply piled up and the prefetch was measured as doing nothing.
+         *
+         * Running inline is the worst case for the numbers — it puts the derivation on the same task
+         * as the cull that preceded it — and that is the right bias for a harness. What it still
+         * proves is the thing `0202` claims: the derivation leaves the window `cullStart`/`cullEnd`
+         * brackets, so `derive inside` falls even when the work has nowhere better to go.
+         */
+        task()
+        return () => {}
+      },
+    },
+    /**
+     * The debounce is `viewport-controller.test.ts`'s subject and driven by an injected clock there.
+     * Here it would only mean a rebuild landing after the report — and a zoom sweep that never
+     * switched bucket would report item 1's ceiling against one resolution instead of seven.
+     *
+     * **IT ALSO MEANS `zoom-out`'s `derive inside` IS NOT A RESULT ON THIS SURFACE.** `0202` warms an
+     * incoming bucket during the debounce window; with the window set to zero there is no window, so
+     * every band crossing derives on the frame path exactly as it did before. The pan phases are
+     * where this harness can show the fix, and they show it at 0.00 ms. The debounce path is covered
+     * by `viewport-controller.test.ts`, which can drive a clock.
+     */
     debounceMs: 0,
     observer: perf,
     onInstances: (instances, _result, res, fromData) =>
@@ -238,6 +273,8 @@ map.on("load", async () => {
     `maplibre       ${maplibre.getVersion()}`,
     `canvas         ${WIDTH}x${HEIGHT} CSS px — D-238's reference viewport, ceiling ${ceiling}`,
     `clock          VIRTUAL. Items 2, 3 and 6 carry no verdict here — see the header.`,
+    `debounce       0 ms, so zoom-out's 'derive inside' is NOT a result — 0202's band-crossing`,
+    `               prefetch needs a debounce window and there is none. The pan phases are the test.`,
     "",
     ...blocks,
     "",

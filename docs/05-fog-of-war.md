@@ -1109,15 +1109,42 @@ Map zoom selects a render resolution. Res 11 is the canonical stored resolution 
 therefore the **finest** bucket; coarser buckets are derived by `cellToParent`.
 
 ```js
-const ZOOM_TO_RES = [                      // D-238. MAPLIBRE zooms — see below.
-  { maxZoom:  5, res: 4 },  { maxZoom:  6, res: 5 },
-  { maxZoom:  8, res: 6 },  { maxZoom:  9, res: 7 },
-  { maxZoom: 11, res: 8 },  { maxZoom: 12, res: 9 },
-  { maxZoom: 13, res: 10 },
-  { maxZoom: Infinity, res: 11 },          // canonical — never finer (D-237)
+const ZOOM_TO_RES = [                      // D-238, amended by 0201. MAPLIBRE zooms — see below.
+  { minZoom: 14, res: 11 },                // canonical — never finer (D-237)
+  { minZoom: 13, res: 10 },
+  { minZoom: 12, res:  9 },
+  { minZoom: 10, res:  8 },
+  { minZoom:  8, res:  7 },
+  { minZoom:  7, res:  6 },
+  { minZoom:  6, res:  5 },
+  { minZoom: -Infinity, res: 4 },
 ];
-const resForZoom = z => (ZOOM_TO_RES.find(e => z <= e.maxZoom) ?? { res: 11 }).res;
+const resForZoom = z => (ZOOM_TO_RES.find(e => z >= e.minZoom) ?? { res: 4 }).res;
 ```
+
+**The bounds are INCLUSIVE LOWER bounds, and that is ticket `0201`.** They used to be inclusive upper
+bounds, which made every band *lower-exclusive* — res 11's was `(13, ∞)`, so it owned z13.0000001 and
+up, and the paragraph below claiming res 11 owns "z14 and up" was true of the prose and false of the
+table.
+
+**A band's worst case is its BOTTOM**: the finest resolution over the largest viewport the band
+allows. Lower-exclusive bands put that bottom just above an integer — where nothing was ever
+measured, because every figure recorded in this section was taken AT an integer zoom, which under the
+old form was each band's *best* case. `0059`'s scripted path samples fractional zooms and found
+**10,394 instances at z13.5** against §6.4's ceiling of 6,000. Read as lower bounds, the integers
+become the worst cases, so the numbers recorded here are the numbers that have to hold:
+
+| band bottom | z6 | z7 | z8 | z10 | z12 | z13 | z14 |
+|---|---|---|---|---|---|---|---|
+| instances | 28 | 101 | 390 | 1,935 | 1,861 | 3,062 | **5,271** |
+
+Solid ground at 30°N, 400×800 CSS px, padded, worst of 50k / 150k / 500k cells.
+
+**Res 9 starts at z12 rather than the derived 11.3, and that exception is empirical.** At z11 a res-9
+bucket draws 6,650 instances at 500k cells — over the ceiling — while the px rule calls a 12.2 px cell
+perfectly fine. The two disagree because at z11 a 500k disc does not FILL the viewport, so the count
+is bounded by how many res-9 cells exist rather than by the screen, which a px-per-cell proxy cannot
+see. **The px rule is a good derivation and a bad assertion**; the counts are the assertion.
 
 **The table is derived, not chosen.** The rule is one cell ≈ 15 CSS px; each H3 resolution is
 √7 ≈ 2.65× finer, i.e. **1.4 zoom levels**. Solving for 15 px at 30°N puts the bands' centres at

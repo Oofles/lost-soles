@@ -462,6 +462,46 @@ None of these is a regression; all three are the design meeting measurement for 
   at 30°N 100°E where the Florida extract has no tiles — and fog over an empty background is a frame
   that leaves out most of a frame. It also commits no coordinate.
 
+### The three findings, fixed (tickets `0201`, `0202`, `0207`)
+
+All three came out of `0059`'s instrumentation and all three are the same subsystem, so they were
+worked as one session. Measured after, at 150k cells on the 400x800 reference viewport:
+
+| | before | after |
+|---|---|---|
+| peak `visibleInstanceCount` | 10,394 at z13.5 | **5,273 at z14.0** (ceiling 6,000) |
+| `pan-across` derive inside a cull | 39.70 ms | **0.00 ms** |
+| worst single pan cull, gross | 21.10 ms | **0.20 ms** |
+| `pan-z17` culls | 0 | **5** |
+
+**`0201` — the zoom table's bounds are now inclusive LOWER bounds.** They were inclusive upper bounds,
+which made every band lower-exclusive: res 11 owned `(13, ∞)` while §6.1's own prose said it owns
+"z14 and up". A band's worst case is its **bottom**, and lower-exclusive bands put that bottom just
+above an integer — where nothing was ever measured, because every figure §6 records was taken AT an
+integer, which the old form made each band's *best* case. Read as lower bounds, the recorded numbers
+become the ones that have to hold, and the worst case in the whole table is now 5,271 at z14 — exactly
+what §6.4 already recorded.
+
+The instructive part is **res 9**, which starts at z12 rather than the derived 11.30. Rounding every
+solved figure put its bottom at z11, which passes §6's own "8-30 CSS px per cell" rule at 12.2 px and
+**fails the ceiling at 6,650 instances on 500k cells** — because at z11 a 500k disc does not fill the
+viewport, so the count is bounded by how many res-9 cells exist rather than by the screen, and a
+px-per-cell proxy cannot see that. **The px rule is a good derivation and a bad assertion.**
+
+**`0202` — derivation moved off the frame path by prefetching, not by budgeting the cull.** The
+obvious fix (materialise at most N groups per cull) puts a hole in the fog: a group with no geometry
+draws no discs, so explored ground reads as unexplored until the next slice. On a map whose premise is
+that it never re-fogs, territory that blinks out is indistinguishable by eye from data loss. So the
+cull is untouched and `prefetch.ts` warms a wider region in time-sliced idle callbacks — after every
+rebuild, and during the bucket-switch debounce, which is the only window that can reach an incoming
+bucket. The second needed a correction the tests caught: `#camera` ignores events while a switch is
+pending, so a multi-band pinch aimed the prefetch at the first band crossed while the rebuild resolves
+the resolution at fire time; it now re-aims when the band changes.
+
+**`0207` — `boxTooLarge` beside `boxContains`.** A buffer stops serving the viewport in two ways and
+§6.2 only describes one. Zooming in shrinks the viewport so it never leaves, and the buffer built at
+z13 was still drawn at z17 covering 256x the ground.
+
 #### The real desktop measurement, and what it changed (2026-09-11)
 
 `?fog=perf:here`, 151,201 cells, **1902x901 CSS px, Chrome 151, RTX 3070 via ANGLE/D3D11**. The first

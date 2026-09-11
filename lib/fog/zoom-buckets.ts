@@ -68,8 +68,30 @@ import type { BucketInvalidator, ExploredSet } from "./explored-set"
 /* ─── §6.1's table ──────────────────────────────────────────────────────────── */
 
 export interface ZoomBand {
-  /** This band applies while `zoom <= maxZoom`. */
-  maxZoom: number
+  /**
+   * This band applies while `zoom >= minZoom`, and the bands are ordered finest-first — so the first
+   * match wins and each band runs up to the next one's `minZoom`.
+   *
+   * ─── IT WAS `maxZoom`, INCLUSIVE, AND THAT IS WHAT `0201` WAS ──────────────
+   *
+   * The old form said *"this band applies while `zoom <= maxZoom`"*, which makes every band
+   * **lower-exclusive**: res 11's was `(13, ∞)`, so it owned z13.0000001 and up. This file's own
+   * header said twice that res 11 owns *"z14 and up"* and that at z13 the finer bucket *"is not
+   * available there at any price"* — and the whole interval that argument excludes, `(13, 14)`, was
+   * getting res 11 anyway.
+   *
+   * **A band's worst case is its BOTTOM**: the finest resolution over the largest viewport the band
+   * allows. Lower-exclusive bands put that bottom just above an integer, where nothing was ever
+   * measured — §6.4's recorded figures were all taken AT integer zooms, which under the old form were
+   * each a band's best case. `0059`'s scripted path samples fractional zooms and found 10,394
+   * instances at z13.5 against §6.4's ceiling of 6,000.
+   *
+   * Lower-INCLUSIVE bands put the bottom on the integer, so the numbers §6 records are the numbers
+   * that have to hold. Checked against §6's own *"a cell is ~8–30 CSS px across"* rule, using the
+   * solved table below: the old form's band bottoms dipped to **7.0 px** at res 11 and 7.1 px at
+   * res 6, under the 8 px floor. Every bottom in the new form lands between **10.7 and 18.6 px**.
+   */
+  minZoom: number
   res: number
 }
 
@@ -103,31 +125,53 @@ export interface ZoomBand {
  * at any price. That is what a bucket ladder IS — §6.1's *"coarse buckets are the same material, just
  * larger"* — rather than a compromise this table is making reluctantly.
  *
+ * **`0201`: that paragraph was true of the prose and false of the table**, which gave res 11 every
+ * zoom above 13.0 rather than from 14. The boundaries below are the solved figures rounded to the
+ * nearest integer and read as lower bounds — 4.28→4, 5.69→6, 7.09→7, 8.49→8, 9.90→10, 12.71→13,
+ * 14.11→14 — which is the most direct expression of the row above that integers allow. See
+ * `ZoomBand` for why the inclusive lower bound is the part that matters.
+ *
+ * **Res 9 is the one exception, and it is empirical rather than derived.** The solved figure says
+ * 11.30, but res 9 at z11 draws **6,650 instances at 500k cells** — over §6.4's ceiling of 6,000 —
+ * while the px rule happily calls a 12.2 px cell fine. The two disagree because at z11 a 500k disc
+ * does not FILL the viewport: the count there is bounded by how many res-9 cells exist, not by the
+ * screen, so the px-per-cell proxy cannot see it. Res 9 starts at z12 instead, which is where the old
+ * table effectively put z11 anyway (res 8), and every band bottom then comes in under the ceiling:
+ *
+ *   z6 → 28   z7 → 101   z8 → 390   z10 → 1,935   z12 → 1,861   z13 → 3,062   z14 → 5,271
+ *
+ * Measured on solid ground at 30°N, 400×800 CSS px, padded, at the worst of 50k / 150k / 500k.
+ * **The px rule is a good derivation and a bad assertion**; the counts are the assertion.
+ *
  * Res 11 is canonical (D-237) and therefore the **finest** bucket; coarser ones are derived by
  * `cellToParent`. Rendering finer than you store means inventing ground — `0194` option C.
  */
 export const ZOOM_TO_RES: readonly ZoomBand[] = [
-  { maxZoom: 5, res: 4 },
-  { maxZoom: 6, res: 5 },
-  { maxZoom: 8, res: 6 },
-  { maxZoom: 9, res: 7 },
-  { maxZoom: 11, res: 8 },
-  { maxZoom: 12, res: 9 },
-  { maxZoom: 13, res: 10 },
-  { maxZoom: Infinity, res: RES },
+  { minZoom: 14, res: RES },
+  { minZoom: 13, res: 10 },
+  { minZoom: 12, res: 9 },
+  { minZoom: 10, res: 8 },
+  { minZoom: 8, res: 7 },
+  { minZoom: 7, res: 6 },
+  { minZoom: 6, res: 5 },
+  { minZoom: -Infinity, res: 4 },
 ]
 
 /**
  * The bucket resolution for a map zoom. **Never finer than `RES`** — which is the one property of
  * this function that is a correctness constraint rather than a tuning choice.
  *
- * MapLibre's zoom is continuous, so `z <= maxZoom` is evaluated against fractional values and a
- * pinch crosses a boundary exactly once. `NaN` — which a map mid-teardown can produce — falls
- * through to the finest bucket rather than throwing inside a move handler.
+ * MapLibre's zoom is continuous, so `z >= minZoom` is evaluated against fractional values and a
+ * pinch crosses a boundary exactly once. **`NaN` falls through to the COARSEST bucket**, which a map
+ * mid-teardown can produce: every comparison against `NaN` is false, including `NaN >= -Infinity`, so
+ * the loop finds no band and the fallthrough returns res 4. That is the safe direction — a coarse
+ * bucket is cheap and still draws something — and it is the opposite of what the old
+ * `zoom <= maxZoom` form did, where `NaN` also matched nothing but the fallthrough returned `RES`,
+ * the most expensive bucket, at the moment the map was least able to afford it.
  */
 export function resForZoom(zoom: number): number {
-  for (const band of ZOOM_TO_RES) if (zoom <= band.maxZoom) return band.res
-  return RES
+  for (const band of ZOOM_TO_RES) if (zoom >= band.minZoom) return band.res
+  return 4
 }
 
 /**

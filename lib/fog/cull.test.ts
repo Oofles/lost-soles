@@ -7,6 +7,7 @@ import { RES } from "@/src/domain/fog"
 import {
   boxContains,
   boxFromLngLat,
+  boxTooLarge,
   cullBucket,
   padBox,
   VIEWPORT_PAD,
@@ -362,5 +363,52 @@ describe("visibleInstanceCount — criterion 5, the canary", () => {
       expect(x + r).toBeGreaterThanOrEqual(box.minX - r * 2)
       expect(y + r).toBeGreaterThanOrEqual(box.minY - r * 2)
     }
+  })
+})
+
+/**
+ * `0207`. §6.2 says rebuild *"when the camera leaves the padded region"*, and containment implements
+ * exactly that — but a viewport can stop being served by its buffer without ever leaving it. Zooming
+ * in shrinks the viewport, so it is always still inside.
+ */
+describe("a buffer that is too large for the viewport — 0207", () => {
+  const box = (minX: number, maxX: number): MercatorBox => ({ minX, maxX, minY: 0, maxY: 1 })
+
+  it("is content with a freshly padded region, which is 1.4x by construction", () => {
+    const viewport = box(0.4, 0.6)
+    expect(boxTooLarge(padBox(viewport), viewport)).toBe(false)
+  })
+
+  it("tolerates about 1.5 zoom levels of zooming in before it complains", () => {
+    const built = padBox(box(0.4, 0.6)) // 0.28 wide
+    // One zoom level in halves the viewport: 0.1 wide, ratio 2.8. Still fine.
+    expect(boxTooLarge(built, box(0.45, 0.55))).toBe(false)
+    // Two levels: 0.05 wide, ratio 5.6. Now the buffer covers four times the ground on screen.
+    expect(boxTooLarge(built, box(0.475, 0.525))).toBe(true)
+  })
+
+  /**
+   * THE CASE FROM THE REAL RUN. `zoom-in` rebuilds at z13 and every level inwards is contained, so
+   * z17 drew the z13 buffer — 30,031 instances where ~120 were needed. A z17 viewport is 1/16 the
+   * linear size of a z13 one.
+   */
+  it("catches the z13-buffer-at-z17 case that the histogram exposed", () => {
+    const atZ13 = padBox(box(0.4, 0.6))
+    const atZ17 = box(0.49375, 0.50625) // 1/16 the width
+    expect(boxContains(atZ13, atZ17)).toBe(true)
+    expect(boxTooLarge(atZ13, atZ17)).toBe(true)
+  })
+
+  it("never reports a degenerate viewport as too large, which would cull every frame", () => {
+    const built = padBox(box(0.4, 0.6))
+    expect(boxTooLarge(built, box(0.5, 0.5))).toBe(false)
+    expect(boxTooLarge(built, box(Number.NaN, Number.NaN))).toBe(false)
+  })
+
+  it("takes the threshold as an argument so the trade can be tuned without editing the caller", () => {
+    const built = padBox(box(0.4, 0.6))
+    const viewport = box(0.45, 0.55)
+    expect(boxTooLarge(built, viewport, 2)).toBe(true)
+    expect(boxTooLarge(built, viewport, 8)).toBe(false)
   })
 })

@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,264 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,291 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -310,7 +310,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 1,764 lines
+**05 — Fog of War** — 1,791 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -343,35 +343,35 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1049-1071` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
 | &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1072-1084` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
 | &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1085-1093` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `1094-1304` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1106-1166` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1167-1225` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `1226-1237` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1238-1304` | None of the above is true until measured. |
-| 7. Data delivery | `1305-1496` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1321-1353` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1354-1375` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1376-1431` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1432-1496` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1497-1639` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1502-1526` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1527-1547` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1548-1560` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1561-1626` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1627-1639` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1640-1746` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1645-1652` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1653-1657` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1658-1667` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1668-1690` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1691-1698` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1699-1705` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1706-1712` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1713-1718` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1719-1724` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1725-1735` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1736-1746` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `1747-1764` | radius never feeds back into scoring. |
+| 6. Performance | `1094-1331` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1106-1193` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1194-1252` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1253-1264` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1265-1331` | None of the above is true until measured. |
+| 7. Data delivery | `1332-1523` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1348-1380` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1381-1402` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1403-1458` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1459-1523` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1524-1666` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1529-1553` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1554-1574` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1575-1587` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1588-1653` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1654-1666` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1667-1773` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1672-1679` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1680-1684` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1685-1694` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1695-1717` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1718-1725` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1726-1732` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1733-1739` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1740-1745` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1746-1751` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1752-1762` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1763-1773` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `1774-1791` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 

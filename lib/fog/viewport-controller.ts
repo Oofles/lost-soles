@@ -3,12 +3,15 @@ import { log } from "@/lib/log"
 import {
   boxContains,
   boxFromLngLat,
+  boxTooLarge,
   cullBucket,
   padBox,
+  VIEWPORT_PAD,
   type CullResult,
   type MercatorBox,
 } from "./cull"
 import { mercatorX, mercatorY } from "./instances"
+import { prefetchSlice, PREFETCH_PAD } from "./prefetch"
 import { resForZoom, type ZoomBucket, type ZoomBucketStore } from "./zoom-buckets"
 
 /**
@@ -71,12 +74,37 @@ export interface ControllerHost {
   setTimeout(handler: () => void, ms: number): number
   clearTimeout(handle: number): void
   now(): number
+  /**
+   * `0202`. Schedules one prefetch slice for whenever the main thread is free, and returns its own
+   * canceller. **Idle, not a timer**: the whole point is that this work happens where it cannot delay
+   * a frame, and a `setTimeout(0)` runs on the very next task — which during a pan is between two
+   * frames of a gesture, exactly where the derivation was already hurting.
+   */
+  requestIdle(task: () => void): () => void
 }
 
 export const browserControllerHost: ControllerHost = {
   setTimeout: (handler, ms) => window.setTimeout(handler, ms),
   clearTimeout: (handle) => window.clearTimeout(handle),
   now: () => performance.now(),
+  requestIdle: (task) => {
+    /**
+     * `requestIdleCallback` is absent in Safari before 17 and the fallback matters: without one the
+     * prefetch silently never runs and the cull quietly goes back to deriving on the frame path,
+     * which is a performance regression with no symptom anyone would attribute to this file. A
+     * `setTimeout` at least gets the work off the current task.
+     */
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => number })
+      .requestIdleCallback
+    if (typeof ric === "function") {
+      const handle = ric(task)
+      return () => {
+        ;(globalThis as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback?.(handle)
+      }
+    }
+    const handle = window.setTimeout(task, 1)
+    return () => window.clearTimeout(handle)
+  },
 }
 
 /** §6.1's *"debounced ~250 ms"*. */
@@ -113,6 +141,8 @@ export interface ControllerStats {
   cameraEvents: number
   /** Camera events that arrived while hidden. Must stay 0 — the handlers are detached. */
   eventsWhileHidden: number
+  /** `0202`. Groups materialised off the frame path. The cull's `derive inside` is what this saves. */
+  prefetched: number
   /** The last cull's numbers, for the HUD and for `0059`. */
   lastCull: CullResult | null
   hidden: boolean
@@ -142,6 +172,13 @@ export class FogViewportController {
   #buffer: Float32Array | null = null
   #pending: number | null = null
   #lastSwitchAt = -Infinity
+
+  /** `0202`. The slice in flight, and where the walk over the prefetch region got to. */
+  #cancelPrefetch: (() => void) | null = null
+  #prefetchAt = 0
+  #prefetchBox: MercatorBox | null = null
+  #prefetchRes: number | null = null
+  #prefetched = 0
 
   #culls = 0
   #switches = 0
@@ -192,6 +229,7 @@ export class FogViewportController {
       cameraEvents: this.#cameraEvents,
       eventsWhileHidden: this.#eventsWhileHidden,
       lastCull: this.#lastCull,
+      prefetched: this.#prefetched,
       hidden: this.#hidden,
     }
   }
@@ -208,6 +246,7 @@ export class FogViewportController {
     this.#running = false
     this.#detach()
     this.#cancelPending()
+    this.#stopPrefetch()
   }
 
   /**
@@ -226,6 +265,9 @@ export class FogViewportController {
     if (hidden) {
       this.#detach()
       this.#cancelPending()
+      // §6.2's *"skip everything when the layer is hidden"* includes this: a background tab
+      // materialising geometry for a map nobody is looking at is the opposite of the point.
+      this.#stopPrefetch()
       return
     }
     if (!this.#running) return
@@ -256,7 +298,7 @@ export class FogViewportController {
 
     const res = resForZoom(this.#map.getZoom())
     if (res !== this.#builtRes) {
-      this.#scheduleSwitch()
+      this.#scheduleSwitch(res)
       return
     }
     // A pending switch owns the next rebuild; re-culling the old bucket for a viewport that is still
@@ -264,16 +306,36 @@ export class FogViewportController {
     if (this.#pending !== null) return
 
     const box = this.#viewport()
-    if (this.#built && boxContains(this.#built, box)) return
-    this.#rebuild("padded-region exit")
+    /**
+     * `0207` — TWO WAYS A BUFFER STOPS SERVING THE VIEWPORT, not one. It can be left behind, which is
+     * what §6.2 describes; or the viewport can shrink so far inside it that it is sized for a
+     * different map, which zooming in does on every level and which containment can never notice.
+     */
+    if (this.#built && boxContains(this.#built, box) && !boxTooLarge(this.#built, box)) return
+    this.#rebuild(this.#built && boxContains(this.#built, box) ? "zoomed in" : "padded-region exit")
   }
 
   /**
    * Leading edge when the last switch is old enough, trailing edge otherwise. A gesture that crosses
    * several bands inside one window collapses to a single switch, at the band it ends on.
    */
-  #scheduleSwitch(): void {
-    if (this.#pending !== null) return
+  #scheduleSwitch(res: number): void {
+    if (this.#pending !== null) {
+      /**
+       * `0202`. THE PENDING SWITCH OWNS THE REBUILD, BUT NOT THE PREFETCH TARGET.
+       *
+       * A pinch that crosses several bands inside one debounce window schedules exactly one rebuild —
+       * that is §6.1's whole point — and `#rebuild` resolves the resolution at FIRE time, from
+       * wherever the camera ended up. So a prefetch aimed at the first band crossed warms a bucket
+       * the rebuild will not use, which is worse than not prefetching: the work is spent and the
+       * derivation still lands on the frame path.
+       *
+       * Re-aiming costs one index derivation per band actually crossed, in idle time, and only when
+       * the band changes — not per zoom event. That is the same bound the debounce already accepts.
+       */
+      if (res !== this.#prefetchRes) this.#prefetchTarget(res)
+      return
+    }
     const since = this.#host.now() - this.#lastSwitchAt
     if (since >= this.#debounceMs) {
       this.#rebuild("bucket change")
@@ -284,6 +346,99 @@ export class FogViewportController {
       if (!this.#running || this.#hidden) return
       this.#rebuild("bucket change (debounced)")
     }, this.#debounceMs - since)
+
+    /**
+     * `0202`. THE DEBOUNCE WINDOW IS FREE TIME, AND IT IS EXACTLY THE TIME THE NEW BUCKET NEEDS.
+     *
+     * A band crossing is the expensive case — a bucket with no index and no group geometry, priced at
+     * 30-80 ms cold in §6.3 and measured at up to 246 ms inside a single cull. The prefetch that runs
+     * after a rebuild cannot help here: the incoming bucket did not exist when the last rebuild ran.
+     *
+     * But §6.1 already makes the camera wait ~250 ms before switching, and that window is otherwise
+     * spent doing nothing at all. Warming the target inside it means the rebuild that ends the
+     * debounce finds its groups cached. If the gesture keeps going the work is discarded — bounded at
+     * one wasted bucket per debounce window, which is a bound the debounce already accepts.
+     */
+    this.#prefetchTarget(res)
+  }
+
+  /**
+   * Derive the incoming bucket's index and the groups under the current viewport, in idle time.
+   *
+   * `bucketFor` is itself ~5 ms at 150k cells and sits INSIDE the idle task rather than outside it:
+   * this is reached from a `zoom` handler, and the point of the whole mechanism is that nothing here
+   * runs on the frame path.
+   */
+  #prefetchTarget(res: number): void {
+    const box = padBox(this.#viewport(), PREFETCH_PAD)
+    this.#stopPrefetch()
+    this.#prefetchAt = 0
+    this.#prefetchBox = box
+    this.#prefetchRes = res
+    this.#cancelPrefetch = this.#host.requestIdle(() => {
+      this.#cancelPrefetch = null
+      if (!this.#running || this.#hidden) return
+      try {
+        this.#scheduleSlice(this.#store.bucketFor(res), box)
+      } catch (error) {
+        // A derivation that throws must not take the idle callback with it. The rebuild will do the
+        // work on the frame path instead — slow, and still correct.
+        log.error("fog prefetch: bucket derivation failed", error)
+      }
+    })
+  }
+
+  /* ─── 0202 — prefetch ────────────────────────────────────────────────────── */
+
+  /**
+   * THE WALK RESTARTS FROM 0 whenever the region or the resolution changes, and CONTINUES otherwise.
+   *
+   * A rebuild that only shifted the padded box a little should not re-walk the groups it already
+   * materialised — `discsFor` is idempotent so it would be correct, but at 150k cells the compare
+   * loop over every group is real work to repeat on every padded-region exit. The box identity is the
+   * cheapest honest key: a new box means new ground, and new ground means start again.
+   */
+  #startPrefetch(bucket: ZoomBucket, padded: MercatorBox, res: number): void {
+    const box = padBox(padded, PREFETCH_PAD - VIEWPORT_PAD)
+    const sameRegion =
+      this.#prefetchRes === res &&
+      this.#prefetchBox !== null &&
+      this.#prefetchBox.minX === box.minX &&
+      this.#prefetchBox.maxX === box.maxX &&
+      this.#prefetchBox.minY === box.minY &&
+      this.#prefetchBox.maxY === box.maxY
+
+    this.#stopPrefetch()
+    if (!sameRegion) this.#prefetchAt = 0
+    this.#prefetchBox = box
+    this.#prefetchRes = res
+    this.#scheduleSlice(bucket, box)
+  }
+
+  #scheduleSlice(bucket: ZoomBucket, box: MercatorBox): void {
+    this.#cancelPrefetch = this.#host.requestIdle(() => {
+      this.#cancelPrefetch = null
+      if (!this.#running || this.#hidden) return
+      let progress
+      try {
+        progress = prefetchSlice(bucket, box, this.#prefetchAt)
+      } catch (error) {
+        // A derivation that throws must not take the idle callback — and therefore the page — with
+        // it. The cull will derive it on the frame path instead, which is slow and still correct.
+        log.error("fog prefetch: group derivation failed", error)
+        return
+      }
+      this.#prefetchAt = progress.next
+      this.#prefetched += progress.derived
+      // One slice per callback, re-scheduled until the region is warm. Chaining rather than looping
+      // is what keeps each visit to the main thread short.
+      if (!progress.done) this.#scheduleSlice(bucket, box)
+    })
+  }
+
+  #stopPrefetch(): void {
+    this.#cancelPrefetch?.()
+    this.#cancelPrefetch = null
   }
 
   #cancelPending(): void {
@@ -346,6 +501,12 @@ export class FogViewportController {
 
     this.#onInstances(result.instances, result, res, fromData)
     this.#map.triggerRepaint()
+
+    /**
+     * `0202`. Warm the ground AROUND what was just drawn, in idle time, so the next pan into it is a
+     * cache read rather than a 20 ms derivation inside a `move` handler.
+     */
+    this.#startPrefetch(bucket, padded, res)
 
     if (reason !== "padded-region exit") {
       log.info(

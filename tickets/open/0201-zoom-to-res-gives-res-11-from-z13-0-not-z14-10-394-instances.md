@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-11T14:02:46Z
+started: 2026-09-11T17:15:35Z
 ---
 
 ## Description
@@ -52,13 +53,14 @@ should be checked against every band rather than only this one.
 
 ## Acceptance criteria
 
-- [ ] `visibleInstanceCount` is at or under §6.4's 6,000 at **every** zoom including fractional ones,
+- [x] `visibleInstanceCount` is at or under §6.4's 6,000 at **every** zoom including fractional ones,
       on a 400x800 CSS px viewport over solid ground, at 50k / 150k / 500k cells.
-- [ ] The zoom table expresses the intent `zoom-buckets.ts`'s header already states, and the header
+- [x] The zoom table expresses the intent `zoom-buckets.ts`'s header already states, and the header
       and the table say the same thing.
-- [ ] `node tools/fog-harness/run-perf.mjs` exits 0 on item 1 at all three dataset sizes.
-- [ ] A `D-xxx` records the resolution/ceiling trade if the answer is anything other than "the table
-      was simply wrong".
+- [x] `node tools/fog-harness/run-perf.mjs` exits 0 on item 1 at all three dataset sizes.
+- [x] A `D-xxx` records the resolution/ceiling trade if the answer is anything other than "the table
+      was simply wrong". *No new `D-xxx`: the table WAS simply wrong — it contradicted its own
+      header — so `05` §6.1 is amended in place with the reasoning and the measured band bottoms.*
 - [ ] (operator) At z13.5 on the desktop browser the fog is still legible territory rather than a
       visibly coarser blob appearing mid-pinch. D-051.
 
@@ -84,3 +86,58 @@ when this is resolved.
 ## Operator validation
 
 TODO — written when the ticket is worked.
+
+## Resolution
+
+**The bounds are now inclusive LOWER bounds.** `ZoomBand.maxZoom` became `ZoomBand.minZoom`, the table
+is ordered finest-first, and `resForZoom` returns the first band with `zoom >= minZoom`.
+
+The old form made every band lower-exclusive, so res 11 owned `(13, ∞)` while this file's own header
+said twice that it owns *"z14 and up"*. **A band's worst case is its bottom** — the finest resolution
+over the largest viewport it allows — and lower-exclusive bands put that bottom just above an integer,
+where nothing had ever been measured: every figure in §6 was taken AT an integer zoom, which under the
+old form was each band's *best* case. Lower-inclusive bounds move the bottom onto the integer, so the
+recorded numbers become the ones that have to hold.
+
+Measured band bottoms, solid ground at 30°N, 400x800 padded, worst of 50k / 150k / 500k:
+
+```
+  z6 → 28   z7 → 101   z8 → 390   z10 → 1,935   z12 → 1,861   z13 → 3,062   z14 → 5,271
+```
+
+The worst case in the whole table is now **5,271 at z14** — which is exactly the figure §6.4 already
+recorded, no longer a best case. `run-perf.mjs` reports `5,273 peak, at z14.0  PASS`.
+
+**Res 9 starts at z12 rather than the derived 11.30, and finding that out is the part worth keeping.**
+The first attempt rounded every solved figure and landed res 9's bottom on z11 — which passed the
+design's own "8-30 CSS px per cell" rule at 12.2 px and **failed the ceiling at 6,650 instances on
+500k cells**. The two disagree because at z11 a 500k disc does not fill the viewport: the count there
+is bounded by how many res-9 cells exist rather than by the screen, and a px-per-cell proxy cannot see
+that. The px rule is a good derivation and a bad assertion. z12 is also where the old table effectively
+put z11 anyway, so nothing regressed visually.
+
+What changed at integer zooms is only **z8, res 6 → res 7** (finer, 390 instances, 10.6 px). Every
+other integer zoom resolves exactly as before. All the fractional zooms shift one band coarser, which
+is the fix.
+
+**Files:** `lib/fog/zoom-buckets.ts` (the table, `ZoomBand`, `resForZoom`), `docs/05-fog-of-war.md`
+§6.1 (the table, the reasoning, the measured bottoms), `lib/fog/zoom-buckets.test.ts`.
+
+**Tests.** The table test now asserts the fractional zooms — `[13.5, 10]` is the bug itself — and a
+new test walks **every band bottom** and checks the 8 px floor there. Its absence is why this shipped:
+the existing sweep checked integer zooms, which the old table made each band's best case, so the rule
+could hold at every one of them while being broken a hair above. A second new test pins `NaN` falling
+through to the **coarsest** bucket rather than the finest, which the old fallthrough got backwards —
+a map mid-teardown returned `RES`, the most expensive bucket, at the moment it could least afford it.
+
+## Operator validation
+
+The mechanical half is `node tools/fog-harness/run-perf.mjs`, which now passes item 1 at all three
+dataset sizes, plus the `cull.test.ts` canary which sweeps every zoom at every dataset size.
+
+**One perceptual check is left and it is genuinely a judgement call** (D-181, D-227): fog between z13
+and z14 is now res 10 rather than res 11 — one step blobbier through that band. The arithmetic says it
+must be (a res-11 bucket there is 10,394 discs against a 6,000 ceiling) and §6.1 already argues z13
+should be blobbier on purpose. Whether it *reads* as territory rather than as a smear is the question
+no number answers. On the desktop browser: pinch slowly through z13→z14 over revealed ground and watch
+the moment it changes.

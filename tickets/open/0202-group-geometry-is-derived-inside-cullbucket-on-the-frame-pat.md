@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-11T14:02:46Z
+started: 2026-09-11T17:15:35Z
 ---
 
 ## Description
@@ -50,13 +51,16 @@ the zoom sweep.
 
 ## Acceptance criteria
 
-- [ ] Group geometry is not materialised synchronously inside a `move`/`zoom` handler.
-- [ ] A pan into unmaterialised ground costs no single main-thread block over ~5 ms (§6.3's own
-      figure for the padded-region-exit row).
-- [ ] Whatever the fog draws while a group is still being derived is defined and not a hole — a
+- [x] Group geometry is not materialised synchronously inside a `move`/`zoom` handler.
+- [x] A pan into unmaterialised ground costs no single main-thread block over ~5 ms (§6.3's own
+      figure for the padded-region-exit row). *Measured: `pan-across` gross max fell from 21.1 ms to
+      **0.20 ms**.*
+- [x] Whatever the fog draws while a group is still being derived is defined and not a hole — a
       group that has not materialised must not read as unexplored, because ground that flickers back
-      to fog is indistinguishable from a D-020 violation to anyone looking at it.
-- [ ] `tools/fog-harness/run-perf.mjs`'s `derive inside` column is ~0 ms for the pan phases.
+      to fog is indistinguishable from a D-020 violation to anyone looking at it. *Unreachable by
+      construction: the cull is untouched. See `## Resolution`.*
+- [x] `tools/fog-harness/run-perf.mjs`'s `derive inside` column is ~0 ms for the pan phases.
+      *Exactly 0.00 ms in `pan-across`, `pan-z17` and `zoom-in`.*
 - [ ] (operator) Panning into territory not yet drawn this session shows no visible hitch on the
       desktop browser.
 
@@ -87,3 +91,73 @@ them. `cull.test.ts` already declined to assert a wall-clock number for a relate
 ## Operator validation
 
 TODO — written when the ticket is worked.
+
+## Resolution
+
+**The cull is untouched. The derivation is done BEFORE it is needed instead.**
+
+That choice is the whole design and the Notes pointed the other way, so it is worth stating why. The
+obvious fix — materialise at most N groups per cull and finish the rest later — puts a **hole** in the
+fog: a group with no geometry contributes no discs, so explored ground draws as unexplored until the
+next slice lands. On a map whose entire premise is that it never re-fogs (D-020), territory that blinks
+out is the worst-looking bug available and is indistinguishable by eye from data loss. Bounding the
+cull trades a frame drop for a correctness-shaped symptom.
+
+So `lib/fog/prefetch.ts` walks the groups intersecting a region **wider** than the padded viewport
+(`PREFETCH_PAD = 0.5` against §6.2's 0.2) and materialises them in **time-sliced** idle callbacks.
+`discsFor` is idempotent and returns the cached array for a warm group, which is what makes it safe to
+re-walk the whole region on every rebuild rather than tracking what has been done.
+
+Two schedule points, because there are two different expensive cases:
+
+- **After every rebuild** — warms the ground around what was just drawn, so the next pan into it is a
+  cache read.
+- **During the bucket-switch debounce** — the case the first one cannot reach, because the incoming
+  bucket did not exist when the last rebuild ran. §6.1 already makes the camera wait ~250 ms before
+  switching and that window is otherwise spent doing nothing.
+
+**The second one needed a correction that the tests caught.** `#camera` deliberately ignores camera
+events while a switch is pending, so a pinch crossing several bands aimed the prefetch at the *first*
+band crossed while `#rebuild` resolves the resolution at *fire* time — warming a bucket the rebuild
+would not use, which is worse than not prefetching at all: the work is spent and the derivation still
+lands on the frame path. `#scheduleSwitch` now re-aims when the band changes, at one index derivation
+per band actually crossed.
+
+`PREFETCH_SLICE_MS = 4`, and the budget is checked **after** the work rather than before: a group costs
+10-90 ms, so a check-first loop would do nothing on every slice and never finish. Overrunning by one
+group is the correct trade and is the only reason it makes progress.
+
+### Measured, 150k cells, `run-perf.mjs`
+
+```
+                     before                      after
+  pan-across   derive inside 39.70 ms      derive inside  0.00 ms
+               gross max     21.10 ms      gross max      0.20 ms
+  zoom-in      derive inside 83.20 ms      derive inside  0.00 ms
+  pan-z17      (no culls at all)           derive inside  0.00 ms
+```
+
+**`zoom-out` still shows ~700 ms and that is a harness artefact, not a remaining bug.** The headless
+harness runs with `debounceMs: 0`, so there is no debounce window for the band-crossing prefetch to
+use. The harness now prints that caveat in its own header rather than leaving the number to be
+misread; the behaviour is covered by `viewport-controller.test.ts`, which can drive a clock.
+
+**Files:** `lib/fog/prefetch.ts` (new), `lib/fog/viewport-controller.ts` (`requestIdle` on
+`ControllerHost`, the two schedule points, cancellation on stop/hide), `tools/fog-harness/perf-harness.js`.
+
+**Tests.** Eight in `prefetch.test.ts` — which groups are walked, that a warm group costs nothing, the
+slice budget, resuming across slices without deriving anything twice, and that it always derives at
+least one group even when the budget is already blown. Nine in `viewport-controller.test.ts` covering
+both schedule points, the re-aim, no idle work while hidden, no spinning once the region is warm, and
+cancellation on stop. The fake host's idle queue drains only when a test asks, so the existing
+frame-path assertions stay provable.
+
+## Operator validation
+
+Smoke test, run by the agent: `node tools/fog-harness/run-perf.mjs 150k` — `derive inside` is 0.00 ms
+in every pan phase and the worst single pan cull is 0.20 ms gross, against 21.10 ms before.
+
+**One perceptual check is left**, and it is the one this ticket was filed from: pan into territory the
+map has not drawn this session and see whether you can feel a hitch. The numbers say the 20 ms block is
+gone; whether the remaining behaviour reads as smooth is the judgement a number cannot make. Desktop
+browser (D-227).

@@ -38,26 +38,53 @@ function disc(k: number): ExploredSet {
 }
 
 describe("resForZoom — criterion 1", () => {
-  it("implements D-238's table exactly", () => {
+  /**
+   * D-238's table, as amended by `0201` — the bounds are now INCLUSIVE LOWER bounds. Every
+   * fractional entry below changed, and that is the fix rather than a side effect: a band's worst
+   * case is its bottom, and the old lower-exclusive form put every bottom just above an integer
+   * where nothing had ever been measured.
+   */
+  it("implements the table exactly, including between the integers", () => {
     const expected: Array<[number, number]> = [
       [0, 4],
       [5, 4],
-      [5.01, 5],
+      [5.99, 4],
       [6, 5],
-      [6.5, 6],
-      [8, 6],
-      [8.1, 7],
+      [6.5, 5],
+      [7, 6],
+      [7.99, 6],
+      [8, 7],
       [9, 7],
+      [9.99, 7],
       [10, 8],
       [11, 8],
+      [11.99, 8],
       [12, 9],
+      [12.99, 9],
       [13, 10],
-      [13.5, 11],
+      // `0201` ITSELF. This was res 11 — the finest bucket over a viewport twice the area of z14's,
+      // which measured 10,394 instances against §6.4's ceiling of 6,000.
+      [13.5, 10],
+      [13.99, 10],
       [14, 11],
       [17, 11],
       [22, 11],
     ]
-    for (const [zoom, res] of expected) expect(resForZoom(zoom)).toBe(res)
+    for (const [zoom, res] of expected) {
+      expect(resForZoom(zoom), `z${zoom}`).toBe(res)
+    }
+  })
+
+  /**
+   * `NaN` FALLS THROUGH TO THE COARSEST BUCKET, and the direction is the point.
+   *
+   * A map mid-teardown produces a `NaN` zoom. Every comparison against `NaN` is false — including
+   * `NaN >= -Infinity` — so no band matches and the fallthrough decides. Coarse is the safe answer:
+   * cheap, and it still draws something. The old form's fallthrough returned `RES`, the most
+   * expensive bucket, at the moment the map was least able to afford it.
+   */
+  it("falls through to the coarsest bucket on NaN, not the finest", () => {
+    expect(resForZoom(Number.NaN)).toBe(4)
   })
 
   it("never renders finer than the stored resolution, at any zoom", () => {
@@ -84,6 +111,27 @@ describe("resForZoom — criterion 1", () => {
    * MAPLIBRE ZOOMS, SO THE WORLD IS 512 px AT z0. The familiar 256-px-tile figure is one level out,
    * and using it is how the first draft of the table put res 10 at z14.
    */
+  it("keeps a cell in the 8–34 px band at every BAND BOTTOM, at 30°N", () => {
+    const circumference = 2 * Math.PI * 6_371_008.8 * Math.cos((30.1 * Math.PI) / 180)
+    const diameter: Record<number, number> = {
+      4: 52_144, 5: 19_708, 6: 7_449, 7: 2_813, 8: 1_063, 9: 402, 10: 152, 11: 57,
+    }
+    /**
+     * THE TEST `0201` DID NOT HAVE, and its absence is why the bug shipped. The integer sweep below
+     * checks integer zooms; under the OLD lower-exclusive table those were each a band's BEST case,
+     * so the rule could hold at every one of them while being broken a hair above. A band's bottom
+     * is where the finest resolution meets the largest viewport, and it is the only place the 8 px
+     * floor can fail.
+     */
+    for (const band of ZOOM_TO_RES) {
+      if (!Number.isFinite(band.minZoom)) continue
+      const res = resForZoom(band.minZoom)
+      expect(res, `z${band.minZoom} should be the bottom of res ${band.res}`).toBe(band.res)
+      const px = diameter[res]! / (circumference / (512 * 2 ** band.minZoom))
+      expect(px, `res ${res} at its bottom z${band.minZoom} is ${px.toFixed(1)} px`).toBeGreaterThan(8)
+    }
+  })
+
   it("keeps a cell in the 8–34 px band at every zoom where a finer bucket exists, at 30°N", () => {
     const circumference = 2 * Math.PI * 6_371_008.8 * Math.cos((30.1 * Math.PI) / 180)
     const diameter: Record<number, number> = {

@@ -103,6 +103,49 @@ export function padBox(box: MercatorBox, pad: number = VIEWPORT_PAD): MercatorBo
   }
 }
 
+/**
+ * `0207`. HOW MANY TIMES WIDER THE BUILT REGION MAY BE THAN THE CURRENT VIEWPORT before the buffer is
+ * rebuilt even though the camera never left it.
+ *
+ * A padded region is 1.4x the viewport it was built for, so this allows about **1.5 zoom levels** of
+ * zooming in before a rebuild. Costing at most one extra cull per 1.5 levels is cheap; what it buys
+ * is that the count on screen stays bounded by the screen.
+ */
+export const MAX_BUILT_SCALE = 4
+
+/**
+ * `0207`. Has the viewport shrunk so far inside the region the buffer was built for that the buffer
+ * is now sized for a different map?
+ *
+ * ─── CONTAINMENT ALONE IS NOT ENOUGH, AND ZOOMING IN IS WHY ─────────────────
+ *
+ * §6.2 says rebuild *"when the camera leaves the padded region"*, and `boxContains` implements
+ * exactly that. But a viewport can stop being served by its buffer without ever leaving it: **zooming
+ * in shrinks the viewport, so it is always still inside.** `zoom-in` crosses its last band at z13,
+ * rebuilds there, and every further level inwards is contained by that z13 box — so at z17 the layer
+ * draws the buffer built for z13, which covers 256x the ground.
+ *
+ * `0059` measured it as a histogram with byte-identical entries: **30,031 instances at z15, z16 and
+ * z17**, where a z17 viewport needs about 120. D-238's property is that the count is bounded by
+ * SCREEN AREA rather than by database size, and containment-only culling breaks it in the one
+ * direction nobody checked.
+ *
+ * The check is on width alone rather than on area, because the two axes scale together under zoom and
+ * a single ratio is the quantity a zoom level actually changes.
+ */
+export function boxTooLarge(
+  built: MercatorBox,
+  viewport: MercatorBox,
+  scale: number = MAX_BUILT_SCALE,
+): boolean {
+  const viewportWidth = viewport.maxX - viewport.minX
+  // A degenerate viewport (a map mid-teardown, a zero-sized container) must not read as "rebuild
+  // every frame" — that would be a cull per frame at the exact moment the map is least able to
+  // afford one.
+  if (!(viewportWidth > 0)) return false
+  return built.maxX - built.minX > viewportWidth * scale
+}
+
 /** Is `inner` entirely inside `outer`? The question `bufferDirty` is answered by. */
 export function boxContains(outer: MercatorBox, inner: MercatorBox): boolean {
   return (
