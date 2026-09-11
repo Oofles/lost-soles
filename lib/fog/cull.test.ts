@@ -210,20 +210,55 @@ describe("the two levels — criterion 4", () => {
   })
 
   /**
-   * §6.4 item 4 budgets main-thread cull time at **< 2 ms**. A laptop is not D-124's phone and this
-   * ceiling is loose on purpose — it is a regression guard against an accidental O(n), which is what
-   * this file exists to avoid, rather than a claim about the target device. `0059` measures the phone.
+   * §6.4 item 4 budgets main-thread cull time at **< 2 ms**, and this test does NOT assert that number.
+   *
+   * IT DID, AND IT FAILED THE BUILD. 0.18 ms on the development machine, **2.53 ms** in the Amplify
+   * container — so a wall-clock ceiling here gates the deploy on how busy someone else's CI box is,
+   * while saying nothing about D-124's phone, which is `0059`'s measurement to make and the only device
+   * §6.4's budget is about.
+   *
+   * What CAN be defended on any machine is the property the budget rests on: **the cull's work does not
+   * grow with the dataset.** An accidental O(n) — a forgotten loop over every cell, a `Set` rebuilt per
+   * rebuild — shows up as step 2 doing ten times the compares for ten times the stored cells, at the
+   * same viewport, and that is measured in counts rather than in milliseconds. The time is printed
+   * beside it because the number is worth having in the log; it is not an assertion.
    */
-  it("culls a 150k fixture inside the 2 ms budget, with the group geometry already built", () => {
-    const set = solidDisc(NEMO, 224)
-    const bucket = new ZoomBucketStore(set).bucketFor(RES)
+  it("does the same amount of work at 500k cells as at 50k, for the same viewport", () => {
     const box = padBox(viewport(NEMO, 15))
-    const warm = cullBucket(bucket, box)
+    const measure = (k: number) => {
+      const set = solidDisc(NEMO, k)
+      const bucket = new ZoomBucketStore(set).bucketFor(RES)
+      const warm = cullBucket(bucket, box)
+      const timed = cullBucket(bucket, box, warm.buffer)
+      return { size: set.size, groups: bucket.groupCount, result: timed }
+    }
 
-    const timed = cullBucket(bucket, box, warm.buffer)
-    console.log(`0058 criterion 11 — warm cull of 150k cells: ${timed.ms.toFixed(3)} ms`)
-    expect(timed.ms).toBeLessThan(2)
+    const small = measure(128)
+    const large = measure(408)
+    console.log(
+      `0058 criterion 11 — warm cull, same viewport:\n` +
+        `  ${small.size.toLocaleString()} cells: ${small.result.groupsTested} groups tested, ` +
+        `${small.result.discsTested} discs, ${small.result.count} instances, ` +
+        `${small.result.ms.toFixed(3)} ms\n` +
+        `  ${large.size.toLocaleString()} cells: ${large.result.groupsTested} groups tested, ` +
+        `${large.result.discsTested} discs, ${large.result.count} instances, ` +
+        `${large.result.ms.toFixed(3)} ms   (this machine — NOT the target phone)`,
+    )
+
+    // Ten times the stored cells.
+    expect(large.size / small.size).toBeGreaterThan(9)
+    // Step 2 does the same work: the discs it tests are the ones the viewport could hold.
+    expect(large.result.discsTested).toBe(small.result.discsTested)
+    expect(large.result.count).toBe(small.result.count)
+    /**
+     * Step 1 is the only part that grows at all, because there are more groups to reject — and it
+     * grows with the number of GROUPS, which is the dataset over 2,401. Bounded here rather than
+     * asserted equal, because a few hundred compares is the budget §6.2 set for it.
+     */
+    expect(large.result.groupsTested).toBe(large.groups)
+    expect(large.result.groupsTested).toBeLessThan(400)
   })
+
 })
 
 /**
