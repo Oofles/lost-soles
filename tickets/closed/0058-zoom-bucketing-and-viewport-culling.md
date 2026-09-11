@@ -4,7 +4,7 @@ slug: zoom-bucketing-and-viewport-culling
 title: Zoom bucketing and two-level viewport culling
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [54, 55]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-11T02:35:41Z
+closed: 2026-09-11T13:14:57Z
 ---
 
 ## Description
