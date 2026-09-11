@@ -280,7 +280,8 @@ competent people could disagree about by looking at it, over ground the operator
 
 ### Verified here, not routed to the operator (D-181/D-229)
 
-- **The full gate set, by exit code** — not by reading a tail. **1,990 tests** across 109 files pass;
+- **The full gate set, by exit code** — not by reading a tail. **1,989 tests** across 109 files pass
+  (1 skipped);
   eleven guard scripts (`check-boundaries`, `check-fog-render-boundary`, `check-fog-hot-path`,
   `check-fixture-geography`, `check-design-tokens`, `check-no-deckgl`, `check-adapter-deletion`,
   `check-bundle-leak`, `check-home-not-in-client`, `check-auth-posture`, `check-skills`) all exit 0;
@@ -319,6 +320,18 @@ competent people could disagree about by looking at it, over ground the operator
   figure is recorded alongside: 12,007 at z13, 20,812 at z14, 5,331 at z15 on 1440×900.
 - **Step 1's compare count and the cull's wall clock**, printed by the same suite: 90 groups tested
   and 6 kept on a 151,201-cell fixture, 14,406 discs tested in step 2, **0.18 ms** for a warm cull.
-- **Nothing is deployed yet.** This is a client-only change with no infrastructure and no API surface,
-  so there is no AWS smoke test to run beyond the build; the deploy goes out with the commit and the
-  four perception checks above are against that deploy.
+- **Deployed, and the bundle was checked rather than the source.** Amplify job **198** on `e272479`:
+  BUILD / DEPLOY / VERIFY all `SUCCEED`. (Jobs 196 and 197 FAILED on the wall-clock assertion described
+  in the Resolution; 198 is the first green one and carries every commit.) Post-deploy smoke test:
+  `/` → 200 · `/?fog=noise` → 200 · `/?fog=mask,debug` → 200.
+  **D-238's table is in the shipped artifact**, read out of `page-06b94e060edf7ecd.js` because the
+  source being right is not evidence that the bundle shipped it:
+
+  ```
+  maxZoom:5,res:4   maxZoom:6,res:5   maxZoom:8,res:6    maxZoom:9,res:7
+  maxZoom:11,res:8  maxZoom:12,res:9  maxZoom:13,res:10  maxZoom:1/0,res:ed.$H
+  ```
+
+  and `$H` resolves to `a`, with `a=11` — so the finest band really is res 11 rather than a literal
+  that drifted. This is a client-only change: no infrastructure, no API surface, nothing in AWS to poke
+  beyond the deploy itself.
