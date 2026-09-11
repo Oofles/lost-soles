@@ -1372,7 +1372,7 @@
     "path": "tickets/open/0057-layer-order-and-run-polyline.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -4479,6 +4479,26 @@
     "acceptance": {
       "checked": 0,
       "total": 5
+    }
+  },
+  {
+    "id": 197,
+    "slug": "re-judge-the-run-polyline-s-legibility-against-the-parchment",
+    "title": "Re-judge the run polyline's legibility against the parchment basemap",
+    "type": "design",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T00:25:31Z",
+    "path": "tickets/open/0197-re-judge-the-run-polyline-s-legibility-against-the-parchment.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

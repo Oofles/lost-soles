@@ -50,8 +50,8 @@ from the cell set.
 
 - [x] The fog custom layer is inserted above every symbol layer in the Protomaps style; a test
       asserts its index is after the last `symbol` layer.
-- [ ] **(operator)** Place names and street labels in unexplored territory are not visible through
-      the fog.
+- [x] **(operator)** Place names and street labels in unexplored territory are not visible through
+      the fog. — verified 2026-09-10: labels stay hidden.
       *Re-classified by `0057`. It was not marked `(operator)` and it had to be: §4.3 sets
       `maxOpacity` to 0.94 deliberately, so 6% of the basemap bleeds through fogged ground by
       design (`fog-uniforms.ts`: "the whole difference between mist over a map and a hole cut in a
@@ -65,7 +65,8 @@ from the cell set.
       and is cleared on the next bucket rebuild.
 - [x] The optimistic path writes to the mask only; a test asserts the explored `Set` and
       `BigUint64Array` are untouched.
-- [ ] **(operator)** Toggling the fog layer off leaves basemap and route rendering correct.
+- [x] **(operator)** Toggling the fog layer off leaves basemap and route rendering correct.
+      — verified 2026-09-10: `?fog=off` works and the route is still drawn.
       *Also re-classified, and for a weaker reason than criterion 2: the mechanical half is tested
       (`?fog=off` adds no custom layer, and every stock style layer plus both route layers is
       still present and in order). What a test cannot say is whether MapLibre actually DRAWS them
@@ -84,9 +85,10 @@ strictly out of the mask (`05-fog-of-war.md` §4.1). Not at this milestone.
 
 ## Resolution
 
-**Not closed today.** Two criteria turned out to be perceptual and were re-classified `(operator)`
-— see the criteria themselves for the reasoning. Everything else is built, tested and pushed; the
-close is one `tickets.mjs close 57` once the operator reports what they saw.
+**Closed across two sessions.** Two criteria turned out to be perceptual and were re-classified
+`(operator)` — see the criteria themselves for the reasoning — so the code was committed and
+deployed (job 190) while the ticket stayed open, and the operator's answers came back the same
+day. Both held. One observation about colour was deferred to `0197` rather than acted on.
 
 ### What was built
 
@@ -265,4 +267,23 @@ Two observations, one page load each. Nothing to set up, nothing to construct.
    basemap should look exactly like the stock map and **the route must still be drawn**. This is
    the check that the route was not accidentally made to depend on the fog layer existing.
 
-Record the answers on criteria 2 and 7 as `— verified YYYY-MM-DD: <result>` and the ticket closes.
+### What the operator reported — 2026-09-10, desktop browser
+
+1. **Labels stay hidden.** Criterion 2 holds: no place or street name is legible through the fog
+   over unexplored ground.
+2. **`?fog=off` works and the route is still drawn.** Criterion 7 holds — the route does not
+   depend on the fog layer existing.
+3. **The route is findable, and the amber reads as subtle against the stock basemap.** Verbatim:
+   *"a little hard to see with the light colored amber on white/gray of the map. However, I kind of
+   like it since it's not too obtrusive."* **Expected, and not a defect to fix here.** §4.4 chose
+   `#ffb347` / `#fff2d0` to survive *parchment* and dark fog — and the parchment fork is
+   **capability 15**, which has not landed. The stock Protomaps `light` flavour is the wrong
+   background for this pairing and `09-roadmap.md` §2.3 calls that ground *"present but ugly"* on
+   purpose. Recorded rather than acted on: the ticket is explicit that the colours are not to be
+   retuned, and retuning them against a background that is being replaced is how a palette drifts.
+   Capability 15 is where this is re-judged, with the right ground under it. Filed as `0197`
+   (`15-two-map-modes-and-cold-territory`) so it is a scheduled look rather than a memory.
+4. **Only the latest run is drawn.** Expected: `/api/runs/latest` serves exactly one feature by
+   design (`0195` argues why a list endpoint built against no caller would be guessed at and
+   rewritten), and **`0085` owns the permanent trace layer** — every route ever run, faint sepia,
+   accumulating into a web of worn paths — in capability 12.
