@@ -61,8 +61,9 @@ the zoom sweep.
       construction: the cull is untouched. See `## Resolution`.*
 - [x] `tools/fog-harness/run-perf.mjs`'s `derive inside` column is ~0 ms for the pan phases.
       *Exactly 0.00 ms in `pan-across`, `pan-z17` and `zoom-in`.*
-- [ ] (operator) Panning into territory not yet drawn this session shows no visible hitch on the
+- [x] (operator) Panning into territory not yet drawn this session shows no visible hitch on the
       desktop browser.
+      — verified 2026-09-11: operator confirmed on the desktop browser.
 
 ## Steps to reproduce
 
@@ -157,7 +158,15 @@ frame-path assertions stay provable.
 Smoke test, run by the agent: `node tools/fog-harness/run-perf.mjs 150k` — `derive inside` is 0.00 ms
 in every pan phase and the worst single pan cull is 0.20 ms gross, against 21.10 ms before.
 
-**One perceptual check is left**, and it is the one this ticket was filed from: pan into territory the
-map has not drawn this session and see whether you can feel a hitch. The numbers say the 20 ms block is
-gone; whether the remaining behaviour reads as smooth is the judgement a number cannot make. Desktop
-browser (D-227).
+**The perceptual check has been done. 2026-09-11, operator, desktop browser: no visible hitch.**
+
+This is the check the ticket was filed from, and it closes the loop the numbers could only half close.
+`0059` measured a 21.1 ms block inside a single pan cull — a dropped frame by arithmetic — but a
+dropped frame is not automatically a *felt* one, and the whole reason D-181 reserves this class of
+question for a human is that nothing in the table can answer it. The block is gone from the
+measurement and gone from the experience.
+
+Worth noting what this does NOT cover: the band-crossing path. The harness runs with `debounceMs: 0`
+and cannot exercise the debounce-window prefetch, so that half rests on
+`viewport-controller.test.ts` rather than on either a harness number or an eye. A pinch that stutters
+in future use is the thing to look at first.

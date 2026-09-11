@@ -61,8 +61,9 @@ should be checked against every band rather than only this one.
 - [x] A `D-xxx` records the resolution/ceiling trade if the answer is anything other than "the table
       was simply wrong". *No new `D-xxx`: the table WAS simply wrong — it contradicted its own
       header — so `05` §6.1 is amended in place with the reasoning and the measured band bottoms.*
-- [ ] (operator) At z13.5 on the desktop browser the fog is still legible territory rather than a
+- [x] (operator) At z13.5 on the desktop browser the fog is still legible territory rather than a
       visibly coarser blob appearing mid-pinch. D-051.
+      — verified 2026-09-11: operator confirmed on the desktop browser.
 
 ## Steps to reproduce
 
@@ -135,9 +136,15 @@ a map mid-teardown returned `RES`, the most expensive bucket, at the moment it c
 The mechanical half is `node tools/fog-harness/run-perf.mjs`, which now passes item 1 at all three
 dataset sizes, plus the `cull.test.ts` canary which sweeps every zoom at every dataset size.
 
-**One perceptual check is left and it is genuinely a judgement call** (D-181, D-227): fog between z13
-and z14 is now res 10 rather than res 11 — one step blobbier through that band. The arithmetic says it
-must be (a res-11 bucket there is 10,394 discs against a 6,000 ceiling) and §6.1 already argues z13
-should be blobbier on purpose. Whether it *reads* as territory rather than as a smear is the question
-no number answers. On the desktop browser: pinch slowly through z13→z14 over revealed ground and watch
-the moment it changes.
+**The perceptual check has been done. 2026-09-11, operator, desktop browser: good.**
+
+The question was genuinely open and no number could have answered it (D-181, D-227). Fog between z13
+and z14 is now res 10 rather than res 11 — one step blobbier through that band. The arithmetic said it
+had to be (a res-11 bucket there is 10,394 discs against a 6,000 ceiling) and §6.1 already argued z13
+should be blobbier on purpose, but whether the band *reads* as territory rather than as a smear was a
+matter of taste. It reads.
+
+That is worth recording rather than just ticking, because it is the second time the bucket ladder has
+been judged by eye and passed — `0194` rejected a res-10 brush at the running zooms, and this confirms
+the ladder is acceptable one step coarser in the band **below** them. A future ticket tempted to widen
+a band has that evidence and does not have to re-open the question from scratch.
