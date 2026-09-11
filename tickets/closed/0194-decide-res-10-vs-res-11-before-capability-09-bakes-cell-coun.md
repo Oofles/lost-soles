@@ -4,13 +4,14 @@ slug: decide-res-10-vs-res-11-before-capability-09-bakes-cell-coun
 title: DECIDE res 10 vs res 11 before capability 09 bakes cell counts into the XP economy
 type: design
 priority: high
-status: open
-capability: 08-map-and-fog-renderer
+status: closed
 size: s
+capability: 08-map-and-fog-renderer
 depends_on: [56]
 blocked_by: []
 source: agent
 created: 2026-09-10T19:35:00Z
+closed: 2026-09-11T01:51:22Z
 ---
 
 ## Description
