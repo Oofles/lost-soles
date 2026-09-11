@@ -20,7 +20,9 @@ const NEMO = { lat: -48.876, lng: -123.393 }
 
 describe("metresBetween", () => {
   it("measures a degree of latitude to within half a percent", () => {
-    const d = metresBetween({ lat: 0, lng: 0, t: 0 }, { lat: 1, lng: 0, t: 0 })
+    // No `t` — `0057` widened the parameter to `Located`, and this is the assertion that the
+    // clock-free shape is genuinely accepted. The `GeoPoint` case is the test below.
+    const d = metresBetween({ lat: 0, lng: 0 }, { lat: 1, lng: 0 })
     expect(d).toBeGreaterThan(110_000)
     expect(d).toBeLessThan(112_000)
   })

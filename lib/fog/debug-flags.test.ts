@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   decodeDebugEnabled,
+  fogDisabled,
   fogFlags,
   hudEnabled,
   maskDebugEnabled,
@@ -71,5 +72,32 @@ describe("0056's ?fog=noise", () => {
   it("composes with the other two", () => {
     expect(noiseDebugEnabled("?fog=noise,debug")).toBe(true)
     expect(decodeDebugEnabled("?fog=noise,debug")).toBe(true)
+  })
+})
+
+describe("0057's ?fog=off", () => {
+  it("turns the fog off without turning anything else on", () => {
+    expect(fogDisabled("?fog=off")).toBe(true)
+    expect(maskDebugEnabled("?fog=off")).toBe(false)
+    expect(noiseDebugEnabled("?fog=off")).toBe(false)
+    expect(hudEnabled("?fog=off")).toBe(false)
+  })
+
+  /**
+   * The collision this file exists to prevent, checked for the new flag: `?fog=off,debug` is a
+   * sensible thing to type — the fog gone AND the decode readout up — and it must not silently
+   * mean one of the two.
+   */
+  it("composes with the others", () => {
+    expect(fogDisabled("?fog=off,debug")).toBe(true)
+    expect(decodeDebugEnabled("?fog=off,debug")).toBe(true)
+    expect(fogDisabled("?fog=mask,off")).toBe(true)
+    expect(maskDebugEnabled("?fog=mask,off")).toBe(true)
+  })
+
+  it("is off with no parameter, an empty one, or an unknown flag", () => {
+    for (const search of ["", "?", "?fog=", "?fog=on", "?foggy=off", "?a=1"]) {
+      expect(fogDisabled(search)).toBe(false)
+    }
   })
 })

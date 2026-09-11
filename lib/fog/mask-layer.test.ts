@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { fakeGl, GL, type FakeGl } from "./__fixtures__/fake-gl"
 import { packBucket } from "./instances"
+import { packRouteCorridor } from "./route-corridor"
 import { FogMaskLayer, maskDebugEnabled, type MaskStats } from "./mask-layer"
 import { STUB_PRELUDE } from "./mask"
 import { V1 } from "./fog-uniforms"
@@ -188,6 +189,83 @@ describe("setBucket", () => {
     layer.prerender(fake.gl, renderInput())
     expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(0)
     expect(layer.stats().visibleInstanceCount).toBe(0)
+  })
+})
+
+describe("setOptimisticRoute — 0057, criteria 5 and 6", () => {
+  const corridor = packRouteCorridor({
+    type: "MultiLineString",
+    coordinates: [
+      [
+        [NEMO.lng, NEMO.lat],
+        [NEMO.lng, NEMO.lat + 0.009],
+      ],
+    ],
+  })
+
+  it("draws the corridor as well as the cells, in one call", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(BUCKET)
+    layer.setOptimisticRoute(corridor)
+    layer.prerender(fake.gl, renderInput())
+
+    expect(corridor.count).toBeGreaterThan(0)
+    // ONE draw, whatever the mix. §4 rules out a call per group as firmly as a call per cell.
+    expect(fake.of("drawArraysInstanced")).toHaveLength(1)
+    expect(fake.of("drawArraysInstanced")[0]!.args[3]).toBe(BUCKET.count + corridor.count)
+    expect(layer.stats().optimisticDiscs).toBe(corridor.count)
+  })
+
+  /**
+   * CRITERION 5's *"cleared on the next bucket rebuild"*, which is the half of this optimisation
+   * that keeps it honest. A corridor that survived its own replacement would leave a permanent
+   * band of extra revealed ground around the newest run, growing by one run per sync — the
+   * client inventing territory, slowly.
+   */
+  it("is discarded by the next bucket", () => {
+    const { layer, fake } = layerOn()
+    layer.setOptimisticRoute(corridor)
+    layer.prerender(fake.gl, renderInput())
+    expect(layer.stats().visibleInstanceCount).toBe(corridor.count)
+
+    layer.setBucket(BUCKET)
+    layer.prerender(fake.gl, renderInput())
+    expect(layer.stats().optimisticDiscs).toBe(0)
+    expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(BUCKET.count)
+  })
+
+  it("draws before any cells exist at all — the corridor is the point of it", () => {
+    const { layer, fake } = layerOn()
+    layer.setOptimisticRoute(corridor)
+    layer.prerender(fake.gl, renderInput())
+    expect(fake.of("drawArraysInstanced")[0]!.args[3]).toBe(corridor.count)
+  })
+
+  it("survives a variant rebuild along with the bucket", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(BUCKET)
+    layer.setOptimisticRoute(corridor)
+    layer.prerender(fake.gl, renderInput("mercator"))
+    layer.prerender(fake.gl, renderInput("globe"))
+    expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(BUCKET.count + corridor.count)
+  })
+
+  it("clears on null", () => {
+    const { layer, fake } = layerOn()
+    layer.setOptimisticRoute(corridor)
+    layer.prerender(fake.gl, renderInput())
+    layer.setOptimisticRoute(null)
+    layer.prerender(fake.gl, renderInput())
+    expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(0)
+  })
+
+  it("still uploads once per change, not once per frame", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(BUCKET)
+    layer.setOptimisticRoute(corridor)
+    for (let i = 0; i < 5; i++) layer.prerender(fake.gl, renderInput())
+    // The quad, and one merged instance upload. Five frames added nothing.
+    expect(fake.of("bufferData").length + fake.of("bufferSubData").length).toBe(2)
   })
 })
 

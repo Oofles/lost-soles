@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { FogAnimator, browserAnimationHost } from "@/lib/fog/animation"
-import { maskDebugEnabled } from "@/lib/fog/debug-flags"
+import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
 import { blobCellsToIds, packBucket } from "@/lib/fog/instances"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
+import { fogBeforeId } from "@/lib/map-layers"
 
 import { useExplored } from "./explored-provider"
 
@@ -49,6 +50,12 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     [],
   )
 
+  /** `0057` criterion 7. Read once, for `debug`'s reason. `?fog=off` adds no layer at all. */
+  const disabled = useMemo(
+    () => (typeof window === "undefined" ? false : fogDisabled(window.location.search)),
+    [],
+  )
+
   /**
    * PACKED ONCE PER DATA CHANGE, NEVER PER FRAME (criterion 5). The dependency is the generation
    * rather than the set object, because `ExploredSet.applyDelta` mutates in place and returns the
@@ -78,13 +85,18 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
   // is the two render hooks. An animator owns a rAF loop and two `window` listeners, which is a
   // React effect's job. The seam between them is one function: `timeSource`.
   useEffect(() => {
-    if (!map) {
+    if (!map || disabled) {
       setLayer(null)
       return
     }
     const animator = new FogAnimator(browserAnimationHost(() => map.triggerRepaint()))
     const created = new FogMaskLayer({ debug, timeSource: () => animator.time() })
-    map.addLayer(created)
+    /**
+     * `0057` — UNDER THE ROUTE IF THE ROUTE IS ALREADY THERE, on top of everything otherwise.
+     * Either way the fog lands above every symbol layer, which is what keeps unexplored place
+     * names hidden (§4.4, criterion 1). `lib/map-layers.ts` owns the rule and the reasoning.
+     */
+    map.addLayer(created, fogBeforeId(map))
     // Started AFTER the layer is added: the first thing it does is repaint, and a repaint before
     // there is anything to composite is a wasted frame.
     animator.start()
@@ -100,7 +112,7 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
         // nothing left to free.
       }
     }
-  }, [map, debug])
+  }, [map, debug, disabled])
 
   useEffect(() => {
     if (!layer || !bucket || !map) return

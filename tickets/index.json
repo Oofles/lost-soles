@@ -1368,6 +1368,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-10T23:38:33Z",
     "path": "tickets/open/0057-layer-order-and-run-polyline.md",
     "ready": true,
     "acceptance": {

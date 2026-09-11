@@ -28,7 +28,20 @@ import type { ActivityKind, GeoPoint } from "./activity"
 /** Metres between two fixes. Haversine on a spherical Earth — good to ~0.5% and pure. */
 const EARTH_RADIUS_M = 6_371_008.8
 
-export function metresBetween(a: GeoPoint, b: GeoPoint): number {
+/**
+ * A POSITION, WITHOUT THE CLOCK. Ticket `0057`.
+ *
+ * `metresBetween` took two `GeoPoint`s, which carry `t`. Distance does not depend on time and
+ * never did, and the third consumer — the renderer's optimistic corridor, which interpolates
+ * points that were never fixes — has no honest value to put in `t`. Widening the parameter is
+ * preferable to fabricating a timestamp at the call site: an invented `t` on something the map
+ * treats as a recorded position is the kind of value that later gets believed.
+ *
+ * Both existing callers pass a full `GeoPoint` and are unaffected.
+ */
+export type Located = Pick<GeoPoint, "lat" | "lng">
+
+export function metresBetween(a: Located, b: Located): number {
   const toRad = Math.PI / 180
   const dLat = (b.lat - a.lat) * toRad
   const dLng = (b.lng - a.lng) * toRad

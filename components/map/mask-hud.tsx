@@ -127,6 +127,12 @@ export function MaskHud({
   const lines = [
     `zoom       ${zoom === null ? "—" : zoom.toFixed(1)}`,
     `instances  ${cells.toLocaleString()}`,
+    /**
+     * `0057`. The corridor and the cell field are drawn by one call and look identical, so this
+     * is the only way to tell revealed ground from a guess that has not been confirmed yet —
+     * the first thing worth knowing when the fog looks wrong just after a sync.
+     */
+    `optimistic ${(stats?.optimisticDiscs ?? 0).toLocaleString()}`,
     `res        ${stats?.res ?? "—"}`,
     `mask       ${stats?.maskSize ?? "—"}`,
     `fog        ${explored.phase} / ${explored.source}`,

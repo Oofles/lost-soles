@@ -84,6 +84,19 @@
   --scrim: rgb(11 16 32 / 0.72);          /* --navy-900 @ 0.72 */
   --progress-activity: var(--gold-500);
   --progress-meta: var(--verdigris-500);
+
+  /* The run polyline (ticket 0057). 05-fog-of-war.md §4.4 fixes the pairing:
+     a warm cream core inside an amber glow, because the line has to be legible
+     over pale revealed ground AND over dark fog in the same frame. Pure white
+     blows out on parchment; pure red vanishes into it.
+
+     DELIBERATELY ABSENT FROM BOTH DARK BLOCKS BELOW. §8.3: the dark theme does
+     not darken the map. These two are the one part of the semantic layer that
+     must NOT move with it — the fog beside them is the same colour in either
+     theme, so a route that changed with the chrome would be tuned against a
+     background it never actually sits on. */
+  --route-glow: var(--lantern-500);
+  --route-line: var(--route-core);
 }
 
 /*

@@ -28,6 +28,7 @@ import {
   type RestoreCheck,
 } from "./mask"
 import type { PackedBucket } from "./instances"
+import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
 
 /**
  * THE CUSTOM LAYER. Tickets `0055` and `0056`. `05-fog-of-war.md` §4.2, §4.3, §6.4.
@@ -81,6 +82,14 @@ export interface MaskStats {
   fogTime: number
   /** `0056`. A composite compile or link failure. Its presence means there is no fog on screen. */
   compositeError: string | null
+  /**
+   * `0057`. How many of `visibleInstanceCount` are optimistic corridor discs rather than cells.
+   *
+   * The two are drawn by one call and are indistinguishable on screen by design, so this is the
+   * only way to answer "is that corridor real ground or a guess" — which is the first question
+   * worth asking when the fog looks wrong right after a sync.
+   */
+  optimisticDiscs: number
 }
 
 /**
@@ -104,14 +113,23 @@ export class FogMaskLayer implements CustomLayerInterface {
 
   #resources: MaskResources | null = null
   #variant: string | null = null
-  /** Set by `setBucket`, consumed by the next `prerender`. */
-  #pending: PackedBucket | null = null
   /**
-   * The bucket currently on the GPU. Kept so that anything which destroys the instance buffer — a
-   * projection change, a style change, `onRemove` followed by a re-add — can re-upload it rather
-   * than make the caller re-derive 150k `cellToLatLng` calls it already paid for.
+   * THE DESIRED CONTENTS OF THE INSTANCE BUFFER, plus a flag saying it is not there yet.
+   *
+   * `0055` held a `#pending` bucket that `prerender` consumed and a `#lastBucket` it re-queued
+   * whenever the buffer was destroyed. `0057` adds a SECOND source of instances — the optimistic
+   * corridor — and two consume-once queues that must be re-queued together on a variant change is
+   * a state machine with four ways to be half-uploaded. Holding the desired state and a dirty bit
+   * instead makes "re-upload everything" one assignment, which is what a rebuild actually wants.
+   *
+   * The bucket is kept rather than dropped after upload for `0055`'s reason: a style change
+   * removes and re-adds custom layers, and without it the layer comes back holding a bucket it
+   * believes is uploaded and draws nothing. 150k `cellToLatLng` calls are not re-derivable cheaply.
    */
-  #lastBucket: PackedBucket | null = null
+  #bucket: PackedBucket | null = null
+  /** `0057`. Discarded by `setBucket` — see there. Never a cell, never in the explored set. */
+  #corridor: CorridorPack = EMPTY_CORRIDOR
+  #uploadDirty = false
   #res = 10
   #passes = 0
   #restore: RestoreCheck | null = null
@@ -153,13 +171,52 @@ export class FogMaskLayer implements CustomLayerInterface {
    * exactly the kind of thing that stops working when MapLibre changes when it binds what.
    */
   setBucket(bucket: PackedBucket): void {
-    this.#pending = bucket
+    this.#bucket = bucket
+    /**
+     * THE OPTIMISTIC CORRIDOR IS DISCARDED HERE, and that is criterion 5's *"cleared on the next
+     * bucket rebuild"* stated as the one line that implements it.
+     *
+     * A new bucket means the server's cell write has come back, so the guess has been replaced by
+     * the record. Keeping it would leave a permanent extra corridor around the newest run that no
+     * data supports, drifting further from the truth with every run — the client inventing ground,
+     * one sync at a time.
+     *
+     * `use-latest-run.ts` re-supplies it after a data change if the route is still ahead of the
+     * cells. That is a decision for the caller, which can see both; this class only knows that a
+     * fresh bucket supersedes whatever was guessed against the old one.
+     */
+    this.#corridor = EMPTY_CORRIDOR
+    this.#uploadDirty = true
+  }
+
+  /**
+   * `0057` — §4.4's *"optimisation worth taking"*. The latest run's polyline, splatted as discs
+   * into the MASK and nowhere else.
+   *
+   * **This never reaches the explored set.** `route-corridor.ts` produces no H3 id and this class
+   * holds the result as four floats per disc in the same vertex buffer D-232's bridges use.
+   * `route-corridor.test.ts` runs the whole path over a real `ExploredSet` and asserts both the
+   * `Set` and its `BigUint64Array` come out unchanged (criterion 6).
+   *
+   * Deferred to the next `prerender` for `setBucket`'s reason: a custom layer may only touch the
+   * GL context inside its own hooks.
+   */
+  setOptimisticRoute(corridor: CorridorPack | null): void {
+    this.#corridor = corridor ?? EMPTY_CORRIDOR
+    this.#uploadDirty = true
   }
 
   /** §6.4 item 1, sampled by `0059`'s scripted camera path. */
   stats(): MaskStats {
     return {
-      visibleInstanceCount: this.#resources?.instanceCount ?? this.#pending?.count ?? 0,
+      /**
+       * WHAT THE PASS WILL DRAW, cells and corridor together — they are one `drawArraysInstanced`
+       * and §6.4 item 1's budget is on the draw, not on the cells. Before the first `prerender`
+       * the buffer does not exist yet, so it reports what has been handed in.
+       */
+      visibleInstanceCount:
+        this.#resources?.instanceCount ?? (this.#bucket?.count ?? 0) + this.#corridor.count,
+      optimisticDiscs: this.#corridor.count,
       res: this.#res,
       maskSize: this.#resources ? `${this.#resources.maskW}x${this.#resources.maskH}` : "-",
       passes: this.#passes,
@@ -197,10 +254,10 @@ export class FogMaskLayer implements CustomLayerInterface {
     if (this.#composite) disposeCompositeResources(gl, this.#composite)
     this.#composite = null
     this.#compositeError = null
-    // The bucket is not dropped, it is re-queued. A style change removes and re-adds custom layers,
-    // and the GPU buffer goes with the resources — so without this the layer comes back holding a
-    // bucket it believes is uploaded and draws nothing.
-    this.#pending = this.#pending ?? this.#lastBucket
+    // The bucket and the corridor are not dropped, they are marked for re-upload. A style change
+    // removes and re-adds custom layers, and the GPU buffer goes with the resources — so without
+    // this the layer comes back believing its instances are uploaded and draws nothing.
+    this.#uploadDirty = true
   }
 
   prerender(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
@@ -228,9 +285,9 @@ export class FogMaskLayer implements CustomLayerInterface {
         })
         this.#variant = variantName
         this.#shaderError = null
-        // A rebuilt program means a new instance buffer, so whatever bucket is current has to be
+        // A rebuilt program means a new instance buffer, so whatever is current has to be
         // re-uploaded — without this a projection change silently empties the mask.
-        if (this.#pending === null && this.#lastBucket) this.#pending = this.#lastBucket
+        this.#uploadDirty = true
       } catch (error) {
         // Surface it once and stop trying every frame, which would bury the message in a flood of
         // sixty identical lines a second. A compile failure here IS the finding.
@@ -246,13 +303,21 @@ export class FogMaskLayer implements CustomLayerInterface {
     // with the wrong UVs by `0056` and read as the fog sliding away from the ground.
     resizeMask(gl, this.#resources, gl.drawingBufferWidth, gl.drawingBufferHeight)
 
-    if (this.#pending) {
-      const bucket = this.#pending
-      this.#pending = null
-      this.#lastBucket = bucket
-      this.#res = bucket.res
-      uploadInstances(gl, this.#resources, bucket.instances)
-      this.#report()
+    if (this.#uploadDirty) {
+      this.#uploadDirty = false
+      const floats = this.#instanceFloats()
+      /**
+       * Nothing to say when there is nothing to upload INTO AN ALREADY-EMPTY BUFFER. A fogless
+       * boot — signed out, or an account with no runs — would otherwise log a
+       * `visibleInstanceCount=0` line per resource build, which is noise that looks like a
+       * finding. An empty upload over a non-empty buffer is a different thing and must happen:
+       * it is how an emptied set clears a stale mask rather than leaving the last one on screen.
+       */
+      if (floats.length > 0 || this.#resources.instanceCount > 0) {
+        this.#res = this.#bucket?.res ?? this.#res
+        uploadInstances(gl, this.#resources, floats)
+        this.#report()
+      }
     }
 
     this.#restore = runMaskPass(
@@ -313,6 +378,24 @@ export class FogMaskLayer implements CustomLayerInterface {
     this.#composites++
   }
 
+  /**
+   * The bucket's instances and the corridor's, back to back — ONE array, because `mask.ts` draws
+   * one `drawArraysInstanced` and §4 rules out a call per group as firmly as it rules out a call
+   * per cell. The two are the same four-float layout, so a concatenation is all the merge needs.
+   *
+   * The common case is no corridor at all, and it returns the bucket's own array with no copy:
+   * this runs on a data change, and at 150k cells an unnecessary 2.4 MB copy on the boot path is
+   * exactly the kind of cost §6.1 budgets for and then loses to a convenience.
+   */
+  #instanceFloats(): Float32Array {
+    const bucket = this.#bucket?.instances ?? new Float32Array(0)
+    if (this.#corridor.count === 0) return bucket
+    const merged = new Float32Array(bucket.length + this.#corridor.instances.length)
+    merged.set(bucket, 0)
+    merged.set(this.#corridor.instances, bucket.length)
+    return merged
+  }
+
   /* ─── Instrumentation ─────────────────────────────────────────────────────── */
 
   /**
@@ -335,7 +418,8 @@ export class FogMaskLayer implements CustomLayerInterface {
       return
     }
     log.info(
-      `fog mask: visibleInstanceCount=${stats.visibleInstanceCount} res=${stats.res} mask=${stats.maskSize}`,
+      `fog mask: visibleInstanceCount=${stats.visibleInstanceCount} res=${stats.res} ` +
+        `optimistic=${stats.optimisticDiscs} mask=${stats.maskSize}`,
     )
   }
 }

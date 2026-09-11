@@ -12,6 +12,7 @@ import {
 
 import { MaskHud } from "./mask-hud"
 import { useFogMask } from "./use-fog-mask"
+import { useLatestRun } from "./use-latest-run"
 
 import "maplibre-gl/dist/maplibre-gl.css"
 
@@ -247,6 +248,17 @@ export function MapShell({ home }: { home: Camera | null }) {
    * Called unconditionally and before the early return below, because hooks are.
    */
   const fogLayer = useFogMask(loaded)
+
+  /**
+   * Ticket `0057`. The route above the fog, and the optimistic corridor inside the mask.
+   *
+   * **CALLED AFTER `useFogMask`, AND THE ORDER IS LOAD-BEARING.** Effects run in declaration
+   * order within a commit, and `setBucket` discards the optimistic corridor by design — so the
+   * bucket must be handed over before the corridor is. Swapping these two lines wipes the
+   * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
+   * the same thing at the effect that depends on it.
+   */
+  useLatestRun(loaded, fogLayer)
 
   if (unsupported) {
     return (

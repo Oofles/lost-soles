@@ -51,6 +51,24 @@ export function noiseDebugEnabled(search: string): boolean {
   return fogFlags(search).has("noise")
 }
 
+/**
+ * `0057`, criterion 7 — `?fog=off`. The fog layer is never added, so the basemap and the route
+ * render with nothing over them.
+ *
+ * A FLAG RATHER THAN A `visibility` TOGGLE, because a `CustomLayerInterface` has no layout
+ * properties: `setLayoutProperty(id, "visibility", "none")` on one is not a thing MapLibre
+ * supports, so "toggle the fog off" has to mean "do not add it". That also makes the check
+ * meaningful — it proves the basemap and the route are correct in the fog's ABSENCE rather than
+ * merely with a transparent pass still running over them.
+ *
+ * It belongs with the other three because it shares their parameter, which is the collision this
+ * file was created to stop happening a second time: `?fog=off,debug` is a sensible thing to type
+ * and must not silently mean one of the two.
+ */
+export function fogDisabled(search: string): boolean {
+  return fogFlags(search).has("off")
+}
+
 /** Either debug view shows the HUD. `0055`'s cell-count readout is useful under both. */
 export function hudEnabled(search: string): boolean {
   return maskDebugEnabled(search) || noiseDebugEnabled(search)

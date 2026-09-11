@@ -3,7 +3,9 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb"
 
 import outputs from "@/amplify_outputs.json"
 import { getObject, defaultFogReadDeps, type FogReadDeps } from "@/lib/fog/server"
-import { routeTraceKey, type RouteTraceGeometry } from "@/src/pipeline/route-trace-store"
+import { routeTraceKey } from "@/src/pipeline/route-trace-store"
+
+import { EMPTY_COLLECTION, type RouteTraceGeometry, type RunFeatureCollection } from "./wire"
 
 /**
  * WHERE `/api/runs/latest` GETS ITS ANSWER. Ticket `0195`. `02-data-model.md` §5.1 (S-7),
@@ -68,18 +70,16 @@ export const defaultRunReadDeps = (): RunReadDeps => ({
   activityTable: activityTableName(),
 })
 
-/** What the route serves. GeoJSON, so the map consumes it with no translation layer. */
-export interface RunFeatureCollection {
-  type: "FeatureCollection"
-  features: Array<{
-    type: "Feature"
-    geometry: RouteTraceGeometry
-    properties: { activityId: string; startedAt: string; name: string | null }
-  }>
-}
-
-/** The empty answer, and it is a NORMAL one — see `latestRun`. */
-export const EMPTY_COLLECTION: RunFeatureCollection = { type: "FeatureCollection", features: [] }
+/**
+ * THE SERVED SHAPE LIVES IN `wire.ts` AS OF `0057`, not here.
+ *
+ * It gained a browser-side caller — `lib/runs/client.ts` — and this module imports the AWS SDK at
+ * module scope, so a client component that reached for the type would drag DynamoDB and S3 signing
+ * code into the page bundle. Re-exported so `0195`'s two importers (the route and this file's test)
+ * keep working unchanged.
+ */
+export { EMPTY_COLLECTION } from "./wire"
+export type { RunFeature, RunFeatureCollection } from "./wire"
 
 /**
  * HOW FAR BACK THE QUERY WILL LOOK FOR A TRACED ACTIVITY.
