@@ -462,6 +462,30 @@ None of these is a regression; all three are the design meeting measurement for 
   at 30°N 100°E where the Florida extract has no tiles — and fog over an empty background is a frame
   that leaves out most of a frame. It also commits no coordinate.
 
+#### The phone run was dropped, and the harness changed shape because of it (D-240)
+
+`0059`'s title says *"on a real mid-range Android phone"*. There is no phone run: the operator
+declined it, and the reasoning is worth keeping here because it changes what the numbers above are
+defending.
+
+D-227 had already moved the viewing surface to the desktop. What it kept was a headroom argument —
+*"the phone remains the worst case even when it is not the common case"* — and that is still true and
+was no longer worth the operator's time. The device is also a **Pixel 10 Pro**, a 2025 flagship, not
+the mid-range Android `05` §6.3 and R4 price the budget against; a reading from it would have been
+the wrong end of the range and would have reported PASS while proving nothing about the case §6.3
+defends. D-230's deferred ANGLE `MIN`/`MAX` conformance question stays unverified and is accepted
+into ordinary use on its own original reasoning: the failure is loud, local, and confined to the mask
+pass.
+
+**The first attempt at the phone run is what produced the harness's failure handling.** It sat on
+`running…` and there was no way to tell slow from stuck — `run()` was `async`, the click handler
+discarded its promise, and anything that threw left the button in that state for ever with no message
+anywhere. It now has `try/catch/finally`, a **Cancel** that still yields a report over whatever ran,
+an elapsed clock, an explicit stall warning after 8 s without a frame, and a notice when the tab was
+backgrounded (which stops `requestAnimationFrame` and pauses the path — correct, and
+indistinguishable from a hang unless said out loud). A harness whose failure mode is silence costs a
+trip to find out, which is exactly what it cost.
+
 #### The React half is proved separately (`tools/fog-harness/run-overlay.mjs`)
 
 `run-perf.mjs` drives a real MapLibre Map and touches **no React**, while roughly 180 lines of `0059`

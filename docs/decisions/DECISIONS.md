@@ -3203,3 +3203,36 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The harness is built so that the device's job is reading, not judging.** Three URLs, a button,
     and one table with a verdict column — D-230's own standard: *"a deferred risk with a two-second
     check attached is a different thing from a deferred risk with a procedure attached."*
+
+- **D-240** **`0059` is validated on the DESKTOP BROWSER. The phone run is dropped, not deferred, and
+  the residual ANGLE risk D-230 parked there is accepted into ordinary use.** Supersedes the phone
+  half of `0059`, and the sentence in D-227 that kept it standing. The device, for the record, is a
+  **Pixel 10 Pro** — not the mid-range Android `05` §6.3 and R4 are written for.
+  *(Operator, during ticket `0059`, 2026-09-11.)*
+  - **The operator's own framing:** *"I'm not spending extra time testing on my phone. It'll either
+    work as an MVP or it won't. I use a Pixel 10 Pro, and if I'm having issues with the phone after
+    MVP, I'll raise those issues and we can troubleshoot after the fact."*
+  - **It follows D-227 rather than contradicting it.** D-227 already moved the viewing surface to the
+    desktop — *"Phone for tracking the runs, and computer for viewing all the data via the webapp."*
+    What it kept was a *headroom* argument: *"the phone remains the worst case even when it is not the
+    common case, and a renderer tuned for it is not wasted work."* That argument is still true and it
+    is no longer worth the operator's time, which is a different question and theirs to answer. A
+    frame budget defended on a surface nobody uses is margin that never gets spent.
+  - **The device is not the device the budget was written for, and that changes the risk.** `0059`'s
+    title says *"a real mid-range Android phone"*; R4 and §6.3 price the budget against one. A Pixel
+    10 Pro is a 2025 flagship. Every number the budget worries about is comfortably easier there, so
+    a phone measurement would have been measuring the wrong end of the range anyway — it would have
+    reported PASS on hardware that proves nothing about the case §6.3 was defending.
+  - **What is genuinely lost, stated plainly.** D-230 deferred exactly one thing here: *"Qualcomm/Mali
+    ANGLE honouring `MIN`/`MAX` blending into a single-channel normalised target"*. That stays
+    unverified. D-230's own reason for accepting it is what carries now: the failure is **loud and
+    local** — the fog looks obviously wrong on the phone, and the fix is a change to the mask pass,
+    not to the data model, the scoring, the ledger or the delivery format. The operator will meet it
+    in ordinary use and has said they will raise it.
+  - **So `0059`'s remaining validation is a short desktop session**, which D-227 already makes the
+    right surface: does `?fog=perf` run and produce a table, and does a re-synced archived activity
+    land on streets the operator recognises. Both are perception questions on the primary surface,
+    which is what D-181 and D-229 reserve for a human in the first place.
+  - **This does not excuse `0201`, `0202` or `0203`.** Those were measured on the desktop and fail
+    there; dropping the phone removes a *measurement*, not a *finding*. `0202` in particular — up to
+    20 ms of derivation inside a single pan cull — is felt on the desktop too.

@@ -56,21 +56,27 @@ proceed to Phase 2 on a renderer that stutters.**
 
 - [x] All seven instruments above exist behind a debug flag and print a single summary table.
 - [x] Synthetic 50k / 150k / 500k cell fixtures are checked in with the generator.
-- [ ] (operator) The scripted camera path is deterministic and replayable, and its results are
-      recorded in `docs/capabilities/08-map-and-fog-renderer.md` with the device model and browser
-      version. *Deterministic and replayable is proved by `camera-path.test.ts` and the desktop
-      baseline is recorded; the row naming a **device model** is the operator's to supply.*
+- [x] The scripted camera path is deterministic and replayable, and its results are recorded in
+      `docs/capabilities/08-map-and-fog-renderer.md` with the device model and browser version.
+      *`camera-path.test.ts` replays it and asserts the two runs visit identical states. The recorded
+      baseline names `HeadlessChrome/152.0.0.0` and `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device
+      (Subzero)), SwiftShader driver)` on the development machine. **Amended by D-240**: the row was
+      to name a phone; there is no phone run.*
 - [ ] `visibleInstanceCount` ≤ 6,000 at every zoom at all three dataset sizes.
       **MEASURED AND FAILED: 10,394 at z13.5, identical at all three sizes. Ticket `0201`.**
-- [ ] (operator) Mask < 1 ms, composite < 2 ms, frame p95 < 16.7 ms at 150k cells on the target
-      phone. *`EXT_disjoint_timer_query_webgl2` is absent on Chrome for Android, so the per-pass
-      split is a desktop reading and p95 is the phone's — the summary table says which is which.*
-- [ ] (operator) Zero fog-attributable long tasks during the scripted pan.
+- [ ] (operator) Mask < 1 ms, composite < 2 ms, frame p95 < 16.7 ms at 150k cells ~~on the target
+      phone~~ **on the desktop browser (D-240)**. *`EXT_disjoint_timer_query_webgl2` is absent on
+      Chrome for Android and on SwiftShader; on a desktop browser it is usually present, so this is
+      now the surface that can answer all three rather than only the third.*
+- [ ] (operator) Zero fog-attributable long tasks during the scripted pan. *On the desktop browser
+      (D-240). Expect this to FAIL and to be `0202`: up to 20 ms of bucket derivation runs inside a
+      single pan cull, which is a long task by definition.*
 - [ ] Peak JS heap in the low tens of MB at 500k cells.
       **MEASURED AND FAILED: 90.3 MB over baseline at 500k, 73.7 MB at 150k; 50k passes at 32.8 MB.
       Ticket `0203`.**
-- [ ] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible on the
-      phone, correctly positioned over the streets actually run.
+- [ ] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible ~~on
+      the phone~~ **on the desktop browser (D-240)**, correctly positioned over the streets actually
+      run.
       *Amended 2026-09-11: **an archived activity re-synced**, not a run performed for this ticket.
       D-229 (2026-09-09) postdates this ticket and forbids asking the operator to run for test data;
       a past activity is the same real trace through the same real adapter, pipeline and Sync tap,
@@ -81,7 +87,125 @@ proceed to Phase 2 on a renderer that stutters.**
 - [ ] (operator) `09-roadmap.md` §9.5's "the product, on the actual device" checks are run and their
       results recorded. *Two of its six rows are out of scope at this milestone and are recorded as
       such rather than ticked: the post-run sequence does not exist (this ticket's own Notes say so)
-      and D-148's gold/chrome rules belong to capability `13`.*
+      and D-148's gold/chrome rules belong to capability `13`. §9.5's preamble says "the user's own
+      Android phone (D-124), not a simulator" — **D-240 moves that to the desktop browser** and §9.5
+      needs the same amendment when `09-roadmap.md` is next touched.*
+
+## Notes
+
+### 2026-09-11 — the harness landed; the device rows are what remain
+
+Everything in job 1 is built, tested and deployed-ready; job 2 needs the phone. The desktop baseline,
+the split between what each surface can measure, and the three findings are written up in
+`docs/capabilities/08-map-and-fog-renderer.md` under *"The perf harness, and what its first run
+found"*. Files: `lib/fog/perf/{synthetic,gpu-timer,collector,camera-path,report,dataset-source,harness}.ts`,
+`components/map/perf-overlay.tsx`, `tools/fog-harness/{perf-harness.js,run-perf.mjs}`,
+`public/fog-fixtures/*.bin`, plus hooks into `zoom-buckets.ts`, `viewport-controller.ts`,
+`mask-layer.ts`, `debug-flags.ts`, `explored-provider.tsx`, `use-fog-mask.ts` and `map-shell.tsx`.
+
+The React glue is proved too, in a browser: `tools/fog-harness/run-overlay.mjs` renders the real
+provider and the real overlay against a fake MapLibre Map and drives the whole run. It found that the
+`SYNTHETIC — NOT this account's territory` line rendered only while loading and vanished once the
+dataset arrived — on `?fog=perf:here` that is synthetic ground over the operator's own neighbourhood
+with nothing on screen saying so. Fixed; it is now always visible.
+
+**Three findings, filed rather than folded in** — none is a regression, all three are the design
+meeting measurement for the first time:
+
+- `0201` — `ZOOM_TO_RES` gives res 11 from z13.0 rather than z14, so the instance peak is 10,394 at
+  **z13.5** against §6.4's 6,000. Identical at 50k / 150k / 500k, so it is the zoom table and not the
+  data. §6.4's recorded *"peak is 5,271 at z14"* reproduces exactly — it only ever sampled integer
+  zooms, which is the argument for a scripted path over a spot check.
+- `0202` — group geometry is derived inside `cullBucket`, on the frame path. The cull itself is
+  0.1-0.4 ms and does its job; a single pan into new ground cost 19.6 ms of synchronous main-thread
+  work. §6.3 budgets those on two separate rows and the code runs one inside the other.
+- `0203` — peak heap is 73.7 MB at 150k and 90.3 MB at 500k, against §6.4's *"low tens"*. 50k passes.
+
+**`0201` and `0203` mean two acceptance criteria are measured and failing.** They are left unticked
+with the numbers written on them. They are not `0059`'s to fix: this ticket's kill criteria are about
+frame time and its levers are the mask scale, the animation rate and the fBm octaves — none of which
+touches a zoom band or a `Set`.
+
+Also filed: `0204`, a false positive in `scripts/check-design-tokens.mjs`, which reads the TypeScript
+private member `this.#acc()` as the CSS colour `#acc`.
+
+**What the next session needs:** the three screenshots from section A and the phone's model. With
+them, item 3 decides whether capability `08` is done and whether any kill-criteria lever gets pulled.
+
+---
+
+What is deliberately missing at this point, so nobody files it as a defect (`09-roadmap.md` §2.3):
+no XP, no levels, no skills; no `/log` page; **no post-run moment** — no lantern, no fog burning
+back, no tally, no level-up cards, the map just *is* revealed the next time you look; no webhook
+(Sync is a manual tap and D-013 is knowingly violated until capability `14`); no second map mode and
+no cold-territory channel; no `/dev/tickets` UI, chronicle, settings or run detail; no
+notifications; stock Protomaps basemap rather than the parchment fork; raw Amplify sign-in; one
+hand-made user; and a failed import that surfaces only through the DLQ alarm from 0044.
+
+What is explicitly **not** compromised even here: `activity:read_all` and the full `latlng` stream;
+raw archived to S3 before normalize; deterministic `activityId` and the receipt ledger; no Strava
+type outside `src/adapters/strava/`; and cells carrying timestamps rather than a presence bit.
+
+If the custom layer defeats the schedule entirely, the defined retreat is a GeoJSON-polygon fog
+layer in plain MapLibre — ugly, faceted, honest, and it reaches the milestone. It is **not** the
+design, it must be recorded as debt with a replacement ticket, and it is a *schedule* retreat rather
+than a design change. Take it only against missing the milestone outright.
+
+## Operator validation
+
+**Amended twice. Read D-239 and D-240 before this section.**
+
+- **D-239** — the `★` criterion is satisfied by **re-syncing an archived activity**, not by going for
+  a run. D-229 postdates this ticket and forbids the latter.
+- **D-240** — **there is no phone run.** The operator declined it and the reasoning is recorded there:
+  D-227 already made the desktop the viewing surface, and the actual device is a Pixel 10 Pro rather
+  than the mid-range Android §6.3's budget is written for, so a phone reading would have measured the
+  wrong end of the range. D-230's ANGLE risk is accepted into ordinary use.
+
+**Everything reachable without a browser has already been run by the agent** and is recorded in
+`docs/capabilities/08-map-and-fog-renderer.md`: the instruments against a real MapLibre Map
+(`run-perf.mjs`), the React against a fake one (`run-overlay.mjs`), 79 unit tests, and the fixtures
+round-tripped through the shipped writer and reader.
+
+**What is left is one short desktop session**, and it is the one combination nothing above covers:
+the real map, real basemap tiles, the real fog and the real overlay in one page.
+
+### A. `?fog=perf` on the desktop browser — one URL
+
+`soles.devaultsecurity.com/?fog=perf:here` → **Run scripted path** → wait → **Copy**.
+
+`here` regenerates 151,201 synthetic cells around wherever the map already is, so the fog sits over
+real tiles. The panel says `SYNTHETIC — NOT this account's territory` throughout; that ground is not
+yours and nothing is written anywhere.
+
+It takes ~12 s if all is well. If it takes longer the panel now says so itself — it shows the phase,
+the step count, the elapsed clock, and a warning when a single step has taken more than 8 s. There is
+a **Cancel** button, and cancelling still produces the table over whatever ran.
+
+**Expect FAILs, and they are already filed:** item 1 (`0201`), item 6 (`0202`), item 7 (`0203`). The
+row that decides whether capability `08` is done is **item 3 — frame p95 < 16.7 ms**.
+
+Optionally also `?fog=perf:here:500k` for the year-five volume. Skip it if the 150k run is slow.
+
+### B. The fog on real ground — the judgement half
+
+Re-sync an activity you remember, then look at the map. **No new run.**
+
+1. `soles.devaultsecurity.com`, sign in, tap **Sync**, wait, reload.
+2. The streets in that activity are revealed and the ones around them are not. At zoom 17, trace the
+   route by eye — roughly one street wide, following roads you remember.
+3. At zoom 14: street names inside revealed territory are readable, names outside are hidden, and the
+   fog edge does not shimmer while you pan. (D-051 — legibility beats atmosphere, not a trade-off.)
+4. Pan and pinch for a minute. **`0202` predicts a hitch when you pan into ground not drawn yet this
+   session** — worth knowing whether you can actually feel it, because that decides whether `0202`
+   blocks the milestone or merely follows it.
+5. `prefers-reduced-motion` renders the fog static and stops the rAF loop.
+
+### C. §9.5's table — what is in scope at this milestone
+
+Record rather than tick. **Two of its six rows are out of scope**: the post-run sequence does not
+exist and D-148's gold/chrome rules are capability `13`. §9.5's own preamble still says "the user's
+own Android phone"; D-240 supersedes that and the doc needs the amendment when it is next touched.
 
 ## Notes
 

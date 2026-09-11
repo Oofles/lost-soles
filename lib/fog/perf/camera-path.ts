@@ -148,6 +148,16 @@ export async function driveScriptedPath(
      * boundary is precisely the pairing §6.4 item 1's histogram exists to rule out.
      */
     onSample?: (phase: string) => void
+    /**
+     * Checked once per step. Returning true stops the path where it is and resolves normally, so the
+     * caller still gets a report over however much of the path ran.
+     *
+     * **A path that cannot be stopped is a page that has to be reloaded.** The path is 690 camera
+     * states and a step is only as fast as the cull it triggers; at 500k cells on a slow device that
+     * is minutes, and until this existed the only way out was killing the tab — which also threw away
+     * every sample taken up to that point.
+     */
+    shouldStop?: () => boolean
   } = {},
 ): Promise<void> {
   const host = options.host ?? browserPathHost
@@ -156,10 +166,12 @@ export async function driveScriptedPath(
   let done = 0
 
   for (const segment of path) {
+    if (options.shouldStop?.()) return
     perf.beginPhase(segment.phase)
     const startZoom = segment.zoom ?? map.getZoom()
 
     for (let step = 0; step < segment.steps; step++) {
+      if (options.shouldStop?.()) return
       await new Promise<void>((resolve) => host.requestAnimationFrame(resolve))
 
       perf.frame(host.now())

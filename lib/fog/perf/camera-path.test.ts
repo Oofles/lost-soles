@@ -230,3 +230,53 @@ describe("driving it", () => {
     }
   })
 })
+
+/**
+ * `0059`, after the first real-device run sat on `running…` with no way out. A path that cannot be
+ * stopped is a page that has to be reloaded, and a reload throws away every sample taken so far.
+ */
+describe("stopping early", () => {
+  it("stops where it is and resolves, so the caller still gets a report", async () => {
+    const fake = fakeMap()
+    const perf = new FogPerf(silentHost)
+    let steps = 0
+    await driveScriptedPath(fake.map, perf, {
+      host: syncHost(),
+      shouldStop: () => steps++ >= 100,
+    })
+    // Resolved rather than rejected, and well short of the full path.
+    expect(fake.states.length).toBeGreaterThan(0)
+    expect(fake.states.length).toBeLessThan(PATH_STEPS)
+  })
+
+  it("keeps the samples taken before the stop", async () => {
+    const fake = fakeMap()
+    const perf = new FogPerf(silentHost)
+    let steps = 0
+    await driveScriptedPath(fake.map, perf, {
+      host: syncHost(),
+      shouldStop: () => steps++ >= 80,
+    })
+    const frames = perf.snapshot().frames
+    expect(frames.length).toBeGreaterThan(0)
+    expect(frames.reduce((sum, f) => sum + f.samples, 0)).toBeGreaterThan(0)
+  })
+
+  it("checks before the first frame, so an immediate stop does nothing at all", async () => {
+    const fake = fakeMap()
+    await driveScriptedPath(fake.map, new FogPerf(silentHost), {
+      host: syncHost(),
+      shouldStop: () => true,
+    })
+    expect(fake.states).toHaveLength(0)
+  })
+
+  it("runs the whole path when nothing asks it to stop", async () => {
+    const fake = fakeMap()
+    await driveScriptedPath(fake.map, new FogPerf(silentHost), {
+      host: syncHost(),
+      shouldStop: () => false,
+    })
+    expect(fake.states).toHaveLength(PATH_STEPS)
+  })
+})
