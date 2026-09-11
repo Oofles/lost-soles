@@ -162,7 +162,8 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     const created = new FogViewportController({
       map: map as unknown as ControllerMap,
       store,
-      onInstances: (instances, _result, res) => layer.setInstances(instances, res),
+      onInstances: (instances, _result, res, fromData) =>
+        layer.setInstances(instances, res, { supersedesRoute: fromData }),
     })
     // The subscription that keeps this in step with `document.hidden` belongs to the layer's effect
     // above, which holds the one `AnimationHost`; this is the initial read for a tab that was already

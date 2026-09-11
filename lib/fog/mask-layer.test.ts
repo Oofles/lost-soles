@@ -311,6 +311,31 @@ describe("setOptimisticRoute — 0057, criteria 5 and 6", () => {
     expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(BUCKET.count)
   })
 
+  /**
+   * AND IT SURVIVES A CAMERA REBUILD, which `0058` had to separate out.
+   *
+   * `0055` only ever rebuilt the buffer on a data change, so criterion 5's *"cleared on the next bucket
+   * rebuild"* and "cleared when the cells arrive" were the same sentence. `0058` makes a pan out of the
+   * padded region rebuild the buffer too — and clearing the corridor there would make the optimistic
+   * reveal vanish the moment the operator moves the map, in exactly the few seconds it exists to cover.
+   */
+  it("survives a rebuild the camera caused, and only a data rebuild clears it", () => {
+    const { layer, fake } = layerOn()
+    layer.setOptimisticRoute(corridor)
+    layer.setInstances(BUCKET.instances, BUCKET.res)
+    layer.prerender(fake.gl, renderInput())
+    expect(layer.stats().optimisticDiscs).toBe(corridor.count)
+
+    // A pan: new survivors, same data. The guess has not been superseded by anything.
+    layer.setInstances(BUCKET.instances, BUCKET.res)
+    layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.2745)))
+    expect(layer.stats().optimisticDiscs).toBe(corridor.count)
+
+    layer.setInstances(BUCKET.instances, BUCKET.res, { supersedesRoute: true })
+    layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.2749)))
+    expect(layer.stats().optimisticDiscs).toBe(0)
+  })
+
   it("draws before any cells exist at all — the corridor is the point of it", () => {
     const { layer, fake } = layerOn()
     layer.setOptimisticRoute(corridor)

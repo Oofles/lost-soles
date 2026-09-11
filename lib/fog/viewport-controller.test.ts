@@ -127,12 +127,13 @@ function controllerOn(options: { zoom?: number; k?: number } = {}) {
   const map = fakeMap(options.zoom ?? 15)
   const host = fakeHost()
   const store = new ZoomBucketStore(solidDisc(options.k ?? 30))
-  const uploads: Array<{ count: number; res: number }> = []
+  const uploads: Array<{ count: number; res: number; fromData: boolean }> = []
   const controller = new FogViewportController({
     map,
     store,
     host,
-    onInstances: (instances, _result, res) => uploads.push({ count: instances.length / 4, res }),
+    onInstances: (instances, _result, res, fromData) =>
+      uploads.push({ count: instances.length / 4, res, fromData }),
   })
   return { map, host, store, controller, uploads }
 }
@@ -341,6 +342,30 @@ describe("a data change", () => {
     expect(uploads).toHaveLength(2)
     // No bucket switch: the resolution did not change, only the data under it.
     expect(controller.stats().bucketSwitches).toBe(1)
+  })
+
+  /**
+   * The flag `0057`'s optimistic corridor turns on. A camera rebuild must not report itself as new
+   * data, or the corridor is cleared by a pan — see `FogMaskLayer.setInstances`.
+   */
+  it("distinguishes itself from a camera rebuild", () => {
+    const { controller, uploads, map, host } = controllerOn({ zoom: 15 })
+    controller.start()
+    expect(uploads.at(-1)!.fromData).toBe(false)
+
+    controller.refresh("generation 57")
+    expect(uploads.at(-1)!.fromData).toBe(true)
+
+    map.move({ lng: NEMO.lng + (400 / (512 * 2 ** 15)) * 360 * 0.6 })
+    expect(uploads.at(-1)!.fromData).toBe(false)
+
+    host.advance(BUCKET_DEBOUNCE_MS)
+    map.move({ zoom: 11 })
+    expect(uploads.at(-1)!.fromData).toBe(false)
+
+    controller.setHidden(true)
+    controller.setHidden(false)
+    expect(uploads.at(-1)!.fromData).toBe(false)
   })
 
   it("does nothing before start, so a delta that lands early is not lost but is not drawn twice", () => {

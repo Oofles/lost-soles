@@ -186,7 +186,7 @@ export class FogMaskLayer implements CustomLayerInterface {
    * exactly the kind of thing that stops working when MapLibre changes when it binds what.
    */
   setBucket(bucket: PackedBucket): void {
-    this.setInstances(bucket.instances, bucket.res)
+    this.setInstances(bucket.instances, bucket.res, { supersedesRoute: true })
   }
 
   /**
@@ -196,8 +196,19 @@ export class FogMaskLayer implements CustomLayerInterface {
    * reuses on the next cull, and the upload is deferred to the next `prerender` — so holding the view
    * would mean uploading whatever the next cull happened to write there. The copy goes into a buffer
    * this class grows and keeps, so a pan that rebuilds 4,000 instances allocates nothing.
+   *
+   * `supersedesRoute` IS WHAT `0057`'s CRITERION 5 ACTUALLY MEANT, and `0058` had to separate it from
+   * "the buffer was rebuilt". `0055` only ever rebuilt on a data change, so *"cleared on the next
+   * bucket rebuild"* and *"cleared when the cells arrive"* were the same sentence. They are not any
+   * more: a pan out of the padded region rebuilds the buffer too, and clearing the corridor there
+   * would make the optimistic reveal vanish the moment the operator moves the map in the few seconds
+   * before the server's cells come back — which is the exact interval it exists to cover.
    */
-  setInstances(instances: Float32Array, res: number): void {
+  setInstances(
+    instances: Float32Array,
+    res: number,
+    options: { supersedesRoute?: boolean } = {},
+  ): void {
     if (this.#cellFloats.length < instances.length) {
       this.#cellFloats = new Float32Array(instances.length)
     }
@@ -208,16 +219,16 @@ export class FogMaskLayer implements CustomLayerInterface {
      * THE OPTIMISTIC CORRIDOR IS DISCARDED HERE, and that is criterion 5's *"cleared on the next
      * bucket rebuild"* stated as the one line that implements it.
      *
-     * A new bucket means the server's cell write has come back, so the guess has been replaced by
-     * the record. Keeping it would leave a permanent extra corridor around the newest run that no
-     * data supports, drifting further from the truth with every run — the client inventing ground,
-     * one sync at a time.
+     * New DATA means the server's cell write has come back, so the guess has been replaced by the
+     * record. Keeping it would leave a permanent extra corridor around the newest run that no data
+     * supports, drifting further from the truth with every run — the client inventing ground, one
+     * sync at a time.
      *
      * `use-latest-run.ts` re-supplies it after a data change if the route is still ahead of the
-     * cells. That is a decision for the caller, which can see both; this class only knows that a
-     * fresh bucket supersedes whatever was guessed against the old one.
+     * cells. That is a decision for the caller, which can see both; this class only knows that fresh
+     * data supersedes whatever was guessed against the old generation.
      */
-    this.#corridor = EMPTY_CORRIDOR
+    if (options.supersedesRoute) this.#corridor = EMPTY_CORRIDOR
     this.#uploadDirty = true
   }
 

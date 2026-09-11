@@ -107,7 +107,12 @@ export class FogViewportController {
   #store: ZoomBucketStore
   #host: ControllerHost
   #debounceMs: number
-  #onInstances: (instances: Float32Array, result: CullResult, res: number) => void
+  #onInstances: (
+    instances: Float32Array,
+    result: CullResult,
+    res: number,
+    fromData: boolean,
+  ) => void
 
   #running = false
   #hidden = false
@@ -133,7 +138,17 @@ export class FogViewportController {
      * Called with the survivors whenever the buffer is rebuilt. `instances` is a view into a reused
      * scratch buffer and must be uploaded (or copied) before the next cull.
      */
-    onInstances: (instances: Float32Array, result: CullResult, res: number) => void
+    onInstances: (
+      instances: Float32Array,
+      result: CullResult,
+      res: number,
+      /**
+       * True when this rebuild came from new DATA rather than from the camera. `0057`'s optimistic
+       * corridor is superseded by the former and must survive the latter — see
+       * `FogMaskLayer.setInstances`.
+       */
+      fromData: boolean,
+    ) => void
     host?: ControllerHost
     debounceMs?: number
   }) {
@@ -201,7 +216,7 @@ export class FogViewportController {
   refresh(reason = "data"): void {
     if (!this.#running || this.#hidden) return
     this.#cancelPending()
-    this.#rebuild(reason)
+    this.#rebuild(reason, true)
   }
 
   /* ─── The camera ─────────────────────────────────────────────────────────── */
@@ -274,7 +289,7 @@ export class FogViewportController {
     )
   }
 
-  #rebuild(reason: string): void {
+  #rebuild(reason: string, fromData = false): void {
     const zoom = this.#map.getZoom()
     const res = resForZoom(zoom)
     let bucket: ZoomBucket
@@ -301,7 +316,7 @@ export class FogViewportController {
     this.#culls++
     this.#lastCull = result
 
-    this.#onInstances(result.instances, result, res)
+    this.#onInstances(result.instances, result, res, fromData)
     this.#map.triggerRepaint()
 
     if (reason !== "padded-region exit") {

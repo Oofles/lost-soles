@@ -175,6 +175,13 @@ symptom would have been fog missing at a group seam, appearing and disappearing 
 would have been blamed on the shader. Padding is now half the group's edge length plus two disc radii,
 and the estimate is replaced by the exact bbox of the group's discs the moment they exist.
 
+**A camera rebuild was clearing `0057`'s optimistic corridor.** `0055` only ever rebuilt the instance
+buffer on a data change, so criterion 5's *"cleared on the next bucket rebuild"* and "cleared when the
+cells arrive" were the same sentence. They are not once a pan can rebuild the buffer: the optimistic
+reveal would vanish the moment the operator moved the map, during exactly the few seconds it exists to
+cover. `setInstances` now takes `supersedesRoute`, and the controller sets it only on a data refresh —
+so `0057`'s criterion is preserved as what it meant rather than as what it said.
+
 **A delta must invalidate a touched group's NEIGHBOURS too.** `instances.ts` gives each adjacent pair's
 bridge to the lower id's group, so a new cell in group A can own a bridge that group B emits. Without
 the neighbour expansion, B keeps cached geometry that is missing a bridge to ground that is now
