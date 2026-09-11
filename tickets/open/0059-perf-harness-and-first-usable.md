@@ -62,18 +62,32 @@ proceed to Phase 2 on a renderer that stutters.**
       baseline names `HeadlessChrome/152.0.0.0` and `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device
       (Subzero)), SwiftShader driver)` on the development machine. **Amended by D-240**: the row was
       to name a phone; there is no phone run.*
-- [ ] `visibleInstanceCount` ≤ 6,000 at every zoom at all three dataset sizes.
-      **MEASURED AND FAILED: 10,394 at z13.5, identical at all three sizes. Ticket `0201`.**
-- [ ] (operator) Mask < 1 ms, composite < 2 ms, frame p95 < 16.7 ms at 150k cells ~~on the target
-      phone~~ **on the desktop browser (D-240)**. *`EXT_disjoint_timer_query_webgl2` is absent on
-      Chrome for Android and on SwiftShader; on a desktop browser it is usually present, so this is
-      now the surface that can answer all three rather than only the third.*
-- [ ] (operator) Zero fog-attributable long tasks during the scripted pan. *On the desktop browser
-      (D-240). Expect this to FAIL and to be `0202`: up to 20 ms of bucket derivation runs inside a
-      single pan cull, which is a long task by definition.*
+- [x] `visibleInstanceCount` ≤ 6,000 at every zoom at all three dataset sizes.
+      *Failed at 10,394 (z13.5); `0201` fixed the zoom table's bounds. Re-measured 2026-09-11:
+      **5,273 peak at z14.0, identical at 50k / 150k / 500k**, and the cross-dataset canary passes —
+      from z13 up the count does not grow with dataset size.*
+- [x] (operator) Mask < 1 ms, composite < 2 ms, ~~frame p95 < 16.7 ms~~ **frame p50 ≤ 17 ms with
+      under 1% of frames dropped (D-241)** at 150k cells ~~on the target phone~~ **on the desktop
+      browser (D-240)**.
+      — verified 2026-09-11 on the operator's desktop (Chrome 151, RTX 3070 via ANGLE/D3D11,
+      1902×901): **mask 0.474 ms mean / 2.777 ms max; composite 0.862 ms mean / 2.322 ms max;
+      pan-across p50 16.70, 0 dropped of 238; pan-z17 p50 16.60, 0 dropped of 119.**
+      *`p95 < 16.7 ms` was unmeasurable — rAF fires once per refresh, so on a 60 Hz display an
+      on-time frame's delta IS 16.7 ms and the budget was the floor rather than a ceiling. D-241
+      restates it. `EXT_disjoint_timer_query_webgl2` exists in desktop Chrome and nowhere else this
+      project can run, so the desktop is the only surface that could ever answer the first two.*
+- [x] (operator) Zero fog-attributable long tasks during the scripted pan.
+      — verified 2026-09-11 on the operator's desktop: **0 during the pan phases** (12 outside them,
+      in load and zoom, which §6.4 does not assert on).
+      *It was expected to fail — up to 20 ms of derivation ran inside a single pan cull. It did not,
+      because a 20 ms block is under the 50 ms `longtask` threshold. `0202` removed it anyway and
+      the operator confirmed by eye that the pan has no felt hitch.*
 - [ ] Peak JS heap in the low tens of MB at 500k cells.
-      **MEASURED AND FAILED: 90.3 MB over baseline at 500k, 73.7 MB at 150k; 50k passes at 32.8 MB.
-      Ticket `0203`.**
+      **MEASURED AND STILL FAILING: 97.0 MB over baseline at 500k, 76.9 MB at 150k; 50k passes.
+      Ticket `0203`.** *This is the only budget in §6.4 that is still missed. `ExploredSet` keeps a
+      `Set<string>` of every cell id beside the `BigUint64Array`; §6.3 already names the exit and
+      `explored-set.ts`'s `has()` already points at it. 50k — roughly where the operator is — passes
+      comfortably, so it bites from about year one rather than today.*
 - [ ] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible ~~on
       the phone~~ **on the desktop browser (D-240)**, correctly positioned over the streets actually
       run.
@@ -82,8 +96,14 @@ proceed to Phase 2 on a renderer that stutters.**
       a past activity is the same real trace through the same real adapter, pipeline and Sync tap,
       and the operator recognises the streets either way. Operator agreed before any code was
       written. See D-239.*
-- [ ] Any lever pulled from the kill-criteria list is recorded in the capability doc with its
+- [x] Any lever pulled from the kill-criteria list is recorded in the capability doc with its
       measured before/after, so the tuning history is not lost.
+      ***No lever was pulled.** The mask scale is still 0.5×, the animation still runs at its
+      original rate, and fBm still has its original octave count. The frame budget was met without
+      any of them — what was actually wrong was the zoom table (`0201`), derivation on the frame path
+      (`0202`) and a buffer outliving its viewport (`0207`), none of which §6.4 anticipated. That is
+      worth recording precisely because the kill criteria were the prepared answer and turned out not
+      to be the needed one.*
 - [ ] (operator) `09-roadmap.md` §9.5's "the product, on the actual device" checks are run and their
       results recorded. *Two of its six rows are out of scope at this milestone and are recorded as
       such rather than ticked: the post-run sequence does not exist (this ticket's own Notes say so)
@@ -92,6 +112,37 @@ proceed to Phase 2 on a renderer that stutters.**
       needs the same amendment when `09-roadmap.md` is next touched.*
 
 ## Notes
+
+### 2026-09-11 (later) — seven of ten criteria met; three remain
+
+`0201`, `0202` and `0207` are closed and the operator has confirmed both perceptual checks. Where
+§6.4 now stands, measured on the operator's desktop (Chrome 151, RTX 3070, 1902×901) and on the
+headless harness at the 400×800 reference viewport:
+
+| item | result | |
+|---|---|---|
+| 1 `visibleInstanceCount` | 5,273 peak at z14.0, identical at 50k / 150k / 500k | **PASS** |
+| 2 GPU mask / composite | 0.474 ms / 0.862 ms mean | **PASS** |
+| 3 frame, pan phases | p50 16.70, **0 dropped** of 238 and of 119 | **PASS** (D-241) |
+| 4 cull, net of derivation | 0.20 ms max; 0 culls inside the padded region | **PASS** |
+| 5 bucket derivation + hit rate | recorded; ~78% | — |
+| 6 long tasks during pan | 0 | **PASS** |
+| 7 peak JS heap | 97.0 MB at 500k, 76.9 MB at 150k | **FAIL — `0203`** |
+
+**No kill-criteria lever was pulled.** The mask scale, the animation rate and the fBm octave count are
+all unchanged. §6.4 prepared three levers for a frame-time problem and the frame time was never the
+problem: a wrong zoom band, derivation on the frame path, and a buffer outliving its viewport were,
+and §6.4 anticipated none of them.
+
+**What is left, and none of it is a number:**
+
+1. **Criterion 7 — heap.** The one budget still missed. `0203` is filed with the fix already named.
+   Whether it blocks this milestone is the operator's call: 50k passes comfortably and 150k is
+   roughly year one.
+2. **Criterion 8 — the ★ end-to-end.** Re-sync an archived activity and look at the map. Not done.
+3. **Criterion 10 — §9.5's table** on the desktop browser. Not done.
+
+---
 
 ### 2026-09-11 — the harness landed; the device rows are what remain
 
@@ -208,6 +259,37 @@ exist and D-148's gold/chrome rules are capability `13`. §9.5's own preamble st
 own Android phone"; D-240 supersedes that and the doc needs the amendment when it is next touched.
 
 ## Notes
+
+### 2026-09-11 (later) — seven of ten criteria met; three remain
+
+`0201`, `0202` and `0207` are closed and the operator has confirmed both perceptual checks. Where
+§6.4 now stands, measured on the operator's desktop (Chrome 151, RTX 3070, 1902×901) and on the
+headless harness at the 400×800 reference viewport:
+
+| item | result | |
+|---|---|---|
+| 1 `visibleInstanceCount` | 5,273 peak at z14.0, identical at 50k / 150k / 500k | **PASS** |
+| 2 GPU mask / composite | 0.474 ms / 0.862 ms mean | **PASS** |
+| 3 frame, pan phases | p50 16.70, **0 dropped** of 238 and of 119 | **PASS** (D-241) |
+| 4 cull, net of derivation | 0.20 ms max; 0 culls inside the padded region | **PASS** |
+| 5 bucket derivation + hit rate | recorded; ~78% | — |
+| 6 long tasks during pan | 0 | **PASS** |
+| 7 peak JS heap | 97.0 MB at 500k, 76.9 MB at 150k | **FAIL — `0203`** |
+
+**No kill-criteria lever was pulled.** The mask scale, the animation rate and the fBm octave count are
+all unchanged. §6.4 prepared three levers for a frame-time problem and the frame time was never the
+problem: a wrong zoom band, derivation on the frame path, and a buffer outliving its viewport were,
+and §6.4 anticipated none of them.
+
+**What is left, and none of it is a number:**
+
+1. **Criterion 7 — heap.** The one budget still missed. `0203` is filed with the fix already named.
+   Whether it blocks this milestone is the operator's call: 50k passes comfortably and 150k is
+   roughly year one.
+2. **Criterion 8 — the ★ end-to-end.** Re-sync an archived activity and look at the map. Not done.
+3. **Criterion 10 — §9.5's table** on the desktop browser. Not done.
+
+---
 
 ### 2026-09-11 — the harness landed; the device rows are what remain
 
