@@ -196,7 +196,20 @@ export function PerfOverlay({
         )}
       </div>
 
-      {!ready && <div>{explored.message ?? `explored set: ${explored.phase}`}</div>}
+      {/*
+        ALWAYS ON SCREEN, NOT ONLY WHILE LOADING. It used to render under `!ready` and disappear the
+        moment the dataset arrived — which is precisely when it starts mattering.
+
+        `?fog=perf:here` puts 49,537 to 500,617 cells of SYNTHETIC solid ground over the operator's
+        own neighbourhood, on the phone, outdoors. Nobody has run that. With the line hidden there is
+        nothing on screen to say so, and a page whose fog is indistinguishable from real territory is
+        a page the operator can mistake for their own map — the exact confusion `FogSource:
+        "synthetic"` was added to `boot.ts` to prevent. `MaskHud` carries the same word but only
+        under `?fog=mask` or `?fog=noise`, which is a different URL.
+
+        Found by `tools/fog-harness/run-overlay.mjs` on its first green run.
+      */}
+      <div>{explored.message ?? `explored set: ${explored.phase}`}</div>
       {running && progress && (
         <div>
           {progress.phase} — {progress.step} / {PATH_STEPS} frames

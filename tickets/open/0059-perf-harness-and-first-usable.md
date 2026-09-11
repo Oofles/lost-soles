@@ -95,6 +95,12 @@ found"*. Files: `lib/fog/perf/{synthetic,gpu-timer,collector,camera-path,report,
 `public/fog-fixtures/*.bin`, plus hooks into `zoom-buckets.ts`, `viewport-controller.ts`,
 `mask-layer.ts`, `debug-flags.ts`, `explored-provider.tsx`, `use-fog-mask.ts` and `map-shell.tsx`.
 
+The React glue is proved too, in a browser: `tools/fog-harness/run-overlay.mjs` renders the real
+provider and the real overlay against a fake MapLibre Map and drives the whole run. It found that the
+`SYNTHETIC — NOT this account's territory` line rendered only while loading and vanished once the
+dataset arrived — on `?fog=perf:here` that is synthetic ground over the operator's own neighbourhood
+with nothing on screen saying so. Fixed; it is now always visible.
+
 **Three findings, filed rather than folded in** — none is a regression, all three are the design
 meeting measurement for the first time:
 

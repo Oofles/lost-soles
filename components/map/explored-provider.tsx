@@ -93,8 +93,9 @@ export function ExploredProvider({
           source: "synthetic",
           generation: set.generation,
           message:
-            `?fog=perf — ${dataset.label} (${set.size.toLocaleString()} cells) from the ` +
-            `${origin}, ${loadMs.toFixed(0)} ms. NOT this account's territory.`,
+            `?fog=perf — ${dataset.label} (${set.size.toLocaleString()} cells) ` +
+            `${origin === "here" ? "generated around this camera" : "from the checked-in fixture"}` +
+            ` in ${loadMs.toFixed(0)} ms. SYNTHETIC — NOT this account's territory.`,
         })
       })
       .catch((error: unknown) => {

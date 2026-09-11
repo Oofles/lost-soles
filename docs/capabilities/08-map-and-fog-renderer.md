@@ -462,6 +462,40 @@ None of these is a regression; all three are the design meeting measurement for 
   at 30°N 100°E where the Florida extract has no tiles — and fog over an empty background is a frame
   that leaves out most of a frame. It also commits no coordinate.
 
+#### The React half is proved separately (`tools/fog-harness/run-overlay.mjs`)
+
+`run-perf.mjs` drives a real MapLibre Map and touches **no React**, while roughly 180 lines of `0059`
+are React — the `?fog=perf` branch in `ExploredProvider` and the whole of `PerfOverlay`. Those are
+what the operator interacts with, on a phone, outdoors, in one trip, and *"it typechecked"* is not
+what should be standing behind that. This project has no jsdom and no testing-library by design —
+`use-latest-run.test.ts` asserts hook ORDER with a source grep rather than by rendering — so the
+browser is where React gets run.
+
+`run-overlay.mjs` renders the **real** provider and the **real** overlay against a **fake MapLibre
+Map**: the seam is chosen so that everything untested is exercised (flag read, synthetic load, ready
+gate, run button, the driver, the sampler reading `layer.stats()`, the table, the Copy button) while
+the thing already proved elsewhere is not rebuilt. It asserts the path drove 690 camera states from
+z5 to z17 and that `pan-across` returns to where it started.
+
+Three things it cost to get running, all written down because each failed **silently**:
+
+- **`--jsx=automatic` is mandatory.** `tsconfig.json` sets `jsx: "preserve"` because Next does its own
+  transform, so esbuild falls back to the CLASSIC runtime — `React.createElement` against a `React`
+  none of these components import. The page dies at module scope and `--dump-dom` reports a `<pre>`
+  still saying `pending`, with nothing in the output. `vitest.config.ts` documents the same trap.
+- **`requestAnimationFrame` has to be shimmed to a timer.** Headless Chromium under
+  `--virtual-time-budget` drives no compositor, so rAF callbacks never arrive and an rAF-driven loop
+  waits forever — same wall `run-cull.mjs` hit from the other side. It costs nothing this surface was
+  allowed to measure: frame cadence is item 3's business and item 3 carries no verdict here.
+- **`PerfOverlay.run` jumps once before the path starts**, so the jump log is one longer than the
+  path and every fixed index into it is off by one. It surfaced as a residual of exactly 4 px — one
+  step of `pan-across` — which is what an off-by-one in a cancelling pair looks like.
+
+**It also found a real one.** The `SYNTHETIC — NOT this account's territory` line used to render only
+under `!ready`, so it disappeared the moment the dataset arrived — precisely when it starts mattering.
+`?fog=perf:here` puts up to 500,617 cells of synthetic solid ground over the operator's own
+neighbourhood; with the line hidden, nothing on screen said so. It is now always visible.
+
 
 ## Audit
 
