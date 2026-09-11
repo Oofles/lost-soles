@@ -307,7 +307,7 @@
  "docs/05-fog-of-war.md#9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION**": "D-120 and D-021 cover ground that has been run before.",
  "docs/05-fog-of-war.md#9.2 What exactly is \"6 months\"? — minor, decide now": "Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length.",
  "docs/05-fog-of-war.md#9.3 Replay can lower a displayed XP total — real risk": "Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into",
- "docs/05-fog-of-war.md#9.4 Res 10's 131 m corridor over-reveals in dense grids — accepted, with an exit": "On a tight downtown grid with 80–120 m block spacing, running one street can reveal cells whose",
+ "docs/05-fog-of-war.md#9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN**": "with an exit\". The exit was taken and the section is kept so nobody re-opens the question without",
  "docs/05-fog-of-war.md#9.5 GPS quality in urban canyons, tunnels and under tree cover": "The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix",
  "docs/05-fog-of-war.md#9.6 WebGL2 assumptions": "this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the",
  "docs/05-fog-of-war.md#9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION**": "The 6-month re-arm is invisible on the map by design.",
