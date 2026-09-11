@@ -87,6 +87,18 @@ minified vendor code.
 
 ## Notes
 
+### 2026-09-11 — hit again during `0059`, and filed twice
+
+`0059` runs a production build as part of its own verification and hit both halves of this: `npm run
+lint` red on ~1,090 warnings from `public/maplibre/*.js`, and `check-design-tokens.mjs` red on the
+same two files. I filed it as `0205` without searching the backlog first; that ticket is closed as a
+duplicate pointing here.
+
+One detail worth adding to the "invisible in CI" argument: `gate.yml` runs `npm run lint` at line 71
+and `npm run build` at line 206, **in that order**, so CI is not merely unlikely to see this — the
+ordering guarantees it never will.
+
+
 `eslint.config.mjs`'s `ignores` block already carries the same shape of entry for `.next/**`,
 `.amplify/**` and `next-env.d.ts` — generated output that is not ours. `public/maplibre/` was
 created two tickets ago and was simply not added to it, and `check-design-tokens.mjs` has no

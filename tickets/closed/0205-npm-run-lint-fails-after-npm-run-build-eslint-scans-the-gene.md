@@ -4,13 +4,14 @@ slug: npm-run-lint-fails-after-npm-run-build-eslint-scans-the-gene
 title: npm run lint fails after npm run build — eslint scans the generated public/maplibre worker
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-11T14:10:53Z
+closed: 2026-09-11T14:54:31Z
 ---
 
 ## Description
@@ -35,10 +36,14 @@ you broke something, and the second time you learn to skip `npm run lint`.
 
 ## Acceptance criteria
 
-- [ ] `npm run build && npm run lint` exits 0 on a clean tree.
-- [ ] The ignore covers what `copy-maplibre-worker.mjs` actually writes, and the two files stay in
-      step — an ignore naming one file while the script writes two is the same bug later.
-- [ ] Nothing in `public/` that a human wrote becomes unlintable as a side effect.
+**Superseded — this ticket closes as a duplicate of `0188` and ships no change.** The criteria below
+are `0188`'s to meet; they are struck here rather than deleted so the duplicate's scope stays
+readable next to its resolution.
+
+- [x] ~~`npm run build && npm run lint` exits 0 on a clean tree.~~ → `0188`
+- [x] ~~The ignore covers what `copy-maplibre-worker.mjs` actually writes, and the two files stay in
+      step.~~ → `0188`, which also covers `check-design-tokens.mjs`
+- [x] ~~Nothing in `public/` that a human wrote becomes unlintable as a side effect.~~ → `0188`
 
 ## Steps to reproduce
 
@@ -62,4 +67,24 @@ it to the same constant the copy script uses if there is one, so the two cannot 
 
 ## Operator validation
 
-None — a local tooling gate. `npm run build && npm run lint` exiting 0 is the whole evidence.
+None — a local tooling gate, and it closes as a duplicate rather than as work. See `## Resolution`.
+
+## Resolution
+
+**Closed as a duplicate of `0188`, which was filed two days earlier (2026-09-09) and is strictly
+better.** No code changed.
+
+`0188` covers everything here and two things it misses: it also names
+`scripts/check-design-tokens.mjs`, which fails on the same two files for the same reason and which I
+hit in this session as well without connecting the two, and it explains why `0142` deriving its scan
+roots from disk is correct and must not be reverted. It also has the right warning count (1,090; I
+estimated ~700 from a truncated log).
+
+**Why the duplicate happened, since that is the part worth recording.** I filed this from a failing
+gate without first searching the backlog for the symptom — `tickets.mjs next --all` lists 0188 by
+almost exactly this title. Two minutes of looking would have replaced this ticket with a note. The
+cost is not the wasted id; it is that a backlog with two entries for one bug reads as two bugs.
+
+Nothing here is worth merging into `0188`: this ticket's only additions are a re-confirmation on
+2026-09-11 and the `gate.yml` line numbers (lint at 71, build at 206), both of which `0188` already
+states in substance.
