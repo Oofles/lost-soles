@@ -4,7 +4,7 @@ slug: layer-order-and-run-polyline
 title: Layer order — fog above labels, run polyline above the fog
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [54, 56]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-10T23:38:33Z
+closed: 2026-09-11T00:26:34Z
 ---
 
 ## Description
