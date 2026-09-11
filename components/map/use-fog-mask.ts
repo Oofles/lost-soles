@@ -51,6 +51,14 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
    * below, which run after it exists.
    */
   const controller = useRef<FogViewportController | null>(null)
+  /**
+   * The generation the controller has already drawn, so its own first cull is not repeated by the
+   * data-change effect on the same commit. `latest` carries the current generation into the
+   * controller's effect without making it a dependency — listing it there would tear the controller
+   * down and rebuild it on every run that lands, which is the opposite of what it is for.
+   */
+  const drawn = useRef<number | null>(null)
+  const latest = useRef<number | null>(null)
 
   /**
    * Read ONCE, on mount, rather than watched. `?fog=mask` is a debug flag; re-reading it on every
@@ -70,6 +78,7 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
 
   const set = explored.set
   const generation = explored.generation
+  latest.current = generation
 
   /**
    * ONE STORE PER SET, and it registers itself as the set's bucket invalidator.
@@ -160,10 +169,12 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     // in the background when the map mounted.
     created.setHidden(typeof document !== "undefined" && document.hidden)
     controller.current = created
+    drawn.current = latest.current
     created.start()
     return () => {
       created.stop()
       if (controller.current === created) controller.current = null
+      drawn.current = null
     }
   }, [map, layer, store])
 
@@ -180,7 +191,8 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
    * declaration order within a commit.
    */
   useEffect(() => {
-    if (generation === null) return
+    if (generation === null || drawn.current === generation) return
+    drawn.current = generation
     controller.current?.refresh(`generation ${generation}`)
   }, [layer, store, generation])
 
