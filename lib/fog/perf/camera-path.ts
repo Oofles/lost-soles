@@ -53,9 +53,27 @@ import type { GpuTimer } from "./gpu-timer"
 export interface PathSegment {
   phase: string
   steps: number
-  /** Screen-space pan per step, in CSS pixels, applied to the map centre. */
-  dxPx: number
-  dyPx: number
+  /**
+   * Pan per step, as a FRACTION OF THE VIEWPORT, applied to the map centre.
+   *
+   * ─── FRACTIONS, NOT PIXELS, AND THE FIRST VERSION GOT THIS HALF-RIGHT ──────
+   *
+   * It was right that the path must be screen-relative rather than in degrees — every claim §6.2 and
+   * §6.4 make is about the screen. It was wrong about which screen quantity: it used **absolute CSS
+   * pixels**, and the thing they have to be relative to is the **viewport**, because that is what the
+   * padded region is a fraction of (`cull.ts`'s `VIEWPORT_PAD`, 20% of the viewport's own width).
+   *
+   * The first desktop run is what exposed it. `pan-across` at 4 px/step x 240 steps is 960 px, which
+   * is 2.4 viewport widths on the 400 px reference phone — and barely half a viewport on a 1902 px
+   * desktop window. So it left the padded region **ten times** on the phone-sized run and **twice**
+   * on the desktop, and the phase whose job is to exercise buffer rebuilds mostly did not:
+   * `pan-across  2 culls / 240 camera events`.
+   *
+   * As a fraction the same segment travels 1.2 viewport widths on any screen, so `pan-inside` stays
+   * inside the padded region and `pan-across` leaves it about the same number of times, on both.
+   */
+  dxFrac: number
+  dyFrac: number
   /** Absolute zoom to hold, or a per-step delta from the segment's start. */
   zoom?: number
   dZoom?: number
@@ -63,14 +81,13 @@ export interface PathSegment {
 
 /** z14 is §9.5's planning zoom and D-051's floor; z17 is one street filling the screen. */
 export const PATH: readonly PathSegment[] = [
-  { phase: "settle", steps: 60, dxPx: 0, dyPx: 0, zoom: 14 },
+  { phase: "settle", steps: 60, dxFrac: 0, dyFrac: 0, zoom: 14 },
   /**
-   * 30 steps x 2 px = 60 px, against a padded region that extends 20% of the viewport's HEIGHT
-   * beyond its edge — 160 px on a 400x800 phone, 180 px on a 1440x900 desktop. Comfortably inside
-   * both, which is what makes "zero culls" an assertion about the code rather than about the
-   * viewport that happened to run it.
+   * 30 steps x 0.25% = **7.5% of the viewport's height**, against a padded region that extends 20%
+   * beyond its edge. Comfortably inside it on any screen, which is what makes "zero culls" an
+   * assertion about the code rather than about the viewport that happened to run it.
    */
-  { phase: "pan-inside", steps: 30, dxPx: 0, dyPx: -2, zoom: 14 },
+  { phase: "pan-inside", steps: 30, dxFrac: 0, dyFrac: -0.0025, zoom: 14 },
   /**
    * OUT AND BACK, in two segments sharing one phase name — `beginPhase` reuses the accumulator, so
    * the two report as one `pan-across`.
@@ -83,11 +100,27 @@ export const PATH: readonly PathSegment[] = [
    * the smaller dataset and read as drift when it was geometry. Coming back also matches what a
    * person does with a map.
    */
-  { phase: "pan-across", steps: 120, dxPx: 4, dyPx: 0, zoom: 14 },
-  { phase: "pan-across", steps: 120, dxPx: -4, dyPx: 0, zoom: 14 },
-  { phase: "zoom-out", steps: 120, dxPx: 0, dyPx: 0, zoom: 17, dZoom: -0.1 },
-  { phase: "zoom-in", steps: 120, dxPx: 0, dyPx: 0, zoom: 5, dZoom: 0.1 },
-  { phase: "pan-z17", steps: 120, dxPx: 3, dyPx: 0, zoom: 17 },
+  { phase: "pan-across", steps: 120, dxFrac: 0.01, dyFrac: 0, zoom: 14 },
+  { phase: "pan-across", steps: 120, dxFrac: -0.01, dyFrac: 0, zoom: 14 },
+  { phase: "zoom-out", steps: 120, dxFrac: 0, dyFrac: 0, zoom: 17, dZoom: -0.1 },
+  { phase: "zoom-in", steps: 120, dxFrac: 0, dyFrac: 0, zoom: 5, dZoom: 0.1 },
+  /**
+   * 2.4 viewport widths, the same as `pan-across`, and NOT the 0.9 it started with.
+   *
+   * This phase exists to measure the finest resolution, where there are the most instances — which
+   * means it has to actually rebuild the buffer there. At 0.9 it never did, and **raising it to 2.4
+   * did not fix it either**, which is how `0207` was found.
+   *
+   * `zoom-in` crosses its last band at z13 and rebuilds there; every further level inwards is
+   * CONTAINED by that z13 padded box, so nothing rebuilds again. At z17 that box is roughly 22
+   * viewports wide, and no plausible pan distance clears it. `pan-z17` therefore still reports
+   * `0 culls` and will keep doing so until `0207` adds a scale check beside the containment one.
+   *
+   * 2.4 is kept because it matches `pan-across` and is the right distance once `0207` lands; the
+   * phase's frame-time and instance-count samples are meaningful today regardless, since drawing an
+   * oversized buffer is exactly what the layer really does at z17 right now.
+   */
+  { phase: "pan-z17", steps: 120, dxFrac: 0.02, dyFrac: 0, zoom: 17 },
 ]
 
 export const PATH_STEPS = PATH.reduce((total, segment) => total + segment.steps, 0)
@@ -189,11 +222,11 @@ export async function driveScriptedPath(
        * currently has.
        */
       const centre =
-        segment.dxPx === 0 && segment.dyPx === 0
+        segment.dxFrac === 0 && segment.dyFrac === 0
           ? map.getCenter()
           : map.unproject([
-              canvas.clientWidth / 2 + segment.dxPx,
-              canvas.clientHeight / 2 + segment.dyPx,
+              canvas.clientWidth * (0.5 + segment.dxFrac),
+              canvas.clientHeight * (0.5 + segment.dyFrac),
             ])
 
       map.jumpTo({ center: { lng: centre.lng, lat: centre.lat }, zoom })

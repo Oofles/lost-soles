@@ -4686,5 +4686,25 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 207,
+    "slug": "zooming-in-never-leaves-the-padded-region-so-z17-draws-a-buf",
+    "title": "Zooming in never leaves the padded region, so z17 draws a buffer built for z13 — 30,031 instances where ~120 are needed",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T17:08:55Z",
+    "path": "tickets/open/0207-zooming-in-never-leaves-the-padded-region-so-z17-draws-a-buf.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
   }
 ]

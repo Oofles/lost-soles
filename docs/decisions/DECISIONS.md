@@ -3236,3 +3236,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **This does not excuse `0201`, `0202` or `0203`.** Those were measured on the desktop and fail
     there; dropping the phone removes a *measurement*, not a *finding*. `0202` in particular — up to
     20 ms of derivation inside a single pan cull — is felt on the desktop too.
+
+- **D-241** **§6.4 item 3's target is restated as "hold the display's refresh rate and drop
+  essentially no frames", because `p95 < 16.7 ms` from rAF deltas cannot be met by a perfect
+  renderer.** Amends `05-fog-of-war.md` §6.4 item 3. *(Agent, ticket `0059`, 2026-09-11.)*
+  - **The measurement that forced it.** The first real desktop run, 151,201 cells on a 1902x901
+    viewport, RTX 3070: `pan-across  p50 16.70  p95 17.30  p99 18.60  max 27.10`. Scored **FAIL**
+    against `p95 < 16.7`. The renderer was holding a rock-steady 60 fps and had dropped nothing.
+  - **Why the budget is unreachable, not merely tight.** `requestAnimationFrame` fires once per
+    display refresh. On a 60 Hz monitor an **on-time** frame therefore has a delta of 16.67 ms —
+    *the budget is the floor, not a ceiling* — and the p95 of a flawless run lands just above it on
+    scheduler jitter alone. No renderer of any quality can score better; a faster one just waits
+    longer for vsync.
+  - **The deltas are also quantised**, to multiples of the refresh interval: 16.7, 33.4, 50.1. So
+    "how far is p95 above 16.7" is not a meaningful axis. "How many frames missed a vsync" is, and it
+    separates cases the raw p95 conflates — the same run scored `p95/p50` of 1.03-1.07 in every pan
+    phase and **3.48** in `zoom-out`, which is the phase that genuinely stutters (`0202`).
+  - **What is asserted instead, and it is two halves because one is not enough.** (a) `p50 <= 17 ms`
+    — the common frame is on time at 60 Hz or better. (b) fewer than 1% of frames exceed 1.5x p50.
+    Half (a) is what stops half (b) self-calibrating: a renderer stuck at 30 fps has a p50 of 33 ms,
+    so every frame is "on time" relative to itself and the drop rate alone would pass it. The 1.5x
+    threshold is the midpoint between one interval and two — the only line no jitter can cross and
+    no dropped frame can hide under.
+  - **It also makes the harness portable across displays**, which the absolute number never was: a
+    120 Hz monitor has an 8.3 ms interval and would have passed `p95 < 16.7` while dropping every
+    other frame. The implied refresh rate is printed beside the verdict so the surface is visible.
+  - **What is NOT relaxed.** The target is still 60 fps and it is still judged only on the pan
+    phases. `zoom-out` fails this restatement exactly as it failed the old one, because it really
+    does drop frames.

@@ -462,6 +462,55 @@ None of these is a regression; all three are the design meeting measurement for 
   at 30°N 100°E where the Florida extract has no tiles — and fog over an empty background is a frame
   that leaves out most of a frame. It also commits no coordinate.
 
+#### The real desktop measurement, and what it changed (2026-09-11)
+
+`?fog=perf:here`, 151,201 cells, **1902x901 CSS px, Chrome 151, RTX 3070 via ANGLE/D3D11**. The first
+time any of this ran on real hardware through the real page.
+
+| item | measured | verdict |
+|---|---|---|
+| 1 `visibleInstanceCount` | 59,511 peak at z13.5 (ceiling 32,132 area-scaled) | **FAIL — `0201`** |
+| 2 GPU mask | **0.474 ms mean, 2.777 ms max**, 700 samples | **PASS** (< 1 ms) |
+| 2 GPU composite | **0.862 ms mean, 2.322 ms max**, 996 samples | **PASS** (< 2 ms) |
+| 3 frame, pan-across | p50 16.70, p95 17.30, **0 dropped of 238** | PASS after D-241 |
+| 3 frame, pan-z17 | p50 16.60, p95 17.70, **0 dropped of 119** | PASS after D-241 |
+| 4 cull net of derivation | 0.40 ms max, 0.30 ms mean | PASS (< 2 ms) |
+| 4 culls in the padded region | 0 over 30 camera events | PASS |
+| 6 long tasks during pan | 0 | PASS |
+
+**§6.3's GPU budgets are met on real hardware, and this is the first time they have ever been
+measured.** `EXT_disjoint_timer_query_webgl2` is present in desktop Chrome, absent on Chrome for
+Android and on SwiftShader — so the desktop is the only surface that can answer item 2 at all, and it
+answers it comfortably. D-230's spike is vindicated on the technique; only the ANGLE conformance
+question it deferred remains open, and D-240 accepts that.
+
+**The frame budget was rewritten because of this run — see D-241.** `p95 < 16.7 ms` scored a
+rock-steady 60 fps as a failure: rAF fires once per refresh, so an on-time frame's delta IS 16.7 ms
+and the budget was the floor rather than a ceiling. Restated as "p50 on time and essentially nothing
+dropped", every pan phase passes and `zoom-out` still fails — `p95 58.10, max 243.70, p95/p50 3.48`,
+which is `0202` showing up exactly where it was predicted.
+
+**Item 7's desktop PASS is not trustworthy and the headless FAIL stands.** It reported 13.9 MB over a
+200.1 MB baseline; the headless run, with `--enable-precise-memory-info`, reported 73.7 MB over a
+39.3 MB baseline for the same dataset. Ordinary Chrome coarsens `performance.memory`, and a delta
+taken against an already-large heap is the least reliable form of it. `0203` is written against the
+headless number.
+
+**Two instrument bugs and one behavioural finding came out of the same table:**
+
+- **The path panned in absolute CSS pixels.** Every §6.2 and §6.4 claim is screen-relative, but the
+  quantity they are relative to is the **viewport** — the padded region is 20% of it. 960 px is 2.4
+  viewport widths on the 400 px reference phone and half a viewport on a 1902 px desktop, so
+  `pan-across` left the padded region ten times in one run and **twice** in the other:
+  `pan-across  2 culls / 240 camera events`. Now expressed as fractions of the viewport.
+- **`pan-z17` rebuilt nothing, at any pan distance** — which is `0207`, below.
+- **`0207`: zooming in never leaves the padded region.** `boxContains` is containment only, with no
+  notion of scale, so the buffer built at z13 is still being drawn at z17 — the histogram shows
+  **byte-identical 30,031 at z15, z16 and z17**, where a z17 viewport needs about 120. Whether it
+  costs anything is unclear: the GPU numbers above were measured WITH those inflated counts and are
+  comfortably inside budget. What it definitely does is make `0201`'s ceiling hard to reason about,
+  because a count recorded at z15 is really a count from z13.
+
 #### The phone run was dropped, and the harness changed shape because of it (D-240)
 
 `0059`'s title says *"on a real mid-range Android phone"*. There is no phone run: the operator

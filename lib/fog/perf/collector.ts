@@ -52,6 +52,31 @@ export interface FrameStats {
   max: number
   /** Frames per second implied by `p50`. The number a person would say out loud. */
   fps: number
+  /**
+   * FRAMES THAT MISSED A VSYNC, which is what §6.4 item 3 is actually asking about.
+   *
+   * ─── WHY A RAW p95 CANNOT ANSWER IT ────────────────────────────────────────
+   *
+   * §6.4 says *"frame time p50/p95 from rAF deltas … Target: p95 < 16.7 ms"*, and on a vsync-locked
+   * display that target is **unreachable by construction**. rAF fires once per refresh, so on a 60 Hz
+   * monitor a PERFECT frame has a delta of 16.7 ms — exactly the budget — and the p95 of a flawless
+   * run lands a hair above it on scheduler jitter alone. The first real desktop run reported
+   * `p50 16.70, p95 17.30` for `pan-across` and scored it FAIL: a renderer holding a rock-steady
+   * 60 fps, failing a 60 fps budget.
+   *
+   * The deltas are also QUANTISED to multiples of the refresh interval — 16.7, 33.4, 50.1 — so the
+   * interesting quantity is not how far p95 sits above 16.7 but **how many frames missed a vsync at
+   * all**. That is this number, and it separates the two cases the raw p95 conflates: the same
+   * phases above scored `p95/p50` of 1.03-1.07 (nothing dropped) while `zoom-out` scored 3.48.
+   *
+   * `1.5x` is the threshold because the next legal delta above one interval is two intervals; a
+   * midpoint is the only place to put the line that no jitter can cross and no dropped frame can
+   * hide under.
+   */
+  dropped: number
+  droppedPct: number
+  /** Implied by `p50`, and printed so a 120 Hz display is visible rather than mysterious. */
+  displayHz: number
 }
 
 export interface InstanceBucket {
@@ -406,6 +431,13 @@ export class FogPerf {
       const acc = this.#phases.get(phase)!
       const sorted = [...acc.frames].sort((a, b) => a - b)
       const p50 = percentile(sorted, 50)
+      /**
+       * The refresh interval is taken to be p50. On any run where most frames are on time that IS the
+       * interval, which is what makes this work on a 60 Hz and a 120 Hz display without being told
+       * which it is — and `report.ts` guards the hole that opens if most frames are NOT on time by
+       * asserting p50 against the absolute budget separately.
+       */
+      const dropped = p50 === 0 ? 0 : sorted.filter((delta) => delta > p50 * 1.5).length
       frames.push({
         phase,
         samples: sorted.length,
@@ -414,6 +446,9 @@ export class FogPerf {
         p99: percentile(sorted, 99),
         max: sorted.length === 0 ? 0 : sorted[sorted.length - 1]!,
         fps: p50 === 0 ? 0 : 1000 / p50,
+        dropped,
+        droppedPct: sorted.length === 0 ? 0 : (dropped / sorted.length) * 100,
+        displayHz: p50 === 0 ? 0 : 1000 / p50,
       })
       culls.push({
         phase,

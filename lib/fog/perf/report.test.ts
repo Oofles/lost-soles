@@ -37,7 +37,7 @@ const NO_GPU: GpuTimerStats = {
 function snapshot(overrides: Partial<PerfSnapshot> = {}): PerfSnapshot {
   return {
     frames: [
-      { phase: "pan-across", samples: 239, p50: 12, p95: 15.5, p99: 16, max: 20, fps: 83 },
+      frameStats("pan-across", 239, 12, 15.5, 16, 20),
     ],
     instances: [{ zoom: 14, samples: 200, max: 5_271, resAtMax: 11, zoomAtMax: 14 }],
     longTasks: [],
@@ -54,6 +54,22 @@ function snapshot(overrides: Partial<PerfSnapshot> = {}): PerfSnapshot {
 }
 
 const row = (rows: ReturnType<typeof verdicts>, name: string) => rows.find((r) => r.name === name)!
+
+/** `dropped` is derived the way the collector derives it: anything over 1.5x p50. */
+function frameStats(phase: string, samples: number, p50: number, p95: number, p99: number, max: number, dropped = 0) {
+  return {
+    phase,
+    samples,
+    p50,
+    p95,
+    p99,
+    max,
+    fps: 1000 / p50,
+    dropped,
+    droppedPct: samples === 0 ? 0 : (dropped / samples) * 100,
+    displayHz: 1000 / p50,
+  }
+}
 
 /**
  * A cull phase. `net` defaults to `max`, i.e. no derivation happened inside the cull — the common
@@ -134,30 +150,70 @@ describe("item 2 — a missing extension is not a failure", () => {
   })
 })
 
-describe("item 3 — frame time", () => {
-  it("judges each pan phase against 16.7 ms and ignores load and zoom", () => {
+describe("item 3 — frame time, restated as dropped frames (D-241)", () => {
+  it("judges each pan phase and ignores load and zoom", () => {
     const rows = verdicts(
       snapshot({
         frames: [
-          { phase: "load", samples: 60, p50: 40, p95: 300, p99: 320, max: 340, fps: 25 },
-          { phase: "pan-across", samples: 239, p50: 12, p95: 15.5, p99: 16, max: 20, fps: 83 },
+          frameStats("load", 60, 40, 300, 320, 340, 30),
+          frameStats("pan-across", 239, 12, 15.5, 16, 20),
         ],
       }),
       NO_GPU,
       PHONE,
     )
     expect(rows.filter((r) => r.item === 3)).toHaveLength(1)
-    expect(row(rows, "frame p95 — pan-across").pass).toBe(true)
-    expect(FRAME_BUDGET_MS).toBe(16.7)
+    expect(row(rows, "frame — pan-across").pass).toBe(true)
   })
 
-  it("fails a p95 over budget and names the kill criteria in the verdict line", () => {
+  /**
+   * THE CASE THE OLD ASSERTION GOT WRONG, and it is the whole reason for D-241. These are the real
+   * numbers from the first desktop run: a vsync-locked 60 Hz display holding a rock-steady 60 fps
+   * through `pan-across`, with nothing dropped. `p95 < 16.7` scored it FAIL, because on a 60 Hz
+   * display an ON-TIME frame's delta is 16.7 ms — the budget is the floor, not a ceiling.
+   */
+  it("passes a flawless 60 Hz run that the old p95 rule failed", () => {
+    const rows = verdicts(
+      snapshot({ frames: [frameStats("pan-across", 238, 16.7, 17.3, 18.6, 27.1, 0)] }),
+      NO_GPU,
+      PHONE,
+    )
+    const frame = row(rows, "frame — pan-across")
+    expect(frame.pass).toBe(true)
+    expect(frame.value).toContain("0 dropped")
+    expect(frame.note).toContain("~60 Hz")
+  })
+
+  it("fails a phase that genuinely drops frames", () => {
+    const rows = verdicts(
+      // zoom-out's real shape: on-time median, a long tail. 12 of 119 missed a vsync.
+      snapshot({ frames: [frameStats("pan-across", 119, 16.7, 58.1, 98.6, 243.7, 12)] }),
+      NO_GPU,
+      PHONE,
+    )
+    expect(row(rows, "frame — pan-across").pass).toBe(false)
+  })
+
+  /**
+   * THE HOLE THE DROP RATE OPENS ON ITS OWN, closed by the p50 half. A renderer stuck at 30 fps has
+   * a p50 of 33 ms, so every frame is "on time" relative to itself and nothing is ever 1.5x the
+   * median. Without the absolute check it would score a clean pass at half the target rate.
+   */
+  it("fails a renderer running at half rate even though it drops nothing", () => {
+    const rows = verdicts(
+      snapshot({ frames: [frameStats("pan-across", 200, 33.4, 34, 35, 36, 0)] }),
+      NO_GPU,
+      PHONE,
+    )
+    const frame = row(rows, "frame — pan-across")
+    expect(frame.pass).toBe(false)
+    expect(frame.note).toContain("not being kept up with")
+    expect(FRAME_BUDGET_MS).toBe(17.0)
+  })
+
+  it("names the kill criteria in the verdict line when a budget is missed", () => {
     const text = formatReport(
-      snapshot({
-        frames: [
-          { phase: "pan-across", samples: 239, p50: 22, p95: 31, p99: 40, max: 60, fps: 45 },
-        ],
-      }),
+      snapshot({ frames: [frameStats("pan-across", 239, 22, 31, 40, 60, 40)] }),
       NO_GPU,
       PHONE,
     )
@@ -313,7 +369,7 @@ describe("the table itself", () => {
     for (const needle of [
       "visibleInstanceCount",
       "GPU mask",
-      "frame p95",
+      "frame — ",
       "cull time — pan",
       "bucket cache hit rate",
       "long tasks during pan",

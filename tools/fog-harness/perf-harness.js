@@ -55,13 +55,13 @@ const HEIGHT = 800
  * and the two are kept in step by `camera-path.test.ts` asserting the shipped one's displacements.
  */
 const HEADLESS_PATH = [
-  { phase: "settle", steps: 6, dxPx: 0, dyPx: 0, zoom: 14 },
-  { phase: "pan-inside", steps: 6, dxPx: 0, dyPx: -10, zoom: 14 },
-  { phase: "pan-across", steps: 12, dxPx: 40, dyPx: 0, zoom: 14 },
-  { phase: "pan-across", steps: 12, dxPx: -40, dyPx: 0, zoom: 14 },
-  { phase: "zoom-out", steps: 24, dxPx: 0, dyPx: 0, zoom: 17, dZoom: -0.5 },
-  { phase: "zoom-in", steps: 24, dxPx: 0, dyPx: 0, zoom: 5, dZoom: 0.5 },
-  { phase: "pan-z17", steps: 12, dxPx: 30, dyPx: 0, zoom: 17 },
+  { phase: "settle", steps: 6, dxFrac: 0, dyFrac: 0, zoom: 14 },
+  { phase: "pan-inside", steps: 6, dxFrac: 0, dyFrac: -0.0125, zoom: 14 },
+  { phase: "pan-across", steps: 12, dxFrac: 0.1, dyFrac: 0, zoom: 14 },
+  { phase: "pan-across", steps: 12, dxFrac: -0.1, dyFrac: 0, zoom: 14 },
+  { phase: "zoom-out", steps: 24, dxFrac: 0, dyFrac: 0, zoom: 17, dZoom: -0.5 },
+  { phase: "zoom-in", steps: 24, dxFrac: 0, dyFrac: 0, zoom: 5, dZoom: 0.5 },
+  { phase: "pan-z17", steps: 12, dxFrac: 0.2, dyFrac: 0, zoom: 17 },
 ]
 
 const fail = []

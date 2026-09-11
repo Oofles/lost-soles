@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { FogPerf, type PerfHost } from "./collector"
+import { VIEWPORT_PAD } from "../cull"
 import {
   driveScriptedPath,
   PATH,
@@ -92,7 +93,7 @@ describe("the path itself", () => {
    */
   it("returns pan-across to where it started", () => {
     const travel = PATH.filter((s) => s.phase === "pan-across").reduce(
-      (sum, s) => sum + s.dxPx * s.steps,
+      (sum, s) => sum + s.dxFrac * s.steps,
       0,
     )
     expect(travel).toBe(0)
@@ -105,18 +106,21 @@ describe("the path itself", () => {
    * count or the step size without checking, the phase quietly starts culling and the failure reads
    * as a regression in the controller.
    */
-  it("keeps pan-inside inside the padded region on the reference viewport", () => {
+  it("keeps pan-inside inside the padded region on ANY viewport", () => {
     const segment = PATH.find((s) => s.phase === "pan-inside")!
-    const travel = Math.abs(segment.dyPx) * segment.steps
-    expect(travel).toBeLessThan(0.2 * 800)
+    // A fraction of the viewport, so this holds on a 400x800 phone and a 1902x901 desktop alike —
+    // which is the point of the unit and the thing absolute pixels got wrong.
+    expect(Math.abs(segment.dyFrac) * segment.steps).toBeLessThan(VIEWPORT_PAD)
   })
 
   it("leaves the padded region many times over during pan-across", () => {
     const distance = PATH.filter((s) => s.phase === "pan-across").reduce(
-      (sum, s) => sum + Math.abs(s.dxPx) * s.steps,
+      (sum, s) => sum + Math.abs(s.dxFrac) * s.steps,
       0,
     )
-    expect(distance).toBeGreaterThan(2 * 400)
+    // 2.4 viewport widths, on every screen. In absolute pixels this was 2.4 viewports on a phone and
+    // half a viewport on a desktop, so the phase barely rebuilt the buffer there.
+    expect(distance).toBeGreaterThan(2)
   })
 
   it("sweeps z17 down to z5 and back, which is every band in ZOOM_TO_RES", () => {
@@ -140,31 +144,31 @@ describe("driving it", () => {
   })
 
   /**
-   * A path defined in DEGREES would visit the same states on both viewports, which is the bug. The
-   * padded region is a fraction of the viewport, so the same degree offset is a different fraction of
-   * it — and `pan-inside`'s zero-cull claim would then mean two different things on the two surfaces
-   * while reporting one number.
+   * A path defined in DEGREES would drift out of screen space the moment it moved north. A path in
+   * absolute PIXELS is screen-space but not viewport-relative, and the padded region is a fraction of
+   * the viewport — so 960 px is 2.4 viewport widths on a phone and half a viewport on a desktop, and
+   * `pan-across` stopped rebuilding the buffer on the wider screen. The unit that works is a fraction
+   * of the viewport, and this asserts the consequence: a wider screen covers proportionally more
+   * ground for the same step.
    */
-  it("pans by screen pixels, so a wider viewport covers more ground per step", async () => {
+  it("pans by a fraction of the viewport, so each screen moves by the same share of itself", async () => {
     const phone = fakeMap({ width: 400, height: 800 })
-    const desktop = fakeMap({ width: 1440, height: 900 })
-    const segment: PathSegment[] = [{ phase: "pan", steps: 4, dxPx: 10, dyPx: 0, zoom: 14 }]
-    await driveScriptedPath(phone.map, new FogPerf(silentHost), {
-      host: syncHost(),
-      path: segment,
-    })
-    await driveScriptedPath(desktop.map, new FogPerf(silentHost), {
-      host: syncHost(),
-      path: segment,
-    })
-    // The fake projects a pixel to a fixed number of degrees, so both move the same distance for the
-    // same pixel offset — what differs is that each asked ITS OWN canvas where the centre was.
-    expect(phone.states.at(-1)!.lng).toBeCloseTo(desktop.states.at(-1)!.lng)
-    // The proof that the canvas was consulted at all: a zero-offset segment must not move.
+    const desktop = fakeMap({ width: 1600, height: 800 })
+    const segment: PathSegment[] = [{ phase: "pan", steps: 4, dxFrac: 0.025, dyFrac: 0, zoom: 14 }]
+    await driveScriptedPath(phone.map, new FogPerf(silentHost), { host: syncHost(), path: segment })
+    await driveScriptedPath(desktop.map, new FogPerf(silentHost), { host: syncHost(), path: segment })
+
+    // The fake projects a pixel to a fixed number of degrees, so a 4x wider viewport moves 4x as far
+    // for the same fraction — which is exactly what absolute pixels failed to do.
+    const phoneTravel = phone.states.at(-1)!.lng - 100
+    const desktopTravel = desktop.states.at(-1)!.lng - 100
+    expect(desktopTravel / phoneTravel).toBeCloseTo(4, 1)
+
+    // And a zero-offset segment still asks the map for nothing and moves not at all.
     const still = fakeMap()
     await driveScriptedPath(still.map, new FogPerf(silentHost), {
       host: syncHost(),
-      path: [{ phase: "settle", steps: 3, dxPx: 0, dyPx: 0, zoom: 14 }],
+      path: [{ phase: "settle", steps: 3, dxFrac: 0, dyFrac: 0, zoom: 14 }],
     })
     expect(new Set(still.states.map((s) => s.lng)).size).toBe(1)
   })
@@ -173,7 +177,7 @@ describe("driving it", () => {
     const fake = fakeMap()
     await driveScriptedPath(fake.map, new FogPerf(silentHost), {
       host: syncHost(),
-      path: [{ phase: "settle", steps: 5, dxPx: 0, dyPx: 0, zoom: 14 }],
+      path: [{ phase: "settle", steps: 5, dxFrac: 0, dyFrac: 0, zoom: 14 }],
     })
     expect(fake.repaints.count).toBe(5)
   })
@@ -188,7 +192,7 @@ describe("driving it", () => {
     const seen: number[] = []
     await driveScriptedPath(fake.map, new FogPerf(silentHost), {
       host: syncHost(),
-      path: [{ phase: "zoom-out", steps: 3, dxPx: 0, dyPx: 0, zoom: 17, dZoom: -1 }],
+      path: [{ phase: "zoom-out", steps: 3, dxFrac: 0, dyFrac: 0, zoom: 17, dZoom: -1 }],
       onSample: () => seen.push(fake.map.getZoom()),
     })
     // Frame 1 is sampled before anything has been jumped to, so it sees the map's starting zoom;
@@ -278,5 +282,23 @@ describe("stopping early", () => {
       shouldStop: () => false,
     })
     expect(fake.states).toHaveLength(PATH_STEPS)
+  })
+})
+
+/**
+ * `0059`, after the first desktop run. Both `pan-across` and `pan-z17` exist to rebuild the instance
+ * buffer repeatedly; a phase that leaves the padded region zero times measures a static buffer and
+ * reports it as a pan.
+ */
+describe("the pan phases actually leave the padded region", () => {
+  it.each(["pan-across", "pan-z17"])("%s travels well over the 20%% padding", (phase) => {
+    const travelled = PATH.filter((s) => s.phase === phase).reduce(
+      (sum, s) => sum + Math.abs(s.dxFrac) * s.steps,
+      0,
+    )
+    // 2+ viewports, not merely more than VIEWPORT_PAD. `pan-z17` additionally inherits a padded box
+    // built at z13 that is ~22 of its own viewports wide, so it rebuilds nothing today whatever this
+    // number is — see `0207`. The distance is asserted anyway so it is already right when that lands.
+    expect(travelled).toBeGreaterThan(2)
   })
 })

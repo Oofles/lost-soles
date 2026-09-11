@@ -177,7 +177,7 @@ async function main() {
   for (const needle of [
     "visibleInstanceCount",
     "GPU mask",
-    "frame p95",
+    "frame — ",
     "cull time — pan",
     "bucket cache hit rate",
     "long tasks during pan",

@@ -1268,7 +1268,20 @@ not after.
    it, and fall back to frame time.)
 3. **Frame time p50/p95** from rAF deltas during a **scripted** camera path — a fixed pan/zoom
    sequence replayed identically on every build, so numbers are comparable across commits.
-   *Target: p95 < 16.7 ms.*
+   *Target: **p50 <= 17 ms and under 1% of frames over 1.5x p50**, on the pan phases.* (D-241.)
+
+   **The target used to read *"p95 < 16.7 ms"* and that cannot be met by a perfect renderer.** rAF
+   fires once per display refresh, so on a 60 Hz monitor an ON-TIME frame's delta is 16.67 ms — the
+   budget is the floor, not a ceiling — and the p95 of a flawless run sits just above it on scheduler
+   jitter. The first real measurement (151,201 cells, 1902x901, RTX 3070) scored `p50 16.70,
+   p95 17.30` on `pan-across` as a failure, for a renderer holding a rock-steady 60 fps with nothing
+   dropped.
+
+   The deltas are quantised to multiples of the refresh interval, so the meaningful question is how
+   many frames **missed a vsync**. Both halves are needed: the p50 check is what stops the drop rate
+   from self-calibrating, since a renderer stuck at 30 fps has a p50 of 33 ms and drops nothing
+   relative to itself. Reporting the implied refresh rate alongside keeps a 120 Hz display visible,
+   which the absolute 16.7 never did.
 4. **Main-thread cull time** via `performance.mark`/`measure` around the two-level cull.
    *Budget: < 2 ms, and it must be ~0 ms for pans inside the padded region.*
 5. **Bucket-derivation time** per resolution, and its cache hit rate.
