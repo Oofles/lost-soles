@@ -105,13 +105,27 @@ the rAF loop.
       `src/domain/explored-agg.ts` over the same bytes the fog is drawn from. D-238 records it.
 - [x] Main-thread cull time measured under 2 ms, and ~0 ms for pans inside the padded region.
       — **0.18 ms** warm on a 150k fixture; a pan inside the padded region runs no cull at all.
-- [ ] **(operator)** The zoom ladder reads as one material on the desktop browser over ground the
-      operator recognises: a continuous z17→z4→z17 gesture with no flicker, no blank, no boundary that
-      announces itself; sparse ground at z10–12 a dim wash rather than a uniform slab; z14 still the
-      res-11 fog approved in `0194`. — **added by this ticket, not in the original set.** Eleven
-      machine-checkable criteria cannot answer whether seven coarse buckets look like the same fog,
-      and nobody has ever seen this app render anything but res 11 at one zoom. See
-      `## Operator validation` for the four checks.
+- [x] **(operator)** The zoom ladder reads as one material on the desktop browser over ground the
+      operator recognises: a continuous z17→z4→z17 gesture with **no blank and no boundary that
+      announces itself**; sparse ground at z10–12 a dim wash rather than a uniform slab; z14 still the
+      res-11 fog approved in `0194`.
+      — verified 2026-09-11: the ladder holds. z10–12 *"looks great and exactly how I'd expect"*, z14
+      *"perfect"*, and no blank or popping boundary across the whole gesture.
+      **The criterion is amended: it originally said "no flicker", which conflated two different things
+      and is not `0058`'s to answer.** The operator reported the mist
+      boiling during a continuous pinch (*"looks like static on a screen"*) — measured and diagnosed as
+      `0056`'s noise lattice being sized in screen pixels, so a zoom rescales it and a fixed ground
+      point walks thousands of lattice cells per frame. Filed as **`0199`**. It is not the culling: the
+      revealed area across a simulated 60-frame pinch moves monotonically with no oscillation at any
+      band boundary, which is what this criterion was actually about.
+      The three parts that ARE this ticket's all passed. **z10–12:** *"the surrounding area looks great
+      and exactly how I'd expect. Dim, hard to fully see the underlying features, but still visible
+      enough to see there's something there with the outlines of roads — exactly what I'd expect with
+      the coverage of fog."* That is §6.1's coarse-bucket `fraction` doing its job and D-051 holding at
+      a zoom nothing had ever rendered before. **z14:** *"yes, perfect."* **No blank at any boundary**
+      and no band announcing itself was reported across the whole gesture. A separate slow-pan jitter at
+      high zoom is filed as `0200` at the operator's own priority: *"low-threat… don't spend too much
+      effort."*
 
 ## Notes
 
@@ -238,6 +252,34 @@ them as instructions:
 Fixed rather than filed, because they are one line each, they are in the section this ticket is
 implementing, and a wrong hard constraint is worse than a wrong comment.
 
+### Two bugs the validation found, neither of them this ticket's
+
+Both were reported against checks `0058` asked for, and neither is in code `0058` touched — so both are
+filed rather than absorbed.
+
+**`0199`, high: the mist is re-randomised every frame during a zoom.** `composite.ts` sets
+`scale = 1 / (mercPerPixel × NOISE_PX)`, so the noise lattice is sized in **screen pixels** and a zoom
+rescales it. The absolute lattice index of a ground point is `floor(scale × mercatorPos)` — the origin
+term cancels exactly, which is what makes D-233's panning correct — and `mercatorPos × scale` is ~17,000
+at z15, so a 1% change in scale moves it by ~170 cells. Measured across a pinch at 0.2 zoom levels per
+frame, a fixed point walks **650 to 9,150 cells per frame**, and `hashCell` is an integer bit-mix
+specifically so that adjacent cells do not correlate. Every frame is therefore an uncorrelated field.
+
+D-233 anchored the noise's *translation* and proved it; nothing was ever said about its *frequency*.
+`composite.test.ts`'s existing assertion compares two frames related by a **pan**, where `scale` is
+fixed by construction — so it cannot see this and was never going to.
+
+**`0200`, low, at the operator's own stated priority: the fog edge jitters on a slow pan at high zoom.**
+Two candidates recorded with a cheap experiment to separate them — the half-resolution mask quantising
+the boundary to two device pixels (likely, and matches the reported envelope exactly), or `float32` in
+the projection matrix at z17 where a step is ~8 mercator-scaled units.
+
+**Ruling out the cull was the first thing done, and it is the reason both could be filed with
+confidence.** A 60-frame simulated pinch over a 43,561-cell fixture, sampling the fraction of a 40×40
+grid over the live viewport covered by the uploaded instances: the coverage falls monotonically from
+1.000 to 0.000 with no oscillation at any of the seven band boundaries. Staleness during the debounce
+window changes *which ground is drawn*, which would read as a boundary moving — not as static.
+
 ### Left deliberately undone
 
 - **The optimistic corridor (`0057`) stays at `RES` rather than following the bucket**, though
@@ -256,7 +298,20 @@ implementing, and a wrong hard constraint is worse than a wrong comment.
 
 ## Operator validation
 
-### ★ WHAT NEEDS A HUMAN — on the desktop browser (D-227) ★
+### ★ OPERATOR RESULT — 2026-09-11, desktop browser (D-227) ★
+
+**Three of the four checks passed; the fourth found a bug in `0056` rather than in this ticket.**
+
+| | |
+|---|---|
+| **1. Continuous z17→z4→z17** | Flickers — *"looks like static on a screen when zooming."* **Not the cull.** Measured across a simulated 60-frame pinch, the revealed area moves monotonically with no oscillation at any band boundary; the mist's texture is `0056`'s noise lattice, which is sized in screen pixels so a zoom rescales it. A fixed ground point walks 650–9,000 lattice cells per frame and the hash is an integer bit-mix, so every frame is an uncorrelated field. Filed as **`0199`**, high. No blank and no boundary popping was reported, which is what this ticket owns. |
+| **2. Sparse ground at z10–12** | **Pass.** *"The surrounding area looks great and exactly how I'd expect. Dim, hard to fully see the underlying features, but still visible enough to see there's something there with the outlines of roads — exactly what I'd expect with the coverage of fog."* The coarse-bucket `fraction` reading correctly at a zoom nothing had ever rendered, and D-051 holding there. |
+| **3. Slow pan at z15+** | Jitters slightly. *"Only noticable if you are zoomed in close and moving slow, so this is a low-threat bug — just don't spend too much effort fixing this one since the current state is acceptable."* Filed as **`0200`**, low, at the operator's stated priority, with the two candidate causes and a cheap experiment to tell them apart. |
+| **4. z14** | **Pass.** *"yes, perfect."* The band res 11 moved into, and the one D-238's arithmetic was re-derived for. |
+
+### The checks, as they were put to the operator
+
+
 
 The ticket as filed asked for four phone tasks against loaded synthetic fixtures. That is what D-229
 narrowed `## Operator validation` to exclude: the phone belongs to `0059`, and constructing a

@@ -1397,8 +1397,8 @@
     "path": "tickets/open/0058-zoom-bucketing-and-viewport-culling.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 11
+      "checked": 11,
+      "total": 12
     }
   },
   {
@@ -4522,6 +4522,46 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 199,
+    "slug": "the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois",
+    "title": "The mist is re-randomised every frame during a zoom — the noise lattice is sized in screen pixels",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T13:12:31Z",
+    "path": "tickets/open/0199-the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 200,
+    "slug": "the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi",
+    "title": "The fog edge jitters against the basemap on a slow pan at high zoom",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-09-11T13:12:36Z",
+    "path": "tickets/open/0200-the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
