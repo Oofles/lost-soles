@@ -69,15 +69,15 @@ proceed to Phase 2 on a renderer that stutters.**
 - [x] (operator) Mask < 1 ms, composite < 2 ms, ~~frame p95 < 16.7 ms~~ **frame p50 ≤ 17 ms with
       under 1% of frames dropped (D-241)** at 150k cells ~~on the target phone~~ **on the desktop
       browser (D-240)**.
-      — verified 2026-09-11 on the operator's desktop (Chrome 151, RTX 3070 via ANGLE/D3D11,
-      1902×901): **mask 0.474 ms mean / 2.777 ms max; composite 0.862 ms mean / 2.322 ms max;
+      — verified 2026-09-11: on the operator's desktop (Chrome 151, RTX 3070 via ANGLE/D3D11,
+      1902×901) — **mask 0.474 ms mean / 2.777 ms max; composite 0.862 ms mean / 2.322 ms max;
       pan-across p50 16.70, 0 dropped of 238; pan-z17 p50 16.60, 0 dropped of 119.**
       *`p95 < 16.7 ms` was unmeasurable — rAF fires once per refresh, so on a 60 Hz display an
       on-time frame's delta IS 16.7 ms and the budget was the floor rather than a ceiling. D-241
       restates it. `EXT_disjoint_timer_query_webgl2` exists in desktop Chrome and nowhere else this
       project can run, so the desktop is the only surface that could ever answer the first two.*
 - [x] (operator) Zero fog-attributable long tasks during the scripted pan.
-      — verified 2026-09-11 on the operator's desktop: **0 during the pan phases** (12 outside them,
+      — verified 2026-09-11: on the operator's desktop, **0 during the pan phases** (12 outside them,
       in load and zoom, which §6.4 does not assert on).
       *It was expected to fail — up to 20 ms of derivation ran inside a single pan cull. It did not,
       because a 20 ms block is under the 50 ms `longtask` threshold. `0202` removed it anyway and
