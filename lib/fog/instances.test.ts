@@ -2,10 +2,11 @@ import { cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, latLngToCell } from "h
 import { describe, expect, it } from "vitest"
 
 import { cellToBig } from "@/src/domain/explored-blob"
+import { RES } from "@/src/domain/fog"
 
 import {
   EARTH_CIRCUMFERENCE_M,
-  RES10_CIRCUMRADIUS_M,
+  CANONICAL_CIRCUMRADIUS_M,
   blobCellsToIds,
   discRadiusM,
   mercatorX,
@@ -28,12 +29,13 @@ const NEMO = { lat: -48.876, lng: -123.393 }
 
 describe("§2.1's geometry", () => {
   /**
-   * The design states 75.9 m; h3-js says 75.864. Asserted rather than assumed so that an h3 upgrade
-   * which changes the average-edge-length table becomes a failing test instead of a fog that
-   * quietly renders at the wrong radius — the drift D-153's audits exist to catch, caught earlier.
+   * The design states 28.7 m at res 11; h3-js says 28.664. Asserted rather than assumed so that an
+   * h3 upgrade which changes the average-edge-length table becomes a failing test instead of a fog
+   * that quietly renders at the wrong radius — the drift D-153's audits exist to catch, caught
+   * earlier. Read off `RES` rather than a literal 11, so D-237's successor moves it too.
    */
-  it("agrees with h3-js on the res-10 circumradius", () => {
-    expect(getHexagonEdgeLengthAvg(10, "m")).toBeCloseTo(RES10_CIRCUMRADIUS_M, 1)
+  it("agrees with h3-js on the canonical circumradius", () => {
+    expect(getHexagonEdgeLengthAvg(RES, "m")).toBeCloseTo(CANONICAL_CIRCUMRADIUS_M, 1)
   })
 
   it("uses the spherical earth this project uses everywhere else, not WGS84 equatorial", () => {
@@ -87,11 +89,11 @@ describe("web mercator", () => {
 })
 
 describe("packBucket — criterion 5's layout", () => {
-  const origin = latLngToCell(NEMO.lat, NEMO.lng, 10)
+  const origin = latLngToCell(NEMO.lat, NEMO.lng, RES)
 
   it("writes centre, radius and fraction in that order, four floats per instance", () => {
     const { instances, count, res } = packBucket([origin])
-    expect(res).toBe(10)
+    expect(res).toBe(RES)
     expect(count).toBe(1)
     expect(instances).toHaveLength(INSTANCE_FLOATS)
 
@@ -101,7 +103,7 @@ describe("packBucket — criterion 5's layout", () => {
     // A ratio, not an absolute difference: two mercator values near 0.16 whose difference is ~1e-6
     // cancel most of a float32's significand, and an absolute tolerance there is meaningless. 0118
     // lost a test run to exactly that.
-    expect(instances[2]! / metresToMercator(discRadiusM(10), lat)).toBeCloseTo(1, 5)
+    expect(instances[2]! / metresToMercator(discRadiusM(RES), lat)).toBeCloseTo(1, 5)
     expect(instances[3]).toBe(1)
   })
 
@@ -120,24 +122,23 @@ describe("packBucket — criterion 5's layout", () => {
   it("carries a coarse bucket's explored fraction through to the instance", () => {
     const parents = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 6), 1)
     const fractions = new Map(parents.map((p, i) => [p, i / parents.length]))
-    const { instances, res } = packBucket(parents, { res: 6, fractions })
+    const { instances, res } = packBucket(parents, { res: 6, fractionOf: (c) => fractions.get(c) })
 
     expect(res).toBe(6)
     parents.forEach((p, i) => {
       expect(instances[i * INSTANCE_FLOATS + 3]).toBeCloseTo(fractions.get(p)!, 6)
     })
-    // And the coarse disc is far larger than a res-10 one — the same 1.35 scale, a bigger cell.
+    // And the coarse disc is far larger than a canonical one — the same 1.35 scale, a bigger cell.
     expect(instances[2]!).toBeGreaterThan(packBucket([origin]).instances[2]!)
   })
 
   it("clamps a fraction that is out of range rather than trusting it", () => {
     const cells = gridDisk(origin, 1).slice(0, 2)
-    const { instances } = packBucket(cells, {
-      fractions: new Map([
-        [cells[0]!, 4],
-        [cells[1]!, -1],
-      ]),
-    })
+    const out = new Map([
+      [cells[0]!, 4],
+      [cells[1]!, -1],
+    ])
+    const { instances } = packBucket(cells, { fractionOf: (c) => out.get(c) })
     // Above 1 a coarse cell would out-write a fully explored one under MAX; below 0 it vanishes.
     expect(instances[3]).toBe(1)
     expect(instances[INSTANCE_FLOATS + 3]).toBe(0)
@@ -172,7 +173,7 @@ describe("packBucket — criterion 5's layout", () => {
  * bulge at the waist, a bridged one reads 1.00.
  */
 describe("bridge discs", () => {
-  const origin = latLngToCell(NEMO.lat, NEMO.lng, 10)
+  const origin = latLngToCell(NEMO.lat, NEMO.lng, RES)
 
   /** `gridDisk(c, 1)` includes `c` itself, so a neighbour is anything in it that is not `c`. */
   const neighboursOf = (c: string) => gridDisk(c, 1).filter((x) => x !== c)
@@ -220,16 +221,15 @@ describe("bridge discs", () => {
   /**
    * `min`, not the average. Under `MAX` a bridge brighter than its dimmer endpoint would raise the
    * mask above what either cell earned — inventing coverage rather than filling a waist. A no-op at
-   * res 10 where everything is 1.0; it matters for `0058`'s coarse buckets.
+   * the canonical resolution where everything is 1.0; it matters for `0058`'s coarse buckets.
    */
   it("takes the dimmer endpoint's fraction, never a brighter one", () => {
     const pair = [origin, neighboursOf(origin)[0]!]
-    const { instances, cells } = packBucket(pair, {
-      fractions: new Map([
-        [pair[0]!, 0.2],
-        [pair[1]!, 0.9],
-      ]),
-    })
+    const dim = new Map([
+      [pair[0]!, 0.2],
+      [pair[1]!, 0.9],
+    ])
+    const { instances, cells } = packBucket(pair, { fractionOf: (c) => dim.get(c) })
     expect(instances[cells * INSTANCE_FLOATS + 3]).toBeCloseTo(0.2, 6)
   })
 
@@ -242,22 +242,88 @@ describe("bridge discs", () => {
   })
 
   /**
-   * §6.4 item 1 asserts `visibleInstanceCount <= 6,000`. Bridges count toward it, so the multiplier
-   * belongs in a test rather than in a surprise on `0059`'s histogram. A hex field's interior cell
-   * has 6 neighbours and each edge is emitted once, so the ceiling is 3 bridges per cell.
+   * §6.4 item 1 asserts `visibleInstanceCount <= 6,000`, and D-238 is the reason that assertion
+   * survived D-237: bridges count toward it, and at res 11 a 4x multiplier on 7x the cells put a
+   * fully-revealed phone viewport at ~14,700 instances.
+   *
+   * THE TWO SHAPES ARE MEASURED SEPARATELY BECAUSE THEY MUST BEHAVE DIFFERENTLY. A solid field has
+   * almost no silhouette to fix and must collapse toward 1x; a corridor is the case D-232 was built
+   * for and must keep essentially all of its bridges. A change that helped the first at the second's
+   * expense would pass a single combined assertion and put the string of pearls back on screen.
    */
-  it("costs at most three bridges per cell, and about two on a solid field", () => {
-    const solid = gridDisk(origin, 4)
+  it("collapses to ~1x on a solid field, because an interior edge has no waist to fill", () => {
+    const solid = gridDisk(origin, 40)
     const { cells, bridges, count } = packBucket(solid)
-    expect(bridges).toBeLessThanOrEqual(cells * 3)
-    expect(count / cells).toBeLessThan(4)
-    expect(count / cells).toBeGreaterThan(2)
+
+    // 4,921 cells, 14,520 adjacent pairs, and all but 714 of them interior-to-interior.
+    expect(cells).toBe(4921)
+    expect(bridges).toBeLessThan(cells * 0.2)
+    expect(count / cells).toBeLessThan(1.2)
+
+    // The bare ceiling, for contrast, counted here rather than coaxed out of `packBucket`: 6
+    // neighbours each and every edge once is 3 per cell, and that is what shipped before D-238.
+    const set = new Set(solid)
+    let edges = 0
+    for (const c of solid) for (const n of gridDisk(c, 1)) if (n > c && set.has(n)) edges++
+    expect(edges).toBeGreaterThan(cells * 2.5)
+    expect(bridges / edges).toBeLessThan(0.1)
+  })
+
+  it("keeps a corridor's bridges, which is the case D-232 was built for", () => {
+    // A one-cell-wide chain: every cell has two revealed neighbours, none is interior, nothing is
+    // elided. This is the string of pearls, and it must still be bridged edge for edge.
+    const chain: string[] = [origin]
+    for (let i = 0; i < 40; i++) {
+      const next = neighboursOf(chain[chain.length - 1]!).find((c) => !chain.includes(c))!
+      chain.push(next)
+    }
+    const { cells, bridges } = packBucket(chain)
+    expect(cells).toBe(41)
+    // 40 adjacent pairs along the chain; a walk that doubles back can add a few more.
+    expect(bridges).toBeGreaterThanOrEqual(40)
+  })
+
+  /**
+   * `0058` packs one res-6/7 group at a time, so the cells it hands over are a SLICE of the revealed
+   * set rather than all of it. Without `member` the last cell before a group boundary would find no
+   * neighbour on the far side and the seam would show as a pinch in the silhouette — the exact
+   * defect D-232 removed, reintroduced on a grid of its own.
+   */
+  it("bridges across the edge of the slice it was given, when told what else is revealed", () => {
+    const higher = neighboursOf(origin).find((c) => c > origin)!
+    const alone = packBucket([origin])
+    expect(alone.bridges).toBe(0)
+
+    const spanning = packBucket([origin], { member: (c) => c === origin || c === higher })
+    expect(spanning.cells).toBe(1)
+    expect(spanning.bridges).toBe(1)
+    // The far endpoint is projected on demand, so the bridge lands at the true midpoint rather
+    // than on top of the one cell this call was given.
+    const both = packBucket([origin, higher])
+    const x = (p: { instances: Float32Array }, i: number) => p.instances[i * INSTANCE_FLOATS]!
+    expect(x(spanning, 1)).toBeCloseTo(x(both, 2), 6)
+  })
+
+  /**
+   * WHICH SIDE OF A GROUP BOUNDARY EMITS THE BRIDGE, stated as a test because `0058` depends on it.
+   *
+   * `neighbour <= cell` makes the LOWER id's group the owner of every edge. Across a group boundary
+   * that means one group emits a disc that lies partly outside its own bbox — which is why
+   * `zoom-buckets.ts` pads each group's bounds — and the other emits nothing. Exactly once either
+   * way, which is the property that matters: a duplicated bridge is invisible under `MAX` but counts
+   * against §6.4's ceiling, and a missed one is a visible pinch.
+   */
+  it("gives each cross-slice edge to exactly one side, the lower id", () => {
+    const lower = neighboursOf(origin).find((c) => c < origin)!
+    const isPair = (c: string) => c === origin || c === lower
+    expect(packBucket([origin], { member: isPair }).bridges).toBe(0)
+    expect(packBucket([lower], { member: isPair }).bridges).toBe(1)
   })
 })
 
 describe("blobCellsToIds", () => {
   it("turns 0054's decoded array back into the ids packBucket takes", () => {
-    const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 10), 2)
+    const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, RES), 2)
     const blob = BigUint64Array.from(cells.map((c) => cellToBig(c)))
     expect(blobCellsToIds(blob)).toEqual(cells)
   })

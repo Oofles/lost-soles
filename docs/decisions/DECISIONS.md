@@ -3113,3 +3113,65 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     credit is the same curve. `09` must derive its numbers from res-11 counts; there is no ledger to
     invalidate because there is no ledger. (The ticket's worry about "the 693 ceiling" was a
     misreading: 693 is 7 skills × 99 levels and has nothing to do with cell counts.)
+
+- **D-238** **`05` §6's zoom table, instance ceiling and coarse-bucket `fraction`, restated for res
+  11 — and D-232's bridges stop firing in the interior.** *(2026-09-11, ticket `0058`.)*
+  Four amendments, all of them forced by D-237 landing after `08` was designed, plus one measurement
+  that turned out to be a latent bug rather than a tuning choice.
+  - **The zoom table is rewritten, not extended, and appending res 11 to the old one would have
+    undone D-237 where it matters.** §6.1's table gave res 10 every zoom above 14. Adding res 11
+    above that leaves the **102 m brush at z14–16**, which is the browsing band and exactly where
+    the operator saw the zig-zag `0194` was taken to remove. The table's own rule is *"a cell ≈ 8–30
+    CSS px"*, each resolution is √7 ≈ 1.4 zoom levels, and solving for 15 px at 30°N puts res 11's
+    centre at z14.1 — so **res 11 owns z14 and up** and every band lands at 14–32 px.
+  - **MapLibre's world is 512 CSS px at z0, and the first draft of the table was one level out for
+    exactly that reason.** The familiar `156543.03 · cos(lat) / 2^z` figure is a 256-px tile scheme's.
+    Using it puts every boundary one level too coarse, i.e. res 10 at z14 — the defect above,
+    arrived at by arithmetic rather than by choice. Written into §6.1 so it is not redrafted wrong.
+  - **z13 stays res 10 and blobbier on purpose.** A fully-revealed 400×800 viewport holds ~2,100
+    res-10 cells at z13 and would hold ~14,700 res-11 ones. The finer bucket is not available there
+    at any price; that is what a bucket ladder is, not a compromise.
+  - **§6.4's 6,000-instance ceiling now names a viewport, because it was meaningless without one.**
+    The assertion was *"≤ 6,000 at every zoom, at every dataset size"* with no screen size attached,
+    while §6's own arithmetic (*"a 400×800 viewport holds roughly 1,400 cells"*) and R4's mid-range
+    Android budget both imply one. **400×800 CSS px is the reference.** A 1440×900 desktop window is
+    ~4× the area and lands near 21,000 instances at z14 on solid ground: **recorded, not capped**,
+    because 21,000 instanced discs is nothing for a desktop GPU. Measured peak at the reference
+    viewport is **5,271 at z14, identical at 50k / 150k / 500k stored cells from z13 up** — and that
+    invariance is the canary, not the absolute number, because a ceiling can pass by luck.
+  - **A bridge disc is not emitted when both of its endpoints have all six neighbours revealed, and
+    without this the ceiling is unreachable at res 11.** D-232 densifies the field to fix a pinched
+    silhouette; an interior cell's union has no silhouette anywhere near it — at res 11 the worst-
+    covered interior point is a three-cell centroid, 28.6 m from a centre against a 38.7 m disc.
+    Measured: a solid field of 4,921 cells has 14,520 adjacent pairs and keeps **714** bridges
+    (3.95× instances → 1.15×), while a run's corridor of 255 cells has 573 pairs and keeps **523**
+    (3.25× → 3.05×). The case D-232 was built for is untouched; what goes away was never doing
+    anything. Without it, res 11 × 7 cells × ~4 bridges puts a fully-revealed phone viewport at
+    ~14,700 instances.
+  - **Coarse buckets compute `fraction` in the browser rather than reading `explored-agg.json`.**
+    `0058` was specified to fetch it. Nothing in the browser can: there is no route, no transport
+    method and no cache path for that object, and it covers res 6/7/8 while the table needs 4–10.
+    The client already holds every cell, and the count is the run length of a parent's children in
+    an array it is already walking — the same `exploredChildren / 7^(RES-res)` arithmetic as
+    `src/domain/explored-agg.ts`, derived from the same bytes the fog is drawn from and therefore
+    incapable of disagreeing with them. The S3 object remains the server-side artifact for §8.
+  - **H3's hierarchy is not geometrically nested, and the render grouping's bbox has to allow for
+    it.** A child's centre can land **up to ~0.13 × the parent's edge length outside the parent's
+    drawn boundary** — 184 m at res 7, measured at three latitudes. The first implementation padded
+    by four disc radii (155 m) on the assumption that non-nesting was a half-cell affair; a bbox
+    short by that much lets the cull reject a group that still has fog to contribute, which is a
+    hole in the map that appears and disappears as you pan. Padding is now half the group's own edge
+    length plus two disc radii, and the estimate is replaced by the exact bbox of the group's discs
+    as soon as they are built.
+  - **The render grouping is `res - 4` clamped to `RES_PARENT`, not a literal 6.** §6.2's *"third
+    payoff of one decision"* was arithmetic for 2,401 children, which D-237 turned into 16,807. The
+    grouping asks for 2,401 again — res 7 for the res-11 bucket — and coincides with `RES_PARENT`
+    once `0198` moves the storage key. Nothing in the renderer hard-codes either number.
+  - **And the laziness goes one level deeper than §6.1 asked for.** §6.1 prices a bucket derivation
+    at 30–80 ms for a `cellToParent` pass plus a dedupe; at 500k res-11 cells the real bill is
+    `gridDisk` over every cell at **1,543 ms** (the bridge pass), plus 256 ms and 214 ms for the
+    dedupe and the projection. So only the group *index* is built up front — 151,201 cells into 90
+    groups in **3.2 ms**, because an ancestor is a prefix of a cell's id, so the decoded array is
+    already grouped and the runs are found by galloping binary search rather than a pass. Ids,
+    fractions, projection and bridges are derived per group on first sight, ~10 ms each. The same
+    principle as the cull, applied to derivation: **bounded by screen area, not by database size.**

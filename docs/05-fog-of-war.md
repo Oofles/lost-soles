@@ -8,9 +8,11 @@ user-confirmed. Nothing in this document may contradict it.
 **Scope:** the fog-of-war mechanic end to end — what it means, how territory is represented,
 how discovery is scored, how it is drawn, how the data reaches the browser, and what it derives.
 
-> **Standing correction to the research.** R3 §3.6 and R4 §3.6/§4.2 both say "store at res 11".
-> That predates **D-115**, which settles the canonical resolution at **H3 res 10**. Where those
-> documents say res 11, read res 10. Do not "fix" this back — see §2.1 for the reasoning.
+> **The research was right about resolution, in the end.** R3 §3.6 and R4 §3.6/§4.2 both say "store at
+> res 11". D-115 overruled that and settled on res 10; **D-237 (ticket `0194`) reversed it and res 11 is
+> canonical again.** R3 and R4 need no correction on this point. The res-10 reasoning is preserved in
+> §2.1 rather than deleted, because one of its three arguments was wrong in a way worth being able to
+> find again — but it is history, not instruction.
 
 ---
 
@@ -136,11 +138,12 @@ Three independent reasons res 10 was the answer:
 `gridDisk`, `gridDistance` and `gridPathCells` all refuse to cross resolutions. Res 11 is the
 only resolution written to the store. Coarser resolutions exist *only* as derived render/zoom
 aggregates (§6.1) and *only* as a transport optimisation via `compactCells` (§7.2) — and a
-compacted array must be passed through `uncompactCells(arr, 10)` before any membership test.
+compacted array must be passed through `uncompactCells(arr, 11)` before any membership test.
 
-**The escape hatch is real.** Raw traces are archived immutably in S3 (D-101, D-121 mitigation 2).
-If res 10 ever proves too coarse, the entire cell set can be re-derived at res 11 from the
-archive. Nothing about this decision is one-way.
+**The escape hatch was real, and it was taken.** Raw traces are archived immutably in S3 (D-101, D-121
+mitigation 2), and `0194` re-derived the entire cell set at res 11 from that archive when res 10 proved
+too coarse — see §9.4 for what the cutover actually cost. Nothing about this decision was one-way, and
+it is still not: the same path exists if res 11 ever proves wrong.
 
 ### 2.2 Trace → cells
 
@@ -1102,58 +1105,106 @@ irrelevant to the frame. Total stored cells affects *transport and storage only*
 
 ### 6.1 Zoom bucketing
 
-Map zoom selects a render resolution. Res 10 is the canonical stored resolution (D-115) and
+Map zoom selects a render resolution. Res 11 is the canonical stored resolution (**D-237**) and
 therefore the **finest** bucket; coarser buckets are derived by `cellToParent`.
 
 ```js
-const ZOOM_TO_RES = [
-  { maxZoom:  4, res: 4 },  { maxZoom:  6, res: 5 },
-  { maxZoom:  8, res: 6 },  { maxZoom: 10, res: 7 },
-  { maxZoom: 12, res: 8 },  { maxZoom: 14, res: 9 },
-  { maxZoom: Infinity, res: 10 },          // canonical — never finer (D-115)
+const ZOOM_TO_RES = [                      // D-238. MAPLIBRE zooms — see below.
+  { maxZoom:  5, res: 4 },  { maxZoom:  6, res: 5 },
+  { maxZoom:  8, res: 6 },  { maxZoom:  9, res: 7 },
+  { maxZoom: 11, res: 8 },  { maxZoom: 12, res: 9 },
+  { maxZoom: 13, res: 10 },
+  { maxZoom: Infinity, res: 11 },          // canonical — never finer (D-237)
 ];
-const resForZoom = z => (ZOOM_TO_RES.find(e => z <= e.maxZoom) ?? { res: 10 }).res;
+const resForZoom = z => (ZOOM_TO_RES.find(e => z <= e.maxZoom) ?? { res: 11 }).res;
 ```
+
+**The table is derived, not chosen.** The rule is one cell ≈ 15 CSS px; each H3 resolution is
+√7 ≈ 2.65× finer, i.e. **1.4 zoom levels**. Solving for 15 px at 30°N puts the bands' centres at
+
+| res | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+|---|---|---|---|---|---|---|---|---|
+| z | 4.3 | 5.7 | 7.1 | 8.5 | 9.9 | 11.3 | 12.7 | 14.1 |
+
+and the integer boundaries above follow. Every band lands between 14 and 32 px.
+
+**These are MapLibre zooms, and MapLibre's world is 512 CSS px square at z0.** The familiar
+`156543.03 · cos(lat) / 2^z` metres-per-pixel figure belongs to a 256-px tile scheme and is one level
+out here. Using it puts every boundary one level too coarse — which means the **102 m res-10 brush at
+z14**, exactly the zig-zag D-237 was taken to remove, at the zoom people actually run at. `0058`
+drafted this table wrong once for that reason; it is written down so it is not drafted wrong again.
+
+Res 11 therefore owns z14 and up, the whole of the typical running band. z13 is res 10 and blobbier on
+purpose: a fully-revealed 400×800 viewport holds ~2,100 res-10 cells there and would hold ~14,700
+res-11 ones, so the finer bucket is not available at any price. That is what a bucket ladder is.
 
 Rules:
 
-- **Derive a bucket lazily, once, and cache it.** `_byRes: Map<res, {centers: Float32Array,
-  radii: Float32Array, bounds: Float64Array}>`. Building the res-8 bucket from 150k res-10 cells
-  is one `cellToParent` pass plus a dedupe — 30–80 ms, done once, off the frame path.
+- **Derive lazily and cache — one level deeper than a bucket.** §6.1 used to price a bucket at
+  30–80 ms for a `cellToParent` pass plus a dedupe. Measured at 500k res-11 cells that is not the
+  bill: `gridDisk` over every cell (the D-232 bridge pass) is **1,543 ms**, `cellToParent` 256 ms,
+  `cellToLatLng` 214 ms. So only the *index* is built up front — which cells belong to which res-6/7
+  group, and where each group is — and ids, fractions, projection and bridges are derived **per group,
+  on first sight**. A group is ~2,400 cells and costs ~10 ms; the index over 151,201 cells is 90
+  groups in **3.2 ms**, because a cell's ancestors are a prefix of its id, so the decoded array is
+  already grouped and finding the runs is a galloping binary search rather than a pass.
 - **Re-derive only when the bucket index changes**, debounced ~250 ms — not on every zoom event.
-  This is the single lesson worth copying wholesale from Dawarich (R4 §3.4).
+  This is the single lesson worth copying wholesale from Dawarich (R4 §3.4). `resForZoom` collapses a
+  pinch's hundreds of events into one per band crossed; the debounce coalesces those, so a fast pinch
+  from z17 to z4 performs two switches rather than eight. **While a switch is pending nothing is
+  re-culled** — re-culling a fine bucket for a viewport that is still zooming out is seven times the
+  instances per band, transiently, which is the spike §6.4's ceiling exists to prevent.
 - **Precompute each cell's mercator centre, mercator radius and bbox once per bucket.** Never
   call `cellToBoundary` or `map.project()` per frame. The vertex shader does all projection.
-- **Coarse buckets render with partial opacity** from the aggregate `fraction` (R3 §5): a parent
-  cell you've run 20% of is a dim glow, not a solid block. Multiply the mask fragment's `c` by
-  `a_fraction`. Without this, zooming out turns a sparse city into a solid slab.
+- **Coarse buckets render with partial opacity** from the `fraction` of the parent's children that are
+  explored (R3 §5): a parent cell you've run 20% of is a dim glow, not a solid block. Multiply the mask
+  fragment's `c` by `a_fraction`. Without this, zooming out turns a sparse city into a solid slab.
+  **The fraction is computed in the browser, not fetched** (D-238): it is the run length of the
+  parent's children in the array the client already holds, over `7^(11-res)` — a by-product of the
+  dedupe pass, identical to `src/domain/explored-agg.ts`'s arithmetic, and incapable of disagreeing
+  with the blob the fog is drawn from. `explored-agg.json` remains the server-side artifact for §8.
 
 ### 6.2 Viewport culling
 
 R4's sketch culls by looping every cell in the bucket and doing four float compares against the
-padded viewport. At res 10 with 150k cells that is 600k compares *per mask rebuild*, and the mask
-rebuilds every frame during a pan. On a mid-range phone that is 1–3 ms of main-thread JS in the
-frame path — the largest single cost in the whole system, and the one thing that would break the
-60 fps claim.
+padded viewport. At 150k cells that is 600k compares *per mask rebuild*, and the mask rebuilds every
+frame during a pan. On a mid-range phone that is 1–3 ms of main-thread JS in the frame path — the
+largest single cost in the whole system, and the one thing that would break the 60 fps claim.
 
-**Fix: two-level cull, using the res-6 parent grouping that already exists in the storage
-partition key (§2.4).**
+**Fix: two-level cull, using the parent grouping that already exists in the storage partition key
+(§2.4).**
 
 ```
 build once per bucket:
-  parents        : Map<res6Id, {lo, hi}>          # contiguous index range into the bucket arrays
-  parentBounds   : Float64Array                   # 4 floats per parent, mercator bbox
-  # cells are sorted by res-6 parent, so each parent owns a contiguous slice
+  groups       : Map<groupId, {lo, hi}>          # contiguous index range into the bucket arrays
+  groupBounds  : Float64Array                    # 4 floats per group, mercator bbox
+  # cells are sorted by group, because an ancestor is a prefix of a cell's id
 
 per mask rebuild:
-  1. cull PARENTS against the padded viewport         # a few hundred compares, not 600k
-  2. for each surviving parent, cull its cells        # only cells that could be on screen
+  1. cull GROUPS against the padded viewport          # a few dozen compares, not 600k
+  2. for each surviving group, cull its cells         # only cells that could be on screen
   3. write survivors into the instance Float32Array
   4. gl.bufferData(instanceVBO, survivors)
 ```
 
-A res-6 parent is ~36 km²; at typical running zooms (z14–17) the viewport intersects 1–6 of them.
-Step 1 discards essentially the whole dataset in a few hundred comparisons.
+Measured on a 151,201-cell fixture at z15: step 1 tests **90 groups** and keeps 6; step 2 tests 14,406
+discs and keeps 713. A warm cull is **0.18 ms**. Step 1 discards essentially the whole dataset in a few
+dozen comparisons, and a surviving group whose bbox is wholly inside the viewport is bulk-copied with
+no per-disc test at all.
+
+**The grouping resolution is 2,401 children, never finer than `RES_PARENT`.** The original claim —
+reuse the res-6 partition key, *"the third payoff of one decision"* — was arithmetic for `RES_PARENT =
+6` against res-10 cells: 7⁴ = 2,401, which bounds a DynamoDB partition, bounds a viewport `Query`, and
+bounds this. D-237 made a res-6 group hold 7⁵ = **16,807**, so the render grouping asks for `res - 4`
+and clamps at `RES_PARENT` — res 7 for the res-11 bucket today, and the same number as `RES_PARENT`
+again once `0198` moves the storage key to res 7.
+
+**A group's bbox must be padded, and by much more than a cell.** H3's hierarchy is index arithmetic,
+not containment: a child's centre can land **up to ~0.13 × the parent's edge length outside the
+parent's drawn boundary** — 184 m at res 7, measured across three latitudes. A bbox short by that much
+lets the cull reject a group that still has fog to contribute, which is a hole in the map that appears
+and disappears as you pan. `0058` pads by half the group's edge length plus two disc radii, and
+replaces the estimate with the exact bbox of the group's discs the moment they are built.
 
 Further reductions, in order of value:
 
@@ -1192,8 +1243,26 @@ not after.
 **Instrument:**
 
 1. **`visibleInstanceCount`**, sampled per mask rebuild. Log a histogram per zoom level.
-   *Assertion: ≤ 6,000 at every zoom, at every dataset size.* If this number tracks total stored
-   cells, bucketing or culling is broken — that is the canary for the entire performance claim.
+   *Assertion: ≤ 6,000 at every zoom, at every dataset size, **on a 400×800 CSS px viewport**.* If this
+   number tracks total stored cells, bucketing or culling is broken — that is the canary for the entire
+   performance claim.
+
+   **The viewport is part of the assertion** (D-238). It was not written down, and the number is
+   meaningless without it: §6's own arithmetic is *"a 400×800 viewport holds roughly 1,400 cells"*, and
+   R4's budget is a mid-range Android, so that is the reference. A 1440×900 desktop window covers ~4×
+   the area and lands near **21,000** instances at z14 on solid ground; that is **recorded rather than
+   capped**, because 21,000 instanced discs is nothing for a desktop GPU and the property worth
+   defending is that the number is bounded by *screen area* and not by database size.
+
+   Measured on solid ground at 30°N, 400×800 CSS px, at 50k / 150k / 500k stored cells: the peak is
+   **5,271 at z14** and it is **identical at all three dataset sizes** from z13 up. That second fact is
+   the canary, not the first — an absolute ceiling can pass by luck, while a count that is the same at
+   50k and 500k cannot.
+
+   **It only holds because of D-238's bridge elision.** Solid ground at res 11 has 3 adjacent pairs per
+   cell; bridging all of them multiplies instances by ~4 and puts a fully-revealed phone viewport at
+   ~14,700 — unreachable. Eliding the interior ones, where the union has no silhouette to fix, takes a
+   solid field to 1.15× while a corridor keeps 91% of its bridges.
 2. **GPU pass timings** via `EXT_disjoint_timer_query_webgl2`, mask and composite separately.
    *Budget: mask < 1 ms, composite < 2 ms.* (The extension is not universally available; guard
    it, and fall back to frame time.)
@@ -1667,13 +1736,15 @@ truncated trace would permanently blank the map around home — permanently, bec
 1. **The explored set only grows.** No code path removes a cell. (D-020, D-120)
 2. **`lastRunAt` is a timestamp, never a boolean.** (D-120)
 3. **`firstRunAt` is written with `min`, `lastRunAt` with `max`.** (§3.4)
-4. **Cells are res 10, never mixed.** Coarser resolutions are derived, never stored. (D-115)
+4. **Cells are res 11, never mixed.** Coarser resolutions are derived, never stored. (**D-237**,
+   superseding D-115.) Never render finer than you store either: a res-11 cell does not know which of
+   its children the runner crossed, so rendering res 12 would be inventing ground (`0194` option C).
 5. **Cells are computed server-side.** The client never claims territory or XP. (R3 §6)
 6. **Scoring uses `activity.startedAt`, never `now()`.** (§3.1)
 7. **Classify all cells before writing any.** (§3.3)
 8. **Awards are stored, not recomputed.** (§3.2)
 9. **`cellNovelty` has exactly one implementation**, shared by scorer, stats and planner. (§8.4)
-10. **The reveal radius (65 m) and the render radius (~102 m) are different numbers.** The render
+10. **The reveal radius (65 m) and the render radius (~39 m at res 11) are different numbers.** The render
     radius never feeds back into scoring. (§2.3)
 11. **`u_maxOpacity` never reaches 1.0, in any mode.** (§4.3, D-051)
 12. **Streets stay readable in both modes.** (D-051)

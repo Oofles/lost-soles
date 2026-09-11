@@ -1393,6 +1393,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-11T02:35:41Z",
     "path": "tickets/open/0058-zoom-bucketing-and-viewport-culling.md",
     "ready": true,
     "acceptance": {

@@ -23,10 +23,13 @@ import {
   runDebugBlit,
   runMaskPass,
   uploadInstances,
+  INSTANCE_FLOATS,
   type MaskResources,
   type ProjectionLike,
   type RestoreCheck,
 } from "./mask"
+import { RES } from "@/src/domain/fog"
+
 import type { PackedBucket } from "./instances"
 import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
 
@@ -58,7 +61,7 @@ import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
 export interface MaskStats {
   /** §6.4 item 1. *Assertion: <= 6,000 at every zoom, at every dataset size.* */
   visibleInstanceCount: number
-  /** The bucket's H3 resolution — 10 until `0058` derives coarser ones. */
+  /** The bucket's H3 resolution: `RES` at running zooms, coarser as `0058`'s table zooms out. */
   res: number
   /** `maskW x maskH`, i.e. half the drawing buffer. */
   maskSize: string
@@ -122,15 +125,27 @@ export class FogMaskLayer implements CustomLayerInterface {
    * a state machine with four ways to be half-uploaded. Holding the desired state and a dirty bit
    * instead makes "re-upload everything" one assignment, which is what a rebuild actually wants.
    *
-   * The bucket is kept rather than dropped after upload for `0055`'s reason: a style change
-   * removes and re-adds custom layers, and without it the layer comes back holding a bucket it
-   * believes is uploaded and draws nothing. 150k `cellToLatLng` calls are not re-derivable cheaply.
+   * The instances are kept rather than dropped after upload for `0055`'s reason: a style change
+   * removes and re-adds custom layers, and without it the layer comes back holding a buffer it
+   * believes is uploaded and draws nothing. Re-deriving them means a cull, which means a camera event
+   * that may not come.
    */
-  #bucket: PackedBucket | null = null
-  /** `0057`. Discarded by `setBucket` — see there. Never a cell, never in the explored set. */
+  #cellFloats = new Float32Array(0)
+  #cellLength = 0
+  /** `0057`. Discarded by `setInstances` — see there. Never a cell, never in the explored set. */
   #corridor: CorridorPack = EMPTY_CORRIDOR
   #uploadDirty = false
-  #res = 10
+  #res = RES
+  /**
+   * `0058`, §6.2's other flag. The mask is screen-space, so it must be redrawn when the camera moves
+   * — and **only** then. `prerender` runs every frame because `0056`'s composite animates; without
+   * this the coverage pass would re-clear and re-draw its FBO sixty times a second over a still map,
+   * which is the one per-frame cost §6.3 budgets at ~0 ms.
+   */
+  #maskDirty = true
+  #lastMatrix = new Float64Array(16)
+  /** §6.2's *"skip everything when the layer is hidden"*. Set by `useFogMask`. */
+  #hidden = false
   #passes = 0
   #restore: RestoreCheck | null = null
   #shaderError: string | null = null
@@ -171,7 +186,24 @@ export class FogMaskLayer implements CustomLayerInterface {
    * exactly the kind of thing that stops working when MapLibre changes when it binds what.
    */
   setBucket(bucket: PackedBucket): void {
-    this.#bucket = bucket
+    this.setInstances(bucket.instances, bucket.res)
+  }
+
+  /**
+   * `0058`. The survivors of the two-level cull, ready to upload.
+   *
+   * **`instances` IS COPIED, and it has to be.** `cull.ts` returns a view into a scratch buffer it
+   * reuses on the next cull, and the upload is deferred to the next `prerender` — so holding the view
+   * would mean uploading whatever the next cull happened to write there. The copy goes into a buffer
+   * this class grows and keeps, so a pan that rebuilds 4,000 instances allocates nothing.
+   */
+  setInstances(instances: Float32Array, res: number): void {
+    if (this.#cellFloats.length < instances.length) {
+      this.#cellFloats = new Float32Array(instances.length)
+    }
+    this.#cellFloats.set(instances)
+    this.#cellLength = instances.length
+    this.#res = res
     /**
      * THE OPTIMISTIC CORRIDOR IS DISCARDED HERE, and that is criterion 5's *"cleared on the next
      * bucket rebuild"* stated as the one line that implements it.
@@ -215,7 +247,8 @@ export class FogMaskLayer implements CustomLayerInterface {
        * the buffer does not exist yet, so it reports what has been handed in.
        */
       visibleInstanceCount:
-        this.#resources?.instanceCount ?? (this.#bucket?.count ?? 0) + this.#corridor.count,
+        this.#resources?.instanceCount ??
+        this.#cellLength / INSTANCE_FLOATS + this.#corridor.count,
       optimisticDiscs: this.#corridor.count,
       res: this.#res,
       maskSize: this.#resources ? `${this.#resources.maskW}x${this.#resources.maskH}` : "-",
@@ -254,13 +287,33 @@ export class FogMaskLayer implements CustomLayerInterface {
     if (this.#composite) disposeCompositeResources(gl, this.#composite)
     this.#composite = null
     this.#compositeError = null
-    // The bucket and the corridor are not dropped, they are marked for re-upload. A style change
+    this.#maskDirty = true
+    this.#lastMatrix = new Float64Array(16)
+    // The instances and the corridor are not dropped, they are marked for re-upload. A style change
     // removes and re-adds custom layers, and the GPU buffer goes with the resources — so without
     // this the layer comes back believing its instances are uploaded and draws nothing.
     this.#uploadDirty = true
   }
 
+  /**
+   * §6.2's *"skip everything when the layer is hidden"*, the half that lives in the layer.
+   *
+   * `useFogMask` drives it from the same signal `FogAnimator` uses, and stops the animator and
+   * detaches `FogViewportController`'s camera handlers alongside. Between them there is then no rAF
+   * loop, no cull, and no GL pass — which is what "zero work" has to mean for it to be worth
+   * asserting. The resources are NOT disposed: hiding is a visibility state, not a teardown, and
+   * rebuilding a program and re-uploading 4,000 instances on un-hide would cost more than the frames
+   * it saved.
+   */
+  setHidden(hidden: boolean): void {
+    if (this.#hidden === hidden) return
+    this.#hidden = hidden
+    // Coming back, the FBO holds a mask drawn for whatever the camera was doing when it went away.
+    if (!hidden) this.#maskDirty = true
+  }
+
   prerender(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
+    if (this.#hidden) return
     const { vertexShaderPrelude, define, variantName } = options.shaderData
 
     if (this.#variant !== variantName) {
@@ -300,8 +353,11 @@ export class FogMaskLayer implements CustomLayerInterface {
 
     // Criterion 2 — the FBO tracks the drawing buffer. `resize` fires on rotation, on the Android
     // URL bar collapsing, and on any window change; a mask left at the old size would be sampled
-    // with the wrong UVs by `0056` and read as the fog sliding away from the ground.
-    resizeMask(gl, this.#resources, gl.drawingBufferWidth, gl.drawingBufferHeight)
+    // with the wrong UVs by `0056` and read as the fog sliding away from the ground. A reallocated
+    // attachment is empty, so it is also one of the things that dirties the mask.
+    if (resizeMask(gl, this.#resources, gl.drawingBufferWidth, gl.drawingBufferHeight)) {
+      this.#maskDirty = true
+    }
 
     if (this.#uploadDirty) {
       this.#uploadDirty = false
@@ -314,18 +370,43 @@ export class FogMaskLayer implements CustomLayerInterface {
        * it is how an emptied set clears a stale mask rather than leaving the last one on screen.
        */
       if (floats.length > 0 || this.#resources.instanceCount > 0) {
-        this.#res = this.#bucket?.res ?? this.#res
         uploadInstances(gl, this.#resources, floats)
+        // New instances mean the FBO's contents are stale even if the camera has not moved — the
+        // one case where `maskDirty` is set by data rather than by the camera.
+        this.#maskDirty = true
         this.#report()
       }
     }
 
-    this.#restore = runMaskPass(
-      gl,
-      this.#resources,
-      options.defaultProjectionData as unknown as ProjectionLike,
-    )
+    const projection = options.defaultProjectionData as unknown as ProjectionLike
+    /**
+     * `maskDirty`, §6.2. The camera matrix IS the camera: comparing it is 16 compares and catches
+     * every pan, zoom, rotation, pitch and projection transition without having to enumerate them.
+     *
+     * When it has not changed and nothing has been uploaded, the FBO already holds the right mask and
+     * the pass is skipped entirely — no clear, no draw call, no `getParameter` read-back. That is the
+     * *"~0 ms CPU per frame with the camera still"* line of §6.3's table, and it matters because
+     * `0056`'s composite keeps `prerender` running at 30 fps over a map nobody is touching.
+     */
+    if (!this.#maskDirty && !this.#matrixChanged(projection.mainMatrix)) return
+
+    this.#remember(projection.mainMatrix)
+    this.#maskDirty = false
+    this.#restore = runMaskPass(gl, this.#resources, projection)
     this.#passes++
+  }
+
+  #matrixChanged(matrix: ArrayLike<number>): boolean {
+    if (matrix.length !== this.#lastMatrix.length) return true
+    for (let i = 0; i < this.#lastMatrix.length; i++) {
+      if (this.#lastMatrix[i] !== matrix[i]) return true
+    }
+    return false
+  }
+
+  #remember(matrix: ArrayLike<number>): void {
+    if (this.#lastMatrix.length !== matrix.length) this.#lastMatrix = new Float64Array(matrix.length)
+    for (let i = 0; i < matrix.length; i++) this.#lastMatrix[i] = matrix[i]!
   }
 
   /**
@@ -342,6 +423,7 @@ export class FogMaskLayer implements CustomLayerInterface {
    * and nothing here touches a cell.
    */
   render(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
+    if (this.#hidden) return
     if (!this.#resources) return
     if (this.options.debug) {
       runDebugBlit(gl, this.#resources)
@@ -383,16 +465,16 @@ export class FogMaskLayer implements CustomLayerInterface {
    * one `drawArraysInstanced` and §4 rules out a call per group as firmly as it rules out a call
    * per cell. The two are the same four-float layout, so a concatenation is all the merge needs.
    *
-   * The common case is no corridor at all, and it returns the bucket's own array with no copy:
-   * this runs on a data change, and at 150k cells an unnecessary 2.4 MB copy on the boot path is
-   * exactly the kind of cost §6.1 budgets for and then loses to a convenience.
+   * The common case is no corridor at all, and it returns a view of the owned buffer with no copy:
+   * this runs on a data change, and an unnecessary copy on the boot path is exactly the kind of cost
+   * §6.1 budgets for and then loses to a convenience.
    */
   #instanceFloats(): Float32Array {
-    const bucket = this.#bucket?.instances ?? new Float32Array(0)
-    if (this.#corridor.count === 0) return bucket
-    const merged = new Float32Array(bucket.length + this.#corridor.instances.length)
-    merged.set(bucket, 0)
-    merged.set(this.#corridor.instances, bucket.length)
+    const cells = this.#cellFloats.subarray(0, this.#cellLength)
+    if (this.#corridor.count === 0) return cells
+    const merged = new Float32Array(this.#cellLength + this.#corridor.instances.length)
+    merged.set(cells, 0)
+    merged.set(this.#corridor.instances, this.#cellLength)
     return merged
   }
 
@@ -402,11 +484,12 @@ export class FogMaskLayer implements CustomLayerInterface {
    * §6.4 item 1, logged **per instance-buffer rebuild** — which is what "per mask rebuild" means
    * here, and the distinction is worth stating because the obvious reading is wrong.
    *
-   * The mask *pass* runs every frame: it is screen-space, so a pan re-renders it even when nothing
-   * about the data changed (§6.2 separates `maskDirty` from `bufferDirty` for exactly this). Logging
-   * a line per frame would be sixty a second of identical output — not evidence, and it would push
-   * anything else out of the console. What actually changes, and what §6.4 wants a histogram of, is
-   * the count that the pass draws, and that changes only when the buffer is rebuilt.
+   * The mask *pass* runs on every camera change: it is screen-space, so a pan re-renders it even when
+   * nothing about the data changed — that is what `maskDirty` is, and `0058` is what stopped it also
+   * running on the frames where the camera is still. Logging a line per pass would still be a line
+   * per frame of any pan, which is not evidence and would push everything else out of the console.
+   * What actually changes, and what §6.4 wants a histogram of, is the count that the pass draws, and
+   * that changes only when the buffer is rebuilt.
    *
    * `stats()` is the other half: `0059`'s scripted camera path samples it per frame, where a
    * histogram is the point rather than a flood.

@@ -2,6 +2,8 @@ import type { CustomRenderMethodInput } from "maplibre-gl"
 import { latLngToCell, gridDisk } from "h3-js"
 import { describe, expect, it, vi } from "vitest"
 
+import { RES } from "@/src/domain/fog"
+
 import { fakeGl, GL, type FakeGl } from "./__fixtures__/fake-gl"
 import { packBucket } from "./instances"
 import { packRouteCorridor } from "./route-corridor"
@@ -64,7 +66,7 @@ function renderInput(
   } as unknown as CustomRenderMethodInput
 }
 
-const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 10), 4)
+const cells = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, RES), 4)
 /**
  * `visibleInstanceCount` is DISCS, not cells — `packBucket` adds a bridge disc per adjacent revealed
  * pair (D-232) and every one of them is drawn. Asserted through the packer rather than as a literal,
@@ -169,7 +171,6 @@ describe("setBucket", () => {
     const uploads = fake.of("bufferData").length + fake.of("bufferSubData").length
     // One for the static quad, one for the instances. Five frames added nothing.
     expect(uploads).toBe(2)
-    expect(fake.of("drawArraysInstanced")).toHaveLength(5)
   })
 
   it("defers the upload to prerender rather than touching GL from the caller", () => {
@@ -189,6 +190,82 @@ describe("setBucket", () => {
     layer.prerender(fake.gl, renderInput())
     expect(fake.of("drawArraysInstanced").at(-1)!.args[3]).toBe(0)
     expect(layer.stats().visibleInstanceCount).toBe(0)
+  })
+})
+
+/**
+ * `0058`, §6.2's *"separate `maskDirty` from `bufferDirty`"* — the half that lives in the layer.
+ *
+ * §6.3's budget line is *"CPU per frame (camera still, or inside padded region): none"*, and the
+ * obstacle to it is that `prerender` runs every frame regardless: `0056`'s composite animates, so the
+ * map repaints at 30 fps over ground nobody is touching. A coverage pass that re-cleared and re-drew
+ * its FBO on each of those frames would be doing the work the budget says is not happening.
+ */
+describe("maskDirty — 0058, §6.2", () => {
+  it("draws the coverage pass once for a still camera, not once per frame", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(packBucket(cells))
+    const still = mainMatrix()
+    for (let i = 0; i < 5; i++) layer.prerender(fake.gl, renderInput("mercator", still))
+
+    // The FBO already holds the right mask; the four later frames have nothing to add to it.
+    expect(fake.of("drawArraysInstanced")).toHaveLength(1)
+    expect(layer.stats().passes).toBe(1)
+  })
+
+  it("draws again as soon as the camera matrix changes", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(packBucket(cells))
+    layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.2739, 0.3767)))
+    layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.2741, 0.3767)))
+    layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.2741, 0.3767)))
+
+    // Two distinct cameras, two passes — and the repeat of the second one adds nothing.
+    expect(fake.of("drawArraysInstanced")).toHaveLength(2)
+  })
+
+  it("draws again when new instances arrive under a still camera", () => {
+    const { layer, fake } = layerOn()
+    const still = mainMatrix()
+    layer.setBucket(packBucket(cells))
+    layer.prerender(fake.gl, renderInput("mercator", still))
+    layer.setBucket(packBucket(gridDisk(latLngToCell(NEMO.lat, NEMO.lng, RES), 2)))
+    layer.prerender(fake.gl, renderInput("mercator", still))
+
+    // A data change is the one thing other than the camera that makes the FBO stale.
+    expect(fake.of("drawArraysInstanced")).toHaveLength(2)
+  })
+})
+
+/**
+ * `0058`, §6.2's *"skip everything when the layer is hidden"*. The rest of it — the detached camera
+ * handlers and the stopped rAF loop — is `viewport-controller.test.ts` and `animation.test.ts`.
+ */
+describe("setHidden — 0058, §6.2", () => {
+  it("does no GL work at all while hidden", () => {
+    const { layer, fake } = layerOn()
+    layer.setBucket(packBucket(cells))
+    layer.setHidden(true)
+    for (let i = 0; i < 5; i++) {
+      layer.prerender(fake.gl, renderInput("mercator", mainMatrix(0.27 + i / 1000)))
+      layer.render(fake.gl, renderInput("mercator", mainMatrix(0.27 + i / 1000)))
+    }
+    expect(fake.calls).toHaveLength(0)
+    expect(layer.stats().passes).toBe(0)
+    expect(layer.stats().composites).toBe(0)
+  })
+
+  it("redraws on the first frame after it comes back, camera still or not", () => {
+    const { layer, fake } = layerOn()
+    const still = mainMatrix()
+    layer.setBucket(packBucket(cells))
+    layer.prerender(fake.gl, renderInput("mercator", still))
+    layer.setHidden(true)
+    layer.setHidden(false)
+    layer.prerender(fake.gl, renderInput("mercator", still))
+    // Without the un-hide dirtying the mask this would be 1, and the fog would be a frame from
+    // whenever the tab was last visible — which for a backgrounded tab is an arbitrary camera.
+    expect(fake.of("drawArraysInstanced")).toHaveLength(2)
   })
 })
 
@@ -289,22 +366,24 @@ describe("visibleInstanceCount — criterion 9, §6.4 item 1", () => {
     expect(rebuilds[0]!.visibleInstanceCount).toBe(BUCKET.count)
     expect(BUCKET.count).toBe(BUCKET.cells + BUCKET.bridges)
     expect(BUCKET.bridges).toBeGreaterThan(0)
-    expect(rebuilds[0]!.res).toBe(10)
+    expect(rebuilds[0]!.res).toBe(RES)
     expect(rebuilds[0]!.maskSize).toBe("400x300")
-    expect(layer.stats().passes).toBe(3)
+    // One pass, not three: the three frames share a camera, and `0058`'s `maskDirty` is what makes
+    // that free. The point of this test is that the REPORT is per rebuild rather than per pass.
+    expect(layer.stats().passes).toBe(1)
   })
 
   it("reports again for a coarse bucket, at that bucket's resolution", () => {
     const { layer, fake, rebuilds } = layerOn()
     const parents = gridDisk(latLngToCell(NEMO.lat, NEMO.lng, 6), 1)
-    const coarse = packBucket(parents, { res: 6, fractions: new Map() })
+    const coarse = packBucket(parents, { res: 6 })
     layer.setBucket(BUCKET)
     layer.prerender(fake.gl, renderInput())
     layer.setBucket(coarse)
     layer.prerender(fake.gl, renderInput())
 
     expect(rebuilds.map((r) => [r.res, r.visibleInstanceCount])).toEqual([
-      [10, BUCKET.count],
+      [RES, BUCKET.count],
       [6, coarse.count],
     ])
   })

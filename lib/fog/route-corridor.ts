@@ -1,5 +1,6 @@
 import { getHexagonEdgeLengthAvg } from "h3-js"
 
+import { RES } from "@/src/domain/fog"
 import { metresBetween } from "@/src/domain/geo"
 import type { RouteTraceGeometry } from "@/lib/runs/wire"
 
@@ -40,8 +41,8 @@ import { INSTANCE_FLOATS } from "./mask"
  *
  * ─── IT IS NARROWER THAN WHAT REPLACES IT, ON PURPOSE ───────────────────────
  *
- * The cell reveal covers every res-10 cell within 65 m of the trace and then draws a 102 m disc at
- * each of their centres, so the eventual corridor reaches further from the line than a 102 m disc
+ * The cell reveal covers every res-11 cell within 65 m of the trace and then draws a 38.7 m disc at
+ * each of their centres, so the eventual corridor reaches further from the line than a 38.7 m disc
  * centred ON the line does. The optimistic corridor is therefore a near-subset of its own
  * replacement, and under `gl.MAX` a subset is invisible once the real thing arrives.
  *
@@ -54,13 +55,13 @@ import { INSTANCE_FLOATS } from "./mask"
 /**
  * How far apart the discs are placed along the line.
  *
- * Adjacent H3 centres at res `r` are `sqrt(3) x edgeLength` apart — 131.4 m at res 10. D-232
+ * Adjacent H3 centres at res `r` are `sqrt(3) x edgeLength` apart — 49.6 m at res 11. D-232
  * found that discs at that spacing DO overlap but pinch to 0.79 of their bulge at every junction,
  * a string of pearls, and that halving the spacing takes the silhouette to 0.95. A corridor has
  * exactly the same geometry as the one-cell-wide chain D-232 was fixing, so it gets the same
  * answer: half the cell spacing, which is one bridge disc's worth.
  *
- * Derived rather than written down as 65.7, so an h3 upgrade that moves the edge-length table
+ * Derived rather than written down as 24.8, so an h3 upgrade that moves the edge-length table
  * moves this with it instead of leaving a literal behind.
  */
 export function corridorStepM(res: number): number {
@@ -104,8 +105,14 @@ export const EMPTY_CORRIDOR: CorridorPack = {
  * chords are not filtered out here — they never exist, which is the property `0195` bought by
  * storing the sanitiser's own `segments` array rather than re-deriving geometry for the renderer.
  *
- * `res` exists so the corridor's discs match whichever bucket is on screen. `0058` will pass the
- * bucket's resolution; until then everything is res 10.
+ * `res` exists so the corridor's discs match whichever bucket is on screen, and it defaults to `RES`.
+ *
+ * `0058` LEFT IT AT `RES` RATHER THAN TRACKING THE BUCKET, deliberately. The corridor exists for the
+ * seconds between a sync completing and the server's cell write coming back, and that is looked at on
+ * the run you have just done, at a running zoom — where the bucket IS `RES`. Following the bucket
+ * would mean repacking the corridor inside the layer, and the layer is the one module forbidden from
+ * importing h3 at all (`no-per-frame-projection.test.ts`). At a zoomed-out bucket the corridor's discs
+ * are sub-pixel and the real cells have long since landed.
  */
 export function packRouteCorridor(
   geometry: RouteTraceGeometry | null | undefined,
@@ -113,7 +120,7 @@ export function packRouteCorridor(
 ): CorridorPack {
   if (!geometry || geometry.type !== "MultiLineString") return EMPTY_CORRIDOR
 
-  const res = options.res ?? 10
+  const res = options.res ?? RES
   const radiusM = discRadiusM(res)
   const step = corridorStepM(res)
 

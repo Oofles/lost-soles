@@ -1,6 +1,7 @@
 import { latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
+import { RES } from "@/src/domain/fog"
 import { metresBetween } from "@/src/domain/geo"
 import type { RouteTraceGeometry } from "@/lib/runs/wire"
 
@@ -109,13 +110,15 @@ describe("packRouteCorridor — the shape of the corridor", () => {
   })
 
   it("carries the remainder across vertices instead of restarting at each one", () => {
-    // Four 40 m legs — every leg is shorter than one 65.7 m step, so a walk that reset its
-    // accumulator per leg would emit nothing between the endpoints.
+    // Eight 20 m legs — every leg is shorter than one step, so a walk that reset its accumulator per
+    // leg would emit nothing between the endpoints.
     const legs: [number, number][] = []
-    for (let i = 0; i <= 4; i++) legs.push([NEMO.lng, NEMO.lat + (i * 40) / M_PER_DEG_LAT])
+    for (let i = 0; i <= 8; i++) legs.push([NEMO.lng, NEMO.lat + (i * 20) / M_PER_DEG_LAT])
     const pack = packRouteCorridor(geometry(legs))
-    // 160 m at 65.7 m spacing: discs at 0, 65.7, 131.4, plus the final vertex.
-    expect(pack.count).toBe(4)
+    // Derived from the step rather than written down, so a resolution change moves it (D-237 moved
+    // the step from 65.7 m to 24.8 m and this assertion was a literal 4).
+    const step = corridorStepM(RES)
+    expect(pack.count).toBe(Math.floor(160 / step) + 1 + 1)
   })
 
   it("gives every disc the render radius and full weight", () => {
@@ -123,7 +126,8 @@ describe("packRouteCorridor — the shape of the corridor", () => {
     for (let i = 0; i < pack.instances.length; i += INSTANCE_FLOATS) {
       // The radius is in mercator units at this latitude; compare against the same conversion
       // rather than a literal, which is what makes the cos(lat) correction visible here.
-      const expected = discRadiusM(10) / (2 * Math.PI * 6_371_008.8 * Math.cos((NEMO.lat * Math.PI) / 180))
+      const expected =
+        discRadiusM(RES) / (2 * Math.PI * 6_371_008.8 * Math.cos((NEMO.lat * Math.PI) / 180))
       expect(pack.instances[i + 2]!).toBeCloseTo(expected, 9)
       expect(pack.instances[i + 3]!).toBe(1)
     }

@@ -1,44 +1,56 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
-import { FogAnimator, browserAnimationHost } from "@/lib/fog/animation"
+import { FogAnimator, browserAnimationHost, type AnimationHost } from "@/lib/fog/animation"
 import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
-import { blobCellsToIds, packBucket } from "@/lib/fog/instances"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
+import { FogViewportController, type ControllerMap } from "@/lib/fog/viewport-controller"
+import { ZoomBucketStore } from "@/lib/fog/zoom-buckets"
 import { fogBeforeId } from "@/lib/map-layers"
 
 import { useExplored } from "./explored-provider"
 
 /**
- * WHERE `0054`'S EXPLORED SET MEETS `0055`'S MASK PASS. `05-fog-of-war.md` §4.2, §6.1.
+ * WHERE `0054`'S EXPLORED SET MEETS `0055`'S MASK PASS. `05-fog-of-war.md` §4.2, §6.1, §6.2.
  *
  * `explored-provider.tsx` said this seam was being built ahead of its first consumer. This is that
- * consumer: the decoded `BigUint64Array` becomes one packed bucket, the bucket goes to the layer,
- * and the layer draws it in `prerender`.
+ * consumer: the decoded `BigUint64Array` becomes a `ZoomBucketStore`, a `FogViewportController` culls
+ * whichever bucket the zoom asks for against the padded viewport, and the layer draws the survivors.
  *
- * ─── ONE BUCKET, RES 10, FRACTION 1.0 — AND THAT IS THE WHOLE OF IT HERE ────
+ * ─── `0058` REPLACED "PACK EVERYTHING AND DRAW IT" ──────────────────────────
  *
- * `0058` owns zoom bucketing and two-level viewport culling; nothing in this file chooses a
- * resolution for the zoom, culls against the viewport, or caches per-resolution buckets. Until it
- * lands, every stored cell is packed and every stored cell is drawn, which is correct and is not
- * fast: §6.2 is explicit that the 60 fps claim is *"not a property of the GPU; it is a property of
- * the CPU-side data pipeline"*. At the operator's real cell count that is fine, and `0059` is the
- * ticket that measures it rather than assuming.
+ * Until this ticket the hook packed every stored cell into one res-10 bucket on every data change and
+ * handed the lot to the GPU. That was correct and not fast, and this file's own header said so: §6.2
+ * is explicit that the 60 fps claim is *"not a property of the GPU; it is a property of the CPU-side
+ * data pipeline"*. At 759 cells nobody could tell. At year five it is 657,000 and D-237's res 11
+ * multiplied the number by seven on the way.
  *
- * A stored res-10 cell is fully explored by definition (§1.1), so its `fraction` is 1.0 and no
- * aggregate is fetched here. `a_fraction` still ships in the instance layout and still multiplies
- * coverage in the shader — proved by fixture rather than by a coarse bucket that does not exist yet.
+ * What happens now, and where each piece lives:
  *
- * ─── AND, SINCE `0056`, THE ANIMATION CLOCK ─────────────────────────────────
+ *   `zoom-buckets.ts`        which resolution a zoom wants; the group index; per-group geometry
+ *   `cull.ts`                groups against the padded viewport, then their discs
+ *   `viewport-controller.ts` when to do that, when not to, and the ~250 ms debounce
+ *   `mask-layer.ts`          `maskDirty`, and the upload
  *
- * §4.5's rAF loop. It lives here rather than in the layer because it is a browser lifecycle
- * concern — `requestAnimationFrame`, `visibilitychange`, `matchMedia` — and the layer is the part
- * that must stay drivable from a harness with none of those.
+ * ─── THREE THINGS THIS FILE STILL OWNS, BECAUSE THEY ARE BROWSER LIFECYCLE ──
+ *
+ * The animation clock (§4.5's rAF loop), the `visibilitychange` signal, and the wiring between them.
+ * `FogAnimator` already owns *"paused entirely when `document.hidden`"*; `0058` adds the other two
+ * halves of §6.2's *"skip everything when the layer is hidden"* — the controller detaches its camera
+ * handlers and the layer skips both GL passes — and all three are driven from the **same
+ * `AnimationHost`**, so there is one subscription and no way for them to disagree about whether the
+ * tab is visible.
  */
 export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
+  /**
+   * The controller is not state. Putting it in `useState` would re-render the tree every time it was
+   * created, and nothing in the tree renders from it — the only things that read it are the effects
+   * below, which run after it exists.
+   */
+  const controller = useRef<FogViewportController | null>(null)
 
   /**
    * Read ONCE, on mount, rather than watched. `?fog=mask` is a debug flag; re-reading it on every
@@ -56,25 +68,27 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     [],
   )
 
-  /**
-   * PACKED ONCE PER DATA CHANGE, NEVER PER FRAME (criterion 5). The dependency is the generation
-   * rather than the set object, because `ExploredSet.applyDelta` mutates in place and returns the
-   * same instance — a `useMemo` keyed on the object alone would never re-run after a delta.
-   *
-   * Synchronous on the main thread, and at 150k cells §6.1 prices this at 30-80 ms. That is a
-   * one-off on the boot path, not a frame cost, and §6.2's last bullet already records the exit if
-   * it ever shows up as a visible hitch: derive it in a Web Worker. Not needed at MVP volumes.
-   */
   const set = explored.set
   const generation = explored.generation
-  const bucket = useMemo(
-    () => (!set || set.size === 0 ? null : packBucket(blobCellsToIds(set.cells))),
-    // `generation` looks unused to the linter and is the load-bearing half: `applyDelta` mutates
-    // the set in place and returns the same object, so the identity of `set` does NOT change when
-    // a run lands. Keyed on `set` alone, a mid-session delta would never reach the GPU.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [set, generation],
-  )
+
+  /**
+   * ONE STORE PER SET, and it registers itself as the set's bucket invalidator.
+   *
+   * `explored-set.ts` declared `BucketInvalidator` for exactly this and `applyDelta` calls it with
+   * the res-6 parents one hop touched. Without the registration a run landing mid-session would
+   * update the `Set` and leave every cached bucket drawing the ground as it was — §7.4's *"invalidate
+   * only what changed"* is the whole reason those parents are returned at all.
+   *
+   * The dependency is the set's identity, not the generation: `applyDelta` mutates in place and the
+   * invalidator is what handles that case. A new identity means a full refetch, which needs a new
+   * store because every group index it cached is indexed into the old array.
+   */
+  const store = useMemo(() => (set ? new ZoomBucketStore(set) : null), [set])
+
+  useEffect(() => {
+    if (!set || !store) return
+    return set.addInvalidator(store)
+  }, [set, store])
 
   // The layer's lifetime is the map's. A context-loss rebuild constructs a new `Map`, which lands
   // here as a new identity and gets a new layer — the old one's GPU resources went with the lost
@@ -89,7 +103,8 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
       setLayer(null)
       return
     }
-    const animator = new FogAnimator(browserAnimationHost(() => map.triggerRepaint()))
+    const host: AnimationHost = browserAnimationHost(() => map.triggerRepaint())
+    const animator = new FogAnimator(host)
     const created = new FogMaskLayer({ debug, timeSource: () => animator.time() })
     /**
      * `0057` — UNDER THE ROUTE IF THE ROUTE IS ALREADY THERE, on top of everything otherwise.
@@ -100,9 +115,21 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     // Started AFTER the layer is added: the first thing it does is repaint, and a repaint before
     // there is anything to composite is a wasted frame.
     animator.start()
+    /**
+     * §6.2's hidden switch, all three halves off one subscription. `isHidden` is `document.hidden`;
+     * `subscribe` fires on `visibilitychange` and on a reduced-motion change, and the extra call on
+     * the latter is a no-op because both setters early-return on an unchanged value.
+     */
+    const unsubscribe = host.subscribe(() => {
+      const hidden = host.isHidden()
+      created.setHidden(hidden)
+      controller.current?.setHidden(hidden)
+    })
+    created.setHidden(host.isHidden())
     setLayer(created)
     return () => {
       setLayer(null)
+      unsubscribe()
       animator.stop()
       try {
         if (map.getLayer(created.id)) map.removeLayer(created.id)
@@ -114,13 +141,48 @@ export function useFogMask(map: import("maplibre-gl").Map | null): FogMaskLayer 
     }
   }, [map, debug, disabled])
 
+  /**
+   * THE CULL, attached to the camera. One controller per (map, layer, store) triple.
+   *
+   * `onInstances` hands the layer a **view into the cull's reused scratch buffer**, and the layer
+   * copies it — see `setInstances`. The alternative, allocating a right-sized array per rebuild, is a
+   * steady drip of garbage during exactly the interaction §6.4 item 6 asserts has no long tasks.
+   */
   useEffect(() => {
-    if (!layer || !bucket || !map) return
-    layer.setBucket(bucket)
-    // The upload happens in the next `prerender`, and MapLibre only renders when something asks it
-    // to. Without this a run that lands mid-session would sit in the buffer until the next pan.
-    map.triggerRepaint()
-  }, [layer, bucket, map])
+    if (!map || !layer || !store) return
+    const created = new FogViewportController({
+      map: map as unknown as ControllerMap,
+      store,
+      onInstances: (instances, _result, res) => layer.setInstances(instances, res),
+    })
+    // The subscription that keeps this in step with `document.hidden` belongs to the layer's effect
+    // above, which holds the one `AnimationHost`; this is the initial read for a tab that was already
+    // in the background when the map mounted.
+    created.setHidden(typeof document !== "undefined" && document.hidden)
+    controller.current = created
+    created.start()
+    return () => {
+      created.stop()
+      if (controller.current === created) controller.current = null
+    }
+  }, [map, layer, store])
+
+  /**
+   * A DATA CHANGE, which is not a camera change and will not be noticed by one.
+   *
+   * Keyed on `generation` rather than on `set`: `applyDelta` mutates in place and returns the same
+   * object, so the identity of `set` does NOT change when a run lands. Keyed on `set` alone, a
+   * mid-session delta would never reach the GPU — which is the bug this dependency exists to prevent.
+   *
+   * The controller re-culls immediately rather than waiting for the next pan, because a run that has
+   * just landed is the one thing the operator is watching for. Note the ORDER this depends on: the
+   * effect above has already created the controller for this `layer`, because effects run in
+   * declaration order within a commit.
+   */
+  useEffect(() => {
+    if (generation === null) return
+    controller.current?.refresh(`generation ${generation}`)
+  }, [layer, store, generation])
 
   return layer
 }

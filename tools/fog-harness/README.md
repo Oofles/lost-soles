@@ -1,10 +1,11 @@
 # `tools/fog-harness` — the mask pass, on a real GPU
 
-Ticket `0055`. `05-fog-of-war.md` §4.1, §4.2.
+Tickets `0055` and `0058`. `05-fog-of-war.md` §4.1, §4.2, §6.2.
 
 ```
 node tools/fog-harness/run.mjs            # the mask shader on a real GPU
 node tools/fog-harness/run-maplibre.mjs   # the same layer inside a real MapLibre Map
+node tools/fog-harness/run-cull.mjs       # the zoom buckets and the cull, driven by a real camera
 ```
 
 **`run.mjs`** compiles `lib/fog/mask.ts` **alone** — which is why that module has zero imports —
@@ -23,6 +24,21 @@ under Chromium's `--virtual-time-budget` a `setTimeout` advances the virtual clo
 deferred repaint gets reported on before any frame has been drawn. That reads as "prerender never
 ran" and is a property of the harness, not of the layer. It cost a debugging round here; it is
 written down so it does not cost another.
+
+**`run-cull.mjs`** (ticket `0058`) bundles a real Map plus the shipped `ZoomBucketStore`,
+`FogViewportController` and `FogMaskLayer`, attaches the controller to real `move`/`zoom` events, and
+drives a scripted path: a small pan inside the padded region, one that leaves it, then z17 down to z5.
+It proves what `viewport-controller.test.ts` cannot — that test drives a **fake** map whose
+`getBounds()` this repository wrote, so a flipped mercator y or a west/east swap would pass it and put
+the fog somewhere else. So the harness checks the geometry directly: that a survivor disc actually
+covers the camera position at the centre of a 2 km explored disc, that survivors lie within the padded
+box MapLibre's own bounds produced, that the resolution at each zoom matches `ZOOM_TO_RES`, that the
+instance count stays bounded by the screen, and that no bucket ever derives to zero instances.
+
+It does **not** read pixels, and that is a finding rather than an omission: `readPixels` on the default
+framebuffer after `map.redraw()` returns all zeroes under headless SwiftShader, with or without
+`preserveDrawingBuffer`. `run.mjs` proves the mask's pixels against its own FBO and `run-maplibre.mjs`
+proves the composite runs inside MapLibre's frame; the geometry is what `0058` changed.
 
 ## Why this exists alongside `lib/fog/mask.test.ts`
 
