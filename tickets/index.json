@@ -4572,7 +4572,7 @@
     "title": "ZOOM_TO_RES gives res 11 from z13.0, not z14 — 10,394 instances at z13.5 against §6.4's 6,000",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4580,10 +4580,11 @@
     "source": "agent",
     "created": "2026-09-11T14:02:46Z",
     "started": "2026-09-11T17:15:35Z",
-    "path": "tickets/open/0201-zoom-to-res-gives-res-11-from-z13-0-not-z14-10-394-instances.md",
-    "ready": true,
+    "closed": "2026-09-11T18:38:54Z",
+    "path": "tickets/closed/0201-zoom-to-res-gives-res-11-from-z13-0-not-z14-10-394-instances.md",
+    "ready": false,
     "acceptance": {
-      "checked": 4,
+      "checked": 5,
       "total": 5
     }
   },
@@ -4604,7 +4605,7 @@
     "path": "tickets/open/0202-group-geometry-is-derived-inside-cullbucket-on-the-frame-pat.md",
     "ready": true,
     "acceptance": {
-      "checked": 4,
+      "checked": 5,
       "total": 5
     }
   },
