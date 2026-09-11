@@ -236,9 +236,13 @@ longest split refused      20.9 m
 - **No disc lands in any split's gap** — see the Resolution for why the real gaps are too short to
   make that a hard test, and why the synthetic one carries the criterion.
 
-**The endpoint, live and still gated.** `GET` and `POST` to
+**The deploy.** Amplify job **190 SUCCEED** (`a89d5d0`), after 189 on `0195`'s close commit.
+
+**The endpoint, live and still gated, after the deploy.** `GET` and `POST` to
 `https://soles.devaultsecurity.com/api/runs/latest` unauthenticated both answer `404` — unchanged
-by this ticket, and the data path the renderer depends on is the one `0195` deployed.
+by this ticket, and the data path the renderer depends on is the one `0195` deployed. `GET /`
+answers `200`, and the signed-out payload still carries no coordinate (`0053`'s check, re-run by
+hand because this ticket adds a second geometry source to that page).
 
 **The gate set, by exit code** (not through a pipe): nine guard scripts, `npm run typecheck`,
 `npm run lint`, `npm run build` and **1,931 tests across 106 files** — all `0`, with
