@@ -35,23 +35,41 @@ const flag = (n: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? 
 const RESOLUTIONS = (flag("res") ?? "10,11").split(",").map(Number)
 const ONLY = flag("run")
 
+/**
+ * Step 4's candidate disc, at a caller-named resolution — the same bound `src/domain/fog.ts`
+ * derives for `CANDIDATE_K`, restated here ONLY because this tool indexes at a resolution the
+ * shipped constant is not set to. It must not drift: k=1 (what this tool first used) under-reveals
+ * at res 11 by exactly the cell that made `CANDIDATE_K` necessary, and a comparison rendered from
+ * an under-revealed set would have understated the option it exists to argue for.
+ */
+const kFor = (res: number) =>
+  Math.ceil(
+    (REVEAL_R_M + densifyFor(res) / 2 + getHexagonEdgeLengthAvg(res, UNITS.m)) /
+      (2 * getHexagonEdgeLengthAvg(res, UNITS.m) * Math.cos(Math.PI / 6)),
+  )
+
+/** The same ~0.46-of-inradius ratio `DENSIFY_STEP_M` preserves across a resolution change. */
+const densifyFor = (res: number) =>
+  getHexagonEdgeLengthAvg(res, UNITS.m) * Math.cos(Math.PI / 6) * 0.46
+
 /** Step 4 + step 5, at a caller-named resolution. The only thing this file writes itself. */
 function cellsAt(segments: { lat: number; lng: number }[][], res: number): string[] {
   const candidates = new Set<string>()
   for (const segment of segments) {
     // Densify at a spacing safely under the res's inradius, same reason DENSIFY_STEP_M is
     // under res 10's: a stream that drops points must not skip a cell.
-    const step = getHexagonEdgeLengthAvg(res, UNITS.m) * Math.cos(Math.PI / 6) * 0.46
+    const step = densifyFor(res)
     for (let i = 0; i < segment.length - 1; i++) {
       const a = segment[i], b = segment[i + 1]
       const d = Math.hypot((b.lat - a.lat) * 111_195, (b.lng - a.lng) * 111_195 * Math.cos(a.lat * Math.PI / 180))
       const n = Math.max(1, Math.ceil(d / step))
       for (let k = 0; k <= n; k++) {
         const lat = a.lat + (b.lat - a.lat) * (k / n), lng = a.lng + (b.lng - a.lng) * (k / n)
-        for (const c of gridDisk(latLngToCell(lat, lng, res), 1)) candidates.add(c)
+        for (const c of gridDisk(latLngToCell(lat, lng, res), kFor(res))) candidates.add(c)
       }
     }
-    if (segment.length === 1) for (const c of gridDisk(latLngToCell(segment[0].lat, segment[0].lng, res), 1)) candidates.add(c)
+    if (segment.length === 1)
+      for (const c of gridDisk(latLngToCell(segment[0].lat, segment[0].lng, res), kFor(res))) candidates.add(c)
   }
   const revealed: string[] = []
   for (const c of candidates) {

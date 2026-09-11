@@ -96,6 +96,18 @@ Evidence, from the `0195` smoke test on 2026-09-10:
 
 Queue observed at `0/1` from 22:45 to 23:02 UTC, then `0/0` with the tenth object written.
 
+- **2026-09-11 — third occurrence, during `0194`'s res-11 migration.** Ten `reingest` jobs
+  enqueued at once; nine drained promptly and one sat at
+  `ApproximateNumberOfMessagesNotVisible: 1` with `ApproximateNumberOfMessages: 0` and the DLQ
+  at 0. Same signature as the `0195` observation.
+  **Running tally: `0192` nine, clean · `0195` ten, one lost · `0194` ten, one lost.** So it is
+  not as intermittent as `0195` guessed — two of the three bulk replays hit it, and both of the
+  ones at ten did. That is worth having before the rebuild drill, which replays thousands.
+  **Correctness held again, and visibly:** the published blob contained all 590 cells from all
+  ten activities and matched a local derivation through the shipped `traceToCells` exactly
+  (0 missing, 0 extra), so the stalled message is an idempotent re-merge that will bump the
+  generation and change no cell.
+
 ## Operator validation
 
 TODO — written at close. Nothing here is the operator's: it is a queue, a Lambda and an S3
