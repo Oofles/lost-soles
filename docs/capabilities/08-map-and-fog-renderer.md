@@ -486,6 +486,30 @@ backgrounded (which stops `requestAnimationFrame` and pauses the path — correc
 indistinguishable from a hang unless said out loud). A harness whose failure mode is silence costs a
 trip to find out, which is exactly what it cost.
 
+#### `this.#privateMethod().prop++` is miscompiled by SWC (ticket `0206`)
+
+The first run of `?fog=perf` on the deployed site threw `TypeError: a.get is not a function` from
+inside MapLibre's `move` handler. The cause is worth recording here because **every gate this project
+has passed it**: `tsc`, `eslint`, 2,074 unit tests, six guard scripts, `next build`, and both headless
+harnesses — all of which use vitest or esbuild, neither of which downlevels private methods the way
+SWC does.
+
+SWC compiles a private *method* to a `WeakSet` brand plus a plain function. Reading it should go
+through `_class_private_method_get(receiver, brand, fn)`, which only calls `brand.has(receiver)`. An
+**update expression** in the member chain instead routes it through
+`_class_extract_field_descriptor(receiver, map, "update")`, which does `map.get(receiver)` — and a
+`WeakSet` has no `.get`. The `.has` check passes first, so the failure lands on the line after the
+one that would have explained it.
+
+`collector.ts`'s `cameraEvent` hoists to a local for this reason and says so at the call site. Three
+other call sites of the same private method in the same class compiled correctly; the `++` was the
+only difference. Verified by reading the shipped chunk before and after the fix.
+
+**The general lesson, which outlives this bug:** a deployed-bundle behaviour that no local toolchain
+reproduces is only ever caught by opening the page. That is an argument for the operator check that
+`0059` nearly designed away — and for `try/catch` around anything a person is asked to run, because
+the only reason this stack was legible is that the harness had just been given one.
+
 #### The React half is proved separately (`tools/fog-harness/run-overlay.mjs`)
 
 `run-perf.mjs` drives a real MapLibre Map and touches **no React**, while roughly 180 lines of `0059`

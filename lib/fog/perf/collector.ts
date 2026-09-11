@@ -344,9 +344,32 @@ export class FogPerf {
     this.#deriveInsideCull = 0
   }
 
-  /** Item 4's other half: a pan inside the padded region must produce events and no culls. */
+  /**
+   * Item 4's other half: a pan inside the padded region must produce events and no culls.
+   *
+   * ─── THE LOCAL IS LOAD-BEARING. DO NOT INLINE IT BACK. ──────────────────────
+   *
+   * `this.#current().cameraEvents++` — the obvious one line — **is miscompiled by SWC** and crashes
+   * in the production bundle while working perfectly in `vitest`, in esbuild, and in `next dev`.
+   *
+   * SWC downlevels `#private` to `WeakMap`s, and a private METHOD to a `WeakSet` brand plus a plain
+   * function. Reading one is supposed to go through `_class_private_method_get(receiver, brand, fn)`,
+   * which checks `brand.has(receiver)`. But an **update expression** (`++`) anywhere in the member
+   * chain routes the private-name access through `_class_extract_field_descriptor(receiver, map,
+   * "update")` instead, which does `map.get(receiver)` — and a `WeakSet` has no `.get`. The bundle
+   * throws `TypeError: a.get is not a function` from inside MapLibre's `move` handler, which is a
+   * stack with nothing recognisable in it.
+   *
+   * Three other call sites in this class compile correctly, and the only thing different about this
+   * one was the `++`. Confirmed by reading the shipped chunk: three `_class_private_method_get` calls
+   * on the brand and one `_class_extract_field_descriptor`.
+   *
+   * `cullEnd` already hoists to a local for readability and is accidentally immune for that reason.
+   * This does it deliberately. Ticket `0206` carries the build gate and the upstream report.
+   */
   cameraEvent(): void {
-    this.#current().cameraEvents++
+    const acc = this.#current()
+    acc.cameraEvents++
   }
 
   /* ─── §6.4 item 5 — bucket derivation and cache hit rate ─────────────────── */

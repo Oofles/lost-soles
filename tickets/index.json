@@ -1424,7 +1424,7 @@
     "path": "tickets/open/0059-perf-harness-and-first-usable.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 3,
       "total": 10
     }
   },
@@ -4665,6 +4665,26 @@
     "acceptance": {
       "checked": 3,
       "total": 3
+    }
+  },
+  {
+    "id": 206,
+    "slug": "swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a",
+    "title": "SWC miscompiles this.#privateMethod().prop++ into a WeakSet .get — a production-only crash no test can see",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "00-preflight-and-repo",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-11T15:45:12Z",
+    "path": "tickets/open/0206-swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
     }
   }
 ]
