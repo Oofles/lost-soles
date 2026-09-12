@@ -88,9 +88,12 @@ proceed to Phase 2 on a renderer that stutters.**
       `Set<string>` of every cell id beside the `BigUint64Array`; §6.3 already names the exit and
       `explored-set.ts`'s `has()` already points at it. 50k — roughly where the operator is — passes
       comfortably, so it bites from about year one rather than today.*
-- [ ] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible ~~on
+- [x] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible ~~on
       the phone~~ **on the desktop browser (D-240)**, correctly positioned over the streets actually
       run.
+      — verified 2026-09-12: operator confirmed on the desktop browser. **The fog sits on the streets
+      actually run.** Sync behaved as predicted from a cold token, and the pan is clean with `0202`
+      and `0207` in — the hitch `0202` predicted is gone.
       *Amended 2026-09-11: **an archived activity re-synced**, not a run performed for this ticket.
       D-229 (2026-09-09) postdates this ticket and forbids asking the operator to run for test data;
       a past activity is the same real trace through the same real adapter, pipeline and Sync tap,
@@ -109,8 +112,12 @@ proceed to Phase 2 on a renderer that stutters.**
       (`0202`) and a buffer outliving its viewport (`0207`), none of which §6.4 anticipated. That is
       worth recording precisely because the kill criteria were the prepared answer and turned out not
       to be the needed one.*
-- [ ] (operator) `09-roadmap.md` §9.5's "the product, on the actual device" checks are run and their
-      results recorded. *Two of its six rows are out of scope at this milestone and are recorded as
+- [x] (operator) `09-roadmap.md` §9.5's "the product, on the actual device" checks are run and their
+      results recorded.
+      — verified 2026-09-12: operator confirmed on the desktop browser, for the four rows in scope at
+      this milestone. §9.5 still says "the user's own Android phone (D-124), not a simulator"; D-240
+      supersedes that and the doc amendment is `0208`.
+      *Two of its six rows are out of scope at this milestone and are recorded as
       such rather than ticked: the post-run sequence does not exist (this ticket's own Notes say so)
       and D-148's gold/chrome rules belong to capability `13`. §9.5's preamble says "the user's own
       Android phone (D-124), not a simulator" — **D-240 moves that to the desktop browser** and §9.5

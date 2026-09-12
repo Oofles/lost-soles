@@ -1424,7 +1424,7 @@
     "path": "tickets/open/0059-perf-harness-and-first-usable.md",
     "ready": true,
     "acceptance": {
-      "checked": 3,
+      "checked": 9,
       "total": 10
     }
   },
@@ -4710,6 +4710,26 @@
     "ready": false,
     "acceptance": {
       "checked": 5,
+      "total": 5
+    }
+  },
+  {
+    "id": 208,
+    "slug": "09-roadmap-md-9-5-still-names-the-android-phone-that-d-240-r",
+    "title": "09-roadmap.md §9.5 still names the Android phone that D-240 removed",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-12T16:38:36Z",
+    "path": "tickets/open/0208-09-roadmap-md-9-5-still-names-the-android-phone-that-d-240-r.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
       "total": 5
     }
   }
