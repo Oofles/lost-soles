@@ -13,7 +13,17 @@ import {
   TIME_WRAP_S,
   type NoiseFrame,
 } from "./composite"
-import { FBM_OCTAVES, NOISE_ORIGIN_MODULUS, NOISE_PX, REVEAL_HI, REVEAL_LO, V1 } from "./fog-uniforms"
+import {
+  FBM_OCTAVES,
+  NOISE_ORIGIN_MODULUS,
+  NOISE_PX,
+  NOISE_PX_MAX,
+  NOISE_PX_MIN,
+  NOISE_PX_QUANTISED,
+  REVEAL_HI,
+  REVEAL_LO,
+  V1,
+} from "./fog-uniforms"
 
 /**
  * A MapLibre-shaped mercator projection matrix, column-major, exactly as `mainMatrix` arrives.
@@ -182,19 +192,29 @@ describe("noiseFrame — the ground anchoring (D-233, criterion 9)", () => {
    * matrix and the origin ever disagree, the whole noise field snaps by a whole cell at some
    * arbitrary camera position — a pop that no still screenshot can show.
    *
-   * So: sweep a zoom range wide enough to cross hundreds of origin boundaries, and at every step
-   * assert the matrix-and-origin path reproduces the smooth analytic coordinate. What it must NOT
-   * be asserted against is its own previous value — the coordinate is SUPPOSED to drift under a
-   * zoom, because the noise frequency tracks the screen scale (see `NOISE_PX`), and a test that
-   * forbade that would be forbidding the design.
+   * So: sweep, and at every step assert the matrix-and-origin path reproduces the smooth analytic
+   * coordinate.
+   *
+   * **THE STIMULUS IS A PAN, AND SINCE `0199` IT HAS TO BE.** This test used to sweep a ZOOM, on the
+   * reasoning that a zoom crosses hundreds of origin boundaries. It did, because `scale` tracked the
+   * zoom continuously — which is exactly the bug `0199` fixed. D-243 quantises `scale` to powers of
+   * two, so a five-level zoom now changes the origin about five times and the sweep would have been
+   * asserting almost nothing. A pan at fixed zoom moves the screen centre continuously and still
+   * crosses boundaries by the hundred, so the risk is exercised the same as before.
+   *
+   * The comment this replaces said the coordinate *"is SUPPOSED to drift under a zoom … a test that
+   * forbade that would be forbidding the design"*. That was the design, it was wrong, and the test
+   * below now forbids precisely what that sentence protected.
    */
-  it("a ZOOM does not pop: the origin jumps and the matrix cancels it, every time", () => {
+  it("a PAN does not pop: the origin jumps and the matrix cancels it, every time", () => {
     let originChanges = 0
     let worstError = 0
     let previousOrigin: [number, number] | null = null
 
-    for (let zoom = 13; zoom <= 18; zoom += 0.01) {
-      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+    // ~1,500 cells of ground at z16, which is hundreds of origin boundaries.
+    for (let step = 0; step <= 500; step++) {
+      const centreX = HOME.x + step * 4e-6
+      const m = mercatorMatrix({ centreX, centreY: HOME.y, zoom: 16, ...view })
       const frame = noiseFrame(m, view.width, view.height)
       const q = shaderNoiseCoord(frame, m, HOME.x + 2e-5, HOME.y)
       const analytic = groundNoiseCoord(frame, HOME.x + 2e-5, HOME.y)
@@ -211,6 +231,78 @@ describe("noiseFrame — the ground anchoring (D-233, criterion 9)", () => {
     // The sweep has to actually exercise the risk, or "no pop" is vacuous.
     expect(originChanges).toBeGreaterThan(100)
     expect(worstError).toBeLessThan(1e-9)
+  })
+
+  /**
+   * `0199` CRITERION 1 — THE MIST MUST NOT BOIL DURING A PINCH. D-243.
+   *
+   * The operator's report: *"On a continuous zoom, the fog definitely flickers. It looks like static
+   * on a screen when zooming."* The cause was that the lattice index of a FIXED ground point moved
+   * by hundreds to thousands of cells per frame, and `hashCell` is an integer bit-mix, so every one
+   * of those frames drew an uncorrelated field.
+   *
+   * **Sweeping is the whole point.** `groundNoiseCoord`'s existing assertions compare two frames at
+   * the SAME scale, so they are blind to this by construction — that blind spot is why the bug
+   * survived `0056`'s validation and reached the operator's eye. This walks the zoom at a realistic
+   * pinch rate and looks at every consecutive pair.
+   *
+   * What D-243 guarantees, and what it does not: **zero drift within a whole zoom level**, and one
+   * step per level where the field legitimately re-randomises. The criterion was amended from *"at
+   * most one cell per frame"* to this, because that wording is only satisfiable by a ground-anchored
+   * frequency (option B/C) and the operator chose A.
+   */
+  it("a PINCH does not re-randomise the field: zero drift within a zoom level (0199, D-243)", () => {
+    const PINCH_PER_FRAME = 0.2 // zoom levels per frame — a fast two-second z17->z10 pinch
+    const ground = { x: HOME.x + 2e-5, y: HOME.y }
+
+    const cellOf = (zoom: number): number => {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      return Math.floor(groundNoiseCoord(noiseFrame(m, view.width, view.height), ground.x, ground.y)[0]!)
+    }
+
+    let steps = 0
+    let stepped = 0
+    let worstWithinLevel = 0
+
+    for (let zoom = 17; zoom > 10; zoom -= PINCH_PER_FRAME) {
+      const drift = Math.abs(cellOf(zoom - PINCH_PER_FRAME) - cellOf(zoom))
+      steps++
+      // A quantisation boundary halves the scale, so the index halves too — a legitimate step.
+      if (drift > 1) stepped++
+      else worstWithinLevel = Math.max(worstWithinLevel, drift)
+    }
+
+    // Within a level the lattice is EXACTLY still. Not "small" — still.
+    expect(worstWithinLevel).toBe(0)
+    // One step per whole zoom level crossed, and no more. Seven levels, seven steps.
+    expect(stepped).toBe(7)
+    // Guard against the sweep silently becoming trivial.
+    expect(steps).toBeGreaterThan(30)
+  })
+
+  /**
+   * THE SABOTAGE HALF of the test above — `0118`'s rule that a probe which can only report success
+   * proves nothing. The pre-D-243 scale is the actual shipped bug, so replaying it here is the
+   * strongest possible statement of what changed.
+   */
+  it("and the un-quantised scale it replaced fails that same sweep (0199)", () => {
+    const PINCH_PER_FRAME = 0.2
+    const ground = { x: HOME.x + 2e-5, y: HOME.y }
+
+    const legacyCellOf = (zoom: number): number => {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      const frame = noiseFrame(m, view.width, view.height)
+      // What `noiseFrame` computed before D-243: the raw, un-quantised scale.
+      return Math.floor(ground.x * (1 / (frame.mercPerPixel * NOISE_PX)))
+    }
+
+    let worst = 0
+    for (let zoom = 17; zoom > 10; zoom -= PINCH_PER_FRAME) {
+      worst = Math.max(worst, Math.abs(legacyCellOf(zoom - PINCH_PER_FRAME) - legacyCellOf(zoom)))
+    }
+
+    // Thousands of cells in a single frame — the ticket measured 9,152 for its first step.
+    expect(worst).toBeGreaterThan(1_000)
   })
 
   it("keeps the origin an exact integer inside its modulus, at every zoom", () => {
@@ -240,15 +332,51 @@ describe("noiseFrame — the ground anchoring (D-233, criterion 9)", () => {
     expect(Math.abs(local[1]!)).toBeLessThan(10)
   })
 
-  it("a noise cell is NOISE_PX drawing-buffer pixels across, at every zoom and DPR", () => {
+  /**
+   * Was `toBeCloseTo(NOISE_PX)` before `0199`. D-243 makes the answer **256, not 260**, at every
+   * zoom and every DPR: MapLibre's world is `512 x 2^zoom x dpr` pixels and the quantised scale is
+   * `2^n`, so their ratio is a power of two and lands on `NOISE_PX`'s nearest one. The zoom and the
+   * DPR both cancel out of the algebra, which is why this loop is still the right shape.
+   */
+  it("a noise cell is NOISE_PX_QUANTISED px across at a WHOLE zoom level, every DPR (D-243)", () => {
+    expect(NOISE_PX_QUANTISED).toBe(256)
     for (const zoom of [10, 14, 18]) {
       for (const dpr of [1, 2]) {
         const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view, dpr })
         const frame = noiseFrame(m, view.width, view.height)
         // One cell in mercator, converted to pixels by the frame's own measured scale.
-        expect((1 / frame.scale) / frame.mercPerPixel).toBeCloseTo(NOISE_PX, 6)
+        expect((1 / frame.scale) / frame.mercPerPixel).toBeCloseTo(NOISE_PX_QUANTISED, 6)
       }
     }
+  })
+
+  /**
+   * `0199` CRITERION 3 — THE PRICE OF D-243, MEASURED RATHER THAN ASSUMED.
+   *
+   * Quantising the frequency buys a still lattice and pays for it in apparent coarseness: between
+   * whole levels a cell is no longer 260 px. The ticket predicted 184-368 from the geometry; this
+   * asserts what the code actually does, and pins the extremes so a future change to the rounding
+   * cannot widen the band silently.
+   */
+  it("pays for it in coarseness, within NOISE_PX_MIN..NOISE_PX_MAX and no wider (0199, D-243)", () => {
+    let min = Infinity
+    let max = 0
+    for (let zoom = 10; zoom <= 18; zoom += 0.05) {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      const frame = noiseFrame(m, view.width, view.height)
+      const px = (1 / frame.scale) / frame.mercPerPixel
+      min = Math.min(min, px)
+      max = Math.max(max, px)
+    }
+
+    // Inside the declared band...
+    expect(min).toBeGreaterThanOrEqual(NOISE_PX_MIN - 1e-6)
+    expect(max).toBeLessThanOrEqual(NOISE_PX_MAX + 1e-6)
+    // ...and actually reaching it, or the band would be a claim nothing tests.
+    expect(min).toBeLessThan(NOISE_PX_MIN * 1.02)
+    expect(max).toBeGreaterThan(NOISE_PX_MAX * 0.98)
+    // The whole band stays coarse enough not to beat against §4.3's 2-4 px parchment grain.
+    expect(min).toBeGreaterThan(150)
   })
 
   it("falls back to screen space rather than to nothing when mainMatrix is singular", () => {

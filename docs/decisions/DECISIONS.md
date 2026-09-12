@@ -3291,3 +3291,42 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The condition that reopens it.** `0203` is not "someday": it is due before the dataset reaches
     150k, and the harness already reports the number at all three sizes, so the trigger is
     observable rather than remembered.
+
+- **D-243** **The noise lattice frequency is quantised to a power of two, so the field is exactly
+  constant within a whole zoom level and steps once per level.** Amends `05-fog-of-war.md` §4.3,
+  whose *"a lattice cell stays ~260 screen pixels at every zoom"* is now true only at whole levels.
+  *(Operator, ticket `0199`, 2026-09-12.)*
+  - **The bug.** `scale = 1 / (mercPerPixel x NOISE_PX)` tracked the zoom continuously. The absolute
+    lattice index of a ground point is `floor(scale x mercatorPos)` — `mercatorPos` ~0.27, `scale`
+    ~65,000 at z15, so the index is ~17,600 and **one frame of a pinch moved it by thousands of
+    cells**. D-233 made `hashCell` an integer bit-mix specifically so adjacent indices do not
+    correlate, so every frame of a zoom drew an uncorrelated field. The operator: *"On a continuous
+    zoom, the fog definitely flickers. It looks like static on a screen when zooming."*
+  - **Why D-233 did not cover it.** D-233 anchored the noise's TRANSLATION and proved it. Frequency
+    was never mentioned. Worse, its instrument cannot see this: `groundNoiseCoord` is
+    `mercX x frame.scale`, so it is stable across a pan **by construction** and says nothing about
+    two frames at different zooms. A green pan assertion and a boiling zoom are perfectly
+    consistent, which is how this shipped through `0056`'s validation and reached the operator's eye.
+  - **What was chosen, from four options.** Rounding `log2(scale)`. `mercPerPixel` halves per zoom
+    level, so this holds the lattice **exactly still within a level** — zero drift, 94% of a pinch —
+    and steps once per level. A z17→z10 pinch: ~120 re-randomisations become 7.
+  - **What it costs, measured not assumed.** A cell is no longer a fixed screen size: **256 px at
+    every whole level** (both the lattice and MapLibre's `512 x 2^zoom x dpr` grid are powers of two,
+    so their ratio is one too, and it is independent of zoom AND DPR), ranging over **184-368 px**
+    between levels. A 2x swing in apparent coarseness, judged the weaker artefact against static.
+    The whole band stays well clear of the 2-4 px parchment grain §4.3's constant exists to avoid.
+  - **The criterion that had to be amended, and why it is recorded rather than quietly dropped.**
+    `0199` asked for *"at most one cell per frame"*. **That is only satisfiable by a ground-anchored
+    frequency**, not by quantisation, which trades 120 small jumps for 7 large ones. The ticket
+    recommended quantisation while writing a criterion its own recommendation could not meet; the
+    operator was shown the conflict with the measured boundary jump (35,625 cells) before any code
+    was written and chose quantisation with the criterion amended to *zero drift within a level,
+    exactly one step per level*.
+  - **The exit, if the per-level step is judged too visible.** NOT interpolating the scale — that
+    makes the field depend on camera history and only hides the symptom on a slow zoom. Weight the
+    fBm octaves by `frac(log2(rawScale))`: continuous across the boundary at the same octave count,
+    close to free on the GPU. Deliberately not done here because it changes the octave structure
+    `0119`'s deferred tuning findings were recorded against.
+  - **A test comment was the bug, stated as intent.** `composite.test.ts` read: *"the coordinate is
+    SUPPOSED to drift under a zoom … a test that forbade that would be forbidding the design."* The
+    design was wrong, and the sweep added here forbids exactly what that sentence protected.

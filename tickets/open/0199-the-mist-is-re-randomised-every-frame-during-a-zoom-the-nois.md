@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-11T13:12:31Z
+started: 2026-09-12T16:56:47Z
 ---
 
 ## Description
@@ -112,15 +113,38 @@ fixed ground point moves by hundreds to thousands of cells per frame.
 
 ## Acceptance criteria
 
-- [ ] The lattice index of a fixed ground point changes **by at most one cell per frame** during a
-      continuous zoom at a realistic pinch rate, asserted in a test that sweeps the zoom rather than
-      compared at two endpoints — `composite.test.ts`'s existing pan assertion is the model, and its
-      blind spot is that it only ever compares two frames at the same scale.
-- [ ] Panning is still exactly ground-anchored: D-233's existing assertions pass unchanged.
-- [ ] The apparent coarseness stays within the band the chosen option implies, and the number is
+- [x] ~~The lattice index of a fixed ground point changes **by at most one cell per frame** during a
+      continuous zoom~~ **Amended to: the lattice index of a fixed ground point does not change at
+      all within a whole zoom level, and steps exactly once per level crossed** — at a realistic
+      pinch rate, asserted in a test that sweeps the zoom rather than comparing two endpoints.
+      *(D-243, operator, 2026-09-12.)*
+      *Amended because **the original is only satisfiable by a ground-anchored frequency** (options
+      B/C), and the ticket recommended A while writing a criterion A cannot meet. Quantisation trades
+      ~120 small jumps for 7 large ones: modelled before any code was written, the boundary step is
+      **35,625 cells** at z16.4. The operator was shown that number and the conflict, and chose A
+      with this wording. Criterion 5 carries the verdict on whether the step is visible.*
+      **Met:** `composite.test.ts` sweeps z17→z10 at 0.2 levels/frame and asserts drift is
+      **exactly 0** within a level and that there are **exactly 7 steps** across 7 levels. Its
+      sabotage half replays the pre-D-243 scale on the same sweep and measures >1,000 cells.
+      `composite.test.ts`'s existing pan assertion was the model, and its blind spot — it only ever
+      compares two frames at the same scale — is what let this reach the operator's eye.
+- [x] Panning is still exactly ground-anchored: D-233's existing assertions pass unchanged.
+      **Met**, and the two pan assertions plus the screen-space sabotage case were not touched. One
+      test *stimulus* did change: the origin-cancellation sweep drove a ZOOM, which after D-243
+      crosses ~5 origin boundaries instead of hundreds and would have asserted almost nothing. It
+      now sweeps a PAN at fixed zoom, which still crosses hundreds. Same risk, live stimulus.
+- [x] The apparent coarseness stays within the band the chosen option implies, and the number is
       recorded rather than assumed (option A implies 184–368 CSS px per cell).
-- [ ] A `D-xxx` records which option was taken and what it costs, because §4.3's *"one lattice cell per
+      **Met, and the prediction was very slightly off in an interesting way.** The band is
+      184–368 px as predicted (`NOISE_PX_MIN`/`NOISE_PX_MAX`, swept and asserted to actually reach
+      both ends). But at a **whole** zoom level a cell is **256 px, not 260** — both the lattice and
+      MapLibre's `512 × 2^zoom × dpr` grid are powers of two, so their ratio is one too and lands on
+      `2^round(log2(260))`. Independent of zoom *and* DPR; the algebra cancels both. Named
+      `NOISE_PX_QUANTISED` so the next reader finding 256 does not take it for a bug.
+- [x] A `D-xxx` records which option was taken and what it costs, because §4.3's *"one lattice cell per
       260 px"* is a stated constant and any of these options changes what it means.
+      **Met: D-243**, plus a new §4.3 subsection in `05-fog-of-war.md`. Both record the cost, the
+      criterion amendment, and the octave-weighting exit if the per-level step is judged too visible.
 - [ ] **(operator)** A continuous z17→z10 pinch on the desktop browser no longer boils. If option A is
       taken, also: does the coarseness change at a zoom-level boundary read as a step?
 

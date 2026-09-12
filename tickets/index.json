@@ -4540,6 +4540,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-11T13:12:31Z",
+    "started": "2026-09-12T16:56:47Z",
     "path": "tickets/open/0199-the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois.md",
     "ready": true,
     "acceptance": {

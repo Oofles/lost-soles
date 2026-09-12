@@ -122,10 +122,42 @@ export const REVEAL_HI = 0.72
  *
  * SCREEN pixels, at the zoom being looked at — not ground metres. The noise is anchored to the
  * ground (`composite.ts`, D-233) so it cannot crawl under a pan, but its *frequency* tracks the
- * map scale so a cell stays this size on screen at every zoom. Anchored at a fixed ground size
- * instead, the field would be 16 px across at z10 — aliasing — and 4,000 px at z18 — a flat wash.
+ * map scale so a cell stays roughly this size on screen at every zoom. Anchored at a fixed ground
+ * size instead, the field would be 16 px across at z10 — aliasing — and 4,000 px at z18 — a flat
+ * wash.
+ *
+ * **ROUGHLY, since `0199`/D-243.** The frequency is now quantised to powers of two, so this is the
+ * size at a whole zoom level and the true figure ranges over `NOISE_PX_MIN`..`NOISE_PX_MAX` in
+ * between. Tracking the scale continuously re-randomised the entire field on every frame of a
+ * zoom — see `quantiseNoiseScale` in `composite.ts` for why that follows from an integer hash.
  */
 export const NOISE_PX = 260
+
+/**
+ * The band one lattice cell actually spans, given D-243's power-of-two quantisation: `NOISE_PX`
+ * divided and multiplied by sqrt(2), because `Math.round` on a log2 splits each octave at its
+ * geometric midpoint. **Measured, not asserted** — `composite.test.ts` sweeps the zoom and checks
+ * the extremes land here, which is `0199`'s criterion 3.
+ *
+ * 184-368 px keeps the whole band inside §4.3's *"coarse (~150-300 px)"* at the fine end and only
+ * modestly above it at the coarse end, which is why 2x was acceptable without an octave crossfade.
+ */
+export const NOISE_PX_MIN = NOISE_PX / Math.SQRT2
+export const NOISE_PX_MAX = NOISE_PX * Math.SQRT2
+
+/**
+ * What a cell ACTUALLY measures at a whole zoom level: **256 px, not 260.**
+ *
+ * Both the lattice and the pixel grid are powers of two after D-243 — MapLibre's world is
+ * `512 x 2^zoom x dpr` pixels and the quantised scale is `2^n` — so the ratio between them is a
+ * power of two too, and `NOISE_PX`'s nearest one is 2^8. Independent of zoom AND of DPR; the
+ * algebra cancels both. `composite.test.ts` asserts it at three zooms and two DPRs.
+ *
+ * 260 stays the constant of record because it is the *target* the quantisation rounds from, and
+ * because §4.3's reasoning is about the 150-300 px band rather than any exact figure. Naming the
+ * achieved value separately is what stops the next reader finding 256 and thinking it a bug.
+ */
+export const NOISE_PX_QUANTISED = 2 ** Math.round(Math.log2(NOISE_PX))
 
 /**
  * The `#define` the ticket asks for: lever (c) of the three pre-decided performance levers, so

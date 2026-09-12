@@ -937,7 +937,7 @@ on the CPU each frame and folds two more things into the same matrix:
 
 - **the noise scale**, so a lattice cell stays ~260 screen pixels at every zoom. Anchored at a
   fixed ground size instead, the field would be 16 px across at z10 (aliasing) and 4,000 px at z18
-  (a flat wash);
+  (a flat wash). **Quantised to a power of two since ticket `0199` (D-243)** — see below;
 - **an integer lattice origin**, subtracted here in double precision and added back in the shader
   *after* `floor()`. Without it the noise coordinate reaches ~2 million at z18, a `float` resolves
   `fract()` to eighths of a cell, and the third octave is visibly blocky. Because the origin is
@@ -948,6 +948,37 @@ Two knock-on changes, both forced by the integer origin rather than chosen: the 
 bit-mix instead of `fract(sin(dot(...)))`, which quantises catastrophically once its argument
 reaches 1e8; and the lacunarity is exactly 2.0 with a per-octave integer translation instead of
 2.03, because 2.03 times an integer is not an integer.
+
+#### The frequency is quantised to powers of two (ticket `0199`, D-243)
+
+Anchoring the *translation* was only half the problem, and `0056` shipped without noticing the other
+half. **A continuously-tracked frequency re-randomises the entire field on every frame of a zoom.**
+The absolute lattice index of a ground point is `floor(scale x mercatorPos)`; `mercatorPos` is ~0.27
+and `scale` is ~65,000 at z15, so that index is ~17,600 and a single frame of a pinch moved it by
+**thousands of cells**. Since the hash is an integer bit-mix chosen precisely so adjacent indices do
+not correlate, each of those frames drew a completely fresh field. The operator's report was
+*"it looks like static on a screen when zooming"*.
+
+`groundNoiseCoord`, the instrument that proves the pan anchoring, is structurally blind to this: it
+is `mercX x frame.scale`, stable across a pan by construction and silent about two frames at
+different zooms. **The pan assertion could never have caught the zoom bug**, which is why `0199`'s
+test sweeps the zoom and compares consecutive frames.
+
+So `noiseFrame` now rounds `log2(scale)` before using it. `mercPerPixel` halves per zoom level, so
+the lattice is **exactly constant within a whole zoom level** and steps once per level. A
+z17→z10 pinch goes from roughly 120 re-randomisations to seven.
+
+The price, and it is a real one: a cell is no longer a fixed size on screen. It is **256 px at every
+whole zoom level** — both the lattice and MapLibre's `512 x 2^zoom x dpr` pixel grid are powers of
+two, so their ratio is one too and lands on the nearest to 260 — and ranges over **184–368 px**
+in between, a 2x swing in apparent coarseness. The whole band stays clear of the 2–4 px parchment
+grain below, which is what §4.3's constant is really protecting.
+
+**If that per-level step is ever judged too visible**, the fix is not to interpolate the scale —
+that makes the field depend on camera history and only hides the symptom on a slow zoom. It is to
+weight the fBm octaves by `frac(log2(rawScale))`, which makes the field continuous across the
+boundary at the same octave count and is close to free on the GPU. It was not done in `0199` because
+it changes the octave structure that `0119`'s deferred tuning findings were recorded against.
 
 The cost is that the noise field drifts smoothly during a *zoom*, since its frequency tracks the
 screen scale while the ground does not. That is accepted: a zoom already scales everything on

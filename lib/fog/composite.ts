@@ -269,8 +269,12 @@ function applyHomog(m: readonly number[], x: number, y: number): [number, number
  *
  * The origin is `floor(centre x scale)`, so it changes by whole cells as the camera pans — and
  * because it is added after `floor(p)`, the ABSOLUTE cell index is unchanged when it does. No pop.
- * The same holds through a zoom: `scale` moves continuously, the origin jumps, the sum does not.
- * `composite.test.ts` asserts exactly that, on both.
+ * `composite.test.ts` sweeps a pan across hundreds of origin boundaries and asserts exactly that.
+ *
+ * A ZOOM now barely exercises this at all, and that is `0199`'s doing rather than an oversight:
+ * since D-243 `scale` is quantised to powers of two, so a pure zoom over five levels changes the
+ * origin about five times instead of continuously. The pan sweep is what keeps the cancellation
+ * honest; the zoom sweep asserts the quantisation instead.
  *
  * The subtraction of the origin happens HERE, in a double, folded into the matrix — which is the
  * point. Done in the shader it would be `float(2000000.4) - float(2000000.0)`, and catastrophic
@@ -282,6 +286,44 @@ function applyHomog(m: readonly number[], x: number, y: number): [number, number
  * transitions. Falling back to §4.3's original screen-space noise for that frame is a crawl nobody
  * will see; returning nothing would be a frame with no fog, which everybody would.
  */
+/**
+ * SNAP THE LATTICE FREQUENCY TO A POWER OF TWO. `0199`, D-243.
+ *
+ * ─── WHY A CONTINUOUS FREQUENCY IS STATIC, NOT MIST ─────────────────────────
+ *
+ * The absolute lattice index of a ground point is `floor(scale x mercatorPos)`. `mercatorPos` is
+ * ~0.27 and `scale` is ~65,000 at z15, so that index is ~17,600 — and `scale` tracked the zoom
+ * continuously, so **one frame of a pinch moved it by hundreds to thousands of cells**. `hashCell`
+ * is an integer bit-mix chosen by D-233 precisely so adjacent indices do NOT correlate, so a jump
+ * of hundreds is a completely fresh field. Sixty of those a second is what the operator saw and
+ * described as *"static on a screen"*.
+ *
+ * D-233 anchored the noise's TRANSLATION and proved it; it said nothing about its FREQUENCY, and
+ * `groundNoiseCoord` cannot catch this because it is `mercX x frame.scale` — stable across a pan by
+ * construction, and silent about two frames at different zooms.
+ *
+ * ─── WHAT THIS BUYS AND WHAT IT COSTS ───────────────────────────────────────
+ *
+ * `mercPerPixel` halves per zoom level, so the raw scale doubles per level and `log2` of it is the
+ * zoom plus a constant. Rounding that makes the lattice **exactly constant within a whole zoom
+ * level** — zero drift, which is 94% of a z17-z10 pinch — and step once per level, where the field
+ * does re-randomise. Sixty discontinuities a second become seven across the whole pinch.
+ *
+ * The price is that a cell is no longer exactly `NOISE_PX` on screen: it ranges over
+ * `NOISE_PX_MIN`..`NOISE_PX_MAX` (184-368 px) and returns to 260 at each whole level. That is a
+ * 2x swing in apparent coarseness across a level, judged the weaker artefact of the two.
+ *
+ * **The exit, if the step is ever judged too visible**, is not to interpolate `scale` — that makes
+ * the field depend on camera history and only hides the symptom on a slow zoom. It is to weight the
+ * fBm octaves by `frac(log2(rawScale))` so the field is continuous ACROSS the boundary at the same
+ * octave count: near-free on the GPU, but it changes the octave structure that `0119`'s deferred
+ * tuning findings were recorded against. `0199` considered it and deliberately did the cheap thing
+ * first.
+ */
+export function quantiseNoiseScale(rawScale: number): number {
+  return Math.pow(2, Math.round(Math.log2(rawScale)))
+}
+
 export function noiseFrame(
   mainMatrix: ArrayLike<number>,
   width: number,
@@ -318,7 +360,7 @@ export function noiseFrame(
     return screenNoise()
   }
 
-  const scale = 1 / (mercPerPixel * NOISE_PX)
+  const scale = quantiseNoiseScale(1 / (mercPerPixel * NOISE_PX))
   const wrap = (v: number) => ((Math.floor(v) % NOISE_ORIGIN_MODULUS) + NOISE_ORIGIN_MODULUS) % NOISE_ORIGIN_MODULUS
   const origin: [number, number] = [wrap(cx * scale), wrap(cy * scale)]
 
