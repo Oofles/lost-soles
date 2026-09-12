@@ -82,12 +82,20 @@ proceed to Phase 2 on a renderer that stutters.**
       *It was expected to fail — up to 20 ms of derivation ran inside a single pan cull. It did not,
       because a 20 ms block is under the 50 ms `longtask` threshold. `0202` removed it anyway and
       the operator confirmed by eye that the pan has no felt hitch.*
-- [ ] Peak JS heap in the low tens of MB at 500k cells.
-      **MEASURED AND STILL FAILING: 97.0 MB over baseline at 500k, 76.9 MB at 150k; 50k passes.
-      Ticket `0203`.** *This is the only budget in §6.4 that is still missed. `ExploredSet` keeps a
-      `Set<string>` of every cell id beside the `BigUint64Array`; §6.3 already names the exit and
-      `explored-set.ts`'s `has()` already points at it. 50k — roughly where the operator is — passes
-      comfortably, so it bites from about year one rather than today.*
+- [x] ~~Peak JS heap in the low tens of MB at 500k cells.~~ **Amended to: peak JS heap is measured at
+      all three dataset sizes, and a miss against §6.4 is recorded with a named payoff ticket rather
+      than ticked away.** *(D-242, operator, 2026-09-12.)*
+      **THE BUDGET IS MISSED AND THIS BOX DOES NOT CLAIM OTHERWISE: 97.0 MB over baseline at 500k,
+      76.9 MB at 150k; 50k passes. Ticket `0203`.** The only one of §6.4's seven instruments still
+      failing. The criterion was amended — not satisfied — because the operator decided the miss does
+      not gate FIRST USABLE; the reasoning, the trigger that reopens it, and why no kill-criteria
+      lever applies are all in **D-242**.
+      *Cause and exit are both known, which is what makes deferring it safe rather than hopeful:
+      `ExploredSet` keeps a `Set<string>` of every cell id beside the `BigUint64Array` — two copies
+      of the same data, one in the most expensive representation available — and §6.3 already
+      prescribes binary search over the sorted typed array, with `explored-set.ts`'s `has()` already
+      commented to point at it. 50k is roughly where the operator is and passes comfortably; 150k is
+      about year one.*
 - [x] (operator) ★ End-to-end: a Strava run is imported via Sync and its territory is visible ~~on
       the phone~~ **on the desktop browser (D-240)**, correctly positioned over the streets actually
       run.
@@ -307,4 +315,121 @@ Recorded because the failure is silent and this table will be scanned again.*
 
 Record rather than tick. **Two of its six rows are out of scope**: the post-run sequence does not
 exist and D-148's gold/chrome rules are capability `13`. §9.5's own preamble still says "the user's
-own Android phone"; D-240 supersedes that and the doc needs the amendment when it is next touched.
+own Android phone"; D-240 supersedes that and **the doc amendment is `0208`**, filed rather than
+folded in here.
+
+### Result — 2026-09-12
+
+**The operator signed off A, B and C on the desktop browser.**
+
+- **A** — the numbers, recorded 2026-09-11 (Chrome 151, RTX 3070 via ANGLE/D3D11, 1902×901). Six of
+  §6.4's seven instruments pass; heap is the exception and is D-242.
+- **B** — **the ★. The fog sits on the streets actually run.** This is the one thing nothing else in
+  this ticket could establish. The geographic smoke test proved 759 cells decode to Nocatee in nine
+  clusters matching their receipts, and that was always the cheap half; whether those cells trace
+  the *road* is a question only a person looking at a map can answer, and the answer is yes.
+- **B4, separately worth recording** — the pan is clean. `0202` and `0207` both landed after the last
+  time anyone looked at real ground, and the hitch `0202` predicted is gone by eye as well as by
+  number. That closes a loop the harness could only half-close: `0202`'s own measurement showed the
+  derivation moving off the frame path, but "no longer measurable" and "no longer felt" are
+  different claims and only one of them was proved.
+- **C** — the four in-scope rows pass. The two out-of-scope rows are recorded as such rather than
+  ticked, per the note above.
+
+## Resolution
+
+**Closed 2026-09-12 with nine of ten criteria met and the tenth amended rather than satisfied.**
+
+### What was built
+
+All seven of §6.4's instruments, behind `?fog=perf`, printing one summary table:
+`lib/fog/perf/{synthetic,gpu-timer,collector,camera-path,report,dataset-source,harness}.ts` and
+`components/map/perf-overlay.tsx`, with hooks into `zoom-buckets.ts`, `viewport-controller.ts`,
+`mask-layer.ts`, `debug-flags.ts`, `explored-provider.tsx`, `use-fog-mask.ts` and `map-shell.tsx`.
+Checked-in fixtures at 50k / 150k / 500k (`public/fog-fixtures/*.bin`) generated **through the
+shipped writer**, with `fixtures.test.ts` doubling as generator and byte-for-byte drift guard. A
+deterministic scripted camera path, replay-asserted by `camera-path.test.ts`.
+
+**Two headless surfaces, and the split between them is the point.** `tools/fog-harness/run-perf.mjs`
+drives the instruments against a real MapLibre Map; `run-overlay.mjs` renders the real React against
+a fake one. Counts and allocations are trustworthy headless; **frame time is not**, because
+SwiftShader has no `EXT_disjoint_timer_query_webgl2` and no compositor. That is why items 2 and 3
+were always going to need the operator's desktop, and it is stated here so the next person does not
+try to automate them.
+
+### What measuring actually found — three bugs the design did not predict
+
+None was a regression; all three were the design meeting measurement for the first time. Each was
+**filed rather than folded in**, because none was `0059`'s scope:
+
+- **`0201`** — `ZOOM_TO_RES`'s bounds were inclusive *upper* bounds, so res 11 started at z13.0 and
+  the instance peak was **10,394 at z13.5** against a ceiling of 6,000. §6.4's recorded *"peak is
+  5,271 at z14"* reproduced exactly — it had only ever sampled **integer** zooms. That is the
+  argument for a scripted path over a spot check, and it is the finding I would keep if I could keep
+  only one. Fixed to inclusive lower bounds: **5,273 peak at z14.0, identical at all three sizes.**
+- **`0202`** — group geometry was derived *inside* `cullBucket`, on the frame path. §6.3 budgets the
+  two on separate rows and the code ran one inside the other; a single pan into new ground cost
+  19.6 ms of synchronous main-thread work. Fixed by prefetching off the frame path, **not** by
+  budgeting the cull — a time-boxed cull puts holes in the fog, which is a D-020-shaped symptom.
+- **`0207`** — zooming in never leaves the padded region, so z17 drew a buffer built for z13.
+  `boxTooLarge` now sits beside `boxContains`. `pan-z17` went from **0 culls to 5**.
+
+Also filed: `0203` (heap, D-242), `0204` (`check-design-tokens.mjs` reads `this.#acc()` as a CSS
+colour), `0206` (the SWC miscompile below), `0208` (§9.5's stale phone preamble). `0205` was filed
+and then **closed as a duplicate of the pre-existing `0188`** — my mistake, filed from a failing gate
+without searching the backlog first.
+
+### Two things that cost real time and are worth the ink
+
+**A production-only SWC miscompile.** `?fog=perf` died on the deployed build with
+`TypeError: a.get is not a function` while every gate was green. **SWC downlevels
+`this.#privateMethod().prop++` incorrectly**: a private *method* is a WeakSet brand, and an update
+expression routes the access through `_class_extract_field_descriptor(...)`, which calls `.get()` on
+a WeakSet. Verified by reading the shipped chunk — before `{'(0,m._)(this,I,': 3, '(0,f._)(this,I)':
+1}`, after `{'(0,m._)(this,I,': 4}`. Fixed by hoisting to a local, and the local is load-bearing:
+
+```ts
+const acc = this.#current()   // NOT this.#current().cameraEvents++
+acc.cameraEvents++
+```
+
+**Every gate passed it** — tsc, eslint, 2,074 tests, six guards, `next build`, both harnesses —
+because all of them use esbuild or vitest and none uses SWC. `0206` carries the build gate.
+
+**A budget that could not be met by a perfect renderer.** §6.4 item 3's `p95 < 16.7 ms` scored a
+flawless, zero-dropped-frame 60 fps run as FAIL. rAF fires once per refresh, so an on-time frame's
+delta **is** 16.7 ms — the budget was the floor, not a ceiling. **D-241** restates it as `p50 ≤ 17 ms`
+*and* under 1% of frames over 1.5× p50; both halves are needed, because the drop rate alone
+self-calibrates on a 30 fps renderer. A wrong assertion in a design doc is a finding, not an
+obstacle.
+
+I also predicted item 6 would fail and it passed — a 20 ms block is under the `longtask` API's 50 ms
+threshold, so the instrument could never have seen it. The operator's eye was the only thing that
+could, which is a fair summary of why D-181 draws the line where it does.
+
+### The two amendments
+
+- **D-239 / D-240** — the ★ was to be a run on a phone. D-229 postdates this ticket and forbids
+  asking the operator to run for test data, and the operator declined the phone reading (a Pixel 10
+  Pro is not the mid-range Android §6.3's budget is written for, so it would have measured the wrong
+  end of the range). **Then checking production showed the re-sync was moot anyway**: the import had
+  already happened eleven times, and the watermark plus the receipt ledger make a re-sync a correct
+  no-op. Staging one would have meant rewinding the watermark — spending provider quota to
+  permanently reveal ground on a map that by D-020 cannot re-fog — to re-prove a proved half.
+- **D-242** — the heap budget is **missed, not met**: 97.0 MB at 500k, 76.9 MB at 150k, 50k passes.
+  Accepted as debt with `0203` as the named payoff and an observable trigger. The criterion was
+  amended to say what was actually agreed and the failing numbers are on its face; it was **not**
+  ticked as satisfied.
+
+**No kill-criteria lever was pulled.** The mask scale is still 0.5×, the animation rate and the fBm
+octave count are unchanged. §6.4 prepared three levers for a frame-time problem and frame time was
+never the problem — a wrong zoom band, derivation on the frame path and a buffer outliving its
+viewport were, and §6.4 anticipated none of them. Recorded precisely because the prepared answer
+turned out not to be the needed one.
+
+### The milestone
+
+**`08` is done and the app is usable.** A real Strava run imports through the real path and its
+territory is visible, correctly positioned over streets the operator recognises, on a renderer that
+holds 60 fps with zero dropped frames during pan and stays inside §6.3's GPU budget. What remains
+open behind it is `0203`, `0204`, `0206`, `0208` and the pre-existing `0188`.

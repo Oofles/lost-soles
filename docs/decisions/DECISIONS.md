@@ -3264,3 +3264,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **What is NOT relaxed.** The target is still 60 fps and it is still judged only on the pan
     phases. `zoom-out` fails this restatement exactly as it failed the old one, because it really
     does drop frames.
+
+- **D-242** **§6.4 item 7's heap budget is missed at FIRST USABLE and is accepted as debt rather
+  than met, with `0203` as the named payoff.** Does not amend `05-fog-of-war.md` §6.4 — the budget
+  stands and is simply not met yet. *(Operator, ticket `0059`, 2026-09-12.)*
+  - **The measurement.** Peak JS heap over baseline, on the headless harness at the 400x800
+    reference viewport: **50k — passes. 150k — 76.9 MB. 500k — 97.0 MB.** Against §6.4's *"low tens
+    of MB"*. It is the only one of §6.4's seven instruments still failing; the other six passed once
+    `0201`, `0202` and `0207` landed.
+  - **Why it is debt and not a blocker.** The failure scales with the dataset and the dataset grows
+    with years of running. **50k is roughly where the operator is now** and it passes comfortably;
+    150k is about year one. So the budget bites on a schedule measured in years, against a milestone
+    whose entire point is to start using the app this week. Shipping is the cheaper experiment: a
+    heap problem hit in real use is diagnosable, and one prevented in advance is unfalsifiable.
+  - **The cause is known and the exit is already named**, which is what makes deferring it safe
+    rather than hopeful. `ExploredSet` keeps a `Set<string>` of every cell id **beside** the
+    `BigUint64Array` it decodes into — two full copies of the same data, one of them in the most
+    expensive representation JavaScript has. §6.3 already prescribes the replacement (binary search
+    over the sorted typed array) and `explored-set.ts`'s `has()` already carries the comment
+    pointing at it. `0203` is scoped to exactly that.
+  - **What was NOT done, deliberately.** The criterion was not ticked. `0059` closes with the
+    measured numbers written on its face and the miss stated in its Resolution, because a budget
+    that is quietly ticked to let a milestone pass is the failure the whole §6.4 exercise exists to
+    prevent. **No kill-criteria lever was pulled either** — the three levers §6.4 prepared (mask
+    scale, animation rate, fBm octaves) are all frame-time levers and none of them touches heap.
+  - **The condition that reopens it.** `0203` is not "someday": it is due before the dataset reaches
+    150k, and the harness already reports the number at all three sizes, so the trigger is
+    observable rather than remembered.
