@@ -1408,7 +1408,7 @@
     "title": "Perf harness against the §6.4 budget on a real mid-range Android phone — FIRST USABLE",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -1421,10 +1421,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-11T13:28:53Z",
-    "path": "tickets/open/0059-perf-harness-and-first-usable.md",
-    "ready": true,
+    "closed": "2026-09-12T16:44:16Z",
+    "path": "tickets/closed/0059-perf-harness-and-first-usable.md",
+    "ready": false,
     "acceptance": {
-      "checked": 9,
+      "checked": 10,
       "total": 10
     }
   },

@@ -4,7 +4,7 @@ slug: perf-harness-and-first-usable
 title: Perf harness against the §6.4 budget on a real mid-range Android phone — FIRST USABLE
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [43, 51, 57, 58]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-11T13:28:53Z
+closed: 2026-09-12T16:44:16Z
 ---
 
 ## Description
