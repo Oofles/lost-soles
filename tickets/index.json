@@ -4733,5 +4733,25 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 209,
+    "slug": "next-recommends-an-audit-that-cannot-pass-the-gated-message",
+    "title": "next recommends an audit that cannot pass — the gated message never checks the capability's own open tickets",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-12T17:10:00Z",
+    "path": "tickets/open/0209-next-recommends-an-audit-that-cannot-pass-the-gated-message.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
   }
 ]
