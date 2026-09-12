@@ -96,6 +96,11 @@ proceed to Phase 2 on a renderer that stutters.**
       a past activity is the same real trace through the same real adapter, pipeline and Sync tap,
       and the operator recognises the streets either way. Operator agreed before any code was
       written. See D-239.*
+      *Amended again, later the same day, after checking production rather than assuming it: **the
+      import has already happened eleven times** — 759 cells from nine outings, all verified to
+      decode to Nocatee — so there is nothing left to re-sync and no import to stage. The watermark
+      and the receipt ledger both make a re-sync a correct no-op. **What remains is only the
+      perceptual half**, which was always the only half that was the operator's. See §B.*
 - [x] Any lever pulled from the kill-criteria list is recorded in the capability doc with its
       measured before/after, so the tuning history is not lost.
       ***No lever was pulled.** The mask scale is still 0.5×, the animation still runs at its
@@ -233,24 +238,63 @@ It takes ~12 s if all is well. If it takes longer the panel now says so itself �
 the step count, the elapsed clock, and a warning when a single step has taken more than 8 s. There is
 a **Cancel** button, and cancelling still produces the table over whatever ran.
 
-**Expect FAILs, and they are already filed:** item 1 (`0201`), item 6 (`0202`), item 7 (`0203`). The
-row that decides whether capability `08` is done is **item 3 — frame p95 < 16.7 ms**.
+**This section is already done — recorded 2026-09-11, and kept here as the reproduction recipe.**
+When it was written it warned to expect three FAILs; `0201` and `0202` have since been fixed and
+verified, so **item 7 (heap, `0203`) is the only FAIL left**. Item 3's `p95 < 16.7 ms` was not a
+budget that could be met or missed — D-241 restates it — so the row that decided capability `08`
+turned out to be readable only after the restatement.
 
 Optionally also `?fog=perf:here:500k` for the year-five volume. Skip it if the 150k run is slow.
 
 ### B. The fog on real ground — the judgement half
 
-Re-sync an activity you remember, then look at the map. **No new run.**
+**Nothing needs re-syncing, and this section used to say otherwise.** Checked against production on
+2026-09-11 (the smoke test below): the import half of the `★` criterion has already happened
+**eleven times**, most recently that morning, each through the real adapter, the real pipeline and
+the real Sync tap. There is no archived activity waiting to come in, and pressing Sync will
+correctly report that.
 
-1. `soles.devaultsecurity.com`, sign in, tap **Sync**, wait, reload.
-2. The streets in that activity are revealed and the ones around them are not. At zoom 17, trace the
-   route by eye — roughly one street wide, following roads you remember.
-3. At zoom 14: street names inside revealed territory are readable, names outside are hidden, and the
-   fog edge does not shimmer while you pan. (D-051 — legibility beats atmosphere, not a trade-off.)
-4. Pan and pinch for a minute. **`0202` predicts a hitch when you pan into ground not drawn yet this
-   session** — worth knowing whether you can actually feel it, because that decides whether `0202`
-   blocks the milestone or merely follows it.
+Two gates make a re-sync a guaranteed no-op, and both are working as designed. The **watermark**
+sits at 2026-09-09T01:06Z and `listSince` starts there, so nothing older is even listed; and
+`needsEnqueue` reads the **receipt ledger**, so a re-listed activity that is already `DONE` counts
+as `alreadyKnown` and is never enqueued. Demonstrating an import would have meant rewinding the
+watermark — spending provider quota to permanently reveal ground on a map that by D-020 can never
+re-fog, to re-prove the half that is already proved.
+
+That leaves the half no smoke test can reach: **whether the fog is over the streets you actually
+ran.** I can prove the cells decode to Nocatee; only you can say they trace the roads.
+
+1. `soles.devaultsecurity.com`, sign in, tap **Sync** once.
+   **"Nothing new" is the expected and correct answer** — see above. Tap it anyway: the access token
+   expired at 2026-09-11T02:30Z and `0094`'s scheduled refresher does not exist yet, so this press
+   is what proves the on-demand refresh path still works from a cold token. If it instead asks you
+   to reconnect, that is a real finding and the map half can still go ahead without it.
+2. Zoom to **17** over the revealed ground and trace a route by eye. It should follow roads you
+   remember, roughly one street wide — nine distinct outings are in there, the largest 322 cells
+   over a 1.45 km radius from 2026-08-30.
+3. At zoom **14**: street names inside revealed territory are readable, names outside are hidden,
+   and the fog edge does not shimmer while you pan. (D-051 — legibility beats atmosphere, and it is
+   a direction rather than a trade-off.)
+4. Pan and pinch for a minute. `0202` and `0207` both landed after the last time anyone looked at
+   real ground, so this is the first sight of the fog with derivation off the frame path and z17
+   drawing a buffer built for z17. The hitch `0202` predicted should be gone.
 5. `prefers-reduced-motion` renders the fog static and stops the rAF loop.
+
+#### Smoke test — where the territory actually is (agent, 2026-09-11)
+
+Every row of `LostSolesExploredCell` decoded through `h3-js` and reported by cluster. **781 rows =
+759 res-11 run cells + 21 `AGG#6/7/8` coverage aggregates + 1 `GEN` generation row**, all accounted
+for. The run cells fall between **30.112–30.140 N and −81.430 to −81.360 W** — Nocatee — in nine
+clusters of 0.14–1.45 km radius, one per imported activity, each matching its receipt's
+`newCellCount` exactly.
+
+That proves the geography and the volume. It cannot prove the *shape*, which is why step 2 exists:
+cells in the right square kilometre still say nothing about whether they follow the road.
+
+*A first pass at this check reported a 6,950 km spread and a centroid in the Atlantic. The fault was
+the check, not the data — it called `cellToLatLng` on the `GEN` row's sort key, which is the literal
+string `GEN` rather than an H3 index, and h3-js returns a nonsense coordinate instead of throwing.
+Recorded because the failure is silent and this table will be scanned again.*
 
 ### C. §9.5's table — what is in scope at this milestone
 
