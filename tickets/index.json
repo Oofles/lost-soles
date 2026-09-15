@@ -4533,7 +4533,7 @@
     "title": "The mist is re-randomised every frame during a zoom — the noise lattice is sized in screen pixels",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4541,10 +4541,11 @@
     "source": "agent",
     "created": "2026-09-11T13:12:31Z",
     "started": "2026-09-12T16:56:47Z",
-    "path": "tickets/open/0199-the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois.md",
-    "ready": true,
+    "closed": "2026-09-15T00:19:02Z",
+    "path": "tickets/closed/0199-the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

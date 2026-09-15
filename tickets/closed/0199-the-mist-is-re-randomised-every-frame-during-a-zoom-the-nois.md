@@ -4,7 +4,7 @@ slug: the-mist-is-re-randomised-every-frame-during-a-zoom-the-nois
 title: The mist is re-randomised every frame during a zoom — the noise lattice is sized in screen pixels
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T13:12:31Z
 started: 2026-09-12T16:56:47Z
+closed: 2026-09-15T00:19:02Z
 ---
 
 ## Description
