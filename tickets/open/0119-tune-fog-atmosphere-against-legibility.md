@@ -57,7 +57,33 @@ mechanism by which that happens.
 
 Tune on the **target phone in daylight**, not on a desktop monitor indoors. Values chosen on a
 bright calibrated display at night are consistently too subtle outdoors — which is where this app
-is actually used.
+is actually used. **Superseded by D-240** — see the 2026-09-14 note below.
+
+### 2026-09-14, from `0199` — three things that change this ticket's starting assumptions
+
+**1. The per-level step in noise coarseness is LIKED, and must not be tuned away.** D-243 quantised
+the lattice frequency to powers of two to stop the mist boiling during a zoom. The price was
+supposed to be a visible step in apparent coarseness at each whole zoom level — 184–368 px across a
+level, 256 px at each boundary — and the operator was asked whether it read badly. It does not:
+
+> *"The boiling is gone on a zoom. Overall it's so much smoother than it was before, and the clean
+> distinctions between zoom levels look great."*
+
+So the octave-weighting fix that would smooth that step (weight the fBm octaves by
+`frac(log2(rawScale))` — near-free on the GPU, and the classic answer) is **not a debt this ticket
+should pay off.** Applying it would remove something the operator values. D-243 carries the same
+note as a dated outcome. If tuning makes the step objectionable, that is a finding worth reporting,
+not a licence to smooth it away.
+
+**2. The `0056` measurements below were recorded against a field nobody had seen move.** They
+predate `0199`, so *"too smooth to read as ragged"* was judged on a field that was stable only when
+the camera was still and re-randomised every frame of a zoom. Re-judge before trusting them.
+
+**3. The phone instruction above is dead.** D-240 removed the phone from this project's validation
+surface entirely, and D-227 had already made the desktop browser the viewing surface. The
+"daylight, not a calibrated display at night" *reasoning* was sound and no longer has a device to
+apply to — whoever takes this should decide what it means on a desktop and say so, rather than
+silently dropping it. (`0208` is the same stale assumption in `09-roadmap.md` §9.5.)
 
 ### 2026-09-10, from `0056` — two measurements to start from rather than rediscover
 

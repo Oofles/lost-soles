@@ -3330,3 +3330,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **A test comment was the bug, stated as intent.** `composite.test.ts` read: *"the coordinate is
     SUPPOSED to drift under a zoom … a test that forbade that would be forbidding the design."* The
     design was wrong, and the sweep added here forbids exactly what that sentence protected.
+  - **OUTCOME, 2026-09-14 — the step is a feature, and the exit above is withdrawn as a
+    recommendation.** The operator on the desktop browser: *"The boiling is gone on a zoom. Overall
+    it's so much smoother than it was before, and **the clean distinctions between zoom levels look
+    great**."* The per-level step was expected to be the price of this decision and tolerated at
+    best. It is instead liked. **So octave-weighting is no longer an improvement waiting to be
+    made — applying it would remove something the operator values**, and `0119` must treat it as a
+    change to argue for rather than a debt to pay off. The escape hatch stays documented because it
+    is the right answer *if* the step is ever judged badly; it is not, today.
