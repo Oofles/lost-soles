@@ -4,7 +4,7 @@ slug: cognito-client-drift-amplify-outputs-json-and-cloudformation
 title: Cognito client drift — amplify_outputs.json and CloudFormation name a client that does not exist
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-08T13:56:52Z
 started: 2026-09-27T03:53:22Z
+closed: 2026-09-27T04:01:30Z
 ---
 
 ## Description

@@ -4165,7 +4165,7 @@
     "title": "Cognito client drift — amplify_outputs.json and CloudFormation name a client that does not exist",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
@@ -4173,10 +4173,11 @@
     "source": "agent",
     "created": "2026-09-08T13:56:52Z",
     "started": "2026-09-27T03:53:22Z",
-    "path": "tickets/open/0181-cognito-client-drift-amplify-outputs-json-and-cloudformation.md",
-    "ready": true,
+    "closed": "2026-09-27T04:01:30Z",
+    "path": "tickets/closed/0181-cognito-client-drift-amplify-outputs-json-and-cloudformation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
