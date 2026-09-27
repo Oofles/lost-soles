@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-09-10
+Last updated: 2026-09-26
 
 ---
 
@@ -1015,7 +1015,7 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 ## Capability `02` close audit — divergences  (2026-09-02, D-153)
 
-- **D-176** **`01-architecture.md` §5 and §6 are amended to match what shipped; the code stands.**
+- **D-245** **`01-architecture.md` §5 and §6 are amended to match what shipped; the code stands.**
   The capability `02` close audit found four divergences, one over the drift budget of three, and
   the operator reviewed all four and accepted the implementation in every case. Two were the design
   doc being stale, and both are in the same document for the same reason: **§5 and §6 were written
@@ -1023,6 +1023,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   branch-model bullet *were* (the "Corrected …" convention is used three times elsewhere in that
   file). A section that is confidently wrong is worse than one that is absent, which is the same
   argument `docs/INDEX.md` makes about itself.
+  - **Renumbered from D-176 (ticket `0170`).** The capability `02` audit recorded this as **D-176**,
+    a number `0137` had already given to the guard rule above. A citation of D-176 that means the
+    `01-architecture.md` §5/§6 amendments — from outside this repo, or from before 2026-09-26 —
+    means THIS entry.
   - **§6's `amplify.yml` block** specified `npm ci` and omitted six guards that are actually on the
     deploy path. `npm ci` is D-162, already recorded, with revert ticket `0128`; the guards arrived
     with 0014/0016/0017/0132. Amended with a correction block, and — the load-bearing part —
@@ -1585,11 +1589,14 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 ## One raw archive object per ingest, not three  (2026-09-04, ticket `0035`)
 
-- **D-194** **The raw archive stores ONE content-addressed object per ingest, holding every
+- **D-244** **The raw archive stores ONE content-addressed object per ingest, holding every
   response the adapter fetched, at the key `contracts/ingestion-contract.md` §2 specifies.
   `03-integrations.md` §3.2's three-object layout — `manifest.json` + `summary.json` +
   `streams.json` under `raw/v1/user=…/source=…/date=…/<id>/r<rev>/` — is SUPERSEDED and must not
   be built.**
+  - **Renumbered from D-194 (ticket `0170`).** Ticket `0035` recorded this as **D-194**, a number
+    `0032` had already given to the OAuth-routes decision above. A citation of D-194 that means the
+    raw archive — from outside this repo, or from before 2026-09-26 — means THIS entry.
   - **The design contradicted itself and nothing had noticed, because nothing had built it.**
     `contracts/ingestion-contract.md` §2 gives `RawArchiveRef` a single `key`, a single `sha256`
     and a single `contentType`, and `NormalizedIngest.raw` is one ref or null. `03-integrations.md`

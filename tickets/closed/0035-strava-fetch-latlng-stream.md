@@ -93,7 +93,7 @@ Ids stay strings; use `upload_id_str` where provided.
       performs no transformation, no reshaping and no id coercion on the archived bytes.
       **CLARIFIED:** there are TWO responses and one return value, so they are sealed into an
       envelope by **concatenating buffers** — each response appears contiguously and unchanged.
-      See D-194 for why one object rather than `03-integrations.md` §3.2's three.
+      See D-244 for why one object rather than `03-integrations.md` §3.2's three.
 - [x] Ids parsed for job construction stay strings; a fixture with an id above 2^53 round-trips
       exactly, and `upload_id_str` is preferred where present.
 - [x] Everything is under `src/adapters/strava/`; the 0027 T1 grep stays green. *(Unamended and
@@ -143,7 +143,7 @@ capability where the scope criterion held as written.
 | `raw-envelope.test.ts` | **new**, 19 tests |
 | `adapter.test.ts` | +17 tests |
 
-Plus `docs/decisions/DECISIONS.md` (**D-194**) and the superseded-section note in
+Plus `docs/decisions/DECISIONS.md` (**D-244**) and the superseded-section note in
 `03-integrations.md` §3.2 — D-153's rule that the code or the doc changes, never neither.
 **694 passing**, all four gates clean.
 
@@ -167,7 +167,7 @@ things the probe corrected or confirmed, none of which are in §2.4 as written:
 
 **The decisions.**
 
-**1. One archive object, not three — D-194.** The design contradicted itself: the contract and
+**1. One archive object, not three — D-244.** The design contradicted itself: the contract and
 `RawArchiveRef` describe one content-addressed object, `03-integrations.md` §3.2 describes
 `manifest.json` + `summary.json` + `streams.json` under a Hive-partitioned revisioned prefix. D-140
 already settles which wins, and ticket `0039` had independently restated the contract's layout — so

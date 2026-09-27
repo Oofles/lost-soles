@@ -1040,7 +1040,7 @@ the traces you did not archive are the ones you cannot get back.
 One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under
 D-083), block-all-public-access, no website hosting, no CORS.
 
-> **SUPERSEDED 2026-09-04 by D-194 (ticket `0035`). The layout below is NOT what is built.**
+> **SUPERSEDED 2026-09-04 by D-244 (ticket `0035`). The layout below is NOT what is built.**
 >
 > The archive stores **one content-addressed object per ingest** at
 > `raw/<userId>/<source>/<externalId>/<sha256>.<ext>` — the key `contracts/ingestion-contract.md`

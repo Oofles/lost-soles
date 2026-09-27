@@ -3943,6 +3943,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-05T23:12:00Z",
+    "started": "2026-09-27T03:48:57Z",
     "path": "tickets/open/0170-d-194-is-assigned-to-two-different-decisions-so-every-citati.md",
     "ready": true,
     "acceptance": {

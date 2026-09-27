@@ -63,7 +63,7 @@ oversight rather than a deferral. Sequence with `0115` (secrets/dependency audit
 ## Notes
 
 Found by the capability `02` close audit (2026-09-02), AUDIT.md §2, resolved as `code-was-wrong`.
-Recorded as divergence 4 of 4 in that audit and in **D-176**.
+Recorded as divergence 4 of 4 in that audit and in **D-245**.
 
 Filed against capability `18` rather than `02` because it is hardening, not deploy-and-auth — but
 found in `02` because `0014` cited §5.3 and `0016` built the responses that should carry the

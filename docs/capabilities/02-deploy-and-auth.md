@@ -676,7 +676,7 @@ have found it, and it found it immediately.
 ### What the design got wrong
 
 **Sections written before the code, never revisited once it existed.** Both design-side divergences
-(D-176) are this, in one document. `01-architecture.md` §5 sketched an App Router tree that
+(D-245) are this, in one document. `01-architecture.md` §5 sketched an App Router tree that
 `06-ui-ux.md` later superseded wholesale, and §6 froze an `amplify.yml` that six tickets then
 changed. Meanwhile §7 of the same file *was* corrected in place when 0132 found it wrong, and §6's
 own branch-model bullet *was* annotated for D-150. The convention existed and was applied
@@ -693,11 +693,11 @@ and `0016` is the one that diverged most.
 
 Four, one over the budget of three, so the audit records **`forced`**, not `pass`. All four were
 reviewed by the operator, who accepted the implementation in every case; the resolutions are
-therefore doc amendments and new tickets, never code changes. Full reasoning in **D-176**.
+therefore doc amendments and new tickets, never code changes. Full reasoning in **D-245**.
 
-1. `design-was-wrong` — **D-162/D-176** — §6's `amplify.yml` specified `npm ci` and omitted six
+1. `design-was-wrong` — **D-162/D-245** — §6's `amplify.yml` specified `npm ci` and omitted six
    guards. Amended; `amplify.yml` itself now named as the authority on the deploy path.
-2. `design-was-wrong` — **D-176** — §5's App Router tree, and its `lib/domain/` contradicting §3's
+2. `design-was-wrong` — **D-245** — §5's App Router tree, and its `lib/domain/` contradicting §3's
    `src/domain/`. Amended; `06-ui-ux.md` §1.2 named normative for the IA.
 3. `code-was-wrong` — **`0142`** — the design-token gate does not scan `src/`. Latent only: no hex
    there today.
@@ -733,7 +733,7 @@ assume roughly one filed-not-planned ticket per two planned ones.
 ### What the next capability should do differently
 
 1. **Amend the cited section in the ticket that contradicts it.** The single highest-value change,
-   and it costs minutes. See D-176.
+   and it costs minutes. See D-245.
 2. **Fix `gate.yml` before starting `03`.** `gate.yml` has been red on every push since
    2026-09-01 03:48 on a stale `docs/INDEX.md` (**`0140`**), and because Actions steps are
    fail-fast, the four steps after it have not run — including `npm run build` and **both
@@ -752,7 +752,7 @@ assume roughly one filed-not-planned ticket per two planned ones.
 
 **Verdict: FORCED.** Mechanical half: 7 passed, 1 failed, 4 n/a. See AUDIT.md §1, §4, §5.
 
-> **Overridden with `--force`.** Reason: Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-176), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140.
+> **Overridden with `--force`.** Reason: Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-245), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140.
 
 > - 1 mechanical check(s) failed: capability-tickets-closed
 > - 4 divergences, over the budget of three — the design is stale, not the code.
@@ -761,8 +761,8 @@ assume roughly one filed-not-planned ticket per two planned ones.
 
 **Divergences (4 of a budget of 3):**
 
-1. **design-was-wrong** — `D-176` — 01-architecture.md §6's amplify.yml specified npm ci (D-162) and omitted six guards now on the deploy path; amended, and amplify.yml itself named as the authority
-2. **design-was-wrong** — `D-176` — 01-architecture.md §5's App Router tree never shipped and its lib/domain contradicted §3's src/domain; amended, 06-ui-ux.md §1.2 named normative for the IA
+1. **design-was-wrong** — `D-245` — 01-architecture.md §6's amplify.yml specified npm ci (D-162) and omitted six guards now on the deploy path; amended, and amplify.yml itself named as the authority
+2. **design-was-wrong** — `D-245` — 01-architecture.md §5's App Router tree never shipped and its lib/domain contradicted §3's src/domain; amended, 06-ui-ux.md §1.2 named normative for the IA
 3. **code-was-wrong** — `0142` — check-design-tokens.mjs does not scan src/, and its comment asserts src/ does not exist
 4. **code-was-wrong** — `0143` — 08 §5.3's HSTS, nosniff, frame-ancestors and CSP are in no ticket in the backlog
 
@@ -779,4 +779,4 @@ assume roughly one filed-not-planned ticket per two planned ones.
 - `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
 - `capability-tickets-closed` — **fail** — 1 still open: 0142; 1 deferred (0128)
 
-<!-- audit-record {"capability":"02-deploy-and-auth","audited":"2026-09-02T01:59:29Z","verdict":"forced","mechanical":{"pass":7,"fail":1,"na":4},"divergences":4,"deferred":["0128"],"forced":"Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-176), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140."} -->
+<!-- audit-record {"capability":"02-deploy-and-auth","audited":"2026-09-02T01:59:29Z","verdict":"forced","mechanical":{"pass":7,"fail":1,"na":4},"divergences":4,"deferred":["0128"],"forced":"Operator reviewed all four divergences and accepted the implementation in every case; both design-side findings were amended in this commit (D-245), both code-side findings filed as 0142/0143. TWO overrides are recorded here, not one. (1) Four divergences is over the budget of three, recorded as four rather than folded into three to buy a pass; the prescribed DESIGN session on 01-architecture.md was performed, scoped to §5 and §6. (2) capability-tickets-closed fails on 0142, which THIS AUDIT filed minutes ago against the capability it was auditing — the audit's own §2 remedy for a code-was-wrong finding structurally creates an open ticket in the capability it closes. 0142 is latent only (src/ holds no hex today) and is the recommended next ticket alongside 0140."} -->

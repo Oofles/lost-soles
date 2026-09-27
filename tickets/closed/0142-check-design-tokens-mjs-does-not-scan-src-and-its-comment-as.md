@@ -73,7 +73,7 @@ deploy path in `amplify.yml`.
 ## Notes
 
 Found by the capability `02` close audit (2026-09-02), AUDIT.md §2, resolved as `code-was-wrong`.
-Recorded as divergence 3 of 4 in that audit and in **D-176**.
+Recorded as divergence 3 of 4 in that audit and in **D-245**.
 
 Related: `0141` (a hand-maintained list drifting from the checker that reads it) is the same shape
 one layer over. If a general fix suggests itself for both, say so rather than fixing them twice.
