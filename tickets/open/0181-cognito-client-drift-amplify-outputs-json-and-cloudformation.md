@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-08T13:56:52Z
+started: 2026-09-27T03:53:22Z
 ---
 
 ## Description
@@ -105,21 +106,21 @@ jobs 132-135 reported SUCCEED while all of this was true.
 
 ## Acceptance criteria
 
-- [ ] The cause of the CloudFormation/live mismatch is identified and written down — a manual
+- [x] The cause of the CloudFormation/live mismatch is identified and written down — a manual
       console action, a stack rollback, a resource replacement CFN did not record, or something
       else. **Do not repair before the cause is known**; a silent re-create loses the evidence.
-- [ ] CloudFormation and the live pool agree: the recorded physical id resolves, and it is the
+- [x] CloudFormation and the live pool agree: the recorded physical id resolves, and it is the
       client `amplify_outputs.json` names.
-- [ ] `RefreshTokenValidity` on the live client is 525600 with `TokenValidityUnits.RefreshToken`
+- [x] `RefreshTokenValidity` on the live client is 525600 with `TokenValidityUnits.RefreshToken`
       = `minutes` (0151, `08` §5.3), verified with `describe-user-pool-client`, not with a synth.
-- [ ] `node scripts/check-auth-posture.mjs` exits 0 against the deployed pool.
-- [ ] It is established whether jobs 132–135 ran this check at all. If a green Amplify build can
+- [x] `node scripts/check-auth-posture.mjs` exits 0 against the deployed pool.
+- [x] It is established whether jobs 132–135 ran this check at all. If a green Amplify build can
       pass while the live posture is wrong, that is a worse bug than the drift and gets its own
       ticket — the check is the lock, not the alarm (D-163).
-- [ ] Every other assertion the posture check makes is re-verified against the client the app
+- [x] Every other assertion the posture check makes is re-verified against the client the app
       actually uses: self-signup off, unauthenticated identities off, no federated providers, no
       SMS MFA, ID token 60 minutes, revocation enabled.
-- [ ] `amplify_outputs.json` in the repo is either refreshed or confirmed to be a generated
+- [x] `amplify_outputs.json` in the repo is either refreshed or confirmed to be a generated
       artifact whose staleness is expected, and the check states which copy it targets.
 
 ## Notes
@@ -144,11 +145,73 @@ do not weaken this check."* The finding here is that the deploy is **not** faili
 
 Evidence gathered 2026-09-08 with `AWS_PROFILE=devault`, account `286588821906`, `us-east-1`.
 
+## Resolution
+
+**There was no drift. The ticket compared a SANDBOX pool's client against the PRODUCTION stack.**
+Criterion 1's cause, established before anything was changed (nothing needed repairing, so no
+evidence was at risk):
+
+| | Pool | Owner (pool tags) | Client | Refresh token |
+|---|---|---|---|---|
+| The ticket's "live pool" | `us-east-1_RV7QIiViX` | `amplify:deployment-type=sandbox`, stack `amplify-lostsoles-root-sandbox-bcc61467ba-auth…`, created 2026-09-01 | `mvld8ja1nrdmmi9n9ji7j217v` | 43200 min |
+| Production | `us-east-1_3lreDA1d1` | `amplify:deployment-type=branch`, `amplify:branch-name=main`, stack `amplify-d14fhvl4rp79nn-main-branch-…-auth179371D7-11P63LR6892BM` | `5vc5e8t2ljv1hg3doau5mp0m00` | **525600 min** |
+
+The old machine's `amplify_outputs.json` had been written by `ampx sandbox`, so it named the
+sandbox pool. The three "facts that cannot all be right" were all right: the CFN stack's client
+`5vc5e…` does not exist in `RV7QIiViX` because it lives in `3lreDA1d1`, where the same stack's
+`AWS::Cognito::UserPool` resource points (`amplifyAuthUserPool4BA7F805` → `us-east-1_3lreDA1d1`).
+The investigation only ever asked the wrong pool for it. The sandbox client's 43200 is simply a
+sandbox that has not been redeployed since 0151 (`LastModifiedDate` 2026-09-02 15:47, the
+"23 seconds before" 0151's commit, is when that sandbox last synced).
+
+**This is `0014`'s mistake again**, and `check-auth-posture.mjs`'s header already warned about it
+in words — *"LOCALLY it is usually the sandbox's. During 0014 that difference caused a posture read
+of the sandbox pool to be reported as production."* The banner printed the pool id, and the pool id
+was not enough twice.
+
+**The builds were never wrong (criterion 5).** Build logs for jobs 132, 135, 217 and 218 each show
+`check-auth-posture.mjs` running in the backend phase against `us-east-1_3lreDA1d1` with all eight
+assertions `ok`, including *"refresh token is one year, in MINUTES"*. The lock (D-163) worked; the
+green builds meant what they said. No follow-up ticket needed.
+
+**Criterion 7 — the check now states which copy it targets, in words.** The banner gains an
+`environment:` line read from the pool's own `amplify:deployment-type` / `amplify:branch-name`
+tags, which `describe-user-pool` already returns — no new API call and no new IAM grant for the
+Amplify build role. It prints `branch 'main' (deployed)`, or `SANDBOX — not production; a failure
+here says nothing about the deployed app`, or `UNKNOWN` for an untagged pool. It is a label, not an
+assertion: checking a sandbox deliberately is legitimate. `amplify_outputs.json` is gitignored and
+generated per environment, so "in the repo" means the local copy: regenerated here with
+`npx ampx generate outputs --app-id d14fhvl4rp79nn --branch main` (it names `3lreDA1d1` /
+`5vc5e…`), and its staleness after any `ampx sandbox` run is expected and now visible in the banner.
+
+**Nothing in AWS was changed.** No repair was needed, so the sandbox stack was left as found.
+
+**Scope notes.**
+- The sandbox stack (`amplify-lostsoles-root-sandbox-bcc61467ba`, 7 CFN stacks, live since
+  2026-09-01) is abandoned: nothing uses it, and `tools/capture/capture.sh` hardcodes the production
+  client `5vc5e…`. Deleting it is an operator decision, not this ticket's; raised in the session
+  summary rather than done.
+- `## Operator validation` item 1 (sign in on the phone, re-check 31 days later) was **replaced with
+  the operator's agreement** on 2026-09-26: it asked for the phone and for waiting out an expiry,
+  both ruled out by D-229. The token lifetime is a pool-client setting Cognito enforces; reading it
+  from the live production client is the check, and the deploy lock re-asserts it on every build.
+
+Files: `scripts/check-auth-posture.mjs` (the `environment:` banner line and `environmentOf()`).
+Tests: `--self-test` still 14/14; the new line is exercised against both real pools below.
+
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Everything above is reachable with AWS credentials and belongs in a smoke test at close.
-
-1. After the repair, sign in on the phone and confirm the session is still live 31 days later —
-   the failure 0151 describes only shows up past the old 30-day boundary, and only on a real
-   device that has not re-authenticated in between.
+None needed from the operator — nothing rendered changed, and the phone check this ticket
+originally asked for was replaced (see Resolution, D-229). Smoke tests run by the agent,
+2026-09-27, `AWS_PROFILE=devault`, account 286588821906:
+- `check-auth-posture.mjs --user-pool-id us-east-1_3lreDA1d1 --identity-pool-id us-east-1:8738715f-…`
+  → `environment: branch 'main' (deployed)`, 8/8 ok, exit 0.
+- Same against `us-east-1_RV7QIiViX` / `us-east-1:fcfbad08-…` → `environment: SANDBOX — not
+  production…`, reproduces the ticket's exact FAIL (43200 minutes), exit 1. The label fires where it
+  should have in the original report.
+- `describe-user-pool-client` on `3lreDA1d1` / `5vc5e…` → `RefreshTokenValidity 525600`,
+  `TokenValidityUnits.RefreshToken minutes`, `IdTokenValidity 60`, `EnableTokenRevocation True`.
+- `describe-stack-resources` on the main-branch auth stack → pool `us-east-1_3lreDA1d1`, client
+  `5vc5e…`, both resolve; `list-user-pool-clients` on that pool → exactly that one client.
+- Regenerated `amplify_outputs.json` → names `3lreDA1d1` / `5vc5e…`; the check against it exits 0.
+- Amplify job 218 (this session's push) build log → posture check ran against `3lreDA1d1`, passed.

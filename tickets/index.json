@@ -4172,6 +4172,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T13:56:52Z",
+    "started": "2026-09-27T03:53:22Z",
     "path": "tickets/open/0181-cognito-client-drift-amplify-outputs-json-and-cloudformation.md",
     "ready": true,
     "acceptance": {

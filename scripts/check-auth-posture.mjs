@@ -240,6 +240,23 @@ function readClient(userPoolId, R) {
   ]).UserPoolClient
 }
 
+/**
+ * Ticket 0181. The banner's pool id was not enough: a local amplify_outputs.json
+ * written by `ampx sandbox` named the sandbox pool, the check FAILed on it, and
+ * that was filed as production drift — the 0014 mistake again, with the pool id
+ * printed right there. Amplify tags every pool it creates, and describe-user-pool
+ * already returns the tags, so the banner can say the environment in words at no
+ * extra API call or IAM grant. A label, not an assertion: checking a sandbox on
+ * purpose is legitimate, reading one by accident is what this prevents.
+ */
+function environmentOf(pool) {
+  const tags = pool?.UserPoolTags ?? {}
+  const type = tags["amplify:deployment-type"]
+  if (type === "branch") return `branch '${tags["amplify:branch-name"]}' (deployed)`
+  if (type === "sandbox") return "SANDBOX — not production; a failure here says nothing about the deployed app"
+  return "UNKNOWN — the pool carries no amplify:deployment-type tag"
+}
+
 if (process.argv.includes("--self-test")) {
   // The deployed pool being correct proves only that today is fine; it cannot
   // show the assertions would CATCH anything. These fixtures do (0125's lesson).
@@ -301,6 +318,7 @@ const failures = evaluate(state)
 console.log(`Cognito posture — user pool ${state.userPoolId}`)
 console.log(`                identity pool ${state.identityPoolId}`)
 console.log(`                (target from ${state.source})`)
+console.log(`                environment: ${environmentOf(state.pool)}`)
 for (const a of ASSERTIONS) {
   const bad = failures.find((f) => f.name === a.name)
   console.log(`  ${bad ? "FAIL" : "ok  "}  ${a.name}`)
