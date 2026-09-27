@@ -4,7 +4,7 @@ slug: d-194-is-assigned-to-two-different-decisions-so-every-citati
 title: D-194 is assigned to two different decisions, so every citation is ambiguous
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-05T23:12:00Z
 started: 2026-09-27T03:48:57Z
+closed: 2026-09-27T03:51:18Z
 ---
 
 ## Description
