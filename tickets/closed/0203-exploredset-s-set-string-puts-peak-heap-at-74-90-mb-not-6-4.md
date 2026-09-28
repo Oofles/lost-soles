@@ -4,7 +4,7 @@ slug: exploredset-s-set-string-puts-peak-heap-at-74-90-mb-not-6-4
 title: ExploredSet's Set<string> puts peak heap at 74-90 MB, not §6.4's low tens
 type: bug
 priority: med
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T14:02:46Z
 started: 2026-09-28T14:14:20Z
+closed: 2026-09-28T14:46:47Z
 ---
 
 ## Description
