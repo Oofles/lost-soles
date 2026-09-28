@@ -4759,6 +4759,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-12T17:10:00Z",
+    "started": "2026-09-28T02:49:40Z",
     "path": "tickets/open/0209-next-recommends-an-audit-that-cannot-pass-the-gated-message.md",
     "ready": true,
     "acceptance": {

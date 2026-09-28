@@ -54,8 +54,13 @@ subcommand dispatch, so this table is the dispatch.
 second-guess it; if it picked something surprising, `SCRIPT show <id>` explains why.
 
 If it refuses because every ready ticket is **gated on an unaudited capability**, that is D-153
-working: run the audit it names (see `## audit` below). Do not route around it by starting a ticket
-by hand — the gate exists because the audit is skipped exactly when it matters most.
+working: do what it says. **If it lists tickets still open in the blocking capability, the audit
+cannot pass yet — work or unblock those, and do not propose the audit** (0209: this was proposed
+prematurely about six times, because a capability's planned tickets run out long before the tickets
+building it generates do). Only when it names the audit commands is the audit next (see `## audit`
+below). The same applies to the gated line at the end of a successful `next`. Do not route around
+the gate by starting a ticket by hand — it exists because the audit is skipped exactly when it
+matters most.
 
 Then: summarize the ticket in two or three sentences, **state the approach you intend to take**, and
 **wait for a go before touching anything.** This is the operator's cheapest chance to redirect.

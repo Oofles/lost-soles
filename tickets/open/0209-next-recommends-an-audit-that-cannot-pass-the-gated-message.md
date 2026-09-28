@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-12T17:10:00Z
+started: 2026-09-28T02:49:40Z
 ---
 
 ## Description
@@ -105,16 +106,16 @@ With zero open in the blocking capability, the current wording is correct and sh
 
 ## Acceptance criteria
 
-- [ ] Both messages state how many tickets are **still open in the blocking capability**, and list
+- [x] Both messages state how many tickets are **still open in the blocking capability**, and list
       their ids, whenever that count is non-zero.
-- [ ] When the blocking capability has open tickets, neither message recommends `audit` as the next
+- [x] When the blocking capability has open tickets, neither message recommends `audit` as the next
       action. It names closing those tickets instead, and may mention the audit only as what follows.
-- [ ] When the blocking capability has **zero** open tickets, the messages are unchanged — the audit
+- [x] When the blocking capability has **zero** open tickets, the messages are unchanged — the audit
       really is next, and that path must not get noisier.
-- [ ] Deferred tickets are excluded from the count, matching `capability-tickets-closed`'s own rule
+- [x] Deferred tickets are excluded from the count, matching `capability-tickets-closed`'s own rule
       (`tickets.mjs:772-774`) so the two can never disagree.
-- [ ] A script test covers both branches: a capability with open tickets, and one with none.
-- [ ] `node --test tickets.test.mjs` passes.
+- [x] A script test covers both branches: a capability with open tickets, and one with none.
+- [x] `node --test tickets.test.mjs` passes.
 
 ## Notes
 
@@ -139,3 +140,52 @@ project state to the operator, which is the expensive kind of wrong.
 
 None required — the check is that the two messages say something true, which a script test asserts.
 The operator has already supplied the evidence that they currently do not.
+
+## Resolution
+
+**Files**
+- `.claude/skills/tickets/scripts/tickets.mjs`
+  - New `openInCapability(capability, tickets)`: tickets in the capability that are neither
+    `closed` nor `deferred`, sorted by id. **`capability-tickets-closed` now calls it** in place of
+    its inline filter, so the audit row and the `next` messages share one definition and cannot
+    disagree (criterion 4). The audit row's behaviour is unchanged.
+  - `next` tail (success path): when the blocker has open tickets, it prints the count and ids,
+    says the audit cannot pass yet, and points at `next --all`. With zero open, it prints the
+    original two lines, byte-for-byte.
+  - `next` refusal (every ready ticket gated): the same split. With open tickets, the message also
+    says **none of them is ready**, which must be true here or one would have been offered, so they
+    are blocked or waiting on dependencies. It points at `tickets.mjs show <id>` rather than the
+    audit commands. With zero open, the original refusal text and audit commands are unchanged.
+- `.claude/skills/tickets/scripts/tickets.test.mjs`: new `0209` describe block with four tests,
+  covering the tail and the refusal, each with open tickets in the blocker and with none. The
+  zero-open fixtures include a **deferred** ticket in the blocker, so criterion 4 is exercised
+  rather than assumed. The open-tail test also runs the real `audit 01-b` and asserts it reports
+  the same ids, pinning the "cannot disagree" property end to end. An `in-progress` ticket counts
+  as open, matching the audit.
+- `.claude/skills/tickets/SKILL.md` `## next`: the instruction was "if it refuses because every
+  ready ticket is gated … **run the audit it names**", the same misreading in prose form. A fixed
+  message under an unfixed instruction would still send the agent to the audit. It now says to
+  follow what the message says, not to propose the audit while it lists open tickets, and gives the
+  reason. This is one paragraph and part of the same fix, not new scope.
+
+**Checked that the tests bite.** Against the pre-change `tickets.mjs`, the two open-ticket tests
+fail and the two zero-open tests pass. That is the intended shape: the first pair proves the bug,
+the second pins the path that must not get noisier.
+
+**State at close.** Capability `08` has **7** open tickets, not the 8 in the Description: `0199` has
+closed since. Real `next` now ends with *"Its audit cannot pass yet — 7 ticket(s) in it are still
+open: 0119, 0186, 0188, 0191, 0200, 0203, 0208"*, and `audit 08-map-and-fog-renderer` fails
+`capability-tickets-closed` on exactly those seven.
+
+**Not done:** `0144` (the catch-22 inside the audit) is adjacent, as the Notes say, and untouched.
+
+## Operator validation
+
+None needed from the operator: this is CLI message text asserted by tests. Verified by the agent:
+
+- `node --test tickets.test.mjs`: **157/157 pass**, including the four new `0209` tests.
+- The new tests run against the old script: 2 fail (the bug), 2 pass (the unchanged path).
+- Real repo: `tickets.mjs next` lists 08's seven open tickets and does not recommend the audit, and
+  `tickets.mjs audit 08-map-and-fog-renderer` names the same seven under `capability-tickets-closed`.
+- `tickets.mjs validate`: 0 errors, 0 warnings.
+

@@ -1158,6 +1158,88 @@ describe("0135 — next refuses to advance into a new capability until the previ
   });
 });
 
+// ───────────────────── 0209 next must not recommend an audit that cannot pass ────
+
+describe("0209 — the gate message names the blocker's open tickets instead of an audit that cannot pass", () => {
+  const BODY_OK = "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n";
+  const BODY_CLOSED = "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n";
+  const BODY_DEFERRED = "\n## Description\n\nx\n\n## Deferred\n\n**Reason:** upstream\n\n```sh\ntrue\n```\n" +
+    "\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n";
+  const docs = (d, ...caps) => caps.forEach((c) => writeFileSync(join(d, "docs/capabilities", `${c}.md`), `# ${c}\n`));
+  const closed = (d, id, cap) => ticket(d, "closed",
+    FM({ id, slug: `done${id}`, capability: cap, status: "closed", closed: "2026-08-30T00:00:00Z" }), BODY_CLOSED);
+  const AUDIT_ADVICE = /tickets\.mjs audit 01-b/;
+
+  test("tail: open tickets in the blocker are listed, and audit is NOT recommended", () => {
+    // 0001 is gated on 01-b; 01-b still holds 0002 and 0003 (0003 in progress). The
+    // audit of 01-b would fail capability-tickets-closed on both.
+    const d = repo();
+    docs(d, "01-b", "02-c");
+    ticket(d, "open", FM({ id: 1, slug: "gated", capability: "02-c", priority: "high" }), BODY_OK);
+    ticket(d, "open", FM({ id: 2, slug: "open-low", capability: "01-b", priority: "low" }), BODY_OK);
+    ticket(d, "open", FM({ id: 3, slug: "wip", capability: "01-b", priority: "low", status: "in-progress" }), BODY_OK);
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /1 higher-priority ticket\(s\) are gated on capability '01-b'/);
+    assert.match(r.out, /2 ticket\(s\) in it are still open/);
+    assert.match(r.out, /0002, 0003/);
+    assert.match(r.out, /next --all/);
+    assert.ok(!AUDIT_ADVICE.test(r.out), `must not recommend an audit that cannot pass:\n${r.out}`);
+    // And the audit really would fail — the message and the check agree.
+    assert.match(run(d, "audit", "01-b").out, /capability-tickets-closed\s+2 still open: 0002, 0003/);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("tail: with zero open in the blocker (one deferred), the audit wording is unchanged", () => {
+    // Deferred does not hold a capability open — same rule as capability-tickets-closed.
+    const d = repo();
+    docs(d, "01-b", "02-c");
+    closed(d, 1, "01-b");
+    ticket(d, "open", FM({ id: 2, slug: "parked", capability: "01-b", status: "deferred", deferred: "2026-09-01T00:00:00Z" }), BODY_DEFERRED);
+    ticket(d, "open", FM({ id: 3, slug: "gated", capability: "02-c", priority: "high" }), BODY_OK);
+    ticket(d, "open", FM({ id: 4, slug: "loose", capability: "null", type: "chore", priority: "low" }), BODY_OK);
+    const r = run(d, "next");
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /0004/);
+    assert.match(r.out, /1 higher-priority ticket\(s\) are gated on capability '01-b' —\n\s+its audit has not passed\. 'tickets\.mjs audit 01-b' to start it\./);
+    assert.ok(!/still open/.test(r.out), `nothing is open in 01-b, so nothing may be listed:\n${r.out}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("refusal: every ready ticket gated and the blocker's tickets blocked — lists them, no audit commands", () => {
+    // 0001 (01-b) waits on 0002 (02-c); 0002 is gated on 01-b. Nothing is workable,
+    // and the honest answer is "unblock 0001", not "audit 01-b".
+    const d = repo();
+    docs(d, "01-b", "02-c");
+    ticket(d, "open", FM({ id: 1, slug: "stuck", capability: "01-b", status: "blocked", blocked_by: [2] }), BODY_OK);
+    ticket(d, "open", FM({ id: 2, slug: "gated", capability: "02-c", priority: "high" }), BODY_OK);
+    const r = run(d, "next");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /gated on capability '01-b'/);
+    assert.match(r.out, /1 ticket\(s\) in it are still open, and none is ready/);
+    assert.match(r.out, /0001/);
+    assert.match(r.out, /tickets\.mjs show <id>/);
+    assert.ok(!/--record|--sections/.test(r.out) && !AUDIT_ADVICE.test(r.out),
+      `must not hand out audit commands:\n${r.out}`);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("refusal: with zero open in the blocker (one deferred), the audit commands are unchanged", () => {
+    const d = repo();
+    docs(d, "01-b", "02-c");
+    closed(d, 1, "01-b");
+    ticket(d, "open", FM({ id: 2, slug: "parked", capability: "01-b", status: "deferred", deferred: "2026-09-01T00:00:00Z" }), BODY_DEFERRED);
+    ticket(d, "open", FM({ id: 3, slug: "gated", capability: "02-c", priority: "high" }), BODY_OK);
+    const r = run(d, "next");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /A capability is not done when its tickets are closed/);
+    assert.match(r.out, /tickets\.mjs audit 01-b --sections/);
+    assert.match(r.out, /tickets\.mjs audit 01-b --record/);
+    assert.ok(!/still open/.test(r.out), r.out);
+    rmSync(d, { recursive: true, force: true });
+  });
+});
+
 // ────────────────────────────────────────────────────────────────────── 0136 ────
 
 describe("0136 — deferred: work that is correct, specified, and waiting on a third party", () => {

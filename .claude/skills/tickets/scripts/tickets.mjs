@@ -965,7 +965,7 @@ function auditChecks(capability, tickets) {
   // deferrals never reads as one that passed clean.
   const mine = tickets.filter((t) => t.fm?.capability === capability);
   const deferredInCap = mine.filter((t) => t.fm.status === "deferred");
-  const openInCap = mine.filter((t) => !["closed", "deferred"].includes(t.fm.status));
+  const openInCap = openInCapability(capability, tickets);
   const defNote = deferredInCap.length
     ? `; ${deferredInCap.length} deferred (${deferredInCap.map((t) => pad(t.fm.id)).join(", ")})`
     : "";
@@ -1423,6 +1423,27 @@ function auditBlockers(capability, tickets) {
 
 const isGated = (t, tickets) => auditBlockers(t.fm?.capability, tickets).length > 0;
 
+/**
+ * The tickets that stop a capability's audit passing `capability-tickets-closed`:
+ * everything in it that is neither closed nor deferred. ONE definition, used by that
+ * check and by `next`'s gate messages (0209), so `next` can never recommend an audit
+ * the audit's own check is certain to fail.
+ */
+function openInCapability(capability, tickets) {
+  return tickets
+    .filter((t) => t.fm?.capability === capability && !["closed", "deferred"].includes(t.fm.status))
+    .sort((a, b) => a.fm.id - b.fm.id);
+}
+
+/**
+ * 0209. When the blocking capability still has open tickets, its audit CANNOT pass,
+ * so recommending it is recommending a guaranteed failure — and it happened about six
+ * times across sessions, because a capability's PLANNED tickets run out long before
+ * the tickets building it generates do. The tool is the one thing that can see
+ * index.json at that moment; it must say "close these", not "audit".
+ */
+const openList = (open) => open.map((t) => pad(t.fm.id)).join(", ");
+
 function cmdNext(flags) {
   const ts = load();
   const ready = readySet(ts);
@@ -1463,6 +1484,17 @@ function cmdNext(flags) {
 
   if (!open_.length) {
     const blocker = gate.get(ready[0].fm.id)[0];
+    const stillOpen = openInCapability(blocker, ts);
+    if (stillOpen.length) {
+      // None of these can be ready — a ready one would have been offered — so every
+      // one is blocked or waiting on a dependency. That is the thing to look at.
+      die(`every ready ticket is gated on capability '${blocker}', whose audit has not passed (D-153).\n\n` +
+          `  Its audit cannot pass yet — ${stillOpen.length} ticket(s) in it are still open, and none is ready:\n` +
+          `    ${openList(stillOpen)}\n\n` +
+          `  They are blocked or waiting on dependencies. 'tickets.mjs show <id>' says why for each.\n` +
+          `  Close them first; the audit of '${blocker}' comes after that, not before.\n\n` +
+          `  'tickets.mjs next --all' still lists the whole backlog, gated entries marked.`);
+    }
     die(`every ready ticket is gated on capability '${blocker}', whose audit has not passed (D-153).\n\n` +
         `  A capability is not done when its tickets are closed. It is done when its audit passes,\n` +
         `  and the audit is worth most exactly when there is pressure to skip it.\n\n` +
@@ -1483,8 +1515,16 @@ function cmdNext(flags) {
   const gated = ready.length - open_.length;
   if (gated) {
     const blocker = gate.get(ready.find((r) => gate.get(r.fm.id).length).fm.id)[0];
-    console.log(`\n  ${gated} higher-priority ticket(s) are gated on capability '${blocker}' —`);
-    console.log(`  its audit has not passed. 'tickets.mjs audit ${blocker}' to start it.`);
+    const stillOpen = openInCapability(blocker, ts);
+    if (stillOpen.length) {
+      console.log(`\n  ${gated} higher-priority ticket(s) are gated on capability '${blocker}'.`);
+      console.log(`  Its audit cannot pass yet — ${stillOpen.length} ticket(s) in it are still open:`);
+      console.log(`    ${openList(stillOpen)}`);
+      console.log(`  Close those first; 'tickets.mjs next --all' lists them with the rest of the backlog.`);
+    } else {
+      console.log(`\n  ${gated} higher-priority ticket(s) are gated on capability '${blocker}' —`);
+      console.log(`  its audit has not passed. 'tickets.mjs audit ${blocker}' to start it.`);
+    }
   }
   if (deferred.length) {
     console.log(`\n  ${deferred.length} ticket(s) deferred, waiting on something outside the project` +
