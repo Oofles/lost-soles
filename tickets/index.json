@@ -4642,6 +4642,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-11T14:02:46Z",
+    "started": "2026-09-28T14:14:20Z",
     "path": "tickets/open/0203-exploredset-s-set-string-puts-peak-heap-at-74-90-mb-not-6-4.md",
     "ready": true,
     "acceptance": {

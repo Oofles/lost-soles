@@ -1348,8 +1348,13 @@ not after.
 5. **Bucket-derivation time** per resolution, and its cache hit rate.
 6. **Long tasks** via `PerformanceObserver({ entryTypes: ['longtask'] })` during the scripted
    path. *Assertion: zero long tasks attributable to the fog layer during pan.*
-7. **Peak JS heap** with a synthetic 500k-cell dataset. *Assertion: the `BigUint64Array` plus
-   buckets stays in the low tens of MB.*
+7. **Retained JS heap** with a synthetic 500k-cell dataset — after the scripted path, with a forced
+   full collection, while the set and the buckets are still alive. *Assertion: the `BigUint64Array`
+   plus buckets stays in the low tens of MB.* **Amended by D-247 (`0203`):** this said *peak*, and
+   the pre-GC peak is not what the fog holds — `usedJSHeapSize` counts garbage until V8 collects it,
+   and bucket derivation promotes enough short-lived strings that at 500k the peak read 64 MB while
+   the retained figure was 15 MB. The peak is still reported, unjudged, as a jank signal. Measured at
+   `0203`: retained 6.4 / 9.4 / 15.2 MB, pre-GC peak 18 / 23 / 64 MB, at 50k / 150k / 500k.
 
 **Test with synthetic datasets at 50k / 150k / 500k cells**, generated once and checked in as a
 fixture. Real data will not reach 500k for years (R3 §2), and by then the assumption will be
@@ -1406,10 +1411,11 @@ offset  size  field
   membership test.** Recommendation: **ship uncompacted for v1.** 300–450 KB is already fine, and
   mixed-resolution arrays are the H3 correctness footgun this document warns about twice.
   Compaction is a lever to pull if the payload ever becomes a real cost.
-- **Decode to a sorted `BigUint64Array`** (8 bytes/cell — 150k cells = 1.2 MB) *and* build a
-  `Set<string>` for O(1) membership. Both, deliberately: the typed array is what the render
-  buckets iterate; the `Set` is what stats and `has()` queries use. At 150k entries `Set`
-  construction is ~50 ms, once.
+- **Decode to a sorted `BigUint64Array`** (8 bytes/cell — 150k cells = 1.2 MB), directly — no
+  intermediate `bigint[]`. ~~*and* build a `Set<string>` for O(1) membership~~ — **`0203` took
+  `02` §6.3's recorded exit:** the `Set` was the entire memory cost of the fog, and `has()` is now a
+  binary search over the typed array (~19 comparisons at 500k). The typed array is the only
+  representation; the render buckets iterate it and `has()` searches it.
 - **Never ship JSON hex strings** — roughly 2× the bytes and far slower to parse (R4 §7.1).
 
 ### 7.2 The companion payloads

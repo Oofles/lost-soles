@@ -1426,6 +1426,11 @@ memory** — 17 comparisons, no allocation, and S-3's 13,291-lookup region scan 
 comparisons, still milliseconds. Recorded here so the trade is a decision rather than a
 discovery during a slow-phone bug report.
 
+**Exit taken, `0203` (2026-09-28).** `0059`'s harness measured 05 §6.4 item 7 past its budget from
+~150k cells, and the `Set` went. `has()` is a binary search over the array; the warm-start path
+(`ExploredSet.fromCells`) now does no work at all, and the cold path decodes straight into the typed
+array. What the fog retains at 500k is 15 MB, most of it the render buckets' ids (D-247).
+
 ### 6.4 Invalidation — the contract between the Lambda and the browser
 
 **`generation` is the only cache key.** It is a monotonic per-user counter, allocated by an

@@ -12,7 +12,7 @@
 //   item 1  visibleInstanceCount per zoom, at all three dataset sizes, against §6.4's ceiling
 //   item 4  zero culls inside the padded region; cull wall-clock, which is synchronous and real
 //   item 5  bucket-derivation cost and the cache hit rate
-//   item 7  peak JS heap over baseline, from performance.memory
+//   item 7  retained JS heap over baseline after a forced GC (D-247), with the pre-GC peak alongside
 //
 // and it deliberately does NOT report items 2, 3 and 6 as results. Those are frame-time questions and
 // this clock cannot answer them; the browser answers them on the desktop and the phone answers the
@@ -73,9 +73,9 @@ const blocks = []
  * The first version ran all three in one page and the heap numbers were unusable: the baseline
  * climbed 39 -> 67 -> 83 MB across the three because the previous set's `Set` of half a million
  * strings had not been collected, so item 7's delta was measuring this dataset PLUS whatever the
- * last one still held. There is no way to force a collection from script, and `--expose-gc` would
- * measure a collection nobody in the real browser ever gets. A fresh process is the only honest
- * baseline.
+ * last one still held. `--expose-gc` is on now (D-247), but only to take item 7's baseline and its
+ * retained reading — the pre-GC peak is still V8's own schedule. A fresh process is still the only
+ * honest baseline.
  */
 const only = decodeURIComponent(location.hash.slice(1)) || "150k"
 const chosen = DATASETS.filter((dataset) => dataset.label === only)
@@ -100,20 +100,24 @@ const host = {
 
 async function runDataset(dataset) {
   /**
-   * THROUGH THE SHIPPED WRITER AND THE SHIPPED READER, in-page. `fetch` cannot reach a `file://`
-   * fixture from a null origin, and generating cells directly with `syntheticSet` would skip the
-   * varint decode and the `Set` build — which is most of what item 7 is measuring. Encoding and
-   * immediately decoding costs a second and exercises the exact path a cold boot takes.
+   * THE CHECKED-IN FIXTURE, THROUGH THE SHIPPED READER. `run-perf.mjs` inlines
+   * `public/fog-fixtures/fog-<label>.bin` — byte-identical to `syntheticBlob`'s output, which
+   * `fixtures.test.ts` asserts — and the bytes are in hand BEFORE `perf.start()` samples item 7's
+   * baseline. That is where a phone's cold boot starts too: it fetched bytes, it did not generate
+   * cells. Until `0203` the page encoded them in-page after the baseline, and item 7 counted the
+   * uncollected garbage of doing so.
    *
-   * `fixtures.test.ts` asserts these bytes are byte-identical to the checked-in `public/` fixture,
-   * so this is the same dataset the phone loads, not a lookalike.
+   * `syntheticBlob` stays as the fallback so the page still runs when opened without the runner.
    */
+  const bytes = window.FOG_FIXTURE_B64
+    ? Uint8Array.from(atob(window.FOG_FIXTURE_B64), (c) => c.charCodeAt(0))
+    : syntheticBlob(dataset)
+
   const perf = new FogPerf()
   const timer = new GpuTimer()
   perf.start()
   perf.beginPhase("load")
 
-  const bytes = syntheticBlob(dataset)
   const set = ExploredSet.fromBlob(bytes)
   if (set.size !== dataset.cells) {
     fail.push(`${dataset.label}: decoded ${set.size} cells, expected ${dataset.cells}`)
@@ -185,6 +189,8 @@ async function runDataset(dataset) {
     },
   })
 
+  // Item 7's reading, while the set, the buckets and the layer are all still alive (D-247).
+  perf.settle()
   const snapshot = perf.snapshot()
   const context = {
     dataset: dataset.label,
@@ -204,7 +210,7 @@ async function runDataset(dataset) {
   for (const name of [
     "visibleInstanceCount",
     "culls inside the padded region",
-    "peak JS heap over baseline",
+    "retained JS heap over baseline",
   ]) {
     const row = rows.find((r) => r.name === name)
     if (row && row.pass === false) fail.push(`${dataset.label}: ${name} — ${row.value} (${row.budget})`)

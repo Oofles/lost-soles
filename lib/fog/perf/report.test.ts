@@ -43,7 +43,7 @@ function snapshot(overrides: Partial<PerfSnapshot> = {}): PerfSnapshot {
     longTasks: [],
     culls: [cullPhase("pan-across", 12, 1.1, 0.75)],
     derives: [{ kind: "index", res: 11, count: 1, totalMs: 48, maxMs: 48 }],
-    heap: { supported: true, peakMb: 58, baselineMb: 24 },
+    heap: { supported: true, peakMb: 90, baselineMb: 24, retainedMb: 58 },
     bucketCacheHitRate: 0.94,
     cullsPerCameraEvent: [
       { phase: "pan-inside", cameraEvents: 30, culls: 0 },
@@ -325,22 +325,43 @@ describe("item 7 — heap", () => {
    */
   it("subtracts the baseline before judging", () => {
     const rows = verdicts(snapshot(), NO_GPU, PHONE)
-    const heap = row(rows, "peak JS heap over baseline")
+    const heap = row(rows, "retained JS heap over baseline")
     expect(heap.value).toContain("34.0 MB")
     expect(heap.pass).toBe(true)
     expect(HEAP_BUDGET_MB).toBe(40)
 
-    const heavy = snapshot({ heap: { supported: true, peakMb: 130, baselineMb: 24 } })
-    expect(row(verdicts(heavy, NO_GPU, PHONE), "peak JS heap over baseline").pass).toBe(false)
+    const heavy = snapshot({ heap: { supported: true, peakMb: 130, baselineMb: 24, retainedMb: 70 } })
+    expect(row(verdicts(heavy, NO_GPU, PHONE), "retained JS heap over baseline").pass).toBe(false)
+  })
+
+  /**
+   * D-247. A pre-GC peak far over budget with a retained figure under it PASSES: the peak is V8's
+   * collection schedule, not what the fog holds. It is still printed.
+   */
+  it("judges retained heap, not the pre-GC peak, and still prints the peak", () => {
+    const spiky = snapshot({ heap: { supported: true, peakMb: 130, baselineMb: 24, retainedMb: 39 } })
+    const heap = row(verdicts(spiky, NO_GPU, PHONE), "retained JS heap over baseline")
+    expect(heap.pass).toBe(true)
+    expect(heap.value).toContain("pre-GC peak 106.0")
+  })
+
+  it("is unjudged, never judged on the peak, where no GC could be forced", () => {
+    const rows = verdicts(
+      snapshot({ heap: { supported: true, peakMb: 130, baselineMb: 24, retainedMb: null } }),
+      NO_GPU,
+      PHONE,
+    )
+    expect(row(rows, "retained JS heap over baseline").pass).toBeNull()
+    expect(row(rows, "retained JS heap over baseline").note).toContain("--expose-gc")
   })
 
   it("is unjudged rather than zero where performance.memory is absent", () => {
     const rows = verdicts(
-      snapshot({ heap: { supported: false, peakMb: 0, baselineMb: 0 } }),
+      snapshot({ heap: { supported: false, peakMb: 0, baselineMb: 0, retainedMb: null } }),
       NO_GPU,
       PHONE,
     )
-    expect(row(rows, "peak JS heap over baseline").pass).toBeNull()
+    expect(row(rows, "retained JS heap over baseline").pass).toBeNull()
   })
 })
 
@@ -359,7 +380,7 @@ describe("a surface that cannot judge", () => {
     }
     // And the items it CAN judge are untouched.
     expect(row(rows, "visibleInstanceCount").pass).toBe(true)
-    expect(row(rows, "peak JS heap over baseline").pass).toBe(true)
+    expect(row(rows, "retained JS heap over baseline").pass).toBe(true)
   })
 })
 
@@ -373,7 +394,7 @@ describe("the table itself", () => {
       "cull time — pan",
       "bucket cache hit rate",
       "long tasks during pan",
-      "peak JS heap",
+      "retained JS heap",
       "Adreno (TM) 610",
       "400x800",
       "VERDICT: every measured budget met.",

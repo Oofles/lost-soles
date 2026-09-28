@@ -3365,3 +3365,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`xp-not-lower` FAILS, not n/a, once code writes `snapshots/skillstate/`.** The comparison has
     to be written against the snapshot's real shape, which does not exist yet. A row that stayed
     quietly n/a after T4 shipped is exactly the bug `0183` fixed.
+
+- **D-247** **`05` §6.4 item 7 is judged on RETAINED heap after a forced GC, not the pre-GC peak.**
+  *(Agent, ticket `0203`, 2026-09-28; operator chose this over raising the ceiling or blocking on
+  allocation work.)*
+  - **What the peak was measuring.** `usedJSHeapSize` counts garbage until a major GC collects it.
+    Coarse-bucket derivation (projection, the bridge pass's `gridDisk`) allocates short-lived strings
+    and arrays per id inside one long synchronous task, so V8 promotes them to the old generation,
+    where they wait for a mark-compact. At 500k cells the pre-GC peak read 64 MB over baseline while
+    a forced collection with everything still referenced left **15.2 MB**; the heap fell below the
+    baseline on its own once V8 collected at the end of the path. The peak was a fact about V8's
+    schedule rather than the fog.
+  - **Why retained is the right budget.** The ticket's concern was a phone tab evicted under memory
+    pressure, and memory pressure is exactly what makes V8 collect. So the retained figure decides
+    eviction. The peak is still printed, unjudged, because a large one still costs a major GC later.
+  - **How.** `PerfHost.collectGarbage` (optional), provided by the browser host only when `gc`
+    exists, which in practice means `run-perf.mjs`'s Chromium under `--js-flags=--expose-gc`. The
+    collector collects before its baseline, and `FogPerf.settle()` collects again after the path.
+    With no `gc` (every real browser, including the phone's `?fog=debug`), item 7 is **unjudged**,
+    never judged on the peak.
+  - **The harness also stopped measuring itself.** It used to generate the fixture in-page
+    *after* the baseline (500k `gridDisk` strings plus a sorted `bigint[]`), which made item 7
+    non-monotonic in dataset size. It now inlines the checked-in `public/fog-fixtures/*.bin` and
+    decodes it before the baseline, which is also where a phone's cold boot starts.
+  - **Not done, deliberately:** removing the transient allocation itself. The remaining per-id
+    garbage comes from h3-js calls that return strings and arrays (`cellToLatLng`, `gridDisk`), and
+    avoiding them would mean reimplementing H3 traversal.

@@ -1,6 +1,6 @@
 import type { H3Index } from "h3-js"
 
-import { bigToCell, type DeltaBlob } from "@/src/domain/explored-blob"
+import { bigToCell, cellToBig, type DeltaBlob } from "@/src/domain/explored-blob"
 import { parentOf } from "@/src/domain/fog"
 
 import { decodeExplored, decodeStats, now } from "./decode"
@@ -9,24 +9,23 @@ import { decodeExplored, decodeStats, now } from "./decode"
  * THE EXPLORED SET, IN THE BROWSER. Ticket `0054`. `05-fog-of-war.md` §7.1, §7.4;
  * `02-data-model.md` §6.3, §6.5.
  *
- * ─── TWO REPRESENTATIONS, DELIBERATELY, AND THIS IS THE MEMORY BUDGET ───────
+ * ─── ONE REPRESENTATION. §6.3'S EXIT, TAKEN BY `0203` ───────────────────────
  *
- * `05` §7.1: *"Decode to a sorted `BigUint64Array` … **and** build a `Set<string>` for
- * O(1) membership. Both, deliberately: the typed array is what the render buckets
- * iterate; the `Set` is what stats and `has()` queries use."*
+ * `05` §7.1 originally specified two: the sorted `BigUint64Array` the render buckets
+ * iterate, **and** a `Set<string>` for O(1) `has()`. `02` §6.3 priced them, and the
+ * prices were not close:
  *
- * `02` §6.3 prices it, and the prices are not close:
+ *   sorted BigUint64Array   50k cells → 400 KB      500k → 4 MB
+ *   Set<string>             50k cells → ~7 MB       500k → tens of MB
  *
- *   sorted BigUint64Array   50k cells → 400 KB      150k → 1.2 MB
- *   Set<string>             50k cells → ~7 MB       150k → ~20 MB
+ * §6.3 recorded the exit in advance: *"drop the `Set` and answer `has()` by binary search
+ * on the array already in memory."* `0059`'s harness measured the peak heap at 99 MB over
+ * baseline at 500k cells against §6.4's "low tens", and `0203` took the exit. `has()` is
+ * now ~19 comparisons at 500k, no allocation beyond parsing the query's own id — and the
+ * warm-start constructor does no work at all, where it used to build the `Set`.
  *
- * **The typed array is free; the `Set` is the entire memory cost of the fog on a
- * mid-range Android (D-124).** §6.3 records the exit in advance rather than leaving it to
- * be discovered in a slow-phone bug report: *"if the cell count ever passes ~100k, drop
- * the `Set` and answer `has()` by binary search on the array already in memory"* — 17
- * comparisons, no allocation. That is a one-method change to this class and nothing else,
- * which is why every consumer is required to go through `has()` rather than reaching for
- * the `Set`. The `Set` is therefore private and there is no accessor for it.
+ * Every consumer still goes through `has()`; nothing may reach into the array to answer
+ * membership its own way.
  *
  * ─── THE CLIENT NEVER INVENTS CELLS ─────────────────────────────────────────
  *
@@ -87,33 +86,30 @@ export interface AppliedDelta {
 export class ExploredSet {
   /** Ascending, unique. What the render buckets iterate (`05` §7.1). */
   #cells: BigUint64Array
-  /** O(1) membership. Private — see the header's note about §6.3's exit. */
-  #members: Set<string>
   #generation: number
   #invalidators: BucketInvalidator[] = []
 
-  private constructor(cells: BigUint64Array, members: Set<string>, generation: number) {
+  private constructor(cells: BigUint64Array, generation: number) {
     this.#cells = cells
-    this.#members = members
     this.#generation = generation
   }
 
   /**
    * THE WARM-START PATH. `02` §6.4 step 1: IndexedDB stores the **decoded** array, so a
-   * returning session pays the `Set` build and nothing else — no LEB128, no varints.
+   * returning session pays nothing here at all — no LEB128, no varints, and since `0203`
+   * no `Set` build either: the array IS the set.
    *
    * Criterion 3 asserts `decodeStats.blobDecodes` is still 0 after a boot that came
    * through here, which is only meaningful because this constructor genuinely cannot
    * reach a decoder.
    */
   static fromCells(cells: BigUint64Array, generation: number): ExploredSet {
-    const members = new Set<string>()
-    for (let i = 0; i < cells.length; i++) members.add(bigToCell(cells[i]!))
-    return new ExploredSet(cells, members, generation)
+    return new ExploredSet(cells, generation)
   }
 
   /**
-   * THE COLD PATH. `LSFG` bytes → both representations.
+   * THE COLD PATH. `LSFG` bytes → the sorted array, decoded straight into it (`0203`: no
+   * intermediate `bigint[]` at the peak).
    *
    * Throws `BlobFormatError` on an unknown `version`, a `res` that is not 10, a non-zero
    * reserved byte or any flag this decoder cannot honour. **Every one of those is a
@@ -123,12 +119,11 @@ export class ExploredSet {
   static fromBlob(bytes: Uint8Array): ExploredSet {
     const started = now()
     const blob = decodeExplored(bytes)
-    const set = ExploredSet.fromCells(BigUint64Array.from(blob.cells), blob.generation)
+    const set = ExploredSet.fromCells(blob.cells, blob.generation)
     /**
-     * MEASURED ACROSS BOTH HALVES, on purpose. `02` §6.3 prices *"decode + Set
-     * construction"* as one line — ~50 ms at 150k — and the `Set` is the expensive half.
-     * A number that timed only the varint parse would report the map as fast while the
-     * phone spent most of its budget in the loop below it.
+     * Bytes to a usable set, end to end. Before `0203` the `Set` build was the expensive
+     * half of this and the reason it was timed here rather than in the decoder; the
+     * boundary is kept so the readout means the same thing it always did.
      */
     decodeStats.lastBlobMs = now() - started
     return set
@@ -147,9 +142,31 @@ export class ExploredSet {
     return this.#cells
   }
 
-  /** O(1) today, a 17-comparison binary search if §6.3's exit is ever taken. */
+  /**
+   * Binary search over `#cells` — §6.3's exit (`0203`). ~19 comparisons at 500k.
+   *
+   * A string that is not a hex h3 id is simply not a member: `cellToBig` would throw on it,
+   * and `has()` answering a question with an exception is worse than answering `false`,
+   * which is what the `Set` it replaced said.
+   */
   has(cell: H3Index): boolean {
-    return this.#members.has(cell)
+    let target: bigint
+    try {
+      target = cellToBig(cell)
+    } catch {
+      return false
+    }
+    const cells = this.#cells
+    let lo = 0
+    let hi = cells.length - 1
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1
+      const at = cells[mid]!
+      if (at === target) return true
+      if (at < target) lo = mid + 1
+      else hi = mid - 1
+    }
+    return false
   }
 
   /**
@@ -172,9 +189,10 @@ export class ExploredSet {
    *
    *   1. `assert delta.fromGen == state.generation`   — else a full fetch
    *   2. merge the adds into the sorted array
-   *   3. add them to the `Set`
-   *   4. invalidate ONLY the touched res-6 parents
-   *   5. `state.generation = delta.toGen`
+   *   3. invalidate ONLY the touched res-6 parents
+   *   4. `state.generation = delta.toGen`
+   *
+   * (§7.4's pseudocode also adds them to a `Set`; there is none since `0203`.)
    *
    * An EMPTY delta is a real and common answer — a run over entirely known ground — and
    * it still advances the generation. `explored-blob-store.ts` writes one deliberately so
@@ -213,14 +231,13 @@ export class ExploredSet {
       } else if (base === undefined || incoming < base) {
         merged[k++] = incoming!
         /**
-         * The hex string is needed for the `Set` regardless, so the parent is computed
+         * The hex string is needed for `added` regardless, so the parent is computed
          * off it rather than converting twice. `parentOf` is `cellToParent(c, 6)` —
          * `src/domain/fog.ts` owns it because it is one of the few h3 calls that
          * legitimately crosses resolutions, and it lives next to the constant that says
          * crossing is otherwise forbidden (D-115).
          */
         const cell = bigToCell(incoming!)
-        this.#members.add(cell)
         added.push(cell)
         parents.add(parentOf(cell))
         j++

@@ -40,13 +40,35 @@ execFileSync(
   { stdio: "inherit" },
 )
 
-writeFileSync(
-  join(work, "harness.html"),
-  `<!doctype html><title>0059 perf harness</title>
+/**
+ * ONE PAGE PER DATASET, WITH THAT DATASET'S FIXTURE INLINED. `0203`.
+ *
+ * The page used to build its bytes with `syntheticBlob` — half a million `gridDisk` strings and a
+ * sorted `bigint[]` — AFTER item 7's baseline was sampled. None of that is collected until V8 gets
+ * round to it, `usedJSHeapSize` counts it until then, and so item 7 was measuring the harness's own
+ * fixture generation as much as the fog. It made the peak non-monotonic in dataset size (150k read
+ * higher than 500k), which is the tell that GC timing, not the fog, was setting it.
+ *
+ * A phone never generates cells; it fetches `LSFG` bytes. So the page now starts where the phone
+ * does — bytes in hand — from the checked-in `public/` fixture that `fixtures.test.ts` asserts is
+ * byte-identical to `syntheticBlob`'s output. `fetch` cannot reach `file://` from a null origin
+ * (the reason for the in-page encode), so the bytes travel as base64 and are decoded before the
+ * baseline.
+ */
+const bundle = readFileSync(join(work, "bundle.js"), "utf8")
+function page(label) {
+  const fixture = readFileSync(join(ROOT, `public/fog-fixtures/fog-${label}.bin`)).toString("base64")
+  const path = join(work, `harness-${label}.html`)
+  writeFileSync(
+    path,
+    `<!doctype html><title>0059 perf harness</title>
 <style>html,body{margin:0}#map{width:400px;height:800px}</style>
 <body><div id="map"></div><pre id="out">pending</pre>
-<script>${readFileSync(join(work, "bundle.js"), "utf8")}</script></body>`,
-)
+<script>window.FOG_FIXTURE_B64 = "${fixture}"</script>
+<script>${bundle}</script></body>`,
+  )
+  return path
+}
 
 function run(label) {
   const dom = execFileSync(
@@ -60,10 +82,14 @@ function run(label) {
       // which the coarse figure could answer — but the baseline subtraction cannot survive the
       // quantisation at 20 ms granularity, and a negative delta reads as a bug in the harness.
       "--enable-precise-memory-info",
+      // D-247: item 7 is judged on heap RETAINED after a forced full collection, which needs `gc`.
+      // The pre-GC peak is still recorded, and it is still whatever V8's own schedule made it — this
+      // flag exposes the function, it does not change when the engine collects on its own.
+      "--js-flags=--expose-gc",
       // Half a million cells on SwiftShader, encoded and decoded through the shipped wire format.
       "--virtual-time-budget=600000",
       "--dump-dom",
-      `file://${join(work, "harness.html")}#${label}`,
+      `file://${page(label)}#${label}`,
     ],
     {
       encoding: "utf8",

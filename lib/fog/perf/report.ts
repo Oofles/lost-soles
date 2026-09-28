@@ -106,7 +106,7 @@ export const FRAME_BUDGET_MS = 17.0
 export const DROPPED_BUDGET_PCT = 1
 /** §6.4 item 4. */
 export const CULL_BUDGET_MS = 2
-/** §6.4 item 7's *"low tens of MB"*, read at the top of that range. */
+/** §6.4 item 7's *"low tens of MB"*, read at the top of that range. Retained heap (D-247). */
 export const HEAP_BUDGET_MB = 40
 
 /** The phases item 3 and item 6 make assertions about. `load` is deliberately not one of them. */
@@ -319,18 +319,29 @@ export function verdicts(
   })
 
   /* ── 7. heap ─────────────────────────────────────────────────────────────── */
-  const delta = snapshot.heap.peakMb - snapshot.heap.baselineMb
+  /**
+   * JUDGED ON WHAT IS RETAINED (D-247). The pre-GC peak is printed alongside because a large one is
+   * still a jank signal — a major GC has to pay for it eventually — but it is a fact about when V8
+   * chose to collect, and at 500k it read four times the retained figure.
+   */
+  const { supported, peakMb, baselineMb, retainedMb } = snapshot.heap
+  const peakDelta = peakMb - baselineMb
+  const retainedDelta = retainedMb === null ? null : retainedMb - baselineMb
   out.push({
     item: 7,
-    name: "peak JS heap over baseline",
-    value: snapshot.heap.supported
-      ? `${fmt(delta, 1)} MB (peak ${fmt(snapshot.heap.peakMb, 1)}, baseline ${fmt(snapshot.heap.baselineMb, 1)})`
-      : "not measured",
+    name: "retained JS heap over baseline",
+    value: !supported
+      ? "not measured"
+      : retainedDelta === null
+        ? `not measured (pre-GC peak ${fmt(peakDelta, 1)} MB over baseline ${fmt(baselineMb, 1)})`
+        : `${fmt(retainedDelta, 1)} MB (pre-GC peak ${fmt(peakDelta, 1)}, baseline ${fmt(baselineMb, 1)})`,
     budget: `low tens of MB — read as < ${HEAP_BUDGET_MB} MB`,
-    pass: snapshot.heap.supported ? delta < HEAP_BUDGET_MB : null,
-    note: snapshot.heap.supported
-      ? undefined
-      : "performance.memory is Chromium-only and absent here",
+    pass: supported && retainedDelta !== null ? retainedDelta < HEAP_BUDGET_MB : null,
+    note: !supported
+      ? "performance.memory is Chromium-only and absent here"
+      : retainedDelta === null
+        ? "retained heap needs a forced GC (--expose-gc); the peak includes collectable garbage and is not the budget"
+        : undefined,
   })
 
   if (!context.unjudged || context.unjudged.length === 0) return out

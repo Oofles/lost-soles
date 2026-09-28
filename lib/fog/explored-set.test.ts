@@ -47,13 +47,13 @@ describe("decoding the set", () => {
   })
 
   /**
-   * CRITERION 2. `05` §7.1 keeps BOTH representations deliberately — the typed array is
-   * what the render buckets iterate, the `Set` is what `has()` answers from — and the one
-   * way that goes wrong is silently: they are built in the same pass, so a bug that drops
-   * a cell from one and not the other produces a map that renders ground it then says is
-   * unexplored. This is the test that would catch it.
+   * CRITERION 2, restated by `0203`. There used to be two representations — the typed
+   * array the buckets iterate and a `Set` that answered `has()` — and this test caught
+   * them disagreeing. Since §6.3's exit `has()` searches the array itself, so what can go
+   * wrong now is the SEARCH: an off-by-one at either end reports ground the map renders as
+   * unexplored. Every cell, including the first and last, must answer `true`.
    */
-  it("builds both representations and they agree, cell for cell", () => {
+  it("has() agrees with the array, cell for cell", () => {
     const cells = sortBig(gridDisk(ORIGIN, 12))
     const set = ExploredSet.fromBlob(encodeExploredBlob(cells, 9))
 
@@ -89,7 +89,7 @@ describe("decoding the set", () => {
     console.log(
       `0054 criterion 10 — ${bigDisc.length.toLocaleString()} cells: ` +
         `parse ${decodeStats.lastParseMs.toFixed(1)} ms, ` +
-        `parse + Set build ${decodeStats.lastBlobMs.toFixed(1)} ms ` +
+        `bytes to set ${decodeStats.lastBlobMs.toFixed(1)} ms ` +
         `(${bytes.length.toLocaleString()} bytes, this machine — NOT the target phone)`,
     )
     expect(decodeStats.lastBlobMs).toBeLessThan(2_000)
@@ -277,5 +277,44 @@ describe("applying a delta", () => {
     expect(set.generation).toBe(42)
     expect(set.has(far)).toBe(true)
     expect(decodeStats.deltaDecodes).toBe(1)
+  })
+})
+
+/**
+ * `0203`: `has()` is a binary search over the sorted array (§6.3's exit). The edges are
+ * where a binary search is wrong, so the edges are what is asserted.
+ */
+describe("has(), by binary search", () => {
+  const cells = sortBig(gridDisk(ORIGIN, 4))
+  const set = ExploredSet.fromCells(BigUint64Array.from(cells), 1)
+
+  it("finds the first and the last cell", () => {
+    expect(set.has(bigToCell(cells[0]!))).toBe(true)
+    expect(set.has(bigToCell(cells[cells.length - 1]!))).toBe(true)
+  })
+
+  it("misses ids below the first, above the last, and in a gap between two", () => {
+    expect(set.has(bigToCell(cells[0]! - 1n))).toBe(false)
+    expect(set.has(bigToCell(cells[cells.length - 1]! + 1n))).toBe(false)
+    const gap = cells.findIndex((c, i) => i > 0 && c - cells[i - 1]! > 1n)
+    expect(gap).toBeGreaterThan(0)
+    expect(set.has(bigToCell(cells[gap - 1]! + 1n))).toBe(false)
+  })
+
+  it("answers false on an empty set and on a string that is not an id", () => {
+    expect(ExploredSet.fromCells(new BigUint64Array(0), 0).has(ORIGIN)).toBe(false)
+    expect(set.has("not-a-cell")).toBe(false)
+    expect(set.has("")).toBe(false)
+  })
+
+  it("sees cells a delta added, and only those", () => {
+    const grown = ExploredSet.fromCells(BigUint64Array.from(cells), 1)
+    const ring = sortBig(gridDisk(ORIGIN, 5)).filter((c) => !cells.includes(c))
+    grown.applyDelta({ fromGen: 1, toGen: 2, added: ring })
+    for (const c of ring) expect(grown.has(bigToCell(c))).toBe(true)
+    for (const c of cells) expect(grown.has(bigToCell(c))).toBe(true)
+    const inner = new Set(gridDisk(ORIGIN, 5))
+    const outside = gridDisk(ORIGIN, 7).find((c) => !inner.has(c))!
+    expect(grown.has(outside)).toBe(false)
   })
 })

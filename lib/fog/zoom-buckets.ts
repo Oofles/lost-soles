@@ -546,17 +546,32 @@ export class ZoomBucket {
     } else {
       const total = childrenPerGroup(RES, this.res)
       const fractions = new Map<H3Index, number>()
-      let current: H3Index | null = null
+      /**
+       * NO STRING PER CELL. `0203`. `cellToParent(bigToCell(cell))` allocated two strings for every
+       * cell in the run, and a zoomed-out view materialises groups covering the whole set — at 500k
+       * that was millions of short-lived strings, and the bulk of §6.4 item 7's peak heap. The parent
+       * is computed on the two 32-bit halves instead (`parentWords`), which allocates nothing, and a
+       * string is built once per PARENT, when the run changes.
+       */
+      const words = wordsOf(cells)
+      const { hiMask, hiSet, loSet } = parentWords(this.res)
+      let currentHi = -1
+      let currentLo = -1
       let seen = 0
       const flush = () => {
-        if (current !== null) fractions.set(current, seen / total)
+        if (currentHi >= 0) {
+          const id = wordsToCell(currentHi, currentLo)
+          ids.push(id)
+          fractions.set(id, seen / total)
+        }
       }
       for (let i = group.lo; i < group.hi; i++) {
-        const parent = cellToParent(bigToCell(cells[i]!), this.res)
-        if (parent !== current) {
+        const hi = ((words[2 * i + HI]! & hiMask) | hiSet) >>> 0
+        const lo = (words[2 * i + LO]! | loSet) >>> 0
+        if (hi !== currentHi || lo !== currentLo) {
           flush()
-          ids.push(parent)
-          current = parent
+          currentHi = hi
+          currentLo = lo
           seen = 0
         }
         seen++
@@ -626,6 +641,57 @@ export class ZoomBucket {
     }
     return out
   }
+}
+
+/* ─── Parents without strings ─────────────────────────────────────────────── */
+
+/**
+ * `cellToParent`, on the 64-bit id's two 32-bit halves. `0203`.
+ *
+ * An H3 cell index is: bit 63 reserved, bits 59–62 mode, 56–58 edge/vertex, **52–55 the
+ * resolution**, 45–51 the base cell, then fifteen 3-bit digits, the digit for res `r` at bit
+ * `3 * (15 - r)`. Digits finer than the cell's own resolution are all ones (`7`). So the parent at
+ * res `p` is exactly: set the resolution field to `p`, and set every digit finer than `p` to `7` —
+ * the low `3 * (15 - p)` bits. Two ANDs and two ORs on plain numbers; nothing to allocate.
+ *
+ * `zoom-buckets.test.ts` asserts it equals h3-js's `cellToParent` for every cell of a dataset at
+ * every resolution a bucket is derived at, pentagons included.
+ */
+function parentWords(res: number): { hiMask: number; hiSet: number; loSet: number } {
+  const width = 3 * (15 - res)
+  const loSet = width >= 32 ? 0xffffffff : 2 ** width - 1
+  const hiDigits = width > 32 ? 2 ** (width - 32) - 1 : 0
+  return {
+    // Clear the resolution field (bits 52–55 → 20–23 of the high word), then write `res` into it.
+    hiMask: ~(0xf << 20) >>> 0,
+    hiSet: ((res << 20) | hiDigits) >>> 0,
+    loSet: loSet >>> 0,
+  }
+}
+
+/**
+ * THE SAME BYTES AS THE SET'S ARRAY, read as 32-bit words. Typed arrays use the platform's byte
+ * order, so which word of a pair is the high one is read off the platform, not assumed.
+ */
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1
+const HI = LITTLE_ENDIAN ? 1 : 0
+const LO = LITTLE_ENDIAN ? 0 : 1
+
+function wordsOf(cells: BigUint64Array): Uint32Array {
+  return new Uint32Array(cells.buffer, cells.byteOffset, cells.length * 2)
+}
+
+/** Back to the canonical 15-character lower-case hex id `bigToCell` produces. */
+function wordsToCell(hi: number, lo: number): H3Index {
+  return (hi.toString(16) + lo.toString(16).padStart(8, "0")).padStart(15, "0")
+}
+
+/** Exported for tests only — the equivalence test against h3-js's `cellToParent`. */
+export function wordParent(cell: bigint, res: number): H3Index {
+  const { hiMask, hiSet, loSet } = parentWords(res)
+  const hi = Number(cell >> 32n)
+  const lo = Number(cell & 0xffffffffn)
+  return wordsToCell(((hi & hiMask) | hiSet) >>> 0, (lo | loSet) >>> 0)
 }
 
 /* ─── The cache of buckets ──────────────────────────────────────────────────── */

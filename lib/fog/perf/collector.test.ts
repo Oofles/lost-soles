@@ -208,6 +208,38 @@ describe("heap — item 7", () => {
     expect(heap.peakMb).toBeCloseTo(61)
   })
 
+  /** D-247: item 7's budget is the heap left after a full collection, taken while the fog is alive. */
+  it("takes the baseline after a GC and records retained heap on settle()", () => {
+    const calls: string[] = []
+    let heap = 30e6
+    const perf = new FogPerf(
+      fakeHost({
+        heapBytes: () => heap,
+        collectGarbage: () => {
+          calls.push("gc")
+          heap = heap > 60e6 ? 45e6 : heap
+          return true
+        },
+      }),
+    )
+    expect(calls).toEqual(["gc"])
+    heap = 95e6
+    perf.frame(0)
+    perf.settle()
+
+    const stats = perf.snapshot().heap
+    expect(stats.baselineMb).toBeCloseTo(30)
+    expect(stats.peakMb).toBeCloseTo(95)
+    expect(stats.retainedMb).toBeCloseTo(45)
+  })
+
+  it("leaves retained heap null where the host cannot force a collection", () => {
+    const perf = new FogPerf(fakeHost({ heapBytes: () => 30e6, collectGarbage: () => false }))
+    perf.settle()
+    expect(perf.snapshot().heap.retainedMb).toBeNull()
+    expect(new FogPerf(fakeHost({ heapBytes: () => 30e6 })).snapshot().heap.retainedMb).toBeNull()
+  })
+
   it("says it could not measure rather than reporting zero", () => {
     const perf = new FogPerf(fakeHost({ heapBytes: () => null }))
     perf.frame(0)

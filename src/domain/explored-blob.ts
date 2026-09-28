@@ -306,6 +306,36 @@ export function encodeExploredBlob(
 }
 
 export function decodeExploredBlob(bytes: Uint8Array): ExploredBlob {
+  return decodeCells(bytes, (count) => new Array<bigint>(count))
+}
+
+/** `decodeExploredBlob`, with the cells written straight into a typed array. */
+export interface ExploredBlobTyped extends Omit<ExploredBlob, "cells"> {
+  /** Ascending, unique. */
+  cells: BigUint64Array
+}
+
+/**
+ * THE BROWSER'S DECODE. Ticket `0203`. Same bytes, same checks, same errors as
+ * `decodeExploredBlob` — the loop is literally shared — but the cells land in a
+ * `BigUint64Array` sized from the header's `count`.
+ *
+ * The difference is the PEAK, not the result. `BigUint64Array.from(decodeExploredBlob(…).cells)`
+ * holds a `bigint[]` of every cell — one heap object each, ~20 MB at 500k — at the same
+ * moment as the typed array it is copied into. Writing into the typed array directly never
+ * materialises the boxed array at all.
+ *
+ * The ingest path keeps `decodeExploredBlob`: it merges into a `bigint[]` (`mergeCells`)
+ * and a typed array would only be converted back.
+ */
+export function decodeExploredBlobTyped(bytes: Uint8Array): ExploredBlobTyped {
+  return decodeCells(bytes, (count) => new BigUint64Array(count))
+}
+
+function decodeCells<T extends bigint[] | BigUint64Array>(
+  bytes: Uint8Array,
+  allocate: (count: number) => T,
+): { generation: number; res: number; flags: number; cells: T } {
   const flags = readHeader(bytes, MAGIC_CELLS, CELLS_HEADER_BYTES)
   assertFlags(MAGIC_CELLS, flags)
   const view = viewOf(bytes)
@@ -314,9 +344,9 @@ export function decodeExploredBlob(bytes: Uint8Array): ExploredBlob {
   const count = view.getUint32(16, true)
   const base = view.getBigUint64(20, true)
 
-  if (count === 0) return { generation, res: RES, flags, cells: [] }
+  if (count === 0) return { generation, res: RES, flags, cells: allocate(0) }
 
-  const cells: bigint[] = new Array<bigint>(count)
+  const cells = allocate(count)
   cells[0] = base
   let at = CELLS_HEADER_BYTES
   let prev = base

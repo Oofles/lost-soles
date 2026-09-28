@@ -1,8 +1,8 @@
 import {
   decodeDeltaBlob,
-  decodeExploredBlob,
+  decodeExploredBlobTyped,
   type DeltaBlob,
-  type ExploredBlob,
+  type ExploredBlobTyped,
 } from "@/src/domain/explored-blob"
 
 /**
@@ -16,7 +16,7 @@ import {
  *
  * So the counter is here, on the one path the client is allowed to decode through. The
  * assertion the criterion asks for is therefore also a structural claim: if a future
- * caller reaches for `decodeExploredBlob` directly, the warm-start test stops proving
+ * caller reaches for `decodeExploredBlobTyped` directly, the warm-start test stops proving
  * anything — and that is what `blobDecodes` staying at 0 is really watching.
  *
  * `lastBlobMs` is criterion 10's number. It is read by the `?fog=debug` readout, because
@@ -31,10 +31,10 @@ export const decodeStats = {
   /** Milliseconds the last varint parse took, on its own. */
   lastParseMs: 0,
   /**
-   * Milliseconds from `LSFG` bytes to a usable `ExploredSet` — the parse AND the
-   * `Set<string>` build. Criterion 10's number, and the one the operator reads, because
-   * `02` §6.3 prices the two together (*"decode + Set construction, one time"*) and a
-   * figure that omitted the ~50 ms `Set` build would be measuring the cheaper half.
+   * Milliseconds from `LSFG` bytes to a usable `ExploredSet`. Criterion 10's number, and
+   * the one the operator reads. `02` §6.3 priced it as *"decode + Set construction"*;
+   * since `0203` took §6.3's exit there is no `Set`, and this is the parse plus
+   * constructing the set around the array it produced.
    *
    * Written by `ExploredSet.fromBlob`, which is the only place both halves are in scope.
    */
@@ -62,9 +62,13 @@ export function resetDecodeStats(): void {
 export const now = (): number =>
   typeof performance !== "undefined" ? performance.now() : Date.now()
 
-export function decodeExplored(bytes: Uint8Array): ExploredBlob {
+/**
+ * Straight into a `BigUint64Array` — `0203`. Going through `decodeExploredBlob` and then
+ * `BigUint64Array.from` held a boxed `bigint[]` of every cell at the decode peak.
+ */
+export function decodeExplored(bytes: Uint8Array): ExploredBlobTyped {
   const started = now()
-  const blob = decodeExploredBlob(bytes)
+  const blob = decodeExploredBlobTyped(bytes)
   decodeStats.blobDecodes++
   decodeStats.lastParseMs = now() - started
   decodeStats.lastBlobCells = blob.cells.length

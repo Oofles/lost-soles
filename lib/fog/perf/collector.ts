@@ -38,6 +38,15 @@ import type { DeriveEvent } from "../zoom-buckets"
  * update interval** — which is fine, because item 7's assertion is *"low tens of MB"*, a question
  * quantisation at that granularity cannot get wrong. It is absent in Firefox and Safari; the row then
  * reports that rather than a zero.
+ *
+ * **Item 7 is judged on RETAINED heap, not the peak** (`0203`, D-247). `usedJSHeapSize` counts garbage
+ * until a major GC gets round to it, and bucket derivation promotes a lot of short-lived strings into
+ * the old generation: at 500k cells the pre-GC peak read 65 MB over baseline while what the fog
+ * actually kept, after a forced collection, was 15 MB. The peak is a fact about V8's scheduling; the
+ * retained figure is what a phone under memory pressure is left holding, which is what decides tab
+ * eviction. So where the host can force a collection (`collectGarbage` — the headless harness, under
+ * `--expose-gc`) the baseline is taken after one and `settle()` takes the retained reading after
+ * another. Where it cannot, the peak is still recorded and item 7 goes unjudged.
  */
 
 /** The phases `camera-path.ts` drives, in order. Named here so the summary can assert per phase. */
@@ -147,6 +156,11 @@ export interface HeapStats {
   peakMb: number
   /** The reading taken before anything was loaded, so the fixture's own cost is separable. */
   baselineMb: number
+  /**
+   * Heap after `settle()` forced a full collection — what the fog is really holding. `null` where the
+   * host cannot force one, which is every real browser. Item 7's budget applies to this (D-247).
+   */
+  retainedMb: number | null
 }
 
 export interface PerfSnapshot {
@@ -169,6 +183,11 @@ export interface PerfHost {
   mark(name: string): void
   measure(name: string, startMark: string): void
   heapBytes(): number | null
+  /**
+   * Force a full collection, returning whether one happened. Only a Chromium started with
+   * `--js-flags=--expose-gc` can; a host without it omits this or returns false.
+   */
+  collectGarbage?(): boolean
   observeLongTasks(handler: (durationMs: number, attribution: string) => void): () => void
 }
 
@@ -192,6 +211,12 @@ export const browserPerfHost: PerfHost = {
   heapBytes: () => {
     const memory = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory
     return typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null
+  },
+  collectGarbage: () => {
+    const gc = (globalThis as { gc?: () => void }).gc
+    if (typeof gc !== "function") return false
+    gc()
+    return true
   },
   observeLongTasks: (handler) => {
     if (typeof PerformanceObserver === "undefined") return () => {}
@@ -262,6 +287,7 @@ export class FogPerf {
   #heapPeak = 0
   #heapBaseline = 0
   #heapSupported = false
+  #heapRetained: number | null = null
   #bucketRequests = 0
   #bucketHits = 0
   /** Set between `cullStart` and `cullEnd`, so `derive` knows whose time it is spending. */
@@ -271,6 +297,7 @@ export class FogPerf {
 
   constructor(host: PerfHost = browserPerfHost) {
     this.#host = host
+    host.collectGarbage?.()
     const baseline = host.heapBytes()
     this.#heapSupported = baseline !== null
     this.#heapBaseline = (baseline ?? 0) / 1e6
@@ -308,6 +335,17 @@ export class FogPerf {
       this.#phases.set(phase, emptyAccumulator())
       this.#order.push(phase)
     }
+  }
+
+  /**
+   * §6.4 item 7's reading: force a full collection and record what survives. Call it after the path,
+   * while the set, the buckets and the layer are all still referenced — measuring after teardown would
+   * report a fog that no longer exists. A no-op where the host cannot collect.
+   */
+  settle(): void {
+    if (!this.#host.collectGarbage?.()) return
+    const heap = this.#host.heapBytes()
+    if (heap !== null) this.#heapRetained = heap / 1e6
   }
 
   /** §6.4 item 3. Called from the rAF loop with `performance.now()`. */
@@ -481,6 +519,7 @@ export class FogPerf {
         supported: this.#heapSupported,
         peakMb: this.#heapPeak / 1e6,
         baselineMb: this.#heapBaseline,
+        retainedMb: this.#heapRetained,
       },
       bucketCacheHitRate:
         this.#bucketRequests === 0 ? null : this.#bucketHits / this.#bucketRequests,

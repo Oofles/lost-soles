@@ -1,4 +1,4 @@
-import { cellToParent, gridDisk, latLngToCell } from "h3-js"
+import { cellToParent, getPentagons, gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -18,6 +18,7 @@ import {
   ZoomBucketStore,
   ZOOM_TO_RES,
   type DeriveEvent,
+  wordParent,
 } from "./zoom-buckets"
 
 /**
@@ -218,6 +219,31 @@ describe("ancestors are contiguous in id order", () => {
     for (const cell of cells) expect(cell).toHaveLength(15)
     const ascending = [...cells].sort()
     expect(ascending).toEqual(cells)
+  })
+})
+
+/**
+ * `0203`. Coarse ids are derived on the id's 32-bit halves rather than through `cellToParent`, to
+ * stop allocating two strings per cell. A parent that differs from h3-js's by one bit groups cells
+ * wrongly and draws a hole at a seam — so equality is asserted for every cell of a disc, at every
+ * resolution from 0 to `RES`, on three latitudes and on pentagons.
+ */
+describe("parents on the id's two words", () => {
+  const centres = [origin, latLngToCell(30, 10, RES), latLngToCell(64, -20, RES)]
+  const cells = [
+    ...centres.flatMap((c) => gridDisk(c, 12)),
+    ...getPentagons(RES).flatMap((p) => gridDisk(p, 2)),
+  ]
+
+  it("equals cellToParent for every cell at every coarser resolution", () => {
+    let checked = 0
+    for (let res = 0; res <= RES; res++) {
+      for (const cell of cells) {
+        expect(wordParent(cellToBig(cell), res)).toBe(cellToParent(cell, res))
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(cells.length * 11)
   })
 })
 

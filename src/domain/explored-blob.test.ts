@@ -8,6 +8,7 @@ import {
   cellToBig,
   decodeDeltaBlob,
   decodeExploredBlob,
+  decodeExploredBlobTyped,
   decodeLastRunBlob,
   encodeDeltaBlob,
   encodeExploredBlob,
@@ -444,5 +445,52 @@ describe("no removal opcode, and no room to grow one (0051 criterion 5)", () => 
     for (let i = 1; i < added.length; i++) writeVarint(varints, added[i]! - added[i - 1]!)
     expect(bytes.length).toBe(36 + varints.length)
     expect([...bytes.subarray(36)]).toEqual(varints)
+  })
+})
+
+/**
+ * `0203`. The browser decodes straight into a `BigUint64Array` so the decode peak never
+ * holds a boxed `bigint[]`. It shares its loop with `decodeExploredBlob`; these assert it
+ * also shares every answer, including every refusal.
+ */
+describe("decodeExploredBlobTyped", () => {
+  it("yields the same cells, generation, res and flags as decodeExploredBlob", () => {
+    const cells = sortBig(gridDisk(ORIGIN, 30))
+    const bytes = encodeExploredBlob(cells, 77)
+    const boxed = decodeExploredBlob(bytes)
+    const typed = decodeExploredBlobTyped(bytes)
+    expect(typed.cells).toBeInstanceOf(BigUint64Array)
+    expect([...typed.cells]).toEqual(boxed.cells)
+    expect({ ...typed, cells: null }).toEqual({ ...boxed, cells: null })
+  })
+
+  it("handles the empty set and a single cell", () => {
+    expect(decodeExploredBlobTyped(encodeExploredBlob([], 1)).cells).toHaveLength(0)
+    const one = [cellToBig(ORIGIN)]
+    expect([...decodeExploredBlobTyped(encodeExploredBlob(one, 3)).cells]).toEqual(one)
+  })
+
+  it("refuses exactly what decodeExploredBlob refuses", () => {
+    const good = encodeExploredBlob(sortBig(gridDisk(ORIGIN, 2)), 1)
+    const longer = new Uint8Array(good.length + 1)
+    longer.set(good)
+    const corrupt = [
+      Object.assign(good.slice(), { [4]: 2 }), // version
+      Object.assign(good.slice(), { [5]: RES - 1 }), // res
+      Object.assign(good.slice(), { [3]: 0x58 }), // magic
+      good.subarray(0, good.length - 2), // truncated
+      longer, // trailing bytes
+      encodeExploredBlob(sortBig(gridDisk(ORIGIN, 1)), 1, FLAG_COMPACTED),
+    ]
+    for (const bytes of corrupt) {
+      let expected: unknown
+      try {
+        decodeExploredBlob(bytes)
+      } catch (e) {
+        expected = e
+      }
+      expect(expected).toBeInstanceOf(BlobFormatError)
+      expect(() => decodeExploredBlobTyped(bytes)).toThrow((expected as Error).message)
+    }
   })
 })
