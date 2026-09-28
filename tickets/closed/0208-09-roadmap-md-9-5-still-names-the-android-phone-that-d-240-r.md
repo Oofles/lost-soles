@@ -4,7 +4,7 @@ slug: 09-roadmap-md-9-5-still-names-the-android-phone-that-d-240-r
 title: 09-roadmap.md §9.5 still names the Android phone that D-240 removed
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-12T16:38:36Z
 started: 2026-09-28T13:19:16Z
+closed: 2026-09-28T13:21:10Z
 ---
 
 ## Description
