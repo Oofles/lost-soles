@@ -4274,7 +4274,7 @@
     "title": "Default the map camera to the most recent activity centroid",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [
@@ -4284,10 +4284,11 @@
     "source": "agent",
     "created": "2026-09-09T02:55:10Z",
     "started": "2026-09-28T13:26:41Z",
-    "path": "tickets/open/0186-default-the-map-camera-to-the-most-recent-activity-centroid.md",
-    "ready": true,
+    "closed": "2026-09-28T13:30:38Z",
+    "path": "tickets/closed/0186-default-the-map-camera-to-the-most-recent-activity-centroid.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },

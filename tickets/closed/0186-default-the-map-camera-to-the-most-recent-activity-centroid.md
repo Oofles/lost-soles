@@ -4,7 +4,7 @@ slug: default-the-map-camera-to-the-most-recent-activity-centroid
 title: Default the map camera to the most recent activity centroid
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: [54]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-09T02:55:10Z
 started: 2026-09-28T13:26:41Z
+closed: 2026-09-28T13:30:38Z
 ---
 
 ## Description
