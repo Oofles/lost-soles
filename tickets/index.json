@@ -2594,7 +2594,7 @@
     "title": "Ticket read cache + GitHub push webhook — explicitly a cache, never authoritative",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "17-tickets-ui",
     "depends_on": [
@@ -2603,11 +2603,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0110-ticket-read-cache-and-push-webhook.md",
-    "ready": true,
+    "closed": "2026-09-28T17:43:01Z",
+    "path": "tickets/closed/0110-ticket-read-cache-and-push-webhook.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 8
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -2629,7 +2630,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0111-enforce-tickets-ui-v1-non-goals.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8

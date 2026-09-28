@@ -4,13 +4,14 @@ slug: ticket-read-cache-and-push-webhook
 title: Ticket read cache + GitHub push webhook — explicitly a cache, never authoritative
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 17-tickets-ui
 depends_on: [107]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-28T17:43:01Z
 ---
 
 ## Description
@@ -48,6 +49,49 @@ work inline; a 202 goes back first and the walk happens after.
 
 ## Acceptance criteria
 
+**Withdrawn 2026-09-28 — D-252.** Declined: capability `17` is withdrawn and no in-app ticket UI
+will be built. The original criteria are preserved verbatim in `## Resolution`.
+
+- [x] Closed as declined, with a `## Resolution` recording the decision, and moved to `closed/`
+      rather than deleted.
+
+## Notes
+
+Replacing the table wholesale rather than diffing is a deliberate trade of a few write units for
+the absence of a class of bugs. At a few hundred tickets it is not worth being clever, and the
+cheapness is what makes "if it is wrong, drop the table" a real remedy rather than a slogan.
+
+The cache being unreadable by the agent is what keeps the write sets disjoint: the phone writes
+`inbox/` in GitHub, the agent writes files on disk, and the cache observes both. Introduce one
+agent read of this table and the merge-conflict-free property becomes a coincidence rather than a
+structure.
+
+## Resolution
+
+**Declined 2026-09-28. Recorded as D-252.** Operator's decision, answering the question put during
+`0215`'s sweep: *"Close all of cap 17."*
+
+D-092 required in-app ticket creation because it was **phone-friendly**: a thought at mile six
+captured before it was lost. Everything in capability `17` followed from that. The capture sheet
+was sized for a thumb, and browse and detail were read-only mirrors so the phone never needed
+GitHub. D-251 removed the phone as a viewing surface. The operator then removed it as an input
+surface too: *"I don't use /log or capture from my phone."* At the desktop, the repo, GitHub,
+`tickets.mjs` and the agent already do everything this ticket planned, so building it would
+duplicate tools that are already open.
+
+**What stays:**
+- the capture endpoint `/api/tickets/capture` (capability `03`, `0018`) and its bearer auth
+  (`0149`);
+- the `inbox/` triage flow.
+
+They are built, harmless and cost nothing. The two `/dev/tickets` stub routes from `0016` are
+removed under `0216`.
+
+Nothing was built under this ticket, and no code changed. It is the same shape as `0020` and `0021`
+under D-184: a capture path declined because its reason for existing went away.
+
+### Original acceptance criteria (verbatim)
+
 - [ ] `POST /api/dev/tickets/webhook` with a valid `X-Hub-Signature-256` returns 202 in under
       100 ms and performs the tree walk asynchronously.
 - [ ] An invalid or missing signature returns 401 and performs **no** GitHub call; the compare is
@@ -65,17 +109,6 @@ work inline; a 202 goes back first and the walk happens after.
 - [ ] Frontmatter parse failures on a malformed ticket file are logged and skip that file; they do
       not abort the walk or blank the table.
 
-## Notes
-
-Replacing the table wholesale rather than diffing is a deliberate trade of a few write units for
-the absence of a class of bugs. At a few hundred tickets it is not worth being clever, and the
-cheapness is what makes "if it is wrong, drop the table" a real remedy rather than a slogan.
-
-The cache being unreadable by the agent is what keeps the write sets disjoint: the phone writes
-`inbox/` in GitHub, the agent writes files on disk, and the cache observes both. Introduce one
-agent read of this table and the merge-conflict-free property becomes a coincidence rather than a
-structure.
-
 ## Operator validation
 
 On the laptop, `git push` a hand-edited ticket (change its title). Within a few seconds, on the
@@ -83,3 +116,6 @@ Android phone, pull-to-refresh `/dev/tickets` and see the new title. Then in the
 settings open the webhook's Recent Deliveries and confirm a 202 with a sub-100 ms response time.
 Finally, delete the DynamoDB table from the console, run the cron manually, and reload the phone:
 the full list must come back. If it does not, the cache has become authoritative somewhere.
+
+**Declined, 2026-09-28.** Nothing was built, so there is nothing to observe or smoke-test. The
+check is the record: D-252 exists and `09` §3 marks capability `17` withdrawn.
