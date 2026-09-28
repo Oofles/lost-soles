@@ -40,8 +40,8 @@ It must satisfy three things at once:
 │  │ SKILLS │  │ + ADD WORKOUT│  │ RUNS  │ │  ← 56dp tall, thumb arc
 ```
 
-**What earns its space** (§2.3): the map full bleed, opening framed on the **end point of your last
-run** at z14 — not on your home, not on your whole territory, because the interesting thing is the
+**What earns its space** (§2.3): the map full bleed, opening framed on ~~the **end point of your last
+run**~~ **your most recent run** (D-249: its bounding-box centre) at z14 — not on your home, not on your whole territory, because the interesting thing is the
 edge you most recently pushed and the fog just beyond it. Total Level as the headline, in the
 largest type in the app outside the level-up card, because it moves ~6× faster than any single skill
 and keeps mid-game weeks from feeling empty. Lifetime cells revealed, the numeric twin of the map's
@@ -66,8 +66,10 @@ thumb arc; per D-148 all floating chrome is opaque.
 - [ ] `/` renders a full-bleed map with the plinth over it and no other UI.
 - [ ] Total Level and lifetime cells are both fully visible with **zero** scrolling and zero taps on
       the target phone, in both portrait orientations of the status bar.
-- [ ] The map opens framed on the end point of the most recent activity at z14, not on device
-      location and not fitted to the whole territory.
+- [ ] On a first-ever load (no stored camera) the map opens on the bounding-box centre of the
+      most recent traced run at z14 (D-249; precedence stored camera → latest run → configured
+      home → extract bounds, as `0186` shipped it), not on device location and not fitted to the
+      whole territory. A stored camera always wins on reload.
 - [ ] The milestone bar shows a named numeric target (`next: 300`), never a bare percentage.
 - [ ] Tapping the last-run line navigates to `/run/:activityId` for that run.
 - [ ] The three destination buttons are ≥56dp tall and all three centres fall inside the §9.2
@@ -91,6 +93,13 @@ the layout, the two glance numbers and the three destinations, and stubs the res
 Every item in the "does not earn its space" list has been proposed by somebody, in some fitness app,
 for a good-sounding reason. `06-ui-ux.md` §2.3 and D-013 are the standing answer. If one is proposed
 again, it needs a decision record, not a commit (07 §1.2: never expand a ticket's scope).
+
+**2026-09-28 — opening-camera criterion amended (08 drift audit, D-249).** This ticket originally
+required the map to open "framed on the end point of the most recent activity at z14". Ticket `0186`
+shipped the initial camera during capability `08` as the most recent run's **bounding-box centre**
+(`lib/map-camera.ts` `runCamera` / `firstLoadRunCamera`), behind a stored camera, and D-249 records
+that as the design. That behaviour already exists; this ticket must not re-implement or replace it.
+The `⌖` recentre-on-end-point control is unchanged and belongs to `0101`.
 
 ## Operator validation
 

@@ -171,7 +171,7 @@ It must satisfy three things simultaneously:
 │                                              │
 │              THE MAP, FULL BLEED             │
 │      parchment + dark fog (D-053), your      │
-│      territory centred on last run's end     │
+│      territory centred on last run (D-249)   │
 │                                              │
 │                                              │
 │                                     ╔══════╗ │ ← recentre, above the plinth,
@@ -196,10 +196,15 @@ It must satisfy three things simultaneously:
 
 **Earns it:**
 
-- **The map, full bleed.** Non-negotiable (P4). It opens framed on the *end point of your last
-  run*, not on your home, and not on your whole territory — because the interesting thing is
-  the edge you most recently pushed, and the fog just beyond it. Zoom defaults to z14, where a
-  neighbourhood's worth of frontier is visible.
+- **The map, full bleed.** Non-negotiable (P4). It opens framed on ~~the *end point of your last
+  run*~~ **your last run**, not on your home, and not on your whole territory — because the
+  interesting thing is the edge you most recently pushed, and the fog just beyond it. Zoom
+  defaults to z14, where a neighbourhood's worth of frontier is visible.
+  **Amended by D-249 (08 audit, 2026-09-28):** the initial camera on a first-ever load (nothing
+  stored) is the **bounding-box centre of the most recent traced run** at z14, not its end point
+  (ticket `0186`, `lib/map-camera.ts` `runCamera`). Precedence is stored camera → latest run →
+  configured home → extract bounds (`firstLoadRunCamera`); a stored camera always wins on reload,
+  so this framing applies once. The `⌖` control (§4.4) still recentres on the last run's end point.
 - **Total Level, as the headline.** 04 §1.2 is explicit: "Total Level is the headline number on
   the home screen, not any individual skill," because it moves ~6× faster than any one skill
   and keeps mid-game weeks from feeling empty. Set in the largest type in the app outside the
@@ -233,7 +238,7 @@ It must satisfy three things simultaneously:
 
 | State | Plinth shows | Map shows |
 |---|---|---|
-| Cold start, cached | Cached totals immediately | Cached basemap + last `explored-r10.bin` from IndexedDB, drawn before any network call |
+| Cold start, cached | Cached totals immediately | Cached basemap + last `explored-r11.<gen>.bin` (D-237) from IndexedDB, drawn before any network call |
 | Fresh import waiting | `1 new run — tap to open` in gold, *once*, and it never turns red or repeats | Territory as of *before* the run — the reveal belongs to §3, not here |
 | Nothing ever imported | `Connect Strava to begin` — the only call to action in the app | Parchment, unfogged, centred on device location |
 | Three weeks idle | Identical to any other day | Identical |
@@ -783,8 +788,8 @@ is D-051 discharged, and it is the reason atlas exists at all.
 
 ### 4.8 Loading, offline, and the desktop case
 
-- **First paint is from cache, always** (§2.4): the last `explored-r10.bin` and cached tiles from
-  IndexedDB render before any network call. The map is never blank while a request is in flight.
+- **First paint is from cache, always** (§2.4): the last `explored-r11.<gen>.bin` (D-237) and cached tiles
+  from IndexedDB render before any network call. The map is never blank while a request is in flight.
 - **Missing tiles render as flat parchment**, never as a grey checkerboard and never as a spinner
   over the map. A hole in the basemap is a cosmetic gap; a checkerboard is an error message about
   something the user cannot fix.
@@ -1522,8 +1527,8 @@ gloves. Both are the same design problem: **precision is unavailable.**
 The app is opened outdoors, often on one bar. The design rule is that **the network is never on
 the critical path to seeing your map.**
 
-- **First paint is cache-only.** Cached basemap tiles plus the last `explored-r10.bin` from
-  IndexedDB render before any request is issued (§2.4, §4.8). Target: usable first paint in
+- **First paint is cache-only.** Cached basemap tiles plus the last `explored-r11.<gen>.bin` (D-237)
+  from IndexedDB render before any request is issued (§2.4, §4.8). Target: usable first paint in
   **under 1 s with the radio off.**
 - **The fog payload is fetched after first paint, never before**, and revalidated with
   `If-None-Match` (05 §7.3). A 304 costs nothing; a changed payload swaps in without a flash.

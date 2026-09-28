@@ -3,7 +3,8 @@ import type { CullableBucket, MercatorBox } from "./cull"
 /**
  * MATERIALISING GROUP GEOMETRY OFF THE FRAME PATH. Ticket `0202`. `05-fog-of-war.md` §6.3.
  *
- * §6.3's table budgets two different things on two different rows:
+ * §6.3's table budgeted two different things on two different rows (as written before D-238, which
+ * re-priced the second as a ~3.2 ms group index plus ~10 ms per group):
  *
  *   CPU on padded-region exit   two-level cull + VBO upload          1-5 ms, off the frame path
  *   Bucket derivation, cold     cellToParent pass + bbox precompute  30-80 ms, debounced, once

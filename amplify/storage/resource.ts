@@ -1,7 +1,7 @@
 import { defineStorage } from "@aws-amplify/backend"
 
 /**
- * The raw-trace archive (D-101, D-121.2) and the home of `explored-r10.bin`
+ * The raw-trace archive (D-101, D-121.2) and the home of `explored-r11.<gen>.bin`
  * (01-architecture.md §5). Paths are scoped to the owning identity from the start —
  * a lifetime GPS history is the one thing in this system that must never be readable
  * by anyone else (08-security-privacy.md §6.2).

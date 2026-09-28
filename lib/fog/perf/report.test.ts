@@ -226,7 +226,7 @@ describe("item 3 — frame time, restated as dropped frames (D-241)", () => {
 describe("item 4 — cull time and the padded region", () => {
   /**
    * THE ROW THAT WAS RED ON EVERY RUN UNTIL IT WAS SPLIT. A band crossing materialises a bucket's
-   * geometry inside the cull, and §6.3 budgets that at 30-80 ms on its own row — so folding it into
+   * geometry inside the cull, and §6.3 budgets that on its own row (30-80 ms before D-238) — so folding it into
    * item 4's < 2 ms reported a cost the design deliberately put off the frame path as a blown
    * budget, every time.
    */
@@ -254,7 +254,7 @@ describe("item 4 — cull time and the padded region", () => {
 
   /**
    * THE ROW'S WHOLE POINT. `cullBucket` materialises a group's geometry the first time it is asked,
-   * so a pan into new ground pays §6.3's 30-80 ms derivation inside item 4's < 2 ms cull. Gross, this
+   * so a pan into new ground pays §6.3's derivation (30-80 ms as priced before D-238) inside item 4's < 2 ms cull. Gross, this
    * is a 23 ms cull and a failure; net, it is a 1.2 ms cull and a pass, and the note carries the
    * gross figure so the hitch is not hidden by the subtraction.
    */

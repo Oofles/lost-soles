@@ -68,8 +68,10 @@ carries no technical uncertainty — waits until Phase 2.
 ## 2. THE FIRST-USABLE MILESTONE
 
 > **The milestone: end of capability `08-map-and-fog-renderer`.**
-> The user opens `soles.devaultsecurity.com` on their Android phone, signs in, taps **Sync**,
-> and watches the streets they actually ran come out of the fog.
+> The user opens `soles.devaultsecurity.com` ~~on their Android phone~~ in the desktop browser,
+> signs in, taps **Sync**, and watches the streets they actually ran come out of the fog.
+> **Amended by D-227 (08 audit, 2026-09-28):** the desktop browser is the viewing surface; the run itself is still
+> recorded on the Android phone.
 >
 > **Everything in Phases 0 and 1 exists only to reach this point. Nothing that is not on the
 > critical path to it may be built before it.**
@@ -85,7 +87,7 @@ that reveals territory is a system that generates its own feedback (`07-ticketsm
 still three months from its first import is a second Habitica: a project that became a job.
 
 So the milestone is placed at the earliest point that is **honest**, not the earliest point that
-is demoable. "Honest" means the reveal is real: real GPS from a real run, real H3 res-10 cells,
+is demoable. "Honest" means the reveal is real: real GPS from a real run, real H3 res-11 cells (D-237),
 real permanent append-only storage (D-020), real raw archive in S3 (D-121.2). A faked reveal over
 a screenshot would arrive two weeks sooner and be worth nothing, because it would not have proved
 a single one of the things that could actually sink this project.
@@ -297,11 +299,11 @@ identically.
 
 | # | Ticket | Description |
 |---|---|---|
-| 1 | ▸ **`domain/fog.ts` — trace → H3 res-10 cell set** | `05-fog-of-war.md` §2.2. Res 10 canonical, never mixed (D-115). |
+| 1 | ▸ **`domain/fog.ts` — trace → H3 res-11 cell set** | `05-fog-of-war.md` §2.2. Res 11 canonical, never mixed (D-237, superseding D-115's res 10). |
 | 2 | ▸ **Reveal radius (65 m) and corridor fill** | §2.3. Note: every Cartography number scales linearly with this (04 §10) — changing it later is a rebalance. |
 | 3 | ▸ **`ExploredCell` writes with `lastRunAt`, outside the ingest transaction** | D-120, D-144. Failure mode is deliberately "map ahead of XP", never the reverse. DynamoDB's 100-item cap vs 130–430 cells/run (40–130 before D-237 moved the grid to res 11); the write path is per-item `UpdateItem` with a worker pool, never a 100-item transaction, precisely so the cap does not bind. |
 | 4 | ▸ **Discovery classification: new / cold (>6mo, 50%) / warm (<6mo, 0%)** | D-120. Pure function of `now - lastRunAt`; unit-tested at the boundaries. Feeds `09`, not consumed yet. |
-| 5 | ▸ **`explored-r10.bin` generation + `manifest.json` generation counter** | `05-fog-of-war.md` §7.1, `02-data-model.md` §6. Regeneration does not re-read the table (§2.10). |
+| 5 | ▸ **`explored-r11.<gen>.bin` generation + `manifest.json` generation counter** | `05-fog-of-war.md` §7.1, `02-data-model.md` §6. Regeneration does not re-read the table (§2.10). |
 | 6 | ▸ **Same-run edge cases, out-of-order and backfilled activities, idempotency** | `05-fog-of-war.md` §3.3–3.5. |
 | 7 | **Cache invalidation contract between the Lambda and the browser** | `02-data-model.md` §6.4. |
 
@@ -315,18 +317,18 @@ run 7 months ago classifies cold and one run 5 months ago classifies warm.
 
 | # | Ticket | Description |
 |---|---|---|
-| 1 | ▸ **pmtiles basemap on Cloudflare R2 + `@protomaps/basemaps` `light`** | Zero egress — the entire reason R2 exists (`01-architecture.md` §1, §8 Risk 1). Stock palette for now. |
+| 1 | ▸ **pmtiles basemap on a private S3 bucket + our own CloudFront + `@protomaps/basemaps` `light`** | ~~Zero egress — the entire reason R2 exists~~ D-226 replaced Cloudflare R2: the bucket is private (Block Public Access, CloudFront OAC) and CloudFront's always-free 1 TB covers a single user's egress. Tiles still never route through Amplify Hosting (`01-architecture.md` §8 Risk 1). Stock palette for now. |
 | 2 | ▸ **MapLibre GL JS 6.x shell as the home route** | `maplibre-gl@6.6.0`, plain, no deck.gl. DPR capped at 2. |
-| 3 | ▸ **Blob loader/decoder: `explored-r10.bin` → typed array of cells** | `05-fog-of-war.md` §7. |
+| 3 | ▸ **Blob loader/decoder: `explored-r11.<gen>.bin` → typed array of cells** | `05-fog-of-war.md` §7. |
 | 4 | ▸ **Custom WebGL2 layer, pass 1: coverage mask** | Instanced soft radial discs at ~1.35× circumradius, unioned with `gl.blendEquation(gl.MAX)`, half-res `R8` FBO. Discs, never hexagons (§4.1). |
-| 5 | ▸ **Pass 2: noisy composite** | Full-screen triangle, `smoothstep` perturbed by 3-octave fBm, warm rim glow, `u_maxOpacity` 0.94. |
+| 5 | ▸ **Pass 2: noisy composite** | Full-screen triangle, `smoothstep` perturbed by 3-octave fBm, warm rim glow, `u_maxOpacity` 0.90 (shipped in `0119`; `05` §4.3). |
 | 6 | ▸ **Layer order + run polyline overlay** | Fog above basemap *and its labels*; route above the fog; warm cream `#fff2d0` core with amber glow. |
 | 7 | ▸ **Zoom bucketing and viewport culling** | `05-fog-of-war.md` §6.1–6.2. This is what makes year-five volume survive. |
-| 8 | ▸ **Perf harness against the §6.4 budget on a real mid-range Android phone** | 30 fps cap, `document.hidden` pause, `prefers-reduced-motion` static render. |
+| 8 | ▸ **Perf harness against the §6.4 budget in the desktop browser** (D-240; the phone run was dropped) | 30 fps cap, `document.hidden` pause, `prefers-reduced-motion` static render. |
 
 **Depends on:** `07`, `02`. **Done when:** ★ **the user imports a real run and sees real
-territory revealed** — and the §6.3 frame budget is met on the actual phone, measured, not
-assumed. If it is not met, `08` is not done; do not proceed to Phase 2 on a renderer that stutters.
+territory revealed** — and the §6.3 frame budget is met ~~on the actual phone~~ in the desktop
+browser (D-240), measured, not assumed. If it is not met, `08` is not done; do not proceed to Phase 2 on a renderer that stutters.
 
 ---
 
@@ -965,6 +967,9 @@ nothing to use — which is precisely what §2 exists to prevent.
 - **Spike the mask pass first.** `08`/4 against a hard-coded array of a few hundred cells, before
   `08`/3's real decoder. If `gl.MAX` on a half-res `R8` FBO inside MapLibre's `prerender` does not
   work on the target phone, that must be known in session one of `08`, not session five.
+  **Amended by D-230/D-240 (08 audit, 2026-09-28):** the spike (`0118`) was decided on the desktop browser
+  (D-230), and the phone run it deferred to `0059` was dropped (D-240) — the residual ANGLE
+  `MIN`/`MAX` risk on Android GPUs is knowingly accepted into ordinary use, not verified.
 - **Ship the milestone on a stock basemap** (`08`/1). The parchment fork is `15`/1, deliberately
   after the milestone. Colour work must never delay the reveal.
 - **Do not retry what R4 already ruled out** (`05-fog-of-war.md` §4.6). That list is a schedule
@@ -993,7 +998,8 @@ domain, taking the whole apex down — so CAA is checked first, not second.
 
 ### 8.5 Cost drifts past the D-083 target
 Target is a few dollars a month; the estimate is $1–5 all-in. Two named risks: **pmtiles egress**
-(mitigated structurally — the tiles live on Cloudflare R2 at zero egress, `01` §8 Risk 1) and
+(mitigated structurally — the tiles live on a private S3 bucket behind our own CloudFront
+distribution, inside its always-free 1 TB egress, D-226; never on Amplify Hosting, `01` §8 Risk 1) and
 **free-tier perpetuity being genuinely ambiguous** (`01` §8 Risk 2). Deliberately absent: VPC, NAT
 Gateway ($33/mo, ~10× the budget, D-081), RDS, API Gateway, WAF, Secrets Manager, any tile server,
 any always-on compute. **Mitigation:** verify free-tier perpetuity in the Billing console during

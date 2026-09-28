@@ -102,7 +102,7 @@ const DAY_ZERO_MS = Date.UTC(2020, 0, 1)
 const MS_PER_DAY = 86_400_000
 
 /**
- * Days since 2020-01-01, as the `u16` that `explored-lastrun-r10.bin` packs (05 §7.2).
+ * Days since 2020-01-01, as the `u16` that `explored-lastrun-r11.bin` packs (05 §7.2).
  *
  * Stored rather than derived so the blob builder (`0049`) does not re-parse 150,000 ISO
  * strings on every rebuild. 2020 gives a u16 range reaching 2199, which is not a decision

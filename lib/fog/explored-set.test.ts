@@ -108,7 +108,7 @@ describe("decoding the set", () => {
     expect(() => ExploredSet.fromBlob(bytes)).toThrow(BlobFormatError)
   })
 
-  it("refuses a res that is not 10 (D-115)", () => {
+  it("refuses a res that is not RES (D-237)", () => {
     const bytes = encodeExploredBlob(sortBig(gridDisk(ORIGIN, 2)), 1)
     bytes[5] = 9
     expect(() => ExploredSet.fromBlob(bytes)).toThrow(/res 9/)

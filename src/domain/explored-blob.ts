@@ -17,17 +17,19 @@ import { RES } from "./fog"
  * per-viewport query API."*
  *
  * That claim only survives five years if the payload stays small, which is what this file
- * is. Sorted res-10 H3 ids in one metro share their high bits, so **sort → delta → LEB128
- * gets to ~2–3 bytes per cell** against 8 raw, and gzip on top lands R3's pessimistic
- * 147,782-cell case at ~300–450 KB. `02` §6.2 tabulates it at one year and at five.
+ * is. Sorted res-11 H3 ids in one metro share their high bits, so **sort → delta → LEB128
+ * gets to ~2–3 bytes per cell** against 8 raw — measured 2.02 B/cell at res 11, which puts
+ * the pessimistic five-year case (~1.03M cells, D-237) at ~2 MB. (R3's 147,782-cell,
+ * ~300–450 KB figure was res 10.) `02` §6.2 tabulates it at one year and at five.
  *
  * **Never ship JSON hex strings** (`05` §7.1, R4 §7.1) — roughly 2× the bytes and far
  * slower to parse. That is the alternative this file exists to refuse.
  *
  * ─── THREE OBJECTS, THREE MAGICS, ONE ENCODING ──────────────────────────────
  *
- *   `LSFG`  `explored-r10.<gen>.bin`          the set. Fetched at app load, always.
- *   `LSFL`  `explored-lastrun-r10.<gen>.bin`  u16 days, PARALLEL to the set. Fetched lazily.
+ *   `LSFG`  `explored-r11.<gen>.bin`          the set. Fetched at app load, always.
+ *   `LSFL`  `explored-lastrun-r11.<gen>.bin`  u16 days, PARALLEL to the set. Fetched lazily.
+ *   (Names derive from `RES`; `src/pipeline/explored-blob-store.ts` `objectKeys`. D-237.)
  *   `LSFD`  `deltas/<from>-<to>.bin`          adds only. Fetched mid-session (§7.4).
  *
  * All three are little-endian, all three carry `version` and `res` in the same two bytes,
@@ -67,7 +69,7 @@ export const MAGIC_DELTA = "LSFD"
  * trigger at a payload past ~1 MB, which its own table puts past year ten of the case
  * that will not happen.
  *
- * **If it is ever set, the client MUST call `uncompactCells(arr, 10)` before any
+ * **If it is ever set, the client MUST call `uncompactCells(arr, RES)` before any
  * membership test.** A `has()` against a compacted array silently answers "not explored"
  * for every cell whose parent is present, which reads as the map losing ground.
  */
@@ -89,7 +91,7 @@ const DELTA_HEADER_BYTES = 36
  * An H3 index as the u64 it actually is. `8ad36070d777fff` → `625215327192973311n`.
  *
  * H3 ids ARE 64-bit integers; the string form is a hex rendering of one, and every id at
- * res 6 or 10 is exactly 15 hex characters. Sorting and delta-encoding are only cheap on
+ * res 6 or 11 is exactly 15 hex characters. Sorting and delta-encoding are only cheap on
  * the integer, which is the whole basis of R3's size claim — neighbouring cells in one
  * locality differ in their LOW bits, and that is a fact about the number, not the string.
  */
@@ -100,7 +102,7 @@ export function cellToBig(cell: H3Index): bigint {
 /**
  * Back to the canonical lower-case hex string h3-js accepts.
  *
- * PADDED TO 15, which is defensive rather than necessary: every res-6 and res-10 id lands
+ * PADDED TO 15, which is defensive rather than necessary: every res-6 and res-11 id lands
  * on 15 characters already. It costs nothing and it means a future resolution whose ids
  * carry a leading zero nibble cannot produce a string h3-js silently rejects.
  */
@@ -121,7 +123,7 @@ export class BlobFormatError extends Error {
  * LEB128. Unsigned, little-endian base-128, 7 payload bits per byte.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * The gaps between neighbouring sorted res-10 ids in one metro are small, so most encode
+ * The gaps between neighbouring sorted res-11 ids in one metro are small, so most encode
  * to one or two bytes. A varint is what turns "8 bytes per cell" into "~2–3" without any
  * dictionary, table or second pass — which matters because the decoder runs in the
  * browser on a mid-range Android (D-124) at app load.
@@ -179,8 +181,8 @@ function writeHeader(view: DataView, bytes: Uint8Array, magic: string, flags: nu
 /**
  * Validates magic, version and res, and returns `flags`.
  *
- * **`res !== 10` is a throw, not a warning** (D-115, `05` §7.1: *"a reader MUST reject
- * anything else"*). Cell ids at two resolutions are not comparable, not mergeable and not
+ * **`res !== RES` is a throw, not a warning** (D-237, superseding D-115's res 10; `05` §7.1:
+ * *"a reader MUST reject anything but RES"*). Cell ids at two resolutions are not comparable, not mergeable and not
  * renderable together; a decoder that accepted res 9 would produce a set that looks
  * plausible and is wrong everywhere. Same for an unknown `version`: `02` §6.4 requires the
  * client to *"discard its cache and refuse to render rather than guessing."*
@@ -202,7 +204,7 @@ function readHeader(bytes: Uint8Array, magic: string, minBytes: number): number 
   const res = bytes[OFF_RES]!
   if (res !== RES) {
     throw new BlobFormatError(
-      `${magic}: res ${res}, expected ${RES} (D-115). Cell ids at two resolutions are not ` +
+      `${magic}: res ${res}, expected ${RES} (D-237). Cell ids at two resolutions are not ` +
         "comparable; refusing to decode.",
     )
   }
@@ -239,7 +241,7 @@ function assertFlags(magic: string, flags: number): void {
   if (flags === 0) return
   throw new BlobFormatError(
     `${magic}: flags ${flags} — this decoder handles only 0. bit0 (compacted) requires ` +
-      "uncompactCells(arr, 10) before any membership test (05 §7.1); bits 1-7 are reserved.",
+      `uncompactCells(arr, ${RES}) before any membership test (05 §7.1); bits 1-7 are reserved.`,
   )
 }
 

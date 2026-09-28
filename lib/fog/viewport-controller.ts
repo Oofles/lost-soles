@@ -351,7 +351,7 @@ export class FogViewportController {
      * `0202`. THE DEBOUNCE WINDOW IS FREE TIME, AND IT IS EXACTLY THE TIME THE NEW BUCKET NEEDS.
      *
      * A band crossing is the expensive case — a bucket with no index and no group geometry, priced at
-     * 30-80 ms cold in §6.3 and measured at up to 246 ms inside a single cull. The prefetch that runs
+     * 30-80 ms cold in §6.3 (before D-238) and measured at up to 246 ms inside a single cull. The prefetch that runs
      * after a rebuild cannot help here: the incoming bucket did not exist when the last rebuild ran.
      *
      * But §6.1 already makes the camera wait ~250 ms before switching, and that window is otherwise

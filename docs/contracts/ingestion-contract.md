@@ -132,7 +132,12 @@ export interface Activity {
   source: SourceRef
   /** Null only for `manual`. */
   raw: RawArchiveRef | null
-  /** S3 key of the normalized trace. Null is a NORMAL outcome: treadmill, manual, strength. */
+  /**
+   * S3 key of the route geometry (D-235): `traceToSegments`'s output as a GeoJSON
+   * `MultiLineString`, `[lng, lat]`, 6 dp, altitude and time dropped. Written for any traced
+   * activity, scored or not (D-236). Null is a NORMAL outcome: treadmill, manual, strength —
+   * and a trace that left no segment of at least two points.
+   */
   traceRef: string | null
   hasTrace: boolean
 

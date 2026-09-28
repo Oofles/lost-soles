@@ -160,7 +160,7 @@ getting the trust boundary right is zero.
 
 ```
 CONSTANTS
-  RES            = 10
+  RES            = 11          # was 10 (D-115); D-237 (`0194`)
   REVEAL_R_M     = 65          # metres either side of the path; see §2.3
   MAX_ACC_M      = 50          # drop samples with worse reported accuracy
   DWELL_SPEED    = 0.5         # m/s
@@ -168,8 +168,16 @@ CONSTANTS
   TELEPORT_SPEED = <the sanitizer's foot gate>   # NOT a literal here. See the note below.
   SPLIT_GAP_M    = 250         # gap beyond which we refuse to interpolate
   SPLIT_GAP_S    = 120
-  DENSIFY_STEP_M = 30          # < inradius, so no cell can be skipped
+  DENSIFY_STEP_M = 12          # < inradius (24.8 m at res 11), so no cell can be skipped
+                               # was 30 at res 10; D-237 preserves the ~0.46 ratio, not the number
+  CANDIDATE_K    = ceil((REVEAL_R_M + DENSIFY_STEP_M/2 + circumradius) / (2 × inradius))
+                               # derived, never hard-coded: 3 at res 11 (2 at res 10). D-237
 ```
+
+> **Amended by D-237 (`0194`, 08 audit 2026-09-28):** the constants above are the shipped ones
+> (`src/domain/fog.ts` — `RES`, `DENSIFY_STEP_M`, `CANDIDATE_K`). The res-10 prose elsewhere in
+> this section (the 65.7 m inradius, the 30 m step) is kept where it explains history; the
+> numbers that bind the implementation are these.
 
 > **`TELEPORT_SPEED` IS THE SANITIZER'S GATE. RESOLVED 2026-09-07 (ticket `0045`, D-212).**
 > Raised by the `05-strava-adapter` drift audit, 2026-09-06 (divergence 2 of four); the audit
@@ -248,15 +256,16 @@ function traceToCells(trace):
     dense = densifyGeodesic(seg, DENSIFY_STEP_M)   # handles sampling gaps
     for p in dense:
       c = latLngToCell(p.lat, p.lng, RES)
-      # k=1 candidates so a path grazing a cell's edge still qualifies it
-      for cand in gridDisk(c, 1):
+      # k=CANDIDATE_K candidates so a path grazing a cell's edge still qualifies it.
+      # Was gridDisk(c, 1) at res 10; at res 11 k=1 MISSES cells (D-237).
+      for cand in gridDisk(c, CANDIDATE_K):
         cells.add(cand)
 
   # ---- 5. exact radius filter -----------------------------------------
   # Candidate set is generous; this is the definition of "revealed".
   #
   # `segments` is the RAW output of step 3, NOT the densified polylines.
-  # Densification puts a vertex every 30 m, so measuring against `dense`
+  # Densification puts a vertex every 12 m (30 m at res 10), so measuring against `dense`
   # would put a nearest-vertex bug within ~1.7 m of the truth and hide it.
   # Against the raw segments a 400 m sampling gap is one 400 m edge, and
   # only a genuine point-to-SEGMENT measure keeps the corridor between its
@@ -272,8 +281,15 @@ function traceToCells(trace):
       distancePointToSegments(cellToLatLng(c), segments) <= REVEAL_R_M)
 ```
 
-> **STEP 5 CAN ONLY EVER REMOVE, AND STEP 4's `gridDisk` IS THEREFORE DEAD WEIGHT AT
-> `REVEAL_R_M = 65`. Measured 2026-09-07 (ticket `0046`, D-216).**
+> **SUPERSEDED BY D-237 (`0194`, 08 audit 2026-09-28) — D-216 is RETIRED.** Everything below
+> held at res 10 only. At res 11 the inradius is 24.8 m, 65 m is 2.6 inradii, revealed no longer
+> implies entered, and a k=1 disc **misses cells** (694 revealed at k=1 against 695 at k=2 on the
+> operator's runs — permanent under D-020). Step 4's disc is now load-bearing and its width is
+> `CANDIDATE_K`, derived from the grid. The note is kept because it is why the disc survived to
+> be needed.
+>
+> ~~**STEP 5 CAN ONLY EVER REMOVE, AND STEP 4's `gridDisk` IS THEREFORE DEAD WEIGHT AT
+> `REVEAL_R_M = 65`. Measured 2026-09-07 (ticket `0046`, D-216).**~~
 > `REVEAL_R_M` (65 m) is below res 10's inradius (65.7 m), so if a cell's centre is within
 > 65 m of the path then the nearest path point lies inside that cell's own inscribed
 > circle — inside the cell. **The filtered set is a strict subset of the cells the path
@@ -287,8 +303,9 @@ function traceToCells(trace):
 Notes on the steps that matter:
 
 - **Sampling gaps (step 4).** Strava's `latlng` stream is nominally ~1 Hz but drops points in
-  tunnels, under tree cover and when the watch throttles. `densifyGeodesic` at 30 m — comfortably
-  under the 65.7 m inradius — guarantees no cell along the path is skipped. The alternative,
+  tunnels, under tree cover and when the watch throttles. `densifyGeodesic` at 12 m — comfortably
+  under res 11's 24.8 m inradius (it was 30 m against res 10's 65.7 m; D-237 keeps the ~0.46
+  ratio) — guarantees no cell along the path is skipped. The alternative,
   `h3.gridPathCells(a, b)`, is cheaper but returns a *grid* line, not a *geodesic* line, fails
   across pentagons, and errors on long distances. Densify-then-index is boring and correct;
   prefer it.
@@ -682,6 +699,12 @@ Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation.
 This is the most important visual decision in the whole product, and it is the reason D-115 could
 settle on res 10 at all.
 
+> **Amended by D-237 (`0194`, 08 audit 2026-09-28):** the canonical resolution is now **11**, and
+> the metre figures in §4.1–§4.2 (75.9 m circumradius, 102 m disc, 131.4 m spacing, 102.5 m at
+> 121 m) are **res-10 figures**, kept because the argument was made on them. Every claim here is a
+> ratio to the cell and is scale-invariant; at res 11 the same arithmetic reads
+> 1.35 × 28.7 ≈ **38.7 m** radius against **49.6 m** centre spacing.
+
 **If you rasterise hexagon geometry into the mask, you get hexagons.** A hexagon has six flat
 edges meeting at 120° corners. Those facets survive every amount of blur you can afford: blur
 softens the transition but preserves the silhouette's angular frequency content, so the boundary
@@ -715,8 +738,11 @@ coverage while their outline pinches to **0.79** of its bulge at every junction 
 tighter contour where §4.3 puts the visible edge. That is a string of pearls and no constant in this
 section fixes it.
 
-So the renderer draws **one extra disc at the midpoint of every adjacent revealed pair**, which
-halves the effective spacing and takes the silhouette to 0.95 (1.00 measured on a GPU for a straight
+So the renderer draws **one extra disc at the midpoint of every adjacent revealed pair** — **except
+where both endpoints have all six neighbours revealed** (amended by D-238, `0058`, 08 audit
+2026-09-28; `lib/fog/instances.ts`). An interior pair has no silhouette near it to pinch, and
+without the elision res 11 puts a fully-revealed reference viewport near 14,700 instances. The
+one-cell-wide chain this paragraph is about is untouched by it. The bridge halves the effective spacing and takes the silhouette to 0.95 (1.00 measured on a GPU for a straight
 chain). A bridge disc is a LOOK: it has no cell id, is never written anywhere, and takes the `min` of
 its two endpoints' fractions so it can fill a waist without inventing coverage. See D-232 for the
 alternatives that were rejected — `revealScale ≈ 2.05`, relying on §4.3's noise, and res 11.
@@ -1293,8 +1319,8 @@ Further reductions, in order of value:
   Hidden fog must not pay the tile walks (R4 §3.4).
 - **Cap DPR at 2.** A 3× phone gains essentially nothing on a soft mist effect and costs 2.25×
   the composite fragments. Cheapest mobile win available (R4 §7.2).
-- **Consider a Web Worker for bucket derivation** if the 30–80 ms `cellToParent` pass ever shows
-  up as a visible hitch on a zoom-out. Not needed at MVP volumes; noted so it isn't a surprise.
+- **Consider a Web Worker for bucket derivation** if the per-group derivation (~10 ms a group,
+  D-238; was priced at a 30–80 ms whole-bucket `cellToParent` pass) ever shows up as a visible hitch on a zoom-out. Not needed at MVP volumes; noted so it isn't a surprise.
 
 ### 6.3 Expected budget
 
@@ -1304,7 +1330,11 @@ Further reductions, in order of value:
 | Composite | 1 full-screen triangle, 3-octave fBm, ~40 ALU/fragment, DPR ≤ 2 | **1–2 ms** |
 | CPU per frame (camera still, or inside padded region) | none — nothing projected in JS | **~0 ms** |
 | CPU on padded-region exit / bucket change | two-level cull + VBO upload | 1–5 ms, off the frame path |
-| Bucket derivation (new zoom bucket, cold) | `cellToParent` pass + dedupe + bbox precompute | 30–80 ms, debounced, once per bucket |
+| Bucket derivation (new zoom bucket, cold) | group index up front; ids, fractions, projection, bridges per group on first sight | index ~3.2 ms (151k cells), then ~10 ms per group; debounced |
+
+**Amended by D-238 (`0058`, 08 audit 2026-09-28):** the derivation row read *"`cellToParent` pass +
+dedupe + bbox precompute — 30–80 ms, debounced, once per bucket"*. At 500k res-11 cells a whole-bucket
+pass is ~2 s (the bridge `gridDisk` alone is 1,543 ms), so derivation is lazy per group — see §6.1.
 
 That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing.
 
@@ -1373,8 +1403,17 @@ fixture. Real data will not reach 500k for years (R3 §2), and by then the assum
 untested unless we test it now. Run the scripted path on a real mid-range Android device, not
 only on a desktop — desktop numbers here are worthless.
 
-**Kill criteria** (what "it failed" looks like, decided in advance): if p95 frame time exceeds
-16.7 ms at 150k cells on the target phone, the first three levers, in order, are (a) drop mask
+> **SUPERSEDED BY D-240 (`0059`, 08 audit 2026-09-28).** D-230 deferred the phone run to `0059`,
+> and D-240 **dropped** it: `0059` was validated on the desktop browser, the primary viewing surface
+> (D-227). The residual risk — Qualcomm/Mali ANGLE honouring `MAX` blending into an `R8` target —
+> is knowingly accepted into ordinary use; its failure is loud and local (the fog looks obviously
+> wrong, and the fix is in the mask pass, not the data). The operator's phone is a Pixel 10 Pro, not
+> the mid-range device this paragraph prices, so a phone run would have measured the wrong end of
+> the range anyway.
+
+**Kill criteria** (what "it failed" looks like, decided in advance): if ~~p95 frame time exceeds
+16.7 ms at 150k cells on the target phone~~ the pan phases at 150k cells miss item 3's target —
+**p50 ≤ 17 ms with under 1% of frames over 1.5× p50** (D-241) — on the desktop browser (D-240), the first three levers, in order, are (a) drop mask
 scale to 0.35×, (b) drop the animation to 20 fps, (c) drop fBm to 2 octaves. Only if all three
 fail do we reach for precomputed raster tiles (§4.6, R4 §3.3).
 
@@ -1382,10 +1421,16 @@ fail do we reach for precomputed raster tiles (§4.6, R4 §3.3).
 
 ## 7. Data delivery
 
-R3's headline: **this is a few-megabytes problem, not a gigabytes problem.** Five years, worst
-case, res 10 = 147,782 cells = 1.18 MB of raw 64-bit IDs; realistically 20k–50k. Sorted H3 IDs in
-one metro share their high bits, so **delta encoding + varint gets to ~2–3 bytes per cell**, and
-gzip on top lands the pessimistic case at **~300–450 KB over the wire**.
+R3's headline: **this is a few-megabytes problem, not a gigabytes problem.** ~~Five years, worst
+case, res 10 = 147,782 cells = 1.18 MB of raw 64-bit IDs; realistically 20k–50k.~~ Sorted H3 IDs in
+one metro share their high bits, so **delta encoding + varint gets to ~2–3 bytes per cell**, ~~and
+gzip on top lands the pessimistic case at **~300–450 KB over the wire**~~.
+
+**Amended by D-237 (`0194`, 08 audit 2026-09-28):** at res 11 the pessimistic five-year figure is
+**~1.03M cells** (7.08× res 10's 147,782 — the child count, not R3's 4.4×), realistically
+142k–354k. The varint format gets *cheaper* per cell as the set densifies: measured **2.02 B/cell**
+at res 11 (3.01 at res 10), so the pessimistic case is **~2 MB** and the realistic range a few
+hundred KB. Still a few-megabytes problem.
 
 **Architectural consequence: ship the entire explored set to the client, once per session.** One
 HTTP GET at app load. After that every fog query — viewport render, % explored, new-territory
@@ -1398,15 +1443,25 @@ query API.**
 
 ### 7.1 Payload format — `explored-r10.bin`
 
-Little-endian throughout. Served from S3 with `Content-Encoding: gzip` (CloudFront passes it
-through), so the format itself is uncompressed-simple and gzip does the entropy work.
+> **Amended by D-237 (`0194`, 08 audit 2026-09-28):** the object is now
+> **`explored-r11.<gen>.bin`**, key `users/<uid>/explored/explored-r${RES}.<gen>.bin`, derived from
+> `RES` (`src/pipeline/explored-blob-store.ts`). The res-10 objects keep their own names — superseded,
+> not deleted (D-020). The heading keeps its old name so links to it survive.
+
+Little-endian throughout. ~~Served from S3 with `Content-Encoding: gzip` (CloudFront passes it
+through), so the format itself is uncompressed-simple and gzip does the entropy work.~~
+**Amended by D-228 (`0054`, 08 audit 2026-09-28):** served from **this app's own origin**, via the
+authenticated route `app/api/fog/blob/[gen]/route.ts`, which reads S3 server-side and gunzips if the
+object is gzipped (`lib/fog/server.ts`), sending plain bytes with
+`Cache-Control: private, max-age=31536000, immutable`. No browser credential touches S3. The format
+itself is still uncompressed-simple.
 
 ```
 offset  size  field
 ------  ----  ------------------------------------------------------------
 0       4     magic       "LSFG"
 4       1     version     = 1
-5       1     res         = 10                (D-115; a reader MUST reject anything else)
+5       1     res         = 11                (D-237, was 10 per D-115; a reader MUST reject anything but RES)
 6       1     flags       bit0 = compacted, bit1..7 reserved (0)
 7       1     reserved    = 0
 8       8     generation  u64 monotonic — see §7.3
@@ -1415,12 +1470,12 @@ offset  size  field
 28      ...   deltas      (count-1) × LEB128 unsigned varint, ascending gaps
 ```
 
-- **Sort ascending, delta-encode, LEB128.** Neighbouring res-10 H3 IDs in the same locality
+- **Sort ascending, delta-encode, LEB128.** Neighbouring res-11 H3 IDs in the same locality
   differ in their low bits only, so most deltas fit in 1–2 varint bytes.
 - **`flags` bit0 (`compacted`)** allows shipping `h3.compactCells()` output — a mixed-resolution
   array where any complete set of 7 children is replaced by its parent. It compacts contiguous
-  territory 3–10× (R3 §3.6). **If set, the client MUST call `uncompactCells(arr, 10)` before any
-  membership test.** Recommendation: **ship uncompacted for v1.** 300–450 KB is already fine, and
+  territory 3–10× (R3 §3.6). **If set, the client MUST call `uncompactCells(arr, RES)` (11) before any
+  membership test.** Recommendation: **ship uncompacted for v1.** ~2 MB pessimistic is already fine, and
   mixed-resolution arrays are the H3 correctness footgun this document warns about twice.
   Compaction is a lever to pull if the payload ever becomes a real cost.
 - **Decode to a sorted `BigUint64Array`** (8 bytes/cell — 150k cells = 1.2 MB), directly — no
@@ -1434,9 +1489,9 @@ offset  size  field
 
 | Object | Contents | When fetched |
 |---|---|---|
-| `explored-r10.<gen>.bin` | the set above | app load, always |
-| `explored-agg.<gen>.json` | res 6/7/8 parent → `{exploredChildren, totalChildren, fraction}` | app load; small (a few KB); powers zoom-out opacity (§6.1) |
-| `explored-lastrun-r10.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array**, same order | **lazily, only when a view needs it** |
+| `explored-r11.<gen>.bin` | the set above | app load, always |
+| `explored-agg.<gen>.json` | res 6/7/8 parent → `{exploredChildren, totalChildren, fraction}` | ~~app load; small (a few KB); powers zoom-out opacity (§6.1)~~ **never, by the browser** (D-238): written by the pipeline as the server-side artifact for §8; zoom-out `fraction` is computed client-side from the set (§6.1) |
+| `explored-lastrun-r11.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array**, same order | **lazily, only when a view needs it** |
 
 `lastRunAt` is deliberately a *separate* object. It roughly doubles the payload (~2 bytes/cell)
 and **the fog itself does not need it** — revealed is permanent (D-020), so rendering depends on
@@ -1457,9 +1512,9 @@ eight bytes as `LSFG`, so the reader can refuse a mismatched generation or count
 ```
 s3://lost-soles-data/users/<uid>/
   manifest.json                         # small, revalidated
-  explored/explored-r10.<gen>.bin       # immutable
-  explored/explored-agg.<gen>.json      # immutable
-  explored/explored-lastrun-r10.<gen>.bin
+  explored/explored-r11.<gen>.bin       # immutable; name derives from RES (D-237)
+  explored/explored-agg.<gen>.json      # immutable; server-side only (D-238)
+  explored/explored-lastrun-r11.<gen>.bin
   deltas/<toGen>.bin                    # immutable, short-lived; fromGen is in the header
   traces/<activityId>.polyline.gz       # raw, immutable, never deleted (D-101, D-121)
 ```
@@ -1467,18 +1522,23 @@ s3://lost-soles-data/users/<uid>/
 - **Everything except `manifest.json` is content-addressed by `generation` and served
   `Cache-Control: public, max-age=31536000, immutable`.** A generation is never rewritten, so
   browser cache and CloudFront cache are always correct and nothing needs purging.
+  **Amended by D-228 (`0054`, 08 audit 2026-09-28):** the browser never reads S3; the app's own
+  authenticated routes serve these bytes (`/api/fog/blob/<gen>`) with
+  `Cache-Control: private, max-age=31536000, immutable` — **`private`** because the app sits behind
+  a CDN and each response is one person's map. `manifest.json` is revalidated via a generation
+  `ETag` and a genuine 304.
 - **`manifest.json` is the only mutable object**, served `Cache-Control: no-cache` (revalidate
   every time; a 304 is a few hundred bytes):
 
   ```json
   {
     "generation": 412,
-    "res": 10,
+    "res": 11,
     "cellCount": 38142,
     "updatedAt": "2026-08-30T14:02:11Z",
-    "cells":   "explored/explored-r10.412.bin",
+    "cells":   "explored/explored-r11.412.bin",
     "agg":     "explored/explored-agg.412.json",
-    "lastRun": "explored/explored-lastrun-r10.412.bin",
+    "lastRun": "explored/explored-lastrun-r11.412.bin",
     "deltasFrom": 396
   }
   ```
@@ -1782,6 +1842,12 @@ app is simply unusable on a device without WebGL2. Also unvalidated: `MAX` blend
 on older Android GPUs via ANGLE. **Verify on a real mid-range Android device in the first week of
 implementation**, before the rest of the layer is built on the assumption.
 
+> **SUPERSEDED BY D-230 and D-240 (08 audit 2026-09-28).** D-230 (`0118`) decided the technique on
+> the desktop browser and deferred the Android check to `0059`; D-240 (`0059`) **dropped** it. The
+> desktop browser is the primary viewing surface (D-227) and is where the layer was validated. The
+> ANGLE `MAX`-into-`R8` risk is still unverified and is **accepted into ordinary use**: its failure
+> is loud and local, and the fix is a mask-pass change, not a data-model one.
+
 ### 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION**
 The 6-month re-arm is invisible on the map by design. §8.5 proposes an opt-in atlas overlay. The
 risk is that any visual treatment of "stale" ground reads as the map taking something back, which
@@ -1804,7 +1870,7 @@ different input, that is a change to §3.2's award record, not to the mechanic.
 ### 9.10 The explored blob is a precise map of the user's home
 D-123 explicitly declines special privacy handling: single user, private AWS account, map shown
 only to the owner, full-fidelity traces stored, nothing masked. That is correct for MVP and the
-document does not second-guess it. **But `explored-r10.bin` is a high-resolution record of where
+document does not second-guess it. **But `explored-r11.<gen>.bin` is a high-resolution record of where
 someone lives and when they are out**, and it is fetched by a browser over a URL. The standing
 revisit trigger from D-123 applies to *this artefact specifically*: **the moment friends/family
 accounts, sharing, or screenshot export exist, §7's "just fetch the blob" model needs an

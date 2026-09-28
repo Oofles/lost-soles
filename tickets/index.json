@@ -4867,5 +4867,25 @@
       "checked": 2,
       "total": 2
     }
+  },
+  {
+    "id": 214,
+    "slug": "amplify-build-minutes-cost-15-mo-3x-the-d-083-budget-every-p",
+    "title": "Amplify build minutes cost ~$15/mo, 3x the D-083 budget — every push to main runs a ~9.5-minute build",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T16:39:26Z",
+    "path": "tickets/open/0214-amplify-build-minutes-cost-15-mo-3x-the-d-083-budget-every-p.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

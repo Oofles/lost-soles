@@ -359,7 +359,7 @@ describe("version skew is a refusal, not a guess", () => {
   })
 
   /**
-   * CRITERION 8. `02` §6.4: *"if `manifest.res !== 10` (D-115) or the blob's `version`
+   * CRITERION 8. `02` §6.4: *"if `manifest.res !== RES` (D-237) or the blob's `version`
    * byte is unknown, the client discards its cache and refuses to render rather than
    * guessing. A silent mis-parse of cell IDs looks like territory teleporting, which is
    * indistinguishable from data loss to the user."*

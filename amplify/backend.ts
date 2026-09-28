@@ -723,7 +723,7 @@ ingestReceiptTable.grantReadWriteData(computeRole)
  * final**, and every property below is chosen for that sentence.
  *
  * Not a `defineData` model: the client never reads it (01 §2). The browser
- * downloads `explored-r10.bin` and queries it in memory, so putting T6 behind
+ * downloads `explored-r11.<gen>.bin` and queries it in memory, so putting T6 behind
  * AppSync would add $4.00/M operations for a path nobody uses — and §2.1 reason 5
  * settles it anyway, because a `defineData` model cannot promise RETAIN.
  */
@@ -992,7 +992,7 @@ activityTable.grant(processActivityLambda, "dynamodb:PutItem")
  * so a grant of PutObject alone would fail on exactly the re-delivery path the archive
  * is content-addressed to make cheap.
  *
- * SCOPED TO `raw/*` AND NOTHING ELSE. The same bucket holds `explored-r10.bin` and the
+ * SCOPED TO `raw/*` AND NOTHING ELSE. The same bucket holds `explored-r11.<gen>.bin` and the
  * aggregates (capability 07), which this function will also write — under their own
  * grant, when that ticket adds it. A prefix-free grant now would quietly hand the worker
  * the whole bucket and there would be no diff to notice later.

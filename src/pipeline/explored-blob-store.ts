@@ -43,7 +43,7 @@ import { mirrorGeneration, type MirrorDeps, type MirrorOutcome } from "./explore
  *
  * So the hot path never reads T6 for the map at all:
  *
- *   GET explored-r10.<gen-1>.bin  →  decode  →  merge this run's 40–130 cells
+ *   GET explored-r11.<gen-1>.bin  →  decode  →  merge this run's new cells
  *   →  encode, gzip, PUT the new generation  →  PUT manifest.json
  *
  * The `Query` path still exists — as `explored-rebuild.ts`, AP-17, the **repair** path,
@@ -225,7 +225,7 @@ export interface RegenerateResult {
   mirrored: MirrorOutcome
   /**
    * The previous sidecar could not be used and every untouched cell's `lastRunDay` was
-   * reset to 0. **Not an error, and deliberately not a throw** — `explored-lastrun-r10.bin`
+   * reset to 0. **Not an error, and deliberately not a throw** — `explored-lastrun-r11.bin`
    * feeds one optional overlay (§8.5, D-133) and nothing else, so failing an ingest over it
    * would block the map to protect a cosmetic layer. It is surfaced rather than swallowed
    * because a `true` here means something upstream wrote a bad object, and T6 still holds
@@ -287,7 +287,7 @@ export async function readManifest(
   if (manifest.res !== RES) {
     throw new Error(
       `readManifest: ${userId}'s manifest declares res ${manifest.res}, expected ${RES} ` +
-        "(D-115). Refusing to merge across resolutions.",
+        "(D-237). Refusing to merge across resolutions.",
     )
   }
   return { manifest, etag: got.etag }

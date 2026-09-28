@@ -100,7 +100,7 @@ export function syntheticSet(
  * THE FIXTURE BYTES, THROUGH THE SHIPPED WRITER.
  *
  * `encodeExploredBlob` is the function `explored-blob-store.ts` calls to write the real
- * `explored-r10.bin` that the real browser really fetches. Hand-rolling the varints here would
+ * `explored-r11.<gen>.bin` that the real browser really fetches. Hand-rolling the varints here would
  * produce a fixture that certifies the decoder against a format nothing writes — and the fixture
  * would be written by the same person writing the reader, so it would encode the same
  * misunderstanding and then certify it.

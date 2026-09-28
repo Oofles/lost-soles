@@ -27,8 +27,9 @@
 /* ─── Geometry (§4.1) ───────────────────────────────────────────────────────── */
 
 /**
- * `revealScale`. §4.1: the disc radius is **1.35 × the cell circumradius**, so at res 10 that is
- * 1.35 × 75.9 ≈ 102 m against a 131.4 m centre-to-centre spacing — every neighbour's disc overlaps
+ * `revealScale`. §4.1: the disc radius is **1.35 × the cell circumradius**, so at res 11 (D-237) that
+ * is 1.35 × 28.7 ≈ 38.7 m against a 49.6 m centre-to-centre spacing (res 10's 102 m against 131.4 m
+ * in §4.1's own prose — the ratio is what matters) — every neighbour's disc overlaps
  * yours well past its half-power point, and a contiguous run of cells becomes one region with no
  * seams.
  *
@@ -153,9 +154,10 @@ void main() {
  * boundary or need a larger quad for the same visual radius — more overdraw for a difference nobody
  * can see under `0056`'s noise.
  *
- * `a_fraction` MULTIPLIES the coverage (criterion 8, §6.1's last bullet). At the canonical res-10
- * bucket it is 1.0 and this is a no-op. At `0058`'s coarse buckets it is the explored fraction from
- * `explored-agg.json`, so a res-6 parent the user has run 20% of is a dim glow — without it,
+ * `a_fraction` MULTIPLIES the coverage (criterion 8, §6.1's last bullet). At the canonical res-11
+ * bucket it is 1.0 and this is a no-op. At `0058`'s coarse buckets it is the explored fraction,
+ * computed in the browser from the set it already holds (D-238) — never fetched from
+ * `explored-agg.json` — so a res-6 parent the user has run 20% of is a dim glow — without it,
  * zooming out turns a sparse city into a solid slab.
  *
  * The `discard` is not decoration: the quad is square and the disc is round, so a quarter of every

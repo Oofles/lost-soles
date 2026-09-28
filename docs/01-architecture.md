@@ -47,7 +47,7 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 | Compute | **Lambda** — Node 22, pure-JS deps only | R5 §5 |
 | Queue | **SQS** standard + DLQ, added via CDK | R5 topology |
 | Basemap tiles | **pmtiles on a dedicated S3 bucket + our own CloudFront** (always-free egress) | D-226 |
-| Geo model | **H3 res 10 cells in DynamoDB**. No PostGIS, no VPC. | D-082, D-115, D-081 |
+| Geo model | **H3 res 11 cells in DynamoDB**. No PostGIS, no VPC. | D-082, ~~D-115~~ D-237, D-081 |
 
 ### Why Next.js and not Astro
 
@@ -142,7 +142,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
                                 ▼
   ┌───────────────────────────────────────────────────────────────────────────┐
   │ Lambda process-activity   2048 MB · 900 s · Node 22 · no VPC              │
-  │   fetch raw ─▶ archive to S3 ─▶ normalize ─▶ H3 res 10 ─▶ diff ─▶ XP      │
+  │   fetch raw ─▶ archive to S3 ─▶ normalize ─▶ H3 res 11 ─▶ diff ─▶ XP      │
   └──┬────────────┬──────────────┬───────────────┬──────────────┬─────────────┘
      │            │              │               │              │
      │ https      │ PutObject    │ Batch RW      │ Query/Update │ GraphQL mutation
@@ -156,17 +156,19 @@ hosted zone, different subdomains. That is explicitly supported (§6).
                   │        └────────────┘                        │
                   │                                     subscription (wss)
                   ▼                                              │
-       users/<uid>/explored-r10.bin                              │
-                  │  presigned GET                               │
+   users/<uid>/explored/explored-r11.<gen>.bin                   │
+                  │  GetObject (compute role, D-228)             │
                   ▼                                              ▼
   ┌───────────────────────────────────────────────────────────────────────────┐
   │ Amplify Hosting compute — Next.js 15 App Router                           │
-  │   SSR shell · /api/auth/strava/callback · (post-MVP) /api/ingest               │
+  │   SSR shell · /api/auth/[source]/callback · (post-MVP) /api/ingest        │
+  │   /api/fog · /api/fog/blob/[gen] · /api/runs/latest                       │
   │   soles.devaultsecurity.com  ·  ACM cert  ·  Route 53 (existing zone)     │
   └───────────────────────────┬───────────────────────────────────────────────┘
                               │  Cognito session (Essentials, passkey)
                               ▼
-                       Browser: MapLibre GL + Set<h3Cell> in memory
+                       Browser: MapLibre GL + WebGL2 fog layer; sorted cell array in memory
+                              │  (explored set fetched from the app origin, never from S3)
                               │
                               └── HTTP range GETs ──▶ CloudFront ──▶ S3 (pmtiles, always-free)
 
@@ -174,6 +176,14 @@ hosted zone, different subdomains. That is explicitly supported (§6).
     token-refresh     every 4 h   → refresh Strava tokens nearing expiry
     nightly-reconcile every day   → poll for activities the webhook dropped
 ```
+
+**Amended by D-228 / D-235 / D-237 (08 audit, 2026-09-28):** the diagram originally showed
+`users/<uid>/explored-r10.bin` handed to the browser by **presigned GET**. None of that shipped. The
+blob is res 11 (D-237), generation-named under `users/<uid>/explored/`, and read server-side by the
+Amplify compute role, which serves it from `/api/fog` (manifest + delta chain) and
+`/api/fog/blob/[gen]` (the immutable full set) — no presigned URL exists anywhere (D-228).
+`/api/runs/latest` serves the latest run's route artefact (D-235, ticket `0195`). The OAuth callback
+is source-parameterized, `app/api/auth/[source]/callback` (§7).
 
 ### Resource table
 
@@ -186,10 +196,10 @@ Every resource, what it does, and what would make it cost money.
 | 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
 | 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads/writes + **real-time subscriptions** | $4.00/M ops; $2.00/M real-time updates |
 | 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity`, `WorkoutEntry`, `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
-| 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-10 cell set. `PK = U#<uid>#C#<res6parent>`, `SK = <res10cell>` | WRU — ~80–130 writes/run |
+| 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res6parent>`, `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
 | 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d | Negligible |
-| 9 | S3 bucket | `defineStorage` → `lost-soles-storage` | `amplify/storage/resource.ts` | Raw trace archive (D-101, D-121.2), `explored-r10.bin`, aggregates | $0.023/GB-mo; PUT $0.005/1k |
+| 9 | S3 bucket | `defineStorage` → `lostSolesUserData` | `amplify/storage/resource.ts` | Raw trace archive (D-101, D-121.2), `explored/explored-r11.<gen>.bin`, aggregates | $0.023/GB-mo; PUT $0.005/1k |
 | 10 | SQS queue + DLQ | `ActivityIngestQueue`, `ActivityIngestDLQ` | `backend.createStack` | Decouples the 2-second webhook ack from a multi-second fetch+normalize | 1M requests/mo free |
 | 11 | Lambda | `strava-webhook` | `defineFunction` + CDK Function URL | GET handshake, POST enqueue. 128 MB, 3 s | 1M req + 400k GB-s free |
 | 12 | Lambda Function URL | on #11 | **CDK escape hatch** | Public HTTPS endpoint, `authType: NONE` | Free (no API Gateway) |
@@ -200,7 +210,7 @@ Every resource, what it does, and what would make it cost money.
 | 17 | SSM Parameter Store | `/amplify/<app-id>/<branch>-branch-<hash>/*` | `secret()` | Static secrets (§7) | Standard params free |
 | 18 | ACM certificate | Amplify-managed | Domain association | TLS for `soles.devaultsecurity.com` | Free |
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
-| 20 | S3 bucket + CloudFront distribution | `lost-soles-tiles` | `backend.createStack` | pmtiles basemap, fetched by HTTP range from the browser. Public-read on the tile prefix only; served on the distribution's default `*.cloudfront.net` name, so **no ACM cert and no Route 53 record** (D-226) | ~$0.03/mo storage; egress inside CloudFront's **always-free** 1 TB + 10M requests |
+| 20 | S3 bucket + CloudFront distribution | `lost-soles-tiles` | `backend.createStack` | pmtiles basemap, fetched by HTTP range from the browser. **Private** — `blockPublicAccess: BLOCK_ALL`; CloudFront reads it through Origin Access Control with `originPath: "/tiles"`, so the distribution is the bucket's only reader (D-250; D-226's "public-read" wording was wrong). Served on the distribution's default `*.cloudfront.net` name, so **no ACM cert and no Route 53 record** (D-226) | ~$0.03/mo storage; egress inside CloudFront's **always-free** 1 TB + 10M requests |
 | 21 | DynamoDB (CDK) | `LostSolesCaptureGuard` | `backend.createStack` | Capture-endpoint rate-limit counters and idempotency records. `PK = pk`, TTL 2 h / 2 d / 24 h. Read and written by the **SSR compute**, not by a Lambda (ticket 0019, D-180) | Negligible |
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
@@ -211,8 +221,8 @@ WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always
 `ExploredCell`, `SourceAccount`, and `IngestReceipt` are created as raw CDK
 `dynamodb.Table` constructs, not `defineData` models. Three reasons:
 
-1. **The client never queries cells.** It downloads `explored-r10.bin` from S3 once per
-   session and does every query in memory (§5). Putting the cell table behind AppSync would
+1. **The client never queries cells.** It downloads the explored blob (`explored-r11.<gen>.bin`)
+   from the app's own origin (D-228) once per session and does every query in memory (§5). Putting the cell table behind AppSync would
    add $4.00/M operations for a path nobody uses.
 2. **Tokens must not be reachable from a client-authenticated GraphQL API at all.** No auth
    rule is safer than no API. Only `process-activity` and `token-refresh` get IAM grants.
@@ -340,7 +350,7 @@ a few kilobytes. **All slow work happens after the ack, in `process-activity`.**
 ### The 15-minute wall
 
 `process-activity` is capped at Lambda's 900 s maximum. For MVP that is enormous headroom —
-R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of
+R3 measures a 5-mile run at ~80–130 res-10 cells (~7× that at res 11, D-237) and the whole regeneration of
 `explored.bin` at under 100 ms even at the 5-year worst case. The wall only becomes real for
 two post-MVP features, both explicitly out of MVP scope (D-122): OSM map-matching over a
 metro extract, and the routing engine. Those are container workloads (OSRM/Valhalla need
@@ -710,7 +720,7 @@ manual adapter as the second implementation so there are always two from day one
 contract with one implementation is not a contract.
 
 **T3 — Cross-adapter equivalence.** The same physical run, ingested from two sources (a
-Strava streams fixture and the GPX of the same activity), must produce the **same H3 res-10
+Strava streams fixture and the GPX of the same activity), must produce the **same H3 res-11
 cell set** within a small symmetric-difference tolerance for endpoint truncation. This
 catches unit errors, timestamp-base errors, and lat/lng ordering — the three bugs that
 otherwise silently corrupt a permanent, append-only map.
@@ -777,14 +787,14 @@ The user finishes a run. Strava's app uploads it. Then:
 | 8 | Fetch raw | **Internet → Strava API v3** (no VPC — D-081) | `GET /activities/{id}` + `GET /activities/{id}/streams?keys=latlng,time,altitude&key_by_type=true`, scope `activity:read_all` (D-121.3). Never `summary_polyline` (D-121.4). |
 | 9 | **Archive raw** | **S3** `raw/<uid>/strava/<id>/<sha256>.json` | **D-121.2. Happens before any parsing.** Verbatim bytes, content-addressed, versioned, delete-denied. If this PUT fails, the message goes back to the queue — we never normalize data we have not archived. |
 | 10 | Normalize | in-process, **pure** | `stravaAdapter.normalize(raw, ref, job)` → `{ activity, trace }`. First and last point where a Strava wire type exists. |
-| 11 | Trace → cells | in-process, `h3-js` (pure JS, bundles cleanly) | `latLngToCell(p.lat, p.lng, 10)` per densified sample, deduped into a `Set`. **Resolution 10 (D-115)** — R4's soft-disc splatting means hex geometry never appears visually, so res 11's 4.4× data cost buys nothing. A 5-mile run is **~80–130 cells**. No cell is emitted across a `gaps` interval. **Corrected 2026-09-07 (ticket `0045`):** this row said `k=0`, which is not what `05-fog-of-war.md` §2.2 specifies and never was. §2.2 collects `gridDisk(c, 1)` CANDIDATES and then filters them to within `REVEAL_R_M` of the polyline (step 5, ticket `0046`); the two-stage shape is what lets a path grazing a cell's edge qualify it without gifting the parallel street. The **~80–130** figure is right and describes the FILTERED set — §2.2 wins on the algorithm, this row wins on the count. |
+| 11 | Trace → cells | in-process, `h3-js` (pure JS, bundles cleanly) | `latLngToCell(p.lat, p.lng, 10)` per densified sample, deduped into a `Set`. **Resolution 10 (D-115)** — R4's soft-disc splatting means hex geometry never appears visually, so res 11's 4.4× data cost buys nothing. A 5-mile run is **~80–130 cells**. No cell is emitted across a `gaps` interval. **Corrected 2026-09-07 (ticket `0045`):** this row said `k=0`, which is not what `05-fog-of-war.md` §2.2 specifies and never was. §2.2 collects `gridDisk(c, 1)` CANDIDATES and then filters them to within `REVEAL_R_M` of the polyline (step 5, ticket `0046`); the two-stage shape is what lets a path grazing a cell's edge qualify it without gifting the parallel street. The **~80–130** figure is right and describes the FILTERED set — §2.2 wins on the algorithm, this row wins on the count. **Amended by D-237 (08 audit, 2026-09-28):** the resolution is **11**, not 10 — D-237 supersedes D-115 (~~"res 11's 4.4× data cost buys nothing"~~; the real multiplier is 7× and it was taken to remove the res-10 brush's zig-zag). The per-run count scales by ~7× accordingly; `CANDIDATE_K` is 3 and `DENSIFY_STEP_M` 12 at res 11. |
 | 12 | Idempotency re-check | **DynamoDB** `IngestReceipt` | `UpdateItem ... SET status="PROCESSING" ... ConditionExpression: status = "QUEUED" OR status = "FAILED" OR (status = "PROCESSING" AND processingStartedAt < now − 15 min)`. A redelivered message loses this race and exits **before any XP is written**. The `FAILED` disjunct is **D-209** and the stale `PROCESSING` disjunct is layer 2's crash-recovery clause; the same update `REMOVE`s the failure fields, which is what makes a DLQ redrive clear the failure it was sent to repair. |
-| 13 | Diff against explored | **DynamoDB** `ExploredCell`, `BatchGetItem` | Read the ~80–130 candidate cells (`PK = U#<uid>#C#<res6parent>`, `SK = <res10cell>`; res-6 parents keep it to a handful of partitions). Partition each candidate into `new` / `stale` / `fresh` by `lastRunAt` — see below. |
+| 13 | Diff against explored | **DynamoDB** `ExploredCell`, `BatchGetItem` | Read the ~80–130 candidate cells (`PK = U#<uid>#C#<res6parent>`, `SK = <res11cell>` since D-237; res-6 parents keep it to a handful of partitions). Partition each candidate into `new` / `stale` / `fresh` by `lastRunAt` — see below. |
 | 14 | Score XP | in-process, `src/domain/xp.ts` | Deterministic pure function of `(cells, distanceM, kind, now)`. Server-side only: **never let the client claim XP.** |
 | 15 | Persist | **DynamoDB** `TransactWriteItems` | Atomic: `Activity` record + `Skill` XP increments + `IngestReceipt` → `status="DONE"` guarded by `status = "PROCESSING"`. Cell upserts follow via `BatchWriteItem` (idempotent by construction). |
-| 16 | Regenerate the blob | **S3** `users/<uid>/explored-r10.bin` + `explored-agg.json` | Delta-varint-encoded sorted cell IDs, gzipped. <100 ms even at the 5-year worst case. Written with a fresh ETag. |
+| 16 | Regenerate the blob | **S3** `users/<uid>/explored/explored-r11.<gen>.bin` + `explored-agg.<gen>.json` | Delta-varint-encoded sorted cell IDs. <100 ms even at the 5-year worst case. **Amended (08 audit, 2026-09-28):** objects are generation-named and immutable, with `manifest.json` the only mutable object (D-228, `02` §6.4); res 11 per D-237. |
 | 17 | Notify | **AppSync mutation → subscription over WebSocket** | `process-activity` calls an IAM-authed mutation on `Activity`; the browser holds `onCreateActivity` / `onUpdateProfile` subscriptions and refetches. **This exists because Amplify does not support on-demand ISR** — there is no `revalidatePath` to call from a webhook. |
-| 18 | Client updates | Browser | Refetch `explored-r10.bin` (ETag-conditional), rebuild the `Set`, redraw the fog. |
+| 18 | Client updates | Browser | Revalidate `GET /api/fog?since=<generation>` (a `304` when current), apply the delta or the full set, redraw the fog. Served from the app's own origin, not S3 (D-228). |
 
 ### Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit
 
@@ -806,7 +816,7 @@ The data-model implication is stated in the decision itself: **each explored cel
 
 ```
 PK: U#<uid>#C#<res6ParentCellId>
-SK: <res10CellId>
+SK: <res11CellId>            -- res 11 since D-237
     firstSeenAt   ISO 8601   -- never mutated. D-020: the map only grows.
     firstRunId    string     -- provenance
     lastRunAt     ISO 8601   -- MUTATED on every visit. The D-120 clock.
@@ -888,9 +898,14 @@ streets constantly. That is **1.2 MB of raw 64-bit cell IDs**. Sorted H3 IDs in 
 share their high bits, so delta encoding + varint gets to ~2–3 bytes per cell, and gzip on
 top lands the whole thing at **~300–450 KB over the wire**.
 
+**Amended by D-237 (08 audit, 2026-09-28):** those are R3's res-10 figures. At the canonical res 11
+the pessimistic five-year figure is **~1.03M cells** (the multiplier is 7×, not R3's 4.4×) and the
+realistic range 142k–354k — but the shipped delta-varint format gets cheaper as the set densifies
+(**2.02 B/cell at res 11**), so the conclusion below stands unchanged.
+
 **So ship the entire explored set to the client.** One HTTP GET at app load. Every query —
 viewport fog, "% explored," "unexplored near me," new-cell counts — becomes an in-memory
-`Set` operation with zero network round-trips, zero server cost, and instant pan/zoom.
+`has()` lookup with zero network round-trips, zero server cost, and instant pan/zoom.
 
 This is not a scaling compromise that we grow out of. At this volume it is **strictly better
 than any server-side approach**, and it deletes an enormous amount of architecture:
@@ -901,7 +916,7 @@ than any server-side approach**, and it deletes an enormous amount of architectu
 - **No spatial index service**, no per-zoom API, no cache invalidation strategy for fog.
 - **The fog works offline** once loaded.
 
-Budget check: 450 KB × ~30 sessions/month × 5 users ≈ 68 MB/month of S3 egress. Rounding
+Budget check: 450 KB × ~30 sessions/month × 5 users ≈ 68 MB/month of egress (Amplify Hosting data transfer since D-228, not S3). Rounding
 error.
 
 ### App Router structure
@@ -940,6 +955,12 @@ error.
 >
 > The `api/` routes below that do not exist yet — `strava/callback`, `ingest`, `explored` —
 > are still the plan; they arrive with capabilities `05`, `07` and beyond.
+>
+> **Amended by D-228 / D-235 (08 audit, 2026-09-28):** `explored/route.ts` shipped as
+> `api/fog/route.ts` (manifest + delta plan) and `api/fog/blob/[gen]/route.ts` (the immutable full
+> set), serving bytes from the compute role rather than minting a presigned URL. Capability `08`
+> also added `api/runs/latest/route.ts` (ticket `0195`, D-235). `strava/callback` shipped as
+> `api/auth/[source]/callback` (§7).
 
 ```
 app/
@@ -991,7 +1012,10 @@ have drifted out of sync.
 ### Where the map lives, and how the explored set reaches it
 
 **Renderer: MapLibre GL JS**, client-only. `next/dynamic` with `ssr: false` — WebGL has no
-server rendering and attempting it wastes SSR duration. The map component is the one place
+server rendering and attempting it wastes SSR duration. **Amended (08 audit, 2026-09-28):**
+`components/map/map-shell.tsx` does `await import("maplibre-gl")` inside an effect instead — same
+intent (effects never run during SSR, so the WebGL bundle stays out of the server render and the
+initial payload) without a client wrapper whose only job is to hold the `dynamic` call. The map component is the one place
 in the app that is genuinely client-heavy; everything else is a server component.
 
 **Basemap: pmtiles from a dedicated S3 bucket behind our own CloudFront distribution** (D-226)
@@ -1018,33 +1042,47 @@ rather than dark-on-dark, because a dark basemap plus dark fog destroys reveal c
    `If-None-Match: "<generation>"`, so the common case is a genuine `304` that costs nothing.
    *Keyed by ETag here until `0054`; `05` §7.3 and `02` §6.4 both key it by generation, which is
    the authority.*
-3. Decode delta-varint → `BigUint64Array` → `Set<string>` of res-10 cell IDs. R3 measures
-   `Set` construction at ~50 ms for 150k entries. Held in a React context for the session.
-4. Every consumer reads that `Set` synchronously:
+3. Decode delta-varint → a sorted `BigUint64Array` of res-11 cell IDs (D-237), with `has()` a
+   binary search over it (`lib/fog/explored-set.ts`). ~~R3 measures `Set` construction at ~50 ms
+   for 150k entries.~~ **Amended by D-247 (08 audit, 2026-09-28):** the `Set<string>` went in ticket
+   `0203` — `0059`'s harness measured `05` §6.4 item 7 past budget from ~150k cells. The warm-start
+   path does no work at all and the cold path decodes straight into the typed array (`02` §6.3).
+   Held for the session.
+4. Every consumer reads that set synchronously.
+
+**Fog rendering — amended (08 audit, 2026-09-28); `05-fog-of-war.md` §4 and §6 are normative.**
+This section originally showed the fog as a MapLibre `fill` of a world-covering polygon with the
+explored cells as interior rings (`cellsToMultiPolygon` dissolving shared edges), with res 6/7/8
+aggregates from `explored-agg.json` substituted at low zoom. That snippet has been removed: `05`
+§4.6 rules the world-polygon approach out as **"fatally broken, silently"** (`EARCUT_MAX_RINGS =
+500` drops small patches per tile with no warning), and nothing in it shipped. What shipped is the
+**custom WebGL2 layer** of `05` §4:
+
+- **Pass 1 — coverage mask** (`lib/fog/mask.ts`). In MapLibre's `prerender`, every visible
+  explored cell is splatted as an instanced soft radial disc in one `drawArraysInstanced`, unioned
+  with `gl.blendEquation(gl.MAX)` into a half-resolution single-channel `R8` framebuffer.
+- **Pass 2 — noisy composite** (`lib/fog/composite.ts`). One full-screen triangle thresholds the
+  mask with a `smoothstep` perturbed by animated fBm, plus the rim glow.
+- **Zoom buckets** (`lib/fog/zoom-buckets.ts`, `05` §6.1 as restated by D-238). Res 11 owns z14 and
+  up; coarser zooms draw parent cells whose coverage `fraction` is **computed in the browser** from
+  the same bytes the fog is drawn from, not read from `explored-agg.json` — there is no route that
+  would deliver it (D-238).
+
+The other two consumers are unchanged in shape, at res 11:
 
 ```ts
-// fog rendering — a world-covering dark polygon with explored area as interior rings
-const visible = viewportCells.filter(c => explored.has(c))
-const holes   = cellsToMultiPolygon(visible, true)   // dissolves shared edges → organic outline
-const fog     = { type: "Polygon", coordinates: [WORLD_RING, ...holes.flat()] }
-
 // "% explored" of a region — denominator precomputed and cached, it never changes
-const pct = polygonToCells(region, 10).filter(c => explored.has(c)).length / denom
+const pct = polygonToCells(region, 11).filter(c => explored.has(c)).length / denom
 
-// "unexplored near me" — a 4 km disk is ~2,977 cells; sub-millisecond
-const unexplored = gridDisk(latLngToCell(lat, lng, 10), k).filter(c => !explored.has(c))
+// "unexplored near me" — gridDisk around the runner, filtered by has()
+const unexplored = gridDisk(latLngToCell(lat, lng, 11), k).filter(c => !explored.has(c))
 ```
-
-`cellsToMultiPolygon` dissolves shared edges, so a contiguous explored blob renders as one
-smooth outline rather than a visible honeycomb — this is what makes the fog look organic
-rather than hexagonal. At low zoom, substitute the res 6/7/8 parent aggregates from
-`explored-agg.json` so the far-out view is a coverage gradient instead of static.
 
 **Live updates.** When `process-activity` finishes, the AppSync subscription fires (step 17).
 The client revalidates and applies the **delta** for the generations it is behind, rebuilding only
 the touched res-6 buckets (`05` §7.4) rather than refetching and re-decoding the whole set. Until
 that subscription exists (capability `14`), the trigger is `visibilitychange`/`focus` — never a
-timer (D-013). *Written here as "refetches `explored-r10.bin`"; the incremental path is `05` §7.4's
+timer (D-013). *Written here as "refetches `explored-r10.bin`" (now `explored-r11.<gen>.bin`, D-237); the incremental path is `05` §7.4's
 and landed in `0054`.* The
 XP/skill numbers come through the subscription payload directly. This is the workaround for
 Amplify's missing on-demand ISR: **the server cannot invalidate a page, so the client is
@@ -1396,8 +1434,11 @@ Florida extract is 1.1 GB stored, `pmtiles` range-requests only the tiles in vie
 kind and 100–500× smaller in degree than priced here.
 
 **Mitigation, taken at rung (b) rather than (a) — see D-226: pmtiles live on a dedicated
-public-read S3 bucket behind our own CloudFront distribution**, fetched by HTTP range request
-straight from the browser. CloudFront's 1 TB/month egress and 10M requests are **always-free**,
+private S3 bucket behind our own CloudFront distribution**, fetched by HTTP range request
+straight from the browser. **Amended by D-250 (08 audit, 2026-09-28):** D-226 said "public-read";
+the shipped bucket is `blockPublicAccess: BLOCK_ALL` and CloudFront reaches it through Origin
+Access Control with `originPath: "/tiles"`. A public bucket would also let anyone bypass the CDN
+and bill S3 egress outside CloudFront's always-free tier. CloudFront's 1 TB/month egress and 10M requests are **always-free**,
 not 12-month free, so this rung is *less* exposed to Risk 2's unresolved question than Amplify
 Hosting is. Rung (a), Cloudflare R2, was rejected on total cost rather than on price: a second
 vendor, a long-lived credential outside `devault` (O-005 was a credential leak), a manual step
@@ -1407,7 +1448,11 @@ $0.15/month. Remaining fallback: (c) keep tiles small and cache aggressively.
 **The load-bearing rule is unchanged: do NOT serve tiles through Amplify Hosting.**
 
 The explored-set blob is a different matter: 450 KB × ~30 sessions × 5 users ≈ 68 MB/month,
-and most of those are `304`s. It stays on S3 via Amplify Storage.
+and most of those are `304`s. ~~It stays on S3 via Amplify Storage.~~ **Amended by D-228 (08
+audit, 2026-09-28):** it is *stored* on S3 but *delivered* through Amplify Hosting compute
+(`/api/fog`, `/api/fog/blob/[gen]`), so it does count against Amplify's data-transfer allowance —
+~370 KB per client per generation change, only when the delta chain does not reach. Tiny next to
+the 15 GB free; the tile rule above is untouched.
 
 ### Risk 2 — free-tier perpetuity is genuinely ambiguous
 
@@ -1529,7 +1574,7 @@ this is not an oversight. D-122 puts route planning out of MVP, which defers the
 honestly. When it comes back, the only budget-compatible answers are (a) a hosted routing
 API called over HTTPS from a Lambda, or (b) accept a $5–7/month box beside the Amplify app,
 roughly doubling the running cost. The cheap H3-only version — "cluster the unexplored
-res-10 cells within a `gridDisk` and show the densest zones near you" — needs **no OSM data
+res-11 cells within a `gridDisk` and show the densest zones near you" — needs **no OSM data
 at all**, runs in the browser in under a millisecond against the already-loaded `Set`, and
 should ship first regardless. It may well be enough.
 

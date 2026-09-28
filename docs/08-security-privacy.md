@@ -104,8 +104,8 @@ unavoidable, and each is correct for the product:
 - **D-101/D-121.2** — every raw trace is archived verbatim to S3 and is the system of record.
   Nothing is downsampled on the way in.
 
-The derived H3 res-10 cell set (D-115) is not a mitigation either. A res-10 cell is roughly
-65 m across. The cell containing a residence, weighted by `lastRunAt` frequency (D-120), is a
+The derived H3 res-11 cell set (D-237, superseding D-115's res 10) is not a mitigation either.
+A res-11 cell is roughly 50 m across (res 10's was ~130 m; finer only strengthens this). The cell containing a residence, weighted by `lastRunAt` frequency (D-120), is a
 home address to within a house or two — and the *shape* of the explored set around a start point
 is a stronger signal than any single cell. Aggregation does not anonymise a set of one person.
 
@@ -236,9 +236,12 @@ page rendered with real data, a cached CDN response, an OG-image endpoint, a sta
 **Gate:**
 
 - [ ] **C-1. Enumerate the surface.** Every public path is listed: the webhook Function URL (§4),
-      the sign-in page, static assets, and the R2 tile bucket. **The tile bucket serves the
-      basemap only** — generic pmtiles, identical for every user, containing zero Lost Soles
-      data. It must stay that way: *the explored set is never baked into a tile on R2.*
+      the sign-in page, static assets, and the tiles CloudFront distribution (`lost-soles-tiles`
+      behind OAC; D-226, D-250). **The tile distribution serves the basemap only** — generic
+      pmtiles, identical for every user, containing zero Lost Soles data. It must stay that way:
+      *the explored set is never baked into a tile.* **Amended (08 audit, 2026-09-28):** this
+      item said "R2"; tiles moved to S3 + our own CloudFront by D-226, and the bucket itself is
+      private (D-250) — the distribution is the public path.
 - [ ] **C-2. Prerendering is proven safe.** Amplify's SSG/ISR behaviour
       (`01-architecture.md` §1.5, §11) means a page rendered at build time is a static file on a
       CDN. **No page containing cell data may be statically rendered.** The explored set is
@@ -247,7 +250,14 @@ page rendered with real data, a cached CDN response, an OG-image endpoint, a sta
       prerender manifest contains cell/trace data belongs here.
 - [ ] **C-3. `Cache-Control` on every authed response is `private, no-store`.** A shared CDN
       cache in front of a per-user map is a cross-user disclosure waiting for a second account.
-- [ ] **C-4. `explored-r10.bin` is served authenticated.** The binary explored set
+      **Amended by D-228 (08 audit, 2026-09-28) — one carve-out:** generation-named immutable
+      per-user blobs (`/api/fog/blob/[gen]`) are `private, max-age=31536000, immutable`, because a
+      generation's bytes never change and re-downloading them per load is pure waste. `private`
+      still keeps them out of every shared cache, which is this item's point. `/api/fog` and
+      `/api/runs/latest` stay `no-store, private`.
+- [ ] **C-4. `explored-r10.bin` is served authenticated.** *(Now `explored-r11.<gen>.bin`
+      (D-237), served from the app's own authed routes `/api/fog` and `/api/fog/blob/[gen]`
+      with `sub` re-derived server-side — no signed URL exists (D-228).)* The binary explored set
       (`01-architecture.md` §2, §9) is the whole dataset in one file. It is fetched with
       credentials from an owner-scoped S3 prefix via a short-lived signed URL or an authed
       route — never a public object, never a predictable key.
@@ -293,7 +303,7 @@ unused at $0.40/secret/month (§9).
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM, via `secret()` | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
 | S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, Cognito, billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
-| S9 | **Map tile access** | *None.* pmtiles on Cloudflare R2, fetched by HTTP range from the browser (`01-architecture.md` §8) | the browser | **No credential exists.** The bucket is public-read by design and contains a generic basemap identical for every user, with zero Lost Soles data in it | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
+| S9 | **Map tile access** | *None.* pmtiles on a private S3 bucket (`lost-soles-tiles`) behind our own CloudFront distribution, fetched by HTTP range from the browser (`01-architecture.md` §8; D-226, D-250) | the browser | **No credential exists in the browser.** The distribution is public by design and serves a generic basemap identical for every user, with zero Lost Soles data in it. The bucket is `BLOCK_ALL`; CloudFront reads it through Origin Access Control. *(Amended, 08 audit 2026-09-28: said Cloudflare R2 / public-read bucket.)* | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
 
 ### 3.1 What must never reach the browser bundle
 
@@ -565,10 +575,10 @@ session is worth.
 | Refresh token TTL | **1 year** *(amended 2026-09-03 by the capability `03` audit; shipped by ticket `0151` on 2026-09-02 and this table was never updated)*. Was 30 days. A non-browser client holds a refresh token and exchanges it per capture (D-183); at 30 days that is a re-pairing chore four times a year for a device that is used correctly. Cognito permits up to 10 years; the operator chose 1. **The ID token stays at 1 hour** — a long-lived *refresh* token behind a short-lived access token is the intended shape, and revocation (below) is what bounds a stolen one, not the TTL |
 | Revocation | Token revocation enabled on the app client, so `globalSignOut` actually invalidates outstanding refresh tokens. Untested revocation is not revocation — exercise it once (§8) |
 | App client secret | **None.** A public SPA/SSR client cannot keep one; a "secret" shipped to the browser is a lie in the config file |
-| Server-side session use | The `(app)/layout.tsx` server component reads the Cognito session and every API route re-derives `sub` from the verified JWT (`01-architecture.md` §11). **`uid` is never read from a request body, a query string, or a header.** This is the same rule as §4's "the webhook body is never trusted as data" and `07-ticketsmith.md` §6.4(2)'s "the client never supplies the path" — one principle, three endpoints |
+| Server-side session use | `middleware.ts` gates every non-static route and `currentUserId()` (`lib/auth/owner.ts`) reads the verified Cognito session inside each route (D-245: there is no `(app)/layout.tsx` auth gate; D-183 adds the bearer path for non-browser clients), and every API route re-derives `sub` from the verified JWT (`01-architecture.md` §11). **`uid` is never read from a request body, a query string, or a header.** This is the same rule as §4's "the webhook body is never trusted as data" and `07-ticketsmith.md` §6.4(2)'s "the client never supplies the path" — one principle, three endpoints |
 | Non-browser clients | **`Authorization: Bearer <Cognito ID token>`, verified server-side against the production pool's JWKS** — D-183, ticket `0149`; added here by the capability `03` audit, which found the decision recorded in `DECISIONS.md` and never written into this table. A client that cannot hold a session cookie had no documented path, which is how `0019` shipped an endpoint unreachable by anything but a browser. **This does not bend the row above:** the `sub` is read from the *verified* payload, so the identity still comes from Cognito and the header is only how it travels. An *asserted* uid in a header remains forbidden. A shared-secret header was considered and rejected — see D-183 for the three reasons |
 | CSRF | Bearer-token APIs with no cookie auth are not CSRF-reachable. Nothing to do; noted so nobody adds a token dance later |
-| Headers | `Cache-Control: private, no-store` on every authed response (this is §2.4's C-3, restated as a session rule), plus HSTS, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'`, and a CSP whose `connect-src` allows only the AppSync endpoint, the API origin, and the R2 tiles host |
+| Headers | `Cache-Control: private, no-store` on every authed response (this is §2.4's C-3, restated as a session rule — with C-3's one D-228 carve-out: `/api/fog/blob/[gen]` is `private, max-age=31536000, immutable`), plus HSTS, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'`, and a CSP whose `connect-src` allows only the AppSync endpoint, the API origin, and the tiles CloudFront distribution (`*.cloudfront.net`, D-226; said "the R2 tiles host" before the 08 audit). **The basemap style also fetches glyphs and sprites from `https://protomaps.github.io/basemaps-assets/…`** (`lib/basemap.ts`), which the CSP must allow too. The CSP itself is ticket `0143` (capability `18`) |
 
 ### 5.4 Provisioning a second account — the flow, and its hard gate
 
@@ -638,7 +648,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
 | Raw trace archive, `raw/<uid>/<adapter>/<externalId>/<sha256>.json` | S3 | **Forever.** No lifecycle expiry, no transition to Glacier | D-101: the archive is the system of record. D-121.2: it is what makes migrating off Strava non-destructive. ~40 MB over five years, ~$0.001/month (`01-architecture.md` §3) — there is no cost argument for deleting it, only a privacy one, and that is §6.4's job |
 | `Activity`, `Trace` | DynamoDB | Forever | Derived, but cheap and re-derivable only via a full replay |
 | `ExploredCell` (+ `lastRunAt`, D-120) | DynamoDB | **Forever, by decision** | D-020: the map only ever grows |
-| `explored-r10.bin` | S3 | Regenerated, not retained | A materialized view of `ExploredCell` |
+| `explored/explored-r11.<gen>.bin` | S3 | Regenerated, not retained | A materialized view of `ExploredCell` |
 | `SourceAccount` (Strava tokens, S4) | DynamoDB | Until deauthorization | Deleted the moment the connection is removed (§6.5) |
 | `IngestReceipt` | DynamoDB | **TTL ~30 days** (§4.3) | A replay ledger, not a record |
 | CloudWatch logs | CloudWatch | **30-day retention** (§3.1) | Logs are where coordinates and secrets leak by accident; an unbounded log group is a liability and a bill |
@@ -656,8 +666,10 @@ defaults-or-one-line, and all of them matter more than anything else in this sec
 - **Block Public Access: ON, all four sub-settings, at the bucket *and* account level.** This is
   the control that makes the difference between "a private archive" and "a lifetime GPS history
   on the open internet." Amplify sets it; the account-level switch is what stops a future
-  console click from undoing it. **The tiles bucket on Cloudflare R2 is public and this one is
-  not — never confuse them** (§3, S9; §2.4 C-1).
+  console click from undoing it. **The tiles are served publicly (through CloudFront) and this
+  bucket is not — never confuse them** (§3, S9; §2.4 C-1). *(Amended, 08 audit 2026-09-28: this
+  said "on Cloudflare R2"; tiles are on S3 + CloudFront since D-226, and even the tiles bucket is
+  `BLOCK_ALL` behind Origin Access Control, D-250.)*
 - **Encryption at rest: SSE-S3 (AES-256), on by default.** Not KMS: a customer-managed key adds
   $1/month plus per-request charges against a $3–5 budget (D-083) and defends against a threat —
   AWS-internal or cross-account access to raw storage — that is not in §1's model. DynamoDB is
@@ -710,7 +722,7 @@ Two consequences fall straight out of that framing:
    not a delete**, and it needs its own D-number. What someone actually wants when they ask for
    this is a **share mask** — which is §2.4's Trigger B, B-2, and belongs there.
 2. **Account deletion is all-or-nothing, and it is complete.** No tombstones, no "anonymized
-   analytics retained," no soft-delete row kept "for integrity." A res-10 cell set of one person
+   analytics retained," no soft-delete row kept "for integrity." A res-11 cell set of one person
    is not anonymisable (§2.1); pretending otherwise by keeping a de-identified copy would be the
    dishonest version of this section.
 

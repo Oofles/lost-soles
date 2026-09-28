@@ -205,11 +205,13 @@ export function verdicts(
    * explicit that these are two different rows with two different budgets:
    *
    *   CPU on padded-region exit   two-level cull + VBO upload        1-5 ms, off the frame path
-   *   Bucket derivation, cold     cellToParent pass + bbox precompute  30-80 ms, debounced, once
+   *   Bucket derivation, cold     group index up front, then per group  index ~3.2 ms, ~10 ms/group
+   *
+   * (That row read "30-80 ms, once per bucket" until D-238 made derivation lazy per group.)
    *
    * A zoom that crosses a band pays the second INSIDE the first, because `cullBucket` materialises a
    * group's geometry the first time it is seen. Charging that to item 4's < 2 ms would report a
-   * cold derivation — which §6.3 budgets at up to 80 ms and puts off the frame path deliberately —
+   * cold derivation — which §6.3 budgets on its own row and puts off the frame path deliberately —
    * as a blown cull budget, on every single run of the harness. The `load` phase is excluded for the
    * same reason and a stronger one: it contains the whole first derivation by construction.
    *
@@ -256,7 +258,7 @@ export function verdicts(
       item: 4,
       name: "cull time — zoom and load",
       value: `${fmt(worstOther.maxMs)} ms max (worst phase: ${worstOther.phase})`,
-      budget: "30-80 ms cold, debounced, off the frame path — §6.3",
+      budget: "index ~3.2 ms + ~10 ms per group, debounced, off the frame path — §6.3",
       pass: null,
       note: "a band crossing materialises a bucket's geometry inside the cull; §6.3 budgets that on its own row",
     })
@@ -286,7 +288,7 @@ export function verdicts(
         ? "none"
         : `${fmt(coldest.maxMs)} ms max (${coldest.kind} at res ${coldest.res}), ` +
           `${n(snapshot.derives.reduce((s, d) => s + d.count, 0))} derivations`,
-    budget: "30-80 ms, debounced, once per bucket — §6.3",
+    budget: "index ~3.2 ms, ~10 ms per group, debounced — §6.3",
     pass: null,
     note: "recorded; §6.3 budgets this off the frame path rather than inside it",
   })

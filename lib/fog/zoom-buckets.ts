@@ -29,7 +29,7 @@ import type { BucketInvalidator, ExploredSet } from "./explored-set"
  *
  * ─── SO NOTHING HERE IS DERIVED FOR CELLS THAT ARE NOT ON SCREEN ────────────
  *
- * §6.1 says *"derive a bucket lazily, once, and cache it"* and prices the derivation at 30–80 ms.
+ * §6.1 says *"derive a bucket lazily, once, and cache it"* and priced the derivation at 30–80 ms (before D-238).
  * That price was quoted for a `cellToParent` pass plus a dedupe. Measured on this machine at 500k
  * res-11 cells it is not the whole bill:
  *

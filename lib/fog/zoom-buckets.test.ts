@@ -367,7 +367,7 @@ describe("laziness — criterion 2", () => {
   })
 
   /**
-   * §6.1 prices a bucket derivation at 30–80 ms, and that figure was for a `cellToParent` pass plus a
+   * §6.1 priced a bucket derivation at 30–80 ms (before D-238), and that figure was for a `cellToParent` pass plus a
    * dedupe over every cell. The index does neither: it is O(G log(N/G)) probes, so it must be
    * *dramatically* cheaper than the pass it replaces — and the number is printed because a ceiling on
    * this machine says nothing about D-124's phone.

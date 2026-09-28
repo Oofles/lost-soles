@@ -13,7 +13,7 @@ import type { DeriveEvent } from "../zoom-buckets"
  * deriving a cold bucket and panning are three different activities with three different budgets, and
  * §6.4 asserts things about the third that are *expected* to be false during the first two — item 6
  * wants *"zero long tasks attributable to the fog layer **during pan**"*, and a cold res-11 bucket
- * derivation is priced at 30–80 ms in §6.3's own table. Folding them together produces a red number
+ * derivation was priced at 30–80 ms in §6.3's own table (now ~10 ms per group, D-238). Folding them together produces a red number
  * that means nothing, which is how a perf harness becomes a thing people stop reading.
  *
  * So every sample carries the phase it was taken in, `camera-path.ts` names the phases, and the
@@ -127,7 +127,7 @@ export interface CullStats {
    *
    * §6.4 lists *"main-thread cull time"* (item 4, < 2 ms) and *"bucket-derivation time"* (item 5,
    * recorded) as two instruments, and §6.3's table budgets them on two rows: 1-5 ms for the cull and
-   * VBO upload, 30-80 ms for a cold derivation which it puts *off the frame path* deliberately.
+   * VBO upload, 30-80 ms for a cold derivation (pre-D-238; now ~10 ms per group) which it puts *off the frame path* deliberately.
    *
    * **The code does not separate them.** `cullBucket` calls `discsFor(group)`, which materialises
    * that group's ids, fractions, projection and bridges the first time it is asked — so a pan into

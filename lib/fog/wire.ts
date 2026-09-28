@@ -66,7 +66,7 @@ export interface FogUpdate {
   /** The manifest's generation — what the client will be at once it applies this. */
   generation: number
   /**
-   * D-115. The client refuses to render anything but 10 and discards its cache
+   * D-237 (was D-115). The client refuses to render anything but `RES` (11) and discards its cache
    * (`02` §6.4: *"a silent mis-parse of cell IDs looks like territory teleporting"*).
    * Present in the payload precisely so the refusal can happen BEFORE any bytes are
    * fetched.

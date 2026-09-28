@@ -4,18 +4,34 @@
 > `#### \`08-map-and-fog-renderer\`` section of [`../09-roadmap.md`](../09-roadmap.md). This file is where the
 > DESIGN step's output belongs, and where [`AUDIT.md`](AUDIT.md) results are appended at close.
 
-## Tickets (10)
+## Tickets (23)
 
-- `0052` — Protomaps PMTiles basemap on Cloudflare R2 with the stock light flavour
+Ten were planned. The other thirteen were filed while the capability was being built, most of them
+from operator checks and perf measurements. The list was brought up to date at the audit.
+
+- `0052` — Protomaps PMTiles basemap on S3 + CloudFront with the stock light flavour
 - `0053` — MapLibre GL JS 6.x shell as the home route, DPR capped at 2
-- `0054` — Client blob loader and decoder — explored-r10.bin to a sorted typed array
+- `0054` — Client blob loader and decoder — explored-r10.bin to a sorted typed array *(the blob is `explored-r11.<gen>.bin` since D-237)*
 - `0055` — Custom WebGL2 layer, pass 1 — instanced soft-disc coverage mask in prerender
 - `0056` — Pass 2 — noisy composite: fBm-perturbed smoothstep with a warm rim glow
 - `0057` — Layer order — fog above labels, run polyline above the fog
 - `0058` — Zoom bucketing and two-level viewport culling
-- `0059` — Perf harness against the §6.4 budget on a real mid-range Android phone — FIRST USABLE
+- `0059` — Perf harness against the §6.4 budget on a real mid-range Android phone — FIRST USABLE *(validated on the desktop browser; the phone run was dropped, D-240)*
 - `0118` — Spike — prove gl.MAX on a half-res R8 FBO inside MapLibre's prerender works on the target Android phone
 - `0119` — Tune the fog atmosphere against atlas legibility — time-boxed
+- `0186` — Default the map camera to the most recent activity centroid
+- `0188` — npm run lint fails after a build: public/maplibre/ is linted
+- `0191` — The 0053 bundle baseline is stale — / First Load JS is 188 kB, the table says 121 kB
+- `0194` — DECIDE res 10 vs res 11 before capability 09 bakes cell counts into the XP economy
+- `0195` — Persist the per-activity route polyline (S-7) and serve the latest run as GeoJSON
+- `0199` — The mist is re-randomised every frame during a zoom — the noise lattice is sized in screen pixels
+- `0200` — The fog edge jitters against the basemap on a slow pan at high zoom
+- `0201` — ZOOM_TO_RES gives res 11 from z13.0, not z14 — 10,394 instances at z13.5 against §6.4's 6,000
+- `0202` — Group geometry is derived inside cullBucket, on the frame path — up to 20 ms in a single pan
+- `0203` — ExploredSet's Set<string> puts peak heap at 74-90 MB, not §6.4's low tens
+- `0207` — Zooming in never leaves the padded region, so z17 draws a buffer built for z13 — 30,031 instances where ~120 are needed
+- `0208` — 09-roadmap.md §9.5 still names the Android phone that D-240 removed
+- `0213` — The pre-commit hook blames a real location when node is simply not on PATH
 
 ## Design notes
 
@@ -489,7 +505,7 @@ None of these is a regression; all three are the design meeting measurement for 
   phase over ground offset from the dataset centre — far enough at 50k for the disc's edge to enter
   the viewport, which made the cross-dataset canary report geometry as drift.
 - **The fixtures live in `public/fog-fixtures/`** (100 KB / 306 KB / 1.0 MB) and are written by
-  `encodeExploredBlob`, the same function that writes the real `explored-r10.bin`.
+  `encodeExploredBlob`, the same function that writes the real `explored-r11.<gen>.bin` (D-237).
   `lib/fog/perf/fixtures.test.ts` is both the generator (`FOG_FIXTURES=write`) and the byte-for-byte
   drift guard, so a change to the wire format, to `RES` or to h3's ordering fails on the commit that
   made it rather than silently invalidating every number above.

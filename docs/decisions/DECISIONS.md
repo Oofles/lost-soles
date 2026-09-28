@@ -131,7 +131,8 @@ Last updated: 2026-09-26
   violating Strava's terms.
   User constraint: **any watch must not need daily charging.** Loved Whoop's ~14-day battery;
   abandoned a Pixel Watch over daily charging.
-- ~~**O-002** H3 resolution~~ → RESOLVED: res 10. See D-115.
+- ~~**O-002** H3 resolution~~ → RESOLVED: res 10. See D-115. → **REVERSED: res 11, D-237** (ticket
+  `0194`, 2026-09-10). *(Pointer added at capability `08`'s audit, 2026-09-28.)*
 - **O-003** MVP cut line. To be settled in Round 3.
 
 ---
@@ -158,8 +159,11 @@ Last updated: 2026-09-26
   Health Connect? Verify at: Health Connect → App permissions → Strava → look for "Exercise route".
 - **D-114** **Sideload any companion app.** Removes the Play health declaration, the
   background-location demo video, and the yearly target-SDK deadline entirely.
-- **D-115** H3 **resolution 10** (resolves O-002). R4's soft-disc splatting means hex geometry
-  never appears visually, so res 11's 4.4x data cost buys nothing.
+- ~~**D-115** H3 **resolution 10** (resolves O-002). R4's soft-disc splatting means hex geometry
+  never appears visually, so res 11's 4.4x data cost buys nothing.~~ → **STRUCK.** Superseded by
+  **D-237** (ticket `0194`, 2026-09-10): the canonical resolution is 11. Struck in place at
+  capability `08`'s audit (2026-09-28), following D-145's precedent — left unmarked, it was still
+  being quoted as current by four design docs and by the blob reader's own error strings.
 
 ### R10 method caveat
 WebSearch quota was exhausted for that agent; findings come from primary docs only
@@ -280,6 +284,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   Round 2 / R10). Any capture shortcut, companion app or share-target design must be Android:
   Tasker/MacroDroid HTTP tasks, Google Assistant routines, PWA `share_target`. **Not** iOS
   Shortcuts / Siri. Desktop browser is a secondary target for planning and admin.
+  → **The last sentence is superseded by D-227** (desktop is the primary VIEWING surface); the
+  Android capture half stands. *(Pointer added at capability `08`'s audit, 2026-09-28.)*
 
 ---
 
@@ -2685,6 +2691,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 - **D-226** **The pmtiles basemap is hosted on a dedicated public-read S3 bucket behind our OWN
   CloudFront distribution, not on Cloudflare R2.** Supersedes the R2 choice in `01-architecture.md`
   §1, §8 Risk 1 and inventory row 20. *(Ticket `0052`.)*
+  → **"public-read" is corrected by D-250:** the bucket shipped private (`BLOCK_ALL`) with
+  CloudFront reaching it through Origin Access Control. The hosting choice below stands.
   - **The risk R2 was chosen to eliminate is real, but it was sized for a different app.** §8 Risk 1
     prices Amplify Hosting egress at $0.15/GB after 15 GB free and reasons from a map-heavy app
     pulling **100 GB/month = $15/month**, 3–5× the whole D-083 budget. That figure assumes many
@@ -2743,6 +2751,7 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     perf budget in `05` §6.4 and ticket `0059`'s mid-range-Android harness all stand: the phone
     remains the *worst* case even when it is not the *common* case, and a renderer tuned for it
     is not wasted work.
+    → **Superseded by D-240** (2026-09-11): the `0059` phone run was dropped, not deferred.
   - **`06-ui-ux.md` is written phone-first and now has a stale premise.** §1 opens with D-124's
     primacy, the IA is built around a thumb-arc plinth, and desktop is one paragraph (§4.8) of
     adaptation. That is a real doc/intent divergence, but it is a **design session**, not an edit
@@ -2828,6 +2837,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 - **D-230** **The `MAX`-into-`R8` spike is decided on the desktop browser, and the residual
   "does ANGLE on a real Android GPU honour it" risk is knowingly accepted and deferred to `0059`.**
+  → **The deferral is closed by D-240:** the phone run was dropped and the risk accepted into
+  ordinary use. *(Pointer added at capability `08`'s audit, 2026-09-28.)*
   Resolves the conflict between ticket `0118` (written 2026-08-30, requires the real device) and
   D-227/D-229 (both 2026-09-09, which moved validation off the phone).
   *(Operator, during ticket `0118`, 2026-09-09.)*
@@ -2995,6 +3006,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 - **D-234** **Ticket `0056` ships one rendering — adventure's colours and opacity with atlas's
   restraint — and §5.2's two columns stay recorded but unused.** *(2026-09-10, ticket `0056`.)*
+  → **The values below were retuned by `0119`** (time-boxed, against atlas legibility):
+  `u_maxOpacity` **0.90**, `u_noiseAmp` **0.25**, `u_rimAmt` **0.30** — see `05` §4.3 and the
+  `0119` table in `docs/capabilities/08-map-and-fog-renderer.md`. The one-rendering decision stands.
+  *(Pointer added at capability `08`'s audit, 2026-09-28; `0119` recorded no D-xxx of its own.)*
   - **The ticket says "ship atlas-leaning values" and then lists adventure's.** Not a contradiction:
     `u_maxOpacity` 0.94 and the near-black-blue palette are §5.2's adventure column, while
     `u_noiseAmp` 0.10 and `u_rimAmt` 0.08 are atlas's. One rendering, atmospheric in colour and
@@ -3411,3 +3426,27 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Not done:** the absolute centres are still `float32` before the subtraction, which misplaces a
     disc by up to ~2 device px at z17. That offset is fixed to the ground and does not move on a
     pan, so it cannot step, and at the edge of a 100 m soft disc nobody can see it.
+- **D-249** **The map's first-ever camera is the bounding-box centre of the most recent traced run
+  at z14; a stored camera always wins.** Supersedes `06-ui-ux.md` §2.2/§2.3's *"opens framed on the
+  end point of your last run"* for the initial camera. *(Operator, at capability `08`'s audit,
+  2026-09-28; ratifies what ticket `0186` shipped.)*
+  - **Precedence:** stored camera → latest traced run → configured home → extract bounds
+    (`firstLoadRunCamera`, `components/map/map-shell.tsx`; `runCamera`, `lib/map-camera.ts`).
+  - **Why the centre, not the end point.** `0186` followed `0053`'s "centroid" wording and never
+    met `06` §2.3. The audit found the conflict, and open ticket `0086` would have re-imposed the
+    end point against shipped code. A run's bbox centre frames the whole run; an end point frames
+    wherever the watch was stopped, which for a loop from home is the front door.
+  - **Why a stored camera wins.** Reload ergonomics: the map stays where the operator left it.
+    The run framing is for the first load on a device, not every load.
+  - **Unchanged:** the `⌖` control still recentres on the last run's **end point** (`06` §5,
+    capability `15`, ticket `0101`). `0086`'s criterion was amended to match this decision.
+- **D-250** **The tiles bucket `lost-soles-tiles` is private; CloudFront reaches it through Origin
+  Access Control.** Corrects D-226's *"public-read"*, which the code never implemented.
+  *(Agent, at capability `08`'s audit, 2026-09-28.)*
+  - **What shipped:** `blockPublicAccess: BLOCK_ALL` and `S3BucketOrigin.withOriginAccessControl`
+    with `originPath: "/tiles"` (`amplify/backend.ts`). `0052`'s smoke test proved direct S3 access
+    returns 403 on both endpoints.
+  - **Why the code was right and the decision's wording wrong.** A public-read bucket lets anyone
+    bypass the CDN and draw S3 egress outside CloudFront's always-free tier — the one cost D-226
+    was taken to cap. Private + OAC keeps every byte on the always-free path.
+  - D-226's hosting choice (S3 + our own CloudFront, not R2) is untouched.

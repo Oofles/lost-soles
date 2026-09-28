@@ -235,7 +235,7 @@ export class ExploredSet {
          * off it rather than converting twice. `parentOf` is `cellToParent(c, 6)` —
          * `src/domain/fog.ts` owns it because it is one of the few h3 calls that
          * legitimately crosses resolutions, and it lives next to the constant that says
-         * crossing is otherwise forbidden (D-115).
+         * crossing is otherwise forbidden (D-237, superseding D-115).
          */
         const cell = bigToCell(incoming!)
         added.push(cell)

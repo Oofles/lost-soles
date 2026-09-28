@@ -453,7 +453,7 @@ describe("regenerateExplored — refusing to guess", () => {
       body: Buffer.from(JSON.stringify({ generation: 4, res: 9 })),
       etag: '"x"',
     })
-    await expect(readManifest(USER, deps)).rejects.toThrow(/D-115/)
+    await expect(readManifest(USER, deps)).rejects.toThrow(/D-237/)
   })
 
   /**

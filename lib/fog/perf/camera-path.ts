@@ -36,7 +36,7 @@ import type { GpuTimer } from "./gpu-timer"
  * | phase         | what §6.4 asserts about it                                              |
  * |---------------|-------------------------------------------------------------------------|
  * | `load`        | nothing. The fixture decode and the first cold bucket live here so they  |
- * |               | are not charged to a pan. §6.3 prices a cold derivation at 30-80 ms.     |
+ * |               | are not charged to a pan. §6.3 prices it per group (D-238).              |
  * | `settle`      | item 4's *"~0 ms with the camera still"* — `maskDirty` false, no cull.   |
  * | `pan-inside`  | item 4's *"~0 ms inside the padded region"* — **zero culls**, §6.2.      |
  * | `pan-across`  | item 3's p95 < 16.7 ms, and item 6's zero long tasks. The main event.    |

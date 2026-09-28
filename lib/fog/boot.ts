@@ -38,8 +38,8 @@ import type { FogTransport } from "./transport"
  * licensed by D-020 exactly as the warm start is: stale can only mean *missing the newest
  * run*, never *wrong about revealed ground*.
  *
- * **Version skew IS a refusal.** `manifest.res !== 10` (D-115) or an unknown `version`
- * byte discards the cache and refuses to render, with a message on screen. `02` §6.4:
+ * **Version skew IS a refusal.** `manifest.res !== RES` (D-237; was 10 under D-115) or an
+ * unknown `version` byte discards the cache and refuses to render, with a message on screen. `02` §6.4:
  * *"a silent mis-parse of cell IDs looks like territory teleporting, which is
  * indistinguishable from data loss to the user."*
  */
@@ -234,7 +234,7 @@ export function startFogSession(options: FogSessionOptions): FogSession {
     const update = response.update
 
     /**
-     * D-115, CHECKED BEFORE A SINGLE BYTE OF PAYLOAD IS FETCHED. `05` §7.3 and `02` §6.4
+     * D-237 (was D-115), CHECKED BEFORE A SINGLE BYTE OF PAYLOAD IS FETCHED. `05` §7.3 and `02` §6.4
      * both put `res` in the manifest for exactly this: cell ids at two resolutions are not
      * comparable, not mergeable and not renderable together, so the refusal must happen
      * where it is cheapest and loudest.

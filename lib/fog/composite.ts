@@ -310,7 +310,8 @@ function applyHomog(m: readonly number[], x: number, y: number): [number, number
  * does re-randomise. Sixty discontinuities a second become seven across the whole pinch.
  *
  * The price is that a cell is no longer exactly `NOISE_PX` on screen: it ranges over
- * `NOISE_PX_MIN`..`NOISE_PX_MAX` (184-368 px) and returns to 260 at each whole level. That is a
+ * `NOISE_PX_MIN`..`NOISE_PX_MAX` (184-368 px) and returns to 256 (`NOISE_PX_QUANTISED`) at each
+ * whole level. That is a
  * 2x swing in apparent coarseness across a level, judged the weaker artefact of the two.
  *
  * **The exit, if the step is ever judged too visible**, is not to interpolate `scale` — that makes

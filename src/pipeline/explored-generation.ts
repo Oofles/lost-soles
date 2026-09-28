@@ -25,7 +25,7 @@ import { EXPLORED_CELL_TABLE } from "./explored-cells"
  * The obvious replacement — read `manifest.generation`, add one — is **not safe**, and not
  * theoretically: the ingest queue is a standard SQS queue with `batchSize: 1` and no
  * reserved concurrency, so a Sync that pulls five new activities runs five workers for one
- * user at once. Two of them read generation 41 and both write `explored-r10.42.bin`, two
+ * user at once. Two of them read generation 41 and both write `explored-r11.42.bin`, two
  * different cell sets under one name, served `Cache-Control: immutable`. Nothing anywhere
  * can recover from that, because "immutable" is a promise the CDN and the browser have
  * already believed.

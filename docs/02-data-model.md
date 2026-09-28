@@ -63,11 +63,11 @@ s3://lost-soles-storage/
   facts/<uid>/highwater.jsonl                        append-only D-135 floor decisions (§4.6)
   facts/<uid>/identity.json                          userId ↔ Cognito sub ↔ display name (§1.4)
   traces/<uid>/<activityId>.trace.json.gz            normalized Trace (contract §2). DERIVED.
-  cells/<uid>/<activityId>.cells.bin                 res-10 cell set for one activity. DERIVED.
+  cells/<uid>/<activityId>.cells.bin                 res-11 cell set for one activity (D-237). DERIVED.
   users/<uid>/manifest.json                          mutable pointer, no-cache (05 §7.3)
-  users/<uid>/explored/explored-r10.<gen>.bin        immutable, content-addressed by generation
+  users/<uid>/explored/explored-r11.<gen>.bin        immutable, content-addressed by generation
   users/<uid>/explored/explored-agg.<gen>.json
-  users/<uid>/explored/explored-lastrun-r10.<gen>.bin
+  users/<uid>/explored/explored-lastrun-r11.<gen>.bin
   users/<uid>/deltas/<toGen>.bin                     immutable, GC'd at ~20 generations
   rules/xp-rules-v<N>.yaml                           mirror of the repo file, for the replay job
   regions/<regionId>-r10.bin                         precomputed denominators (05 §8.1)
@@ -104,7 +104,7 @@ reconstructible from them plus the XP rules.* Walking it:
 | Store | Reconstructible? | How |
 |---|---|---|
 | `Activity` rows | ✅ | `adapter.normalize(rawBytes, ref, job)`. Pure (contract §3), no network, no clock. `activityId = sha256(uid:source:externalId)` is deterministic, so the same row is reproduced byte-for-byte. |
-| `traces/`, `cells/` | ✅ | `normalize()` then `traceToCells()` at res 10 (D-115). Deterministic. |
+| `traces/`, `cells/` | ✅ | `normalize()` then `traceToCells()` at res 11 (D-237, superseding D-115's res 10). Deterministic. |
 | `ExploredCell` | ✅ | fold activities ascending by `startedAt` (04 §7.4 replay order, ties by `activityId`), applying `min`/`max`/`ADD` per 05 §2.4. |
 | `XpLedgerEntry` | ✅ | replay against the pinned `xpRulesVersion` per activity. |
 | `SkillState` | ✅ | pure `SUM` over the ledger. |
@@ -152,7 +152,7 @@ Single-table design exists to solve two problems: (a) fetching a heterogeneous i
 in one `Query`, and (b) keeping the number of provisioned tables down at scale. Neither applies.
 
 - **(a) does not apply because the biggest read in this app is not a DynamoDB read at all.** The
-  client downloads `explored-r10.bin` from S3 once and answers every spatial question in memory
+  client downloads `explored-r11.bin` once (via `/api/fog`, D-228) and answers every spatial question in memory
   (R3, 01 §5). There is no screen that wants "the profile *and* the skills *and* the last ten
   activities *and* the cells" in one round trip; the dashboard wants three small independent
   reads, all of which are single-digit RRU.
@@ -371,7 +371,7 @@ Writes are IAM-only, from the deploy-time seeding job that reads `rules/xp-rules
 ### T6 — `ExploredCell` — the fog
 
 **CDK `dynamodb.Table`. Not an Amplify model. The client never reads it** (01 §2): the client
-downloads `explored-r10.bin` and queries it in memory. Putting this table behind AppSync would
+downloads `explored-r11.bin` and queries it in memory. Putting this table behind AppSync would
 add $4.00/M operations for a path nobody uses.
 
 ```ts
@@ -395,7 +395,7 @@ the shared writer, not shared atomicity.)*
 
 ```
 pk  = U#<uid>#C#<res6ParentCellId>          e.g. U#a3f1…#C#8628308ffffffff
-sk  = <res10CellId>                          e.g. 8a2830828767fff
+sk  = <res11CellId>                          e.g. 8b… (res 11, D-237; was <res10CellId>, 8a2830828767fff)
 ```
 
 | attr | type | write rule | why it earns its place |
@@ -406,7 +406,7 @@ sk  = <res10CellId>                          e.g. 8a2830828767fff
 | `lastRunId` | S | set when `lastRunAt` advances | audit |
 | `visitCount` | N | `ADD 1` per *activity*, not per traversal (05 §3.3) | "most-run ground"; a future heat view |
 | `discoveryCount` | N | `ADD 1` only when credit was awarded | separates "run 40 times" from "re-armed twice" |
-| `lastRunDay` | N | `u16` days since 2020-01-01 | the value packed into `explored-lastrun-r10.bin` (05 §7.2); stored so the blob builder does not re-parse 150k ISO strings |
+| `lastRunDay` | N | `u16` days since 2020-01-01 | the value packed into `explored-lastrun-r11.bin` (05 §7.2); stored so the blob builder does not re-parse 150k ISO strings |
 
 The write, exactly (01 §4, expanded for `firstRunAt`'s `min`):
 
@@ -434,8 +434,8 @@ write, no lost update.**
 ```
 pk  = U#<uid>#AGG#<res>        res ∈ {6, 7, 8}
 sk  = <parentCellId>
-    exploredChildren : N       ADD (count of res-10 children newly added)
-    totalChildren    : N       constant = 7^(10-res)   (2401 / 343 / 49)
+    exploredChildren : N       ADD (count of res-11 children newly added)
+    totalChildren    : N       constant = 7^(RES-res)  (res 11, D-237: 16807 / 2401 / 343; was 7^(10-res) = 2401 / 343 / 49)
     lastRunDay       : N       max
 ```
 
@@ -471,7 +471,7 @@ in flight cannot stomp each other and the later one cannot leave the marker afte
 made it necessary.
 
 `ADD generation :one` with `ReturnValues: UPDATED_NEW` **allocates** the number that names
-`explored-r10.<gen>.bin`. It is atomic inside DynamoDB, so two workers running concurrently for
+`explored-r11.<gen>.bin`. It is atomic inside DynamoDB, so two workers running concurrently for
 one user — the ordinary case when a Sync enqueues several activities — cannot be handed the same
 number and cannot write two different cell sets to one `immutable` object name. A missing
 attribute is treated as 0, so a first call returns 1 with no bootstrap write; nothing ever reads
@@ -491,6 +491,11 @@ No GSIs. None are needed: every read is by known partition.
 | res-10 cell area | ~15,047 m² (~1.5 ha) |
 | res-6 cell area | ~36.13 km² |
 | res-10 children per res-6 parent | 7⁴ = **2,401** — a hard ceiling |
+
+**Amended by D-237 (08 audit, 2026-09-28):** the table above is res 10. At res 11 a res-6 parent
+has 7⁵ = **16,807** children (~2.7 MB partitions, still far under the limit) — the figure the
+*Rejected* paragraph below turns down for res 5. `RES_PARENT` stays 6 deliberately and visibly;
+moving it to 7 restores 2,401 and re-keys T6, filed as ticket `0198`.
 | max partition size | 2,401 × ~160 B = **~384 KB** — three orders of magnitude under DynamoDB's 10 GB limit, and no hot-partition risk at 6 users |
 | parents touched by one 5-mile run | 1–2 |
 | parents in a home metro after 5 years | ~20–60; ~100–200 including travel |
@@ -621,15 +626,15 @@ activity a few times a year.
 
 ### 2.10 Blob regeneration does not re-read the table
 
-Naïvely, regenerating `explored-r10.bin` means `Query`ing every res-6 partition — ~24 MB of
+Naïvely, regenerating `explored-r11.bin` means `Query`ing every res-6 partition — ~24 MB of
 eventually-consistent reads ≈ 3,000 RRU per run. It works and costs $0.15/year, but there is a
 strictly better path that `process-activity` is already positioned for:
 
 ```
-1. GET  users/<uid>/explored/explored-r10.<gen-1>.bin   (~300 KB, one S3 GET)
+1. GET  users/<uid>/explored/explored-r11.<gen-1>.bin   (~300 KB, one S3 GET)
 2. decode → sorted BigUint64Array
 3. merge the run's newly-added cells (typically 40–130)  → still sorted
-4. encode, gzip, PUT explored-r10.<gen>.bin  +  deltas/<gen>.bin
+4. encode, gzip, PUT explored-r11.<gen>.bin  +  deltas/<gen>.bin
 5. PUT manifest.json  (the only mutable object)
 ```
 
@@ -1236,7 +1241,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-12** | Webhook: `owner_id` → `userId`; worker: fetch tokens | T7 GSI1 `byExternalOwner` (KEYS_ONLY), then T7 base | `Query` + `GetItem` | 1 + 1 | **1 RRU**; the index cannot leak a token (§2 T7) |
 | **AP-13** | "Did I work out today" / a day's activities | T3 GSI3 `byUserAndDay` | `Query userIdLocalDay` | 0–4 | **0.5 RRU** — uses `startedAtLocal` (contract conflict #3) |
 | **AP-14** | Generation mirror for the AppSync subscription | T1 base | `GetItem` / subscription push | 1 | **0.5 RRU** |
-| **AP-15** | Ingest: which of this run's cells already exist | T6 `ExploredCell` base | **`BatchGetItem`, 40–130 keys, one call** (was: `Query` per touched res-6 parent — corrected 2026-09-08, ticket `0048`: a `Query` returns the whole partition, up to 2,401 cells, to classify the ~45 this run crossed, and a point-to-point run through four parents is four calls instead of one) | 40–130 | **~3–10 RRU** |
+| **AP-15** | Ingest: which of this run's cells already exist | T6 `ExploredCell` base | **`BatchGetItem`, keys in batches of 100 — at res 11 (D-237) a run crosses ~7× the res-10 figure of 40–130 cells, so several calls, not one** (*amended by D-237, 08 audit, 2026-09-28*; `src/pipeline/explored-cells.ts` `BATCH_GET_LIMIT`, DynamoDB's hard cap) (was: `Query` per touched res-6 parent — corrected 2026-09-08, ticket `0048`: a `Query` returns the whole partition, up to 2,401 cells, to classify the ~45 this run crossed, and a point-to-point run through four parents is four calls instead of one) | ~280–900 (res 11; 40–130 at res 10) | **~20–70 RRU** (~3–10 at res 10) |
 | **AP-16** | Blob rebuild: the user's whole explored set | T6 base | `Query AGG#6` then `Query` per parent | 20k–150k | **~1,000–3,000 RRU** — **repair path only** (§2.10) |
 | **AP-17** | Consistency scan / rebuild drill | T6 base | as AP-16 + verification | all | as AP-16 |
 | **AP-18** | Idempotency gates | T8 `IngestReceipt` base | `GetItem` / conditional writes | 1 | **0.5 RRU** |
@@ -1249,11 +1254,11 @@ them entirely:
 
 | AP | Pattern | Served by | Cost |
 |---|---|---|---|
-| **S-1** | Map load: the explored set | S3 `manifest.json` (revalidate, 304) + `explored-r10.<gen>.bin` from cache or CloudFront | 1 conditional GET; a cold load adds one immutable GET (§6) |
+| **S-1** | Map load: the explored set | `GET /api/fog?since=<gen>` — the server reads `manifest.json`; `ETag` = generation, `no-store, private`, a real 304 — then on a cold load `GET /api/fog/blob/<gen>`, which gunzips `explored-r11.<gen>.bin` server-side and serves it `private, max-age=31536000, immutable` through the SSR compute role. No CloudFront, no presigned S3 URL (**amended by D-228, 08 audit, 2026-09-28**) | 1 conditional GET; a cold load adds one immutable GET (§6) |
 | **S-2** | Viewport render, pan, zoom | in-memory `BigUint64Array` + res-6 buckets (05 §6.1) | **zero** |
 | **S-3** | "% explored" of a region | in-memory `Set.has()` over `region.cellsRes10` (05 §8.1) | **zero**; ~13k lookups, milliseconds |
 | **S-4** | "Unexplored near me" | in-memory `frontier()` (05 §8.4) | **zero** |
-| **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r10.<gen>.bin` | one GET, on demand only |
+| **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r11.<gen>.bin` | one GET, on demand only |
 | **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<toGen>.bin` GET | ~1 KB (05 §7.4) |
 | **S-7** | Route geometry on activity detail | `users/<uid>/traces/<activityId>.segments.json.gz` | one GET, `no-cache` |
 
@@ -1270,6 +1275,12 @@ read `traces/<activityId>.polyline.gz`. Three corrections, all recorded there:
   object under that prefix, and the worker's S3 grant is scoped to it.
 - **`no-cache`, not immutable.** T3's `revision` exists because a source-side edit re-ingests the
   same activity, rewriting this object under the same key.
+
+**Who reads S-7 today (08 audit, 2026-09-28).** Not activity detail yet. The only reader is
+`GET /api/runs/latest` (ticket `0195`, `app/api/runs/latest/route.ts`), which serves the latest
+traced run to the map as a GeoJSON `FeatureCollection` through the SSR compute role, `no-store,
+private`, re-deriving the key from the session uid rather than trusting `traceRef`. The
+activity-detail read, and the permanent web of every past route, arrive with capability `12`.
 
 ### 5.2 By screen — what actually fires
 
@@ -1357,9 +1368,9 @@ Per user, under `s3://lost-soles-storage/users/<uid>/` (05 §7.3):
 | Object | Contents | Cache-Control | Fetched |
 |---|---|---|---|
 | `manifest.json` | `{generation, res, cellCount, updatedAt, cells, agg, lastRun, deltasFrom}` | `no-cache` | every load (a 304 is a few hundred bytes) |
-| `explored/explored-r10.<gen>.bin` | the set — `LSFG` header + `baseCell` u64 + (count−1) LEB128 ascending deltas (05 §7.1) | `public, max-age=31536000, immutable` | cold load only |
+| `explored/explored-r11.<gen>.bin` | the set — `LSFG` header + `baseCell` u64 + (count−1) LEB128 ascending deltas (05 §7.1) | `public, max-age=31536000, immutable` | cold load only |
 | `explored/explored-agg.<gen>.json` | res 6/7/8 parent → `{exploredChildren, totalChildren, fraction}` | immutable | app load; a few KB |
-| `explored/explored-lastrun-r10.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array** | immutable | **lazily** — atlas cold overlay only (D-133) |
+| `explored/explored-lastrun-r11.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array** | immutable | **lazily** — atlas cold overlay only (D-133) |
 | `deltas/<toGen>.bin` | `LSFD`, adds only, ascending delta-varint; `fromGen` is in the header | immutable, GC'd after ~20 generations | mid-session update (S-6) |
 
 `<gen>` in the name is what makes `immutable` safe: a generation is never rewritten, so no cache
@@ -1400,7 +1411,9 @@ to entropy already — the redundancy gzip lives on has been removed by the delt
 300–450 KB gzipped figure and the ~370 KB varint figure therefore sit on top of each other rather
 than a factor apart; **treat the varint size as the floor and R3's range as the number of record.**
 Serving with `Content-Encoding: gzip` still earns its place: it costs nothing (S3 stores the
-gzipped object, CloudFront passes it through) and it does compress the header, the `agg` JSON and
+gzipped object, ~~CloudFront passes it through~~ — **amended by D-228 (08 audit, 2026-09-28):**
+`/api/fog/blob/<gen>` gunzips it server-side and serves plain bytes — at no meaningful size cost,
+for the reason this paragraph opens with) and it does compress the header, the `agg` JSON and
 the long runs of identical small deltas through dense grid territory.
 
 **The lever, unpulled:** `flags` bit0 `compacted` ships `h3.compactCells()` output and shrinks
@@ -1457,7 +1470,15 @@ Boot sequence (05 §7.3, restated as an obligation rather than a suggestion):
 
 1. Read IndexedDB (`{uid, generation}`, storing the **decoded** array — do not re-parse on warm
    start). If present, **render immediately**. Do not wait for the network.
-2. Fetch `manifest.json` in parallel.
+2. ~~Fetch `manifest.json` in parallel.~~ `GET /api/fog?since=<cached generation>`.
+   **Amended by D-228 (08 audit, 2026-09-28):** the client never sees the manifest. The server
+   reads it and resolves steps 3–5 itself, answering `up-to-date` (a genuine **304** against an
+   `ETag` of the generation), `delta` (the whole retained chain inline), `full` (take
+   `/api/fog/blob/<gen>`) or `empty` (no manifest yet — a zero-cell set, full fog, not an error).
+   Because the request carries `since`, the IndexedDB read in step 1 comes *first* rather than
+   genuinely in parallel. What the parallelism was for is preserved: **first paint still never
+   waits on the network** — the cache read is local and nothing awaits the response before
+   painting (`lib/fog/boot.ts`, `app/api/fog/route.ts`).
 3. `manifest.generation === cached.generation` → done. Nothing else is fetched. **This is the
    common case, and it costs one 304.**
 4. `cached.generation >= manifest.deltasFrom` → fetch and apply the delta chain (§6.5).
@@ -1468,7 +1489,8 @@ Boot sequence (05 §7.3, restated as an obligation rather than a suggestion):
 ground*. This is what licenses step 1's render-before-network. A design where territory could be
 removed could not do this.
 
-**Version skew:** if `manifest.res !== 10` (D-115) or the blob's `version` byte is unknown, the
+**Version skew:** if `manifest.res !== RES` (11 since D-237, superseding D-115's 10;
+`lib/fog/boot.ts` checks the `res` the server copies out of the manifest) or the blob's `version` byte is unknown, the
 client **discards its cache and refuses to render** rather than guessing. A silent mis-parse of
 cell IDs looks like territory teleporting, which is indistinguishable from data loss to the user.
 
@@ -1526,13 +1548,20 @@ are separate, and each has exactly one owner.
 |---|---|---|---|---|
 | `xpRulesVersion` | `Activity`, `XpLedgerEntry`, `SkillState.rulesVersionLastComputed`, T5 partition | `rules/xp-rules-vN.yaml` | any XP rate, cap, curve, skill or `match` change | an XP replay (§4.4). **No table change.** |
 | `fogAlgoVersion` | `Activity.fogAlgoVersion`, the score-time `ingestKey` (T8) | the fog module (05 §3.5) | reveal radius, trace sanitisation, H3 projection changes | a cell rebuild + blob regeneration. **No XP change** unless Cartography counts move. |
-| blob `version` byte | `explored-r10.bin` header (05 §7.1) | the blob encoder | wire format changes | clients discard their cache and refetch (§6.4) |
+| blob `version` byte | `explored-r11.bin` header (05 §7.1) | the blob encoder | wire format changes | clients discard their cache and refetch (§6.4) |
 | `generation` | `manifest.json`, mirrored to `Profile` | the ingest Lambda | every cell write | a client delta or refetch (§6.5) |
 | `revision` | `Activity.revision` (contract §2) | the adapter | a source-side edit of one activity | a re-score of that one activity |
 
-**H3 resolution is not on this list, on purpose.** D-115 fixes res 10 and 05 §2.1 says
+**H3 resolution is not on this list, on purpose.** ~~D-115 fixes res 10~~ D-237 fixes res 11
+(superseding D-115's res 10) and 05 §2.1 says
 "canonical, never mixed". Changing it is not a version bump — it is a rebuild from raw (§8.3),
 because every `ExploredCell` sort key and every byte of every blob would change meaning.
+
+**Amended by D-237 (08 audit, 2026-09-28):** D-237 also changed the projection itself —
+`DENSIFY_STEP_M` 30 → 12 and `CANDIDATE_K` now derived from the grid — yet `FOG_ALGO_VERSION`
+stays **1** (`src/domain/discovery.ts`), because those changes rode on the resolution change, which
+is a full rebuild from raw by the paragraph above, and `0194` performed it: no activity row carries
+cells projected by the old algorithm, so there is nothing a bump would distinguish.
 
 ### 7.2 Schema evolution — the rules for changing a table
 
@@ -1587,7 +1616,7 @@ without notice). So the realistic trigger is "friends get locked out" or "the us
 | T7 `SourceAccount` | one row, `sk = SRC#strava`, tokens, `scopes ⊇ activity:read_all` (D-121.3), `listSinceWatermark` |
 | T3 `Activity` | `source = {source: "strava", externalId: "<int64 as string>", sourceTypeRaw: "Run"}`; `id = sha256(uid:strava:<externalId>)`; `raw.key = raw/<uid>/strava/<externalId>/<sha256>.json` |
 | S3 `raw/<uid>/strava/…` | every raw stream response, archived at ingest **before `normalize()` ever ran** (D-121.2, contract §4 step 1) |
-| T6 `ExploredCell` | keyed `U#<uid>#C#<parent>` / `<res10cell>`. **No source anywhere in the key or the item.** |
+| T6 `ExploredCell` | keyed `U#<uid>#C#<parent>` / `<res11cell>`. **No source anywhere in the key or the item.** |
 | T4 `XpLedgerEntry` | no source field at all |
 | code | `src/adapters/strava/*` + one line in `src/adapters/registry.ts` (contract §3) |
 
@@ -1632,7 +1661,7 @@ even by accident. Three increasingly aggressive retreats from Strava, and what e
 | **(c) Purge the raw archive** | (b) + delete `raw/<uid>/strava/**` | untouched | untouched | untouched | **degraded — see below** |
 
 **The structural reason the map cannot re-fog:** `ExploredCell`'s key is
-`U#<uid>#C#<parent>` / `<res10cell>`. There is no source attribute to filter on, no per-source
+`U#<uid>#C#<parent>` / `<res11cell>`. There is no source attribute to filter on, no per-source
 index, and no code path that deletes a cell — the only writes are `if_not_exists`, `max`, `min`
 and `ADD` (§2 T6). **"Remove Strava's cells" is not an operation this schema can express.** The
 table also carries `removalPolicy: RETAIN` and PITR precisely because it is the one loss that
@@ -1748,7 +1777,7 @@ is **under two minutes** and embarrassingly parallel.
 
 **Step 4 — persist facts and per-activity derivations.** In sorted order, for each activity:
 `PutItem` the `Activity` row (T3); write `users/<uid>/traces/<activityId>.segments.json.gz`; sanitise the trace and
-project to H3 res 10 (D-115, 05 §2.2) at the **current** `fogAlgoVersion`; write
+project to H3 res 11 (D-237, superseding D-115; 05 §2.2) at the **current** `fogAlgoVersion`; write
 `cells/<uid>/<activityId>.cells.bin`. **No XP and no `ExploredCell` writes yet.**
 
 **Step 5 — the fold. This is the heart of the drill** (and the operation §2.9 promised).
@@ -1789,8 +1818,8 @@ step 5's per-activity counts, not from T6, which is the same discipline §4.4 st
 Write `SkillState`, `Profile.totalXp`/`totalLevel`, and any `retained_floor` rows the waterline
 requires (§4.6).
 
-**Step 7 — regenerate the delivery layer.** Encode `explored-r10.bin`, `explored-agg.json` and
-`explored-lastrun-r10.bin` from the step-5 map; PUT them; PUT `manifest.json` last (§6.4).
+**Step 7 — regenerate the delivery layer.** Encode `explored-r11.bin`, `explored-agg.json` and
+`explored-lastrun-r11.bin` from the step-5 map; PUT them; PUT `manifest.json` last (§6.4).
 **Set `generation = <the step-0 generation> + 1`, never 1.** A generation that goes backwards
 would leave every cached client convinced it is already up to date, and the fog is the one thing
 that must never appear to regress.

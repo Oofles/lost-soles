@@ -9,23 +9,25 @@ import { RES } from "./fog"
  *
  * ─── WHAT IT IS FOR ─────────────────────────────────────────────────────────
  *
- * At low zoom the renderer stops drawing 150,000 individual res-10 discs and draws one
+ * At low zoom the renderer stops drawing hundreds of thousands of individual res-11 discs and draws one
  * shape per res-6/7/8 parent, its opacity set by the FRACTION of that parent's children
  * the user has explored (§6.1's zoom bucketing). A parent that is 3% explored and one that
  * is 90% explored must not look the same, and at that zoom the individual cells are
  * sub-pixel — so the fraction is the only thing carrying the information.
  *
- * A few KB, fetched at app load alongside the set. It is **derived from the cell array**,
+ * A few KB, written beside the set. **The browser does not fetch it** — D-238 has the renderer
+ * compute the same fraction from the cell array it already holds — so this is the server-side
+ * artefact (`05` §7.2, §8). It is **derived from the cell array**,
  * not read back from anywhere, which is what keeps it honest: there is no state in which
  * the aggregate disagrees with the blob it shipped beside, because one produced the other.
  *
- * ─── WHY 7^(10-res) IS A CONSTANT AND NOT A COUNT ───────────────────────────
+ * ─── WHY 7^(RES-res) IS A CONSTANT AND NOT A COUNT ──────────────────────────
  *
  * H3's hierarchy is *approximately* seven-fold — a res-6 cell does not contain exactly
- * 2,401 res-10 cells in the strict geometric sense, because pentagons and the
+ * 16,807 res-11 cells in the strict geometric sense, because pentagons and the
  * non-nesting of hexagon boundaries make the true child set ragged. But `cellToParent` is
- * total and deterministic: **every** res-10 cell has exactly one res-6 ancestor by this
- * definition, and the count of ids whose ancestor is a given parent is 7^(10-res).
+ * total and deterministic: **every** res-11 cell has exactly one res-6 ancestor by this
+ * definition, and the count of ids whose ancestor is a given parent is 7^(RES-res).
  *
  * `02` T6 fixes the denominator as that constant, and this file uses it rather than
  * counting, because the denominator must be the same number for a parent the user has
@@ -37,7 +39,7 @@ import { RES } from "./fog"
 export const AGG_RESOLUTIONS = [6, 7, 8] as const
 export type AggResolution = (typeof AGG_RESOLUTIONS)[number]
 
-/** 7^(10-res) — 2401 / 343 / 49. A constant, per `02` T6. See the note above. */
+/** 7^(RES-res) — 16807 / 2401 / 343 at RES 11 (D-237). A constant, per `02` T6. See the note above. */
 export function totalChildren(res: AggResolution): number {
   return 7 ** (RES - res)
 }
