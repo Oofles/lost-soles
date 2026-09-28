@@ -727,5 +727,99 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+**The renderer matched its design. The design docs did not match the decisions.** Three readers
+went through every cited section: the shaders, both passes, the uniforms, `ZOOM_TO_RES`, layer
+order, the `R8`/`MAX`/half-res mask and all seven §6.4 instruments. They found **no contradiction in
+the renderer itself.** Yet the first pass of this audit **failed its drift budget**, with seven
+root causes against a budget of three. Every one was a decision taken *during* `08` that reached
+the section it was written for and nowhere else:
 
+| Root cause | Where it had not reached |
+|---|---|
+| **D-237**, res 11 | `01` §1/§2/§5, `02` §5.1/§6.4, `05` §2.2/§7.1, `06`, `09`. D-115 and O-002 stood unmarked. The blob reader's thrown error still cited D-115 |
+| **D-228**, the blob is served by the app's own server | `01` §2's diagram (presigned GET), `02` §6.4 (the client fetches the manifest), `05` §7.1 (CloudFront), `08` §5.3 (`no-store` on everything) |
+| **D-226**, tile hosting | `01` row 20 and §8, and D-226's own title, said "public-read". The code is `BLOCK_ALL` behind OAC, so the decision contradicted the code, not just a doc. R2 was still named in `08` and `09` |
+| **D-238/D-241**, perf model | `05` §6.3 priced derivation at 30–80 ms and §6.4's kill criterion used the retired p95. **`01` §5 still showed the world-polygon renderer that `05` §4.6 calls fatally broken** |
+| **D-240**, no phone run | `05` §6.4/§9.6, `09` §2/§3/§8.2, D-227 and D-230 |
+| **Starting camera** | `06` §2.3 said "end point"; `0186` shipped the bbox centre. Open `0086` would have undone it |
+| **D-234** | said 0.94 ships; `0119` shipped 0.90 and recorded no D-xxx |
+
+**How each was resolved.** All seven were `design-was-wrong`, per AUDIT.md's rule that more than
+three means the design is stale, not the code. With the operator's go-ahead the DESIGN session ran
+inside the audit. Commit `98ee528` carried every decision through `01`, `02`, `05`, `06`, `08`, `09`,
+the contract, DECISIONS (D-115 struck; O-002, D-124, D-226, D-227, D-230 and D-234 given pointers)
+and about thirty code comments and error strings.
+
+**Two needed a decision rather than a respelling:**
+- **D-249** (the operator chose): the first-load camera is the last run's bbox centre, and a stored
+  camera wins.
+- **D-250**: the tiles bucket is private.
+
+**One was code:** `0214` covers Amplify build minutes, which are $14.77 of September's $15.05
+against D-083's $1–5/mo. Every push to `main` builds for ~9.5 minutes, and D-150 plus the Resolution
+commits make that about 155 builds a month, mostly for `tickets/` and `docs/` changes. The re-audit
+records the three that remained a decision or a code change: D-249, D-250 and `0214`. The
+propagation fixes are listed above, not hidden.
+
+**Why this capability drifted when `07` did not.** `07`'s reflection credits inline amendment
+blocks written *at the time the code disagreed*. `08` did that too, but only in the section each
+ticket cited. D-237 is the extreme case. `0194` amended `05` §2.1 and §9.4 and `02` T6 carefully,
+but the resolution is quoted in roughly thirty places across six documents, and nothing mechanical
+points from a decision to its quotations. **A decision that changes a constant quoted across the
+docs needs a grep, not a citation.** `0194`'s Resolution should have held that grep's output.
+
+**What the design got right that was non-obvious.**
+- **`05` §4.6's refusal of the polygon renderer.** It saved the capability from building the
+  approach `01` §5 still showed.
+- **§6.4's instrument list.** It was precise enough that `0059`'s harness found `0201`, `0202`,
+  `0203` and `0207` as numbers before anyone felt them.
+- **The perception-only operator split (D-229).** Every operator check in this capability was a
+  real question: does the fog boil, does the band read, does the edge jitter.
+
+**What went wrong in the work.**
+- The noise lattice was sized in screen pixels (`0199`), so the fog boiled on every zoom.
+- Group derivation ran on the frame path (`0202`).
+- The padded region never shrank on zoom-in (`0207`).
+- **All three passed their unit tests and were found by a human or a harness.** Each was a
+  *frame-to-frame* property, and no unit test in this capability asserted anything across frames
+  until `0199` added one. The ticket list grew from 10 to 23 for that reason.
+
+**Estimate vs. actual.** `ROADMAP.md` estimated "3–5 sessions, could be 10". Actual: 23 tickets over
+seven working days (2026-09-08 to 09-14, then 09-28). D-151 allows one ticket per session in `08`,
+so the capability ran well past the upper bound. The overrun was the thirteen tickets filed during
+the build, not the ten planned ones: those came in close to estimate.
+
+**What the next capability should do differently.**
+1. **When a ticket records a D-xxx that changes a constant or a name, grep the docs for the old
+   value in the same session** and amend or list every hit in the Resolution. Otherwise the audit
+   inherits the whole list.
+2. **`09` (XP engine) should assert its frame-to-frame equivalent from the first ticket**: XP never
+   decreases across a sequence of corrections (D-135, I-16), not just per call. `08`'s three
+   worst bugs were all invisible to single-shot tests.
+3. **`0214` is worth pulling forward.** The build cost accrues every close, and `09` will close
+   many tickets.
+
+## Audit — 2026-09-28 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 10 passed, 0 failed, 2 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `D-249` — 06 §2.3 framed the first camera on the last run's end point; 0186 shipped the bbox centre with a stored camera winning — operator ratified the shipped behaviour, 06 and 0086 amended
+2. **design-was-wrong** — `D-250` — D-226 and 01 said the tiles bucket is public-read; it shipped BLOCK_ALL behind CloudFront OAC, which is the safer posture
+3. **code-was-wrong** — `0214` — Amplify build minutes are $14.77/mo against D-083's $1-5 — every push to main builds for ~9.5 min, including tickets/docs-only commits
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 9/30 invariants cited by a test name, none lost. Ratchet only: the remaining 21 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **na** — no recorded baseline yet — the next 'audit --record' sets it (1 user(s), 1035 cells @ gen 61)
+- `xp-not-lower` — **na** — no source under src/ or amplify/ references snapshots/skillstate/ yet — activates when the T4 skill-state snapshot exists (02 §8.2, 0067; D-135, I-16)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 23 closed
+
+<!-- audit-record {"capability":"08-map-and-fog-renderer","audited":"2026-09-28T16:45:11Z","verdict":"pass","mechanical":{"pass":10,"fail":0,"na":2},"divergences":3} -->

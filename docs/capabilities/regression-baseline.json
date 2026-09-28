@@ -1,0 +1,11 @@
+{
+  "note": "High-water marks for the AUDIT.md §4 regression rows (ticket 0183). fog.users maps a truncated sha256 of each Cognito sub to the largest manifest.json cellCount and generation seen at a recorded audit; the next audit fails if either is lower (D-020, I-7, I-11). Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an audit pass.",
+  "fog": {
+    "users": {
+      "9ec8069a18c7209a": {
+        "cellCount": 1035,
+        "generation": 61
+      }
+    }
+  }
+}
