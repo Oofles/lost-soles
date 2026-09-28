@@ -4688,7 +4688,7 @@
     "title": "SWC miscompiles this.#privateMethod().prop++ into a WeakSet .get — a production-only crash no test can see",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "00-preflight-and-repo",
     "depends_on": [],
@@ -4696,10 +4696,11 @@
     "source": "agent",
     "created": "2026-09-11T15:45:12Z",
     "started": "2026-09-28T02:02:23Z",
-    "path": "tickets/open/0206-swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a.md",
-    "ready": true,
+    "closed": "2026-09-28T02:32:16Z",
+    "path": "tickets/closed/0206-swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

@@ -4,7 +4,7 @@ slug: swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a
 title: SWC miscompiles this.#privateMethod().prop++ into a WeakSet .get — a production-only crash no test can see
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T15:45:12Z
 started: 2026-09-28T02:02:23Z
+closed: 2026-09-28T02:32:16Z
 ---
 
 ## Description
