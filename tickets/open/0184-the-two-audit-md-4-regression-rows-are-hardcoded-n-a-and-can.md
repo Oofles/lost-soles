@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-08T17:53:27Z
+started: 2026-09-28T01:59:27Z
 ---
 
 ## Description
@@ -61,14 +62,14 @@ first, one of which is already wrong.
 
 ## Acceptance criteria
 
-- [ ] Neither row is a constant: each decides `na` from something it actually looked at, and the
+- [x] Neither row is a constant: each decides `na` from something it actually looked at, and the
       reason it prints is derived from that, not typed out.
-- [ ] `fog-no-refog` stops claiming the fog pipeline does not exist while `src/pipeline/explored-*`
+- [x] `fog-no-refog` stops claiming the fog pipeline does not exist while `src/pipeline/explored-*`
       is on disk.
-- [ ] When a row's subsystem IS present, it runs a real regression check and can return `fail`.
+- [x] When a row's subsystem IS present, it runs a real regression check and can return `fail`.
       Shown red before it is trusted green — the `0161` rule.
-- [ ] `tickets.test.mjs` covers both rows in both states.
-- [ ] Whatever detection each row uses, it survives a justified rename — the `0161` lesson.
+- [x] `tickets.test.mjs` covers both rows in both states.
+- [x] Whatever detection each row uses, it survives a justified rename — the `0161` lesson.
 
 ## Notes
 
@@ -84,3 +85,46 @@ written once and never re-evaluated, and nothing makes it face the repo again.
 
 None — ticket tooling, no rendered surface, nothing deployed. Verify by agent: the reason strings
 change when the repo changes, and each row is shown to FAIL under a fixture before it is trusted.
+
+**Performed 2026-09-27, by the agent, WSL2 dev box:**
+
+1. **Red before green.** I temporarily put back 0183's path-based detection (the row only armed on
+   `src/pipeline/explored-blob-store.ts`). The new rename test failed. Restored, it passes.
+2. `node --test tickets.test.mjs`: 153/153.
+3. **Live.** `tickets.mjs audit 01-ticket-system` against the deployed bucket (`devault`):
+   `fog-no-refog` still finds the real pipeline through its key template, reads the manifest, and
+   reports `no recorded baseline yet … (1 user(s), 1003 cells @ gen 60)`.
+
+## Resolution
+
+**This ticket duplicates `0183`.** Both were filed on 2026-09-08 by two different audits. I only
+noticed after 0183 closed. Criteria 1–4 were delivered by **`0183`** (commit `386e2ca`; D-246):
+- Neither row is a constant; each decides n/a from what it looked at.
+- The fog row reads `manifest.json` from S3 and compares it against a ratcheted baseline.
+- Both rows are shown failing on injected regressions.
+- 13 tests cover both states.
+
+Read 0183's Resolution for the design.
+
+**Criterion 5, surviving a rename, was NOT met by 0183, and it is the only new code here.**
+0183 armed `fog-no-refog` on the path `src/pipeline/explored-blob-store.ts`. A justified rename or
+move of that file would quietly switch the row back to n/a, which is the same failure as
+`vigil-test`'s filename match in 0161. I missed it in 0183 even though 0183 was itself about a
+check that goes quiet.
+
+**Files touched.**
+- `tickets.mjs`: `FOG_STORE` (a path) is replaced by `FOG_MANIFEST_KEY`. The row now arms on any
+  non-test source under `src/` or `amplify/` that builds the per-user key template
+  `users/${…}/manifest.json`. In the real repo only `explored-blob-store.ts` builds it; three other
+  files mention `manifest.json` in prose or reads, and the template match excludes them. The n/a
+  reason now names what was searched for, not a path.
+- `tickets.test.mjs`: one test. A test file carrying the key does not arm the row. The store
+  renamed and moved to `src/fog/storage/manifest-keys.ts` still arms it and still reads S3.
+
+**The Notes' question** (do `npmCheck`, `boundary-greps` and `script-tests` lie the same way?):
+0183's sweep checked this. Each one tests a file's existence or runs a command, so they fail
+closed on a rename: a missing `package.json` script or checker file makes the row n/a with a reason
+naming the file. That is not a silent green, because the reason names the file. I found no fourth
+instance, so the finding about `NA()` itself does not trigger.
+
+No new decision: this is how D-246 was meant to be applied, not a change to it.

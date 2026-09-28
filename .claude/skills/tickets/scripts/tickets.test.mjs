@@ -1893,7 +1893,24 @@ esac
     rmSync(join(f.d, "src/pipeline/explored-blob-store.ts"));
     const c = row(f, "fog-no-refog");
     assert.equal(c.status, "na");
-    assert.match(c.detail, /explored-blob-store\.ts/);
+    assert.match(c.detail, /manifest\.json/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("0184 — detection survives a justified rename, and a test fixture does not arm it", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 7, generation: 1 });
+    const src = readFileSync(join(f.d, "src/pipeline/explored-blob-store.ts"), "utf8");
+    rmSync(join(f.d, "src/pipeline/explored-blob-store.ts"));
+    // Only a test mentions the key: the pipeline does not exist.
+    writeFileSync(join(f.d, "src/pipeline/fog.test.ts"), src);
+    assert.equal(row(f, "fog-no-refog").status, "na");
+    // Renamed AND moved: still found, still reads S3.
+    mkdirSync(join(f.d, "src/fog/storage"), { recursive: true });
+    writeFileSync(join(f.d, "src/fog/storage/manifest-keys.ts"), src);
+    const c = row(f, "fog-no-refog");
+    assert.equal(c.status, "na", c.detail);
+    assert.match(c.detail, /no recorded baseline yet.*7 cells @ gen 1/, "a rename must not switch the row off");
     rmSync(f.d, { recursive: true, force: true });
   });
 

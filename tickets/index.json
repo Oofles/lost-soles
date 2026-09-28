@@ -4236,6 +4236,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T17:53:27Z",
+    "started": "2026-09-28T01:59:27Z",
     "path": "tickets/open/0184-the-two-audit-md-4-regression-rows-are-hardcoded-n-a-and-can.md",
     "ready": true,
     "acceptance": {

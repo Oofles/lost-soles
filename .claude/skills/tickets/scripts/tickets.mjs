@@ -679,8 +679,13 @@ function invariantSweep() {
  */
 const BASELINE = "docs/capabilities/regression-baseline.json";
 
-/** Where the fog pipeline lives. Its presence — not a capability number — arms the check. */
-const FOG_STORE = "src/pipeline/explored-blob-store.ts";
+/**
+ * What arms the fog check: non-test source that BUILDS the per-user manifest key,
+ * `users/${…}/manifest.json`. Found by what the code does, never by its filename
+ * (0184, the 0161 lesson) — the first cut matched `src/pipeline/explored-blob-store.ts`
+ * by path, and a justified rename would have switched the row quietly back to n/a.
+ */
+const FOG_MANIFEST_KEY = /users\/\$\{[^}]+\}\/manifest\.json/;
 
 const userKey = (userId) => createHash("sha256").update(userId).digest("hex").slice(0, 16);
 
@@ -758,9 +763,10 @@ let fogObserved = null;
 function fogNoRefog() {
   const ID = "fog-no-refog", S = "4";
   fogObserved = null;
-  const store = join(ROOT, FOG_STORE);
-  if (!existsSync(store) || !/manifest\.json/.test(readFileSync(store, "utf8"))) {
-    return NA(ID, S, `no ${FOG_STORE} writing manifest.json exists — activates when the fog pipeline does (D-020, I-7)`);
+  const writers = ["src", "amplify"].flatMap((r) => sourceFiles(join(ROOT, r)))
+    .filter((f) => FOG_MANIFEST_KEY.test(readFileSync(f, "utf8")));
+  if (!writers.length) {
+    return NA(ID, S, "no source under src/ or amplify/ builds a `users/${…}/manifest.json` key yet — activates when the fog pipeline does (D-020, I-7)");
   }
   const base = regressionBaseline();
   if (base.malformed) return ERR(ID, S, `${BASELINE} is not readable JSON — the re-fog baseline cannot be compared. git history has the last good copy`);
