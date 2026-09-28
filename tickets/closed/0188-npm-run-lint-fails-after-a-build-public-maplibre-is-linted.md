@@ -4,7 +4,7 @@ slug: npm-run-lint-fails-after-a-build-public-maplibre-is-linted
 title: npm run lint fails after a build: public/maplibre/ is linted
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-09T21:46:54Z
 started: 2026-09-28T13:08:57Z
+closed: 2026-09-28T13:12:37Z
 ---
 
 ## Description

@@ -4316,7 +4316,7 @@
     "title": "npm run lint fails after a build: public/maplibre/ is linted",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4324,10 +4324,11 @@
     "source": "agent",
     "created": "2026-09-09T21:46:54Z",
     "started": "2026-09-28T13:08:57Z",
-    "path": "tickets/open/0188-npm-run-lint-fails-after-a-build-public-maplibre-is-linted.md",
-    "ready": true,
+    "closed": "2026-09-28T13:12:37Z",
+    "path": "tickets/closed/0188-npm-run-lint-fails-after-a-build-public-maplibre-is-linted.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
