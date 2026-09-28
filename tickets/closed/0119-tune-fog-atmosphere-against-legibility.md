@@ -4,7 +4,7 @@ slug: tune-fog-atmosphere-against-legibility
 title: Tune the fog atmosphere against atlas legibility — time-boxed
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: [56]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-28T03:36:37Z
+closed: 2026-09-28T12:29:56Z
 ---
 
 ## Description
