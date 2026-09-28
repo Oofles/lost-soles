@@ -7,6 +7,7 @@ import { perfEnabled } from "@/lib/fog/debug-flags"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import {
   EXTRACT_FALLBACK,
+  firstLoadRunCamera,
   readCamera,
   writeCamera,
   type Camera,
@@ -105,6 +106,15 @@ export function MapShell({ home }: { home: Camera | null }) {
   const camera = useRef<Camera>(home ?? EXTRACT_FALLBACK)
 
   /**
+   * Ticket `0186`. What `firstLoadRunCamera` needs to decide whether the most recent run may move
+   * the camera. Refs, not state: none of them is rendered, and a context-loss rebuild must not
+   * reset them — the operator's pan before the rebuild still counts as a pan.
+   */
+  const storedAtMount = useRef(false)
+  const userMoved = useRef(false)
+  const centredOnRun = useRef(false)
+
+  /**
    * `0059`. ONE HARNESS PER MOUNT, and `null` unless `?fog=perf` is on the URL.
    *
    * Built here rather than inside `useFogMask` because two things need it and they are in different
@@ -130,6 +140,7 @@ export function MapShell({ home }: { home: Camera | null }) {
     // Stored beats configured home: the ticket wants the FIRST-EVER load centred on home,
     // not every load. After that the operator's own last position is the better answer.
     camera.current = stored ?? home ?? EXTRACT_FALLBACK
+    storedAtMount.current = stored !== null
 
     let disposed = false
     let maplibre: MapLibre | null = null
@@ -189,6 +200,12 @@ export function MapShell({ home }: { home: Camera | null }) {
       // `once`, not `on`: a style change re-fires `load`, and a second setState with the same
       // instance would remount the fog layer for no reason.
       instance.once("load", () => setLoaded(instance))
+
+      // `originalEvent` is present only for a gesture — a drag, a wheel, a pinch. The `jumpTo` below
+      // fires `movestart` too, without one, and must not count as the operator moving the map.
+      instance.on("movestart", (event) => {
+        if (event.originalEvent) userMoved.current = true
+      })
 
       instance.on("moveend", () => {
         const centre = instance.getCenter()
@@ -277,7 +294,33 @@ export function MapShell({ home }: { home: Camera | null }) {
    * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
    * the same thing at the effect that depends on it.
    */
-  useLatestRun(loaded, fogLayer)
+  const runs = useLatestRun(loaded, fogLayer)
+
+  /**
+   * Ticket `0186`. THE MOST RECENT RUN'S CENTRE, ON A FIRST-EVER LOAD ONLY.
+   *
+   * The run comes from `useLatestRun`'s fetch and from nowhere else — the ticket forbids a second
+   * query path, and it is also the privacy answer: `/api/runs/latest` is session-gated, so the
+   * coordinate never enters the server-rendered payload of `/`, which a signed-out visitor can
+   * fetch (`lib/map-home.ts`). A server-side read would have put it there, behind the same gate,
+   * at the cost of a DynamoDB query and an S3 read on every render of `/` to serve a default that
+   * the stored camera overrides on every load but the first.
+   *
+   * `jumpTo`, not `flyTo`: this is the map's starting position arriving a moment late, not a
+   * navigation. The `moveend` it fires writes it to storage, so the next load opens here directly.
+   */
+  useEffect(() => {
+    if (!loaded) return
+    const target = firstLoadRunCamera({
+      storedAtMount: storedAtMount.current,
+      userMoved: userMoved.current,
+      alreadyCentred: centredOnRun.current,
+      runs,
+    })
+    if (!target) return
+    centredOnRun.current = true
+    loaded.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: target.bearing })
+  }, [loaded, runs])
 
   if (unsupported) {
     return (
