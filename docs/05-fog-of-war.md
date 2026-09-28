@@ -740,7 +740,9 @@ ${shaderData.vertexShaderPrelude}
 ${shaderData.define}
 
 in vec2  a_quad;      // unit quad corner, -1..1        (per-vertex, 4 verts)
-in vec2  a_center;    // cell centre, web-mercator 0..1  (per-instance)
+uniform vec2 u_origin;  // (0,0) under mercator — see below the block (D-248)
+
+in vec2  a_center;    // cell centre, RELATIVE to the upload's origin (per-instance)
 in float a_radius;    // reveal radius, mercator units   (per-instance)
 
 out vec2 v_uv;
@@ -750,9 +752,19 @@ void main() {
     // Offset in mercator space, then let MapLibre project. A mercator-space
     // disc is still a disc on screen, so no latitude correction is needed
     // for the *shape*; a_radius carries the ground-size variation.
-    gl_Position = projectTile(a_center + a_quad * a_radius);
+    gl_Position = projectTile(u_origin + a_center + a_quad * a_radius);
 }
 ```
+
+**Centres are uploaded relative to an origin, and the origin is folded into the matrix in double
+(D-248, ticket `0200`).** An absolute `a_center` under a `float32` `u_projection_matrix` puts the
+fog edge on a staircase at high zoom: the matrix's translation terms are ~`mercator × worldSize`,
+which at z17 a `float32` rounds in ~1.2 CSS-px steps, so on a slow pan the discs sit still and then
+jump while the basemap (drawn tile-local by MapLibre for this reason) slides. The upload subtracts
+the first instance's centre; `setProjectionUniforms` uploads `M × T(origin)` composed on the CPU,
+and `u_origin` stays `(0,0)`. Under `#define GLOBE` the prelude does not reduce to `M × (p,0,1)`,
+so the matrix is left alone and `u_origin` carries the origin instead — the old precision, which
+only matters at zooms MapLibre does not show a globe at.
 
 ```glsl
 // ---------- MASK PASS: fragment ----------

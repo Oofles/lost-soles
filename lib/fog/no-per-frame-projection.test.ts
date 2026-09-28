@@ -87,7 +87,7 @@ describe("the per-frame path projects nothing in JS", () => {
   it("takes its projection from MapLibre's prelude instead", () => {
     const source = read("mask.ts")
     expect(source).toContain("vertexShaderPrelude")
-    expect(source).toContain("projectTile(a_center + a_quad * a_radius)")
+    expect(source).toContain("projectTile(u_origin + a_center + a_quad * a_radius)")
     expect(read("mask-layer.ts")).toContain("shaderData")
   })
 

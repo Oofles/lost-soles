@@ -3391,3 +3391,23 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Not done, deliberately:** removing the transient allocation itself. The remaining per-id
     garbage comes from h3-js calls that return strings and arrays (`cellToLatLng`, `gridDisk`), and
     avoiding them would mean reimplementing H3 traversal.
+- **D-248** **The mask's instance centres are uploaded relative to an origin, and the origin is
+  folded into the projection matrix in double precision.** *(Agent, ticket `0200`, 2026-09-28.)*
+  - **The defect.** `05` §4.2 projected absolute mercator centres through `u_projection_matrix`,
+    which WebGL only takes as `float32`. Its translation terms are ~`mercator × worldSize`, and at
+    z17 the rounding step is ~1.2 CSS px, so on a slow pan every disc held still and then jumped.
+    Operator report: *"the fog definitely jitters a bit"*, only zoomed in and moving slowly.
+  - **How it was told apart from the other candidate.** The ticket's other suspect was the
+    half-resolution mask (`MASK_SCALE = 0.5`). Measured through the shipped shader on SwiftShader,
+    panning 0.2 device px per frame at z17: the edge stuck for 48 of 50 frames and jumped 4.5 device
+    px, **identically at `MASK_SCALE` 0.5 and 1**. With relative centres the worst error was 0.2 px
+    at either scale. The mask was never the cause (a soft ramp resampled on a grid moves
+    continuously), so its 4× cost was never priced, and §6.3's budget is unchanged.
+  - **Why this shape.** It is the usual relative-to-centre fix, and it costs nothing on the frame
+    path: the subtraction runs once per upload, and the fold is a dozen floating-point operations per frame on the CPU.
+    MapLibre draws its own layers tile-local for the same reason. Under `#define GLOBE` the prelude
+    is not a plain matrix product, so the origin goes through `u_origin` instead of the fold. That
+    keeps globe correct at the old precision, which does not matter at globe zooms.
+  - **Not done:** the absolute centres are still `float32` before the subtraction, which misplaces a
+    disc by up to ~2 device px at z17. That offset is fixed to the ground and does not move on a
+    pan, so it cannot step, and at the edge of a 100 m soft disc nobody can see it.

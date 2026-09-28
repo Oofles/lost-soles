@@ -225,7 +225,10 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
       // Only the mercator uniforms resolve, exactly as a real compiler leaves them: under mercator
       // the globe uniforms are unused and stripped, so their locations come back null. That is what
       // makes the null-guards in `setProjectionUniforms` load-bearing rather than decorative.
-      name === "u_projection_matrix" || COMPOSITE_UNIFORMS.has(name) ? handle(name) : null,
+      // `u_origin` (`0200`) is the mask shader's own and always used, so it always resolves.
+      name === "u_projection_matrix" || name === "u_origin" || COMPOSITE_UNIFORMS.has(name)
+        ? handle(name)
+        : null,
     uniformMatrix4fv: (...args: unknown[]) => record("uniformMatrix4fv", ...args),
     uniformMatrix3fv: (...args: unknown[]) => record("uniformMatrix3fv", ...args),
     uniform4fv: (...args: unknown[]) => record("uniform4fv", ...args),

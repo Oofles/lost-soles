@@ -4578,6 +4578,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-09-11T13:12:36Z",
+    "started": "2026-09-28T14:59:00Z",
     "path": "tickets/open/0200-the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi.md",
     "ready": true,
     "acceptance": {

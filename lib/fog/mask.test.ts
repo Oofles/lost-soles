@@ -20,6 +20,7 @@ import {
   runDebugBlit,
   runMaskPass,
   setProjectionUniforms,
+  translated,
   uploadInstances,
 } from "./mask"
 
@@ -125,7 +126,7 @@ describe("the shaders", () => {
   it("takes projection from MapLibre's prelude and declares no matrix of its own", () => {
     const source = maskVertexSource(STUB_PRELUDE, "#define PROJECTION_MERCATOR")
     expect(source).toContain(STUB_PRELUDE)
-    expect(source).toContain("projectTile(a_center + a_quad * a_radius)")
+    expect(source).toContain("projectTile(u_origin + a_center + a_quad * a_radius)")
     // Criterion 7: the layer must not declare the uniform the prelude already declares — that is
     // a redefinition error under globe, where the prelude declares more than one.
     const ownDeclaration = source
@@ -162,6 +163,103 @@ describe("setProjectionUniforms", () => {
     expect(() => setProjectionUniforms(fake.gl, res.maskProgram, PROJECTION)).not.toThrow()
     expect(fake.of("uniformMatrix4fv")).toHaveLength(1) // u_projection_matrix only
     expect(fake.of("uniform4fv")).toHaveLength(0) // the globe uniforms resolved to null
+  })
+})
+
+/**
+ * `0200` — the fog edge stepped against the basemap on a slow pan at z17. The projection matrix's
+ * translation terms are ~`mercator x worldSize`, and a `float32` cannot hold them to a pixel.
+ *
+ * These emulate the vertex shader's `float32` arithmetic with `Math.fround` rather than trusting a
+ * GPU, so they run in CI. `tools/fog-harness` measured the same thing on SwiftShader; the numbers
+ * are in the ticket.
+ */
+describe("ground-relative instances — 0200", () => {
+  const f = Math.fround
+  const Z = 17
+  const WIDTH = 1280
+  const WORLD = 512 * 2 ** Z * 2 // device px per mercator unit, DPR 2
+  const DIST = 600 // MapLibre-like clip w for a ground point, pitch 0
+  const PX = 0.2917 // a disc centre near Philadelphia, mercator x
+
+  /** Column-major, as MapLibre hands it over; x only, since the y row is the same arithmetic. */
+  const mainMatrix = (camX: number) => {
+    const sx = ((WORLD * 2) / WIDTH) * DIST
+    const m = new Float64Array(16)
+    m[0] = sx
+    m[5] = 1
+    m[10] = 1
+    m[12] = -camX * sx
+    m[15] = DIST
+    return m
+  }
+  /** Screen x, device px from centre, of mercator `x` under a `float32` matrix — the GPU's view. */
+  const gpuX = (m: ArrayLike<number>, x: number) =>
+    ((f(f(f(m[0]!) * f(x)) + f(m[12]!)) / f(m[15]!)) * WIDTH) / 2
+
+  /** Worst screen error across a 0.2 px/frame pan, against the exact double-precision answer. */
+  const worstError = (relative: boolean) => {
+    let worst = 0
+    for (let i = 0; i <= 50; i++) {
+      const camX = PX - 100 / WORLD + (i * 0.2) / WORLD
+      const exact = 100 - i * 0.2
+      const got = relative ? gpuX(translated(mainMatrix(camX), [PX, 0]), 0) : gpuX(mainMatrix(camX), PX)
+      worst = Math.max(worst, Math.abs(got - exact))
+    }
+    return worst
+  }
+
+  it("reproduces the bug: an absolute centre under a float32 matrix is off by pixels at z17", () => {
+    // The sabotage case. If this ever passes under 1 px the emulation has stopped modelling it.
+    expect(worstError(false)).toBeGreaterThan(1)
+  })
+
+  it("holds the edge to a hundredth of a pixel once the origin is folded in double", () => {
+    expect(worstError(true)).toBeLessThan(0.01)
+  })
+
+  it("translated() is M x T(origin): the relative point lands where the absolute one did", () => {
+    const m = [1, 2, 0, 3, 4, 5, 0, 6, 0, 0, 1, 0, 7, 8, 0, 9]
+    const t = translated(m, [0.25, 0.5])
+    // M x (0.25, 0.5, 0, 1), column-major, in exact arithmetic.
+    expect(Array.from(t.slice(12))).toEqual([7 + 0.25 + 2, 8 + 0.5 + 2.5, 0, 9 + 0.75 + 3])
+    expect(Array.from(t.slice(0, 12))).toEqual(m.slice(0, 12))
+  })
+
+  it("uploads centres relative to the first, leaving radius and fraction alone", () => {
+    const { fake, res } = resourcesOn()
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, 0.5001, 0.2499, 0.002, 0.5]))
+    expect(res.origin).toEqual([f(0.5), f(0.25)])
+    const sent = fake.uploads.at(-1)!
+    expect(sent[0]).toBe(0)
+    expect(sent[1]).toBe(0)
+    expect(sent[4]).toBe(f(f(0.5001) - f(0.5)))
+    expect(sent[5]).toBe(f(f(0.2499) - f(0.25)))
+    expect([sent[2], sent[3], sent[6], sent[7]]).toEqual([f(0.001), 1, f(0.002), 0.5])
+  })
+
+  it("folds the origin into the matrix under mercator, and zeroes u_origin", () => {
+    const { fake, res } = resourcesOn()
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1]))
+    runMaskPass(fake.gl, res, PROJECTION)
+    const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
+    expect([sent[12], sent[13]]).toEqual([0.5, 0.25]) // identity x (0.5, 0.25, 0, 1)
+    expect(fake.of("uniform2f")[0]!.args.slice(1)).toEqual([0, 0])
+  })
+
+  it("under #define GLOBE, leaves the matrix alone and hands the origin to the shader", () => {
+    const fake = fakeGl()
+    const res = createMaskResources(fake.gl, {
+      prelude: STUB_PRELUDE,
+      define: "#define GLOBE",
+      width: fake.gl.drawingBufferWidth,
+      height: fake.gl.drawingBufferHeight,
+    })
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1]))
+    runMaskPass(fake.gl, res, PROJECTION)
+    const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
+    expect(Array.from(sent)).toEqual(Array.from(PROJECTION.mainMatrix))
+    expect(fake.of("uniform2f")[0]!.args.slice(1)).toEqual([0.5, 0.25])
   })
 })
 

@@ -124,7 +124,9 @@ ${prelude}
 ${define}
 
 in vec2  a_quad;      // unit quad corner, -1..1           (per-vertex, 4 verts)
-in vec2  a_center;    // cell centre, web-mercator 0..1    (per-instance)
+uniform vec2 u_origin; // see MaskResources.origin — (0, 0) whenever it is folded into the matrix
+
+in vec2  a_center;    // cell centre, RELATIVE to MaskResources.origin (per-instance)
 in float a_radius;    // disc radius, mercator units       (per-instance)
 in float a_fraction;  // 0..1 coverage weight              (per-instance)
 
@@ -137,7 +139,7 @@ void main() {
     // Offset in mercator space, then let MapLibre project. A mercator-space disc is still a
     // disc on screen, so no latitude correction is needed for the SHAPE; a_radius carries the
     // ground-size variation (see metresToMercator in instances.ts).
-    gl_Position = projectTile(a_center + a_quad * a_radius);
+    gl_Position = projectTile(u_origin + a_center + a_quad * a_radius);
 }`
 }
 
@@ -249,10 +251,16 @@ export function setProjectionUniforms(
   gl: WebGL2RenderingContext,
   program: WebGLProgram,
   p: ProjectionLike,
+  origin: readonly [number, number] = [0, 0],
+  foldOrigin = true,
 ): void {
   const at = (name: string) => gl.getUniformLocation(program, name)
   const matrix = at("u_projection_matrix")
-  if (matrix) gl.uniformMatrix4fv(matrix, false, new Float32Array(Array.from(p.mainMatrix)))
+  if (matrix) {
+    gl.uniformMatrix4fv(matrix, false, foldOrigin ? translated(p.mainMatrix, origin) : new Float32Array(Array.from(p.mainMatrix)))
+  }
+  const shift = at("u_origin")
+  if (shift) gl.uniform2f(shift, foldOrigin ? 0 : origin[0], foldOrigin ? 0 : origin[1])
   const fallback = at("u_projection_fallback_matrix")
   if (fallback) {
     gl.uniformMatrix4fv(fallback, false, new Float32Array(Array.from(p.fallbackMatrix)))
@@ -265,6 +273,21 @@ export function setProjectionUniforms(
   if (transition) gl.uniform1f(transition, p.projectionTransition)
   const antimeridian = at("u_projection_clip_antimeridian")
   if (antimeridian) gl.uniform1f(antimeridian, p.clipAntimeridian ? 1 : 0)
+}
+
+/**
+ * `M x T(origin)`, column-major, composed in DOUBLE and only then rounded. `0200`, see
+ * `MaskResources.origin`. Only column 3 changes: `M x (ox, oy, 0, 1)`. At z17 its terms are ~1e7
+ * before and a few thousand after, which is the whole fix — the cancellation happens here, in 53
+ * bits, instead of on the GPU in 24.
+ */
+export function translated(m: ArrayLike<number>, origin: readonly [number, number]): Float32Array {
+  const out = new Float32Array(16)
+  for (let i = 0; i < 16; i++) out[i] = m[i] ?? 0
+  for (let r = 0; r < 4; r++) {
+    out[12 + r] = (m[r] ?? 0) * origin[0] + (m[4 + r] ?? 0) * origin[1] + (m[12 + r] ?? 0)
+  }
+  return out
 }
 
 /* ─── GL resources ──────────────────────────────────────────────────────────── */
@@ -284,6 +307,27 @@ export type MaskResources = {
   instanceCount: number
   /** Capacity in instances, so a same-or-smaller upload can reuse the allocation. */
   capacity: number
+  /**
+   * THE MERCATOR POINT EVERY UPLOADED CENTRE IS RELATIVE TO. `0200`.
+   *
+   * Absolute centres put the fog edge on a staircase at high zoom. The projection's translation
+   * terms are ~`mercator x worldSize`, and `uniformMatrix4fv` rounds them to `float32`: at z17 the
+   * rounding step is ~1.2 CSS px, so on a slow pan every disc sits still and then jumps while the
+   * basemap — which MapLibre draws in tile-local coordinates for exactly this reason — slides.
+   * Measured on SwiftShader through this shader: 48 of 50 frames of a 0.2 px/frame pan stuck, jumps
+   * of 4.5 device px; relative to an origin, 0.2 px worst error. `MASK_SCALE = 1` changed nothing.
+   *
+   * So `uploadInstances` subtracts this origin once per bucket, and `setProjectionUniforms` adds it
+   * back into the matrix IN DOUBLE, where the large terms cancel before anything is rounded.
+   */
+  origin: [number, number]
+  /**
+   * Whether the origin can be folded into `u_projection_matrix`. True under the mercator prelude,
+   * whose `projectTile(p)` is just `matrix x (p, 0, 1)`. False under `#define GLOBE`, whose prelude
+   * does its own thing with `p` — there `u_origin` carries it instead, which is the old precision
+   * and correct, and MapLibre only shows the globe at low zoom where the rounding is sub-pixel.
+   */
+  foldOrigin: boolean
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -439,6 +483,8 @@ export function createMaskResources(
     maskH,
     instanceCount: 0,
     capacity: 0,
+    origin: [0, 0],
+    foldOrigin: !options.define.includes("GLOBE"),
   }
 }
 
@@ -457,12 +503,21 @@ export function uploadInstances(
   instances: Float32Array,
 ): void {
   const count = Math.floor(instances.length / INSTANCE_FLOATS)
+  // `0200`: centres relative to the first one. A copy, not an in-place edit — the caller keeps its
+  // array to re-upload after a context loss, and this runs once per bucket, never per frame.
+  const origin: [number, number] = count > 0 ? [instances[0]!, instances[1]!] : [0, 0]
+  const relative = instances.slice(0, count * INSTANCE_FLOATS)
+  for (let i = 0; i < relative.length; i += INSTANCE_FLOATS) {
+    relative[i] = instances[i]! - origin[0]
+    relative[i + 1] = instances[i + 1]! - origin[1]
+  }
+  res.origin = origin
   gl.bindBuffer(gl.ARRAY_BUFFER, res.instanceBuffer)
   if (count > res.capacity) {
-    gl.bufferData(gl.ARRAY_BUFFER, instances, gl.DYNAMIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, relative, gl.DYNAMIC_DRAW)
     res.capacity = count
   } else {
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, instances)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, relative)
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
   res.instanceCount = count
@@ -569,7 +624,7 @@ export function runMaskPass(
   }
 
   gl.useProgram(res.maskProgram)
-  setProjectionUniforms(gl, res.maskProgram, projection)
+  setProjectionUniforms(gl, res.maskProgram, projection, res.origin, res.foldOrigin)
   gl.bindVertexArray(res.maskVAO)
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, res.instanceCount)
   gl.bindVertexArray(null)
