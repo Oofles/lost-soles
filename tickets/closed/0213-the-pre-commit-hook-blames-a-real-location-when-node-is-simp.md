@@ -4,7 +4,7 @@ slug: the-pre-commit-hook-blames-a-real-location-when-node-is-simp
 title: The pre-commit hook blames a real location when node is simply not on PATH
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-28T15:07:27Z
 started: 2026-09-28T16:24:49Z
+closed: 2026-09-28T16:26:38Z
 ---
 
 ## Description

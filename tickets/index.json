@@ -4852,7 +4852,7 @@
     "title": "The pre-commit hook blames a real location when node is simply not on PATH",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -4860,11 +4860,12 @@
     "source": "agent",
     "created": "2026-09-28T15:07:27Z",
     "started": "2026-09-28T16:24:49Z",
-    "path": "tickets/open/0213-the-pre-commit-hook-blames-a-real-location-when-node-is-simp.md",
-    "ready": true,
+    "closed": "2026-09-28T16:26:38Z",
+    "path": "tickets/closed/0213-the-pre-commit-hook-blames-a-real-location-when-node-is-simp.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 3
+      "checked": 2,
+      "total": 2
     }
   }
 ]
