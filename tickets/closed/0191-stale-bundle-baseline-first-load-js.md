@@ -4,7 +4,7 @@ slug: stale-bundle-baseline-first-load-js
 title: The 0053 bundle baseline is stale — / First Load JS is 188 kB, the table says 121 kB
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-10T02:11:00Z
 started: 2026-09-28T13:12:48Z
+closed: 2026-09-28T13:19:06Z
 ---
 
 ## Description
