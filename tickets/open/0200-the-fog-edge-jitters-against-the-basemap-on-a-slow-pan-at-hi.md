@@ -48,7 +48,8 @@ scratch, and so that whoever is next in `composite.ts` can check it off cheaply 
       affordable, and "acceptable" is the operator's own word for the current state.
       — **Did not apply.** The mask was ruled out, so it was never priced, and `MASK_SCALE` is
       unchanged at 0.5.
-- [ ] **(operator)** If a fix ships: a slow drag at z17 tracks the basemap without stepping.
+- [x] **(operator)** If a fix ships: a slow drag at z17 tracks the basemap without stepping.
+      — verified 2026-09-28: operator, desktop browser — "the slow drag looks great and fog slides with the map appropriately."
 
 ## Notes
 
@@ -150,5 +151,5 @@ literals, which was wrong because the inputs are themselves `float32`. I fixed i
 - The pan probe against the shipped code: worst edge error went from 2.18 to 0.20 px and the largest
   frame-to-frame jump from 4.5 to 0.5 device px (table above).
 
-**Operator (pending):** on the desktop browser, zoom to z17 over explored ground and drag slowly.
-The fog edge should slide with the basemap and not step.
+**Operator, 2026-09-28, desktop browser:** at z17 over explored ground, a slow drag. *"The slow
+drag looks great and fog slides with the map appropriately."* No stepping.
