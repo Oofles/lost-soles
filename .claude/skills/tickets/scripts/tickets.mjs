@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSy
 import { join, basename, relative } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 
 const ROOT = process.env.TICKETS_ROOT ?? new URL("../../../../", import.meta.url).pathname.replace(/\/$/, "");
 const DIRS = { inbox: "tickets/inbox", open: "tickets/open", closed: "tickets/closed" };
@@ -491,6 +492,13 @@ function writeIndex(tickets = load()) {
 const PASS = (id, section, detail) => ({ id, section, status: "pass", detail });
 const FAIL = (id, section, detail) => ({ id, section, status: "fail", detail });
 const NA = (id, section, reason) => ({ id, section, status: "na", detail: reason });
+/**
+ * The fourth verdict (0183): the subject EXISTS, and the check could not reach it
+ * — no credentials, an S3 error, an unknown bucket. It is not `na`, which means
+ * "nothing to check yet": a broken check reading as a skipped one is the vacuous
+ * pass this whole command exists to prevent. `--record` refuses on it like a fail.
+ */
+const ERR = (id, section, detail) => ({ id, section, status: "error", detail });
 
 /** Run a command, and report only whether it succeeded — audits are not test runners. */
 function runCheck(cmd, args, { timeout = 300_000 } = {}) {
@@ -649,6 +657,195 @@ function invariantSweep() {
     `. Ratchet only: the remaining ${invariants.length - live.length} are not due until 0116 sets "complete": true in ${CITATIONS}, which makes this row all-or-nothing`);
 }
 
+// ─────────────────────────────────────────── §4 regression: the unrecoverables ────
+
+/**
+ * AUDIT.md §4's two rows for the invariants this project cannot recover from:
+ * the map never re-fogs (D-020, I-7) and XP never decreases (D-135, I-16).
+ *
+ * Until 0183 both were `NA(...)` with a literal message and no predicate, so
+ * `fog-no-refog` went on saying "no fog pipeline exists yet" after capability 07
+ * shipped one. The rule now: **every n/a is derived from something observable**,
+ * so the message cannot outlive the fact it states.
+ *
+ * Both compare against a BASELINE, because §4 asks whether a number regressed and
+ * that needs a previous value. Reading today's manifest and passing would be the
+ * same always-green row, moved. The baseline is a ratchet exactly like the
+ * invariant sweep's: it rises in `audit --record` and nowhere else, and never
+ * falls — a forced audit over a re-fog does not lower the bar it failed.
+ *
+ * Users are keyed by a truncated sha256 of the Cognito sub, not the sub itself:
+ * the file is committed, and a per-user comparison needs no raw identifier.
+ */
+const BASELINE = "docs/capabilities/regression-baseline.json";
+
+/** Where the fog pipeline lives. Its presence — not a capability number — arms the check. */
+const FOG_STORE = "src/pipeline/explored-blob-store.ts";
+
+const userKey = (userId) => createHash("sha256").update(userId).digest("hex").slice(0, 16);
+
+function regressionBaseline() {
+  const p = join(ROOT, BASELINE);
+  if (!existsSync(p)) return { fog: {}, exists: false };
+  try {
+    const j = JSON.parse(readFileSync(p, "utf8"));
+    return { fog: j.fog?.users ?? {}, exists: true };
+  } catch {
+    return { fog: {}, exists: true, malformed: true };
+  }
+}
+
+/**
+ * The AWS CLI, overridable so the self-test can inject a regression without an
+ * account. `aws s3api list-objects-v2` is NOT used: the CLI build on the dev box
+ * crashes on it ("badly formed help string") while `aws s3 ls`/`cp` work.
+ */
+function aws(args) {
+  const bin = process.env.TICKETS_AWS_CLI ?? "aws";
+  const env = { ...process.env, AWS_PROFILE: process.env.AWS_PROFILE ?? "devault" };
+  const r = spawnSync(bin, args, { cwd: ROOT, encoding: "utf8", env, timeout: 60_000 });
+  if (r.error) return { ok: false, err: r.error.message };
+  return { ok: r.status === 0, status: r.status, out: r.stdout ?? "", err: (r.stderr ?? "").trim() };
+}
+
+/** The deployed user-data bucket. `amplify_outputs.json` is gitignored, so this can legitimately be absent. */
+function userDataBucket() {
+  try { return JSON.parse(readFileSync(join(ROOT, "amplify_outputs.json"), "utf8")).storage?.bucket_name ?? null; }
+  catch { return null; }
+}
+
+/** Every user's manifest, as `{ user → { cellCount, generation } }` keyed by `userKey`. Throws on any read failure. */
+function readManifests(bucket) {
+  const ls = aws(["s3", "ls", `s3://${bucket}/users/`, "--recursive"]);
+  // `aws s3 ls` exits 1 with no output on an empty prefix. Anything else is an error.
+  if (!ls.ok && !(ls.status === 1 && !ls.out.trim() && !ls.err)) {
+    throw new Error(`aws s3 ls failed: ${(ls.err || `exit ${ls.status}`).split("\n").pop().slice(0, 160)}`);
+  }
+  const keys = ls.out.split("\n").map((l) => l.trim().split(/\s+/).pop())
+    .filter((k) => k && /^users\/[^/]+\/manifest\.json$/.test(k));
+  const out = {};
+  for (const key of keys) {
+    const got = aws(["s3", "cp", `s3://${bucket}/${key}`, "-"]);
+    if (!got.ok) throw new Error(`reading ${key}: ${(got.err || `exit ${got.status}`).split("\n").pop().slice(0, 160)}`);
+    let m;
+    try { m = JSON.parse(got.out); } catch { throw new Error(`${key} is not JSON`); }
+    if (!Number.isInteger(m.cellCount) || !Number.isInteger(m.generation)) {
+      throw new Error(`${key} has no integer cellCount/generation — the manifest shape changed, update this check`);
+    }
+    out[userKey(key.split("/")[1])] = { cellCount: m.cellCount, generation: m.generation };
+  }
+  return out;
+}
+
+/**
+ * Pure comparison, exported for the self-test. A user in the baseline whose
+ * manifest has gone is the worst regression of all — the whole map re-fogged.
+ */
+function compareFog(baseline, current) {
+  const regressions = [];
+  for (const [u, b] of Object.entries(baseline)) {
+    const c = current[u];
+    if (!c) { regressions.push(`user ${u}: manifest.json is gone (baseline ${b.cellCount} cells, generation ${b.generation})`); continue; }
+    if (c.cellCount < b.cellCount) regressions.push(`user ${u}: cellCount ${b.cellCount} → ${c.cellCount}`);
+    if (c.generation < b.generation) regressions.push(`user ${u}: generation ${b.generation} → ${c.generation} (I-11)`);
+  }
+  return regressions;
+}
+
+/** Last read of the manifests, so `--record` advances the baseline from what this audit checked. */
+let fogObserved = null;
+
+function fogNoRefog() {
+  const ID = "fog-no-refog", S = "4";
+  fogObserved = null;
+  const store = join(ROOT, FOG_STORE);
+  if (!existsSync(store) || !/manifest\.json/.test(readFileSync(store, "utf8"))) {
+    return NA(ID, S, `no ${FOG_STORE} writing manifest.json exists — activates when the fog pipeline does (D-020, I-7)`);
+  }
+  const base = regressionBaseline();
+  if (base.malformed) return ERR(ID, S, `${BASELINE} is not readable JSON — the re-fog baseline cannot be compared. git history has the last good copy`);
+  const bucket = userDataBucket();
+  if (!bucket) return ERR(ID, S, "the fog pipeline exists but amplify_outputs.json names no storage bucket — run `npx ampx generate outputs`, then re-audit");
+
+  let current;
+  try { current = readManifests(bucket); }
+  catch (e) { return ERR(ID, S, `could not read manifests from s3://${bucket}: ${e.message}`); }
+  fogObserved = current;
+
+  const users = Object.keys(current).length;
+  const baseUsers = Object.keys(base.fog).length;
+  if (!baseUsers) {
+    return users
+      ? NA(ID, S, `no recorded baseline yet — the next 'audit --record' sets it (${users} user(s), ${Object.values(current).map((c) => `${c.cellCount} cells @ gen ${c.generation}`).join(", ")})`)
+      : NA(ID, S, `no manifest.json exists in s3://${bucket} yet and no baseline is recorded — activates with the first ingested run`);
+  }
+  const regressions = compareFog(base.fog, current);
+  if (regressions.length) {
+    return FAIL(ID, S, `RE-FOG — ${regressions.join("; ")}. The map never re-fogs (D-020): find the write that lowered it before anything else ships`);
+  }
+  return PASS(ID, S, `${baseUsers} baselined user(s): ` +
+    Object.entries(base.fog).map(([u, b]) => `cells ${b.cellCount} → ${current[u].cellCount}, gen ${b.generation} → ${current[u].generation}`).join("; ") +
+    ` — none lower (${BASELINE})`);
+}
+
+/** Raise the fog baseline to what this audit observed — `--record` only, never downward. */
+function advanceBaseline() {
+  if (!fogObserved) return null;
+  const cur = regressionBaseline();
+  if (cur.malformed) return null;
+  const users = { ...cur.fog };
+  const raised = [];
+  for (const [u, c] of Object.entries(fogObserved)) {
+    const b = users[u] ?? { cellCount: 0, generation: 0 };
+    const next = { cellCount: Math.max(b.cellCount, c.cellCount), generation: Math.max(b.generation, c.generation) };
+    if (next.cellCount !== b.cellCount || next.generation !== b.generation || !users[u]) {
+      raised.push(`${u}: ${next.cellCount} cells @ gen ${next.generation}`);
+    }
+    users[u] = next;
+  }
+  if (!raised.length) return null;
+  const out = {
+    note: "High-water marks for the AUDIT.md §4 regression rows (ticket 0183). fog.users maps a " +
+          "truncated sha256 of each Cognito sub to the largest manifest.json cellCount and " +
+          "generation seen at a recorded audit; the next audit fails if either is lower (D-020, " +
+          "I-7, I-11). Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an " +
+          "audit pass.",
+    fog: { users },
+  };
+  writeFileSync(join(ROOT, BASELINE), JSON.stringify(out, null, 2) + "\n");
+  return raised;
+}
+
+/**
+ * XP's baseline will be `snapshots/skillstate/` (02 §8.2, ticket 0067) — the one
+ * derived fact that is not re-derivable. Until code writes it there is nothing to
+ * compare. The moment code does, this row FAILS rather than passing: a real
+ * comparison has to be written against the snapshot's actual shape, and a row
+ * that quietly stayed n/a after T4 shipped is the exact bug 0183 fixed.
+ */
+function xpNotLower() {
+  const ID = "xp-not-lower", S = "4";
+  const writers = ["src", "amplify"].flatMap((r) => sourceFiles(join(ROOT, r)))
+    .filter((f) => readFileSync(f, "utf8").includes("snapshots/skillstate/"));
+  if (!writers.length) {
+    return NA(ID, S, "no source under src/ or amplify/ references snapshots/skillstate/ yet — activates when the T4 skill-state snapshot exists (02 §8.2, 0067; D-135, I-16)");
+  }
+  return FAIL(ID, S, `the skill-state snapshot now exists (${writers.map((f) => relative(ROOT, f)).join(", ")}) but no XP comparison is implemented — ` +
+    `extend ${BASELINE} with XP totals and compare them here, as fog-no-refog does`);
+}
+
+/** Non-test source files — the subject of a check, not its fixtures. */
+function sourceFiles(dir, acc = []) {
+  if (!existsSync(dir)) return acc;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (["node_modules", ".git", ".next", ".amplify"].includes(e.name)) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) sourceFiles(p, acc);
+    else if (/\.(ts|tsx|mjs|js)$/.test(e.name) && !/\.test\./.test(e.name)) acc.push(p);
+  }
+  return acc;
+}
+
 /**
  * Test files under the APPLICATION roots only — not the whole repo.
  *
@@ -743,10 +940,8 @@ function auditChecks(capability, tickets) {
     : PASS("validate", "1", "0 errors across open/ and closed/"));
 
   // ── §4 regression, the scriptable rows ────────────────────────────────────
-  checks.push(NA("fog-no-refog", "4",
-    "no explored blob or fog pipeline exists yet — activates with capability 07 (D-020, I-7)"));
-  checks.push(NA("xp-not-lower", "4",
-    "no XP ledger exists yet — activates with capability 09 (D-135, I-16)"));
+  checks.push(fogNoRefog());
+  checks.push(xpNotLower());
 
   // ── §5 hygiene ────────────────────────────────────────────────────────────
   const byIdx = byId(tickets);
@@ -935,14 +1130,15 @@ function cmdAudit(capability, flags) {
   const checks = auditChecks(capability, tickets);
   const failed = checks.filter((c) => c.status === "fail");
   const na = checks.filter((c) => c.status === "na");
+  const errored = checks.filter((c) => c.status === "error");
 
   if (!flags.record) {
     if (flags.json) {
-      console.log(JSON.stringify({ capability, checks, passed: !failed.length }, null, 2));
+      console.log(JSON.stringify({ capability, checks, passed: !failed.length && !errored.length }, null, 2));
     } else {
-      printAuditTable(capability, checks, failed, na);
+      printAuditTable(capability, checks, failed, na, errored);
     }
-    if (failed.length) process.exit(1);
+    if (failed.length || errored.length) process.exit(1);
     return;
   }
 
@@ -966,6 +1162,7 @@ function cmdAudit(capability, flags) {
 
   const problems = [];
   if (failed.length) problems.push(`${failed.length} mechanical check(s) failed: ${failed.map((c) => c.id).join(", ")}`);
+  if (errored.length) problems.push(`${errored.length} check(s) could not run: ${errored.map((c) => c.id).join(", ")} — a check that did not run is not a pass`);
   if (divergences.length > 3) {
     problems.push(`${divergences.length} divergences, over the budget of three — the design is stale, not the code.\n` +
                   `    Stop shipping tickets and run a DESIGN session on the affected doc (AUDIT.md §2).`);
@@ -978,7 +1175,7 @@ function cmdAudit(capability, flags) {
   }
 
   if (problems.length && !force) {
-    printAuditTable(capability, checks, failed, na);
+    printAuditTable(capability, checks, failed, na, errored);
     die(`${capability} does not pass its audit:\n` +
         problems.map((p) => `  - ${p}`).join("\n") +
         `\n\n  Nothing was recorded. Fix these, or override with --force "<reason>" — which\n` +
@@ -988,14 +1185,17 @@ function cmdAudit(capability, flags) {
   // The ratchet rises HERE and nowhere else (D-225): the moment a capability is
   // declared done. `gained` is reported so a silent bar-raise is impossible.
   const gained = advanceRatchet([...citedInvariants().keys()]);
+  const raised = advanceBaseline();
 
   const record = {
     capability,
     audited: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
     verdict: problems.length ? "forced" : "pass",
-    mechanical: { pass: checks.length - failed.length - na.length, fail: failed.length, na: na.length },
+    mechanical: { pass: checks.length - failed.length - na.length - errored.length, fail: failed.length, na: na.length },
     divergences: divergences.length,
   };
+  // Only when present, so records written before 0183 and clean ones still compare equal.
+  if (errored.length) record.mechanical.error = errored.length;
   const deferredInCap = tickets.filter((t) => t.fm?.capability === capability && t.fm.status === "deferred");
   if (deferredInCap.length) record.deferred = deferredInCap.map((t) => pad(t.fm.id));
   if (problems.length) record.forced = String(force);
@@ -1005,7 +1205,8 @@ function cmdAudit(capability, flags) {
     `## Audit — ${record.audited.slice(0, 10)} (\`tickets.mjs audit --record\`)`,
     ``,
     `**Verdict: ${record.verdict.toUpperCase()}.** Mechanical half: ${record.mechanical.pass} passed, ` +
-      `${record.mechanical.fail} failed, ${record.mechanical.na} n/a. See AUDIT.md §1, §4, §5.`,
+      `${record.mechanical.fail} failed, ${record.mechanical.na} n/a` +
+      (errored.length ? `, ${errored.length} could not run` : "") + `. See AUDIT.md §1, §4, §5.`,
     ``,
   ];
   if (problems.length) {
@@ -1032,24 +1233,30 @@ function cmdAudit(capability, flags) {
   const doc = join(ROOT, `docs/capabilities/${capability}.md`);
   writeFileSync(doc, readFileSync(doc, "utf8").replace(/\s*$/, "\n") + lines.join("\n"));
 
-  printAuditTable(capability, checks, failed, na);
+  printAuditTable(capability, checks, failed, na, errored);
   console.log(`  recorded → docs/capabilities/${capability}.md  (verdict: ${record.verdict})`);
   if (gained?.length) {
     console.log(`  invariant ratchet raised → ${CITATIONS}  (+${gained.length}: ${gained.join(", ")})`);
     console.log(`  those citations must not disappear again — the next audit fails if one does.`);
   }
+  if (raised?.length) {
+    console.log(`  re-fog baseline raised → ${BASELINE}  (${raised.join("; ")})`);
+    console.log(`  the next audit fails if any user's cellCount or generation is below it.`);
+  }
   if (problems.length) console.log(`  the override and its reason are in the doc.`);
 }
 
-function printAuditTable(capability, checks, failed, na) {
+function printAuditTable(capability, checks, failed, na, errored = []) {
   console.log(`\n  audit ${capability} — AUDIT.md mechanical half (0133)\n`);
   let section = null;
   for (const c of checks) {
     if (c.section !== section) { section = c.section; console.log(`  §${section}`); }
-    const mark = { pass: "  ok  ", fail: " FAIL ", na: "  n/a " }[c.status];
+    const mark = { pass: "  ok  ", fail: " FAIL ", na: "  n/a ", error: " ERR  " }[c.status];
     console.log(`   ${mark} ${c.id.padEnd(26)} ${c.detail}`);
   }
-  console.log(`\n  ${checks.length - failed.length - na.length} passed, ${failed.length} failed, ${na.length} n/a`);
+  console.log(`\n  ${checks.length - failed.length - na.length - errored.length} passed, ${failed.length} failed, ` +
+              `${na.length} n/a (nothing to check yet), ${errored.length} could not run`);
+  if (errored.length) console.log(`  ERR is not n/a: the subject exists and the check could not reach it. Fix access and re-run.`);
   console.log(`\n  Mechanical only — a green table is not a passed audit. AUDIT.md §2 (design`);
   console.log(`  conformance) and §3 (operator validation) are judgement: run`);
   console.log(`  'audit ${capability} --sections' for the reading list, then --record, which`);
@@ -1831,4 +2038,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { compareFog, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

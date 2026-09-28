@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral, compareFog } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -1838,5 +1838,186 @@ describe("0185 — a capability with no doc is an error, because it gates every 
     assert.equal(r.code, 0, `an explicit null capability is not an unknown one:\n${r.out}`);
     assert.doesNotMatch(r.out, /unknown-capability/);
     rmSync(d, { recursive: true, force: true });
+  });
+});
+
+// ─────────────────────────────────── 0183 §4 regression rows are real checks ────
+
+describe("0183 — fog-no-refog and xp-not-lower are predicates against a baseline, not constants", () => {
+  const SUB = "5488e4b8-d081-7014-748e-edd1937f8083";
+  const REFLECT = "\n## Reflection\n\n" + "What the design got right, what it got wrong, and why the audit caught it before the operator did. ".repeat(3) + "\n";
+
+  /**
+   * A repo with the fog pipeline present, a bucket named, one closed ticket and a
+   * written REFLECT — recordable. S3 is a directory served by a fake `aws` that
+   * speaks exactly the two commands the check uses.
+   */
+  const fogRepo = () => {
+    const d = repo();
+    const cap = "00-x";
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n${REFLECT}`);
+    ticket(d, "closed", FM({ status: "closed", closed: "2026-08-30T00:00:00Z", capability: cap }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    mkdirSync(join(d, "src/pipeline"), { recursive: true });
+    writeFileSync(join(d, "src/pipeline/explored-blob-store.ts"),
+      "export const objectKeys = { manifest: (u: string) => `users/${u}/manifest.json` }\n");
+    writeFileSync(join(d, "amplify_outputs.json"), JSON.stringify({ storage: { bucket_name: "b" } }));
+    const s3 = join(d, ".fake-s3");
+    mkdirSync(s3);
+    const fake = join(d, ".fake-aws");
+    writeFileSync(fake, `#!/bin/sh
+[ -n "$FAKE_AWS_FAIL" ] && { echo "Unable to locate credentials. You can configure credentials by running \\"aws configure\\"." >&2; exit 255; }
+case "$1 $2" in
+  "s3 ls") cd "${s3}" && out=$(find users -name manifest.json 2>/dev/null | sed 's/^/2026-09-27 00:00:00   386 /'); [ -z "$out" ] && exit 1; echo "$out" ;;
+  "s3 cp") cat "${s3}/\${3#s3://b/}" ;;
+  *) echo "unexpected: $*" >&2; exit 2 ;;
+esac
+`, { mode: 0o755 });
+    return { d, cap, s3, fake };
+  };
+  const put = (s3, sub, m) => {
+    mkdirSync(join(s3, "users", sub), { recursive: true });
+    writeFileSync(join(s3, "users", sub, "manifest.json"), JSON.stringify({ res: 11, deltasFrom: 0, ...m }));
+  };
+  const audit = (f, extraEnv = {}, ...args) => {
+    const r = spawnSync("node", [SCRIPT, "audit", f.cap, ...args], {
+      cwd: f.d, env: { ...process.env, TICKETS_ROOT: f.d, TICKETS_AWS_CLI: f.fake, ...extraEnv }, encoding: "utf8",
+    });
+    return { code: r.status ?? 1, out: (r.stdout ?? "") + (r.stderr ?? "") };
+  };
+  const row = (f, id, env) => JSON.parse(audit(f, env, "--json").out).checks.find((c) => c.id === id);
+  const record = (f, ...more) => audit(f, {}, "--record", "--no-divergences", ...more);
+
+  test("n/a when the fog pipeline does not exist — derived from the repo, and says what activates it", () => {
+    const f = fogRepo();
+    rmSync(join(f.d, "src/pipeline/explored-blob-store.ts"));
+    const c = row(f, "fog-no-refog");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /explored-blob-store\.ts/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("a check that cannot reach S3 is ERROR, never n/a — and the audit exits non-zero", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 10, generation: 2 });
+    const c = row(f, "fog-no-refog", { FAKE_AWS_FAIL: "1" });
+    assert.equal(c.status, "error", `credentials failure read as '${c.status}': ${c.detail}`);
+    assert.match(c.detail, /Unable to locate credentials/);
+    const r = audit(f, { FAKE_AWS_FAIL: "1" });
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /1 could not run/);
+    assert.match(r.out, /ERR is not n\/a/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("--record refuses while a check could not run", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 10, generation: 2 });
+    const r = audit(f, { FAKE_AWS_FAIL: "1" }, "--record", "--no-divergences");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /could not run: fog-no-refog/);
+    assert.ok(!existsSync(join(f.d, "docs/capabilities/regression-baseline.json")));
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("a pipeline with no bucket in amplify_outputs.json is ERROR, not n/a", () => {
+    const f = fogRepo();
+    rmSync(join(f.d, "amplify_outputs.json"));
+    assert.equal(row(f, "fog-no-refog").status, "error");
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("no baseline is n/a, never pass — reading today's manifest proves nothing about regression", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+    const c = row(f, "fog-no-refog");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /no recorded baseline yet.*audit --record/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("--record writes the baseline keyed by a hash — the raw Cognito sub is never committed", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+    const r = record(f);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /re-fog baseline raised/);
+    const raw = readFileSync(join(f.d, "docs/capabilities/regression-baseline.json"), "utf8");
+    assert.ok(!raw.includes(SUB), "the baseline must not contain the raw sub");
+    const users = Object.values(JSON.parse(raw).fog.users);
+    assert.deepEqual(users, [{ cellCount: 1003, generation: 60 }]);
+    assert.equal(row(f, "fog-no-refog").status, "pass");
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  for (const [what, m] of [
+    ["a lowered cellCount", { cellCount: 1002, generation: 61 }],
+    ["a lowered generation", { cellCount: 1004, generation: 59 }],
+  ]) {
+    test(`FAILS on an injected regression: ${what} (D-020, I-7, I-11)`, () => {
+      const f = fogRepo();
+      put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+      assert.equal(record(f).code, 0);
+      put(f.s3, SUB, m);
+      const c = row(f, "fog-no-refog");
+      assert.equal(c.status, "fail", `${what} was reported '${c.status}': ${c.detail}`);
+      assert.match(c.detail, /RE-FOG/);
+      assert.notEqual(audit(f).code, 0);
+      rmSync(f.d, { recursive: true, force: true });
+    });
+  }
+
+  test("FAILS when a baselined user's manifest disappears entirely — the whole map re-fogged", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+    assert.equal(record(f).code, 0);
+    rmSync(join(f.s3, "users"), { recursive: true });
+    const c = row(f, "fog-no-refog");
+    assert.equal(c.status, "fail", c.detail);
+    assert.match(c.detail, /manifest\.json is gone/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("a forced record over a re-fog does not lower the baseline it failed", () => {
+    const f = fogRepo();
+    put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+    assert.equal(record(f).code, 0);
+    put(f.s3, SUB, { cellCount: 900, generation: 60 });
+    assert.equal(record(f, "--force", "testing the ratchet").code, 0);
+    const users = Object.values(JSON.parse(readFileSync(join(f.d, "docs/capabilities/regression-baseline.json"), "utf8")).fog.users);
+    assert.equal(users[0].cellCount, 1003, "the bar must not fall to what failed it");
+    assert.equal(row(f, "fog-no-refog").status, "fail", "and the next audit must still fail");
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("compareFog — equal and higher pass, each lower field is named", () => {
+    const base = { u: { cellCount: 5, generation: 3 } };
+    assert.deepEqual(compareFog(base, { u: { cellCount: 5, generation: 3 } }), []);
+    assert.deepEqual(compareFog(base, { u: { cellCount: 9, generation: 9 }, v: { cellCount: 1, generation: 1 } }), []);
+    assert.equal(compareFog(base, { u: { cellCount: 4, generation: 2 } }).length, 2);
+  });
+
+  test("xp-not-lower is n/a until code references snapshots/skillstate/, then FAILS until a comparison exists", () => {
+    const f = fogRepo();
+    let c = row(f, "xp-not-lower");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /snapshots\/skillstate\//);
+    // A test fixture mentioning the path is not the subject existing.
+    writeFileSync(join(f.d, "src/pipeline/skill-state.test.ts"), "// snapshots/skillstate/ fixture\n");
+    assert.equal(row(f, "xp-not-lower").status, "na");
+    writeFileSync(join(f.d, "src/pipeline/skill-state.ts"), "export const key = (u: string) => `snapshots/skillstate/${u}.json`\n");
+    c = row(f, "xp-not-lower");
+    assert.equal(c.status, "fail", "T4 existing with no comparison must not stay quietly n/a");
+    assert.match(c.detail, /skill-state\.ts/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("the sweep: no §4 row in the source is an unconditional NA or PASS with a literal message", () => {
+    // Every other NA/PASS in auditChecks sits inside an existsSync/run branch; the
+    // §4 block is where the constants were, so it must hold calls only.
+    const src = readFileSync(SCRIPT, "utf8");
+    const s4 = src.slice(src.indexOf("// ── §4 regression"), src.indexOf("// ── §5 hygiene"));
+    assert.ok(s4.length > 20, "the §4 block markers moved — update this sweep");
+    assert.doesNotMatch(s4, /\b(NA|PASS)\(/, "a literal NA(…)/PASS(…) in §4 is the 0183 bug");
   });
 });

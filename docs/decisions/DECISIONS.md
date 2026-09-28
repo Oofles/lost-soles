@@ -3345,3 +3345,23 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     made — applying it would remove something the operator values**, and `0119` must treat it as a
     change to argue for rather than a debt to pay off. The escape hatch stays documented because it
     is the right answer *if* the step is ever judged badly; it is not, today.
+
+- **D-246** **The audit gains a fourth verdict, `error`. The §4 regression rows compare against a
+  committed, ratcheted baseline.** *(Agent, ticket `0183`, 2026-09-27.)*
+  - **`error` is not `na`.** Until now `na` covered both "there is nothing to check yet" and "the
+    check could not run", and the second is how a broken check reads as a skipped one. `error` means
+    the subject exists and the check could not reach it (no AWS credentials, an S3 failure, an
+    unknown bucket). It exits non-zero and blocks `--record` like `fail` does, and `--force` can
+    override it with the reason recorded. The count goes into the audit record as
+    `mechanical.error` only when non-zero, so older records still compare equal.
+  - **The baseline is `docs/capabilities/regression-baseline.json`**, not the audit-record comment
+    `0183`'s Notes suggested. Records are spread across 18 capability docs and append-only; the
+    comparison needs one current high-water mark. The invariant sweep solved the same problem with
+    a separate ratchet file (D-225), and this uses the same pattern. It rises only in
+    `audit --record`, takes the per-field max, and never falls, even under `--force`.
+  - **Users are keyed by `sha256(sub)[:16]`.** The file is committed, and a per-user comparison
+    works without the raw Cognito sub. Totals across all users would lose nothing today (one user)
+    but would let one user's regression hide behind another user's gain.
+  - **`xp-not-lower` FAILS, not n/a, once code writes `snapshots/skillstate/`.** The comparison has
+    to be written against the snapshot's real shape, which does not exist yet. A row that stayed
+    quietly n/a after T4 shipped is exactly the bug `0183` fixed.

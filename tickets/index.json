@@ -4214,6 +4214,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T15:04:21Z",
+    "started": "2026-09-28T01:48:39Z",
     "path": "tickets/open/0183-audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w.md",
     "ready": true,
     "acceptance": {

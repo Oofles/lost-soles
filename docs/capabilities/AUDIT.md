@@ -79,8 +79,16 @@ not that the code is sloppy. Stop shipping tickets and run a DESIGN session on t
 - [ ] Did this capability change anything an earlier one depends on? If so, that earlier
       capability's validation is re-run — for a visual capability, at minimum load the map and
       import a run; for a backend one, re-run its smoke test.
-- [ ] `explored-r10.bin` still regenerates and no cell has re-fogged (D-020, `I-7`).
+- [ ] No cell has re-fogged (D-020, `I-7`): every user's `manifest.json` `cellCount` and
+      `generation` (`I-11`) are at or above the recorded baseline.
 - [ ] Total XP is unchanged or higher, never lower (D-135, `I-16`).
+
+Both rows are scripted (`fog-no-refog`, `xp-not-lower`; ticket `0183`) and compare against
+`docs/capabilities/regression-baseline.json`, which `audit --record` raises and nothing lowers —
+not even a `--force`d record. A row is `n/a` only when its subject does not exist yet (no fog
+pipeline in `src/`, no `snapshots/skillstate/` writer). If the subject exists but the check cannot
+reach it (no AWS credentials, an S3 error), the row is `ERR`. `ERR` fails the audit and blocks
+`--record` the same way `FAIL` does, because a check that did not run is not a skipped one.
 
 ## 5. Cost and hygiene
 
