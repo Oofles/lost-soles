@@ -104,6 +104,6 @@ replay. Building the drill properly means that path is already built and already
 
 From the laptop, run the full drill against the CI fixture into a scratch stack and read the
 printed step-8 table: six rows, all PASS. Then deliberately corrupt one fixture cells file and
-re-run — assertion 3 must fail and the run must stop before step 7 writes `manifest.json`. On the
-phone, open `/` during and after the run: the live map must be completely unaffected, and the fog
-`generation` served to the phone must be unchanged, because nothing was cut over.
+re-run — assertion 3 must fail and the run must stop before step 7 writes `manifest.json`. In the
+desktop browser, open `/` during and after the run: the live map must be completely unaffected, and the fog
+`generation` served to the app must be unchanged, because nothing was cut over.

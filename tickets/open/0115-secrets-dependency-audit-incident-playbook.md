@@ -91,9 +91,9 @@ resources rather than categories.
 > as a list of chores for the operator.
 
 On the laptop with the AWS console and the GitHub repo open, work the checklist and record each
-result in `docs/capabilities/18-mvp-hardening.md`. Then, on the Android phone specifically:
+result in `docs/capabilities/18-mvp-hardening.md`. Then:
 trigger the poisoned-message test and confirm the notification actually arrives on the phone
 (this is the whole point — the operator's phone is where incidents are noticed); and open the
 deployed app, view source and search for `ghp_`, `client_secret`, and the Strava client secret
-value by hand, in the mobile browser, so the grep's result is confirmed by a human on the real
+value by hand, in the desktop browser, so the grep's result is confirmed by a human on the real
 artifact.

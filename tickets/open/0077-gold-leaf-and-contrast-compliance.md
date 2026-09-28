@@ -53,8 +53,7 @@ non-colour path.
       3:1 against the tile background as non-text meaningful graphics.
 - [ ] The activity/meta distinction is **not colour-only**: section headings remain, and the
       distinction is announced to assistive technology.
-- [ ] The screens are checked at the system's largest font scale and in dark ambient conditions
-      with the device at minimum brightness; nothing becomes unreadable and nothing clips.
+- [ ] The screens are checked at 200% browser zoom and the browser's largest font size; nothing becomes unreadable and nothing clips.
 - [ ] Level figures use tabular figures and remain legible at 24sp on the tile.
 - [ ] Any exception found and accepted is recorded in the ticket's resolution with its measured
       ratio, so it is a decision rather than an oversight.
@@ -62,8 +61,9 @@ non-colour path.
 ## Notes
 
 The trap this decision protects against is that gold *looks* right in a mockup on a bright desk
-monitor and fails on a phone held at arm's length in a stairwell after a run — which is the only
-context this app is actually used in. Measure it on the device, not in the design tool.
+monitor ~~and fails on a phone held at arm's length in a stairwell after a run — which is the only
+context this app is actually used in~~ *(D-251, 0215)*. Measure it on the rendered page in the
+desktop browser, not in the design tool.
 
 Opaque chrome is a bigger visual compromise than it sounds like and it is still the right call:
 a translucent pinned header over a scrolling grid has a *different* contrast ratio at every
@@ -71,9 +71,8 @@ scroll offset, so it cannot be verified at all.
 
 ## Operator validation
 
-On **`/skills`** on the **Pixel 8 Pro**, at **minimum screen brightness, outdoors at dusk, held
-at arm's length, straight after a run**: read every skill name and every level. Anything you have
-to squint at, tilt the phone for, or shade with your hand fails. Scroll the grid under the pinned
+In the desktop browser, on **`/skills`**: read every skill name and every level; anything you
+have to squint at fails. Scroll the grid under the pinned
 header and confirm the header's text never changes legibility as content passes behind it — if it
-does, the header is not opaque. Repeat with the system font scale at maximum and confirm nothing
+does, the header is not opaque. Repeat at 200% zoom and confirm nothing
 clips or overlaps.

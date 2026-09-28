@@ -106,7 +106,7 @@ Volume sanity: ~4.5 rows per activity, 9,000–25,000 rows at five years. This t
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/skills/:skillId` detail sheet** for Wayfaring, on the **Pixel 8 Pro**: the `RECENT`
+On the **`/skills/:skillId` detail sheet** for Wayfaring, in the desktop browser: the `RECENT`
 list is the ledger rendered. After importing one run, its rows must appear there and the sum of
 every row ever shown must equal the level bar's XP on the panel behind it. Import the same run
 twice (re-trigger the sync): the sheet must show **one** entry, not two, and the XP must not

@@ -100,8 +100,8 @@ first time.
 > as a list of chores for the operator.
 
 **The drill, performed for real.** Disable the webhook (delete the subscription, or point reserved
-concurrency to 0 — record which you did). Go about a normal day: **go for a run**, log a workout.
-Confirm on the Android phone that nothing has appeared in the app — the map is unchanged and the
+concurrency to 0 — record which you did). Go about a normal day: let the next ordinary run arrive (or send an imported/replayed or synthetic activity (manual adapter or through the queue, D-229)), log a workout.
+Confirm in the desktop browser that nothing has appeared in the app — the map is unchanged and the
 plinth still shows the older run. That absence is the failure mode this ticket exists for, and it is
 worth seeing once with your own eyes so you know what a silent drop looks like.
 

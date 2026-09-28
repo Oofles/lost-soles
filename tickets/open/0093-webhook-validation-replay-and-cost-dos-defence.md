@@ -138,6 +138,6 @@ executions never exceeded 5, that `process-activity` was not throttled, and that
 essentially nothing. Confirm a Budgets email actually lands in the inbox — an alarm nobody receives is
 not a backstop.
 
-Finally, on the Android phone: revoke the app from Strava's own website, then open Lost Soles. The
+Finally, in the desktop browser: revoke the app from Strava's own website, then open Lost Soles. The
 source must show as disconnected in `/settings`, and your map and Total Level must be **completely
 unchanged**. Reconnect and confirm ingest resumes.

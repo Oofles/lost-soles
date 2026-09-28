@@ -60,7 +60,7 @@ the test is wired into CI permanently rather than run once at acceptance.
 - [ ] The Pull-ups fixture is scoped to the test and is **not** shipped in the production
       ruleset.
 - [ ] The test's registry order assertion proves rows never reorder by frequency, recency or
-      level (`06-ui-ux.md` §6.5) — a row that moves is a row you mis-tap.
+      level (`06-ui-ux.md` §6.5) — a row that moves is a row you mis-click.
 
 ## Notes
 
@@ -79,9 +79,8 @@ disguise.
 
 ## Operator validation
 
-On the **Pixel 8 Pro**, one thumb: with a hand-edited ruleset containing a Pull-ups row deployed
+In the desktop browser: with a hand-edited ruleset containing a Pull-ups row deployed
 to a test stack, open `/` and confirm the home screen looks **exactly** as it did — no new
 button, no shifted plinth, no reflow. Then open `/log`: Pull-ups must be the last row, with the
-same 56dp controls and the same `LOG` at the right edge as every other row, usable one-handed
-without a second glance. Then open `/skills` and confirm Pull-ups is simply the next tile in
+same controls in the same place as every other row, usable without a second glance. Then open `/skills` and confirm Pull-ups is simply the next tile in
 `ACTIVITY` and no existing tile has moved position.

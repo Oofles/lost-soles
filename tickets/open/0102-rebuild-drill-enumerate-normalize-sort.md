@@ -92,6 +92,6 @@ parallel fold is a silently wrong map.
 > as a list of chores for the operator.
 
 From the laptop, run the enumerate phase against the live bucket with `--dry-run` and read the
-printed object count against `aws s3 ls --summarize`. They must match exactly. On the phone,
+printed object count against `aws s3 ls --summarize`. They must match exactly. In the desktop browser,
 nothing changes — this ticket has no UI and must have no effect on the running app; confirm the
 map on `/` is unchanged after the run.

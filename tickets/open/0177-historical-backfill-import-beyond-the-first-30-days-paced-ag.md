@@ -77,5 +77,5 @@ already covered costs one conditional write per activity and nothing else. That 
 1. (agent) Run a backfill over a window known to contain activities and confirm the read budget is
    never exhausted — the rate-limit headers, sampled across the run, never reach the limit.
 2. (agent) Kill it mid-run and restart. No duplicate `Activity` rows, no gap in the imported set.
-3. (operator) Watch it run on the phone. Is it obvious that something is happening, and roughly
+3. (operator) Watch it run in the desktop browser. Is it obvious that something is happening, and roughly
    how far along it is? A progress surface nobody can interpret is the failure this asks about.

@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,529 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,543 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -375,7 +375,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,665 lines
+**06 — UI / UX** — 1,669 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -419,39 +419,39 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1057-1082` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
 | &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1083-1103` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
 | &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1104-1119` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
-| 7. Ticket capture UI (D-092) | `1120-1241` | wireframes, and the reasons the constraints are what they are. |
-| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1126-1140` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
-| &nbsp;&nbsp;↳ 7.2 Placement and access | `1141-1149` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
-| &nbsp;&nbsp;↳ 7.3 Capture | `1150-1187` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1188-1199` | browse list with a pending marker. |
-| &nbsp;&nbsp;↳ 7.5 Browse | `1200-1228` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1229-1241` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
-| 8. Visual system | `1242-1430` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1244-1267` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1268-1301` | Six ramps. Nothing outside them ships. |
-| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1302-1339` |  |
-| &nbsp;&nbsp;↳ 8.4 Typography | `1340-1370` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
-| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1371-1382` | the map's floating controls 8dp. |
-| &nbsp;&nbsp;↳ 8.6 Iconography | `1383-1396` | an 8dp construction grid, no fills, no gradients, no two-tone. |
-| &nbsp;&nbsp;↳ 8.7 Motion | `1397-1430` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1431-1563` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
-| &nbsp;&nbsp;↳ 9.1 Sunlight | `1437-1458` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
-| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1459-1483` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
-| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1484-1503` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1504-1524` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1525-1546` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1547-1563` |  |
-| 10. What we are deliberately NOT building | `1564-1665` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1573-1586` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1587-1593` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1594-1619` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1620-1635` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1636-1651` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1652-1665` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| 7. Ticket capture UI (D-092) | `1120-1245` | wireframes, and the reasons the constraints are what they are. |
+| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1130-1144` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
+| &nbsp;&nbsp;↳ 7.2 Placement and access | `1145-1153` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
+| &nbsp;&nbsp;↳ 7.3 Capture | `1154-1191` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1192-1203` | browse list with a pending marker. |
+| &nbsp;&nbsp;↳ 7.5 Browse | `1204-1232` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1233-1245` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
+| 8. Visual system | `1246-1434` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1248-1271` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1272-1305` | Six ramps. Nothing outside them ships. |
+| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1306-1343` |  |
+| &nbsp;&nbsp;↳ 8.4 Typography | `1344-1374` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
+| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1375-1386` | the map's floating controls 8dp. |
+| &nbsp;&nbsp;↳ 8.6 Iconography | `1387-1400` | an 8dp construction grid, no fills, no gradients, no two-tone. |
+| &nbsp;&nbsp;↳ 8.7 Motion | `1401-1434` | Five durations. Nothing else is invented at the component level. |
+| 9. Accessibility and reality checks | `1435-1567` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| &nbsp;&nbsp;↳ 9.1 Sunlight | `1441-1462` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
+| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1463-1487` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
+| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1488-1507` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1508-1528` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1529-1550` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1551-1567` |  |
+| 10. What we are deliberately NOT building | `1568-1669` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1577-1590` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1591-1597` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1598-1623` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1624-1639` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1640-1655` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1656-1669` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 
-**07 — Ticket System ("TicketSmith, adapted")** — 1,426 lines
+**07 — Ticket System ("TicketSmith, adapted")** — 1,430 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -483,28 +483,28 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `810-829` | Refuse first, then act. |
 | &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `830-969` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
 | &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `970-1003` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
-| 5. The in-app ticket UI | `1004-1130` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
-| &nbsp;&nbsp;↳ 5.1 Placement | `1009-1020` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
-| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `1021-1050` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
-| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `1051-1072` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
-| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `1073-1084` | Read-only list from the cached mirror. |
-| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1085-1091` | Tap a row → rendered markdown detail view. |
-| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1092-1097` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
-| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1098-1130` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
-| 6. Auth and security | `1131-1270` | The capture endpoint is a write primitive pointed at your source repository. |
-| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1136-1141` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
-| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1142-1158` | Fastest to stand up, and adequate for a single-operator project. |
-| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1159-1173` | Recommended once the endpoint is stable. |
-| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1174-1243` | { "title": "string, 1..200", |
-| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1244-1257` |  |
-| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1258-1270` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
-| 7. Bootstrapping | `1271-1415` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1273-1289` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1290-1344` | ├── CLAUDE.md # orientation. |
-| &nbsp;&nbsp;↳ 7.3 Seeding | `1345-1388` | Ordered, and each step is usable before the next exists. |
-| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1389-1396` | Do not pre-populate tickets/inbox/ with ideas. |
-| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1397-1415` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
-| Open questions | `1416-1426` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
+| 5. The in-app ticket UI | `1004-1134` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
+| &nbsp;&nbsp;↳ 5.1 Placement | `1013-1024` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
+| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `1025-1054` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
+| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `1055-1076` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
+| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `1077-1088` | Read-only list from the cached mirror. |
+| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1089-1095` | Tap a row → rendered markdown detail view. |
+| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1096-1101` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
+| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1102-1134` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
+| 6. Auth and security | `1135-1274` | The capture endpoint is a write primitive pointed at your source repository. |
+| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1140-1145` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
+| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1146-1162` | Fastest to stand up, and adequate for a single-operator project. |
+| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1163-1177` | Recommended once the endpoint is stable. |
+| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1178-1247` | { "title": "string, 1..200", |
+| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1248-1261` |  |
+| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1262-1274` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
+| 7. Bootstrapping | `1275-1419` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1277-1293` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1294-1348` | ├── CLAUDE.md # orientation. |
+| &nbsp;&nbsp;↳ 7.3 Seeding | `1349-1392` | Ordered, and each step is usable before the next exists. |
+| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1393-1400` | Do not pre-populate tickets/inbox/ with ideas. |
+| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1401-1419` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
+| Open questions | `1420-1430` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
 
 ## `docs/08-security-privacy.md`
 
@@ -558,7 +558,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/09-roadmap.md`
 
-**09 — Roadmap: The Build Order** — 1,131 lines
+**09 — Roadmap: The Build Order** — 1,137 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -568,47 +568,47 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.1 Why this is the governing constraint | `79-94` | D-013 is a hard design constraint, and the Habitica lesson behind it (00-vision.md §3.1) is |
 | &nbsp;&nbsp;↳ 2.2 The critical path, exactly | `95-111` | ├─► 05 strava-adapter ──► 06 ingest-pipeline ──► 07 fog-projection |
 | &nbsp;&nbsp;↳ 2.3 What is deliberately ugly or missing at the milestone | `112-162` | nothing scores. The number of skills displayed is zero. |
-| 3. Capability breakdown | `163-492` | Nineteen capabilities in dependency-respecting order. |
+| 3. Capability breakdown | `163-498` | Nineteen capabilities in dependency-respecting order. |
 | &nbsp;&nbsp;↳ PHASE 0 — Ground Truth on Disk | `173-209` | try, and where a secret cannot be committed. |
 | &nbsp;&nbsp;↳ PHASE 1 — The Spine | `210-334` |  |
 | &nbsp;&nbsp;↳ PHASE 2 — The Game Made Visible | `335-415` |  |
-| &nbsp;&nbsp;↳ PHASE 3 — Trustworthy and Complete | `416-492` |  |
-| 4. Sequencing calls that need justifying | `493-671` | tickets before there is anything capable of creating tickets. |
-| &nbsp;&nbsp;↳ 4.1 The bootstrapping paradox, and why `03` ships before `17` | `495-555` | tickets before there is anything capable of creating tickets. |
-| &nbsp;&nbsp;↳ 4.2 D-141: `match` lands before the first line of the scorer | `556-588` | (kinds, requiresTrace, sources, measure) and matchPriority, is ticket 4 of capability |
-| &nbsp;&nbsp;↳ 4.3 The S3 rebuild drill is a scheduled exercise, not an assumption | `589-618` | D-101 says user-supplied files are the system of record and anything API-sourced is reproducible. |
-| &nbsp;&nbsp;↳ 4.4 Pre-flight: audit CloudFront before the subdomain exists | `619-641` | The devaultsecurity repo history shows an abandoned S3 + CloudFront + ACM architecture, retired |
-| &nbsp;&nbsp;↳ 4.5 Manual Sync before the webhook — a deliberate inversion | `642-659` | D-013 forbids upkeep, so a Sync button looks like a violation. |
-| &nbsp;&nbsp;↳ 4.6 Why the XP engine is in Phase 2 and not Phase 1 | `660-671` | The fog reveal is the product (P4, D-051). |
-| 5. Carry-forward corrections | `672-751` | Defects found during design. |
-| &nbsp;&nbsp;↳ 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated | `677-698` | Adding Vigil as a fifth activity skill moved the ceiling. |
-| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `699-712` | Total Level = Σ level(skill). |
-| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `713-738` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
-| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `739-751` | Not defects, but they expire silently if nobody holds them. |
-| 6. Post-MVP phases | `752-834` | Everything here is OUT of MVP by D-122 and stays out. |
-| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `763-785` | and its absence is visible on the skills panel from day one. |
-| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `786-806` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
-| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `807-816` | Last of the game systems, for two reasons. |
-| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `817-834` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
-| 7. Honest sizing | `835-924` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `837-860` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.2 Per phase | `861-880` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
-| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `881-924` | This is the single most technically uncertain piece in the project. |
-| 8. Risks to the schedule | `925-1031` | Ordered by expected damage, not by probability. |
-| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `929-957` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
-| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `958-982` | first-usable milestone. |
-| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `983-992` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
-| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `993-998` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
-| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `999-1008` | Target is a few dollars a month; the estimate is $1–5 all-in. |
-| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1009-1023` | The most likely way this project fails is not technical. |
-| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1024-1031` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
-| 9. Definition of done for MVP | `1032-1131` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
-| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1038-1049` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
-| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1050-1070` | decrease (D-135). |
-| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1071-1084` | <sha256>.<ext>, written before normalize. |
-| &nbsp;&nbsp;↳ 9.4 Operational | `1085-1097` | button may remain as a manual fallback; it must not be the only path. |
-| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1098-1124` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
-| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1125-1131` | That is settled six months later, by whether the user is still opening it. |
+| &nbsp;&nbsp;↳ PHASE 3 — Trustworthy and Complete | `416-498` |  |
+| 4. Sequencing calls that need justifying | `499-677` | tickets before there is anything capable of creating tickets. |
+| &nbsp;&nbsp;↳ 4.1 The bootstrapping paradox, and why `03` ships before `17` | `501-561` | tickets before there is anything capable of creating tickets. |
+| &nbsp;&nbsp;↳ 4.2 D-141: `match` lands before the first line of the scorer | `562-594` | (kinds, requiresTrace, sources, measure) and matchPriority, is ticket 4 of capability |
+| &nbsp;&nbsp;↳ 4.3 The S3 rebuild drill is a scheduled exercise, not an assumption | `595-624` | D-101 says user-supplied files are the system of record and anything API-sourced is reproducible. |
+| &nbsp;&nbsp;↳ 4.4 Pre-flight: audit CloudFront before the subdomain exists | `625-647` | The devaultsecurity repo history shows an abandoned S3 + CloudFront + ACM architecture, retired |
+| &nbsp;&nbsp;↳ 4.5 Manual Sync before the webhook — a deliberate inversion | `648-665` | D-013 forbids upkeep, so a Sync button looks like a violation. |
+| &nbsp;&nbsp;↳ 4.6 Why the XP engine is in Phase 2 and not Phase 1 | `666-677` | The fog reveal is the product (P4, D-051). |
+| 5. Carry-forward corrections | `678-757` | Defects found during design. |
+| &nbsp;&nbsp;↳ 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated | `683-704` | Adding Vigil as a fifth activity skill moved the ceiling. |
+| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `705-718` | Total Level = Σ level(skill). |
+| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `719-744` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
+| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `745-757` | Not defects, but they expire silently if nobody holds them. |
+| 6. Post-MVP phases | `758-840` | Everything here is OUT of MVP by D-122 and stays out. |
+| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `769-791` | and its absence is visible on the skills panel from day one. |
+| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `792-812` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
+| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `813-822` | Last of the game systems, for two reasons. |
+| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `823-840` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
+| 7. Honest sizing | `841-930` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `843-866` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.2 Per phase | `867-886` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
+| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `887-930` | This is the single most technically uncertain piece in the project. |
+| 8. Risks to the schedule | `931-1037` | Ordered by expected damage, not by probability. |
+| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `935-963` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
+| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `964-988` | first-usable milestone. |
+| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `989-998` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
+| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `999-1004` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
+| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `1005-1014` | Target is a few dollars a month; the estimate is $1–5 all-in. |
+| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1015-1029` | The most likely way this project fails is not technical. |
+| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1030-1037` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
+| 9. Definition of done for MVP | `1038-1137` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
+| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1044-1055` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
+| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1056-1076` | decrease (D-135). |
+| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1077-1090` | <sha256>.<ext>, written before normalize. |
+| &nbsp;&nbsp;↳ 9.4 Operational | `1091-1103` | button may remain as a manual fallback; it must not be the only path. |
+| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1104-1130` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
+| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1131-1137` | That is settled six months later, by whether the user is still opening it. |
 
 ## `docs/BUILD-ORDER.md`
 

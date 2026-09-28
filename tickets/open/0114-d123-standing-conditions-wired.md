@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 18-mvp-hardening
-depends_on: [17, 24, 111]
+depends_on: [17, 24]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -106,7 +106,7 @@ is written as an audit rather than a backlog.
 On the laptop, open a scratch PR that adds a file named `share-my-map.md` with the word "export"
 in it, and confirm CI fails with a message naming the §2.4 gate. Then run the prerender check
 against a real build and read its output — it should list every prerendered route and assert none
-carries cell data. On the Android phone, sign out completely and try to fetch the
+carries cell data. In the desktop browser, sign out completely and try to fetch the
 `explored-r10.bin` URL you can see in devtools while signed in: it must 403. Finally, open
-`CLAUDE.md` on the phone and confirm the standing note is visible in the first screenful — if an
+`CLAUDE.md` on GitHub in the desktop browser and confirm the standing note is visible in the first screenful — if an
 agent has to scroll to find it, it will not be read.

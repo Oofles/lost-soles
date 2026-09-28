@@ -75,8 +75,8 @@ matters for the D-120 six-month ground window on any future traceless distance s
 
 ## Operator validation
 
-On **`/log`** on the **Pixel 8 Pro**, in a basement with no signal: log 30 pushups. Walk back
-into signal and watch the **`/skills` panel** — Might must move within a few seconds, with no
+On **`/log`** in the desktop browser with DevTools set to Offline: log 30 pushups. Go back online
+and watch the **`/skills` panel** — Might must move within a few seconds, with no
 prompt, no retry button and no error ever having appeared. Then open the **map on `/`** and
 confirm **nothing was revealed**: no new territory, no generation flicker, no Cartography row in
 the tally. A workout logged indoors must leave the map untouched.

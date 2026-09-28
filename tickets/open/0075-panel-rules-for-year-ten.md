@@ -32,7 +32,7 @@ preference and there is no setting for it.
 **3. Untrained skills collapse.** A skill never once trained sits inside a collapsed
 `▸ Untrained (n)` row at the bottom, showing name and level 1 when expanded. This is how the
 panel holds twenty workout types without twelve dead tiles diluting the eight live ones — and it
-still satisfies RS's "show me the whole game", one tap down.
+still satisfies RS's "show me the whole game", one click down.
 
 **4. The grid scrolls; the header does not.** Total Level and Total XP are pinned and must not
 require a scroll at any skill count.
@@ -61,7 +61,7 @@ skill at level 3 you trained yesterday** (D-013).
 - [ ] Activity bars fill `--gold-500` and meta bars `--verdigris-500`, taken from the row's
       `kind`, never from a skill-id lookup.
 - [ ] A 15-skill fixture renders without horizontal scroll, without tile clipping, and without a
-      new section, at 360dp and at 412dp widths.
+      new section, at a typical desktop width and at a narrow (~400 CSS px) window.
 - [ ] No string on the panel is imperative: a test asserts the rendered text contains no
       target, streak, goal, decay or "neglected" language.
 - [ ] A skill untouched for a simulated year renders identically to one trained today at the same
@@ -82,9 +82,9 @@ the distinction that matters (celebration suppression) lives in 0065, not here.
 
 ## Operator validation
 
-On **`/skills`** on the **Pixel 8 Pro**, with a 15-skill test ruleset deployed: find Fortitude
+On **`/skills`** in the desktop browser, with a 15-skill test ruleset deployed: find Fortitude
 **without reading the labels** — by position alone, from memory. Then have the levels change (log
 a session), reload, and find it again the same way; it must be in exactly the same place. Confirm
 the `▸ Untrained (n)` row is at the bottom, that expanding it does not push the pinned header
-off, and that the meta bars are visibly a different colour from the activity bars at arm's
-length, without reading the section headings.
+off, and that the meta bars are visibly a different colour from the activity bars at a
+glance, without reading the section headings.

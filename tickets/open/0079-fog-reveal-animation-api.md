@@ -59,8 +59,8 @@ a renderer regression gets bisected later.
 - [ ] `progress` is monotonic in coverage: no cell that is revealed at `p` is unrevealed at `p'>p`.
 - [ ] The reveal set is computed from the local trace with no network call; the animation runs
       correctly with the network disabled entirely.
-- [ ] Frame time with a reveal set of 130 cells stays inside the `05-fog-of-war.md` §6.4 budget on
-      the target phone, measured with the 0059 harness — not assumed.
+- [ ] Frame time with a reveal set of 130 cells stays inside the `05-fog-of-war.md` §6.4 budget in
+      the desktop browser, measured with the 0059 harness — not assumed.
 - [ ] The dev-only scrub control exists and moves the fog edge smoothly end to end.
 - [ ] Zoom bucketing and viewport culling (0058) still apply to the reveal set; a run partly
       offscreen does not splat offscreen cells.
@@ -82,10 +82,10 @@ Nothing in this ticket is user-visible. That is intentional.
 
 ## Operator validation
 
-On the Android phone, dev build, on `/run/:id` for a real recent run: drag the scrub control slowly
+In the desktop browser, dev build, on `/run/:id` for a real recent run: drag the scrub control slowly
 from 0 to 1 and watch the fog edge. It should read as **mist retreating**, not as hexagons switching
 on — no visible honeycomb, no popping, no stair-stepping along the route. Drag it back to 0 and
-forward again several times; the boundary must retrace the same path. Then leave it at 1, kill and
-reopen the app, and compare the settled map to the screenshot you took at scrub=1: they must be
-indistinguishable. Do this outdoors in daylight, not just at a desk — the mist edge is a contrast
-judgement and screen brightness changes the answer.
+forward again several times; the boundary must retrace the same path. Then leave it at 1, reload the
+page, and compare the settled map to the screenshot you took at scrub=1: they must be
+indistinguishable. ~~Do this outdoors in daylight, not just at a desk — the mist edge is a contrast
+judgement and screen brightness changes the answer.~~ *(D-251, 0215)*

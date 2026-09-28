@@ -58,7 +58,7 @@ uniform and no extra data — `explored-lastrun-r10.bin` is already delivered.
 
 Colour: `--cold-wash` `#7E93AD`, multiplied over the lit basemap, plus a −18% saturation shift.
 **Never a stipple, never a hatch, never a hex outline** — patterns read as information about one
-specific cell and invite tapping, and there is nothing to tap (06 §4.4).
+specific cell and invite clicking, and there is nothing to click (06 §4.4).
 
 ## Acceptance criteria
 
@@ -85,15 +85,15 @@ The 40 px feather and the two-cell clip are doing different jobs and both are ne
 stops the wash from having an edge of its own, the clip stops it from ever reaching the edge that
 matters.
 
-If the wash looks too blue on the phone at z16, that is a value change to `--cold-wash` and the
+If the wash looks too blue at z16, that is a value change to `--cold-wash` and the
 saturation shift — file it as a new ticket. It is **not** a reason to add an outline or raise the
 opacity above the asymptote, and it is never a reason to show cold ground in adventure.
 
 ## Operator validation
 
-On the Android phone, atlas mode, over ground you last ran 5–7 months ago (the chronicle can tell
+In the desktop browser, atlas mode, over ground you last ran 5–7 months ago (the chronicle can tell
 you where). Look for a cool, edgeless dimming in the middle of your own territory, with a clear
-band of warm parchment between it and the fog edge. Then long-press to adventure: the cool wash
-must vanish completely while the fog and rim are unchanged. Finally, in bright sunlight, confirm
+band of warm parchment between it and the fog edge. Then toggle to adventure: the cool wash
+must vanish completely while the fog and rim are unchanged. Finally, confirm
 you can still tell the warm frontier from the cool ground at a glance — if you have to think about
 which is which, D-147's channel separation has failed and the wash is too strong.

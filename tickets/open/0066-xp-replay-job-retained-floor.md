@@ -101,9 +101,9 @@ the write path, this ticket has failed regardless of the tests passing.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/skills` panel** on the **Pixel 8 Pro**, with the app open and the panel visible: run
-a replay against a deliberately stingier v2 ruleset from your laptop while watching the phone.
+On the **`/skills` panel** in the desktop browser, with the app open and the panel visible: run
+a replay against a deliberately stingier v2 ruleset from a terminal while watching the panel.
 **No tile's level or bar may visibly decrease at any point**, including during the run. When it
-finishes, pull to refresh: every level must be the same or higher. Then open the detail sheet for
+finishes, reload: every level must be the same or higher. Then open the detail sheet for
 whichever skill was rated down and confirm a "retained" line is present and legible — the
 retention must be visible, not silent.

@@ -80,6 +80,6 @@ only makes sure the number it will push is there and correct.
 > **D-181 — this is the AGENT's to run.** The mirror is a DynamoDB attribute and an IAM grant;
 > `AWS_PROFILE=devault` answers every question above. Record the smoke test at close.
 
-1. After the first real sync following this change, the map still updates on the phone. The mirror
+1. After the first real sync following this change, the map still updates in the desktop browser. The mirror
    is not on the read path, so it should be invisible — and that is the thing worth confirming with
    a human eye: that wiring it changed nothing the user can see.

@@ -1119,6 +1119,10 @@ from day one. The UI's forward path, so nobody has to invent it under pressure:
 
 ## 7. Ticket capture UI (D-092)
 
+> **SUPERSEDED BY D-252 (2026-09-28).** There is no in-app ticket UI. D-092 is struck, and
+> capability `17` is withdrawn with `0107`–`0111` declined. This section is kept as the record of
+> what was designed. Build nothing from it.
+
 `07-ticketsmith.md` §5 is the specification. This section is the UI half of it: placement,
 wireframes, and the reasons the constraints are what they are. **Where the two documents appear
 to differ, 07 wins.**

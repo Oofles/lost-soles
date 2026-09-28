@@ -63,7 +63,7 @@ identical revealed set* — is actually discharged.
 
 ## Operator validation
 
-On the Android phone, on `/`, at z15 over a neighbourhood you know: read three street names aloud
-in adventure mode, then long-press and read the same three in atlas. Both must be readable without
+In the desktop browser, on `/`, at z15 over a neighbourhood you know: read three street names aloud
+in adventure mode, then toggle and read the same three in atlas. Both must be readable without
 zooming. Then find the edge of your territory and toggle repeatedly while watching one specific
 fogged block — if any block flickers between revealed and unrevealed, stop and reopen this ticket.

@@ -30,7 +30,7 @@ run.cartographyXp      # = round(discoveryCredits * XP_PER_CELL)
 ```
 
 Surface **all three counts, not just the total**: *"112 cells run · 41 new · 12 rediscovered · 59
-familiar"* tells a story a single XP number cannot. That breakdown is what 0081's tap-to-expand and
+familiar"* tells a story a single XP number cannot. That breakdown is what 0081's click-to-expand and
 0083's chronicle templates consume.
 
 **Lifetime totals (§8.3)** — cheap aggregates, computed on `manifest.json` generation change and
@@ -46,7 +46,7 @@ memoised, never on every render:
 | Frontier length | explored cells with ≥1 unexplored `gridDisk(c,1)` neighbour |
 
 **The frontier primitive (§8.4)** — the res-8 clustered novelty scan that answers "unexplored ground
-1.2 km north". It is ~20 lines, it is what beat 5 (0083) renders and what the frontier line's tap
+1.2 km north". It is ~20 lines, it is what beat 5 (0083) renders and what the frontier line's click
 recentres on. **Build it reusable**: the deferred route planner (D-070) consumes exactly this
 structure as its profit input — do not fork it later, and do not inline a second copy in the
 post-run moment.
@@ -92,13 +92,13 @@ Resist adding period aggregates here even though they would be trivial. There is
 
 ## Operator validation
 
-On the Android phone after importing a real run: compare the tally's `21 cells claimed · 8
-remembered` against the same run's row in the Chronicle and against the tap-expanded breakdown. All
+In the desktop browser after importing a run: compare the tally's `21 cells claimed · 8
+remembered` against the same run's row in the Chronicle and against the click-expanded breakdown. All
 three must agree — a disagreement between two screens showing the same run is the bug this feed
 exists to prevent, and it is only ever caught by a human looking at both.
 
 Check the plinth's lifetime cell count against the map: after a run that revealed new ground, it must
 have gone up by the run's new-cell count exactly, not approximately.
 
-Then tap the frontier line and drive or walk toward what it named. If it points at somewhere you have
+Then click the frontier line and drive or walk toward what it named. If it points at somewhere you have
 obviously already run, the novelty scan is reading a stale generation.

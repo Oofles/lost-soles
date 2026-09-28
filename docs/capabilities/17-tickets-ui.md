@@ -4,6 +4,10 @@
 > `#### \`17-tickets-ui\`` section of [`../09-roadmap.md`](../09-roadmap.md). This file is where the
 > DESIGN step's output belongs, and where [`AUDIT.md`](AUDIT.md) results are appended at close.
 
+> **WITHDRAWN 2026-09-28 by D-252.** The phone is not a viewing or input surface (D-251), and
+> at the desktop the repo, GitHub, `tickets.mjs` and the agent cover everything this capability
+> planned. All five tickets were declined, and this capability's audit records the withdrawal.
+
 ## Tickets (5)
 
 - `0107` — /dev/tickets capture sheet — title, body, two chip rows, Save

@@ -21,11 +21,11 @@ surface without its logic gives you a spreadsheet:
 
 - **Every skill is on one surface, always, at a fixed position.** You learn the layout with your
   eyes, not by reading. Tile 3 is Fortitude forever.
-- **One glance = one number per skill.** The level. Everything else is a tap away.
+- **One glance = one number per skill.** The level. Everything else is a click away.
 - **Total Level lives in the panel**, as the summary of the grid it sits in.
 - **A skill you have never trained still exists.** The panel shows the shape of the whole game.
 
-What we do **not** take: no hover (there is no hover on a phone, D-124) — everything RS puts in
+What we do **not** take: no hover-only information *(phone rationale struck, D-251)* — everything RS puts in
 a tooltip goes into the detail sheet; no XP-per-hour, no goals, no ranks, no hiscores; and **no
 fixed 3×8 board**, because we do not know how many skills we will have and the layout must grow.
 
@@ -33,8 +33,11 @@ Layout: a 56dp app bar; a **pinned header** carrying `✦ TOTAL LEVEL <n>`, a pr
 next milestone, and `Total XP <n>` beneath it; then sections `ACTIVITY`, `META`, and a collapsed
 `▸ Untrained (n)` row. Tiles are 104 × 104dp on an 8dp gutter, three across at 360dp width —
 sigil 28dp, skill name 12sp, level 24sp tabular figures, a 3dp full-width progress bar. The
-`META` section ends with the **crest tile**: Total Level again, RS's corner, and tapping it does
+`META` section ends with the **crest tile**: Total Level again, RS's corner, and clicking it does
 nothing. It is a seal.
+
+*(D-251, 0215: the dp dimensions above are phone-derived. Layout follows `06` §5.2 as revised by
+`0187`.)*
 
 A `NEXT` card below the grid carries **one line** — `~9 runs to Wayfaring 48`. Not a list.
 
@@ -53,7 +56,7 @@ Every tile is generated from the registry. There is no per-skill component anywh
       matches the value the home plinth shows.
 - [ ] Total XP is displayed under Total Level and is the value that increases every session.
 - [ ] Sections render as `ACTIVITY`, then `META`, then the collapsed `Untrained` group.
-- [ ] The crest tile appears at the end of `META`, shows Total Level, and is inert on tap.
+- [ ] The crest tile appears at the end of `META`, shows Total Level, and is inert on click.
 - [ ] The `NEXT` card shows exactly one line and never becomes a list.
 - [ ] Levels use tabular figures so a level change does not reflow the tile.
 - [ ] Nothing on the screen is a target, a goal, a "train this" prompt, a neglected-skill warning
@@ -75,7 +78,7 @@ comparison surface in this app, against other people or against your own past se
 
 ## Operator validation
 
-On **`/skills`** on the **Pixel 8 Pro**, held one-handed, at arm's length: read the TOTAL LEVEL
+On **`/skills`** in the desktop browser: read the TOTAL LEVEL
 figure **in under two seconds without scrolling**. Scroll the grid to the bottom and confirm the
 header stays put. Compare the Total Level shown here against the number on the home plinth —
 they must be identical, not merely close. Check that a skill you have never trained is still

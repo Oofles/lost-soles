@@ -1003,6 +1003,10 @@ operator's uncommitted changes.
 
 ## 5. The in-app ticket UI
 
+> **WITHDRAWN FOR THIS PROJECT BY D-252 (2026-09-28).** Lost Soles builds no in-app ticket UI.
+> The capture endpoint (§5.3's server half, capability `03`) exists and stays. The screens below are
+> TicketSmith's general design and are kept as written. Capability `17` is withdrawn.
+
 Required by **D-092**: manual ticket creation from the app UI, phone-friendly. **Create and
 browse only in v1** (D-093 / §2.2 Move 2).
 

@@ -68,8 +68,8 @@ that *adding* is free — that proof needs a skill the codebase has never seen, 
 
 ## Operator validation
 
-On **`/skills`** on the **Pixel 8 Pro**: run 5 km on a treadmill with the phone in a pocket and
-GPS off, log it, then open the panel. The **Vigil** tile must move and the **Wayfaring** tile must
+On **`/skills`** in the desktop browser: import a GPS-less 5 km treadmill activity (manual
+adapter or a synthetic one through the queue, D-229), then open the panel. The **Vigil** tile must move and the **Wayfaring** tile must
 not — check both bars, not just the levels. Vigil's tile must be visually indistinguishable in
 kind from Wayfaring's: same size, same gold bar, same position rules. Open its detail sheet and
 confirm the rules line says nothing about ground you have run before. Then open the **map on `/`**

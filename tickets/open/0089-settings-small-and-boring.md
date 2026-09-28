@@ -22,7 +22,7 @@ gear in the top-right of the home screen. It contains exactly four things and no
    `activity:read_all`). Disconnect revokes and clears the token.
 2. **Sign out.**
 3. **Account deletion entry point** — the front door to the `08-security-privacy.md` §6.4 runbook.
-4. **Build info** — version and commit, because "which build is on the phone" is the first question
+4. **Build info** — version and commit, because "which build is deployed" is the first question
    of every bug report.
 
 **Disconnecting a source is not deleting an account** (§6.5), and the copy must say so plainly.
@@ -37,7 +37,7 @@ preference is state the user has to maintain, and maintenance is D-013's exact p
 
 ## Acceptance criteria
 
-- [ ] `/settings` is reachable from the home gear and Android back returns to `/`.
+- [ ] `/settings` is reachable from the home gear and browser back returns to `/`.
 - [ ] When no source is connected, the screen offers Connect and running it completes the 0032 OAuth
       flow and returns to `/settings` showing the connected account.
 - [ ] Disconnect requires one confirmation, revokes the token with the provider, and removes it from
@@ -67,7 +67,7 @@ touched `/settings` at all.
 
 ## Operator validation
 
-On the Android phone: open settings from the gear, and time how long it takes to understand every
+In the desktop browser: open settings from the gear, and time how long it takes to understand every
 option on the screen. If it takes more than a few seconds, it is too big.
 
 Disconnect Strava and read the confirmation text as though you were worried about losing your map —

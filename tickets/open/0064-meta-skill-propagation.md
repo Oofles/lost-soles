@@ -84,8 +84,9 @@ not a code change — which is the property this ticket is really protecting.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/run/:activityId` post-run tally** on the **Pixel 8 Pro**, immediately after a real
-8–9 km run over mostly new ground: the parchment ledger must list Wayfaring, Cartography **and**
+On the **`/run/:activityId` post-run tally** in the desktop browser, immediately after importing an
+8–9 km activity over mostly new ground (replayed or synthetic — manual adapter or through the
+queue, D-229): the parchment ledger must list Wayfaring, Cartography **and**
 Constitution as separate rows. Check by eye that the Constitution row is about a third of the
 Wayfaring row. Then open `/log`, log 30 pushups and 40 situps in one session, and confirm the
 tally shows **four** rows — Might, Fortitude, and a Constitution share for each — not three.

@@ -85,8 +85,8 @@ is what keeps a familiar loop worth running (`06-ui-ux.md` §3.5).
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/run/:activityId` post-run tally** on the **Pixel 8 Pro**: re-run the canal loop you
-have already covered this month, import it, and read the tally rows. Wayfaring must show a
+On the **`/run/:activityId` post-run tally** in the desktop browser: import a replayed or synthetic activity over the canal
+loop you have already covered this month (manual adapter or through the queue, D-229), and read the tally rows. Wayfaring must show a
 **half-XP** line attributed to explored ground, and there must be **no** Cartography row at
-all — not a Cartography row reading `+0`. Then run a route you last covered over a year ago:
+all — not a Cartography row reading `+0`. Then import a replayed or synthetic activity over a route you last covered over a year ago (D-229):
 the tally must show half activity XP *and* a Cartography row at half credit.

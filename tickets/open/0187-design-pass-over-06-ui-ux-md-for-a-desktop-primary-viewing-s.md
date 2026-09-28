@@ -37,8 +37,8 @@ needs rethinking is where things *live* when the viewport is 1400px wide and the
 
 ## Acceptance criteria
 
-- [ ] §1's screen map and §2's layout are written desktop-first, with the phone as the adaptation
-      — the inverse of today. The seven routes do not change; `app/routes.test.ts` still passes.
+- [ ] §1's screen map and §2's layout are written desktop-first; narrow widths only must not break
+      (D-251) — the inverse of today. The seven routes do not change; `app/routes.test.ts` still passes.
 - [ ] The plinth is specified for a wide viewport as the primary case. §4.8's left-rail sketch is
       either promoted to the main specification or replaced with something better.
 - [ ] Every remaining phone-first assumption is **removed**, not restated: thumb arc, 56dp targets as
@@ -52,7 +52,8 @@ needs rethinking is where things *live* when the viewport is 1400px wide and the
       (ordinary responsive CSS) and that nothing is optimised for the phone. `05` §6.4's budgets
       stand on their own, as measured on the desktop.
 - [ ] `## Operator validation` conventions are stated once, in this doc: the desktop browser is the
-      default surface, and the phone is named only where the check is genuinely phone-specific.
+      default surface, and the phone is never a validation surface; its only role is recording runs
+      (D-251; operator 2026-09-28: no /log or capture from the phone).
 - [ ] A `D-xxx` records anything the pass actually changes about the IA, rather than the change
       arriving only as a diff.
 
@@ -62,7 +63,7 @@ needs rethinking is where things *live* when the viewport is 1400px wide and the
 Deliberately not mass-edited here: a sweep would touch tickets across eight capabilities with no
 one reading whether the check still makes sense on a desktop, which is how a validation step
 becomes a ritual. Fix them as each ticket is picked up, against the convention this ticket writes
-down.
+down. *Superseded: swept in 0215.*
 
 Not urgent, and it blocks nothing. Capability `08`'s renderer is surface-independent; this matters
 before capability `13` builds the plinth for real, which is why it sits there.
@@ -72,6 +73,11 @@ viewing surface at all", answering `0212`'s §9.5 question. Criteria 3 and 4 are
 the strikes are kept so the change is visible. This makes the pass simpler: remove phone-first
 assumptions rather than keep and justify them. The matching sweep of open tickets' phone-viewing
 criteria is `0215`. `06` is this ticket's alone; `0215` does not edit it.
+
+**D-252 withdrew `06` §7** (the in-app ticket capture UI; marked superseded there), and **D-253
+settles the map's input model**: a visible mode toggle plus a keyboard shortcut, a separate
+fit-to-territory control beside `⌖`, mouse and keyboard gestures, no long-press. This ticket's IA
+pass should reflect both.
 
 ## Operator validation
 

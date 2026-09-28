@@ -81,8 +81,8 @@ override turns out to belong with the ledger correction machinery, it should mov
 
 ## Operator validation
 
-**Device: the operator's phone, on the activity list.** Take a real activity whose Strava
-sport type is wrong — or deliberately record one under the wrong type — sync it, change the
+**Surface: the desktop browser, on the activity list.** Take a real activity whose Strava
+sport type is wrong — or change an existing activity's sport type in Strava — sync it, change the
 kind in the app, and confirm three things: it displays as the corrected kind, the XP moves in
 the right direction (or explicitly does not move, per D-135), and it is STILL corrected after
 the next sync. That last one is the whole ticket and it cannot be checked without waiting for

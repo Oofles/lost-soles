@@ -461,8 +461,14 @@ failure count, final `cellCount`, final Total XP vs the snapshot — is pasted i
 doc. **This is the ticket that turns D-101 from a claim into a measurement, and it is what proves
 the D-121 Strava decision is reversible.**
 
-#### `17-tickets-ui` — 5 tickets
+#### `17-tickets-ui` — 5 tickets — **WITHDRAWN (D-252, 2026-09-28)**
 *Last, because `03` already did the load-bearing half.*
+
+> **Withdrawn by D-252.** There is no in-app ticket UI. D-092 wanted one because it was
+> phone-friendly, and D-251 removed the phone as both a viewing and an input surface. At the
+> desktop, the repo, GitHub, `tickets.mjs` and the agent already do all of this. `0107`–`0111`
+> were declined. The capture endpoint from `03` stays as plumbing. The table below is kept as the
+> record of what was planned.
 
 | # | Ticket | Description |
 |---|---|---|
@@ -1043,7 +1049,7 @@ walks this list.
       Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution.
 - [ ] XP and levels are computed and displayed; Total Level and Total XP are on the home screen.
 - [ ] `/log` records pushups, situps and planks in one tap each (D-061, D-062).
-- [ ] `/tickets` works and `/dev/tickets` capture works (D-090, D-091, D-092).
+- [ ] `/tickets` works ~~and `/dev/tickets` capture works~~ (D-090, D-091; ~~D-092~~ withdrawn by D-252).
 - [ ] **Nothing built from the OUT list**: no combat, no encounters, no boss quests, no route
       planning, no equipment, no loot. Verified by grep for the absence of those modules.
 

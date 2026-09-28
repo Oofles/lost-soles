@@ -99,8 +99,8 @@ a *skill* over an existing measure is a YAML row and must be silent.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-Not user-visible on its own. Validate on the **`/skills` panel** on the **Pixel 8 Pro**, after
+Not user-visible on its own. Validate on the **`/skills` panel** in the desktop browser, after
 0062 and 0063 land: log one strength session containing both pushups and situps, then look at
 the Might and Fortitude tiles. **Both must have moved from one session.** If only one moved,
-the measure grouping is wrong. Then run indoors with GPS off and confirm the Vigil tile moves
+the measure grouping is wrong. Then import an indoor, GPS-less activity (manual adapter or a synthetic one through the queue, D-229) and confirm the Vigil tile moves
 while the Wayfaring tile does not.

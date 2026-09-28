@@ -27,8 +27,8 @@ animates into it or skips to it.
 
 | Entry | Behaviour |
 |---|---|
-| Push notification "your run is on the map" | Deep-link to `/run/:id`, auto-play from beat 1 |
-| Plinth `1 new run — tap to open` | Same |
+| ~~Push notification "your run is on the map"~~ | ~~Deep-link to `/run/:id`, auto-play from beat 1~~ *(Withdrawn by D-253, 0215: no push notification when a run lands; the plinth's new-run line reports it the next time the app is opened.)* |
+| Plinth `1 new run — tap to open` | Deep-link to `/run/:id`, auto-play from beat 1 |
 | App opened cold with an unseen import | Home renders first; the plinth line pulses **once**. It does **not** auto-play |
 | Chronicle → any past run | Opens in **static end state**, with a `⟲ Relive` control |
 
@@ -37,7 +37,7 @@ ask for is how a reward becomes an obstacle, and that is a D-013 failure wearing
 
 The end state: lit map on top (pannable again), full ledger below, chronicle line, frontier line,
 `⟲ Relive`, and route stats (distance, duration, date, source). It is persistent and scrollable
-with **no timeout**. Android back returns to `/`.
+with **no timeout**. Browser back returns to `/`.
 
 Whether the sequence auto-plays is a function of `autoplay` intent passed by the entry point, not
 of the run's age or the `seen` flag alone — the flag is owned by 0084. This ticket takes a boolean
@@ -52,8 +52,8 @@ and honours it.
 - [ ] `⟲ Relive` restarts the sequence from beat 1 and returns to this same end state.
 - [ ] The end state has no timeout and no auto-navigation: left untouched for five minutes it is
       unchanged.
-- [ ] Android back from the end state lands on `/`, not on a blank history entry.
-- [ ] A deep link to `/run/:id` from a cold process start (app not running) opens the route
+- [ ] Browser back from the end state lands on `/`, not on a blank history entry.
+- [ ] A deep link to `/run/:id` from a fresh page load (new tab) opens the route
       directly and does not flash the home screen first.
 - [ ] Opening the app cold with an unseen import lands on `/` — asserted by a test that the
       router never auto-navigates to `/run/:id`.
@@ -74,9 +74,9 @@ all three, and the prohibition applies to the static entry as much as to the ani
 
 ## Operator validation
 
-On the Android phone, from the Chronicle, tap a run from last week. It must open **static** — no
+In the desktop browser, from the Chronicle, click a run from last week. It must open **static** — no
 camera move, no counting numbers — and be immediately scrollable. Scroll to the bottom, confirm the
-route stats and `⟲ Relive` are reachable one-handed. Press back once: you are on `/`. Now tap the
+route stats and `⟲ Relive` are reachable. Press back once: you are on `/`. Now click the
 same run again and hit `⟲ Relive`; when it settles you are on this same page, in the same scroll
-position rules, not somewhere new. Finally, turn the phone to landscape and confirm the ledger is
+position rules, not somewhere new. Finally, narrow the window to ~400 px and confirm the ledger is
 still legible and the map has not eaten the text.

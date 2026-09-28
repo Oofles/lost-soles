@@ -93,8 +93,8 @@ report, which is the specific failure this whole capability is designed to preve
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the laptop, open `docs/capabilities/16-rebuild-drill.md` and read the four numbers. Then, from
-the phone, open `/` and check the map is exactly as it was — same territory, same last run — and
-open `/skills` and check Total XP matches the number pasted as "final Total XP". Two devices, the
+On the laptop, open `docs/capabilities/16-rebuild-drill.md` and read the four numbers. Then, in
+the desktop browser, open `/` and check the map is exactly as it was — same territory, same last run — and
+open `/skills` and check Total XP matches the number pasted as "final Total XP". Two sources, the
 same figure, one of them rebuilt from nothing but a bucket of files: that agreement is the proof.
 If the numbers in the doc are round, hand-typed, or absent, the ticket is not done.

@@ -40,7 +40,7 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
 - The XP bar fills in the same 700 ms window. If the fill crosses 100% it does **not** wrap: it
   fills to full, holds, and hands off to beat 3 (0082).
 - `L41 ↑` marks a level gained. The arrow is `--gold-500` and is the only colour in the row.
-- **Tapping a row expands it to the reason breakdown**: `318 new ground · 62 remembered · 196
+- **Clicking a row expands it to the reason breakdown**: `318 new ground · 62 remembered · 196
   familiar`. This falls out of the `XpLedger` (0062) for free and it is what makes the numbers feel
   *accountable* rather than dispensed. **Expansion pauses the sequence.**
 - `"3.18 km never run before"` gets its own line, phrased in **distance, not cells**. Cells are the
@@ -51,7 +51,7 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
 **Two rules from §3.5 belong here, not in the fallback ticket, because they are tally rules:**
 
 1. **Never render a zero.** A skill that earned nothing is **omitted**, not shown at 0. An absent
-   row is neutral; a zero is an accusation. (The tap-breakdown still shows the full truth.)
+   row is neutral; a zero is an accusation. (The click-breakdown still shows the full truth.)
 2. **Row order is sorted by XP gained, descending** — not a fixed skill order. On a quiet run
    Wayfaring leads and Constitution follows, and the guaranteed-non-zero lines carry the bottom.
 
@@ -60,7 +60,7 @@ not hide the D-021 discount and it never labels it as a penalty. The number is t
 
 ## Acceptance criteria
 
-- [ ] Beat 2 spans 2.9 s → 6.0 s ± 0.1 s on the target phone.
+- [ ] Beat 2 spans 2.9 s → 6.0 s ± 0.1 s in the desktop browser.
 - [ ] The map remains visible above the ledger at all times; the ledger never covers more than ~55%
       of the viewport height.
 - [ ] Rows stagger at 240 ms; each count-up runs 700 ms with `easeOutExpo` and ends on the exact
@@ -72,7 +72,7 @@ not hide the D-021 discount and it never labels it as a penalty. The number is t
       `Cartography = 0` asserts no Cartography row is rendered anywhere in the DOM.
 - [ ] Rows are ordered by XP descending; a test with Constitution > Wayfaring puts Constitution
       first.
-- [ ] Tapping a row expands the reason breakdown sourced from `XpLedgerEntry` rows, and the
+- [ ] Clicking a row expands the reason breakdown sourced from `XpLedgerEntry` rows, and the
       sequence clock pauses while expanded and resumes on collapse.
 - [ ] `displayedXp` in the tally equals `SUM(ledger)` for the activity — asserted, not eyeballed.
 - [ ] Total XP renders as `old → new (+delta)` and Total Level renders the D-145 value.
@@ -86,15 +86,15 @@ Level / Total XP). It reads; it never scores.
 and the `↑` arrow qualifies as a rule-weight mark, not type. Check the level arrow against D-148
 before shipping.
 
-The breakdown-on-tap is cheap and disproportionately valuable — it is the difference between a
+The breakdown-on-click is cheap and disproportionately valuable — it is the difference between a
 number the app dispensed and a number the app can account for. Do not defer it.
 
 ## Operator validation
 
-**Go for an actual run and import it.** On the Android phone: watch the tally with the phone in one
-hand at arm's length in daylight. Can you read every row without leaning in? Is the count-up fast
+**Use the next ordinary run, or an imported/replayed or synthetic activity (manual adapter or through the queue, D-229).** In the desktop browser: watch the tally.
+Can you read every row as it lands? Is the count-up fast
 enough to feel eager and slow enough that you can read the final number, or does it feel like a slot
-machine? Tap a row mid-count and confirm the sequence pauses rather than racing on underneath the
+machine? Click a row mid-count and confirm the sequence pauses rather than racing on underneath the
 expansion. Then log a strength session (`/log`) with no run at all and open its `/run/:id`: there
 must be no Wayfaring row and no Cartography row, and nothing on screen should read as an absence.
-Finally, run a loop you have run ten times and check that no row anywhere says `0`.
+Finally, replay (or wait for the next ordinary run of) a loop you have run ten times and check that no row anywhere says `0`.

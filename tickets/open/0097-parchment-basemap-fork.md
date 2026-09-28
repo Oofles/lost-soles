@@ -23,7 +23,7 @@ invites a dark basemap; do not build one. `05-fog-of-war.md` §5.1: with a dark 
 fog has almost no contrast against unexplored ground and **the reveal does not read at all**. The
 only fix would be brightening explored ground, which means a framebuffer readback and throws away
 the additive-only fog shader (05 §4.3). Warm parchment plus near-black-blue fog gives maximum
-known/unknown contrast on a phone screen, the correct metaphor, and lets `u_rimGlow` pick up the
+known/unknown contrast on screen, the correct metaphor, and lets `u_rimGlow` pick up the
 parchment hue at the frontier so the two layers stitch together.
 
 Corollary that must hold in both variants: **keep basemap lightness high and saturation moderate.
@@ -56,7 +56,7 @@ gold road labels.
 - [ ] Basemap lightness measured on the parchment ground is ≥ 0.80 L\* and saturation ≤ 25% in
       both variants — recorded as sampled values in the capability doc.
 - [ ] No layer in either variant uses gold (`--gold`) as a text colour (D-148).
-- [ ] Style loads from cache with the radio off and paints flat parchment where tiles are missing
+- [ ] Style loads from cache offline and paints flat parchment where tiles are missing
       — never a checkerboard, never a spinner (`06-ui-ux.md` §4.8, §9.5).
 
 ## Notes
@@ -69,8 +69,9 @@ comment so a future upstream diff is reviewable.
 
 ## Operator validation
 
-On the Android phone (D-124), open `/` outdoors in daylight. Compare the parchment ground against
-the fogged region: the boundary should be obvious at arm's length without shading the screen. Then
-force-load the adventure variant and confirm the paper feels warmer and older but the street grid
-is still traceable through the fog ghost. If you find yourself cupping a hand over the screen to
-tell explored from unexplored, the lightness target is not met and this ticket is not done.
+In the desktop browser, open `/`. Compare the parchment ground against the fogged region: the
+parchment/fog boundary should be obvious at a glance. ~~outdoors in daylight~~ ~~at arm's length
+without shading the screen~~ *(D-251, 0215)* Then force-load the adventure variant and confirm the
+paper feels warmer and older but the street grid is still traceable through the fog ghost. If you
+have to study the screen to tell explored from unexplored, the lightness target is not met and this
+ticket is not done. ~~cupping a hand over the screen~~ *(D-251, 0215)*

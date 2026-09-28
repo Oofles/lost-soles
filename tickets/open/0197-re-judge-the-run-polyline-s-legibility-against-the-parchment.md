@@ -72,7 +72,7 @@ deferring it; this ticket exists so the look is scheduled rather than remembered
 
 The glow is doing a second job the core cannot: making the line *findable* at a glance. If the
 pairing does change, that division of labour is the constraint — a thin bright thread with no halo
-fails the "findable at arm's length" test even when its contrast measures well.
+fails the "findable at a glance" test even when its contrast measures well.
 
 `0085`'s permanent trace layer is a **different** visual (faint sepia, `--ink-300` at 0.28) and is
 not in scope here.

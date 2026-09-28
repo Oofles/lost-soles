@@ -100,10 +100,11 @@ ships the operator will already have had a dozen of them.
 
 ## Operator validation
 
-**This one requires two runs, a week apart, on the same route.**
+**This one needs two activities on the same route** — the next ordinary runs of your usual loop, or
+an imported/replayed or synthetic activity (manual adapter or through the queue, D-229). Never run for this.
 
-Run your usual loop — the one round the block you have already covered — and import it. On the
-Android phone, watch the whole sequence without skipping. The honest question, asked immediately
+Take your usual loop — the one round the block you have already covered — and import it. In the
+desktop browser, watch the whole sequence without skipping. The honest question, asked immediately
 afterwards and not rationalised: **did that feel like "you did the work", or did it feel like
 "nothing happened"?** If it is the second, the ticket is not done, regardless of the test suite.
 

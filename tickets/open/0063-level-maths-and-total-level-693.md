@@ -103,8 +103,7 @@ someone adds a row, which is the moment it was supposed to help.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/skills` panel header** on the **Pixel 8 Pro**, one thumb, screen at default
-brightness: read the pinned **TOTAL LEVEL** figure and the `next:` milestone under it. Count the
+On the **`/skills` panel header** in the desktop browser: read the pinned **TOTAL LEVEL** figure and the `next:` milestone under it. Count the
 tiles on screen (including the collapsed `Untrained` group) and check that Total Level is at
 least that count — an untrained skill is level 1, so the floor equals the skill count. Then open
 Wayfaring's detail sheet and confirm the `XP to next` figure equals `4L²` for the level shown:

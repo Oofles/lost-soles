@@ -109,7 +109,7 @@ Two things `0161` added that change *how* you finish, not *what*:
 
 On the laptop, open the completed table and pick three invariants at random. For each, open the
 named test, break the code it guards in a scratch branch, and watch CI go red. If any of the three
-stays green, the sweep is not trustworthy and every row needs re-checking. Then on the Android
-phone, check the two invariants only the device can show: open `/skills` and confirm Total Level's
+stays green, the sweep is not trustworthy and every row needs re-checking. Then in the desktop
+browser, check the two invariants only the rendered app can show: open `/skills` and confirm Total Level's
 ceiling reads 693 with seven skills, and open `/` and confirm territory you revealed months ago is
 still revealed — the D-020 check that no test can perform for you.

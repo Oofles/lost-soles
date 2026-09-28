@@ -90,9 +90,9 @@ other.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **`/run/:activityId` post-run moment** on the **Pixel 8 Pro**, with the phone in one hand
-straight after a run: this is validated by what you **do not** see. Deploy a ruleset with one new
-workout type added, then complete an ordinary run and open the post-run sequence. The tally may
+On the **`/run/:activityId` post-run moment** in the desktop browser, after importing an activity (D-229): this is validated by what you **do not** see. Deploy a ruleset with one new
+workout type added, then import an ordinary activity (replayed or synthetic, manual adapter or through the queue,
+D-229) and open the post-run sequence. The tally may
 show the usual rows; **no level-up card may appear for the new skill**, and the Total Level line
 must not flash a milestone. Then open `/skills` and confirm the new tile is present at level 1
 and the TOTAL LEVEL headline is one higher than before — quietly.

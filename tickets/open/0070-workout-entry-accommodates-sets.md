@@ -67,9 +67,10 @@ This ticket is deliberately small and deliberately first in its capability. It i
 of `10-add-workout` that is expensive to get wrong, because it is the only piece that is written
 into durable storage and cannot be changed by editing a component.
 
-The post-MVP sets editor is a **long-press on the row**, opening a sheet with per-set entry and
-a rest timer. The row itself does not change and one-tap logging keeps working for anyone who
-never long-presses. Nothing about that path needs building now; it needs only to remain possible.
+The post-MVP sets editor is ~~a **long-press on the row**~~ **a small visible control on the row**
+*(long-press is undiscoverable with a mouse — D-251, D-253, 0215)*, opening a sheet with per-set
+entry and a rest timer. The row itself does not change and one-click logging keeps working for
+anyone who never opens it. Nothing about that path needs building now; it needs only to remain possible.
 
 A rest timer is the one deferred feature that could violate D-013 — a timer is a thing that
 *runs*, and things that run create obligations. If it ever lands it must be startable only from
@@ -78,7 +79,7 @@ the constraint is attached to the data model that would enable it.
 
 ## Operator validation
 
-Not directly visible. Validate on the **`/skills/:skillId` detail sheet** for Might on the
-**Pixel 8 Pro**: log 30 pushups in one tap, then log 10 pushups three times. The `RECENT` list
+Not directly visible. Validate on the **`/skills/:skillId` detail sheet** for Might in the
+desktop browser: log 30 pushups in one click, then log 10 pushups three times. The `RECENT` list
 must show four entries and Might's XP must have increased by exactly twice the 30-rep award. If
 three-times-ten scores differently from thirty, the sum over `sets` is wrong.

@@ -52,7 +52,7 @@ and sound is state you must configure, which is upkeep (D-013).
 
 ## Acceptance criteria
 
-- [ ] Total beat duration is 2.9 s ± 0.1 s measured on the target phone, for both a 3 km run and a
+- [ ] Total beat duration is 2.9 s ± 0.1 s measured in the desktop browser, for both a 3 km run and a
       20 km run — the two must differ by less than 0.1 s.
 - [ ] The camera does not move at all when the run's bounding box is already within the viewport at
       the current camera position.
@@ -67,7 +67,7 @@ and sound is state you must configure, which is upkeep (D-013).
 - [ ] Nothing renders before the map: an automated check asserts no toast, dialog, spinner or title
       element mounts between route entry and t=0.
 - [ ] No `Audio`, `AudioContext` or media element is constructed anywhere in the sequence.
-- [ ] Frame rate holds inside the §6.4 budget for the whole beat on the real phone (0059 harness).
+- [ ] Frame rate holds inside the §6.4 budget for the whole beat in the desktop browser (0059 harness).
 
 ## Notes
 
@@ -85,13 +85,13 @@ this one (07 §1.2: never expand a ticket's scope).
 
 ## Operator validation
 
-**Go for an actual run and import it.** There is no substitute and no automated test for this beat.
+**Use the next ordinary run, or an imported/replayed or synthetic activity (manual adapter or through the queue, D-229)** — never run for this. There is no automated test for this beat.
 
-On the Android phone, outdoors, ideally in daylight: open the push notification and watch. The first
+In the desktop browser: open the run from the plinth's new-run line and watch. The first
 thing you see must be the map. Watch whether the fog reads as retreating *behind* the light or as
 switching off around it — if it switches off, the arc gating is wrong. On a route that crosses
 ground you have not run before and ground you have, confirm the gold bloom appears only on the new
-part and that the transition between treatments is not a visible seam. Then run the same route again
-next week and watch it play with all-familiar ground: the lantern should still travel, the route
+part and that the transition between treatments is not a visible seam. Then replay an activity over the same
+route (or wait for the next ordinary run of it) and watch it play with all-familiar ground: the lantern should still travel, the route
 should still ink, and it should still feel like something happened. Note the wall-clock time from
-tap to lantern-landing with a stopwatch; if it is not ~2.9 s, the beat is not done.
+click to lantern-landing with a stopwatch; if it is not ~2.9 s, the beat is not done.

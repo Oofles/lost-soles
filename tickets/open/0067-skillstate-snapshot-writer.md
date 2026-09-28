@@ -75,8 +75,9 @@ a record of *display*, which is a different fact with a different lifetime.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-Not on-screen. Validate from the **AWS console on the laptop, with the phone beside it**: after
-completing a run and watching the `/skills` panel update on the **Pixel 8 Pro**, open the S3
+Not on-screen. Validate from the **AWS console, with the app open in another tab**: after
+importing an activity (replayed or synthetic, D-229) and watching the `/skills` panel update in
+the desktop browser, open the S3
 bucket and find the newest object under `snapshots/skillstate/`. Open it and check that the
-levels in the JSON match, skill for skill, the levels currently on the phone's screen. If any
+levels in the JSON match, skill for skill, the levels currently on the panel. If any
 number differs, the snapshot is being taken at the wrong point in the transaction.

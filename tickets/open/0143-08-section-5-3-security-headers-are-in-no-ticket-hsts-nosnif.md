@@ -80,8 +80,7 @@ specifically; keep the two from overlapping.
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-On the **Android phone at `https://soles.devaultsecurity.com`**, signed in, with the laptop attached
-via `chrome://inspect`: the Network panel's response headers for the document request show HSTS,
+In the desktop browser at `https://soles.devaultsecurity.com`, signed in: the DevTools Network
+panel's response headers for the document request show HSTS,
 `nosniff`, the CSP and the frame-ancestors directive. Then load the **map** and confirm tiles and
-fog still render — a CSP that silently blocks the basemap looks identical to a slow network on a
-phone, and this is the check that distinguishes them.
+fog still render — a CSP that silently blocks the basemap looks identical to a slow network, and this is the check that distinguishes them.

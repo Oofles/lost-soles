@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 18-mvp-hardening
-depends_on: [101, 105, 106, 111, 112, 113, 114, 115, 116]
+depends_on: [101, 105, 106, 112, 113, 114, 115, 116]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -26,7 +26,7 @@ across sessions and deploys. Both map modes exist, toggle, and render an identic
 All **seven** MVP skills exist as rows in `xp-rules-v1.yaml` and appear on `/skills`: Wayfaring,
 Vigil, Might, Fortitude, Endurance, Cartography, Constitution. XP and levels computed and
 displayed, Total Level and Total XP on the home screen. `/log` records pushups, situps and planks
-in one tap each. `/tickets` and `/dev/tickets` capture work. **Nothing built from the OUT list** —
+in one tap each. ~~`/tickets` and `/dev/tickets` capture work.~~ *(D-252, 0215)* **Nothing built from the OUT list** —
 no combat, no encounters, no boss quests, no route planning, no equipment, no loot — verified by
 grep for the *absence* of those modules.
 
@@ -49,13 +49,14 @@ Cognito self-signup OFF, unauthenticated identities OFF. No secret in the client
 passes on full history; O-005 rotated and gitignored. Billing alarm at $10/month and one month of
 real billing at or under the D-083 target.
 
-**§9.5 The product, on the actual device** — the operator's own Android phone (D-124), not a
-simulator. The §6.3 frame budget **measured** and met at year-one cell volume. The post-run
-sequence completes in **8.4 s ± 0.3 s** and one tap from any beat lands on the end state.
-`prefers-reduced-motion` renders the fog static and stops the rAF loop. The §9.6 reality-check
-table passes. Gold only as fill or rule, or as type at ≥24sp or on navy; all floating chrome
-opaque (D-148). **Street names legible in both modes at planning zoom — atmosphere never cost
-legibility (D-051, non-negotiable).**
+**§9.5 The product, in the desktop browser** on the real deployed app (D-240, D-251). The §6.3
+frame budget **measured** and met at year-one cell volume. The post-run sequence completes in
+**8.4 s ± 0.3 s** and one tap from any beat lands on the end state. `prefers-reduced-motion`
+renders the fog static and stops the rAF loop. The desktop-applicable §9.6 rows pass (token
+expired, three weeks away, slow/no connection, 200% zoom, screen reader); the phone-physical rows
+are dropped (D-251). Gold only as fill or rule, or as type at ≥24sp or on navy; all floating
+chrome opaque (D-148). **Street names legible in both modes at planning zoom — atmosphere never
+cost legibility (D-051, non-negotiable).**
 
 ## Acceptance criteria
 
@@ -70,7 +71,7 @@ legibility (D-051, non-negotiable).**
       entry, side by side.
 - [ ] The four drill numbers are present in `docs/capabilities/16-rebuild-drill.md` and are quoted
       here — if they are absent there, this sweep **fails**, and no other evidence substitutes.
-- [ ] The post-run sequence is timed on the device three times; all three fall within 8.4 s ± 0.3 s
+- [ ] The post-run sequence is timed in the desktop browser three times; all three fall within 8.4 s ± 0.3 s
       and the three measurements are recorded.
 - [ ] The frame budget is measured at year-one cell volume (not at today's volume) and the number
       recorded against the `05-fog-of-war.md` §6.3 target.
@@ -103,11 +104,10 @@ worked.** That is settled six months later, by whether the user is still opening
 > run. The text below is the original author's intent, kept as context for **what** to verify — not
 > as a list of chores for the operator.
 
-Do the device half in one sitting, outdoors, on the operator's own Android phone, on a day you
-actually ran. Finish a run, put the phone away, and take it out cold: the run must already be on
-the map with no action from you. Watch the post-run sequence with a stopwatch, three times, and
-write the three times down. Long-press to atlas and read three street names in sunlight, then long-
-press back and read the same three. Open `/skills` and count seven. Open `/log` and record a set
-of pushups in one tap. Open `/dev/tickets` and capture a ticket in under fifteen seconds. Then sit
-down at the laptop and run every command in the checklist, pasting real output — not "passes" —
-into the capability doc. When every box carries evidence rather than a tick, the MVP is built.
+Do the product half in the desktop browser. After an ordinary run (D-229 — none is made for
+this), open the app: the run must already be on the map with no action from you. Time the post-run
+sequence with a stopwatch, three times, and write the three times down. Toggle to atlas and read
+three street names, toggle back and read the same three. Open `/skills` and count seven. Open
+`/log` and record a set of pushups in one click. ~~Outdoors, on the phone, in sunlight; put the
+phone away; capture a ticket on `/dev/tickets`.~~ *(D-251, D-252, 0215)* Then run every command in the checklist,
+pasting real output — not "passes" — into the capability doc. When every box carries evidence rather than a tick, the MVP is built.

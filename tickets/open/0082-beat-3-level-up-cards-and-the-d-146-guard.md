@@ -85,8 +85,8 @@ exempt because it is celebratory.
 
 ## Operator validation
 
-**Go for an actual run and import it**, ideally one long enough to gain a level. On the Android
-phone: does the card feel like an event or like an interruption? Watch the number crossfade — if `46`
+**Use the next ordinary run, or an imported/replayed or synthetic activity (manual adapter or through the queue, D-229)**, ideally one long enough to gain a
+level. In the desktop browser: does the card feel like an event or like an interruption? Watch the number crossfade — if `46`
 and `47` are both legible mid-transition it is wrong; one should be leaving as the other arrives.
 
 Then the guard, by hand: add a new activity skill row to the ruleset in a dev build, reload, and open

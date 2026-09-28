@@ -26,7 +26,7 @@
 | `14` | webhook and automatic sync | 3 · Trustworthy and complete | 6 | 0 | · not started |
 | `15` | two map modes and cold territory | 3 · Trustworthy and complete | 5 | 0 | · not started |
 | `16` | rebuild drill | 3 · Trustworthy and complete | 5 | 0 | · not started |
-| `17` | tickets ui | 3 · Trustworthy and complete | 5 | 0 | · not started |
+| `17` | tickets ui | 3 · Trustworthy and complete | 5 | 0 | ✗ withdrawn (D-252) |
 | `18` | mvp hardening | 3 · Trustworthy and complete | 6 | 0 | · not started |
 
 ---

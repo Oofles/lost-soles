@@ -38,7 +38,10 @@ and pitch are byte-identical before and after the toggle. The two renders are cr
 in the frame appears to arrive before anything else. A staggered fade reads as territory
 changing, which 0099 forbids outright.
 
-Entry point is **long-press (350 ms) anywhere on the map, with a haptic tick** (06 §4.4). Default
+Entry point is **a visible toggle control, top-left (as 0086 sketches), plus a keyboard shortcut**
+(D-253). Proposed shortcut: `M` — a proposal, adjust it if it collides with MapLibre's keyboard
+handler (which owns the arrows and `+`/`−`). ~~Long-press (350 ms) anywhere on the map, with a
+haptic tick (06 §4.4).~~ *(D-253)* Default
 is **adventure** — it is the product's identity. State persists in `localStorage`: it is a
 per-device viewing preference, not user data, and it is not synced. The first time the user opens
 a route-planning surface, the app suggests atlas once.
@@ -49,8 +52,9 @@ definition-of-done box, checked again in 0112.
 
 ## Acceptance criteria
 
-- [ ] Long-press (350 ms) on the map toggles modes and fires one haptic tick; a short press does
-      nothing (06 §4.4, "tap on empty map does nothing").
+- [ ] The visible top-left toggle control and the keyboard shortcut each toggle modes; a plain
+      click on the map does nothing (06 §4.4, "click on empty map does nothing"). *(Restated by
+      D-253, 0215 — was: long-press 350 ms with one haptic tick.)*
 - [ ] A test asserts `map.getCenter()`, `getZoom()`, `getBearing()` and `getPitch()` are exactly
       equal before and after a toggle, at three different zoom levels.
 - [ ] The cross-fade is 320 ms ± 16 ms, measured, and every uniform and layer opacity animates on
@@ -66,9 +70,11 @@ definition-of-done box, checked again in 0112.
 
 ## Notes
 
-There is no toggle button in the chrome in v1: the long-press is the affordance, and it is
+~~There is no toggle button in the chrome in v1: the long-press is the affordance, and it is
 discoverable because the app suggests it once. Adding a floating toggle button means adding
-floating chrome, which D-148 requires to be opaque and which competes with the plinth.
+floating chrome, which D-148 requires to be opaque and which competes with the plinth.~~
+*(Superseded by D-253: a long-press is undiscoverable with a mouse and unreachable from the
+keyboard. The toggle control is chrome, so D-148's opacity rule applies to it.)*
 
 The 320 ms figure is deliberately slower than a UI transition and deliberately faster than an
 animation you wait for: long enough to read as one continuous surface changing character, short
@@ -76,8 +82,8 @@ enough that a planning user toggling twice does not feel taxed.
 
 ## Operator validation
 
-On the Android phone, on `/`, park the map over a frontier where explored ground meets fog with a
-recognisable street feature crossing the boundary. Long-press to toggle, watching that feature.
+In the desktop browser, on `/`, park the map over a frontier where explored ground meets fog with a
+recognisable street feature crossing the boundary. Toggle, watching that feature.
 Nothing may translate, scale or jump; the fog changes character in place. Toggle back and forth
-five times quickly and confirm the map never drifts. Then enable Android's "Remove animations"
-accessibility setting and confirm the adventure fog stops moving but stays adventure-coloured.
+five times quickly and confirm the map never drifts. Then enable the OS reduce-motion
+setting and confirm the adventure fog stops moving but stays adventure-coloured.

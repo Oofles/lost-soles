@@ -107,7 +107,7 @@ Deploy, then on the desktop `curl -i` the Function URL with a well-formed POST b
 with an empty body in well under a second. Run it again after leaving the function idle for an hour —
 that is the cold path and it is the one that matters.
 
-Then the real one, on the Android phone: **go for an actual run**, finish it in Strava, and put the
-phone in your pocket. Do not press Sync. Open the app some minutes later and confirm the run is
+Then the real one, after the next ordinary run recorded on the phone/watch (D-229 — never run for
+this): do not press Sync; open the app in the desktop browser some minutes later and confirm the run is
 there. Check CloudWatch for the invocation and read the log line: it must tell you what happened and
 must not contain a single coordinate.

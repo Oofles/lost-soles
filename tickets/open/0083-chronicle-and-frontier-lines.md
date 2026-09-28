@@ -50,13 +50,13 @@ miniature.
 ```
 
 - `--ink-500`, 14sp, small hollow diamond glyph. **Quiet by construction.**
-- Tapping it recentres the map there in **atlas** mode.
+- Clicking it recentres the map there in **atlas** mode.
 - **Ignoring it costs nothing.** It never repeats, never turns red, never counts down, never appears
   as a notification (D-013, `04-game-design.md` §4.2). It is a signpost, not a task.
 
 ## Acceptance criteria
 
-- [ ] Beat 4 spans 6.0 → 7.2 s and beat 5 spans 7.2 → 8.4 s, ± 0.1 s each, on the target phone.
+- [ ] Beat 4 spans 6.0 → 7.2 s and beat 5 spans 7.2 → 8.4 s, ± 0.1 s each, in the desktop browser.
 - [ ] The chronicle line fades in over 500 ms with nothing else on screen animating during it.
 - [ ] Both lines persist into the end state and survive a scroll.
 - [ ] The template table is a data file (YAML/JSON); adding a new line requires **zero** code diff,
@@ -70,7 +70,7 @@ miniature.
 - [ ] A repository-wide test asserts no template string contains the substrings `No new`,
       `0 cells`, or an imperative "Try" — the three forbidden shapes.
 - [ ] The frontier line names a real nearest unexplored frontier with a distance and a bearing; a
-      tap recentres the map there in atlas mode.
+      click recentres the map there in atlas mode.
 - [ ] The frontier line is rendered once, never repeats, never changes colour, and has no
       notification, badge or countdown anywhere in its code path.
 
@@ -87,13 +87,13 @@ forward-looking template is proposed, it needs a decision record, not a commit.
 
 ## Operator validation
 
-**Go for an actual run and import it.** On the Android phone, read the chronicle line out loud. Does
+**Use the next ordinary run, or an imported/replayed or synthetic activity (manual adapter or through the queue, D-229).** In the desktop browser, read the chronicle line out loud. Does
 it sound like the app noticed something, or like a fortune cookie? That is a judgement only the
 operator can make and it is the point of this ticket.
 
-Then run a loop you have run many times before, import it, and read the line it picks. It must land
+Then replay (or wait for the next ordinary run of) a loop you have run many times before, and read the line it picks. It must land
 as *"you did the work"* and never as consolation. If it makes you feel slightly worse about a
 perfectly good run, the template set is wrong and the ticket is not done.
 
-Finally tap the frontier line and confirm the map recentres in atlas mode on somewhere real and
+Finally click the frontier line and confirm the map recentres in atlas mode on somewhere real and
 reachable — and then deliberately ignore it for a week and confirm the app never mentions it again.

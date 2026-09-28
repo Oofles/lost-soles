@@ -103,5 +103,5 @@ From the laptop with the AWS console open: before the run, note the throwaway ac
 count and `ExploredCell` item count. Run the script. Afterwards check, in the console, that (a)
 `raw/<uid>/` shows nothing with "Show versions" **enabled** — not just with it off, which is where
 the missed step hides; (b) the Cognito user is gone from the pool; (c) the Strava app's authorised
-applications list no longer shows the connection. Then sign in on the phone as the owner and
+applications list no longer shows the connection. Then sign in as the owner in the desktop browser and
 confirm your own map is completely untouched.

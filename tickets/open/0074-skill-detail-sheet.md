@@ -15,8 +15,8 @@ created: 2026-08-30T00:00:00Z
 
 ## Description
 
-Tapping any tile opens a sheet over the panel. It is a **route**, not just a component, so
-Android back and deep links behave (`06-ui-ux.md` §1.5, §5.5).
+Clicking any tile opens a sheet over the panel. It is a **route**, not just a component, so
+browser back and deep links behave (`06-ui-ux.md` §1.5, §5.5).
 
 Contents, in order:
 
@@ -43,8 +43,8 @@ deadline, and a deadline is an obligation this app does not create.
 
 ## Acceptance criteria
 
-- [ ] `/skills/:skillId` is a route rendered as a sheet over `/skills`; system back, swipe-down
-      **and** the scrim all dismiss it (no gesture is the only path).
+- [ ] `/skills/:skillId` is a route rendered as a sheet over `/skills`; browser back, Esc
+      **and** a click on the scrim all dismiss it (no gesture is the only path).
 - [ ] It works for **every** registry skill, activity and meta, with no per-skill component and
       no special case; an unknown `skillId` renders a graceful not-found rather than crashing.
 - [ ] The header shows level, `xp / next` and `<n> XP to <L+1>`, all derived from `4L²`.
@@ -77,8 +77,9 @@ rather than showing an empty one.
 
 ## Operator validation
 
-On **`/skills/wayfaring`** on the **Pixel 8 Pro**, one thumb: open it from the panel and read the
-line `~N runs to <next level>`. Do one real run of your usual distance, come back, and confirm
+On **`/skills/wayfaring`** in the desktop browser: open it from the panel and read the
+line `~N runs to <next level>`. Import one replayed or synthetic activity of your usual distance (manual adapter or through
+the queue, D-229), and confirm
 the number went **down by roughly one** — if it moved by three or by nothing, the trailing median
-is wrong. Check `AHEAD` shows no calendar dates. Swipe down to dismiss, then press system back
-from the sheet and confirm both land back on `/skills`, not on the map.
+is wrong. Check `AHEAD` shows no calendar dates. Press Esc to dismiss; reopen and press the browser
+back button, and confirm both land back on `/skills`, not on the map.

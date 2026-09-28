@@ -1617,7 +1617,7 @@
   {
     "id": 68,
     "slug": "log-route-one-row-per-workout-type",
-    "title": "/log route — one row per workout type, one tap to log",
+    "title": "/log route — one row per workout type, one click to log",
     "type": "feature",
     "priority": "high",
     "status": "open",
@@ -1687,7 +1687,7 @@
   {
     "id": 71,
     "slug": "log-row-anatomy-and-interaction-rules",
-    "title": "/log row anatomy and interaction rules — sweaty thumbs, one hand",
+    "title": "/log row anatomy and interaction rules",
     "type": "feature",
     "priority": "high",
     "status": "open",
@@ -2084,7 +2084,7 @@
   {
     "id": 88,
     "slug": "chronicle-sheet",
-    "title": "/chronicle — the run list as a sheet dragged up from the plinth",
+    "title": "/chronicle — the run list as a sheet opened from the plinth",
     "type": "feature",
     "priority": "med",
     "status": "open",
@@ -2635,7 +2635,7 @@
   {
     "id": 112,
     "slug": "accessibility-and-reality-checks",
-    "title": "Accessibility and reality checks — sunlight, one-handed reach, sweaty thumbs, reduced motion",
+    "title": "Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection",
     "type": "chore",
     "priority": "high",
     "status": "open",
@@ -2668,8 +2668,7 @@
     "capability": "18-mvp-hardening",
     "depends_on": [
       59,
-      90,
-      107
+      90
     ],
     "blocked_by": [],
     "source": "operator",
@@ -2692,14 +2691,13 @@
     "capability": "18-mvp-hardening",
     "depends_on": [
       17,
-      24,
-      111
+      24
     ],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0114-d123-standing-conditions-wired.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -2767,7 +2765,6 @@
       101,
       105,
       106,
-      111,
       112,
       113,
       114,
@@ -4908,6 +4905,26 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 216,
+    "slug": "remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t",
+    "title": "Remove the /dev/tickets stub routes now that D-252 withdrew the in-app ticket UI",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T17:42:28Z",
+    "path": "tickets/open/0216-remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

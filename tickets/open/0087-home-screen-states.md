@@ -39,8 +39,8 @@ event** (§2.3). The **only** failure ever surfaced is a genuinely broken token,
 quiet ink-coloured line, `Strava needs reconnecting` → `/settings`. **Never a red badge, never a
 modal, never a nag.**
 
-Cold start must paint from cache first and reconcile after. The user opening the app on a train with
-one bar sees their territory immediately, not a spinner.
+Cold start must paint from cache first and reconcile after. The user opening the app on a slow or
+absent connection sees their territory immediately, not a spinner.
 
 ## Acceptance criteria
 
@@ -50,7 +50,7 @@ one bar sees their territory immediately, not a spinner.
       clean parchment centred on device location, and the plinth reads `Connect Strava to begin`.
 - [ ] With an unseen import, the plinth shows `1 new run — tap to open` in gold; it pulses once and
       then stops; it never changes colour and never re-pulses on subsequent renders.
-- [ ] Tapping that line opens `/run/:id` and auto-plays (0078's entry-point matrix).
+- [ ] Clicking that line opens `/run/:id` and auto-plays (0078's entry-point matrix).
 - [ ] The home map shows territory as of **before** the unseen run — the new cells are not revealed
       on `/` ahead of the sequence.
 - [ ] A sync in progress shows an inline indication on the plinth only; no overlay, no blocked input,
@@ -79,11 +79,11 @@ clear, and the two must behave the same way.
 
 ## Operator validation
 
-On the Android phone: turn on airplane mode and cold-start the app. Your territory and Total Level
+In the desktop browser: set DevTools to Offline and reload. Your territory and Total Level
 must be on screen essentially instantly, with no spinner and no error. Turn the network back on and
 confirm nothing flashes or re-lays-out when the reconcile completes.
 
-Then, on a spare device or a freshly cleared install, open the app signed in but with nothing
+Then, in a fresh browser profile or with site data cleared, open the app signed in but with nothing
 imported. Look at the map: clean parchment, no fog, and one line inviting you to connect. It must not
 look broken and it must not look like a setup wizard.
 

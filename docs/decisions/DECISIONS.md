@@ -91,10 +91,14 @@ Last updated: 2026-09-26
 
 - **D-090** A ticketsmith-derived system ships with the project from day one.
 - **D-091** `/tickets` command is required.
-- **D-092** Manual ticket creation from the app UI is required (phone-friendly).
+- ~~**D-092** Manual ticket creation from the app UI is required (phone-friendly).~~ → **STRUCK.**
+  Superseded by **D-252** (2026-09-28): there is no in-app ticket UI. Capability `17` is withdrawn.
 - **D-093** PROVISIONAL: markdown in the repo is the single source of truth; the phone UI only
   ever *creates* (into `tickets/inbox/`), the agent only ever *edits/numbers/moves*.
   Disjoint write sets ⇒ no merge conflicts, no sync engine.
+  → **The "phone UI" half is retired by D-252.** Markdown in the repo stays the single source of
+  truth, and the agent still edits, numbers and moves. `inbox/`'s writer is now only the existing
+  capture endpoint (`0018`/`0149`), and nothing in the app calls it.
 
 ## Ingestion architecture  (from R8)
 
@@ -3475,9 +3479,45 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
       the source device, not a surface this app designs for (D-124's capture half, as data flow).
     - The app still must not break at a narrow width: `CLAUDE.md`'s layout rules and ordinary
       responsive CSS stay. Nothing is *optimised* for the phone.
-  - **Open question, raised with the operator:** whether `/log` (manual workout entry, capability
-    `10`) and ticket capture (`0107`) are used from a phone at the gym or mid-run. If they are,
-    they are capture, and this decision does not reach them. Until answered, their tickets keep
-    their criteria and the sweep ticket skips them.
+  - ~~**Open question, raised with the operator:** whether `/log` (manual workout entry, capability
+    `10`) and ticket capture (`0107`) are used from a phone at the gym or mid-run.~~ **ANSWERED
+    2026-09-28:** *"No, I don't use /log or capture from my phone — strip all that from the open
+    tickets. Close any tickets where this makes them unnecessary as well."* **The phone is not an
+    input surface either.** `/log` and ticket capture are desktop-browser features. The watch or
+    phone's only remaining role is **recording runs, which arrive through the adapters.** D-124's
+    Android capture tooling (Tasker/MacroDroid, Assistant routines, PWA `share_target`) is out of
+    scope. `0020` and `0021` were already declined under D-184.
   - **Applied by:** `0212` (closed), `0187` (criteria amended), and the open-ticket sweep filed
     alongside it.
+- **D-252** **There is no in-app ticket UI. Capability `17-tickets-ui` is withdrawn, and
+  `0107`–`0111` are declined.** Supersedes D-092, and D-093's phone half. *(Operator, 2026-09-28,
+  following D-251.)*
+  - **Why.** D-092 wanted ticket creation "from the app UI" because it was *phone-friendly*: a
+    thought at mile six captured before it was lost. D-251 and the operator's answer remove the
+    phone as both a viewing and an input surface. At the desktop the operator already has the
+    repo, GitHub, `tickets.mjs` and the agent, so an in-app capture form (`0107`) and a read-only
+    browser (`0108`–`0111`) would duplicate tools that are already open.
+  - **What stays.** The capture endpoint (`/api/tickets/capture`, capability `03`), its bearer
+    auth (`0149`) and the `inbox/` triage flow are built and harmless. They remain as plumbing, and
+    nothing is removed.
+  - **What goes with it:**
+    - the "ticket capture" halves of `0068`, `0112`, `0113` and `0117`;
+    - `09` §9.1's "`/dev/tickets` capture works" row;
+    - `06` §7, which is marked superseded, not rewritten.
+- **D-253** **The map's input model is mouse and keyboard.** *(Operator, 2026-09-28, following D-251;
+  affects `0098`, `0101`, `0078` and `0086`.)*
+  - **Mode toggle (`0098`):** a visible toggle control (the top-left toggle `0086` already
+    sketches) plus a keyboard shortcut. The 350 ms long-press with a haptic tick is gone: with a
+    mouse it is undiscoverable, and it cannot be reached from the keyboard. "A plain click on the
+    map does nothing" stays.
+  - **Fit to territory (`0101`):** a separate small control next to `⌖`. It replaces "long-press
+    `⌖`", which hid the action behind a gesture a mouse cannot discover.
+  - **Gestures (`0101`):**
+    - drag pans with inertia; the wheel or a trackpad pinch zooms at the cursor, z10–z18;
+    - double-click zooms in one step; arrows and `+`/`−` pan and zoom;
+    - a click on a route line inspects it, with 24 px of hit slop;
+    - a click on empty map does nothing;
+    - rotation and pitch stay locked;
+    - two-finger tap and the wet-screen multi-contact rule are dropped.
+  - **No push notification when a run lands (`0078`).** The plinth's new-run line reports it the
+    next time the app is opened. Anything more would be the nagging D-013 refuses.
