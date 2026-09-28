@@ -4582,7 +4582,7 @@
     "path": "tickets/open/0200-the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },
@@ -4843,6 +4843,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 213,
+    "slug": "the-pre-commit-hook-blames-a-real-location-when-node-is-simp",
+    "title": "The pre-commit hook blames a real location when node is simply not on PATH",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T15:07:27Z",
+    "path": "tickets/open/0213-the-pre-commit-hook-blames-a-real-location-when-node-is-simp.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]
