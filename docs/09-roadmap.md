@@ -404,12 +404,12 @@ thing is skippable and nothing about it is required.
 |---|---|---|
 | 1 | ▸ **The plinth over the map** | `06-ui-ux.md` §2.2: Total Level headline, "1 new run — tap to open", nav to `/skills`, `/log`, settings. |
 | 2 | ▸ **Home states** | §2.4: cold start, no runs yet, sync in progress, sync failed. |
-| 3 | **`/chronicle` sheet — run list, drag-up from the plinth** | Renders as a sheet; exists as a route so Android back and deep links behave. |
+| 3 | **`/chronicle` sheet — run list, opened from the plinth** | Renders as a sheet; exists as a route so the browser back button and deep links behave (D-251). |
 | 4 | **`/settings` — small and boring** | Connect/disconnect source, sign out, account deletion entry point. |
 | 5 | **Derived stats feed: new territory per run, lifetime totals** | `05-fog-of-war.md` §8.2, §8.3. |
 
 **Depends on:** `08`, `12`. **Done when:** every route in the §1.2 screen map exists except
-`/dev/tickets`, and the Android back button behaves at every depth.
+`/dev/tickets` (withdrawn, D-252), and the browser back button behaves at every depth (D-251).
 
 ---
 
