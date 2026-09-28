@@ -4,7 +4,7 @@ slug: next-recommends-an-audit-that-cannot-pass-the-gated-message
 title: next recommends an audit that cannot pass — the gated message never checks the capability's own open tickets
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-12T17:10:00Z
 started: 2026-09-28T02:49:40Z
+closed: 2026-09-28T02:52:03Z
 ---
 
 ## Description
