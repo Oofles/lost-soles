@@ -4,7 +4,7 @@ slug: the-fog-edge-jitters-against-the-basemap-on-a-slow-pan-at-hi
 title: The fog edge jitters against the basemap on a slow pan at high zoom
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-09-11T13:12:36Z
 started: 2026-09-28T14:59:00Z
+closed: 2026-09-28T16:23:14Z
 ---
 
 ## Description
