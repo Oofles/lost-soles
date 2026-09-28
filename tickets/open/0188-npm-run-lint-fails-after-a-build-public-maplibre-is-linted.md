@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-09T21:46:54Z
+started: 2026-09-28T13:08:57Z
 ---
 
 ## Description
@@ -45,18 +46,18 @@ Found while closing `0054`; unrelated to that ticket's changes.
 
 ## Acceptance criteria
 
-- [ ] `eslint.config.mjs` ignores `public/maplibre/**`, with a comment saying why — vendored,
+- [x] `eslint.config.mjs` ignores `public/maplibre/**`, with a comment saying why — vendored,
       generated, gitignored, and not this project's code to lint.
-- [ ] `scripts/check-design-tokens.mjs` skips the same directory, WITHOUT reverting `0142`'s
+- [x] `scripts/check-design-tokens.mjs` skips the same directory, WITHOUT reverting `0142`'s
       derive-from-disk scan roots. The exclusion names generated vendor output, not a fixed list of
       directories to scan.
-- [ ] Both exit 0 on a tree that has been built (`npm run build` first, then each check).
-- [ ] Both still exit 0 on a clean checkout that has not been built.
-- [ ] Every other check that walks the tree is inspected for the same blind spot and either fixed
+- [x] Both exit 0 on a tree that has been built (`npm run build` first, then each check).
+- [x] Both still exit 0 on a clean checkout that has not been built.
+- [x] Every other check that walks the tree is inspected for the same blind spot and either fixed
       or shown not to have it — `check-boundaries`, `check-fog-render-boundary`, `check-skills`,
       `check-fixture-geography` all pass today, and the reason each does is worth writing down
       once rather than rediscovering.
-- [ ] The exclusions are narrow: `public/` generally stays covered, so a real source file added
+- [x] The exclusions are narrow: `public/` generally stays covered, so a real source file added
       there is still checked.
 
 ## Steps to reproduce
@@ -113,3 +114,70 @@ generated directory is a one-line change rather than a second instance of this t
 
 None — a build-tooling fix with nothing user-visible. The verification is the two `npm run lint`
 runs in the acceptance criteria, both of which are the agent's to run.
+
+## Resolution
+
+**One named list, read by all three places that care about it.** New
+`scripts/generated-paths.mjs` exports `GENERATED_VENDOR_DIRS = ["public/maplibre"]` and
+`isGeneratedVendor(rel)`, with a header naming the category the Notes asked to be named: output
+the build writes into a source-shaped directory, generated + gitignored + vendor. Three consumers:
+
+- `eslint.config.mjs` spreads it into `ignores` as `public/maplibre/**`, with a comment saying why
+  (criterion 1).
+- `scripts/check-design-tokens.mjs` skips it inside `walk()`, by repo-relative path, **below** the
+  root derivation. `rootsFor()` is untouched, so 0142's derive-from-disk behaviour still holds and
+  `public/` is still a derived root (criterion 2). `walk` now takes `base` so it can compute the
+  relative path.
+- `scripts/copy-maplibre-worker.mjs`, the script that writes the directory, asserts at load that
+  its own `OUT` (derived with `relative()`, not repeated as a literal) is in the list and throws if
+  it isn't. So moving the output without updating the list breaks the build, not somebody else's
+  lint. I first wrote the assertion against a string literal, which could never fail, and
+  replaced it before commit.
+
+**Self-test cases added** to `check-design-tokens.mjs --self-test` (criterion 6, narrowness):
+`public/maplibre/maplibre-gl-shared.js` with `#ffffff` must pass; `public/widget.js` with a raw
+colour must fire; `public/maplibre-extras/x.js` must fire (a prefix match is not a match); and
+`public` is now asserted as a derived root. **I checked that the tests bite:** with the list entry
+commented out, the self-test fails on exactly the maplibre case, and `copy-maplibre-worker.mjs`
+throws.
+
+**Other tree-walkers (criterion 5).** None of them has this blind spot:
+
+| Check | Why `public/maplibre/` can't trip it |
+|---|---|
+| `check-boundaries` | Fixed roots `src/domain`, `src/pipeline`, `app`, `lib`, `amplify`, `src`. `public/` isn't one. |
+| `check-fog-render-boundary` | Roots `src/domain`, `src`. |
+| `check-private-method-update` | Roots `lib`, `components`, `src`, `app`. |
+| `check-fog-hot-path` | Named files, plus delete-roots `src`, `amplify`. |
+| `check-adapter-deletion` | Copies a fixed list (`src lib app amplify components hooks types rules` + config) into a scratch tree; `public/` isn't copied. |
+| `check-fixture-geography` | Walks the whole tree, but collects only directories *named* `__fixtures__`, and there are none under `public/maplibre/`. |
+| `check-skills` | Reads `.claude/skills/` only. |
+| `check-no-deckgl` | Reads the lockfile, not the tree. |
+| `check-home-not-in-client`, `check-bundle-leak` | Scan `.next/static`, i.e. build output **on purpose**. `public/` files aren't copied there. |
+| `tsc` | `allowJs: false`, and the files are `.js`. |
+| vitest | Matches test-file patterns only. |
+
+The four fixed-root checks are safe **because** their lists are hand-written. 0142 argues that
+this is its own hazard; that argument is not this ticket's business, and no check here was
+changed to derive its roots.
+
+**Not done:** `gate.yml` still lints before it builds, so CI still can't see this class of
+problem. Making CI build first would be the structural fix, but it would change the gate's shape
+and cost, so it's out of scope. It is noted, not filed: once the exclusion is shared and asserted
+by the writer, the gap no longer hides anything.
+
+## Operator validation
+
+None needed from the operator: build tooling with nothing on screen. Verified by the agent, WSL2,
+2026-09-28:
+
+- **Clean tree** (no `public/maplibre/`): `npm run lint` → exit 0; `check-design-tokens.mjs` →
+  exit 0.
+- `npm run build` → exit 0; `public/maplibre/` holds `maplibre-gl-shared.js` (490 KB) and
+  `maplibre-gl-worker.js` (19 KB).
+- **Built tree**: `npm run lint` → exit 0; `check-design-tokens.mjs` → exit 0. The six
+  tree-walking `check-*` scripts all → exit 0.
+- **Repro against HEAD's versions on the same built tree**: old ESLint config → `✖ 1090 problems
+  (0 errors, 1090 warnings)`; old token check → `DESIGN TOKEN VIOLATION`. The bug was real, and this
+  change is what fixed it.
+- `vitest run`: 117 files, 2116 passed, 1 skipped.

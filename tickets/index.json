@@ -4323,6 +4323,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-09T21:46:54Z",
+    "started": "2026-09-28T13:08:57Z",
     "path": "tickets/open/0188-npm-run-lint-fails-after-a-build-public-maplibre-is-linted.md",
     "ready": true,
     "acceptance": {

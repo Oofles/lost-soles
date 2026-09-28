@@ -35,6 +35,7 @@
 
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs"
 import { join, relative, sep } from "node:path"
+import { isGeneratedVendor } from "./generated-paths.mjs"
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
 
@@ -48,6 +49,12 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
  * scripts/ holds .mjs — none of which are in EXTS, so scanning them costs a
  * readdir and finds nothing. Excluding a directory because it "obviously has no
  * colours in it" is the judgement call that goes stale; not making it is the point.
+ *
+ * The one exception is GENERATED VENDOR OUTPUT (0188) — e.g. MapLibre's minified worker,
+ * copied into public/maplibre/ at prebuild. It is skipped by PATH, from the shared list in
+ * scripts/generated-paths.mjs, and deeper than the root derivation: public/ is still a
+ * derived root and everything else in it is still scanned. This does not reintroduce a
+ * hand-written list of what TO scan; it names what the build writes that is not ours.
  */
 const EXCLUDED = new Set(["node_modules"])
 
@@ -124,13 +131,14 @@ const ANY_HEX = new RegExp(`${COLOUR_START}${HEX_RUN}\\b`, "i")
  */
 const ALLOW = /design-tokens:allow/
 
-function walk(dir, out = []) {
+function walk(dir, base, out = []) {
   if (!existsSync(dir)) return out
   for (const name of readdirSync(dir)) {
     if (SKIP_DIRS.has(name)) continue
     const full = join(dir, name)
-    if (statSync(full).isDirectory()) walk(full, out)
-    else if (EXTS.some((e) => name.endsWith(e))) out.push(full)
+    if (statSync(full).isDirectory()) {
+      if (!isGeneratedVendor(relative(base, full).split(sep).join("/"))) walk(full, base, out)
+    } else if (EXTS.some((e) => name.endsWith(e))) out.push(full)
   }
   return out
 }
@@ -140,7 +148,7 @@ export function scan(base) {
   // Derived per-call from the tree being scanned, which is what lets the self-test
   // exercise the SAME derivation against its fixture rather than a stubbed list.
   for (const root of rootsFor(base)) {
-    for (const file of walk(join(base, root))) {
+    for (const file of walk(join(base, root), base)) {
       const rel = relative(base, file).split(sep).join("/")
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
         const at = { rel, n: i + 1, line: line.trim() }
@@ -213,6 +221,16 @@ if (process.argv.includes("--self-test")) {
     "components/after-colon.css": ["  color:#0B1020;", true],
     "components/after-paren.ts": ["const c = rgba('#0B1020', 0.5)", true],
 
+    // ── 0188: generated vendor output is skipped, and ONLY that ─────────────
+    // MapLibre's minified worker, copied in at prebuild. Minified vendor code has
+    // hex literals; it is not this project's palette to police.
+    "public/maplibre/maplibre-gl-shared.js": ["var c='#ffffff',d='#C9A227'", false],
+    // ...but public/ itself is still a derived root. A real source file placed
+    // there must still be checked, or the exclusion has become a directory exemption.
+    "public/widget.js": ["const c = '#C9A227'", true],
+    // A sibling whose name merely STARTS with the excluded one is not excluded.
+    "public/maplibre-extras/x.js": ["const c = '#C9A227'", true],
+
     // The escape hatch, visible on the line (criterion 4). A genuine colour that
     // has been looked at and judged — the gitleaks:allow convention.
     "components/suppressed.tsx": ["const c = '#C9A227' // design-tokens:allow — §8.3 exception", false],
@@ -241,7 +259,7 @@ if (process.argv.includes("--self-test")) {
     // Prove the derivation itself, not just its consequences: the fixture's roots
     // must have been discovered from disk, including ones this file never names.
     const derived = rootsFor(base)
-    for (const expected of ["app", "components", "lib", "src", "packages"]) {
+    for (const expected of ["app", "components", "lib", "src", "packages", "public"]) {
       const ok = derived.includes(expected)
       if (!ok) failed++
       console.log(`  ${ok ? "ok" : "FAIL"}  root derived  ${expected}`)

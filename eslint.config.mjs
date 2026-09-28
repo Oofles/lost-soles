@@ -1,4 +1,5 @@
 import { FlatCompat } from "@eslint/eslintrc"
+import { GENERATED_VENDOR_DIRS } from "./scripts/generated-paths.mjs"
 
 const compat = new FlatCompat({ baseDirectory: import.meta.dirname })
 
@@ -14,6 +15,12 @@ const config = [
       // separate decision, not a side effect of project init.
       ".claude/**",
       "scripts/**",
+      // Ticket 0188. Generated vendor output inside public/: MapLibre's minified worker,
+      // copied from node_modules at prebuild and gitignored. It is not this project's code,
+      // and linting it turned `--max-warnings 0` red with ~1,090 warnings on any machine
+      // that had run a build (CI lints before it builds, so it never saw this). The list
+      // is shared with check-design-tokens.mjs, so the rest of public/ stays linted.
+      ...GENERATED_VENDOR_DIRS.map((d) => `${d}/**`),
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

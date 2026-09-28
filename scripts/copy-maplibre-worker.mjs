@@ -41,12 +41,25 @@
 //   node scripts/copy-maplibre-worker.mjs --self-test  prove the rewrite assertion bites
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
+import { isGeneratedVendor } from "./generated-paths.mjs"
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 const DIST = join(ROOT, "node_modules", "maplibre-gl", "dist")
 const OUT = join(ROOT, "public", "maplibre")
+
+// 0188: output written into public/ must be declared as generated vendor output, or
+// ESLint and the design-token check scan ~500 KB of minified MapLibre and go red on any
+// machine that has built. Asserted here, in the writer, so moving OUT without updating
+// the list fails the build instead of the next person's lint.
+const OUT_REL = relative(ROOT, OUT).split(sep).join("/")
+if (!isGeneratedVendor(OUT_REL)) {
+  throw new Error(
+    `${OUT_REL} is not in GENERATED_VENDOR_DIRS (scripts/generated-paths.mjs).\n` +
+      "Every directory this script writes must be listed there so the tree-walkers skip it.",
+  )
+}
 
 const SHARED_FROM = "./maplibre-gl-shared.mjs"
 const SHARED_TO = "./maplibre-gl-shared.js"
