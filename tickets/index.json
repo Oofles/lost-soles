@@ -4385,6 +4385,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-10T02:11:00Z",
+    "started": "2026-09-28T13:12:48Z",
     "path": "tickets/open/0191-stale-bundle-baseline-first-load-js.md",
     "ready": true,
     "acceptance": {

@@ -169,17 +169,52 @@ is counted.**
 
 #### Bundle size baseline (ticket `0053` criterion 8)
 
-Measured with `npm run build` at the close of `0053`:
+Measured with `npm run build`. Each column is a build of that commit, **re-run on 2026-09-28**
+(ticket `0191`). The two historical columns reproduce the numbers first recorded against them
+exactly.
 
-| | |
-|---|---|
-| `/` route size | **18.4 kB** |
-| `/` First Load JS | **121 kB** (shared baseline is 102 kB) |
-| MapLibre chunk | **560 kB raw, ~139 kB gzipped** — lazily loaded, **not** in First Load |
-| Middleware | 66.8 kB |
+| | `0053` close (`0dbfaed`) | `0191` filed (`1f69513`) | **2026-09-28** (`0191` close) |
+|---|---|---|---|
+| `/` route size | 18.4 kB | 85.4 kB | **110 kB** |
+| `/` First Load JS | 121 kB | 188 kB | **212 kB** |
+| shared by all | 102 kB | 103 kB | 102 kB |
+| MapLibre chunk | 560 kB raw, ~139 kB gz, async | async | **async** — `maplibre-gl.mjs` 568 kB raw, `initial: false` |
+| Middleware | 66.8 kB | 66.8 kB | 66.8 kB |
+
+**What `/`'s route-specific JS is made of** at the 2026-09-28 build. Taken from webpack's client
+stats for `/`'s First Load chunks (gzip sizes, split across modules in proportion to source
+size), **not** worked out from which ticket landed when:
+
+| | kB gz | Arrived with |
+|---|---|---|
+| `h3-js` | 62.4 | **`0054`**, the explored-set client path: `lib/fog/boot.ts` → `src/domain/fog.ts` → `h3-js` |
+| `lib/fog` — mask, composite, zoom buckets, viewport controller, animation, route corridor | 20.9 | `0055`–`0059`, `0119`, `0194`, `0199`, `0201` (capability `08`'s renderer) |
+| of which the `?fog=perf` harness (`lib/fog/perf/*`, `perf-overlay.tsx`) | ~5.4 | `0059`, shipped deliberately so it runs on the deployed site |
+| `fflate` | 8.9 | `0053` (PMTiles) |
+| `src/domain` — `fog.ts`, `explored-blob.ts`, `geo.ts` | 4.2 | `0054` |
+| `components/map` | 4.2 | `0053`, grown through `08` |
+| `@protomaps/basemaps` + `pmtiles` | 5.2 | `0053` |
+| everything else (`lib/log`, `lib/runs`, `lib/map-layers`, `amplify_outputs.json`, helpers) | ~2.5 | |
+
+**Every kB of growth is capability `08`'s own work.** 121 → 188 is `0054`: h3-js +61.8,
+`src/domain` +3.8, `lib/fog` +2.5. 188 → 212 is the renderer tickets after it: `lib/fog` +18.4,
+`components/map` +3.1.
+
+**`maplibre-gl`'s JS is still absent from First Load, asserted from the chunk listing.** The only
+`maplibre-gl` module in a First Load chunk is `dist/maplibre-gl.css`, a 39-byte JS stub whose CSS
+is extracted to a stylesheet. `maplibre-gl.mjs` and `maplibre-gl-shared.mjs` sit in async chunks
+(`initial: false`). The property this baseline exists to protect holds.
+
+**Judgement: 212 kB is acceptable for this route.** `/` *is* the app. The fog cannot draw
+without h3-js, and it cannot draw before MapLibre's ~139 kB gz async chunk arrives anyway. So the
+real time-to-map is First Load plus that chunk, and moving h3-js out of First Load would reorder
+those bytes, not remove them. The viewing surface is a desktop browser (D-227), for one user.
+Two levers are recorded here rather than filed, because neither is needed today: lazy-load
+h3-js alongside MapLibre (−62 kB First Load), and `next/dynamic` the `?fog=perf` harness
+(~−5 kB).
 
 The number worth watching is **First Load JS**, not the MapLibre chunk. Because the library is
-dynamically imported, the map route's initial payload grew by ~19 kB rather than by half a
+dynamically imported, at `0053` the map route's initial payload grew by ~19 kB rather than by half a
 megabyte; the big chunk arrives after mount. A future change that hoists the `maplibre-gl` import
 to module scope would move ~139 kB gzipped into First Load and this table is how that gets
 noticed.
