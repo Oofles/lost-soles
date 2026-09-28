@@ -394,7 +394,7 @@ component; contrast is checked against the §8 tokens; Total Level reads the com
 | 7 | ▸ **Skip, interruption, failure, and the `seen` flag** | One tap always ends it and jumps to the end state, never to the next beat. `seen` is per-device and never affects scoring. |
 | 8 | **The no-new-territory fallback** | `06-ui-ux.md` §3.5. A repeat loop must still feel like something happened (D-021 gives it half XP, not nothing). |
 
-**Depends on:** `08`, `09`. **Done when:** the sequence runs in 8.4 s ± 0.3 s on the real phone;
+**Depends on:** `08`, `09`. **Done when:** the sequence runs in 8.4 s ± 0.3 s ~~on the real phone~~ in the desktop browser (D-240, D-251);
 a tap at any point lands on the end state; adding a skill produces no level-up card; the whole
 thing is skippable and nothing about it is required.
 
@@ -479,7 +479,7 @@ still works when the cache is stale, and no write path exists from the phone oth
 
 | # | Ticket | Description |
 |---|---|---|
-| 1 | ▸ **Accessibility and reality checks** | `06-ui-ux.md` §9: sunlight, one-handed reach, sweaty thumbs, reduced motion, the §9.6 table as a checklist. |
+| 1 | ▸ **Accessibility and reality checks** | `06-ui-ux.md` §9: ~~sunlight, one-handed reach, sweaty thumbs,~~ reduced motion, and the desktop-applicable rows of the §9.6 table as a checklist (D-251). |
 | 2 | ▸ **Offline and slow-connection behaviour** | §9.5. The map must degrade, not blank. |
 | 3 | ▸ **The D-123 standing conditions, wired not caveated** | `08-security-privacy.md` §2.3–2.5. The three trigger gates must be *code or CI*, not a paragraph. |
 | 4 | ▸ **Secrets and dependency audit; incident playbook dry-read** | §3, §7.5, §8. |
@@ -1112,7 +1112,11 @@ this table **earlier** marks a tagged row whose capability has not landed as *n/
 - [ ] *(from capability `12`)* The post-run sequence completes in **8.4 s ± 0.3 s** and one tap
       from any beat lands on the end state.
 - [ ] `prefers-reduced-motion` renders the fog static and stops the rAF loop.
-- [ ] The `06-ui-ux.md` §9.6 reality-check table passes: sunlight, one-handed reach, sweaty thumbs.
+- [ ] ~~The `06-ui-ux.md` §9.6 reality-check table passes: sunlight, one-handed reach, sweaty thumbs.~~
+      **Amended by D-251 (`0212`, 2026-09-28):** the §9.6 rows that apply in a desktop browser pass
+      there (token expired, three weeks away, slow or no connection, 200% zoom, screen reader). The
+      phone-physical rows (sun, gloves, wet screen, one-handed reach) are dropped. The phone is not
+      a viewing surface.
 - [ ] *(from capability `13`)* Gold appears only as fill or rule, or as type at ≥24sp or on navy;
       all floating chrome is opaque (D-148).
 - [ ] Street names are legible in **both** modes at planning zoom. Atmosphere never cost

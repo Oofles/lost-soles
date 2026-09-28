@@ -286,6 +286,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   Shortcuts / Siri. Desktop browser is a secondary target for planning and admin.
   → **The last sentence is superseded by D-227** (desktop is the primary VIEWING surface); the
   Android capture half stands. *(Pointer added at capability `08`'s audit, 2026-09-28.)*
+  → **Narrowed further by D-251:** the phone is not a viewing surface at all; no effort goes into
+  designing or testing for it.
 
 ---
 
@@ -2731,6 +2733,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 - **D-227** **The desktop browser is the primary VIEWING surface; the Android phone is the primary
   CAPTURE device.** Partially supersedes D-124, which said "desktop browser is a secondary target
   for planning and admin". *(Operator, during ticket `0053`'s validation, 2026-09-09.)*
+  → **Hardened by D-251** (2026-09-28): *primary* became *only*. The "phone remains the worst case"
+  reasoning below no longer holds work in place.
   - **The operator's own framing, stated twice and unprompted:** *"I plan to use this app primarily
     through a browser on my computer, not trying to view it through a phone. Phone for tracking the
     runs, and computer for viewing all the data via the webapp."*
@@ -3450,3 +3454,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     bypass the CDN and draw S3 egress outside CloudFront's always-free tier — the one cost D-226
     was taken to cap. Private + OAC keeps every byte on the always-free path.
   - D-226's hosting choice (S3 + our own CloudFront, not R2) is untouched.
+- **D-251** **The phone is not a viewing surface. No design or test effort goes into phone use of
+  the app.** Hardens D-227 from "desktop primary" to "desktop only", and supersedes what D-227 and
+  ticket `0187` kept standing for the phone. *(Operator, 2026-09-28, answering `0212`'s §9.5 question.)*
+  - **The operator's words:** *"The phone considerations are completely unnecessary. I don't want to
+    spend extra effort and cycles designing and testing for a phone use case since my computer will
+    be what I use 99% of the time."*
+  - **What this removes:**
+    - thumb-arc and one-handed-reach layout, and 56dp touch targets as a *requirement*
+    - sunlight, gloves and wet-screen checks, and phone-sized wireframes as the primary case
+    - phone perf runs, with D-240's ANGLE acceptance now permanent rather than parked
+    - D-227's *"the phone remains the worst case, so its budget stands"* argument. The `05` §6.4
+      budgets still stand, because they were measured and met on the desktop and are good
+      engineering; the phone is no longer why they stand.
+  - **The MVP gate** (`09` §9.5, row 4) now checks only the `06` §9.6 rows that mean something in a
+    desktop browser: token expired, three weeks away, slow or no connection, 200% zoom, screen
+    reader. The phone-physical rows are dropped.
+  - **What it does NOT remove:**
+    - **Runs are still recorded by the watch or phone and arrive through the adapters.** That is
+      the source device, not a surface this app designs for (D-124's capture half, as data flow).
+    - The app still must not break at a narrow width: `CLAUDE.md`'s layout rules and ordinary
+      responsive CSS stay. Nothing is *optimised* for the phone.
+  - **Open question, raised with the operator:** whether `/log` (manual workout entry, capability
+    `10`) and ticket capture (`0107`) are used from a phone at the gym or mid-run. If they are,
+    they are capture, and this decision does not reach them. Until answered, their tickets keep
+    their criteria and the sweep ticket skips them.
+  - **Applied by:** `0212` (closed), `0187` (criteria amended), and the open-ticket sweep filed
+    alongside it.

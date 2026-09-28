@@ -41,11 +41,16 @@ needs rethinking is where things *live* when the viewport is 1400px wide and the
       — the inverse of today. The seven routes do not change; `app/routes.test.ts` still passes.
 - [ ] The plinth is specified for a wide viewport as the primary case. §4.8's left-rail sketch is
       either promoted to the main specification or replaced with something better.
-- [ ] Every remaining phone-first assumption is either restated for desktop or explicitly kept with
-      a reason — thumb arc, 56dp targets, one-handed reach, sunlight legibility.
-- [ ] The phone case is not deleted. It stays as a real, specified surface: D-124's capture half is
+- [ ] Every remaining phone-first assumption is **removed**, not restated: thumb arc, 56dp targets as
+      a requirement, one-handed reach, sunlight legibility. *(Amended 2026-09-28 by D-251: it said
+      "restated for desktop or explicitly kept with a reason".)*
+- [ ] ~~The phone case is not deleted. It stays as a real, specified surface: D-124's capture half is
       untouched, and `05` §6.4's perf budget and `0059`'s mid-range-Android harness still stand,
-      because the phone remains the worst case even when it is not the common case.
+      because the phone remains the worst case even when it is not the common case.~~
+      **Superseded by D-251 (2026-09-28):** the phone is not a viewing surface, and no design goes
+      into it. Replacement: the doc states once that layouts must not *break* at a narrow width
+      (ordinary responsive CSS) and that nothing is optimised for the phone. `05` §6.4's budgets
+      stand on their own, as measured on the desktop.
 - [ ] `## Operator validation` conventions are stated once, in this doc: the desktop browser is the
       default surface, and the phone is named only where the check is genuinely phone-specific.
 - [ ] A `D-xxx` records anything the pass actually changes about the IA, rather than the change
@@ -61,6 +66,12 @@ down.
 
 Not urgent, and it blocks nothing. Capability `08`'s renderer is surface-independent; this matters
 before capability `13` builds the plinth for real, which is why it sits there.
+
+**2026-09-28, D-251.** The operator hardened D-227 from "desktop primary" to "the phone is not a
+viewing surface at all", answering `0212`'s §9.5 question. Criteria 3 and 4 are amended above, and
+the strikes are kept so the change is visible. This makes the pass simpler: remove phone-first
+assumptions rather than keep and justify them. The matching sweep of open tickets' phone-viewing
+criteria is `0215`. `06` is this ticket's alone; `0215` does not edit it.
 
 ## Operator validation
 

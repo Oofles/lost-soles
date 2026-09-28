@@ -4888,5 +4888,25 @@
       "checked": 0,
       "total": 4
     }
+  },
+  {
+    "id": 215,
+    "slug": "strip-phone-viewing-criteria-from-open-tickets-after-d-251",
+    "title": "Strip phone-viewing criteria from open tickets after D-251",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T16:53:19Z",
+    "path": "tickets/open/0215-strip-phone-viewing-criteria-from-open-tickets-after-d-251.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
