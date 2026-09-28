@@ -16,8 +16,6 @@ started: 2026-09-28T16:24:49Z
 
 ## Description
 
-## Description
-
 `.githooks/pre-commit` runs `node scripts/check-fixture-geography.mjs` whenever a `__fixtures__/`
 file is staged. If `node` is not on the hook's PATH (a non-login shell under `fnm` — found in ticket
 `0200`'s session), the command fails with `node: command not found` and the hook then prints
@@ -46,29 +44,6 @@ the missing-scanner branch just above it). The message is wrong.
 ## Notes
 
 Cheap. Found while committing `0200`.
-
-
-## Acceptance criteria
-
-- [ ] TODO
-
-## Steps to reproduce
-
-1. TODO
-
-## Expected vs actual
-
-**Expected:** TODO
-
-**Actual:** TODO
-
-## Notes
-
-TODO
-
-## Operator validation
-
-TODO
 
 ## Resolution
 
