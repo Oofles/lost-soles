@@ -4207,7 +4207,7 @@
     "title": "audit fog-no-refog and xp-not-lower are hardcoded n/a — they will never activate",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -4215,10 +4215,11 @@
     "source": "agent",
     "created": "2026-09-08T15:04:21Z",
     "started": "2026-09-28T01:48:39Z",
-    "path": "tickets/open/0183-audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w.md",
-    "ready": true,
+    "closed": "2026-09-28T01:54:42Z",
+    "path": "tickets/closed/0183-audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },

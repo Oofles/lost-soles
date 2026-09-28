@@ -4,7 +4,7 @@ slug: audit-fog-no-refog-and-xp-not-lower-are-hardcoded-n-a-they-w
 title: audit fog-no-refog and xp-not-lower are hardcoded n/a — they will never activate
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-08T15:04:21Z
 started: 2026-09-28T01:48:39Z
+closed: 2026-09-28T01:54:42Z
 ---
 
 ## Description
