@@ -2570,7 +2570,7 @@
     "title": "/dev/tickets/:id detail with depends_on status resolved inline",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "17-tickets-ui",
     "depends_on": [
@@ -2580,11 +2580,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0109-ticket-detail-with-dependency-status.md",
+    "closed": "2026-09-28T17:43:01Z",
+    "path": "tickets/closed/0109-ticket-detail-with-dependency-status.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 8
+      "checked": 1,
+      "total": 1
     }
   },
   {
