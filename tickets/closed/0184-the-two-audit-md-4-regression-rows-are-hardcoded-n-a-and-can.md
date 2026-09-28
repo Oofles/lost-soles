@@ -4,7 +4,7 @@ slug: the-two-audit-md-4-regression-rows-are-hardcoded-n-a-and-can
 title: The two AUDIT.md §4 regression rows are hardcoded n/a and can never activate
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-08T17:53:27Z
 started: 2026-09-28T01:59:27Z
+closed: 2026-09-28T02:00:33Z
 ---
 
 ## Description
