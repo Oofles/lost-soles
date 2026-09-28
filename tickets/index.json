@@ -2522,7 +2522,7 @@
     "title": "/dev/tickets capture sheet — title, body, two chip rows, Save",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "17-tickets-ui",
     "depends_on": [
@@ -2532,11 +2532,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0107-dev-tickets-capture-sheet.md",
+    "closed": "2026-09-28T17:43:00Z",
+    "path": "tickets/closed/0107-dev-tickets-capture-sheet.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 8
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -2601,7 +2602,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0110-ticket-read-cache-and-push-webhook.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8

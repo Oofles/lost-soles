@@ -4,13 +4,14 @@ slug: dev-tickets-capture-sheet
 title: /dev/tickets capture sheet — title, body, two chip rows, Save
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 17-tickets-ui
 depends_on: [24, 90]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-28T17:43:00Z
 ---
 
 ## Description
@@ -58,6 +59,48 @@ lantern-light you cannot read in bright sun is a capture form that does not get 
 
 ## Acceptance criteria
 
+**Withdrawn 2026-09-28 — D-252.** Declined: capability `17` is withdrawn and no in-app ticket UI
+will be built. The original criteria are preserved verbatim in `## Resolution`.
+
+- [x] Closed as declined, with a `## Resolution` recording the decision, and moved to `closed/`
+      rather than deleted.
+
+## Notes
+
+The fifteen-second target is the real acceptance criterion and the others exist to protect it.
+**A capture form that takes ninety seconds is a capture form that does not get used after a run**,
+and per D-013 a feature whose upkeep exceeds its value gets abandoned — the constraint that
+governs the app governs its ticket system too.
+
+Everything that is *not* on this form (acceptance criteria, capability, size, dependencies, slug)
+is triage's job, done later, at a keyboard, by someone who can think. 0111 makes that structural.
+
+## Resolution
+
+**Declined 2026-09-28. Recorded as D-252.** Operator's decision, answering the question put during
+`0215`'s sweep: *"Close all of cap 17."*
+
+D-092 required in-app ticket creation because it was **phone-friendly**: a thought at mile six
+captured before it was lost. Everything in capability `17` followed from that. The capture sheet
+was sized for a thumb, and browse and detail were read-only mirrors so the phone never needed
+GitHub. D-251 removed the phone as a viewing surface. The operator then removed it as an input
+surface too: *"I don't use /log or capture from my phone."* At the desktop, the repo, GitHub,
+`tickets.mjs` and the agent already do everything this ticket planned, so building it would
+duplicate tools that are already open.
+
+**What stays:**
+- the capture endpoint `/api/tickets/capture` (capability `03`, `0018`) and its bearer auth
+  (`0149`);
+- the `inbox/` triage flow.
+
+They are built, harmless and cost nothing. The two `/dev/tickets` stub routes from `0016` are
+removed under `0216`.
+
+Nothing was built under this ticket, and no code changed. It is the same shape as `0020` and `0021`
+under D-184: a capture path declined because its reason for existing went away.
+
+### Original acceptance criteria (verbatim)
+
 - [ ] Opening the sheet focuses the title input and raises the soft keyboard with no user tap
       (asserted in an instrumented test on Android).
 - [ ] Save is enabled with a non-empty title and disabled with an empty one; type defaults to
@@ -73,16 +116,6 @@ lantern-light you cannot read in bright sun is a capture form that does not get 
       count, so adding a fifth field fails.
 - [ ] A non-owner session gets a 404 on `/dev/tickets` (not a 403 — the route is invisible).
 
-## Notes
-
-The fifteen-second target is the real acceptance criterion and the others exist to protect it.
-**A capture form that takes ninety seconds is a capture form that does not get used after a run**,
-and per D-013 a feature whose upkeep exceeds its value gets abandoned — the constraint that
-governs the app governs its ticket system too.
-
-Everything that is *not* on this form (acceptance criteria, capability, size, dependencies, slug)
-is triage's job, done later, at a keyboard, by someone who can think. 0111 makes that structural.
-
 ## Operator validation
 
 On the Android phone, immediately after a real run, standing outside, breathing hard, one-handed,
@@ -90,3 +123,6 @@ in sunlight: open the app, tap the FAB, dictate a sentence with the voice key, t
 Save. Time it. If it took more than fifteen seconds or needed a second hand, the ticket is not
 done. Then put the phone in airplane mode and do it again — it must behave identically, with a
 `1 pending` badge and no error of any kind.
+
+**Declined, 2026-09-28.** Nothing was built, so there is nothing to observe or smoke-test. The
+check is the record: D-252 exists and `09` §3 marks capability `17` withdrawn.
