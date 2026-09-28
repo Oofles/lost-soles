@@ -71,3 +71,29 @@ that fails on a missing binary is a suite people learn to ignore. Run it by hand
 shader or the blend state changes, and paste its output into the ticket.
 
 Set `CHROMIUM` to override the browser path (default `/usr/bin/chromium-browser`).
+
+## `tune.mjs` — the fog over the real basemap, as screenshots (ticket `0119`)
+
+```
+node tools/fog-harness/tune.mjs [variants.json] [--zoom 16] [--out tmp/0119]
+```
+
+Unlike the harnesses above, this one has no probes and no pass/fail. It renders the stock Protomaps
+style from the real CloudFront archive, labels included, then the shipped `FogMaskLayer` with a
+palette under test, then the route, all over a synthetic loop through downtown Orlando. It writes
+one PNG per variant. `variants.json` maps names to overrides on `V1`, and `null` means no fog layer:
+the legibility baseline. It exists for taste work (`0119`, capability 15), where the question is
+whether it looks right and not whether a number matches.
+
+Three things differ from the other harnesses, and each cost a round to find:
+
+- **It is driven over the DevTools protocol, in real time.** `--screenshot` with
+  `--virtual-time-budget` never finishes loading this style, because sprite and glyph decoding
+  stalls under virtual time. `load` never fires, and every capture is the flat `#cccccc` background.
+- **It is served from a throwaway `127.0.0.1` server**, because a `file://` page gets no tiles from
+  MapLibre's module worker. The worker is bundled into one file and handed over as a `blob:` URL.
+- **The bundle and config are separate `<script src>` files**, not inline. A 2 MB bundle inlined
+  into HTML contains `<!--` and `<script` sequences that knock the tokenizer into script-escaped
+  states, and nothing runs.
+
+Only commit screenshots of the synthetic loop, never of the operator's own cells (D-199).

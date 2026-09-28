@@ -16,16 +16,14 @@
  *
  * ─── WHAT ACTUALLY SHIPS IS `V1`, AND IT IS A HYBRID ────────────────────────
  *
- * `0056` says *"ship atlas-leaning values"* and then lists `u_maxOpacity 0.94` and adventure's
- * colours. That is not a contradiction being papered over, it is the milestone's single rendering:
- * adventure's **look** (near-black-blue fog at 0.94, warm rim) with atlas's **restraint**
- * (`noiseAmp` 0.10, `rimAmt` 0.08, so the edge stays close to true coverage and the glow is a
- * hairline). §2.3 carries one rendering, not two, and D-051 binds it.
+ * `0056` shipped a hybrid — adventure's colours and 0.94 opacity with atlas's `noiseAmp` 0.10 and
+ * `rimAmt` 0.08 — and `0119` tuned it by eye over the real basemap. The result stays one rendering,
+ * not two: §2.3 carries one, and D-051 binds it. Each number's reason sits on its own `V1_*`
+ * constant below, which is where capability 15 starts from rather than re-deriving.
  *
- * The one number where `V1` and §5.2's atlas column genuinely disagree is `maxOpacity`: 0.94 here,
- * 0.55 there. §4.3 defends 0.94 at length and `0056` restates the defence in its own body, so 0.94
- * is what ships. **Atlas's 0.55 is not lost** — it is `ATLAS.maxOpacity` below, waiting for the
- * mode switch that makes a second value meaningful.
+ * `V1` and §5.2's atlas column still disagree on `maxOpacity`: 0.90 here, 0.55 there. **Atlas's
+ * 0.55 is not lost** — it is `ATLAS.maxOpacity` below, waiting for the mode switch that makes a
+ * second value meaningful.
  */
 
 /** An RGB triple in linear-ish 0..1 shader space, as the shader's `vec3` uniforms take it. */
@@ -82,19 +80,50 @@ export const ADVENTURE: FogPalette = {
   animated: true,
 }
 
-/**
- * WHAT `0056` ACTUALLY SHIPS. The six values in the ticket's own table, exactly as written.
+/*
+ * ─── `0119`'S TUNED VALUES ─────────────────────────────────────────────────────
  *
- * Adventure's colours and opacity, atlas's noise and rim. See the header for why that is one
- * decision rather than two halves of a mode switcher.
+ * Chosen by eye over the REAL basemap with labels at z16 (`tools/fog-harness/tune.mjs`), operator
+ * approved 2026-09-28. Every one is inside §5.2's atlas..adventure range; the seam budget holds
+ * because `SEAM_FLOOR` is derived from adventure's 0.30 and 0.25 is below it.
+ */
+
+/** Unchanged from adventure: unexplored ground must read as dark and unknown, not greyed out. */
+export const V1_FOG_DEEP: Rgb = ADVENTURE.fogDeep
+/** Lighter than adventure's (0.22,0.24,0.30) so the fBm density reads as mist, not a flat wash. */
+export const V1_FOG_EDGE: Rgb = [0.27, 0.29, 0.35]
+/** Unchanged: the hue is right in principle; its visibility is `0119`'s open finding, not a colour. */
+export const V1_RIM_GLOW: Rgb = ADVENTURE.rimGlow
+/**
+ * 0.90, down from 0.94, and **never 1.0.** A fully opaque fog reads as a hole punched in the map;
+ * at 0.90 fogged ground keeps a readable ghost of its street grid and labels (D-051) while still
+ * reading as dark. 0.94 hid that ghost almost completely on the stock basemap.
+ */
+export const V1_MAX_OPACITY = 0.9
+/**
+ * 0.25, up from 0.10. It displaces the boundary only ~5 m (D-231's formula), which costs no
+ * legibility and buys what little raggedness this lever can buy — see `0119`'s follow-up on
+ * `FALLOFF_INNER` for why the edge still reads as disc outlines.
+ */
+export const V1_NOISE_AMP = 0.25
+/**
+ * 0.30, up from 0.08 — the top of the range, because 0.08 was measurably invisible (`0056`: +10/255)
+ * and 0.30 is only barely visible (~+30/255, the rim is scaled by the boundary's own ~0.47 alpha).
+ * Making the rim read needs a design change, filed from `0119`; this is the most the range allows.
+ */
+export const V1_RIM_AMT = 0.3
+
+/**
+ * WHAT SHIPS. The milestone's single rendering: adventure's darkness and animation, tuned by
+ * `0119` for legibility and texture. See the constants above for each number's reason.
  */
 export const V1: FogPalette = {
-  fogDeep: ADVENTURE.fogDeep,
-  fogEdge: ADVENTURE.fogEdge,
-  rimGlow: ADVENTURE.rimGlow,
-  maxOpacity: ADVENTURE.maxOpacity,
-  noiseAmp: ATLAS.noiseAmp,
-  rimAmt: ATLAS.rimAmt,
+  fogDeep: V1_FOG_DEEP,
+  fogEdge: V1_FOG_EDGE,
+  rimGlow: V1_RIM_GLOW,
+  maxOpacity: V1_MAX_OPACITY,
+  noiseAmp: V1_NOISE_AMP,
+  rimAmt: V1_RIM_AMT,
   animated: true,
 }
 

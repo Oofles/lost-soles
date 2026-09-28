@@ -18,14 +18,14 @@ import {
 } from "./fog-uniforms"
 import { SEAM_FLOOR } from "./mask"
 
-describe("V1 — what 0056 actually ships", () => {
-  it("is the ticket's own table, value for value", () => {
+describe("V1 — what ships, as 0119 tuned it", () => {
+  it("is 0119's approved values, value for value", () => {
     expect(V1.fogDeep).toEqual([0.035, 0.045, 0.075])
-    expect(V1.fogEdge).toEqual([0.22, 0.24, 0.3])
+    expect(V1.fogEdge).toEqual([0.27, 0.29, 0.35])
     expect(V1.rimGlow).toEqual([0.85, 0.7, 0.42])
-    expect(V1.maxOpacity).toBe(0.94)
-    expect(V1.noiseAmp).toBe(0.1)
-    expect(V1.rimAmt).toBe(0.08)
+    expect(V1.maxOpacity).toBe(0.9)
+    expect(V1.noiseAmp).toBe(0.25)
+    expect(V1.rimAmt).toBe(0.3)
   })
 
   /**
@@ -40,11 +40,14 @@ describe("V1 — what 0056 actually ships", () => {
     }
   })
 
-  it("takes adventure's colours and atlas's restraint, which is the hybrid the ticket asks for", () => {
-    expect(V1.fogDeep).toEqual(ADVENTURE.fogDeep)
-    expect(V1.maxOpacity).toEqual(ADVENTURE.maxOpacity)
-    expect(V1.noiseAmp).toEqual(ATLAS.noiseAmp)
-    expect(V1.rimAmt).toEqual(ATLAS.rimAmt)
+  /** `0119` was told to tune WITHIN §5.2's ranges; a value outside them is a design change. */
+  it("stays inside the atlas..adventure range on every scalar", () => {
+    for (const key of ["noiseAmp", "rimAmt"] as const) {
+      expect(V1[key]).toBeGreaterThanOrEqual(ATLAS[key])
+      expect(V1[key]).toBeLessThanOrEqual(ADVENTURE[key])
+    }
+    expect(V1.maxOpacity).toBeGreaterThanOrEqual(ATLAS.maxOpacity)
+    expect(V1.maxOpacity).toBeLessThanOrEqual(ADVENTURE.maxOpacity)
   })
 })
 
@@ -72,7 +75,7 @@ describe("SEAM_FLOOR — 0055's mask constant is derived from 0056's ramp", () =
    * to stay above the reveal ramp's top even at the noise's worst downward swing, or the seam
    * breathes in and out of the mist as the animation drifts (D-231).
    *
-   * The derivation uses **adventure's** `noiseAmp`, not the 0.10 that ships. That is the whole point
+   * The derivation uses **adventure's** `noiseAmp`, not the 0.25 that ships. That is the whole point
    * of asserting it here rather than trusting the comment: capability 15 raising the amplitude must
    * not silently invalidate a constant that was measured once on a real GPU and never re-measured.
    */

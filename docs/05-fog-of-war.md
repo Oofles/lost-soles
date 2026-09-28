@@ -989,6 +989,9 @@ Two constants worth defending:
 - **`u_maxOpacity` must never reach 1.0.** Letting 5–8% of the basemap bleed through is what
   makes it read as *mist over a map* rather than *a hole cut in a black sheet*. It is also a
   direct contribution to D-051 — even fully fogged ground retains a ghost of its street grid.
+  **The milestone's single rendering ships 0.90** (ticket `0119`): on the stock basemap, 0.94 hid
+  that ghost almost entirely. §5.2's 0.94 remains adventure's value. All of `0119`'s tuned values
+  and their reasons: `docs/capabilities/08-map-and-fog-renderer.md`.
 - **The noise scale (260 px per cell) must not match the parchment grain.** Parchment grain is fine
   (~2–4 px), mist noise is coarse (~150–300 px). Matching frequencies produces a beat pattern
   that looks like video compression artefacts (R4 §6.6).

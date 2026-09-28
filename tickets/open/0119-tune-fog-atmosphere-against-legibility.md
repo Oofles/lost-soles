@@ -11,6 +11,7 @@ depends_on: [56]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-09-28T03:36:37Z
 ---
 
 ## Description
@@ -38,15 +39,18 @@ world showing through reads as mist. Do not "fix" this by raising it to 1.
 
 ## Acceptance criteria
 
-- [ ] Final uniform values are committed as named constants with a one-line rationale each.
-- [ ] Values are recorded in `docs/capabilities/08-map-and-fog-renderer.md` so capability `15` starts
+- [x] Final uniform values are committed as named constants with a one-line rationale each.
+      *(`V1_FOG_DEEP` … `V1_RIM_AMT` in `lib/fog/fog-uniforms.ts`.)*
+- [x] Values are recorded in `docs/capabilities/08-map-and-fog-renderer.md` so capability `15` starts
       from them rather than re-deriving.
-- [ ] `u_maxOpacity < 1.0`, with the reason in a comment.
-- [ ] A before/after screenshot pair at z16 over revealed ground is attached to the ticket.
-- [ ] **Legibility regression check**: street names inside revealed territory are no less readable
+- [x] `u_maxOpacity < 1.0`, with the reason in a comment. *(0.90.)*
+- [x] A before/after screenshot pair at z16 over revealed ground is attached to the ticket.
+      *(`docs/capabilities/assets/0119/`: before, after, and the fog-off baseline.)*
+- [x] **Legibility regression check**: street names inside revealed territory are no less readable
       than with the fog layer disabled entirely. If they are, the tuning is wrong regardless of how
-      it looks.
-- [ ] The time-box was respected, or the overrun is recorded with what remained unresolved.
+      it looks. *(Measured and looked at. See Operator validation.)*
+- [x] The time-box was respected, or the overrun is recorded with what remained unresolved.
+      *(About 1h45m. Two things the range cannot fix are filed as `0210` and `0211`.)*
 
 ## Notes
 
@@ -114,11 +118,78 @@ Tune at the zoom the map is actually used at.
 
 ## Operator validation
 
-Go outside in direct sunlight with the phone. At z16 over a street you have run:
+**Rewritten 2026-09-28 for the desktop (D-240, as the 2026-09-14 note asked).** The original asked
+for the phone outdoors in direct sunlight. Its reasoning was that values chosen on a bright display
+come out too subtle. On the desktop that becomes one rule: **a detail counts only if it reads at a
+glance at normal size, without zooming the screenshot.** Operator agreed to this translation before
+work started.
 
-1. Street names inside revealed territory must be readable **without shading the screen**.
-2. The fog edge must read as drifting mist, not as a hard cutout or a wobbly outline.
-3. Unexplored ground must feel genuinely dark and unknown — if it reads as merely "greyed out",
-   `u_fogDeep` is too light and the core emotional beat of the product is being lost.
-4. Pan for 20 seconds. The noise must animate gently; if it shimmers or crawls, `u_noiseAmp` is too
-   high or the noise is sampling in screen space rather than world space.
+What was checked, all at z16 over the real basemap with labels, rendered by
+`tools/fog-harness/tune.mjs` in headless Chromium (SwiftShader) at DPR 1:
+
+1. **Street names inside revealed ground: no regression.**
+   - *Measured:* against the fog-off render, pixels more than 6 px inside revealed ground change by
+     at most 2/255 under every variant tried.
+   - *Measured:* the fogged fraction of the frame is 62.3–62.4% for all of them, so `noiseAmp` 0.25
+     does not eat into revealed ground.
+   - *Seen:* labels that straddle the frontier ("West Robinson Street") are cut by the fog. That is
+     §4.4's layer order (fog above symbols), not these values, and it is identical in V1.
+2. **Unexplored ground is still dark, not greyed out:** yes at 0.90 opacity. It now also shows a
+   faint ghost of its streets and labels, which is a D-051 gain.
+3. **The edge reads as drifting mist:** **no**, it reads as disc outlines at every in-range value.
+   Filed as `0211`.
+4. **Pan for 20 s:** not re-run. No motion code changed, D-233/D-243 cover it in the suite, and the
+   operator confirmed the zoom behaviour on `0199`.
+
+**Operator, 2026-09-28, desktop:** reviewed the six-variant frontier sheet and the 2x rim sheet, and
+chose R: *"take R as-is, file both follow-ups"*.
+
+## Resolution
+
+**Shipped R: `maxOpacity` 0.90, `fogEdge` (0.27,0.29,0.35), `noiseAmp` 0.25, `rimAmt` 0.30;
+`fogDeep` and `rimGlow` unchanged.** All values are inside §5.2's ranges, and the new test asserts
+that. `SEAM_FLOOR` still holds, because it is derived from adventure's 0.30.
+
+### Files
+
+- `lib/fog/fog-uniforms.ts`: `V1` is no longer derived from `ATLAS`/`ADVENTURE`. It is built from
+  six `V1_*` constants, each with its reason, and the header is rewritten to match.
+- `lib/fog/fog-uniforms.test.ts`, `lib/fog/composite.test.ts`: the new values. The "hybrid of
+  atlas and adventure" assertion became an "inside the range on every scalar" assertion, which is
+  the constraint that actually binds this ticket.
+- `tools/fog-harness/tune.mjs` and `tune-harness.js` (new), plus a README section. This is the real
+  basemap with labels, the shipped layer, and the route above the fog.
+- `docs/capabilities/08-map-and-fog-renderer.md`: the values table, the two findings, and the
+  desktop translation of "daylight".
+- `docs/05-fog-of-war.md` §4.3: a note that the single rendering ships 0.90 while §5.2's 0.94 stays
+  adventure's value. `docs/INDEX.md` regenerated.
+- `docs/capabilities/assets/0119/`: three PNGs of the synthetic loop.
+
+### What went wrong
+
+**Most of the time-box went on the harness, not the tuning.** The existing harnesses draw on a
+stand-in background with no labels, so they could not answer the legibility question. Getting the
+real map into a headless screenshot hit four walls in a row, each producing the same flat grey
+frame with no error:
+- MapLibre's module worker would not start its message loop from `file://`.
+- Serving over `127.0.0.1` together with `--virtual-time-budget` hung.
+- The inlined 2 MB bundle broke the HTML tokenizer.
+- Sprite and glyph decoding stalled under virtual time, so `load` never fired.
+
+Driving Chromium over the DevTools protocol in real time fixed the last one. All four are written
+down in the README so capability 15 does not pay for them again.
+
+### Findings, filed rather than fixed
+
+- **`0210`: the rim cannot be seen in range.** It is scaled by the boundary's own alpha. The value
+  that makes it visible (0.60) is out of range, and it reads grey on the stock basemap.
+- **`0211`: the edge reads as disc outlines.** This is `0056`'s ratio problem. The lever is D-231's
+  `FALLOFF_INNER`, which is a design decision.
+
+Both are in capability 15 so they do not gate `08`'s audit. They are about atmosphere, and that is
+15's business.
+
+### Decisions
+
+No new `D-xxx`. This is tuning inside ranges the design already set. The honoured constraints are
+D-051 (legibility), D-243 (per-level step kept) and D-231 (`FALLOFF_INNER` untouched).

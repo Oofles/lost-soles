@@ -481,13 +481,13 @@ describe("runCompositePass — the GL call sequence (criterion 1)", () => {
     expect(floats).toContain(V1.rimAmt)
   })
 
-  /** Criterion 4 restated for pass 2: `u_maxOpacity` is 0.94 and it reaches the GPU as 0.94. */
-  it("ships u_maxOpacity = 0.94, never 1.0", () => {
-    expect(V1.maxOpacity).toBe(0.94)
+  /** Criterion 4 restated for pass 2: `u_maxOpacity` is 0.90 (`0119`) and it reaches the GPU unchanged. */
+  it("ships u_maxOpacity = 0.90, never 1.0", () => {
+    expect(V1.maxOpacity).toBe(0.9)
     expect(V1.maxOpacity).toBeLessThan(1)
     const f = fakeGl()
     runCompositePass(f.gl, createCompositeResources(f.gl), frame())
-    expect(f.of("uniform1f").map((c) => c.args[1])).toContain(0.94)
+    expect(f.of("uniform1f").map((c) => c.args[1])).toContain(V1.maxOpacity)
   })
 
   it("hands the noise matrix and origin over as a mat3 and a vec2", () => {

@@ -633,6 +633,42 @@ under `!ready`, so it disappeared the moment the dataset arrived — precisely w
 `?fog=perf:here` puts up to 500,617 cells of synthetic solid ground over the operator's own
 neighbourhood; with the line hidden, nothing on screen said so. It is now always visible.
 
+### The tuned fog values — capability 15 starts here (ticket `0119`)
+
+Chosen by eye over the **real basemap with labels** at z16 and approved by the operator on
+2026-09-28. The code of record is `lib/fog/fog-uniforms.ts`: one `V1_*` constant per value, each with
+its reason.
+
+| Uniform | `0056` shipped | **`0119` ships** | Why |
+|---|---|---|---|
+| `u_fogDeep` | (0.035, 0.045, 0.075) | **unchanged** | Unexplored ground must read as dark and unknown, not greyed out |
+| `u_fogEdge` | (0.22, 0.24, 0.30) | **(0.27, 0.29, 0.35)** | The fBm density now shows as mist rather than a flat wash |
+| `u_rimGlow` | (0.85, 0.70, 0.42) | **unchanged** | The hue is not the problem; its visibility is (`0210`) |
+| `u_maxOpacity` | 0.94 | **0.90** | Fogged ground keeps a readable ghost of its streets and labels (D-051). Never 1.0 |
+| `u_noiseAmp` | 0.10 | **0.25** | About 5 m of boundary displacement: no legibility cost. Under `SEAM_FLOOR`'s 0.30 |
+| `u_rimAmt` | 0.08 | **0.30** | The top of the range, and still barely visible (see below) |
+
+Screenshots of a synthetic loop through downtown Orlando (not operator ground, D-199):
+[`fog-off`](assets/0119/z16-fog-off.png) · [`before`](assets/0119/z16-before-0056.png) ·
+[`after`](assets/0119/z16-after-0119.png). To regenerate them, or to try capability 15's values, run
+`node tools/fog-harness/tune.mjs <variants.json>`, where the variants are overrides on `V1`.
+
+**Two things the range cannot fix, both filed against capability 15:**
+
+- **`0210`: the rim is invisible at any `u_rimAmt` in range.** It is scaled by the boundary's own
+  alpha (~0.45), so 0.30 contributes only ~+30/255. At 0.60 it shows, but as a grey outline on the
+  stock basemap, not as lantern light. It needs a design decision, and probably the parchment fork.
+- **`0211`: the edge reads as disc outlines, not ragged mist.** That is the `amp` to ramp-width ratio
+  `0056` measured; the other lever is D-231's `FALLOFF_INNER`.
+
+**The phone-in-daylight instruction became a desktop rule** (D-240). The reasoning was that values
+picked on a bright display come out too subtle. On the desktop it means: **a detail counts only if it
+reads at a glance at normal size**, without zooming the screenshot. By that rule the rim at 0.30 does
+not count, which is why `0210` exists.
+
+**Kept deliberately:** the per-level step in noise coarseness (D-243). The operator likes it, and
+nothing here touches the octave structure.
+
 
 ## Audit
 

@@ -2823,6 +2823,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-28T03:36:37Z",
     "path": "tickets/open/0119-tune-fog-atmosphere-against-legibility.md",
     "ready": true,
     "acceptance": {
@@ -4766,6 +4767,50 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "id": 210,
+    "slug": "make-the-frontier-rim-visible",
+    "title": "Make the frontier rim visible — it cannot read at any rimAmt in range",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      119
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T12:27:56Z",
+    "path": "tickets/open/0210-make-the-frontier-rim-visible.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 211,
+    "slug": "fog-edge-reads-as-disc-outlines",
+    "title": "The fog edge reads as disc outlines, not ragged mist — noiseAmp cannot fix it",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      119
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T12:27:56Z",
+    "path": "tickets/open/0211-fog-edge-reads-as-disc-outlines.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
