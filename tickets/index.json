@@ -4695,6 +4695,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-11T15:45:12Z",
+    "started": "2026-09-28T02:02:23Z",
     "path": "tickets/open/0206-swc-miscompiles-this-privatemethod-prop-into-a-weakset-get-a.md",
     "ready": true,
     "acceptance": {

@@ -162,6 +162,17 @@ jobs:
       - name: deck.gl is not in the dependency tree
         run: node scripts/check-no-deckgl.mjs
 
+      # Ticket 0206. SWC downlevels a private METHOD to a WeakSet brand, and an
+      # update expression through its result (`this.#m().n++`) reads that WeakSet as
+      # a field WeakMap — `a.get is not a function`, in the PRODUCTION bundle only.
+      # vitest, esbuild and `next dev` all compile it correctly, so no test can see
+      # it; 0059 shipped it past every gate here. Unfixed in the latest @swc/core.
+      - name: private-method update check self-test
+        run: node scripts/check-private-method-update.mjs --self-test
+
+      - name: no ++/-- or assignment through a #privateMethod() call
+        run: node scripts/check-private-method-update.mjs
+
       # 08 §7.2 / D-199 (ticket 0168). This repo is PUBLIC, and the operator's
       # traces are the sensitive asset the whole of 08 §2 is about. §7.2 always
       # said "test fixtures are synthetic coordinates"; nothing enforced it, and
