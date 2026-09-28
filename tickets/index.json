@@ -4833,17 +4833,18 @@
     "title": "09-roadmap.md still assumes validation on the phone outside §9.5",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "12-post-run-moment",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-28T13:20:29Z",
-    "path": "tickets/open/0212-09-roadmap-phone-validation-outside-9-5.md",
-    "ready": true,
+    "closed": "2026-09-28T16:54:39Z",
+    "path": "tickets/closed/0212-09-roadmap-phone-validation-outside-9-5.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -4906,7 +4907,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 6
     }
   }
 ]
