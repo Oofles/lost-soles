@@ -44,6 +44,9 @@ amendments later.**
       the operator answers D-251's open question: is either used from a phone at the gym or mid-run?
       The answer is recorded on D-251.
 - [ ] `06-ui-ux.md` is not edited here. It belongs to `0187`.
+- [ ] `09-roadmap.md` §3 capability `13`'s row 3 and Done-when ("Android back … behaves", lines
+      ~407 and ~412) are restated for the desktop browser's back button. `0212`'s close found them
+      outside its own list.
 - [ ] `tickets.mjs validate` is clean, and no criterion is ticked or dropped. Only wording changes.
 
 ## Notes
