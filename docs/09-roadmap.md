@@ -1091,15 +1091,24 @@ walks this list.
 
 ### 9.5 The product, on the actual device
 
-Evaluated on the user's own Android phone (D-124), not a simulator.
+Evaluated in the **desktop browser**, on the real deployed app with real data, not a simulator
+or a mock (**D-240**, following D-227: the desktop is where the data is viewed, so it is where
+this is validated). The operator's Android phone (D-124) is still the device the runs are
+**recorded** on, and it stays the capture target, but nothing in this table is run on it. A
+problem found on the phone in ordinary use is raised then (D-240).
+
+**Two rows carry a capability tag**, because they check work that does not exist until that
+capability lands. At the MVP gate all six rows apply and all six must pass. A milestone that runs
+this table **earlier** marks a tagged row whose capability has not landed as *n/a — capability
+`NN` not yet built*, in its own ticket's record (as `0059` did), and never by editing this list.
 
 - [ ] The `05-fog-of-war.md` §6.3 frame budget is **measured** and met at year-one cell volume.
-- [ ] The post-run sequence completes in **8.4 s ± 0.3 s** and one tap from any beat lands on the
-      end state.
+- [ ] *(from capability `12`)* The post-run sequence completes in **8.4 s ± 0.3 s** and one tap
+      from any beat lands on the end state.
 - [ ] `prefers-reduced-motion` renders the fog static and stops the rAF loop.
 - [ ] The `06-ui-ux.md` §9.6 reality-check table passes: sunlight, one-handed reach, sweaty thumbs.
-- [ ] Gold appears only as fill or rule, or as type at ≥24sp or on navy; all floating chrome is
-      opaque (D-148).
+- [ ] *(from capability `13`)* Gold appears only as fill or rule, or as type at ≥24sp or on navy;
+      all floating chrome is opaque (D-148).
 - [ ] Street names are legible in **both** modes at planning zoom. Atmosphere never cost
       legibility (D-051 — non-negotiable).
 

@@ -4745,6 +4745,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-12T16:38:36Z",
+    "started": "2026-09-28T13:19:16Z",
     "path": "tickets/open/0208-09-roadmap-md-9-5-still-names-the-android-phone-that-d-240-r.md",
     "ready": true,
     "acceptance": {
@@ -4816,6 +4817,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 212,
+    "slug": "09-roadmap-phone-validation-outside-9-5",
+    "title": "09-roadmap.md still assumes validation on the phone outside §9.5",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-28T13:20:29Z",
+    "path": "tickets/open/0212-09-roadmap-phone-validation-outside-9-5.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

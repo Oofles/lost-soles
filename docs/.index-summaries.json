@@ -523,7 +523,7 @@
  "docs/09-roadmap.md#9.2 Invariants — mechanically checked": "decrease (D-135).",
  "docs/09-roadmap.md#9.3 Reversibility — the D-101 / D-121 proof": "<sha256>.<ext>, written before normalize.",
  "docs/09-roadmap.md#9.4 Operational": "button may remain as a manual fallback; it must not be the only path.",
- "docs/09-roadmap.md#9.5 The product, on the actual device": "Evaluated on the user's own Android phone (D-124), not a simulator.",
+ "docs/09-roadmap.md#9.5 The product, on the actual device": "Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13.",
  "docs/09-roadmap.md#9.6 The one test that is not on this list": "That is settled six months later, by whether the user is still opening it.",
  "docs/BUILD-ORDER.md#`00-preflight-and-repo`": "",
  "docs/BUILD-ORDER.md#`01-ticket-system`": "",

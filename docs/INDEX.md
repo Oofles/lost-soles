@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,325 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,334 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -558,7 +558,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/09-roadmap.md`
 
-**09 — Roadmap: The Build Order** — 1,112 lines
+**09 — Roadmap: The Build Order** — 1,121 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -602,13 +602,13 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `994-1002` | Target is a few dollars a month; the estimate is $1–5 all-in. |
 | &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1003-1017` | The most likely way this project fails is not technical. |
 | &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1018-1025` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
-| 9. Definition of done for MVP | `1026-1112` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
+| 9. Definition of done for MVP | `1026-1121` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
 | &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1032-1043` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
 | &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1044-1064` | decrease (D-135). |
 | &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1065-1078` | <sha256>.<ext>, written before normalize. |
 | &nbsp;&nbsp;↳ 9.4 Operational | `1079-1091` | button may remain as a manual fallback; it must not be the only path. |
-| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1092-1105` | Evaluated on the user's own Android phone (D-124), not a simulator. |
-| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1106-1112` | That is settled six months later, by whether the user is still opening it. |
+| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1092-1114` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
+| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1115-1121` | That is settled six months later, by whether the user is still opening it. |
 
 ## `docs/BUILD-ORDER.md`
 
