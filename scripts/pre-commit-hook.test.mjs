@@ -152,12 +152,15 @@ function runHook(
     withGeographyChecker = false,
     brokenGit = false,
     stagedOnly = {},
+    withoutNode = false,
   } = {},
 ) {
   const repo = mkdtempSync(join(tmpdir(), "hookrepo-"))
   tmps.push(repo)
   const bin = makeBin(gitleaks)
   if (!bin) return null
+  // 0213: a shell where node is not on PATH — a non-login shell under fnm.
+  if (withoutNode) rmSync(join(bin, "node"))
 
   if (brokenGit) {
     // A `git` that fails on `diff` and works for everything else. This is the
@@ -401,6 +404,16 @@ describe("layer 3 — skill frontmatter", () => {
     )
     expect(r.status, why(r)).toBe(1)
   })
+
+  it("blocks when node is not on PATH without calling valid frontmatter unparseable (0213)", () => {
+    const r = runHook(
+      { ".claude/skills/demo/SKILL.md": good },
+      { withSkillChecker: true, withoutNode: true },
+    )
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/node is not on PATH/)
+    expect(r.err).not.toMatch(/unparseable/)
+  })
 })
 
 /**
@@ -567,6 +580,16 @@ describe("layer 4 — fixture geography", () => {
     const r = runHook({ [FIX]: REAL }, { withGeographyChecker: false })
     expect(r.status, why(r)).toBe(1)
     expect(r.err).toMatch(/check-fixture-geography\.mjs is missing/)
+  })
+
+  it("blocks when node is not on PATH, and says THAT rather than accusing the data (0213)", () => {
+    // Synthetic coordinates, deliberately: the old message claimed a real location
+    // for a fixture that had none, because `node: command not found` inside `if !`
+    // read as the scanner's own verdict.
+    const r = runHook({ [FIX]: NEMO }, { withGeographyChecker: true, withoutNode: true })
+    expect(r.status, why(r)).toBe(1)
+    expect(r.err).toMatch(/node is not on PATH/)
+    expect(r.err).not.toMatch(/carries a real location/)
   })
 })
 

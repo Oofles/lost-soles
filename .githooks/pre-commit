@@ -12,6 +12,17 @@ set -uo pipefail
 
 fail() { echo "" >&2; echo "  COMMIT BLOCKED: $*" >&2; echo "" >&2; exit 1; }
 
+# Layers 3 and 4 run node inside `if !`, where `node: command not found` is
+# indistinguishable from the check's own verdict — so a missing interpreter was
+# reported as the very thing the check looks for, and layer 4 accused clean data
+# of carrying a real location (0213). Still blocking: a guard that cannot run is
+# broken, not absent (§7.3). Only the message changes.
+require_node() {
+  command -v node >/dev/null 2>&1 || fail "node is not on PATH, so $1 was never checked.
+  This is the environment, not your staged content. Put node on PATH (under fnm:
+  eval \"\$(fnm env)\") and commit again. Nothing has been committed."
+}
+
 # ── 1. gitleaks on staged content ──────────────────────────────────────────
 if command -v gitleaks >/dev/null 2>&1; then
   # `command -v` answers "is there a FILE on PATH called gitleaks", not "is there
@@ -174,6 +185,7 @@ while IFS= read -r f; do
 done <<< "$staged"
 
 if [ "$skill_staged" -eq 1 ]; then
+  [ -f scripts/check-skills.mjs ] && require_node "the staged SKILL.md frontmatter"
   if [ -f scripts/check-skills.mjs ] && ! node scripts/check-skills.mjs >/dev/null 2>&1; then
     node scripts/check-skills.mjs >&2 || true
     fail "a staged SKILL.md has unparseable frontmatter — Claude Code would skip it silently."
@@ -204,6 +216,7 @@ if [ -n "$fixtures_staged" ]; then
   so its coordinates were never checked. This repo is public and a committed
   real GPS track cannot be un-published. Nothing has been committed."
   fi
+  require_node "the staged fixtures' coordinates"
   # shellcheck disable=SC2086  # word splitting is the intent: one argument per path
   if ! node scripts/check-fixture-geography.mjs --staged $fixtures_staged; then
     fail "a staged fixture carries a real location (above).
