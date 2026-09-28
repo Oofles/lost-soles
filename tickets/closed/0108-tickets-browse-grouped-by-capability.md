@@ -4,13 +4,14 @@ slug: tickets-browse-grouped-by-capability
 title: Browse tickets, grouped by capability, priority-then-id within group
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 17-tickets-ui
 depends_on: [107, 110]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-09-28T17:43:00Z
 ---
 
 ## Description
@@ -39,6 +40,49 @@ exists to blame the world (`06-ui-ux.md` §9.5).
 
 ## Acceptance criteria
 
+**Withdrawn 2026-09-28 — D-252.** Declined: capability `17` is withdrawn and no in-app ticket UI
+will be built. The original criteria are preserved verbatim in `## Resolution`.
+
+- [x] Closed as declined, with a `## Resolution` recording the decision, and moved to `closed/`
+      rather than deleted.
+
+## Notes
+
+**Ordering note:** the read cache (0110) is listed after browse in the capability table but is a
+hard prerequisite for it — this ticket's `depends_on` reflects that rather than the table order.
+Build 0110 first, or ship browse against the local IndexedDB rows only and light the cache up
+after; do not invent a second read path from the UI to GitHub to work around it.
+
+Sorting by priority *then* id rather than by date is deliberate: this list is consulted to decide
+what to do next, not to see what happened recently. The chronicle is the recency surface; this
+is not.
+
+## Resolution
+
+**Declined 2026-09-28. Recorded as D-252.** Operator's decision, answering the question put during
+`0215`'s sweep: *"Close all of cap 17."*
+
+D-092 required in-app ticket creation because it was **phone-friendly**: a thought at mile six
+captured before it was lost. Everything in capability `17` followed from that. The capture sheet
+was sized for a thumb, and browse and detail were read-only mirrors so the phone never needed
+GitHub. D-251 removed the phone as a viewing surface. The operator then removed it as an input
+surface too: *"I don't use /log or capture from my phone."* At the desktop, the repo, GitHub,
+`tickets.mjs` and the agent already do everything this ticket planned, so building it would
+duplicate tools that are already open.
+
+**What stays:**
+- the capture endpoint `/api/tickets/capture` (capability `03`, `0018`) and its bearer auth
+  (`0149`);
+- the `inbox/` triage flow.
+
+They are built, harmless and cost nothing. The two `/dev/tickets` stub routes from `0016` are
+removed under `0216`.
+
+Nothing was built under this ticket, and no code changed. It is the same shape as `0020` and `0021`
+under D-184: a capture path declined because its reason for existing went away.
+
+### Original acceptance criteria (verbatim)
+
 - [ ] The list groups by `capability` with the capability name as a section header, and sorts
       `high` → `med` → `low` then ascending id within each group — asserted against a fixture with
       shuffled input.
@@ -54,17 +98,6 @@ exists to blame the world (`06-ui-ux.md` §9.5).
 - [ ] With the radio off, the list renders from the local mirror in under 1 s and shows
       `pending` captures at the top.
 
-## Notes
-
-**Ordering note:** the read cache (0110) is listed after browse in the capability table but is a
-hard prerequisite for it — this ticket's `depends_on` reflects that rather than the table order.
-Build 0110 first, or ship browse against the local IndexedDB rows only and light the cache up
-after; do not invent a second read path from the UI to GitHub to work around it.
-
-Sorting by priority *then* id rather than by date is deliberate: this list is consulted to decide
-what to do next, not to see what happened recently. The chronicle is the recency surface; this
-is not.
-
 ## Operator validation
 
 On the Android phone in airplane mode, open `/dev/tickets`. The list must paint immediately,
@@ -73,3 +106,6 @@ to a capability you have finished and confirm its closed tickets are absent by d
 swipe a row left and right and long-press it — nothing may happen. Then in sunlight, at arm's
 length, read three row titles: if the `· type · priority ·` metadata is competing with the title
 for attention, the row hierarchy is wrong.
+
+**Declined, 2026-09-28.** Nothing was built, so there is nothing to observe or smoke-test. The
+check is the record: D-252 exists and `09` §3 marks capability `17` withdrawn.
