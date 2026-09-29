@@ -4,7 +4,7 @@ slug: new-skill-mints-total-level-point
 title: D-146 — a new skill mints a free Total Level point that must never celebrate
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 09-xp-engine-and-ledger
 depends_on: [63]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-29T03:31:06Z
+closed: 2026-09-29T03:48:39Z
 ---
 
 ## Description
