@@ -79,6 +79,13 @@ not hide the D-021 discount and it never labels it as a penalty. The number is t
 
 ## Notes
 
+**2026-09-28 — handed over from `0061`.** `0061`'s perceptual check could not run because this beat
+did not exist yet. When it does: a run over ground covered this month must show Wayfaring as a
+**half-XP** line attributed to explored ground (`recent_ground`), with no Cartography row. A run over
+ground last covered more than six months ago must show half Wayfaring XP (`rearmed_ground`) *and* a
+Cartography row at half credit. The archived 2026-09-27 run is the ready-made rearmed + recent case,
+and 2026-09-07 is all-recent.
+
 Depends on 0062 (`XpLedgerEntry`, the source of both the totals and the breakdown) and 0065 (Total
 Level / Total XP). It reads; it never scores.
 

@@ -8,3 +8,14 @@
 
 export { selectActivitySkills, type MatchableActivity } from "@/src/rules/select-activity-skills"
 export { measureUnits, scoreUnits, type ScorableActivity, type SkillUnits } from "./units"
+export {
+  groundSplit,
+  lookupFromClassified,
+  rateGround,
+  scoreGround,
+  type Ground,
+  type GroundedUnits,
+  type GroundLookup,
+  type GroundReason,
+  type GroundSplit,
+} from "./ground"
