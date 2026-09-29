@@ -4,7 +4,7 @@ slug: xp-replay-job-retained-floor
 title: Replay job — clear non-floor rows, write retained_floor, ReplayRun audit, levelHighWater
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 09-xp-engine-and-ledger
 depends_on: [61, 62, 63, 64]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-29T13:38:02Z
+closed: 2026-09-29T14:09:22Z
 ---
 
 ## Description
