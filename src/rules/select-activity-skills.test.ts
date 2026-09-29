@@ -218,6 +218,7 @@ function distanceRow(id: string): RuleSkill {
     name: id,
     kind: "activity",
     enabled: true,
+    introducedIn: 1,
     displayOrder: 999,
     logMode: "trace",
     unit: "km",

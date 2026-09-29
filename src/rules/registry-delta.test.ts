@@ -99,6 +99,7 @@ const POOL_SWIM: RuleSkill = {
   name: "Aquatics",
   kind: "activity",
   enabled: true,
+  introducedIn: 1,
   displayOrder: 26,
   logMode: "trace",
   unit: "km",

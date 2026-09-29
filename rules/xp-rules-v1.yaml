@@ -40,6 +40,7 @@ skills:
     name: Wayfaring
     kind: activity
     enabled: true
+    introducedIn: 1                # D-146: the version that first shipped this row. Never edited.
     displayOrder: 10
     logMode: trace
     unit: km
@@ -81,6 +82,7 @@ skills:
                                   # identifier. A rename is an edit to this attribute alone.
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 15
     logMode: trace                # same kernel: a distance-measured effort
     unit: km
@@ -122,6 +124,7 @@ skills:
     name: Roving
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 20
     logMode: trace
     unit: km
@@ -155,6 +158,7 @@ skills:
                                    # which is the joke Vigil makes about the treadmill
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 25
     logMode: trace
     unit: km
@@ -178,6 +182,7 @@ skills:
     name: Might
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 30
     logMode: reps
     unit: rep
@@ -206,6 +211,7 @@ skills:
     name: Fortitude
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 40
     logMode: reps
     unit: rep
@@ -234,6 +240,7 @@ skills:
     name: Endurance
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 50
     logMode: duration
     unit: second
@@ -266,6 +273,7 @@ skills:
     name: Cartography
     kind: meta
     enabled: true
+    introducedIn: 1
     displayOrder: 60
     logMode: derived
     unit: cell                    # H3 res-10 (D-115)
@@ -291,6 +299,7 @@ skills:
     name: Constitution
     kind: meta
     enabled: true
+    introducedIn: 1
     displayOrder: 70
     logMode: derived
     unit: share
@@ -309,6 +318,7 @@ skills:
     enabled: false                # POST-MVP (D-122): no combat in the MVP. `enabled: false`
                                   # hides the skill AND stops it matching. Its historical
                                   # ledger rows, when it ships, stay valid.
+    introducedIn: 1
     displayOrder: 80
     logMode: derived
     unit: share

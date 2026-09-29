@@ -3564,3 +3564,24 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     §3.2 run-vs-strength parity check moves from "within 2%" to "within 3%" (1,155 vs 1,120).
   - Floor was never load-bearing: its stated reason — "the itemisation always adds up" — holds
     for any per-row rounding, because the skill total is defined as the sum of the rows.
+- **D-257** **A skill is *minted* when its registry row's `introducedIn` is later than the ruleset
+  the user's last snapshot was computed under — not "equals the version being applied".**
+  *(Agent, 2026-09-28, ticket `0065`; operator approved the approach at the start of the ticket.)*
+  Refines D-146; does not supersede it.
+  - **The gap.** `0065` asked for `firstSeenRulesVersion` stamped "on row creation, from the
+    registry version that introduced the skill". Neither half existed: `SkillState` rows are
+    created by the first XP `ADD`, not when a skill ships, and registry rows carried no version of
+    their own. Stamping the version doing the scoring would make a skill added in v3 and first
+    trained under v5 look minted in v5, swallowing its first real level-up — the exact failure
+    the ticket's Notes warn about.
+  - **The rule.** Every `RuleSkill` row carries a required `introducedIn` (data, D-031; the
+    validator enforces `1 ≤ introducedIn ≤ version`). `SkillState.firstSeenRulesVersion` is
+    stamped from it with `if_not_exists`. `src/scoring/celebrate.ts` excludes a skill when
+    `introducedIn > before.rulesVersion`, so two versions shipping between runs are both caught.
+  - **Milestones.** A Total Level milestone fires when the displayed total is at or past it, it
+    has not fired before, and the diff carries at least one earned level. A milestone reached
+    only by a minted point therefore waits for the next earned one.
+  - **Rejected:** creating a zero-XP `SkillState` row for every skill at seed time. That needs a
+    seeder change beyond the ticket, and it would stamp by deploy time rather than by the row.
+  - **Not covered:** flipping `enabled: false → true` (Slayer, D-122) also mints a point, and
+    `introducedIn` cannot see it. Filed as a follow-up.

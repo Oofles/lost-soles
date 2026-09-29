@@ -241,6 +241,12 @@ const schema = a.schema({
       firstXpAt: a.datetime(),
       lastXpAt: a.datetime(),
       rulesVersionLastComputed: a.integer(),
+      /**
+       * D-146, ticket 0065. The registry row's `introducedIn`, and the creating activity's
+       * `startedAt` — written by the ADD that creates the row, never after (`if_not_exists`).
+       */
+      firstSeenRulesVersion: a.integer(),
+      firstSeenAt: a.datetime(),
     })
     /** T2: `PK userId, SK skillId`. No GSIs: "all skills for this user" is the base-table query. */
     .identifier(["userId", "skillId"])

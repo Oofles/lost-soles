@@ -557,6 +557,7 @@ export async function processActivity<TCreds>(
       ingestKey: job.ingestKey,
       entries,
       rulesVersion: deps.registry.version,
+      skills: deps.registry.skills,
       award,
       rejects: rejects ?? undefined,
     },

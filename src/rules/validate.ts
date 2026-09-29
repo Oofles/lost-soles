@@ -211,6 +211,30 @@ function validateRevealsGround(skill: RuleSkill, i: number, errs: RuleError[]): 
   }
 }
 
+/**
+ * D-146 — `introducedIn` is required, a positive integer, and not after the file's own version.
+ *
+ * Required for the same reason as `enabled`: an omitted value would make the celebration layer
+ * guess whether the row is new, and both wrong guesses are visible — a free level cheered, or a
+ * real first level-up swallowed. A value from the future is a row that cannot have shipped yet.
+ */
+function validateIntroducedIn(skill: RuleSkill, i: number, version: unknown, errs: RuleError[]): void {
+  const at = `skills[${i}].introducedIn`
+  const v = skill.introducedIn
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1) {
+    errs.push({
+      path: at,
+      message:
+        "required on every row: the ruleset version (a positive integer) that first shipped it. " +
+        "It is what stops a new skill's free Total Level point from being celebrated (D-146).",
+    })
+    return
+  }
+  if (typeof version === "number" && v > version) {
+    errs.push({ path: at, message: `${v} is after this file's version ${version} — a row cannot ship in the future` })
+  }
+}
+
 /** §3.8 check 2 — `feeds` has no cycles. Constitution feeds nothing (04 §1.1). */
 function findFeedCycle(skills: RuleSkill[]): string[] | null {
   const byId = new Map(skills.map((s) => [s.id, s]))
@@ -384,6 +408,7 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
       })
     }
     validateEnabled(s, i, errs)
+    validateIntroducedIn(s, i, ruleSet.version, errs)
     validateMatch(s, i, errs)
     validateRevealsGround(s, i, errs)
 

@@ -35,3 +35,11 @@ export {
 } from "./ledger"
 export { discoveryRows, feedRows, scoreWithPropagation } from "./propagate"
 export { cumulativeXp, levelForXp, totalLevel, totalLevelCeiling, totalXp, xpToAdvance } from "./levels"
+export {
+  celebrableLevelUps,
+  celebrableMilestones,
+  totalLevelDelta,
+  type CelebrationRegistry,
+  type LevelSnapshot,
+  type LevelUp,
+} from "./celebrate"

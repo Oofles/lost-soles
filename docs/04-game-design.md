@@ -178,6 +178,7 @@ skills:
     name: Wayfaring
     kind: activity
     enabled: true
+    introducedIn: 1          # D-146: the version that first shipped this row
     displayOrder: 10
     logMode: trace           # trace | reps | duration | derived — a CLOSED set (02 §3.7)
     unit: km
@@ -205,6 +206,7 @@ skills:
     name: Vigil              # provisional (D-132) — a display string, NEVER an identifier
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 15
     logMode: trace
     unit: km
@@ -223,6 +225,7 @@ skills:
     name: Roving
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 20
     logMode: trace
     unit: km
@@ -240,6 +243,7 @@ skills:
     name: Cadence
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 25
     logMode: trace
     unit: km
@@ -257,6 +261,7 @@ skills:
     name: Might
     kind: activity
     enabled: true
+    introducedIn: 1
     displayOrder: 30
     logMode: reps
     unit: rep
@@ -279,6 +284,7 @@ skills:
     name: Cartography
     kind: meta               # meta skills are NEVER matched — they arrive via `feeds`, or
     enabled: true            # via the fog subsystem's derived award (02 §3.4, 05 §8.2)
+    introducedIn: 1
     displayOrder: 60
     logMode: derived
     unit: cell               # H3 res-10 (D-115)
@@ -296,6 +302,7 @@ skills:
     name: Constitution
     kind: meta
     enabled: true
+    introducedIn: 1
     displayOrder: 70
     logMode: derived
     unit: share

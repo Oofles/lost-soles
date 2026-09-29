@@ -1568,6 +1568,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-29T03:31:06Z",
     "path": "tickets/open/0065-new-skill-mints-total-level-point.md",
     "ready": true,
     "acceptance": {
@@ -5048,6 +5049,28 @@
     "created": "2026-09-29T03:12:47Z",
     "path": "tickets/open/0221-discovery-credit-constants-read-from-the-cartography-row-not.md",
     "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 222,
+    "slug": "enabling-a-skill-mints-an-uncaught-point",
+    "title": "Enabling a disabled skill row mints a Total Level point that celebrate.ts cannot see",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      65
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T03:36:58Z",
+    "path": "tickets/open/0222-enabling-a-skill-mints-an-uncaught-point.md",
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 3

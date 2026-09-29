@@ -3,6 +3,7 @@ import { QueryCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynam
 import type { Activity } from "@/src/domain/activity"
 import type { DiscoveryAward } from "@/src/domain/discovery"
 import type { TraceRejects } from "@/src/domain/fog"
+import type { RuleSkill } from "@/src/rules/schema"
 import { sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring/ledger"
 
 import { amplifyMetadata, persistActivity, type PersistDeps } from "./persist"
@@ -58,6 +59,9 @@ export interface SkillStateRow {
   xpLedgerSum: number
   firstXpAt?: string
   lastXpAt?: string
+  /** D-146. Stamped when the row is created, never updated. See `skillStateUpdateItem`. */
+  firstSeenRulesVersion?: number
+  firstSeenAt?: string
 }
 
 async function queryAll(
@@ -124,6 +128,8 @@ export async function readSkillStates(
         xpLedgerSum: Number(i.xpLedgerSum ?? 0),
         firstXpAt: i.firstXpAt as string | undefined,
         lastXpAt: i.lastXpAt as string | undefined,
+        firstSeenRulesVersion: i.firstSeenRulesVersion === undefined ? undefined : Number(i.firstSeenRulesVersion),
+        firstSeenAt: i.firstSeenAt as string | undefined,
       },
     ]),
   )
@@ -157,6 +163,13 @@ export function ledgerPutItem(entry: XpLedgerEntry, table: string): TransactItem
  *
  * `firstXpAt`/`lastXpAt` come from `activity.startedAt`, never the clock (I-12), as a `min` and
  * a `max` so a backfilled older run cannot move `lastXpAt` backwards.
+ *
+ * `firstSeenRulesVersion` and `firstSeenAt` are `if_not_exists` — written by the ADD that
+ * creates the row and by nothing afterwards (D-146, ticket 0065). The version is the registry
+ * row's `introducedIn`, NOT the version doing the scoring: a skill added in v3 and first trained
+ * under v5 was still first seen in v3, and stamping v5 would make its first real level-up look
+ * minted. `firstSeenAt` is the creating activity's `startedAt`, never the clock (I-12); it is for
+ * audit, and nothing decides anything on it.
  */
 export function skillStateUpdateItem(
   args: {
@@ -167,10 +180,11 @@ export function skillStateUpdateItem(
     startedAt: string
     ingestedAt: string
     rulesVersion: number
+    introducedIn: number
   },
   table: string,
 ): TransactItems[number] {
-  const { userId, skillId, xp, prev, startedAt, ingestedAt, rulesVersion } = args
+  const { userId, skillId, xp, prev, startedAt, ingestedAt, rulesVersion, introducedIn } = args
   const meta = amplifyMetadata(userId, ingestedAt, SKILL_STATE_TYPENAME)
   const firstXpAt = prev?.firstXpAt && prev.firstXpAt < startedAt ? prev.firstXpAt : startedAt
   const lastXpAt = prev?.lastXpAt && prev.lastXpAt > startedAt ? prev.lastXpAt : startedAt
@@ -181,7 +195,9 @@ export function skillStateUpdateItem(
       Key: { userId, skillId },
       UpdateExpression:
         "SET #tn = :tn, #owner = :owner, createdAt = if_not_exists(createdAt, :now), " +
-        "updatedAt = :now, firstXpAt = :first, lastXpAt = :last, rulesVersionLastComputed = :ver " +
+        "updatedAt = :now, firstXpAt = :first, lastXpAt = :last, rulesVersionLastComputed = :ver, " +
+        "firstSeenRulesVersion = if_not_exists(firstSeenRulesVersion, :intro), " +
+        "firstSeenAt = if_not_exists(firstSeenAt, :seen) " +
         "ADD xpLedgerSum :xp, displayedXp :xp",
       ConditionExpression:
         prev === undefined ? "attribute_not_exists(xpLedgerSum)" : "xpLedgerSum = :prev",
@@ -193,11 +209,23 @@ export function skillStateUpdateItem(
         ":first": firstXpAt,
         ":last": lastXpAt,
         ":ver": rulesVersion,
+        ":intro": introducedIn,
+        ":seen": startedAt,
         ":xp": xp,
         ...(prev === undefined ? {} : { ":prev": prev.xpLedgerSum }),
       },
     },
   }
+}
+
+/**
+ * A row scored under this registry and absent from it is a scorer bug, not a skill to guess a
+ * version for — a guessed `introducedIn` would be stamped for ever (`if_not_exists`).
+ */
+function introducedInOf(map: ReadonlyMap<string, number>, skillId: string): number {
+  const v = map.get(skillId)
+  if (v === undefined) throw new Error(`skill ${JSON.stringify(skillId)} scored but not in the registry passed to the ledger`)
+  return v
 }
 
 /** Every item this activity's XP adds to the transaction: the rows, then one ADD per skill. */
@@ -206,8 +234,10 @@ export function ledgerTransactItems(
   states: ReadonlyMap<string, SkillStateRow>,
   activity: Pick<Activity, "userId" | "startedAt" | "ingestedAt">,
   rulesVersion: number,
+  skills: readonly Pick<RuleSkill, "id" | "introducedIn">[],
   deps: Pick<LedgerDeps, "ledgerTable" | "skillStateTable">,
 ): TransactItems {
+  const introducedIn = new Map(skills.map((s) => [s.id, s.introducedIn]))
   const puts = entries.map((e) => ledgerPutItem(e, deps.ledgerTable))
   const adds = [...xpBySkill(entries)].map(([skillId, xp]) =>
     skillStateUpdateItem(
@@ -219,6 +249,7 @@ export function ledgerTransactItems(
         startedAt: activity.startedAt,
         ingestedAt: activity.ingestedAt,
         rulesVersion,
+        introducedIn: introducedInOf(introducedIn, skillId),
       },
       deps.skillStateTable,
     ),
@@ -267,12 +298,14 @@ export async function persistWithLedger(
     ingestKey: string
     entries: readonly XpLedgerEntry[]
     rulesVersion: number
+    /** The registry rows the entries were scored under — for `introducedIn` (D-146). */
+    skills: readonly Pick<RuleSkill, "id" | "introducedIn">[]
     award: DiscoveryAward
     rejects: TraceRejects | undefined
   },
   deps: { persist: PersistDeps; ledger: LedgerDeps },
 ): Promise<LedgerCommit> {
-  const { activity, ingestKey, entries, rulesVersion, award, rejects } = args
+  const { activity, ingestKey, entries, rulesVersion, skills, award, rejects } = args
   const FIRST_XP_ITEM = 2
 
   for (let attempt = 1; ; attempt += 1) {
@@ -301,6 +334,7 @@ export async function persistWithLedger(
             await readSkillStates(activity.userId, deps.ledger),
             activity,
             rulesVersion,
+            skills,
             deps.ledger,
           )
 

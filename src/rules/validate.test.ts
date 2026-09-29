@@ -288,6 +288,29 @@ describe("0160 — `enabled` is required, never defaulted", () => {
   })
 })
 
+describe("D-146 — `introducedIn` is required, a positive integer, never from the future", () => {
+  it("rejects a row that omits it — and nothing else reports that mutation", () => {
+    const errs = broken((r) => {
+      delete find(r, "might").introducedIn
+    })
+    expect(paths(errs)).toEqual([`skills[${at("might")}].introducedIn`])
+  })
+
+  it.each([0, -1, 1.5, "1"])("rejects %j", (v) => {
+    const errs = broken((r) => {
+      find(r, "vigil").introducedIn = v
+    })
+    expect(paths(errs)).toEqual([`skills[${at("vigil")}].introducedIn`])
+  })
+
+  it("rejects a row introduced after the file's own version", () => {
+    const errs = broken((r) => {
+      find(r, "vigil").introducedIn = (r.version as number) + 1
+    })
+    expect(errs.map((e) => e.message).join()).toContain("cannot ship in the future")
+  })
+})
+
 describe("structural rules the schema depends on", () => {
   it("requires a match block on every activity row (D-141)", () => {
     const errs = broken((r) => {

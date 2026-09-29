@@ -239,6 +239,8 @@ SK   skillId                          (identifier(['userId','skillId']))
 | `levelHighWater` | N | never decreases (04 §7.5, D-135) |
 | `firstXpAt`, `lastXpAt` | S | ISO 8601 UTC; drives "training since" flavour |
 | `rulesVersionLastComputed` | N | which ruleset produced `xpLedgerSum` |
+| `firstSeenRulesVersion` | N | **D-146, ticket 0065.** The registry row's `introducedIn`, stamped by the ADD that creates this row (`if_not_exists`) and never updated. Not the version doing the scoring: a skill added in v3 and first trained under v5 was first seen in v3. |
+| `firstSeenAt` | S | ISO 8601 UTC, the creating activity's `startedAt` (I-12) — audit only; nothing decides on it. |
 
 Auth: `allow.owner().to(['read'])`. **The client can never write XP** (01 §5, trust boundary).
 All writes are IAM-authed from `process-activity` / the replay job.
@@ -718,6 +720,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `name` | S | J5 | display name. **Renaming Vigil is an edit to this field and nothing else** — D-132 says the name is provisional, so it must not be an identifier. |
 | `kind` | S | J5 | `activity \| meta` |
 | `enabled` | BOOL | J1/J5 | `false` hides the skill and stops it matching. Slayer ships `false` (D-122). A disabled skill's historical ledger rows stay valid. **Required on every row, with NO DEFAULT** (ticket `0160`) — the matcher filters on `!enabled`, so an omitted flag is `undefined`, which is falsy, and the skill would silently stop matching. Same argument as `revealsGround` below, and stronger: here the dangerous default is the one the language already supplies. |
+| **`introducedIn`** | N | J5 | **D-146, ticket 0065.** The ruleset version that first shipped this row; carried forward unchanged into every later version. **Required, no default**; `1 ≤ introducedIn ≤ version`. It is how the celebration layer tells a skill *minted* by a ruleset (a free level 1, never celebrated) from one that was always there — see `src/scoring/celebrate.ts`. |
 | `displayOrder` | N | J5 | sparse (10, 20, 30 …) so an insert is a row, not a renumber |
 | `logMode` | S | J2 | `trace \| reps \| duration \| derived` — see §3.7 |
 | `unit` | S | J2/J5 | `km \| rep \| second \| cell \| share` — a display noun *and* the unit the rate is quoted in. `share` is what a `feeds` recipient counts (Constitution); the set is §3.7's, and this row follows it. |

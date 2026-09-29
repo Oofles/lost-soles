@@ -208,7 +208,7 @@ const RUN_ROWS: UnratedRow[] = [
 
 const commit = (a: Activity, rows: UnratedRow[], deps: ReturnType<typeof world>["deps"], ingestKey = "k-1") =>
   persistWithLedger(
-    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, award: NO_CELLS, rejects: undefined },
+    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, skills: RULES.skills, award: NO_CELLS, rejects: undefined },
     deps,
   )
 
@@ -231,7 +231,7 @@ describe("the items (§4.3)", () => {
 
   it("a first SkillState ADD is conditioned on the row not existing yet", () => {
     const item = skillStateUpdateItem(
-      { userId: "u-1", skillId: "wayfaring", xp: 400, prev: undefined, startedAt: "2026-09-06T03:00:00.000Z", ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1 },
+      { userId: "u-1", skillId: "wayfaring", xp: 400, prev: undefined, startedAt: "2026-09-06T03:00:00.000Z", ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1, introducedIn: 1 },
       STATE_TABLE,
     ).Update!
     expect(item.ConditionExpression).toBe("attribute_not_exists(xpLedgerSum)")
@@ -250,6 +250,7 @@ describe("the items (§4.3)", () => {
         startedAt: "2026-09-06T03:00:00.000Z",
         ingestedAt: "2026-09-06T09:00:02.000Z",
         rulesVersion: 1,
+        introducedIn: 1,
       },
       STATE_TABLE,
     ).Update!
@@ -263,13 +264,41 @@ describe("the items (§4.3)", () => {
     })
   })
 
+  it("firstSeenRulesVersion/firstSeenAt are if_not_exists — set on creation, never moved (D-146)", () => {
+    const item = skillStateUpdateItem(
+      {
+        userId: "u-1",
+        skillId: "fixture-late",
+        xp: 400,
+        prev: { skillId: "fixture-late", xpLedgerSum: 10, firstSeenRulesVersion: 3, firstSeenAt: "2026-01-01T00:00:00.000Z" },
+        startedAt: "2026-09-06T03:00:00.000Z",
+        ingestedAt: "2026-09-06T09:00:02.000Z",
+        rulesVersion: 5,
+        introducedIn: 3,
+      },
+      STATE_TABLE,
+    ).Update!
+    expect(item.UpdateExpression).toContain("firstSeenRulesVersion = if_not_exists(firstSeenRulesVersion, :intro)")
+    expect(item.UpdateExpression).toContain("firstSeenAt = if_not_exists(firstSeenAt, :seen)")
+    // The registry row's version, NOT the version scoring it: trained first under v5, seen in v3.
+    expect(item.ExpressionAttributeValues).toMatchObject({ ":intro": 3, ":ver": 5, ":seen": "2026-09-06T03:00:00.000Z" })
+  })
+
+  it("refuses a scored skill the registry does not carry, rather than guess a permanent version", () => {
+    const a = activity()
+    const entries = entriesFor(a, RUN_ROWS)
+    expect(() =>
+      ledgerTransactItems(entries, new Map(), a, 1, [], { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE }),
+    ).toThrow(/not in the registry/)
+  })
+
   it("rows then one ADD per skill, carrying that skill's summed XP", () => {
     const a = activity()
     const entries = entriesFor(a, [
       ...RUN_ROWS,
       { skillId: "might", reason: "reps", units: 30, unitsEffective: 30 },
     ])
-    const items = ledgerTransactItems(entries, new Map(), a, 1, { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE })
+    const items = ledgerTransactItems(entries, new Map(), a, 1, RULES.skills, { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE })
     expect(items.map((i) => (i.Put ? "put" : "add"))).toEqual(["put", "put", "put", "add", "add"])
     const adds = items.filter((i) => i.Update).map((i) => [i.Update!.Key!.skillId, i.Update!.ExpressionAttributeValues![":xp"]])
     expect(adds).toEqual([
@@ -312,6 +341,24 @@ describe("persistWithLedger — the commit", () => {
     expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ xpLedgerSum: 400, displayedXp: 400 })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 400, xpRulesVersion: 1 })
     expect(t.table(INGEST_RECEIPT_TABLE).get("k-1")).toMatchObject({ status: "DONE", xpAwarded: 400 })
+  })
+
+  it("the SkillState row keeps the firstSeen stamp its creating commit wrote (D-146)", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    await commit(activity({ startedAt: "2026-09-06T03:00:00.000Z" }), RUN_ROWS, deps)
+    claim("k-2")
+    // A later, and then a backfilled EARLIER, activity: neither moves the stamp.
+    await commit(activity({ activityId: "a-2", startedAt: "2026-09-10T03:00:00.000Z" }), RUN_ROWS, deps, "k-2")
+    claim("k-3")
+    await commit(activity({ activityId: "a-3", startedAt: "2026-01-01T03:00:00.000Z" }), RUN_ROWS, deps, "k-3")
+
+    expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({
+      xpLedgerSum: 1200,
+      firstSeenRulesVersion: 1,
+      firstSeenAt: "2026-09-06T03:00:00.000Z",
+      firstXpAt: "2026-01-01T03:00:00.000Z",
+    })
   })
 
   it("re-delivering the same activity writes zero new rows, moves no XP, and does not throw", async () => {

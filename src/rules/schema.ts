@@ -65,6 +65,18 @@ export interface RuleSkill {
   name: string
   kind: "activity" | "meta"
   enabled: boolean
+  /**
+   * The ruleset version that first shipped this row (D-146, ticket 0065). Never changes once
+   * set — a later version carries the row forward with the same value.
+   *
+   * THIS IS WHAT MAKES A NEW SKILL'S FREE LEVEL QUIET. Adding a row raises Total Level by one
+   * with no work done, because an untrained skill is level 1. The scorer is right to count it;
+   * the celebration layer (`src/scoring/celebrate.ts`) is what must not cheer it, and it can
+   * only tell a minted row from an old one if the row says when it arrived. Wall clock cannot
+   * answer that, and neither can "XP == 0": a skill can sit untrained for years and its first
+   * level-up is still real.
+   */
+  introducedIn: number
   displayOrder: number
   logMode: LogMode
   unit: string

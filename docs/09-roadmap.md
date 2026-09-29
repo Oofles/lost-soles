@@ -711,7 +711,11 @@ workout type hits this; Vigil hits it first.
 **Guard it at the notification layer, not the scoring layer** (`06-ui-ux.md` §5.4, §10.5). The
 scoring layer is correct — the level genuinely is 1 — and clamping it there would make
 `displayedXp == SUM(ledger)` false and break D-142. The notification layer must diff Total Level
-*excluding skills whose `firstSeenAt` is this ruleset version*.
+*excluding skills minted since the user's last snapshot* — a row whose `introducedIn` is later
+than the ruleset that snapshot was computed under (**D-257**, which refines the original wording,
+"whose `firstSeenAt` is this ruleset version": that missed two versions shipping between runs,
+and `SkillState` rows are created by first XP, not by a ruleset). Built in `0065`,
+`src/scoring/celebrate.ts`.
 
 Acceptance: a test that adds a skill row to a seeded ruleset, replays, and asserts Total Level
 rose by exactly the skill count added **and** that zero level-up cards were queued.
