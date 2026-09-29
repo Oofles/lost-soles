@@ -14,8 +14,12 @@ import { loadRuleSet } from "../../src/rules/load"
 /**
  * RUN A REBALANCE FOR ONE USER. Ticket `0066`. `02-data-model.md` §4.4.
  *
- *   npx vite-node tools/xp-replay/replay-xp.ts -- --user <sub> --to <version>
- *   npx vite-node tools/xp-replay/replay-xp.ts -- --user <sub> --to <version> --confirm
+ *   npx vite-node --config vitest.config.ts tools/xp-replay/replay-xp.ts -- --user <sub> --to <version>
+ *   npx vite-node --config vitest.config.ts tools/xp-replay/replay-xp.ts -- --user <sub> --to <version> --confirm
+ *
+ * `--config vitest.config.ts` is required: it is what resolves the `@/` alias the pipeline
+ * modules import through (declared once, in tsconfig.json). Without it vite-node fails on the
+ * first `@/src/...` import.
  *
  * A rebalance is: write `rules/xp-rules-v<N>.yaml`, then run this once per user (D-014 — one at a
  * time, so a failure is one person's). Re-running after a failure RESUMES: the unfinished
