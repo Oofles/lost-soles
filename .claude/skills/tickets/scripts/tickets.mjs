@@ -691,12 +691,12 @@ const userKey = (userId) => createHash("sha256").update(userId).digest("hex").sl
 
 function regressionBaseline() {
   const p = join(ROOT, BASELINE);
-  if (!existsSync(p)) return { fog: {}, exists: false };
+  if (!existsSync(p)) return { fog: {}, xp: {}, exists: false };
   try {
     const j = JSON.parse(readFileSync(p, "utf8"));
-    return { fog: j.fog?.users ?? {}, exists: true };
+    return { fog: j.fog?.users ?? {}, xp: j.xp?.users ?? {}, exists: true };
   } catch {
-    return { fog: {}, exists: true, malformed: true };
+    return { fog: {}, xp: {}, exists: true, malformed: true };
   }
 }
 
@@ -719,21 +719,29 @@ function userDataBucket() {
   catch { return null; }
 }
 
-/** Every user's manifest, as `{ user → { cellCount, generation } }` keyed by `userKey`. Throws on any read failure. */
-function readManifests(bucket) {
-  const ls = aws(["s3", "ls", `s3://${bucket}/users/`, "--recursive"]);
+/** Every key under `prefix`. Throws on any failure but an empty prefix. */
+function s3Keys(bucket, prefix) {
+  const ls = aws(["s3", "ls", `s3://${bucket}/${prefix}`, "--recursive"]);
   // `aws s3 ls` exits 1 with no output on an empty prefix. Anything else is an error.
   if (!ls.ok && !(ls.status === 1 && !ls.out.trim() && !ls.err)) {
     throw new Error(`aws s3 ls failed: ${(ls.err || `exit ${ls.status}`).split("\n").pop().slice(0, 160)}`);
   }
-  const keys = ls.out.split("\n").map((l) => l.trim().split(/\s+/).pop())
-    .filter((k) => k && /^users\/[^/]+\/manifest\.json$/.test(k));
+  return ls.out.split("\n").map((l) => l.trim().split(/\s+/).pop()).filter(Boolean);
+}
+
+/** One object, parsed. Throws on a failed read or non-JSON. */
+function s3Json(bucket, key) {
+  const got = aws(["s3", "cp", `s3://${bucket}/${key}`, "-"]);
+  if (!got.ok) throw new Error(`reading ${key}: ${(got.err || `exit ${got.status}`).split("\n").pop().slice(0, 160)}`);
+  try { return JSON.parse(got.out); } catch { throw new Error(`${key} is not JSON`); }
+}
+
+/** Every user's manifest, as `{ user → { cellCount, generation } }` keyed by `userKey`. Throws on any read failure. */
+function readManifests(bucket) {
+  const keys = s3Keys(bucket, "users/").filter((k) => /^users\/[^/]+\/manifest\.json$/.test(k));
   const out = {};
   for (const key of keys) {
-    const got = aws(["s3", "cp", `s3://${bucket}/${key}`, "-"]);
-    if (!got.ok) throw new Error(`reading ${key}: ${(got.err || `exit ${got.status}`).split("\n").pop().slice(0, 160)}`);
-    let m;
-    try { m = JSON.parse(got.out); } catch { throw new Error(`${key} is not JSON`); }
+    const m = s3Json(bucket, key);
     if (!Number.isInteger(m.cellCount) || !Number.isInteger(m.generation)) {
       throw new Error(`${key} has no integer cellCount/generation — the manifest shape changed, update this check`);
     }
@@ -794,50 +802,152 @@ function fogNoRefog() {
     ` — none lower (${BASELINE})`);
 }
 
-/** Raise the fog baseline to what this audit observed — `--record` only, never downward. */
+/**
+ * Raise both baselines to what this audit observed — `--record` only, never
+ * downward: every field is the max of the recorded and the observed, so a forced
+ * record over a regression leaves the bar where it failed. A section this audit
+ * did not read (its row n/a) is written back unchanged.
+ */
 function advanceBaseline() {
-  if (!fogObserved) return null;
+  if (!fogObserved && !xpObserved) return null;
   const cur = regressionBaseline();
   if (cur.malformed) return null;
-  const users = { ...cur.fog };
-  const raised = [];
-  for (const [u, c] of Object.entries(fogObserved)) {
-    const b = users[u] ?? { cellCount: 0, generation: 0 };
+  const raised = { fog: [], xp: [] };
+
+  const fog = { ...cur.fog };
+  for (const [u, c] of Object.entries(fogObserved ?? {})) {
+    const b = fog[u] ?? { cellCount: 0, generation: 0 };
     const next = { cellCount: Math.max(b.cellCount, c.cellCount), generation: Math.max(b.generation, c.generation) };
-    if (next.cellCount !== b.cellCount || next.generation !== b.generation || !users[u]) {
-      raised.push(`${u}: ${next.cellCount} cells @ gen ${next.generation}`);
+    if (next.cellCount !== b.cellCount || next.generation !== b.generation || !fog[u]) {
+      raised.fog.push(`${u}: ${next.cellCount} cells @ gen ${next.generation}`);
     }
-    users[u] = next;
+    fog[u] = next;
   }
-  if (!raised.length) return null;
+
+  const xp = { ...cur.xp };
+  for (const [u, skills] of Object.entries(xpObserved ?? {})) {
+    const bu = { ...(xp[u] ?? {}) };
+    const up = [];
+    for (const [skill, c] of Object.entries(skills)) {
+      const b = bu[skill] ?? { displayedXp: 0, level: 0 };
+      const next = { displayedXp: Math.max(b.displayedXp, c.displayedXp), level: Math.max(b.level, c.level) };
+      if (next.displayedXp !== b.displayedXp || next.level !== b.level || !bu[skill]) up.push(`${skill} ${next.displayedXp} xp/L${next.level}`);
+      bu[skill] = next;
+    }
+    if (up.length) raised.xp.push(`${u}: ${up.join(", ")}`);
+    xp[u] = bu;
+  }
+
+  if (!raised.fog.length && !raised.xp.length) return null;
   const out = {
-    note: "High-water marks for the AUDIT.md §4 regression rows (ticket 0183). fog.users maps a " +
+    note: "High-water marks for the AUDIT.md §4 regression rows (tickets 0183, 0225). fog.users maps a " +
           "truncated sha256 of each Cognito sub to the largest manifest.json cellCount and " +
           "generation seen at a recorded audit; the next audit fails if either is lower (D-020, " +
-          "I-7, I-11). Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an " +
-          "audit pass.",
-    fog: { users },
+          "I-7, I-11). xp.users maps the same key to, per skill, the largest displayedXp and " +
+          "max(level, levelHighWater) in the newest snapshots/skillstate/ object; the next audit " +
+          "fails if any is lower (D-135, I-16). Advanced only by 'tickets.mjs audit --record'; " +
+          "never hand-edited to make an audit pass.",
+    fog: { users: fog },
+    xp: { users: xp },
   };
   writeFileSync(join(ROOT, BASELINE), JSON.stringify(out, null, 2) + "\n");
   return raised;
 }
 
+/** `snapshots/skillstate/<uid>/<takenAt>-<generation>.json` — 02 §8.2, D-259. */
+const SNAPSHOT_KEY = /^snapshots\/skillstate\/([^/]+)\/([^/]+\.json)$/;
+
 /**
- * XP's baseline will be `snapshots/skillstate/` (02 §8.2, ticket 0067) — the one
- * derived fact that is not re-derivable. Until code writes it there is nothing to
- * compare. The moment code does, this row FAILS rather than passing: a real
- * comparison has to be written against the snapshot's actual shape, and a row
- * that quietly stayed n/a after T4 shipped is the exact bug 0183 fixed.
+ * The newest skill-state snapshot per user, as `{ user → { skillId → { displayedXp, level } } }`
+ * keyed by `userKey`. The filename leads with the ISO `takenAt`, so the last key in
+ * sort order is the newest. `level` is max(level, levelHighWater): the level a user
+ * has been shown, which is what D-135 forbids lowering. Throws on any read failure
+ * or on a snapshot whose shape this check does not recognise.
+ */
+function readSkillSnapshots(bucket) {
+  const newest = {};
+  for (const key of s3Keys(bucket, "snapshots/skillstate/")) {
+    const m = SNAPSHOT_KEY.exec(key);
+    if (m && (!newest[m[1]] || key > newest[m[1]])) newest[m[1]] = key;
+  }
+  const out = {};
+  for (const [uid, key] of Object.entries(newest)) {
+    const snap = s3Json(bucket, key);
+    if (!Array.isArray(snap.skills)) throw new Error(`${key} has no skills array — the snapshot shape changed, update this check`);
+    const skills = {};
+    for (const k of snap.skills) {
+      if (typeof k?.skillId !== "string" || ![k.displayedXp, k.level, k.levelHighWater].every(Number.isFinite)) {
+        throw new Error(`${key} has a skill without a skillId and numeric displayedXp/level/levelHighWater — the snapshot shape changed, update this check`);
+      }
+      skills[k.skillId] = { displayedXp: k.displayedXp, level: Math.max(k.level, k.levelHighWater) };
+    }
+    out[userKey(uid)] = skills;
+  }
+  return out;
+}
+
+/**
+ * Pure comparison, exported for the self-test. A baselined user with no snapshot,
+ * or a baselined skill missing from theirs, is a regression: XP that vanished is
+ * the largest decrease there is. A skill or user new since the baseline is not.
+ */
+function compareXp(baseline, current) {
+  const regressions = [];
+  for (const [u, skills] of Object.entries(baseline)) {
+    const c = current[u];
+    if (!c) { regressions.push(`user ${u}: no snapshots/skillstate/ object (baseline covers ${Object.keys(skills).length} skill(s))`); continue; }
+    for (const [skill, b] of Object.entries(skills)) {
+      const s = c[skill];
+      if (!s) { regressions.push(`user ${u} ${skill}: missing from the newest snapshot (baseline ${b.displayedXp} xp, level ${b.level})`); continue; }
+      if (s.displayedXp < b.displayedXp) regressions.push(`user ${u} ${skill}: displayedXp ${b.displayedXp} → ${s.displayedXp}`);
+      if (s.level < b.level) regressions.push(`user ${u} ${skill}: level ${b.level} → ${s.level}`);
+    }
+  }
+  return regressions;
+}
+
+/** Last read of the snapshots, so `--record` advances the XP baseline from what this audit checked. */
+let xpObserved = null;
+
+/**
+ * XP's regression row. Armed by non-test source referencing `snapshots/skillstate/`
+ * (02 §8.2, 0067); from then on it compares the newest snapshot per user against
+ * the `xp` section of the baseline, exactly as fog-no-refog does with manifests.
  */
 function xpNotLower() {
   const ID = "xp-not-lower", S = "4";
+  xpObserved = null;
   const writers = ["src", "amplify"].flatMap((r) => sourceFiles(join(ROOT, r)))
     .filter((f) => readFileSync(f, "utf8").includes("snapshots/skillstate/"));
   if (!writers.length) {
     return NA(ID, S, "no source under src/ or amplify/ references snapshots/skillstate/ yet — activates when the T4 skill-state snapshot exists (02 §8.2, 0067; D-135, I-16)");
   }
-  return FAIL(ID, S, `the skill-state snapshot now exists (${writers.map((f) => relative(ROOT, f)).join(", ")}) but no XP comparison is implemented — ` +
-    `extend ${BASELINE} with XP totals and compare them here, as fog-no-refog does`);
+  const base = regressionBaseline();
+  if (base.malformed) return ERR(ID, S, `${BASELINE} is not readable JSON — the XP baseline cannot be compared. git history has the last good copy`);
+  const bucket = userDataBucket();
+  if (!bucket) return ERR(ID, S, "the skill-state snapshot exists but amplify_outputs.json names no storage bucket — run `npx ampx generate outputs`, then re-audit");
+
+  let current;
+  try { current = readSkillSnapshots(bucket); }
+  catch (e) { return ERR(ID, S, `could not read skill-state snapshots from s3://${bucket}: ${e.message}`); }
+  xpObserved = current;
+
+  const summary = (skills) => Object.entries(skills).filter(([, v]) => v.displayedXp > 0)
+    .map(([k, v]) => `${k} ${v.displayedXp}/L${v.level}`).join(", ") || "all skills at 0 xp";
+  const users = Object.keys(current).length;
+  const baseUsers = Object.keys(base.xp).length;
+  if (!baseUsers) {
+    return users
+      ? NA(ID, S, `no recorded baseline yet — the next 'audit --record' sets it (${users} user(s): ${Object.values(current).map(summary).join("; ")})`)
+      : NA(ID, S, `no snapshots/skillstate/ object exists in s3://${bucket} yet and no baseline is recorded — activates with the first ingested run`);
+  }
+  const regressions = compareXp(base.xp, current);
+  if (regressions.length) {
+    return FAIL(ID, S, `XP DECREASED — ${regressions.join("; ")}. XP never decreases (D-135): find the write that lowered it before anything else ships`);
+  }
+  const skills = Object.values(base.xp).reduce((n, s) => n + Object.keys(s).length, 0);
+  return PASS(ID, S, `${baseUsers} baselined user(s), ${skills} skill(s): ` +
+    Object.keys(base.xp).map((u) => summary(current[u])).join("; ") + ` — none lower (${BASELINE})`);
 }
 
 /** Non-test source files — the subject of a check, not its fixtures. */
@@ -1245,8 +1355,11 @@ function cmdAudit(capability, flags) {
     console.log(`  invariant ratchet raised → ${CITATIONS}  (+${gained.length}: ${gained.join(", ")})`);
     console.log(`  those citations must not disappear again — the next audit fails if one does.`);
   }
-  if (raised?.length) {
-    console.log(`  re-fog baseline raised → ${BASELINE}  (${raised.join("; ")})`);
+  if (raised?.fog.length) {
+    console.log(`  re-fog baseline raised → ${BASELINE}  (${raised.fog.join("; ")})`);
+  }
+  if (raised?.xp.length) {
+    console.log(`  XP baseline raised → ${BASELINE}  (${raised.xp.join("; ")})`);
     console.log(`  the next audit fails if any user's cellCount or generation is below it.`);
   }
   if (problems.length) console.log(`  the override and its reason are in the doc.`);
@@ -2084,4 +2197,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { compareFog, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };

@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral, compareFog } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral, compareFog, compareXp } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -1950,7 +1950,7 @@ describe("0183 — fog-no-refog and xp-not-lower are predicates against a baseli
     writeFileSync(fake, `#!/bin/sh
 [ -n "$FAKE_AWS_FAIL" ] && { echo "Unable to locate credentials. You can configure credentials by running \\"aws configure\\"." >&2; exit 255; }
 case "$1 $2" in
-  "s3 ls") cd "${s3}" && out=$(find users -name manifest.json 2>/dev/null | sed 's/^/2026-09-27 00:00:00   386 /'); [ -z "$out" ] && exit 1; echo "$out" ;;
+  "s3 ls") cd "${s3}" && out=$(find "\${3#s3://b/}" -type f 2>/dev/null | sort | sed 's/^/2026-09-27 00:00:00   386 /'); [ -z "$out" ] && exit 1; echo "$out" ;;
   "s3 cp") cat "${s3}/\${3#s3://b/}" ;;
   *) echo "unexpected: $*" >&2; exit 2 ;;
 esac
@@ -2096,7 +2096,26 @@ esac
     assert.equal(compareFog(base, { u: { cellCount: 4, generation: 2 } }).length, 2);
   });
 
-  test("xp-not-lower is n/a until code references snapshots/skillstate/, then FAILS until a comparison exists", () => {
+  // ── 0225: xp-not-lower compares the newest snapshots/skillstate/ object per user ──
+
+  const SNAP_WRITER = "export const key = (u: string, t: string, g: number) => `snapshots/skillstate/${u}/${t}-${g}.json`\n";
+  const xpRepo = () => {
+    const f = fogRepo();
+    writeFileSync(join(f.d, "src/pipeline/skill-state.ts"), SNAP_WRITER);
+    return f;
+  };
+  const snap = (s3, sub, takenAt, skills) => {
+    mkdirSync(join(s3, "snapshots/skillstate", sub), { recursive: true });
+    writeFileSync(join(s3, "snapshots/skillstate", sub, `${takenAt}-63.json`), JSON.stringify({
+      userId: sub, takenAt, rulesVersion: 1, generation: 63, trigger: "ingest",
+      skills: Object.entries(skills).map(([skillId, [displayedXp, level, levelHighWater = level]]) =>
+        ({ skillId, displayedXp, xpLedgerSum: displayedXp, level, levelHighWater, firstSeenRulesVersion: 1 })),
+    }));
+  };
+  const T1 = "2026-09-29T18:28:59.948Z", T2 = "2026-09-30T07:00:00.000Z";
+  const baselineXp = (f) => JSON.parse(readFileSync(join(f.d, "docs/capabilities/regression-baseline.json"), "utf8")).xp.users;
+
+  test("xp-not-lower is n/a until non-test code references snapshots/skillstate/", () => {
     const f = fogRepo();
     let c = row(f, "xp-not-lower");
     assert.equal(c.status, "na");
@@ -2104,11 +2123,128 @@ esac
     // A test fixture mentioning the path is not the subject existing.
     writeFileSync(join(f.d, "src/pipeline/skill-state.test.ts"), "// snapshots/skillstate/ fixture\n");
     assert.equal(row(f, "xp-not-lower").status, "na");
-    writeFileSync(join(f.d, "src/pipeline/skill-state.ts"), "export const key = (u: string) => `snapshots/skillstate/${u}.json`\n");
+    // Armed with nothing in the bucket: n/a that names the bucket, not the missing writer.
+    writeFileSync(join(f.d, "src/pipeline/skill-state.ts"), SNAP_WRITER);
     c = row(f, "xp-not-lower");
-    assert.equal(c.status, "fail", "T4 existing with no comparison must not stay quietly n/a");
-    assert.match(c.detail, /skill-state\.ts/);
+    assert.equal(c.status, "na", c.detail);
+    assert.match(c.detail, /no snapshots\/skillstate\/ object exists in s3:\/\/b/);
     rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("xp-not-lower: unreachable S3 or no bucket is ERROR, never n/a", () => {
+    const f = xpRepo();
+    snap(f.s3, SUB, T1, { cartography: [100, 3] });
+    let c = row(f, "xp-not-lower", { FAKE_AWS_FAIL: "1" });
+    assert.equal(c.status, "error", c.detail);
+    assert.match(c.detail, /Unable to locate credentials/);
+    rmSync(join(f.d, "amplify_outputs.json"));
+    c = row(f, "xp-not-lower");
+    assert.equal(c.status, "error", c.detail);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("xp-not-lower: a snapshot of an unrecognised shape is ERROR, not a pass", () => {
+    const f = xpRepo();
+    mkdirSync(join(f.s3, "snapshots/skillstate", SUB), { recursive: true });
+    writeFileSync(join(f.s3, "snapshots/skillstate", SUB, `${T1}-63.json`), JSON.stringify({ userId: SUB, skills: [{ skillId: "x", xp: 5 }] }));
+    const c = row(f, "xp-not-lower");
+    assert.equal(c.status, "error", c.detail);
+    assert.match(c.detail, /shape changed/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("xp-not-lower: no baseline is n/a with the observed figures; --record sets it, hashed, then PASS", () => {
+    const f = xpRepo();
+    snap(f.s3, SUB, T1, { cadence: [0, 1], cartography: [13455, 22] });
+    let c = row(f, "xp-not-lower");
+    assert.equal(c.status, "na");
+    assert.match(c.detail, /no recorded baseline yet.*cartography 13455\/L22/);
+    const r = record(f);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /XP baseline raised/);
+    const raw = readFileSync(join(f.d, "docs/capabilities/regression-baseline.json"), "utf8");
+    assert.ok(!raw.includes(SUB), "the baseline must not contain the raw sub");
+    assert.deepEqual(Object.values(baselineXp(f)), [{ cadence: { displayedXp: 0, level: 1 }, cartography: { displayedXp: 13455, level: 22 } }]);
+    c = row(f, "xp-not-lower");
+    assert.equal(c.status, "pass", c.detail);
+    assert.match(c.detail, /1 baselined user\(s\), 2 skill\(s\)/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("xp-not-lower reads the NEWEST snapshot per user, by takenAt in the key", () => {
+    const f = xpRepo();
+    snap(f.s3, SUB, T1, { cartography: [100, 3] });
+    assert.equal(record(f).code, 0);
+    snap(f.s3, SUB, T2, { cartography: [90, 3] });
+    const c = row(f, "xp-not-lower");
+    assert.equal(c.status, "fail", "an older, higher snapshot must not mask a newer, lower one");
+    assert.match(c.detail, /cartography: displayedXp 100 → 90/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  for (const [what, skills, expect] of [
+    ["a lowered displayedXp", { cartography: [13454, 22] }, /XP DECREASED.*cartography: displayedXp 13455 → 13454/],
+    ["a lowered level and high-water", { cartography: [13455, 21] }, /cartography: level 22 → 21/],
+    ["a baselined skill missing from the snapshot", { cadence: [5, 1] }, /cartography: missing from the newest snapshot/],
+  ]) {
+    test(`xp-not-lower FAILS on an injected regression: ${what} (D-135, I-16)`, () => {
+      const f = xpRepo();
+      snap(f.s3, SUB, T1, { cartography: [13455, 22] });
+      assert.equal(record(f).code, 0);
+      snap(f.s3, SUB, T2, skills);
+      const c = row(f, "xp-not-lower");
+      assert.equal(c.status, "fail", `${what} was reported '${c.status}': ${c.detail}`);
+      assert.match(c.detail, expect);
+      assert.notEqual(audit(f).code, 0);
+      rmSync(f.d, { recursive: true, force: true });
+    });
+  }
+
+  test("xp-not-lower: a level below the baseline with the high-water still at it passes — the shown level did not fall", () => {
+    const f = xpRepo();
+    snap(f.s3, SUB, T1, { cartography: [13455, 22] });
+    assert.equal(record(f).code, 0);
+    snap(f.s3, SUB, T2, { cartography: [13455, 21, 22] });
+    assert.equal(row(f, "xp-not-lower").status, "pass");
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("xp-not-lower FAILS when a baselined user's snapshots disappear entirely", () => {
+    const f = xpRepo();
+    snap(f.s3, SUB, T1, { cartography: [13455, 22] });
+    assert.equal(record(f).code, 0);
+    rmSync(join(f.s3, "snapshots"), { recursive: true });
+    const c = row(f, "xp-not-lower");
+    assert.equal(c.status, "fail", c.detail);
+    assert.match(c.detail, /no snapshots\/skillstate\/ object/);
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("a forced record over an XP decrease does not lower the baseline, and keeps the fog section", () => {
+    const f = xpRepo();
+    put(f.s3, SUB, { cellCount: 1003, generation: 60 });
+    snap(f.s3, SUB, T1, { cartography: [13455, 22] });
+    assert.equal(record(f).code, 0);
+    snap(f.s3, SUB, T2, { cartography: [9000, 20], cadence: [40, 2] });
+    assert.equal(record(f, "--force", "testing the ratchet").code, 0);
+    const xp = Object.values(baselineXp(f))[0];
+    assert.deepEqual(xp.cartography, { displayedXp: 13455, level: 22 }, "the bar must not fall to what failed it");
+    assert.deepEqual(xp.cadence, { displayedXp: 40, level: 2 }, "a new skill still joins the baseline");
+    const fog = Object.values(JSON.parse(readFileSync(join(f.d, "docs/capabilities/regression-baseline.json"), "utf8")).fog.users);
+    assert.deepEqual(fog, [{ cellCount: 1003, generation: 60 }]);
+    assert.equal(row(f, "xp-not-lower").status, "fail", "and the next audit must still fail");
+    rmSync(f.d, { recursive: true, force: true });
+  });
+
+  test("compareXp — equal and higher pass; each lower field, missing skill and missing user is named with both numbers", () => {
+    const base = { u: { a: { displayedXp: 50, level: 4 }, b: { displayedXp: 0, level: 1 } } };
+    assert.deepEqual(compareXp(base, { u: { a: { displayedXp: 50, level: 4 }, b: { displayedXp: 0, level: 1 } } }), []);
+    assert.deepEqual(compareXp(base, { u: { a: { displayedXp: 99, level: 9 }, b: { displayedXp: 1, level: 1 }, c: { displayedXp: 0, level: 1 } }, v: {} }), []);
+    assert.deepEqual(compareXp(base, { u: { a: { displayedXp: 49, level: 3 }, b: { displayedXp: 0, level: 1 } } }),
+      ["user u a: displayedXp 50 → 49", "user u a: level 4 → 3"]);
+    assert.match(compareXp(base, { u: { a: { displayedXp: 50, level: 4 } } })[0], /user u b: missing .*baseline 0 xp, level 1/);
+    assert.match(compareXp(base, {})[0], /user u: no snapshots\/skillstate\/ object/);
+    assert.deepEqual(compareXp({}, { u: { a: { displayedXp: 1, level: 1 } } }), []);
   });
 
   test("the sweep: no §4 row in the source is an unconditional NA or PASS with a literal message", () => {

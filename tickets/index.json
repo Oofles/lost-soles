@@ -5140,6 +5140,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T18:16:15Z",
+    "started": "2026-09-29T21:22:25Z",
     "path": "tickets/open/0225-audit-xp-not-lower-compare-xp-against-snapshots-skillstate-i.md",
     "ready": true,
     "acceptance": {
