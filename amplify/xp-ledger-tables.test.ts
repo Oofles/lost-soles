@@ -118,7 +118,7 @@ describe("T2 SkillState — keys", () => {
   })
 })
 
-describe("the worker's grants on T2/T4", () => {
+describe("the worker's grants on T1/T2/T4", () => {
   type Statement = { Action?: unknown; Resource?: unknown }
   const list = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : [v as string])
   const statements = (): Statement[] =>
@@ -145,12 +145,18 @@ describe("the worker's grants on T2/T4", () => {
     expect(actionsOn("SkillState")).toEqual(["dynamodb:Query", "dynamodb:UpdateItem"])
   })
 
-  it("the worker is told both table names", () => {
+  /** `0219`. The Profile totals only; the ingest never reads or deletes T1. */
+  it("T1: UpdateItem only", () => {
+    expect(actionsOn("Profile")).toEqual(["dynamodb:UpdateItem"])
+  })
+
+  it("the worker is told all three table names", () => {
     const fn = Object.values(WORKER.findResources("AWS::Lambda::Function")).find((f) =>
       JSON.stringify(f).includes("ACTIVITY_TABLE"),
     )!
     const env = (fn.Properties as { Environment: { Variables: Record<string, unknown> } }).Environment.Variables
     expect(env).toHaveProperty("XP_LEDGER_TABLE")
     expect(env).toHaveProperty("SKILL_STATE_TABLE")
+    expect(env).toHaveProperty("PROFILE_TABLE")
   })
 })

@@ -3,8 +3,9 @@ import { QueryCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynam
 import type { Activity } from "@/src/domain/activity"
 import type { DiscoveryAward } from "@/src/domain/discovery"
 import type { TraceRejects } from "@/src/domain/fog"
-import type { RuleSkill } from "@/src/rules/schema"
+import type { RuleCurve, RuleSkill } from "@/src/rules/schema"
 import { sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring/ledger"
+import { levelForXp } from "@/src/scoring/levels"
 
 import { amplifyMetadata, persistActivity, type PersistDeps } from "./persist"
 
@@ -41,10 +42,13 @@ export interface LedgerDeps {
   ledgerTable: string
   /** T2's physical name, likewise. */
   skillStateTable: string
+  /** T1's physical name. `0219`: the `Update Profile` line of §4.3's transaction. */
+  profileTable: string
 }
 
 export const LEDGER_TYPENAME = "XpLedgerEntry"
 export const SKILL_STATE_TYPENAME = "SkillState"
+export const PROFILE_TYPENAME = "Profile"
 /** T4 GSI1. The name `amplify/data/resource.ts` gives it. */
 export const BY_ACTIVITY_INDEX = "byActivity"
 
@@ -57,6 +61,11 @@ type TransactItems = NonNullable<TransactWriteCommandInput["TransactItems"]>
 export interface SkillStateRow {
   skillId: string
   xpLedgerSum: number
+  /** What the level is computed from (`0219`). Equal to `xpLedgerSum` except after a retained floor. */
+  displayedXp: number
+  level?: number
+  /** Never decreases (I-17). Absent on a row written before `0219` and never replayed. */
+  levelHighWater?: number
   firstXpAt?: string
   lastXpAt?: string
   /** D-146. Stamped when the row is created, never updated. See `skillStateUpdateItem`. */
@@ -126,6 +135,9 @@ export async function readSkillStates(
       {
         skillId: String(i.skillId),
         xpLedgerSum: Number(i.xpLedgerSum ?? 0),
+        displayedXp: Number(i.displayedXp ?? i.xpLedgerSum ?? 0),
+        level: i.level === undefined ? undefined : Number(i.level),
+        levelHighWater: i.levelHighWater === undefined ? undefined : Number(i.levelHighWater),
         firstXpAt: i.firstXpAt as string | undefined,
         lastXpAt: i.lastXpAt as string | undefined,
         firstSeenRulesVersion: i.firstSeenRulesVersion === undefined ? undefined : Number(i.firstSeenRulesVersion),
@@ -158,8 +170,13 @@ export function ledgerPutItem(entry: XpLedgerEntry, table: string): TransactItem
  *
  * GUARDED ON THE PRE-READ `xpLedgerSum`: absent if there was no row, equal to what was read if
  * there was. The ADD itself is safe under concurrency. The guard exists because the SET half
- * (`firstXpAt`/`lastXpAt` now, `level`/`levelHighWater` later) is computed from the pre-read,
- * and without it a lost race would be a silent lost update.
+ * (`firstXpAt`/`lastXpAt`, `level`/`levelHighWater`) is computed from the pre-read, and without
+ * it a lost race would be a silent lost update.
+ *
+ * `level` is the curve applied to the pre-read `displayedXp` plus this activity's XP — displayed,
+ * not ledger, because that is what the replay computes it from and the two differ after a
+ * retained floor. `levelHighWater` is `max(pre-read, level)`: it never falls (I-17), and a row the
+ * replay ratcheted above what its XP now buys keeps the higher number. Ticket 0219.
  *
  * `firstXpAt`/`lastXpAt` come from `activity.startedAt`, never the clock (I-12), as a `min` and
  * a `max` so a backfilled older run cannot move `lastXpAt` backwards.
@@ -181,13 +198,15 @@ export function skillStateUpdateItem(
     ingestedAt: string
     rulesVersion: number
     introducedIn: number
+    curve: RuleCurve
   },
   table: string,
 ): TransactItems[number] {
-  const { userId, skillId, xp, prev, startedAt, ingestedAt, rulesVersion, introducedIn } = args
+  const { userId, skillId, xp, prev, startedAt, ingestedAt, rulesVersion, introducedIn, curve } = args
   const meta = amplifyMetadata(userId, ingestedAt, SKILL_STATE_TYPENAME)
   const firstXpAt = prev?.firstXpAt && prev.firstXpAt < startedAt ? prev.firstXpAt : startedAt
   const lastXpAt = prev?.lastXpAt && prev.lastXpAt > startedAt ? prev.lastXpAt : startedAt
+  const { level, levelHighWater } = levelsAfter(prev, xp, curve)
 
   return {
     Update: {
@@ -197,15 +216,18 @@ export function skillStateUpdateItem(
         "SET #tn = :tn, #owner = :owner, createdAt = if_not_exists(createdAt, :now), " +
         "updatedAt = :now, firstXpAt = :first, lastXpAt = :last, rulesVersionLastComputed = :ver, " +
         "firstSeenRulesVersion = if_not_exists(firstSeenRulesVersion, :intro), " +
-        "firstSeenAt = if_not_exists(firstSeenAt, :seen) " +
+        "firstSeenAt = if_not_exists(firstSeenAt, :seen), #level = :level, levelHighWater = :hw " +
         "ADD xpLedgerSum :xp, displayedXp :xp",
       ConditionExpression:
         prev === undefined ? "attribute_not_exists(xpLedgerSum)" : "xpLedgerSum = :prev",
-      ExpressionAttributeNames: { "#tn": "__typename", "#owner": "owner" },
+      /** `level` is a DynamoDB reserved word. */
+      ExpressionAttributeNames: { "#tn": "__typename", "#owner": "owner", "#level": "level" },
       ExpressionAttributeValues: {
         ":tn": meta.__typename,
         ":owner": meta.owner,
         ":now": meta.updatedAt,
+        ":level": level,
+        ":hw": levelHighWater,
         ":first": firstXpAt,
         ":last": lastXpAt,
         ":ver": rulesVersion,
@@ -213,6 +235,86 @@ export function skillStateUpdateItem(
         ":seen": startedAt,
         ":xp": xp,
         ...(prev === undefined ? {} : { ":prev": prev.xpLedgerSum }),
+      },
+    },
+  }
+}
+
+/** A skill's level and high-water once `xp` more has been added to its pre-read row. */
+export function levelsAfter(
+  prev: Pick<SkillStateRow, "displayedXp" | "levelHighWater"> | undefined,
+  xp: number,
+  curve: RuleCurve,
+): { level: number; levelHighWater: number } {
+  const level = levelForXp((prev?.displayedXp ?? 0) + xp, curve)
+  return { level, levelHighWater: Math.max(prev?.levelHighWater ?? 0, level) }
+}
+
+/**
+ * The level a row SHOWS: the ratchet, where it exists (`04` §7.5). A row written before `0219`
+ * and never replayed has neither attribute, and shows what its XP buys.
+ */
+function shownLevel(row: Pick<SkillStateRow, "displayedXp" | "level" | "levelHighWater">, curve: RuleCurve): number {
+  return Math.max(row.level ?? 0, row.levelHighWater ?? 0, levelForXp(row.displayedXp, curve))
+}
+
+/**
+ * THE `Update Profile` LINE of §4.3 (`0219`). `totalXp` and `totalLevel`, D-033's headline,
+ * denormalised so the home screen is one read.
+ *
+ * SET FROM THE PRE-READ, not `ADD totalXp :xp`. The pre-read is every `SkillState` row for the
+ * user, already in hand for the level SETs and guarded by the same conditions, so the totals are
+ * recomputed whole on every XP write — the same sums the replay's step 6 writes (`xp-replay.ts`):
+ * Σ `displayedXp` and Σ shown level over ENABLED skills, an untrained one counting its level 1.
+ * An `ADD` would carry forward any earlier drift for ever; a recomputation repairs it on the next
+ * run, and on a row the replay has never touched it is the first write.
+ *
+ * The row may not exist yet — T1 is created by the replay's freeze or by this write, whichever
+ * comes first — so the Amplify metadata is `if_not_exists`, as `freeze` writes it. Unconditioned:
+ * nothing about a Profile row can make this commit wrong.
+ */
+export function profileTotalsItem(
+  args: {
+    userId: string
+    states: ReadonlyMap<string, SkillStateRow>
+    xpBySkill: ReadonlyMap<string, number>
+    skills: readonly Pick<RuleSkill, "id" | "enabled">[]
+    curve: RuleCurve
+    ingestedAt: string
+  },
+  table: string,
+): TransactItems[number] {
+  const { userId, states, xpBySkill: added, skills, curve, ingestedAt } = args
+  const meta = amplifyMetadata(userId, ingestedAt, PROFILE_TYPENAME)
+  let totalXp = 0
+  let totalLevel = 0
+  for (const s of skills.filter((r) => r.enabled)) {
+    const prev = states.get(s.id)
+    const xp = added.get(s.id)
+    if (xp !== undefined) {
+      totalXp += (prev?.displayedXp ?? 0) + xp
+      totalLevel += levelsAfter(prev, xp, curve).levelHighWater
+    } else if (prev !== undefined) {
+      totalXp += prev.displayedXp
+      totalLevel += shownLevel(prev, curve)
+    } else {
+      totalLevel += 1
+    }
+  }
+  return {
+    Update: {
+      TableName: table,
+      Key: { id: userId },
+      UpdateExpression:
+        "SET #tn = if_not_exists(#tn, :tn), #owner = if_not_exists(#owner, :owner), " +
+        "createdAt = if_not_exists(createdAt, :now), updatedAt = :now, totalXp = :txp, totalLevel = :tlvl",
+      ExpressionAttributeNames: { "#tn": "__typename", "#owner": "owner" },
+      ExpressionAttributeValues: {
+        ":tn": meta.__typename,
+        ":owner": meta.owner,
+        ":now": meta.updatedAt,
+        ":txp": totalXp,
+        ":tlvl": totalLevel,
       },
     },
   }
@@ -228,18 +330,23 @@ function introducedInOf(map: ReadonlyMap<string, number>, skillId: string): numb
   return v
 }
 
-/** Every item this activity's XP adds to the transaction: the rows, then one ADD per skill. */
+/**
+ * Every item this activity's XP adds to the transaction: the rows, one ADD per skill, then the
+ * Profile totals.
+ */
 export function ledgerTransactItems(
   entries: readonly XpLedgerEntry[],
   states: ReadonlyMap<string, SkillStateRow>,
   activity: Pick<Activity, "userId" | "startedAt" | "ingestedAt">,
   rulesVersion: number,
-  skills: readonly Pick<RuleSkill, "id" | "introducedIn">[],
-  deps: Pick<LedgerDeps, "ledgerTable" | "skillStateTable">,
+  skills: readonly Pick<RuleSkill, "id" | "introducedIn" | "enabled">[],
+  curve: RuleCurve,
+  deps: Pick<LedgerDeps, "ledgerTable" | "skillStateTable" | "profileTable">,
 ): TransactItems {
   const introducedIn = new Map(skills.map((s) => [s.id, s.introducedIn]))
+  const added = xpBySkill(entries)
   const puts = entries.map((e) => ledgerPutItem(e, deps.ledgerTable))
-  const adds = [...xpBySkill(entries)].map(([skillId, xp]) =>
+  const adds = [...added].map(([skillId, xp]) =>
     skillStateUpdateItem(
       {
         userId: activity.userId,
@@ -250,11 +357,16 @@ export function ledgerTransactItems(
         ingestedAt: activity.ingestedAt,
         rulesVersion,
         introducedIn: introducedInOf(introducedIn, skillId),
+        curve,
       },
       deps.skillStateTable,
     ),
   )
-  return [...puts, ...adds]
+  const profile = profileTotalsItem(
+    { userId: activity.userId, states, xpBySkill: added, skills, curve, ingestedAt: activity.ingestedAt },
+    deps.profileTable,
+  )
+  return [...puts, ...adds, profile]
 }
 
 /**
@@ -298,14 +410,16 @@ export async function persistWithLedger(
     ingestKey: string
     entries: readonly XpLedgerEntry[]
     rulesVersion: number
-    /** The registry rows the entries were scored under — for `introducedIn` (D-146). */
-    skills: readonly Pick<RuleSkill, "id" | "introducedIn">[]
+    /** The registry rows the entries were scored under — for `introducedIn` (D-146) and the totals. */
+    skills: readonly Pick<RuleSkill, "id" | "introducedIn" | "enabled">[]
+    /** D-130's curve, for `level`/`levelHighWater` and `totalLevel` (`0219`). */
+    curve: RuleCurve
     award: DiscoveryAward
     rejects: TraceRejects | undefined
   },
   deps: { persist: PersistDeps; ledger: LedgerDeps },
 ): Promise<LedgerCommit> {
-  const { activity, ingestKey, entries, rulesVersion, skills, award, rejects } = args
+  const { activity, ingestKey, entries, rulesVersion, skills, curve, award, rejects } = args
   const FIRST_XP_ITEM = 2
 
   for (let attempt = 1; ; attempt += 1) {
@@ -335,6 +449,7 @@ export async function persistWithLedger(
             activity,
             rulesVersion,
             skills,
+            curve,
             deps.ledger,
           )
 

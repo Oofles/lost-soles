@@ -1077,8 +1077,15 @@ a silent lost update.
 not stop a later one, because a redelivery re-classifies the ground as `recent` and produces rows
 under different ids. So before building rows, ingest checks GSI1 `byActivity` for any
 rule-derived row of this activity. If one exists, it writes no rows and no `ADD`s and commits the
-`Activity` put and the receipt with the existing sum. *As built (`0062`), the `SET level …` half
-and the `Update Profile` line are not written yet: see `0219`.*
+`Activity` put and the receipt with the existing sum.
+
+*As built (`0219`):* `level` is the curve applied to the pre-read **`displayedXp`** plus this
+activity's XP — not `xpLedgerSum`, because that is what the replay levels on and the two differ
+after a retained floor — and `levelHighWater = max(pre-read, level)` (I-17). The `Update Profile`
+line **SETs** `totalXp` and `totalLevel` recomputed from the full pre-read rather than
+`totalXp + :xp`: the same sums §4.4 step 6 writes, so drift is repaired on the next run instead of
+carried forward. It creates the row (`if_not_exists` metadata) if no replay has yet.
+`exploredGeneration` is not in it: that mirror is `0182`'s.
 
 **Cell writes stay outside** this transaction when a run touches more than ~60 cells, because
 `TransactWriteItems` caps at 100 items and a run touches 40–130 (R3 §2). The ordering is: cell

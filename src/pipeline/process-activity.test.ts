@@ -44,6 +44,7 @@ const ACTIVITY_TABLE = "Activity-testapi-NONE"
 const CELL_TABLE = "TestExploredCell"
 const LEDGER_TABLE = "XpLedgerEntry-testapi-NONE"
 const SKILL_STATE_TABLE = "SkillState-testapi-NONE"
+const PROFILE_TABLE = "Profile-testapi-NONE"
 const FIXTURE = readFileSync(new URL("./__fixtures__/verbatim-payload.json", import.meta.url))
 
 const JOB: IngestJob = {
@@ -362,6 +363,7 @@ function rig(options: Options = {}) {
     ledger: {
       ledgerTable: LEDGER_TABLE,
       skillStateTable: SKILL_STATE_TABLE,
+      profileTable: PROFILE_TABLE,
       ddb: {
         async send(command: QueryCommand) {
           expect(command).toBeInstanceOf(QueryCommand)
@@ -1451,7 +1453,8 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
     const items = transacts[0]!.TransactItems!
     const tables = items.map((i) => (i.Put ?? i.Update)!.TableName)
     // 0064: Wayfaring, then Cartography's discovery credit, then the Constitution share —
-    // three ledger rows and a SkillState ADD per skill, all in the one transaction.
+    // three ledger rows, a SkillState ADD per skill and the Profile totals (0219), all in the
+    // one transaction.
     expect(tables.slice(2)).toEqual([
       LEDGER_TABLE,
       LEDGER_TABLE,
@@ -1459,6 +1462,7 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
       SKILL_STATE_TABLE,
       SKILL_STATE_TABLE,
       SKILL_STATE_TABLE,
+      PROFILE_TABLE,
     ])
 
     // Every cell is unknown, so the whole path is new ground: 0.28 km × 100 XP/km.

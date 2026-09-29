@@ -999,6 +999,9 @@ activityTable.grant(processActivityLambda, "dynamodb:PutItem")
  *
  * T2: `UpdateItem` for the ADD, and `Query` on the base table for the strongly consistent
  * pre-read the ADD's condition compares against. No `DeleteItem` either.
+ *
+ * T1: `UpdateItem` ALONE, for §4.3's `Update Profile` totals (`0219`). The ingest never reads
+ * the Profile row — the totals are computed from the T2 pre-read — and never deletes it.
  */
 const xpLedgerTable = backend.data.resources.tables["XpLedgerEntry"]
 const skillStateTable = backend.data.resources.tables["SkillState"]
@@ -1010,6 +1013,8 @@ processActivityLambda.addToRolePolicy(
   }),
 )
 skillStateTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+const profileTable = backend.data.resources.tables["Profile"]
+profileTable.grant(processActivityLambda, "dynamodb:UpdateItem")
 
 /**
  * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a
@@ -1258,6 +1263,8 @@ backend.processActivity.addEnvironment("ACTIVITY_TABLE", activityTable.tableName
 /** `0062`. T4 and T2 — generated names, like T3's. */
 backend.processActivity.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
 backend.processActivity.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
+/** `0219`. T1, for the Profile totals in the ledger transaction. */
+backend.processActivity.addEnvironment("PROFILE_TABLE", profileTable.tableName)
 backend.processActivity.addEnvironment(
   "RAW_ARCHIVE_BUCKET",
   backend.storage.resources.bucket.bucketName,

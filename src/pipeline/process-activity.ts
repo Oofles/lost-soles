@@ -565,6 +565,7 @@ export async function processActivity<TCreds>(
       entries,
       rulesVersion: deps.registry.version,
       skills: deps.registry.skills,
+      curve: deps.registry.curve,
       award,
       rejects: rejects ?? undefined,
     },

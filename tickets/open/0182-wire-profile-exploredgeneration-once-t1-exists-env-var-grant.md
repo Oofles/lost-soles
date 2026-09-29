@@ -65,6 +65,13 @@ disagree, the manifest wins and the mirror is repaired."* It exists so the AppSy
 
 ## Notes
 
+**2026-09-29, from `0219`.** Steps 1 and 2 have landed: the worker now has `PROFILE_TABLE` and
+`dynamodb:UpdateItem` on T1 (and nothing else — `amplify/xp-ledger-tables.test.ts` asserts it), for
+§4.3's `Update Profile` totals inside the ledger transaction. The mirror is still OFF: `handler.ts`
+passes `table: undefined` to it explicitly. What remains here is step 3 (hand it
+`required("PROFILE_TABLE")`), step 4, and the live criteria. The first two criteria are met by
+`0219`'s wiring; re-check them rather than re-adding the grant.
+
 **Do not make the mirror load-bearing while wiring it.** The temptation once it holds a real number
 is to read it somewhere — a "what generation is the user on" query that avoids an S3 GET. `02` T1
 and §6.4 both forbid that, and the reason is that the two can legitimately disagree for a moment:

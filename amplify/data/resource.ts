@@ -260,9 +260,8 @@ const schema = a.schema({
    * ingest. `displayedXp` equals it by construction (§4.6), and it is a SECOND attribute so
    * a bug in one shows against the other (I-15).
    *
-   * `level` and `levelHighWater` are declared and not yet written: the curve is `0063` and
-   * the ratchet is the replay job's (`0066`). They are optional so a row written before then
-   * reads cleanly.
+   * `level` and `levelHighWater` are written by every XP-bearing ingest (`0219`) and by the
+   * replay (`0066`). They are optional so a row written before then reads cleanly.
    */
   SkillState: a
     .model({

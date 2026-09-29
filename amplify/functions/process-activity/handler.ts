@@ -324,14 +324,13 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
         ddb,
         table: EXPLORED_CELL_TABLE,
         /**
-         * `0051`. `PROFILE_TABLE` IS NOT SET, and that is the accurate state of the world —
-         * T1 arrives with the XP engine (capability 09), so `mirrorGeneration` answers
-         * `"no-table"` and the publish is unaffected. `required()` is deliberately NOT used:
-         * the manifest is authoritative (`02` §6.4) and the mirror is only the AppSync
-         * subscription's push channel, so its absence must not fail a cold start. Ticket
-         * `0182` wires it.
+         * `0051`. The mirror is OFF: `mirrorGeneration` answers `"no-table"` and the publish is
+         * unaffected. The manifest is authoritative (`02` §6.4) and the mirror is only the
+         * AppSync subscription's push channel. `PROFILE_TABLE` is set since `0219` (the ledger's
+         * totals, below), but the mirror's grant and its repair path are `0182`'s, so it is
+         * deliberately not handed the name yet.
          */
-        mirror: { ddb, table: process.env.PROFILE_TABLE },
+        mirror: { ddb, table: undefined },
       },
       /**
        * `0195`. The per-activity route geometry (`02` §5.1, S-7). The SAME physical bucket as
@@ -353,6 +352,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
         ddb,
         ledgerTable: required("XP_LEDGER_TABLE"),
         skillStateTable: required("SKILL_STATE_TABLE"),
+        /** `0219`. T1, for the `Update Profile` totals in the same transaction. */
+        profileTable: required("PROFILE_TABLE"),
       },
       onPhase: (entered) => {
         phase = entered

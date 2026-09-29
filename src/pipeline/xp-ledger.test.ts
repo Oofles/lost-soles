@@ -10,12 +10,14 @@ import {
   ledgerPutItem,
   ledgerTransactItems,
   MAX_LEDGER_ATTEMPTS,
+  levelsAfter,
   persistWithLedger,
+  profileTotalsItem,
   skillStateUpdateItem,
   type LedgerDeps,
 } from "@/src/pipeline/xp-ledger"
 import { loadRuleSet } from "@/src/rules/load"
-import { ledgerEntries, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
+import { cumulativeXp, ledgerEntries, levelForXp, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
 
 /**
  * Ticket 0062. `02-data-model.md` §4.3, I-15.
@@ -32,6 +34,8 @@ const RULES = loadRuleSet(1)
 const ACTIVITY_TABLE = "Activity-t"
 const LEDGER_TABLE = "XpLedgerEntry-t"
 const STATE_TABLE = "SkillState-t"
+const PROFILE_TABLE = "Profile-t"
+const TABLES = { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE, profileTable: PROFILE_TABLE }
 
 type Item = Record<string, unknown>
 type TransactItem = NonNullable<TransactWriteCommand["input"]["TransactItems"]>[number]
@@ -40,6 +44,7 @@ const KEY_OF: Record<string, (i: Item) => string> = {
   [ACTIVITY_TABLE]: (i) => String(i.id),
   [LEDGER_TABLE]: (i) => String(i.id),
   [STATE_TABLE]: (i) => `${i.userId}#${i.skillId}`,
+  [PROFILE_TABLE]: (i) => String(i.id),
   [INGEST_RECEIPT_TABLE]: (i) => String(i.ingestKey),
 }
 
@@ -165,7 +170,7 @@ class Tables {
 
 function world() {
   const t = new Tables()
-  const ledger: LedgerDeps = { ddb: t.ddb, ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE }
+  const ledger: LedgerDeps = { ddb: t.ddb, ...TABLES }
   const persist = { ddb: t.ddb, activityTable: ACTIVITY_TABLE }
   const claim = (ingestKey: string) =>
     t.table(INGEST_RECEIPT_TABLE).set(ingestKey, { ingestKey, status: "PROCESSING" })
@@ -208,7 +213,7 @@ const RUN_ROWS: UnratedRow[] = [
 
 const commit = (a: Activity, rows: UnratedRow[], deps: ReturnType<typeof world>["deps"], ingestKey = "k-1") =>
   persistWithLedger(
-    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, skills: RULES.skills, award: NO_CELLS, rejects: undefined },
+    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: NO_CELLS, rejects: undefined },
     deps,
   )
 
@@ -231,7 +236,7 @@ describe("the items (§4.3)", () => {
 
   it("a first SkillState ADD is conditioned on the row not existing yet", () => {
     const item = skillStateUpdateItem(
-      { userId: "u-1", skillId: "wayfaring", xp: 400, prev: undefined, startedAt: "2026-09-06T03:00:00.000Z", ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1, introducedIn: 1 },
+      { userId: "u-1", skillId: "wayfaring", xp: 400, prev: undefined, startedAt: "2026-09-06T03:00:00.000Z", ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1, introducedIn: 1, curve: RULES.curve },
       STATE_TABLE,
     ).Update!
     expect(item.ConditionExpression).toBe("attribute_not_exists(xpLedgerSum)")
@@ -246,11 +251,12 @@ describe("the items (§4.3)", () => {
         userId: "u-1",
         skillId: "wayfaring",
         xp: 400,
-        prev: { skillId: "wayfaring", xpLedgerSum: 1234, firstXpAt: "2026-01-01T00:00:00.000Z", lastXpAt: "2026-12-01T00:00:00.000Z" },
+        prev: { skillId: "wayfaring", xpLedgerSum: 1234, displayedXp: 1234, firstXpAt: "2026-01-01T00:00:00.000Z", lastXpAt: "2026-12-01T00:00:00.000Z" },
         startedAt: "2026-09-06T03:00:00.000Z",
         ingestedAt: "2026-09-06T09:00:02.000Z",
         rulesVersion: 1,
         introducedIn: 1,
+        curve: RULES.curve,
       },
       STATE_TABLE,
     ).Update!
@@ -270,11 +276,12 @@ describe("the items (§4.3)", () => {
         userId: "u-1",
         skillId: "fixture-late",
         xp: 400,
-        prev: { skillId: "fixture-late", xpLedgerSum: 10, firstSeenRulesVersion: 3, firstSeenAt: "2026-01-01T00:00:00.000Z" },
+        prev: { skillId: "fixture-late", xpLedgerSum: 10, displayedXp: 10, firstSeenRulesVersion: 3, firstSeenAt: "2026-01-01T00:00:00.000Z" },
         startedAt: "2026-09-06T03:00:00.000Z",
         ingestedAt: "2026-09-06T09:00:02.000Z",
         rulesVersion: 5,
         introducedIn: 3,
+        curve: RULES.curve,
       },
       STATE_TABLE,
     ).Update!
@@ -284,23 +291,98 @@ describe("the items (§4.3)", () => {
     expect(item.ExpressionAttributeValues).toMatchObject({ ":intro": 3, ":ver": 5, ":seen": "2026-09-06T03:00:00.000Z" })
   })
 
+  const base = { userId: "u-1", skillId: "wayfaring", startedAt: "2026-09-06T03:00:00.000Z", ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1, introducedIn: 1, curve: RULES.curve }
+
+  it("a first ADD sets level and levelHighWater to what its XP buys (0219)", () => {
+    const item = skillStateUpdateItem({ ...base, xp: cumulativeXp(4), prev: undefined }, STATE_TABLE).Update!
+    expect(item.UpdateExpression).toContain("#level = :level, levelHighWater = :hw")
+    expect(item.ExpressionAttributeNames).toMatchObject({ "#level": "level" })
+    expect(item.ExpressionAttributeValues).toMatchObject({ ":level": 4, ":hw": 4 })
+  })
+
+  it("level is computed from the pre-read displayedXp plus this activity, not from xpLedgerSum", () => {
+    // After a retained floor the two differ; the replay levels on displayedXp, so ingest does too.
+    const prev = { skillId: "wayfaring", xpLedgerSum: 10, displayedXp: cumulativeXp(10) }
+    const item = skillStateUpdateItem({ ...base, xp: cumulativeXp(11) - cumulativeXp(10), prev }, STATE_TABLE).Update!
+    expect(item.ExpressionAttributeValues).toMatchObject({ ":level": 11, ":hw": 11, ":prev": 10 })
+  })
+
+  it("a pre-read levelHighWater above the computed level is left where it is (I-17)", () => {
+    const prev = { skillId: "wayfaring", xpLedgerSum: cumulativeXp(5), displayedXp: cumulativeXp(5), level: 5, levelHighWater: 9 }
+    const item = skillStateUpdateItem({ ...base, xp: 1, prev }, STATE_TABLE).Update!
+    expect(item.ExpressionAttributeValues).toMatchObject({ ":level": 5, ":hw": 9 })
+    expect(levelsAfter(prev, 1, RULES.curve)).toEqual({ level: 5, levelHighWater: 9 })
+  })
+
+  it("the level is clamped at the curve's maxLevel, and so is the high-water it sets", () => {
+    const huge = cumulativeXp(RULES.curve.maxLevel + 5)
+    expect(levelsAfter(undefined, huge, RULES.curve)).toEqual({ level: RULES.curve.maxLevel, levelHighWater: RULES.curve.maxLevel })
+  })
+
+  describe("profileTotalsItem — §4.3's Update Profile line", () => {
+    const enabled = RULES.skills.filter((s) => s.enabled)
+    const trained = enabled[0]!.id
+    const other = enabled[1]!.id
+    const disabled = { id: "fixture-off", enabled: false }
+    const totals = (item: ReturnType<typeof profileTotalsItem>) => item.Update!.ExpressionAttributeValues!
+
+    it("sums displayedXp and shown level over ENABLED skills; untrained counts 1, disabled counts nothing", () => {
+      const states = new Map([
+        // Untouched by this activity, ratcheted by an earlier replay: shows its high-water.
+        [other, { skillId: other, xpLedgerSum: cumulativeXp(3), displayedXp: cumulativeXp(3), level: 3, levelHighWater: 6 }],
+        ["fixture-off", { skillId: "fixture-off", xpLedgerSum: 999_999, displayedXp: 999_999 }],
+      ])
+      const item = profileTotalsItem(
+        { userId: "u-1", states, xpBySkill: new Map([[trained, cumulativeXp(7)]]), skills: [...enabled, disabled], curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        PROFILE_TABLE,
+      )
+      expect(item.Update!.Key).toEqual({ id: "u-1" })
+      expect(totals(item)).toMatchObject({
+        ":txp": cumulativeXp(7) + cumulativeXp(3),
+        ":tlvl": 7 + 6 + (enabled.length - 2),
+      })
+    })
+
+    it("a row written before 0219, never replayed, shows what its XP buys", () => {
+      const states = new Map([[other, { skillId: other, xpLedgerSum: cumulativeXp(8), displayedXp: cumulativeXp(8) }]])
+      const item = profileTotalsItem(
+        { userId: "u-1", states, xpBySkill: new Map([[trained, 1]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        PROFILE_TABLE,
+      )
+      expect(totals(item)[":tlvl"]).toBe(levelForXp(1, RULES.curve) + 8 + (enabled.length - 2))
+    })
+
+    it("creates the row if the replay never has: Amplify metadata is if_not_exists, and nothing is conditioned", () => {
+      const item = profileTotalsItem(
+        { userId: "u-1", states: new Map(), xpBySkill: new Map([[trained, 5]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        PROFILE_TABLE,
+      ).Update!
+      expect(item.ConditionExpression).toBeUndefined()
+      expect(item.UpdateExpression).toContain("#tn = if_not_exists(#tn, :tn)")
+      expect(item.UpdateExpression).toContain("#owner = if_not_exists(#owner, :owner)")
+      expect(item.UpdateExpression).toContain("totalXp = :txp, totalLevel = :tlvl")
+    })
+  })
+
   it("refuses a scored skill the registry does not carry, rather than guess a permanent version", () => {
     const a = activity()
     const entries = entriesFor(a, RUN_ROWS)
     expect(() =>
-      ledgerTransactItems(entries, new Map(), a, 1, [], { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE }),
+      ledgerTransactItems(entries, new Map(), a, 1, [], RULES.curve, TABLES),
     ).toThrow(/not in the registry/)
   })
 
-  it("rows then one ADD per skill, carrying that skill's summed XP", () => {
+  it("rows, then one ADD per skill carrying that skill's summed XP, then the Profile totals", () => {
     const a = activity()
     const entries = entriesFor(a, [
       ...RUN_ROWS,
       { skillId: "might", reason: "reps", units: 30, unitsEffective: 30 },
     ])
-    const items = ledgerTransactItems(entries, new Map(), a, 1, RULES.skills, { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE })
-    expect(items.map((i) => (i.Put ? "put" : "add"))).toEqual(["put", "put", "put", "add", "add"])
-    const adds = items.filter((i) => i.Update).map((i) => [i.Update!.Key!.skillId, i.Update!.ExpressionAttributeValues![":xp"]])
+    const items = ledgerTransactItems(entries, new Map(), a, 1, RULES.skills, RULES.curve, TABLES)
+    expect(items.map((i) => i.Put ? "put" : i.Update!.TableName === PROFILE_TABLE ? "profile" : "add")).toEqual([
+      "put", "put", "put", "add", "add", "profile",
+    ])
+    const adds = items.filter((i) => i.Update?.TableName === STATE_TABLE).map((i) => [i.Update!.Key!.skillId, i.Update!.ExpressionAttributeValues![":xp"]])
     expect(adds).toEqual([
       ["wayfaring", 400],
       ["might", 120],
@@ -341,6 +423,38 @@ describe("persistWithLedger — the commit", () => {
     expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ xpLedgerSum: 400, displayedXp: 400 })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 400, xpRulesVersion: 1 })
     expect(t.table(INGEST_RECEIPT_TABLE).get("k-1")).toMatchObject({ status: "DONE", xpAwarded: 400 })
+  })
+
+  it("writes level/levelHighWater and the Profile totals in the same commit, and moves them on the next (0219)", async () => {
+    const { t, deps, claim } = world()
+    const enabledCount = RULES.skills.filter((s) => s.enabled).length
+    claim("k-1")
+    await commit(activity(), RUN_ROWS, deps)
+    expect(t.transacts).toBe(1)
+    const lvl1 = levelForXp(400, RULES.curve)
+    expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ level: lvl1, levelHighWater: lvl1 })
+    expect(t.table(PROFILE_TABLE).get("u-1")).toMatchObject({
+      __typename: "Profile",
+      owner: "u-1::u-1",
+      totalXp: 400,
+      totalLevel: lvl1 + enabledCount - 1,
+    })
+
+    claim("k-2")
+    await commit(activity({ activityId: "a-2" }), RUN_ROWS, deps, "k-2")
+    const lvl2 = levelForXp(800, RULES.curve)
+    expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ displayedXp: 800, level: lvl2, levelHighWater: lvl2 })
+    expect(t.table(PROFILE_TABLE).get("u-1")).toMatchObject({ totalXp: 800, totalLevel: lvl2 + enabledCount - 1 })
+  })
+
+  it("an already-scored re-delivery touches neither SkillState nor Profile", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    await commit(activity(), RUN_ROWS, deps)
+    t.table(PROFILE_TABLE).get("u-1")!.totalXp = -1 // a sentinel a second write would overwrite
+    t.table(INGEST_RECEIPT_TABLE).set("k-1", { ingestKey: "k-1", status: "PROCESSING" })
+    await commit(activity(), RUN_ROWS, deps)
+    expect(t.table(PROFILE_TABLE).get("u-1")!.totalXp).toBe(-1)
   })
 
   it("the SkillState row keeps the firstSeen stamp its creating commit wrote (D-146)", async () => {
