@@ -3625,3 +3625,26 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     *condition* that refuses to lower `displayedXp` or `levelHighWater`.
   - **Not covered:** an ingest racing a replay can lose or double one activity's XP. Filed as a
     follow-up.
+
+- **D-259** **The skill-state snapshot is written per ingest and at replay step 0, keyed
+  `<takenAt>-<generation>`, and there is no monthly job.** Supersedes `02` §8.2's cadence and key.
+  *(Agent, 2026-09-29, ticket `0067`. The operator approved all four points before work started.)*
+  - **Cadence.** §8.2 called for a scheduled monthly job plus a snapshot before each replay or
+    rebuild. Ticket `0067` writes one after every successful ingest transaction instead, outside
+    the transaction and never fatal, plus one in replay step 0, which is fatal. Every change to
+    what is displayed now has its own snapshot, so the monthly job adds nothing and costs a
+    schedule.
+  - **Key.** `snapshots/skillstate/<uid>/<takenAt>-<generation>.json`, replacing `<YYYY-MM-DD>.json`.
+    A date key cannot hold two snapshots in one day under `IfNoneMatch`. ISO `takenAt` sorts, so
+    the newest snapshot is the greatest key.
+  - **`generation` is the published explored-map generation**: the one the ingest just published,
+    or `manifest.json`'s when nothing was published (a traceless activity, or a replay's step 0).
+    It is 0 before the first publish.
+  - **Restore path.** When T2 is empty, step 0 uses the newest snapshot as the waterline and
+    `rulesVersion` as the from-version. The step-0 snapshot then restates the restored skills,
+    not the empty table, so a failed replay cannot leave "nothing was shown" as the newest
+    record. Untrained skills (0 XP, level 1) are kept out of the waterline, so step 6 does not
+    create T2 rows that never existed.
+  - **Access.** The ingest role holds `s3:PutObject` on `snapshots/skillstate/*` and nothing else
+    there. The only reader is the replay CLI, which runs under operator credentials. The prefix
+    sits outside `users/*`, so no browser grant reaches it.

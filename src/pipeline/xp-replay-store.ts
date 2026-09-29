@@ -8,9 +8,10 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import type { XpLedgerEntry } from "@/src/scoring"
 
-import { regenerateExplored, readRunCells, type BlobStoreDeps } from "./explored-blob-store"
+import { readManifest, regenerateExplored, readRunCells, type BlobStoreDeps } from "./explored-blob-store"
 import { mergeFoldedCells } from "./explored-merge"
 import { amplifyMetadata } from "./persist"
+import { latestSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
 import { LEDGER_TYPENAME, ledgerPutItem, SKILL_STATE_TYPENAME } from "./xp-ledger"
 import {
   REPLAY_ACTIVITY_ID,
@@ -55,6 +56,8 @@ export interface ReplayStoreDeps {
     cells?: string
   }
   blobs: BlobStoreDeps
+  /** `0067`. `snapshots/skillstate/` — the same bucket as the blobs today. */
+  snapshots: SnapshotDeps
   /** The trace from the S3 archive through the shipped normalizer. The CLI wires this. */
   loadTrace: ReplayStore["loadTrace"]
   concurrency?: number
@@ -245,23 +248,27 @@ export function dynamoReplayStore(deps: ReplayStoreDeps): ReplayStore {
     },
 
     async readSkillStates(userId): Promise<StoredSkillState[]> {
-      const items = await queryAll(deps, {
-        TableName: tables.skillState,
-        KeyConditionExpression: "userId = :u",
-        ExpressionAttributeValues: { ":u": userId },
-        ConsistentRead: true,
-      })
+      const rows = await readShownRows(userId, { ddb: deps.ddb, table: tables.skillState })
       const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v))
-      return items.map((i) => ({
-        skillId: String(i.skillId),
-        xpLedgerSum: Number(i.xpLedgerSum ?? 0),
-        displayedXp: Number(i.displayedXp ?? 0),
-        level: num(i.level),
-        levelHighWater: num(i.levelHighWater),
+      return rows.map((i) => ({
+        skillId: i.skillId,
+        xpLedgerSum: i.xpLedgerSum ?? 0,
+        displayedXp: i.displayedXp ?? 0,
+        level: i.level,
+        levelHighWater: i.levelHighWater,
+        firstSeenRulesVersion: i.firstSeenRulesVersion,
         firstXpAt: i.firstXpAt as string | undefined,
         lastXpAt: i.lastXpAt as string | undefined,
         rulesVersionLastComputed: num(i.rulesVersionLastComputed),
       }))
+    },
+
+    latestSnapshot: (userId) => latestSnapshot(userId, deps.snapshots),
+
+    writeSnapshot: (snapshot) => writeSnapshot(snapshot, deps.snapshots),
+
+    async currentGeneration(userId) {
+      return (await readManifest(userId, deps.blobs))?.manifest.generation ?? 0
     },
 
     async writeSkillStates(userId, rows, at) {

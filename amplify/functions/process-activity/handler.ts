@@ -342,6 +342,11 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        */
       traces: { s3, bucket: required("USER_DATA_BUCKET") },
       registry: RULES,
+      /**
+       * `0067`. `snapshots/skillstate/` — the same bucket as the blobs, its own prefix and its own
+       * grant in `backend.ts` (PutObject only: the ingest never reads a snapshot back).
+       */
+      snapshots: { s3, bucket: required("USER_DATA_BUCKET") },
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       /** `0062`. T4 and T2, both Amplify-generated names handed in by `backend.ts`. */
       ledger: {
@@ -386,6 +391,14 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
     }
 
     /**
+     * `0067`. A missed skill-state snapshot is LOGGED, NOT FATAL — the activity is committed, and
+     * the next ingest writes the next snapshot. A warn so a run of them is visible (D-143).
+     */
+    if (result.outcome === "persisted" && "failed" in result.snapshot) {
+      log.warn({ ...base, outcome: "skillstate-snapshot-failed", activityId: result.activityId, error: result.snapshot.failed })
+    }
+
+    /**
      * CRITERION 8. One line per invocation carrying the phase breakdown — this is what
      * 0044 alarms on, and it is why the pipeline returns timings rather than logging
      * them itself: a module that logs cannot be called twice in a test without noise.
@@ -418,6 +431,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
             rejects: result.rejects,
             /** `0062`. `alreadyScored: true` is a later delivery that awarded nothing. */
             xp: result.xp,
+            /** `0067`. The snapshot key, or why it was missed. */
+            snapshot: result.snapshot,
           }
         : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })

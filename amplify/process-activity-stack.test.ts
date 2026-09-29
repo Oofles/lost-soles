@@ -221,9 +221,10 @@ describe("the worker's IAM role (criterion 3)", () => {
       "s3:ListBucket",
       "s3:PutObject",
     ])
-    // Four statements: raw/, users/, the delta GC, and 0192's raw/ listing. Never one widened
-    // statement — the prefixes have different rules and a reviewer must see them separately.
-    expect(s3).toHaveLength(6)
+    // Five statements: raw/, users/, the delta GC, 0192's raw/ listing, and 0067's
+    // snapshots/skillstate/ (PutObject alone). Never one widened statement — the prefixes have
+    // different rules and a reviewer must see them separately.
+    expect(s3).toHaveLength(7)
     // `bucket.grantRead()` would add `s3:GetBucket*` on the WHOLE bucket. Still never that.
     expect(s3.filter((a) => a.startsWith("s3:GetBucket"))).toEqual([])
   })

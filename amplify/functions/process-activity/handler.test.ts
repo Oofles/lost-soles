@@ -195,10 +195,29 @@ const noCellWarnings = (): string[] =>
     .filter((line) => line.includes("trace-yielded-no-cells"))
 
 describe("what the handler does with the pipeline's four outcomes", () => {
+  it("warns, and still acks, when the post-commit skill-state snapshot was missed (0067)", async () => {
+    runPipeline.mockResolvedValue({
+      outcome: "persisted",
+      activityId: "a-1",
+      snapshot: { failed: "AccessDenied: denied" },
+      cells: null,
+      award: NO_CELLS,
+      blobs: null,
+      rejects: null,
+      timings: { credentialsMs: 1, fetchMs: 2, archiveMs: 3, normalizeMs: 4, gateMs: 5, cellsMs: 6, blobsMs: 0, persistMs: 8, totalMs: 21 },
+    })
+
+    await expect(handler(event())).resolves.toBeUndefined()
+    const warnings = vi.mocked(console.warn).mock.calls.map((c) => String(c[0])).filter((l) => l.includes("skillstate-snapshot-failed"))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("AccessDenied")
+  })
+
   it("acks a persisted activity", async () => {
     runPipeline.mockResolvedValue({
       outcome: "persisted",
       activityId: "a-1",
+      snapshot: { key: "snapshots/skillstate/u-1/t-0.json" },
       cells: { advanced: 4, backfilled: 0, unchanged: 0 },
       award: { ...NO_CELLS, cellCount: 4, newCellCount: 4 },
       blobs: null,
@@ -217,6 +236,7 @@ describe("what the handler does with the pipeline's four outcomes", () => {
     runPipeline.mockResolvedValue({
       outcome: "persisted",
       activityId: "a-1",
+      snapshot: { key: "snapshots/skillstate/u-1/t-0.json" },
       cells: { advanced: 0, backfilled: 0, unchanged: 0 },
       award: NO_CELLS,
       blobs: null,
@@ -238,6 +258,7 @@ describe("what the handler does with the pipeline's four outcomes", () => {
     runPipeline.mockResolvedValue({
       outcome: "persisted",
       activityId: "a-1",
+      snapshot: { key: "snapshots/skillstate/u-1/t-0.json" },
       cells: null,
       award: NO_CELLS,
       blobs: null,
@@ -254,6 +275,7 @@ describe("what the handler does with the pipeline's four outcomes", () => {
     runPipeline.mockResolvedValue({
       outcome: "persisted",
       activityId: "a-1",
+      snapshot: { key: "snapshots/skillstate/u-1/t-0.json" },
       cells: { advanced: 9, backfilled: 0, unchanged: 0 },
       award: { ...NO_CELLS, cellCount: 9, newCellCount: 9 },
       blobs: null,

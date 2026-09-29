@@ -117,6 +117,7 @@ const store = dynamoReplayStore({
     activity: tables.Activity,
   },
   blobs,
+  snapshots: { s3: s3 as never, bucket },
   loadTrace,
 })
 

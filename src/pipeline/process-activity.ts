@@ -11,7 +11,7 @@ import {
 } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
-import type { RuleSkill } from "@/src/rules/schema"
+import type { RuleSet } from "@/src/rules/schema"
 import {
   groundSplit,
   lookupFromClassified,
@@ -31,6 +31,7 @@ import {
 } from "./explored-cells"
 import {
   appendCellsToRun,
+  readManifest,
   regenerateExplored,
   type BlobStoreDeps,
   type RegenerateResult,
@@ -46,6 +47,7 @@ import {
 } from "./ingest-receipt"
 import type { PersistDeps } from "./persist"
 import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
+import { buildSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
 import { persistWithLedger, type LedgerCommit, type LedgerDeps } from "./xp-ledger"
 
 /**
@@ -234,6 +236,11 @@ export type ProcessResult =
        * delivery of an activity that already has rows awards nothing and reports their sum.
        */
       xp: LedgerCommit
+      /**
+       * `0067`. The `snapshots/skillstate/` object written after the commit, or why it was not.
+       * A failure is reported, never thrown: the ingest already committed (D-143, D-259).
+       */
+      snapshot: { key: string } | { failed: string }
     }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
@@ -302,7 +309,13 @@ export interface ProcessDeps<TCreds> {
    * (D-217) — the YAML cannot be read from inside a bundled Lambda, and T5 does not exist
    * until capability 09.
    */
-  registry: { version: number; skills: RuleSkill[] }
+  registry: Pick<RuleSet, "version" | "skills" | "curve">
+  /**
+   * `0067`. Where the post-commit `snapshots/skillstate/` object goes (D-143). Required: the one
+   * production caller must not be able to forget it, and a missed snapshot is only harmless
+   * because the next ingest writes another.
+   */
+  snapshots: SnapshotDeps
   /** Injected so timings are assertable. Wall clock; only differences are ever used. */
   clock?: () => number
   /**
@@ -559,6 +572,13 @@ export async function processActivity<TCreds>(
   )
   const persistMs = clock() - t3
 
+  /**
+   * `0067`. AFTER the transaction, never inside it, and never fatal: the activity is committed,
+   * and failing now would redeliver a message whose every write is already done. The next
+   * ingest writes the next snapshot.
+   */
+  const snapshot = await snapshotAfterIngest(activity.userId, blobs?.generation, deps)
+
   return {
     outcome: "persisted",
     activityId: ingest.activity.activityId,
@@ -567,6 +587,7 @@ export async function processActivity<TCreds>(
     blobs,
     rejects,
     xp,
+    snapshot,
     timings: {
       credentialsMs,
       fetchMs,
@@ -579,6 +600,32 @@ export async function processActivity<TCreds>(
       persistMs,
       totalMs: clock() - startedAt,
     },
+  }
+}
+
+/** Reads T2 as committed and writes the snapshot. Reports a failure instead of throwing it. */
+async function snapshotAfterIngest<TCreds>(
+  userId: string,
+  published: number | undefined,
+  deps: ProcessDeps<TCreds>,
+): Promise<{ key: string } | { failed: string }> {
+  try {
+    const generation = published ?? (await readManifest(userId, deps.blobs))?.manifest.generation ?? 0
+    const rows = await readShownRows(userId, { ddb: deps.ledger.ddb, table: deps.ledger.skillStateTable })
+    const key = await writeSnapshot(
+      buildSnapshot({
+        userId,
+        takenAt: new Date().toISOString(),
+        generation,
+        trigger: "ingest",
+        rules: deps.registry,
+        rows,
+      }),
+      deps.snapshots,
+    )
+    return { key }
+  } catch (e) {
+    return { failed: `${(e as Error)?.name ?? "Error"}: ${(e as Error)?.message ?? String(e)}` }
   }
 }
 

@@ -253,6 +253,18 @@ describe("the explored delivery layer in S3", () => {
    * statement would widen deletion to the manifest, the set, the sidecar and the aggregate
    * for one line of convenience, and there would be no diff later to notice it in.
    */
+  /**
+   * `0067`, D-143. The skill-state snapshot is system-of-record like `raw/`, so the worker may
+   * create one and do nothing else: no read-back, no list, no delete, and not under `users/*`.
+   */
+  it("grants PutObject ONLY on snapshots/skillstate/, in a statement of its own", () => {
+    const snap = s3Statements().find((s) => s.sid === "WriteSkillStateSnapshots")
+    expect(snap, "the snapshot grant must exist").toBeDefined()
+    expect(snap!.actions).toEqual(["s3:PutObject"])
+    expect(snap!.resource).toContain("snapshots/skillstate/*")
+    expect(snap!.resource).not.toContain("users/")
+  })
+
   it("grants delete ONLY on the deltas, in a statement of its own", () => {
     const gc = s3Statements().find((s) => s.sid === "ExpireExploredDeltas")
     expect(gc, "the delta GC grant must exist").toBeDefined()

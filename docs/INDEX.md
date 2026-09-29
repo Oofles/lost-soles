@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,590 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,601 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -120,7 +120,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,011 lines
+**02 — Data Model & Persistence** — 2,022 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -180,21 +180,21 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1617-1632` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
 | &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1633-1707` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
 | &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1708-1722` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1723-1915` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| 8. Retention, deletion, and the rebuild drill | `1723-1926` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
 | &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1729-1750` |  |
-| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1751-1772` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1773-1878` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `1879-1893` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `1894-1915` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `1916-2011` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `1932-1942` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `1943-1952` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `1953-1960` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `1961-1971` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `1972-1979` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `1980-1988` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `1989-1996` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `1997-2011` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1751-1783` | D-135 says replay may never lower already-displayed XP. |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1784-1889` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `1890-1904` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `1905-1926` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `1927-2022` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `1943-1953` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `1954-1963` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `1964-1971` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `1972-1982` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `1983-1990` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `1991-1999` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2000-2007` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2008-2022` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 

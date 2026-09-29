@@ -1621,6 +1621,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-29T18:09:07Z",
     "path": "tickets/open/0067-skillstate-snapshot-writer.md",
     "ready": true,
     "acceptance": {
@@ -5121,6 +5122,26 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 225,
+    "slug": "audit-xp-not-lower-compare-xp-against-snapshots-skillstate-i",
+    "title": "Audit xp-not-lower: compare XP against snapshots/skillstate/ instead of failing",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T18:16:15Z",
+    "path": "tickets/open/0225-audit-xp-not-lower-compare-xp-against-snapshots-skillstate-i.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

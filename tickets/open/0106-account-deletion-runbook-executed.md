@@ -89,6 +89,11 @@ A** (`08-security-privacy.md` §2.4). Create it, run the deletion, delete it, an
 sequence — do not leave it standing. If it is going to stand for more than the length of this
 test, the Trigger A gate opens and 0114 applies.
 
+- **2026-09-29 (agent, `0067`):** account deletion must also remove
+  `snapshots/skillstate/<uid>/`, the D-143 skill-state snapshots (D-259). The prefix is keyed by
+  Cognito `sub`, sits outside `users/*` and `raw/*`, and is versioned like the rest of the bucket,
+  so the step 6 noncurrent-version purge has to cover it too. The worker role has no delete there.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

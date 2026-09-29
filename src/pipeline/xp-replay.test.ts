@@ -26,6 +26,7 @@ import {
   type SkillStateWrite,
   type StoredSkillState,
 } from "@/src/pipeline/xp-replay"
+import { buildSnapshot, snapshotKey, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
 
 /**
  * Ticket 0066. `02-data-model.md` §4.4–§4.6; I-14, I-15, I-16, I-17.
@@ -237,6 +238,23 @@ class MemoryStore implements ReplayStore {
   async updateRun(run: ReplayRunRecord) {
     this.op("updateRun")
     this.runs.set(run.id, structuredClone(run))
+  }
+  /** `0067`. `snapshots/skillstate/<uid>/` — immutable, keyed by takenAt + generation. */
+  s3Snapshots = new Map<string, SkillStateSnapshot>()
+  async latestSnapshot() {
+    this.op("latestSnapshot")
+    const newest = [...this.s3Snapshots.keys()].sort().pop()
+    return newest === undefined ? undefined : structuredClone(this.s3Snapshots.get(newest)!)
+  }
+  async writeSnapshot(snapshot: SkillStateSnapshot) {
+    this.op("writeSnapshot")
+    const key = snapshotKey(snapshot)
+    if (this.s3Snapshots.has(key)) throw new Error("PreconditionFailed: IfNoneMatch")
+    this.s3Snapshots.set(key, structuredClone(snapshot))
+    return key
+  }
+  async currentGeneration() {
+    return this.generation
   }
   async readSkillStates() {
     this.op("readSkillStates")
@@ -620,5 +638,104 @@ describe("the freeze (§4.4 step 1) and the generation (step 4)", () => {
       xp += row?.displayedXp ?? 0
     }
     expect(store.profile).toEqual({ replayInProgress: false, totalXp: xp, totalLevel: level })
+  })
+})
+
+describe("the skill-state snapshot (0067, D-143)", () => {
+  /** What ingest's last post-commit snapshot would have held for this store. */
+  function ingestSnapshot(store: MemoryStore, takenAt = "2026-03-04T00:00:00.000Z"): SkillStateSnapshot {
+    return buildSnapshot({
+      userId: USER,
+      takenAt,
+      generation: store.generation,
+      trigger: "ingest",
+      rules: V1,
+      rows: [...store.skills.values()],
+    })
+  }
+
+  it("step 0 writes a pre-flight snapshot of SkillState before anything is frozen or cleared", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const shown = new Map([...store.skills.values()].map((s) => [s.skillId, s.displayedXp]))
+    await replayUser(USER, 2, deps(store, STINGY))
+
+    expect(store.ops.indexOf("writeSnapshot")).toBeLessThan(store.ops.indexOf("putRun"))
+    expect(store.ops.indexOf("writeSnapshot")).toBeLessThan(store.ops.indexOf("freeze"))
+    expect(store.ops.indexOf("writeSnapshot")).toBeLessThan(store.ops.indexOf("deleteLedger"))
+    const [[key, snap]] = [...store.s3Snapshots]
+    expect(key).toBe(`snapshots/skillstate/${USER}/${snap!.takenAt}-3.json`)
+    expect(snap).toMatchObject({ trigger: "replay-preflight", rulesVersion: 1, generation: 3 })
+    // Every registry skill, the untrained ones at level 1 / 0 XP.
+    expect(snap!.skills.map((s) => s.skillId)).toEqual(V1.skills.map((s) => s.id).sort())
+    for (const s of snap!.skills) expect(s.displayedXp).toBe(shown.get(s.skillId) ?? 0)
+  })
+
+  it("a resumed run writes no second snapshot — its waterline is the first attempt's", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    store.crash = (op, n) => (op === "mergeCells" && n === 1 ? new Error("killed") : undefined)
+    await expect(replayUser(USER, 2, deps(store, STINGY))).rejects.toThrow("killed")
+    store.crash = undefined
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.ops.filter((o) => o === "writeSnapshot")).toHaveLength(1)
+  })
+
+  it("a failed pre-flight snapshot stops the replay before the ReplayRun or the freeze", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    store.crash = (op) => (op === "writeSnapshot" ? new Error("AccessDenied") : undefined)
+    await expect(replayUser(USER, 2, deps(store, STINGY))).rejects.toThrow("AccessDenied")
+    expect(store.ops).not.toContain("putRun")
+    expect(store.ops).not.toContain("freeze")
+    expect(store.profile.replayInProgress).toBe(false)
+  })
+
+  it("with T2 TRUNCATED, step 0 takes the waterline from the newest snapshot — and nothing falls", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const older = ingestSnapshot(store, "2026-01-01T00:00:00.000Z")
+    older.skills = older.skills.map((s) => ({ ...s, displayedXp: 1 }))
+    store.s3Snapshots.set(snapshotKey(older), older)
+    const latest = ingestSnapshot(store)
+    store.s3Snapshots.set(snapshotKey(latest), latest)
+
+    store.skills.clear() // the truncation
+
+    const result = await replayUser(USER, 2, deps(store, STINGY))
+    const trained = latest.skills.filter((s) => s.displayedXp > 0)
+    expect(trained.length).toBeGreaterThan(0)
+    expect(result.run.waterline).toEqual(
+      Object.fromEntries(trained.map((s) => [s.skillId, { xp: s.displayedXp, level: s.levelHighWater }])),
+    )
+    expect(result.floors.length).toBeGreaterThan(0)
+    for (const s of latest.skills) expect(store.skills.get(s.skillId)?.displayedXp ?? 0).toBeGreaterThanOrEqual(s.displayedXp)
+
+    // The pre-flight snapshot restates the restored waterline, not the empty table — so a
+    // second failure cannot make "nothing was shown" the newest record.
+    const preflight = [...store.s3Snapshots.values()].find((s) => s.trigger === "replay-preflight")!
+    expect(preflight.skills).toEqual(latest.skills)
+  })
+
+  it("the rebuild drill (step 8, check 4): raw traces + the latest snapshot, every skill ≥ the snapshot", async () => {
+    const fx = fixture()
+    const live = new MemoryStore(fx, rulesFor(STINGY)).seedByIngest()
+    const latest = ingestSnapshot(live)
+
+    // A new, empty stack (02 §8.3): no T2, no T4, no T6. The cells are re-derived from the traces
+    // the archive holds; the snapshot is the only thing carried across.
+    const rebuilt = new MemoryStore(fx, rulesFor(STINGY))
+    for (const a of fx.activities) {
+      const trace = fx.traces.get(a.activityId)
+      if (trace && revealsGround(matchable(a), V1)) rebuilt.runCells.set(a.activityId, [...traceToCells(trace)])
+    }
+    rebuilt.s3Snapshots.set(snapshotKey(latest), latest)
+
+    await replayUser(USER, 2, deps(rebuilt, STINGY))
+
+    for (const s of latest.skills) {
+      const got = rebuilt.skills.get(s.skillId)
+      expect(got?.displayedXp ?? 0, s.skillId).toBeGreaterThanOrEqual(s.displayedXp)
+      expect(Math.max(got?.level ?? 1, got?.levelHighWater ?? 1), s.skillId).toBeGreaterThanOrEqual(s.levelHighWater)
+    }
+    // I-15 holds on the rebuilt stack too.
+    const sums = sumBySkill(rebuilt)
+    for (const [skillId, s] of rebuilt.skills) expect(s.displayedXp).toBe(sums.get(skillId) ?? 0)
   })
 })

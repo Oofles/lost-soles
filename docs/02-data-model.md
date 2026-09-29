@@ -1740,7 +1740,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `deltas/<toGen>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
 | T8 `IngestReceipt` | **TTL 90 days** | safe to expire: set semantics and the deterministic ledger `id` are the permanent backstops (§2 T8 layer 4) |
 | T7 `SourceAccount` tokens | **until disconnect, then deleted** | not rebuildable **and must not be** (§1.1). Recovery is re-authorisation, by design. |
-| `snapshots/skillstate/<uid>/<date>.json` | **forever** | §8.2 — the D-135 waterline. Small, and the one derived thing that is not re-derivable. |
+| `snapshots/skillstate/<uid>/<takenAt>-<generation>.json` | **forever** | §8.2 — the D-135 waterline. Small, and the one derived thing that is not re-derivable. |
 | CloudWatch logs | 30 days | operational only |
 
 **The purgeable column is theoretical.** Total five-year S3 footprint is ~1–2 GB, costing
@@ -1759,10 +1759,21 @@ silently lose the monotonicity waterline.** If the current ruleset is more gener
 past one, nothing is visible. If it is stricter, the rebuilt total is honestly lower than a number
 the user was once shown — a D-135 violation arriving through the back door.
 
-**Mitigation, and it is cheap:** a scheduled job writes
-`snapshots/skillstate/<uid>/<YYYY-MM-DD>.json` — every skill's `displayedXp`, `level`,
-`levelHighWater`, `rulesVersionLastComputed` — monthly and immediately before any replay or
-rebuild. A few hundred bytes per user per month; ~30 KB over five years. **The drill's step 6 reads
+**Mitigation, and it is cheap:** the system writes
+`snapshots/skillstate/<uid>/<takenAt>-<generation>.json` **after every successful ingest
+transaction** (outside it, never fatal) and **in replay step 0**, before anything is cleared
+(fatal there). Each object holds `userId`, `takenAt`, `rulesVersion`, `generation` (the published
+explored-map generation) and, for every registry skill including untrained ones,
+`{skillId, displayedXp, xpLedgerSum, level, levelHighWater, firstSeenRulesVersion}`. Written with
+`IfNoneMatch: "*"`, so each one is immutable. There is no scheduled job: a snapshot per ingest
+makes a monthly one redundant (D-259). About a kilobyte per ingest, which comes to a few MB over
+five years.
+
+**When `SkillState` is empty, replay step 0 takes its waterline from the newest snapshot**
+(`src/pipeline/xp-replay.ts`). A user with no XP has no snapshot either, so the waterline stays
+empty. Replay must run against the rebuilt tables before ingest resumes on them. An ingest into
+an empty T2 would write a low snapshot, and that snapshot would then be the newest one. §8.3
+already avoids this by rebuilding into a parallel stack. **The drill's step 6 reads
 the newest snapshot as its waterline.** With it, D-135 survives losing every table. Without it,
 D-135 is only as durable as DynamoDB PITR's 35-day window.
 

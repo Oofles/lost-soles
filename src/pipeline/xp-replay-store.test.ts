@@ -30,6 +30,7 @@ function recorder(reply: (c: unknown) => unknown = () => ({})) {
     },
     tables: TABLES,
     blobs: {} as ReplayStoreDeps["blobs"],
+    snapshots: {} as ReplayStoreDeps["snapshots"],
     loadTrace: async () => undefined,
   } satisfies ReplayStoreDeps
   return { sent, store: dynamoReplayStore(deps) }

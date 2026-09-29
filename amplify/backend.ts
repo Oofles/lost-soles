@@ -1125,6 +1125,25 @@ processActivityLambda.addToRolePolicy(
 )
 
 /**
+ * THE SKILL-STATE SNAPSHOT. `0067`, D-143, `02-data-model.md` §8.2.
+ *
+ * A THIRD PREFIX WITH A THIRD RULE. `snapshots/skillstate/*` is derived like `users/*` and
+ * system-of-record like `raw/*`: what the user was SHOWN is not re-derivable from the archive,
+ * so the D-135 waterline survives losing every table only through these objects.
+ *
+ * `PutObject` ONLY. The ingest writes one after every commit with `IfNoneMatch: "*"` and never
+ * reads one back — the reader is the replay job, which runs under the operator's credentials.
+ * No `GetObject`, no list, no delete. Outside `users/*`, so no browser grant reaches it either.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteSkillStateSnapshots",
+    actions: ["s3:PutObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*")],
+  }),
+)
+
+/**
  * DELTA GARBAGE COLLECTION. `0051`, `02-data-model.md` §6.5 — deltas are kept for ~20
  * generations and dropped after that.
  *

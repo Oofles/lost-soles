@@ -91,6 +91,10 @@ function ingestOf(over: Options["ingest"] = {}): NormalizedIngest {
 const INGEST = ingestOf()
 
 interface Options {
+  /** `0067`. Makes the post-commit snapshot PUT throw. */
+  snapshotFails?: Error
+  /** `0067`. What T2 holds when the snapshot reads it back. Empty by default. */
+  skillStates?: Record<string, unknown>[]
   /** What the score gate answers. `claimed` by default. */
   claim?: { kind: "claimed" } | { kind: "duplicate"; attributes: Record<string, unknown> }
   fetchRaw?: () => Promise<never>
@@ -162,6 +166,8 @@ function rig(options: Options = {}) {
   /** `0062`. Every transaction sent, and every T4/T2 read, in order. */
   const transacts: TransactWriteCommand["input"][] = []
   const ledgerReads: string[] = []
+  /** `0067`. Every `snapshots/skillstate/` PUT. Kept out of `calls`: it is not a phase. */
+  const snapshotPuts: PutObjectCommand["input"][] = []
   let ticks = 0
   const clock = () => {
     ticks += 1
@@ -362,9 +368,20 @@ function rig(options: Options = {}) {
           const table = String(command.input.TableName)
           ledgerReads.push(table)
           if (table === LEDGER_TABLE) return { Items: options.ledgerExisting ?? [] }
-          return { Items: [] }
+          return { Items: command.input.ConsistentRead && options.skillStates ? options.skillStates : [] }
         },
       },
+    },
+    snapshots: {
+      bucket: BUCKET,
+      s3: {
+        async send(command: PutObjectCommand) {
+          expect(command).toBeInstanceOf(PutObjectCommand)
+          if (options.snapshotFails) throw options.snapshotFails
+          snapshotPuts.push(command.input)
+          return {}
+        },
+      } as never,
     },
   }
 
@@ -414,7 +431,7 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts, transacts, ledgerReads }
+  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts, transacts, ledgerReads, snapshotPuts }
 }
 
 describe("the fixed order", () => {
@@ -1515,5 +1532,70 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
     const refused = rig({ ingest: RUN, persistFails: () => stolen })
     await expect(processActivity(JOB, refused.deps)).rejects.toBe(stolen)
     expect(refused.transacts).toHaveLength(1)
+  })
+})
+
+describe("the skill-state snapshot after the commit (0067, D-143)", () => {
+  const RUN = { hasTrace: true, trace: TRACE, distanceM: 280 }
+  const REGISTRY_IDS = REGISTRY.skills.map((s) => s.id).sort()
+
+  it("writes one immutable object under snapshots/skillstate/<uid>/<takenAt>-<generation>.json, after the transaction", async () => {
+    const { deps, snapshotPuts, transacts } = rig({
+      ingest: RUN,
+      skillStates: [{ userId: "u-1", skillId: "wayfaring", displayedXp: 28, xpLedgerSum: 28, firstSeenRulesVersion: 1 }],
+    })
+    let transactsAtSnapshot = -1
+    const put = deps.snapshots.s3.send.bind(deps.snapshots.s3)
+    deps.snapshots.s3 = { send: (c: never) => ((transactsAtSnapshot = transacts.length), put(c)) } as never
+
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    expect(transactsAtSnapshot).toBe(1)
+    expect(snapshotPuts).toHaveLength(1)
+    const put0 = snapshotPuts[0]!
+    expect(put0.IfNoneMatch).toBe("*")
+    // The generation this ingest just published.
+    expect(put0.Key).toMatch(/^snapshots\/skillstate\/u-1\/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z-1\.json$/)
+    expect(result.snapshot).toEqual({ key: put0.Key })
+  })
+
+  it("carries every field for every registry skill, level 1 / 0 XP included", async () => {
+    const { deps, snapshotPuts } = rig({
+      ingest: RUN,
+      skillStates: [{ userId: "u-1", skillId: "wayfaring", displayedXp: 28, xpLedgerSum: 28, firstSeenRulesVersion: 1 }],
+    })
+    await processActivity(JOB, deps)
+    const body = JSON.parse(String(snapshotPuts[0]!.Body))
+
+    expect(body).toMatchObject({ userId: "u-1", rulesVersion: 1, generation: 1, trigger: "ingest" })
+    expect(typeof body.takenAt).toBe("string")
+    expect(body.skills.map((s: { skillId: string }) => s.skillId)).toEqual(REGISTRY_IDS)
+    for (const s of body.skills) {
+      expect(Object.keys(s).sort()).toEqual(
+        ["displayedXp", "firstSeenRulesVersion", "level", "levelHighWater", "skillId", "xpLedgerSum"],
+      )
+    }
+    expect(body.skills.find((s: { skillId: string }) => s.skillId === "wayfaring")).toMatchObject({
+      displayedXp: 28,
+      xpLedgerSum: 28,
+    })
+    const untrained = body.skills.find((s: { skillId: string }) => s.skillId !== "wayfaring")
+    expect(untrained).toMatchObject({ displayedXp: 0, xpLedgerSum: 0, level: 1, levelHighWater: 1 })
+  })
+
+  it("a traceless activity bumps no generation, so the snapshot names the manifest's", async () => {
+    const { deps, snapshotPuts } = rig({ ingest: { kind: "run", hasTrace: false } })
+    await processActivity(JOB, deps)
+    // The rig has no manifest: generation 0.
+    expect(snapshotPuts[0]!.Key).toMatch(/-0\.json$/)
+  })
+
+  it("a failed snapshot never fails the ingest — it is reported, and the activity is committed", async () => {
+    const { deps, transacts } = rig({ ingest: RUN, snapshotFails: Object.assign(new Error("denied"), { name: "AccessDenied" }) })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(transacts).toHaveLength(1)
+    expect(result.snapshot).toEqual({ failed: "AccessDenied: denied" })
   })
 })

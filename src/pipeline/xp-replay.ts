@@ -21,6 +21,7 @@ import {
 } from "@/src/scoring"
 
 import { lastRunDay } from "./explored-cells"
+import { buildSnapshot, waterlineOfSnapshot, type SkillStateSnapshot } from "./skillstate-snapshot"
 
 /**
  * THE XP REPLAY — A REBALANCE. Ticket `0066`. `02-data-model.md` §4.4–§4.6; D-135, D-142,
@@ -31,7 +32,9 @@ import { lastRunDay } from "./explored-cells"
  * and resumable.
  *
  * ```
- * 0 PRE-FLIGHT  waterline from SkillState, snapshotted into ReplayRun (status RUNNING)
+ * 0 PRE-FLIGHT  waterline from SkillState — or, when T2 is empty, from the newest
+ *               snapshots/skillstate/ object (D-143) — written to S3 as a snapshot, then into
+ *               ReplayRun (status RUNNING)
  * 1 FREEZE      Profile.replayInProgress = true
  * 2 CLEAR       delete every T4 row with isFloor = false. Floors, ReplayRuns and the rows of
  *               TOMBSTONED activities survive.
@@ -98,6 +101,7 @@ export type ReplayActivity = Activity & { status: string }
 /** A T2 row as the replay reads and writes it. */
 export interface StoredSkillState extends ShownState {
   xpLedgerSum: number
+  firstSeenRulesVersion?: number
   firstXpAt?: string
   lastXpAt?: string
   rulesVersionLastComputed?: number
@@ -129,6 +133,16 @@ export interface ReplayStore {
   updateRun(run: ReplayRunRecord): Promise<void>
 
   readSkillStates(userId: string): Promise<StoredSkillState[]>
+
+  /**
+   * Step 0, `0067`. The newest `snapshots/skillstate/` object — the D-135 waterline when T2 is
+   * empty (a table rebuild, a region move, the drill). `undefined` when none was ever written.
+   */
+  latestSnapshot(userId: string): Promise<SkillStateSnapshot | undefined>
+  /** Step 0, `0067`. Immutable; returns the key. */
+  writeSnapshot(snapshot: SkillStateSnapshot): Promise<string>
+  /** The published explored-map generation (`manifest.json`); 0 before the first publish. */
+  currentGeneration(userId: string): Promise<number>
   writeSkillStates(userId: string, rows: readonly SkillStateWrite[], at: string): Promise<void>
 
   /** Step 1. Creates the T1 row if there is none. */
@@ -213,7 +227,28 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
   }
   if (run === undefined) {
     const states = await store.readSkillStates(userId)
-    const fromVersion = fromVersionOf(states, toVersion)
+    /**
+     * T2 EMPTY IS NOT "NOTHING WAS SHOWN" (D-143). After a table rebuild it means the record of
+     * what was shown lives only in S3, so the newest snapshot stands in for T2. A user who really
+     * has never earned XP has no snapshot either, and the waterline is empty as before.
+     */
+    const restored = states.length === 0 ? await store.latestSnapshot(userId) : undefined
+    const fromVersion = restored?.rulesVersion ?? fromVersionOf(states, toVersion)
+    const from = deps.rules(fromVersion)
+    const waterline = restored ? waterlineOfSnapshot(restored) : waterlineOf(states, from.curve)
+
+    // The pre-flight snapshot, before anything is cleared. Fatal here, unlike ingest's: a
+    // rebalance does not start without a durable record of what it must not lower.
+    const preflight = await store.writeSnapshot(
+      buildSnapshot({
+        userId,
+        takenAt: at(),
+        generation: await store.currentGeneration(userId),
+        trigger: "replay-preflight",
+        rules: from,
+        rows: restored ? restored.skills : states,
+      }),
+    )
     run = {
       id: `REPLAY#${userId}#${(deps.newId ?? (() => sortableId(now())))()}`,
       userId,
@@ -221,10 +256,13 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       toRulesVersion: toVersion,
       startedAt: at(),
       status: "RUNNING",
-      waterline: waterlineOf(states, deps.rules(fromVersion).curve),
+      waterline,
     }
     await store.putRun(run)
-    log(`step 0: ${run.id} v${fromVersion} → v${toVersion}, waterline over ${Object.keys(run.waterline).length} skills`)
+    log(
+      `step 0: ${run.id} v${fromVersion} → v${toVersion}, waterline over ${Object.keys(run.waterline).length} skills ` +
+        `(${restored ? `restored from ${restored.takenAt}` : "from SkillState"}); snapshot ${preflight}`,
+    )
   } else {
     run = { ...run, status: "RUNNING", error: undefined }
     await store.updateRun(run)
