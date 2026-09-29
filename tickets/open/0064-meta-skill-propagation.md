@@ -81,19 +81,103 @@ Constitution at 1/3 across five activity skills is what makes Total Level move o
 individual skill does. If it ever needs rebalancing, that is a YAML edit plus a replay (0066),
 not a code change — which is the property this ticket is really protecting.
 
+## Resolution
+
+**Code commit `f1eabf4`.** Before starting, the operator approved three design corrections.
+All three are recorded.
+
+**Files**
+- `src/scoring/propagate.ts` (new):
+  - `discoveryRows(award, skills)` turns `newCellCount` / `rearmedCellCount` into `cells_new` /
+    `cells_rearmed` rows. It finds the skill as whichever enabled row carries `unitMultipliers`,
+    never by name.
+  - `feedRows(rated, skills)` sums `xpAwarded × feeds[].rate` over the rated **activity** rows,
+    per target.
+  - `scoreWithPropagation(activityRows, award, ctx)` rates the activity rows, derives the meta
+    rows, then rates the whole set in one `ledgerEntries` call so `seq` numbers all of it. The
+    activity rows are rated twice; that is deterministic and cheap.
+- `src/pipeline/process-activity.ts`: the ingest score now calls `scoreWithPropagation` with
+  the same `award` the cells were classified into. The meta rows ride in the existing
+  `persistWithLedger` transaction (`05` §8.2).
+- `src/rules/validate.ts`: a new `META_FEEDS:` error for any non-empty `feeds` on a `kind: meta`
+  row. The existing cycle check passed Cartography → Constitution because it is acyclic. That
+  gap is what the criterion was really about.
+- Tests:
+  - `src/scoring/propagate.test.ts` (16): the share rate follows the data; the post-multiplier
+    half; one share row for a two-skill session; a meta award never feeds; a meta row's feeds
+    are not followed even when forced past the validator; recent-only emits 0 rows (count
+    asserted); zero-multiplier and disabled skills emit nothing; a source scan for share
+    literals and skill ids; and the three worked examples.
+  - `validate.test.ts`: `META_FEEDS` via both `validateRuleSet` and `assertValidRuleSet`.
+- Two `process-activity.test.ts` cases from `0062` hard-coded a single ledger row. They now
+  expect Wayfaring + `cells_new` + `constitution_share` (traced) and `distance` + share
+  (traceless).
+
+**Decisions**
+- **D-255 — one `constitution_share` row per activity, summed over its feeders.** Criterion 4
+  asked for one row per feeding skill, but T4's id is `activity#skill#reason#v`, so the second
+  row collides. `units` records the feeder XP that fed it (240 for 30 pushups + 40 situps).
+  Criteria 1 and 4 were amended, and so was `02` §4.2's reason table.
+- **D-256 — `Math.round`, not floor.** `04` §3.4, §8.1 and §8.2 floored each row; I-19 and the
+  shipped `0062` round. The doc was amended: Example A is now 578 / 384 / 193 (was 576 / 383 /
+  192). §8.3's parity line moves from "within 2%" to "within 3%" (1,155 vs 1,120). §8.3's parity
+  table had also carried a stale `375` for Example A's Cartography; that is fixed too.
+- The criteria's **15 XP/cell** was stale (13 since D-215). The code reads `xpPerUnit`, so
+  only the text changed. The ticket's own worked example is not in `04`, so it is asserted
+  alongside §8.2 and §8.3 rather than instead of them.
+- `02` §3.8 check 2 now states the meta-feeds rule.
+
+**What went wrong / left over**
+- My first "half the share" test compared `round(fresh/2)` with `round(half)`: 84 vs 83. The
+  test was wrong about double rounding, not the code; it now asserts both shares against the
+  rate directly.
+- `src/domain/discovery.ts` still hardcodes `CREDIT_NEW` / `CREDIT_REARM` for
+  `discoveryCredits`, which `fold.ts` sums. The ticket's Notes wanted one rate lookup. Filed as
+  **`0221`** rather than widening this ticket; it matters once the replay job (`0066`) reads
+  credits.
+- `tickets.mjs create` silently ignored `--depends-on 64`, so `0221` records the dependency in
+  its Notes.
+
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Nothing here needs the operator yet** (D-181/D-229). The screen the original text names,
+`/run/:activityId`, is still a `Stub` (`app/run/[activityId]/page.tsx`), so there is no tally to
+look at. Everything below was run by the agent on 2026-09-28 against account `286588821906`.
 
-On the **`/run/:activityId` post-run tally** in the desktop browser, immediately after importing an
-8–9 km activity over mostly new ground (replayed or synthetic — manual adapter or through the
-queue, D-229): the parchment ledger must list Wayfaring, Cartography **and**
-Constitution as separate rows. Check by eye that the Constitution row is about a third of the
-Wayfaring row. Then open `/log`, log 30 pushups and 40 situps in one session, and confirm the
-tally shows **four** rows — Might, Fortitude, and a Constitution share for each — not three.
+**Automated.**
+- `npm run typecheck` and `npm run lint` are clean.
+- All 125 test files pass (2,316 tests).
+- `check-boundaries` and `check-skills` pass, and so does the decisions-register test.
+- `tickets.mjs validate` reports 0 errors.
+
+**Live smoke test: 12/12, on real DynamoDB.** The script drove the shipped path
+(`scoreUnits → scoreGround → scoreWithPropagation → persistWithLedger`) into the deployed
+`Activity-…`, `XpLedgerEntry-…`, `SkillState-…` and `LostSolesIngestReceipt` tables, as the
+synthetic user `smoke-0064-<ts>`. Every row was deleted afterwards; 0 ledger and 0 SkillState
+rows remained.
+
+| # | What it proved |
+|---|---|
+| 1 | **`04` §8.2** (8.368 km; 25 new / 9 re-armed / 30 recent cells) wrote exactly six rows in §8.2's order: `wayfaring` 318 / 63 / 197, `cartography` `cells_new` 325 / `cells_rearmed` 59, `constitution_share` 193. The result was 1,155 XP, 6 rows. The 30 recent cells wrote no row. |
+| 2 | A `/log`-shaped session (30 pushups + 40 situps) wrote `might` 120, `fortitude` 120 and **one** `constitution_share` of 80, with `units: 240` (D-255). |
+| 3 | Re-delivering the run as all-recent wrote 0 rows (`alreadyScored`). D-254 holds with propagated rows. |
+| 4 | SkillState per skill: wayfaring 578, cartography 384, constitution 273, might 120, fortitude 120. `xpLedgerSum == displayedXp` on each. I-15 holds: Σ ledger = 1,475 over 9 rows. |
+
+**Deployed worker.** Amplify job 241 (commit `f1eabf4`) SUCCEEDED. The
+`processactivitylambda` was redeployed at 03:16 UTC, and an invoke with `{"Records":[]}`
+returned 200 with no `FunctionError`, so the module loads with the new scoring import.
+
+**Not exercised: a real activity through the queue.** The reason is the same as `0062`'s: a
+`reingest` of an archived run would reclassify as `recent` and write distorted permanent XP for
+the real account (`0220`). The first real import after this deploy is the end-to-end check;
+read the `xp` line in the worker's `process-activity` log (expect `rowsWritten` ≈ 5–6 for a run).
+
+**★ Deferred perceptual check ★** — belongs to the ticket that builds the post-run tally
+(capability 12). There, on the desktop browser: after a mostly-new run, Wayfaring, Cartography
+and Constitution appear as separate lines, with Constitution about a third of Wayfaring. After
+logging 30 pushups + 40 situps, **three** lines appear: Might, Fortitude, and one Constitution
+(D-255 amended this from four).
+
+> Original author's intent, kept as context: *the parchment ledger must list Wayfaring,
+> Cartography and Constitution as separate rows … log 30 pushups and 40 situps … four rows.*
+> Superseded in its count by D-255.
