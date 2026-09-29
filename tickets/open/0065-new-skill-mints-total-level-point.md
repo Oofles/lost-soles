@@ -47,24 +47,24 @@ ticket provides the signal, the contract and the tests; that capability wires it
 
 ## Acceptance criteria
 
-- [ ] `SkillState` carries `firstSeenRulesVersion` (and `firstSeenAt` for audit), written on row
+- [x] `SkillState` carries `firstSeenRulesVersion` (and `firstSeenAt` for audit), written on row
       creation only and never updated afterwards.
-- [ ] `totalLevelDelta` excludes every skill whose `firstSeenRulesVersion` equals the version
+- [x] `totalLevelDelta` excludes every skill whose `firstSeenRulesVersion` equals the version
       being applied, and includes every other skill.
-- [ ] `celebrableLevelUps` returns no event for a skill seen for the first time in this ruleset
+- [x] `celebrableLevelUps` returns no event for a skill seen for the first time in this ruleset
       version, and returns the correct events for every other skill in the same batch.
-- [ ] **The headline test:** seed a ruleset, replay, snapshot Total Level. Add **one** skill row
+- [x] **The headline test:** seed a ruleset, replay, snapshot Total Level. Add **one** skill row
       (and only a row) to the ruleset, re-seed, replay. Assert Total Level rose by **exactly the
       number of skills added** *and* that `celebrableLevelUps` returned an **empty** list and
       `totalLevelDelta` returned **0**.
-- [ ] The same test with **three** rows added asserts a rise of exactly 3 and zero events.
-- [ ] A minted point that crosses a Total Level milestone suppresses the milestone; the next
+- [x] The same test with **three** rows added asserts a rise of exactly 3 and zero events.
+- [x] A minted point that crosses a Total Level milestone suppresses the milestone; the next
       genuinely-earned point fires it.
-- [ ] No ledger row is written for a minted point — `SUM(ledger)` for the new skill is 0 and
+- [x] No ledger row is written for a minted point — `SUM(ledger)` for the new skill is 0 and
       `displayedXp == SUM(ledger)` still holds (I-15).
-- [ ] The scoring layer contains **no** clamp, suppression flag or special case for new skills;
+- [x] The scoring layer contains **no** clamp, suppression flag or special case for new skills;
       `grep` for the guard finds it only in the notification/derivation module.
-- [ ] A mixed case is covered: a replay that both adds a skill **and** genuinely levels an
+- [x] A mixed case is covered: a replay that both adds a skill **and** genuinely levels an
       existing skill fires events for the latter only.
 
 ## Notes
@@ -83,17 +83,107 @@ other.
 
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Nothing here needs the operator yet** (D-181/D-229). The screen the original text names,
+`/run/:activityId`, is still a stub, so there is no level-up card to watch not appear. Everything
+below was run by the agent on 2026-09-28 against account `286588821906`.
 
-On the **`/run/:activityId` post-run moment** in the desktop browser, after importing an activity (D-229): this is validated by what you **do not** see. Deploy a ruleset with one new
-workout type added, then import an ordinary activity (replayed or synthetic, manual adapter or through the queue,
-D-229) and open the post-run sequence. The tally may
-show the usual rows; **no level-up card may appear for the new skill**, and the Total Level line
-must not flash a milestone. Then open `/skills` and confirm the new tile is present at level 1
-and the TOTAL LEVEL headline is one higher than before — quietly.
+**Automated.**
+- `npm run typecheck` and `npm run lint` are clean.
+- All 126 test files pass (2,338 tests).
+- `check-boundaries`, `check-adapter-deletion`, `build-rules-json --check`, the `docs/INDEX.md`
+  check and the other gate scripts pass.
+- `tickets.mjs validate` reports 0 errors.
+
+**Live smoke test: 5/5, on real DynamoDB.** The script ran the shipped path
+(`scoreUnits → scoreGround → scoreWithPropagation → persistWithLedger`) into the deployed
+`Activity-…`, `XpLedgerEntry-…`, `SkillState-…` and `LostSolesIngestReceipt` tables, as the
+synthetic user `smoke-0065-<ts>`. Afterwards it deleted 8 ledger rows, 3 SkillState rows,
+4 Activity rows and 4 receipts, and 0 remained.
+
+| # | What it proved |
+|---|---|
+| 1 | The creating `ADD` stamped `firstSeenRulesVersion: 1` and `firstSeenAt` = the activity's `startedAt`. |
+| 2 | A later commit and a backfilled earlier one left both stamps unmoved, while `firstXpAt` moved to the earlier `min` as it should. |
+| 3 | A reps skill set to `introducedIn: 3` in a validated v5 was stamped `3`, while `rulesVersionLastComputed` was `5`. |
+| 4 | I-15 held on the real tables: `displayedXp == xpLedgerSum == SUM(ledger)` for all 3 skills over 8 rows. |
+| 5 | Using the real `SkillState`: with one row added in v2, Total Level rose by 1, `celebrableLevelUps` was empty and `totalLevelDelta` was 0. |
+
+**Deployed worker.** Amplify job 243 (commit `54b19d3`) SUCCEEDED. The `processactivitylambda`
+was redeployed at 03:40 UTC. An invoke with `{"Records":[]}` returned 200 with no `FunctionError`.
+
+**★ Deferred perceptual check ★** belongs to the capability `12` ticket that wires
+`celebrate.ts` into the level-up cards. There, on the desktop browser: deploy a ruleset with one
+new row and import an ordinary activity. The post-run sequence must show **no** level-up card for
+the new skill and **no** Total Level milestone flash. `/skills` must show the new tile at level 1
+and a TOTAL LEVEL headline one higher, quietly.
+
+## Resolution
+
+**The design gap, settled with the operator before any code (D-257).** The ticket asked for
+`firstSeenRulesVersion` stamped "on row creation, from the registry version that introduced the
+skill". Neither half existed. `SkillState` rows are created by the first XP `ADD`, not when a
+skill ships, and registry rows carried no version. Stamping the version doing the scoring would
+make a skill added in v3 and first trained under v5 look minted in v5, which swallows its first
+real level-up: the failure the Notes warn about. So:
+
+- **`introducedIn` on every `RuleSkill` row.** It is required with no default, and the validator
+  enforces `1 ≤ introducedIn ≤ version`. All ten v1 rows are `introducedIn: 1`. It was added to
+  `rules/xp-rules-v1.yaml`, the regenerated `.json`, `04` §1.3's schema example (the doc-schema
+  test validates it) and `02` §3.2.
+- **"Minted" means `introducedIn > before.rulesVersion`**, not "equals the version being applied",
+  so two versions shipping between runs are both caught. `09-roadmap.md` §5.2 is amended to match.
+
+**Files.**
+- `src/rules/schema.ts`, `src/rules/validate.ts`: the field, and `validateIntroducedIn`.
+- `src/pipeline/xp-ledger.ts`: the `SkillState` `ADD` now sets
+  `firstSeenRulesVersion = if_not_exists(…, :intro)` and `firstSeenAt = if_not_exists(…, :seen)`.
+  `:intro` is the row's `introducedIn`; `:seen` is the creating activity's `startedAt`, never the
+  clock (I-12). `ledgerTransactItems` and `persistWithLedger` take the registry `skills`. A
+  scored skill missing from them throws rather than guess a value that would be stamped for ever.
+  `process-activity.ts` passes `deps.registry.skills`.
+- `amplify/data/resource.ts`: `firstSeenRulesVersion` and `firstSeenAt` added to the `SkillState`
+  model. `02` T2 is documented.
+- **`src/scoring/celebrate.ts` (new)** provides `totalLevelDelta`, `celebrableLevelUps` and
+  `celebrableMilestones`. It is pure and exported from `src/scoring`. The guard is one function,
+  `mintedSince`.
+  - A minted skill yields no event at any level, including XP it earned in the diff that first
+    scored it. The next diff, taken under the new ruleset, treats it normally.
+  - A milestone fires when the displayed total is at or past it, it has not fired before, and the
+    diff has at least one earned level.
+  - The milestone ladder and `lastCelebrated` are the caller's (`12`) to keep and pass in, so no
+    milestone number is written in `09`.
+- The scoring layer is untouched: `units`, `ground`, `propagate`, `ledger` and `levels` contain no
+  clamp or special case.
+
+**Tests.**
+- `src/scoring/celebrate.test.ts`, 13 tests:
+  - the headline with 1 and 3 rows added, using a real replay through
+    `scoreUnits → scoreGround → scoreWithPropagation` under v1, then under a validated v2;
+  - no ledger row for the new skill, and all other XP identical;
+  - the mixed case;
+  - a minted skill trained in the same diff;
+  - the first real level-up after the snapshot settles;
+  - an untrained OLD skill's first level-up celebrating (the "not XP == 0" case);
+  - two versions shipped between runs;
+  - milestone suppression, firing on the next earned point, and no re-fire;
+  - a source grep proving only `celebrate.ts` compares `introducedIn` against a version, and
+    that the five scorer modules never mention it.
+- `xp-ledger.test.ts` covers stamp semantics, v3-seen/v5-scored, refusal of an unknown skill,
+  and the stamp surviving later and backfilled commits through the fake DynamoDB.
+- `validate.test.ts` covers missing, non-integer or zero values, and values from the future.
+
+**Criterion notes, honestly.**
+- "Re-seed, replay" is done in memory. The replay job is `0066`. A re-seed here is
+  `validateRuleSet` passing, which is the seeder's gate.
+- The I-15 criterion is proven two ways: purely (no ledger row for the new skill), and on real
+  DynamoDB in the smoke test below.
+- Everything passed first run. That made me check the tests were not vacuous: the headline
+  asserts the before-total is above the all-level-1 floor, and the milestone test asserts the
+  minted point lands exactly on the rung.
+
+**Found, and filed rather than widened.**
+- **`0222`** (capability `12`): flipping a row from `enabled: false` to `true` (Slayer, D-122)
+  also mints a point, and `introducedIn` cannot see it. The criterion "includes every other
+  skill" forbade handling it here.
+- Tooling: `tickets.mjs create --priority medium` succeeds, and then `validate` rejects it
+  (`high|med|low`). I fixed 0222's frontmatter by hand. It is minor and not filed.
