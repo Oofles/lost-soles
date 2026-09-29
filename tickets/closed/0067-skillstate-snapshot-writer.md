@@ -4,7 +4,7 @@ slug: skillstate-snapshot-writer
 title: snapshots/skillstate/ writer — the one documented exception to D-101
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [62, 63, 66]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-29T18:09:07Z
+closed: 2026-09-29T18:30:12Z
 ---
 
 ## Description
