@@ -4,7 +4,7 @@ slug: audit-xp-not-lower-compare-xp-against-snapshots-skillstate-i
 title: Audit xp-not-lower: compare XP against snapshots/skillstate/ instead of failing
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T18:16:15Z
 started: 2026-09-29T21:22:25Z
+closed: 2026-09-29T21:25:21Z
 ---
 
 ## Description
