@@ -1444,6 +1444,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-29T01:14:43Z",
     "path": "tickets/open/0060-scorer-select-activity-skills.md",
     "ready": true,
     "acceptance": {
@@ -4931,6 +4932,28 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 217,
+    "slug": "validator-refuses-derived-measure-on-activity-row",
+    "title": "Validator refuses a derived measure (cells/share) on a kind: activity row",
+    "type": "bug",
+    "priority": "medium",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      60
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T01:18:03Z",
+    "path": "tickets/open/0217-validator-refuses-derived-measure-on-activity-row.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
