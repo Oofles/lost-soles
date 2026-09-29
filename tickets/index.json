@@ -1544,6 +1544,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-29T03:06:50Z",
     "path": "tickets/open/0064-meta-skill-propagation.md",
     "ready": true,
     "acceptance": {
@@ -5029,6 +5030,26 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 221,
+    "slug": "discovery-credit-constants-read-from-the-cartography-row-not",
+    "title": "Discovery credit constants read from the Cartography row, not discovery.ts",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T03:12:47Z",
+    "path": "tickets/open/0221-discovery-credit-constants-read-from-the-cartography-row-not.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

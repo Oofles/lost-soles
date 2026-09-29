@@ -167,7 +167,27 @@ describe("criterion 6 — the seven rejections", () => {
     })
     expect(errs.some((e) => e.message.includes("cycle"))).toBe(true)
   })
+
+  it("0064 — rejects ANY feeds on a meta row, even an acyclic one, by name", () => {
+    // Cartography → Constitution has no cycle, so the check above would pass it. Propagation
+    // is one level deep: the scorer never follows a meta row's feeds, so they must not exist.
+    const errs = broken((r) => {
+      find(r, "cartography").feeds = [{ skill: "constitution", rate: 0.5 }]
+    })
+    expect(errs.some((e) => e.message.includes("cycle"))).toBe(false)
+    const meta = errs.find((e) => e.path === `skills[${at("cartography")}].feeds`)
+    expect(meta?.message).toMatch(/^META_FEEDS:/)
+    expect(() => assertValidRuleSet(broken2((r) => {
+      find(r, "cartography").feeds = [{ skill: "constitution", rate: 0.5 }]
+    }))).toThrow(/META_FEEDS/)
+  })
 })
+
+function broken2(mutate: (r: Record<string, unknown>) => void): Record<string, unknown> {
+  const r = clone()
+  mutate(r)
+  return r
+}
 
 describe("D-189 — revealsGround is required, never defaulted", () => {
   it("rejects an activity row that omits it", () => {

@@ -391,6 +391,14 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
     const feeds = s.feeds
     if (feeds !== undefined && !Array.isArray(feeds)) {
       errs.push({ path: `skills[${i}].feeds`, message: "must be an array" })
+    } else if (s.kind === "meta" && (feeds ?? []).length > 0) {
+      // 0064 — propagation is ONE LEVEL DEEP. A meta skill's own award feeds nothing, and the
+      // scorer has no loop that would follow it; saying so here is what makes that safe. Not a
+      // cycle check: Cartography feeding Constitution is acyclic and still wrong.
+      errs.push({
+        path: `skills[${i}].feeds`,
+        message: "META_FEEDS: must be empty on a `kind: meta` row — propagation is one level deep, never recursive",
+      })
     } else {
       ;(feeds ?? []).forEach((f, j) => {
         const path = `skills[${i}].feeds[${j}].skill`

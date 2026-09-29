@@ -767,7 +767,10 @@ any future rebalance.
 
 ### 3.4 Constitution
 
-`ConstitutionXP = floor( Σ (activity-skill XP awarded this session) / 3 )`.
+`ConstitutionXP = round( Σ (each activity-skill row's awarded XP × its feeds[].rate) )`, with
+`rate: 0.3333` on every activity row. **One `constitution_share` row per activity**, however
+many skills fed it (D-255); rounded once, like every ledger row (I-19, D-256 — this line said
+`floor(Σ / 3)` until ticket `0064`).
 
 Computed on **post-multiplier** XP — i.e. after the ground multipliers and after any soft caps.
 Meta-skill XP (Cartography, Slayer) does **not** feed Constitution: Constitution is total
@@ -1287,7 +1290,7 @@ Unambiguous, end-to-end. This is the section to build from. All numbers use
 6. Accumulate distance per class; accumulate distinct cells per class
 7. Award Wayfaring:    Σ (class distance × 100 × classMultiplier)
 8. Award Cartography:  13 × newCells + 6.5 × rearmedCells
-9. Award Constitution: floor(activitySkillXP / 3)
+9. Award Constitution: round(Σ activitySkillXP × feeds[].rate)     [§3.4, D-255]
 10. Write CellVisit rows (append-only)                              [D-020]
 11. Write XpLedger rows; recompute SkillState                       [§7.3]
 12. (post-MVP) Resolve encounters, apply boss damage                [§5]
@@ -1317,15 +1320,16 @@ assumed 6.5 cells/km; D-215 corrected the density and they were rescaled with it
 **Step 7 — Wayfaring.**
 
 ```
-new       3.180 km × 100 XP/km × 1.0  = 318.0  → floor → 318
-rearmed   1.255 km × 100 XP/km × 0.5  =  62.75 → floor →  62   (D-120: re-run ground is half)
-recent    3.933 km × 100 XP/km × 0.5  = 196.65 → floor → 196   (D-120: re-run ground is half)
+new       3.180 km × 100 XP/km × 1.0  = 318.0  → round → 318
+rearmed   1.255 km × 100 XP/km × 0.5  =  62.75 → round →  63   (D-120: re-run ground is half)
+recent    3.933 km × 100 XP/km × 0.5  = 196.65 → round → 197   (D-120: re-run ground is half)
                                                           ─────
-                                        Wayfaring total     576 XP
+                                        Wayfaring total     578 XP
 ```
 
-Floor **once per ledger row**, and define the skill total as the sum of the floored rows. The
-itemisation the user reads then always adds up exactly, which matters because §4.2 shows it.
+Round **once per ledger row** (`Math.round`, I-19 — D-256; this section said *floor* until
+ticket `0064`), and define the skill total as the sum of the rounded rows. The itemisation the
+user reads then always adds up exactly, which matters because §4.2 shows it.
 
 **Step 8 — Cartography.**
 
@@ -1334,14 +1338,14 @@ new cells        25 × 13.0 = 325.0
 rearmed cells     9 ×  6.5 =  58.5      (D-120: 50% discovery credit past 6 months)
 recent cells     30 ×  0   =   0.0      (D-120: zero discovery credit inside 6 months)
                              ───────
-                              383 XP     (floor per ledger row: 325 + 58)
+                              384 XP     (rounded per ledger row: 325 + 59)
 ```
 
 **Step 9 — Constitution.**
 
 ```
-activity-skill XP this session = 576  (Wayfaring only; Cartography is a meta skill)
-floor(576 / 3) = 192 XP
+activity-skill XP this session = 578  (Wayfaring only; Cartography is a meta skill)
+round(578 × 0.3333) = round(192.65) = 193 XP   (the rate is the feeder row's `feeds[].rate`)
 ```
 
 **Step 11 — ledger rows written.**
@@ -1349,21 +1353,23 @@ floor(576 / 3) = 192 XP
 | activityId | skillId | reason | units | xpAwarded |
 |---|---|---|---|---|
 | A-1041 | wayfaring | `new_ground` | 3.180 km | 318 |
-| A-1041 | wayfaring | `rearmed_ground` | 1.255 km | 62 |
-| A-1041 | wayfaring | `recent_ground` | 3.933 km | 196 |
+| A-1041 | wayfaring | `rearmed_ground` | 1.255 km | 63 |
+| A-1041 | wayfaring | `recent_ground` | 3.933 km | 197 |
 | A-1041 | cartography | `cells_new` | 25 cells | 325 |
-| A-1041 | cartography | `cells_rearmed` | 9 cells | 58 |
-| A-1041 | constitution | `constitution_share` | — | 192 |
+| A-1041 | cartography | `cells_rearmed` | 9 cells | 59 |
+| A-1041 | constitution | `constitution_share` | 578 XP fed | 193 |
 
-(318 + 62 + 196 = 576 Wayfaring; 325 + 58 = 383 Cartography.)
+(318 + 63 + 197 = 578 Wayfaring; 325 + 59 = 384 Cartography. One `constitution_share` row per
+activity, however many skills fed it — D-255. These numbers are asserted by
+`src/scoring/propagate.test.ts`.)
 
 **Result.** Starting from the one-year state in §2.4:
 
 | Skill | Before | Award | After | Level | Next level at | Remaining |
 |---|---|---|---|---|---|---|
-| Wayfaring | 134,301 (L47) | +576 | 134,877 | **47** | 142,880 | 8,003 (~14 runs) |
-| Cartography | 90,337 (L41) | +383 | 90,720 | **41** | 95,284 | 4,564 |
-| Constitution | 88,447 (L40) | +192 | 88,639 | **41 ↑** | 95,284 | 6,645 |
+| Wayfaring | 134,301 (L47) | +578 | 134,879 | **47** | 142,880 | 8,001 (~14 runs) |
+| Cartography | 90,337 (L41) | +384 | 90,721 | **41** | 95,284 | 4,563 |
+| Constitution | 88,447 (L40) | +193 | 88,640 | **41 ↑** | 95,284 | 6,644 |
 
 **Total Level +1. Constitution 40 → 41.** Level-up card fires (§4.2 step 3).
 
@@ -1375,9 +1381,9 @@ floor(576 / 3) = 192 XP
    [2.5s: the route draws itself in lantern-light,
     fog peeling back in soft discs behind it]
 
-   Wayfaring      +576   ▓▓▓▓▓▓▓░░░  47      8,003 to 48  (~14 runs)
-   Cartography    +383   ▓▓▓▓▓░░░░░  41      4,564 to 42
-   Constitution   +192   ▓░░░░░░░░░  41 ↑    6,645 to 42
+   Wayfaring      +578   ▓▓▓▓▓▓▓░░░  47      8,001 to 48  (~14 runs)
+   Cartography    +384   ▓▓▓▓▓░░░░░  41      4,563 to 42
+   Constitution   +193   ▓░░░░░░░░░  41 ↑    6,644 to 42
 
    ┌──────────────────────────────┐
    │   CONSTITUTION   40 → 41     │
@@ -1415,7 +1421,7 @@ Fortitude    90 reps    × 3    XP/rep =  270
 Endurance   180 seconds × 1.5  XP/sec =  270
                                         ─────
 activity-skill XP                        840
-Constitution   floor(840 / 3)          =  280
+Constitution   round(840 × 0.3333)     =  280   (one row, fed by all three — D-255)
 ```
 
 **Result:**
@@ -1425,16 +1431,16 @@ Constitution   floor(840 / 3)          =  280
 | Might | 63,000 (L36) | +300 | 63,300 | **36** | 64,824 | 1,524 |
 | Fortitude | 56,700 (L35) | +270 | 56,970 | **35** | 59,640 | 2,670 |
 | Endurance | 56,700 (L35) | +270 | 56,970 | **35** | 59,640 | 2,670 |
-| Constitution | 88,639 (L41) | +280 | 88,919 | **41** | 95,284 | 6,365 |
+| Constitution | 88,640 (L41) | +280 | 88,920 | **41** | 95,284 | 6,364 |
 
 **Cross-discipline sanity check** — the point of §3.2:
 
 | | Total XP awarded | Skills advanced |
 |---|---|---|
-| Example A (8.37 km run, 38% new) | 576 + 375 + 192 = **1,143** | 3 |
+| Example A (8.37 km run, 38% new) | 578 + 384 + 193 = **1,155** | 3 |
 | Example B (strength session) | 300 + 270 + 270 + 280 = **1,120** | 4 |
 
-Within 2%. A hard run and a hard strength session are worth the same. That is the design target
+Within 3%. A hard run and a hard strength session are worth the same. That is the design target
 from §3.2, and it is the number to re-check after any rebalance.
 
 *(post-MVP: this session does 840 × 1.0 × (1 + 0.01 × 47) = **1,235 damage** to the active boss.

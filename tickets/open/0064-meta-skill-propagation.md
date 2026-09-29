@@ -11,6 +11,7 @@ depends_on: [48, 60, 61, 62]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-09-29T03:06:50Z
 ---
 
 ## Description
@@ -26,36 +27,42 @@ that is the whole point (J4 in §3.1). Constitution is why a session that moves 
 level still moves *something* visible.
 
 **Cartography — discovery credit.** Awarded by the fog subsystem, not the activity matcher:
-**15 XP per newly revealed H3 res-10 cell**, at full credit for new ground and **50%** for
+**13 XP per newly revealed H3 res-10 cell** (15 until D-215), at full credit for new ground and **50%** for
 re-armed ground (last run > 6 months ago). **Recent ground earns zero, and emits no row at
 all** — not a row of zero (D-120, §4.2). Rows carry `reason: cells_new` / `cells_rearmed`.
 
 Rates for the record, all from the registry, none hardcoded: **100 XP/km · pushup 4 · situp 3 ·
-plank 1.5/sec · new cell 15 · Constitution 1/3 of activity XP.**
+plank 1.5/sec · new cell 13 · Constitution 1/3 of activity XP.**
 
 Propagation is **one level deep and non-recursive**: a meta skill's own award never feeds
 anything. `feeds` on a `kind: meta` row is a seed-time error, not a runtime loop.
 
 ## Acceptance criteria
 
-- [ ] After rating an activity skill, the scorer emits one `constitution_share` row per `feeds`
-      entry, valued at `round(activityXp × rate)`.
-- [ ] The 1/3 rate is read from `feeds[].rate` in the registry; no `0.3333`, `1/3` or
+- [x] After the activity skills are rated, the scorer emits one `constitution_share` row per feed
+      **target** per activity, valued at `round(Σ feederXp × rate)`. *Amended 2026-09-28
+      (D-255). This originally said "one row per `feeds` entry", which collides on T4's id.*
+- [x] The 1/3 rate is read from `feeds[].rate` in the registry; no `0.3333`, `1/3` or
       `/ 3` literal appears in the scorer.
-- [ ] The share is computed from the **post-multiplier** activity XP, so a half-XP re-run feeds
+- [x] The share is computed from the **post-multiplier** activity XP, so a half-XP re-run feeds
       half the Constitution.
-- [ ] A strength session that trains Might and Fortitude produces **two** activity rows and
-      their **two** corresponding `constitution_share` rows, not one merged share.
-- [ ] Cartography awards 15 XP per new cell and 7.5 → rounded per the registry rate for
-      re-armed cells, sourced from the Cartography row's `xpPerUnit` and ground rates.
-- [ ] Recent ground produces **no** Cartography ledger row whatsoever; a test asserts the row
+- [x] A strength session that trains Might and Fortitude produces **two** activity rows and
+      **one** `constitution_share` row fed by both. *Amended 2026-09-28 (D-255). This originally
+      asked for two share rows. The ledger id `activity#skill#reason#v` cannot hold two, and
+      `04` §8.3 and `02` §4.2 already describe one.*
+- [x] Cartography pays the Cartography row's `xpPerUnit` per new cell (13, D-215; this
+      criterion said 15) and `xpPerUnit × unitMultipliers.rearmed`, rounded, per re-armed cell.
+      Both numbers come from the row.
+- [x] Recent ground produces **no** Cartography ledger row whatsoever; a test asserts the row
       count, not the XP value.
-- [ ] Propagation does not recurse: a fixture with `feeds` on a meta row fails at **seed time**
+- [x] Propagation does not recurse: a fixture with `feeds` on a meta row fails at **seed time**
       with a named error, and the scorer contains no loop that could follow it.
-- [ ] No skill id appears in the propagation code path (I-25); `constitution` is reached only as
+- [x] No skill id appears in the propagation code path (I-25); `constitution` is reached only as
       the value of `feeds[].skill`.
-- [ ] Worked example: 8.85 km all-new + 30 pushups + 40 situps reproduces to the XP against
-      `04-game-design.md` §8.2 / §8.3.
+- [x] Worked examples reproduce to the XP: `04` §8.2 (amended to `Math.round`, D-256: 578 / 384
+      / 193) and §8.3 (300 / 270 / 270 / 280), plus the ticket's own example (8.85 km all-new →
+      885 / 884 / 295; 30 pushups + 40 situps → 120 / 120 / 80). *Amended 2026-09-28. The ticket's
+      example is not in §8.2 or §8.3, so all three are asserted.*
 
 ## Notes
 

@@ -14,10 +14,10 @@ import { matchable, revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSkill } from "@/src/rules/schema"
 import {
   groundSplit,
-  ledgerEntries,
   lookupFromClassified,
   scoreGround,
   scoreUnits,
+  scoreWithPropagation,
   type GroundSplit,
 } from "@/src/scoring"
 
@@ -526,12 +526,15 @@ export async function processActivity<TCreds>(
   const t3 = clock()
   const activity = traceRef === null ? ingest.activity : { ...ingest.activity, traceRef }
   /**
-   * THE SCORE (`0060` → `0061` → `0062`). Pure, and computed from the same classification the
-   * cells were written with, so the ground a metre is rated on is ground that metre revealed.
-   * `awardedAt` is `ingestedAt`: the ingest wall clock, stamped for audit and never read back.
+   * THE SCORE (`0060` → `0061` → `0062` → `0064`). Pure, and computed from the same
+   * classification the cells were written with, so the ground a metre is rated on is ground
+   * that metre revealed — and the cells Cartography pays for are the cells this run revealed.
+   * Discovery credit and the Constitution share ride in the same rows, hence the same
+   * transaction (`05` §8.2). `awardedAt` is `ingestedAt`: stamped for audit, never read back.
    */
-  const entries = ledgerEntries(
+  const entries = scoreWithPropagation(
     scoreGround(scoreUnits(activity, deps.registry), deps.registry, split),
+    award,
     { activity, rules: deps.registry, awardedAt: activity.ingestedAt },
   )
   /**

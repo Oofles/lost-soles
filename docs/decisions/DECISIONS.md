@@ -3545,3 +3545,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     months after the first commit, and the concurrent case never relies on it.
   - **Not fixed by this:** the reclassified *discovery award* still overwrites T3's cell counts
     on a replay. That is filed as `0220`.
+- **D-255** **One `constitution_share` row per activity, summed over every feeder.** *(Agent,
+  2026-09-28, ticket `0064`; operator approved at the start of the ticket.)*
+  - **The conflict.** `0064`'s criterion asked for one share row *per feeding skill* — a strength
+    session training Might and Fortitude writing two `constitution_share` rows. T4's deterministic
+    id is `activityId#skillId#reason#vN` (`0062`), so two share rows for one activity collide on
+    it and `ledgerEntries` refuses the second. `04` §8.3 and `02` §4.2 already describe one row.
+  - **The rule.** `xpAwarded = round( Σ over the activity's rated activity rows of
+    xpAwarded × feeds[].rate )`, one row per feed target per activity. `units` records the feeder
+    XP that fed it. The rate stays the FEEDER row's attribute, so per-skill rates still work.
+  - **Rejected:** widening the id with a source skill. It would change a shipped key scheme for an
+    itemisation the tally does not show — Constitution is one line on "Return from the Fog".
+- **D-256** **Ledger rows round with `Math.round`, and `04` §8.2 is amended to match.**
+  *(Agent, 2026-09-28, ticket `0064`; operator approved.)*
+  - `04` §3.4, §8.1 and §8.2 floored each row (576 / 383 / 192 for Example A). I-19 and `0062`
+    round once at write time, which gives **578 / 384 / 193**. The shipped code and the invariant
+    win; the doc was amended. §8.3 is unchanged (840 × 0.3333 rounds to 280 either way), and the
+    §3.2 run-vs-strength parity check moves from "within 2%" to "within 3%" (1,155 vs 1,120).
+  - Floor was never load-bearing: its stated reason — "the itemisation always adds up" — holds
+    for any per-row rounding, because the skill total is defined as the sum of the rows.

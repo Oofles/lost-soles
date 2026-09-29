@@ -1433,7 +1433,16 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
     expect(transacts).toHaveLength(1)
     const items = transacts[0]!.TransactItems!
     const tables = items.map((i) => (i.Put ?? i.Update)!.TableName)
-    expect(tables.slice(2)).toEqual([LEDGER_TABLE, SKILL_STATE_TABLE])
+    // 0064: Wayfaring, then Cartography's discovery credit, then the Constitution share —
+    // three ledger rows and a SkillState ADD per skill, all in the one transaction.
+    expect(tables.slice(2)).toEqual([
+      LEDGER_TABLE,
+      LEDGER_TABLE,
+      LEDGER_TABLE,
+      SKILL_STATE_TABLE,
+      SKILL_STATE_TABLE,
+      SKILL_STATE_TABLE,
+    ])
 
     // Every cell is unknown, so the whole path is new ground: 0.28 km × 100 XP/km.
     const row = items[2]!.Put!.Item!
@@ -1444,11 +1453,19 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
       xpRulesVersion: 1,
       isFloor: false,
     })
-    expect(items[0]!.Put!.Item).toMatchObject({ xpAwarded: 28, xpRulesVersion: 1 })
-    expect(items[1]!.Update!.ExpressionAttributeValues).toMatchObject({ ":xpAwarded": 28 })
+    const cells = items[3]!.Put!.Item!
+    expect(cells).toMatchObject({ id: "a-1#cartography#cells_new#v1", reason: "cells_new" })
+    expect(cells.xpAwarded).toBe(cells.units * 13)
+    expect(items[4]!.Put!.Item).toMatchObject({
+      id: "a-1#constitution#constitution_share#v1",
+      xpAwarded: Math.round(28 * 0.3333),
+    })
+    const total = 28 + cells.xpAwarded + Math.round(28 * 0.3333)
+    expect(items[0]!.Put!.Item).toMatchObject({ xpAwarded: total, xpRulesVersion: 1 })
+    expect(items[1]!.Update!.ExpressionAttributeValues).toMatchObject({ ":xpAwarded": total })
     expect(result).toMatchObject({
       outcome: "persisted",
-      xp: { xpAwarded: 28, rowsWritten: 1, alreadyScored: false, xpRulesVersion: 1 },
+      xp: { xpAwarded: total, rowsWritten: 3, alreadyScored: false, xpRulesVersion: 1 },
     })
   })
 
@@ -1477,7 +1494,8 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
     const { deps, transacts } = rig({ ingest: { hasTrace: false, distanceM: 5000 } })
     await processActivity(JOB, deps)
     const rows = transacts[0]!.TransactItems!.filter((i) => i.Put?.TableName === LEDGER_TABLE)
-    expect(rows.map((r) => r.Put!.Item!.reason)).toEqual(["distance"])
+    // No trace, no cells: no discovery row. The share still follows the activity XP (0064).
+    expect(rows.map((r) => r.Put!.Item!.reason)).toEqual(["distance", "constitution_share"])
     expect(rows[0]!.Put!.Item).toMatchObject({ xpAwarded: 500 })
   })
 

@@ -952,7 +952,9 @@ a ledger row citing `v1` is meaningless if `v1`'s rows were mutated.
 Validation, run in CI and again in the seeder, failing the build on any violation:
 
 1. `skillId` unique within a version; `feeds[].skill` resolves to an existing `kind: meta` row.
-2. `feeds` has no cycles (Constitution feeds nothing — 04 §1.1).
+2. `feeds` has no cycles (Constitution feeds nothing — 04 §1.1), and is **empty on every
+   `kind: meta` row** (`META_FEEDS`, ticket `0064`): propagation is one level deep, so an
+   acyclic meta → meta feed is refused too.
 3. **Totality:** for a fixture set of activities covering every `ActivityKind` × `hasTrace`
    combination, `selectActivitySkills` returns **exactly one** skill per `measure`. Two candidates
    at equal `matchPriority` with the same `measure` fails the build, always.
@@ -1029,7 +1031,7 @@ extended by the two rows this design needs:
 | `reps` | `logMode: reps` | scorer |
 | `duration` | `logMode: duration` | scorer |
 | `cells_new` / `cells_rearmed` | Cartography, 1.0 and 0.5 credit (05 §8.2) | fog subsystem |
-| `constitution_share` | the `feeds` propagation, 1/3 (04 §1.1) | scorer |
+| `constitution_share` | the `feeds` propagation, 1/3 (04 §1.1); **one row per activity**, summed over every feeder (D-255) | scorer |
 | `retained_floor` | **D-135 only.** §4.6. | replay job |
 | `slayer_win`, `slayer_loss`, `boss_phase` | reserved, post-MVP (D-122) | — |
 
