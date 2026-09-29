@@ -150,6 +150,15 @@ through the shipped Strava normalizer**.
 The CLI dry run (`tools/xp-replay/replay-xp.ts --user <sub> --to 1`) on the real account printed
 its plan and wrote nothing.
 
+**Real run, 2026-09-29, on the operator's instruction** (after close; the operator said *"Yes, I do
+want the permanent XP from the existing 17 runs"*). The command was
+`replay-xp.ts --user <sub> --to 1 --confirm`, and it matched the shadow exactly:
+- **Ledger:** 57 rows, 0 floors. The run is `REPLAY#…#0MUMREDT63RQHZ1`, status `DONE`.
+- **Map:** T6 raised on 213 `visitCount`s, with 0 cells created; the map is at generation 62.
+- **SkillState:** Wayfaring 4,218 XP (L15), Cartography 13,455 (L22), Constitution 1,405 (L10),
+  and `displayedXp == xpLedgerSum == SUM(ledger)` for all three.
+- **Profile:** `replayInProgress: false`, `totalXp: 19078`, `totalLevel: 53`.
+
 ## Resolution
 
 **Scope, settled with the operator before any code (D-152).**
