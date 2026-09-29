@@ -4,7 +4,7 @@ slug: xp-ledger-entry-append-only
 title: XpLedgerEntry (T4) — append-only, one row per (activity, skill, reason)
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 09-xp-engine-and-ledger
 depends_on: [12]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-29T02:05:15Z
+closed: 2026-09-29T02:33:39Z
 ---
 
 ## Description

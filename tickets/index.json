@@ -1484,7 +1484,7 @@
     "title": "XpLedgerEntry (T4) — append-only, one row per (activity, skill, reason)",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "09-xp-engine-and-ledger",
     "depends_on": [
@@ -1494,10 +1494,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-29T02:05:15Z",
-    "path": "tickets/open/0062-xp-ledger-entry-append-only.md",
-    "ready": true,
+    "closed": "2026-09-29T02:33:39Z",
+    "path": "tickets/closed/0062-xp-ledger-entry-append-only.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -1517,7 +1518,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0063-level-maths-and-total-level-693.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -1542,7 +1543,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0064-meta-skill-propagation.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -1867,7 +1868,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0078-post-run-route-and-end-state.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -4977,10 +4978,10 @@
     "source": "agent",
     "created": "2026-09-29T02:19:08Z",
     "path": "tickets/open/0218-soft-cap-and-min-units-for-credit-unapplied.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   },
   {
@@ -5003,7 +5004,7 @@
     "ready": false,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   },
   {
@@ -5022,10 +5023,10 @@
     "source": "agent",
     "created": "2026-09-29T02:19:08Z",
     "path": "tickets/open/0220-reingest-overwrites-activity-discovery-award.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 3
     }
   }
 ]
