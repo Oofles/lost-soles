@@ -15,9 +15,7 @@ import type { RuleSkill } from "@/src/rules/schema"
 import {
   groundSplit,
   lookupFromClassified,
-  scoreGround,
-  scoreUnits,
-  scoreWithPropagation,
+  scoreActivity,
   type GroundSplit,
 } from "@/src/scoring"
 
@@ -532,11 +530,7 @@ export async function processActivity<TCreds>(
    * Discovery credit and the Constitution share ride in the same rows, hence the same
    * transaction (`05` §8.2). `awardedAt` is `ingestedAt`: stamped for audit, never read back.
    */
-  const entries = scoreWithPropagation(
-    scoreGround(scoreUnits(activity, deps.registry), deps.registry, split),
-    award,
-    { activity, rules: deps.registry, awardedAt: activity.ingestedAt },
-  )
+  const entries = scoreActivity(activity, deps.registry, split, award, activity.ingestedAt)
   /**
    * THE AWARD GOES IN THE TRANSACTION, not in a write of its own. §3.2: *"the award is
    * stored, not recomputed"* — and it is stored in the same atomic commit that closes the

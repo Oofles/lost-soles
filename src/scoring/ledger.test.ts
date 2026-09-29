@@ -53,7 +53,7 @@ function shuffle<T>(xs: readonly T[], rand: () => number): T[] {
 }
 
 describe("the reason vocabulary (02 §4.2, D-122)", () => {
-  it("is closed and exactly the ten MVP reasons", () => {
+  it("is closed: the ten MVP reasons, plus the ReplayRun audit row's (D-258)", () => {
     expect([...LEDGER_REASONS]).toEqual([
       "new_ground",
       "rearmed_ground",
@@ -65,6 +65,7 @@ describe("the reason vocabulary (02 §4.2, D-122)", () => {
       "cells_rearmed",
       "constitution_share",
       "retained_floor",
+      "replay_run",
     ])
   })
 

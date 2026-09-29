@@ -41,8 +41,7 @@ import {
  * ─── PURE, AND THEREFORE NOT THE REPLAY JOB ─────────────────────────────────
  *
  * This computes; it does not write. The job that reads T3, calls this, and rewrites T6 and the
- * ledger belongs to `0103` (the drill's step 5) and `0066` (the XP half) — both of which need
- * capabilities that do not exist yet. Keeping the arithmetic here means those two tickets share
+ * ledger belongs to `0103` (the drill's step 5) and `0066` (the XP half, `xp-replay.ts`). Keeping the arithmetic here means those two tickets share
  * one definition of "correct" rather than writing a second one, which is the failure `02` §2.9
  * would not survive.
  */
@@ -101,8 +100,15 @@ export function foldOrder(a: FoldActivity, b: FoldActivity): number {
  *
  * @param activities in ANY order. They are sorted here, because a caller that had to sort
  *                   correctly first would be a second place for I-14 to be got wrong.
+ * @param onActivity called once per activity, in fold order, with its cells classified against
+ *                   the map as it stood BEFORE it — the input `0066`'s replay needs to split an
+ *                   activity's metres by ground (`groundSplit`). An observer: it cannot change
+ *                   the fold.
  */
-export function foldActivities(activities: Iterable<FoldActivity>): FoldResult {
+export function foldActivities(
+  activities: Iterable<FoldActivity>,
+  onActivity?: (activityId: string, classified: readonly ClassifiedCell[]) => void,
+): FoldResult {
   const sorted = [...activities].sort(foldOrder)
 
   const cells = new Map<H3Index, FoldedCell>()
@@ -153,6 +159,7 @@ export function foldActivities(activities: Iterable<FoldActivity>): FoldResult {
 
     awards.set(activity.activityId, awardOf(classified))
     order.push(activity.activityId)
+    onActivity?.(activity.activityId, classified)
 
     // Phase 4: apply. Every attribute `02` T6 lists, written the way T6's expressions write it.
     for (const { cell, discovery } of classified) {

@@ -214,9 +214,12 @@ PK   id                = <userId>    (the Cognito sub; Amplify's default identif
 | `showColdTerritory` | BOOL | atlas-only overlay (D-133) |
 | `rulesVersionPinned` | N | which `RuleSkill` version the UI renders. Normally the newest. |
 | `totalLevel`, `totalXp` | N | denormalised from `SkillState` in the same transaction as an XP write; D-033's headline number, so it must not cost six reads. |
+| `replayInProgress` | BOOL | §4.4 step 1's freeze flag. `true` while a replay runs; the UI keeps rendering the `SkillState` it has. (D-258) |
 | `createdAt`, `updatedAt` | S | ISO 8601 UTC |
 
-Auth: `allow.owner()`. Access patterns: **AP-1**, **AP-14**.
+Auth: `allow.owner()`, with `totalXp`, `totalLevel`, `exploredGeneration` and `replayInProgress`
+narrowed to owner **read** at the field (D-258) — the client edits its preferences, never its
+numbers. Access patterns: **AP-1**, **AP-14**.
 5-year count: ≤ 6 (D-014). No GSIs.
 
 ---
@@ -1105,8 +1108,10 @@ replay(userId, toRulesVersion):
 
  2. CLEAR
     delete every XpLedgerEntry for the user WHERE isFloor = false, via AP-11
-    (GSI2 byUserAndSeq, batched 25/write). isFloor rows SURVIVE — they are facts about
-    what was displayed, not derivations from rules.
+    (GSI2 byUserAndSeq; one conditional DeleteItem per row, `isFloor = false` — D-258).
+    isFloor rows SURVIVE — they are facts about what was displayed, not derivations from
+    rules. So do ReplayRun rows, and the rows of TOMBSTONED activities (§4.7 keeps them;
+    step 3 does not re-derive them — D-258).
 
  3. REPLAY, in 04 §7.4 order — Activity GSI1 byUserAndStart ascending, ties by activityId
     for each Activity with status = ACTIVE:
@@ -1154,6 +1159,12 @@ XpLedgerEntry item, id = REPLAY#<userId>#<ulid>
 `xpAwarded: 0` keeps it harmless to any `SUM` that sweeps the partition. Retained forever; there
 will be ~3 of them in five years.
 
+*Amended by D-258 (ticket `0066`):* the row fills every required T4 attribute
+(`activityId = skillId = "__replay__"`, `reason: "replay_run"`, and
+`seq = "0000-00-00T00:00:00Z#__replay__#<id>"`, which sorts first so an unfinished run is one
+`begins_with` query). The run with `status: DONE` **is** the chronicle entry step 6 writes. A
+re-run resumes the newest run that is not `DONE`, reusing its waterline.
+
 ### 4.6 D-135, enforced — what happens when the new number is lower
 
 **The rule:** for every skill, after a replay,
@@ -1164,7 +1175,8 @@ had".
 **The mechanism — a compensating ledger row, not a clamp.** For each skill in step 5:
 
 ```
-existingFloors = SUM(xpAwarded) over this skill's isFloor = true rows   # survived step 2
+existingFloors = SUM(xpAwarded) over this skill's rows that survived step 2
+                 (isFloor = true, and a tombstoned activity's kept rows — D-258)
 gap            = prevDisplayed[skillId] - (newSum[skillId] + existingFloors)
 
 if gap > 0:

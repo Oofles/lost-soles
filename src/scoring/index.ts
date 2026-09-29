@@ -34,7 +34,27 @@ export {
   type XpLedgerEntry,
 } from "./ledger"
 export { discoveryRows, feedRows, scoreWithPropagation } from "./propagate"
-export { cumulativeXp, levelForXp, totalLevel, totalLevelCeiling, totalXp, xpToAdvance } from "./levels"
+export {
+  cumulativeXp,
+  levelForXp,
+  stepCoefficient,
+  totalLevel,
+  totalLevelCeiling,
+  totalXp,
+  xpToAdvance,
+} from "./levels"
+export {
+  FLOOR_SEQ_PREFIX,
+  floorId,
+  ratchetLevel,
+  reconcile,
+  waterlineOf,
+  type ReconcileInput,
+  type ShownState,
+  type Waterline,
+  type WaterlineMark,
+} from "./reconcile"
+export { scoreActivity } from "./score-activity"
 export {
   celebrableLevelUps,
   celebrableMilestones,

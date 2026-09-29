@@ -24,7 +24,8 @@ import type { RuleSkill } from "@/src/rules/schema"
  * `02` §4.2, CLOSED. Every reason a row may carry in MVP. The order is the table's.
  *
  * `cells_*` and `constitution_share` are emitted by `0064`, and `retained_floor` only by the
- * replay job (`0066`). They are declared here because a ledger that cannot express a row cannot
+ * replay job (`0066`). `replay_run` is not XP at all: it marks the `ReplayRun` audit row (§4.5),
+ * which lives in T4's table with `xpAwarded: 0` and needs a reason like every other item (D-258). They are declared here because a ledger that cannot express a row cannot
  * accept it later without a migration (ticket Notes).
  */
 export const LEDGER_REASONS = [
@@ -38,6 +39,7 @@ export const LEDGER_REASONS = [
   "cells_rearmed",
   "constitution_share",
   "retained_floor",
+  "replay_run",
 ] as const
 
 /**
@@ -72,6 +74,8 @@ export interface XpLedgerEntry {
   xpRulesVersion: number
   /** The D-135 marker. `false` on every rule-derived row. */
   isFloor: boolean
+  /** Floor rows only (§4.6): the ruleset whose displayed total this row retains. */
+  supersedesRulesVersion?: number
   /** `<startedAt>#<activityId>#<nn>` — replay order (04 §7.4). */
   seq: string
   /** Ingest wall clock. AUDIT ONLY, never a scoring input. */

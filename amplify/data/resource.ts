@@ -217,6 +217,43 @@ const schema = a.schema({
     .authorization((allow) => [allow.owner().to(["read"])]),
 
   /**
+   * T1 `Profile`. Ticket 0066, `02-data-model.md` T1. One row per user, `id` = the Cognito sub.
+   *
+   * Built by the XP replay because it is the first thing that needs to WRITE here: step 1's
+   * `replayInProgress` flag and step 6's `totalXp`/`totalLevel` (§4.4). The rest of T1's
+   * attributes are declared now so capabilities 08 and 13 inherit the schema `02` chose rather
+   * than growing it one column per ticket.
+   *
+   * ─── THE CLIENT MAY EDIT ITS PREFERENCES, NEVER ITS NUMBERS ─────────────────
+   *
+   * `02` T1 says `allow.owner()`, and the preferences (`displayName`, `mapMode`,
+   * `showColdTerritory`, `rulesVersionPinned`) are the owner's to write. The four attributes the
+   * pipeline owns are narrowed to owner READ at the field (D-258): the XP trust boundary
+   * (`01` §5, I-20) does not stop being true because a total is denormalised onto a row the
+   * client can otherwise edit. A client that could write `totalLevel` could forge the headline.
+   */
+  Profile: a
+    .model({
+      displayName: a.string(),
+      /** Mirror of the manifest's generation (`02` §6.4). Wired by `0182`. */
+      exploredGeneration: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      /** `"atlas" | "adventure"` (D-052). */
+      mapMode: a.string(),
+      /** Atlas-only overlay (D-133). */
+      showColdTerritory: a.boolean(),
+      rulesVersionPinned: a.integer(),
+      /** D-033's headline, denormalised so it is one read, not six (`02` T1). */
+      totalLevel: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      totalXp: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      /**
+       * `02` §4.4 step 1. While true, the UI keeps rendering the SkillState it already has
+       * rather than refetching, so no number visibly moves until step 6 has written them all.
+       */
+      replayInProgress: a.boolean().authorization((allow) => [allow.owner().to(["read"])]),
+    })
+    .authorization((allow) => [allow.owner()]),
+
+  /**
    * T2 `SkillState`. Ticket 0062, `02-data-model.md` T2.
    *
    * `xpLedgerSum` is a pure SUM of this (user, skill)'s ledger rows, maintained by `ADD` on
@@ -294,6 +331,22 @@ const schema = a.schema({
       seq: a.string().required(),
       /** Ingest wall clock. Audit only; never a scoring input. */
       awardedAt: a.datetime().required(),
+      /** `retained_floor` rows only (§4.6): the ruleset whose displayed total the row retains. */
+      supersedesRulesVersion: a.integer(),
+      /**
+       * `ReplayRun` rows only (§4.5, ticket 0066): `id = REPLAY#<userId>#<id>`,
+       * `activityId = "__replay__"`, `reason = "replay_run"`, `xpAwarded: 0`. The DONE row is
+       * also the chronicle's "the rules of the world shifted" entry (D-258).
+       */
+      fromRulesVersion: a.integer(),
+      toRulesVersion: a.integer(),
+      /** `RUNNING | DONE | FAILED`. */
+      status: a.string(),
+      startedAt: a.datetime(),
+      finishedAt: a.datetime(),
+      waterline: a.json(),
+      recomputed: a.json(),
+      floorsWritten: a.json(),
     })
     .identifier(["id"])
     .secondaryIndexes((index) => [

@@ -76,6 +76,20 @@ generation.
 RS's panel is one click from a hiscores page. Ours is not, and never will be — there is no
 comparison surface in this app, against other people or against your own past self.
 
+**2026-09-29 — from `0066` (moved here by the operator's decision).** Two things `0066` could not
+do, because this panel did not exist yet:
+
+1. **The read-side gate.** `0066` writes `Profile.replayInProgress` (T1, owner-read). While it is
+   `true`, this panel must keep rendering the `SkillState` it already has and must not refetch or
+   re-render from a subscription, so no tile moves until the replay's step 6 has written every
+   row (`02` §4.4 step 1). When the flag clears, refetch once.
+2. **The perceptual check `0066` deferred.** On the desktop browser, with `/skills` open, run
+   `tools/xp-replay/replay-xp.ts --confirm` against a deliberately stingier ruleset from a
+   terminal. No tile's level or bar may visibly decrease at any point, including during the run.
+   After a reload every level must be the same or higher. The detail sheet for the skill that
+   was rated down must show a legible "retained" line (its `retained_floor` row), because the
+   retention must be visible, not silent.
+
 ## Operator validation
 
 On **`/skills`** in the desktop browser: read the TOTAL LEVEL

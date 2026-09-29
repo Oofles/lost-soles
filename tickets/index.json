@@ -1595,6 +1595,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-09-29T13:38:02Z",
     "path": "tickets/open/0066-xp-replay-job-retained-floor.md",
     "ready": true,
     "acceptance": {
@@ -5072,6 +5073,50 @@
     "created": "2026-09-29T03:36:58Z",
     "path": "tickets/open/0222-enabling-a-skill-mints-an-uncaught-point.md",
     "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 223,
+    "slug": "ingest-racing-xp-replay",
+    "title": "An ingest that lands during an XP replay can lose or double one activity's XP",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      66
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T13:55:21Z",
+    "path": "tickets/open/0223-ingest-racing-xp-replay.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 224,
+    "slug": "activity-xp-denorm-after-replay",
+    "title": "Activity.xpAwarded and xpRulesVersion go stale after an XP replay",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      66
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-29T13:55:21Z",
+    "path": "tickets/open/0224-activity-xp-denorm-after-replay.md",
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 3

@@ -11,6 +11,7 @@ import {
   totalLevel,
   totalLevelCeiling,
   totalXp,
+  stepCoefficient,
   xpToAdvance,
 } from "@/src/scoring"
 
@@ -195,5 +196,30 @@ describe("no remembered numbers in source (D-192)", () => {
       return figures.filter((f) => numberLiterals(text, f)).map((f) => `${relative(SRC, path)}: ${f}`)
     })
     expect(offenders).toEqual([])
+  })
+})
+
+describe("stepFormula is honoured (0066, I-17)", () => {
+  it("reads k from \"<k> * L^2\" and defaults to D-130's 4", () => {
+    expect(stepCoefficient({ stepFormula: "4 * L^2" })).toBe(4)
+    expect(stepCoefficient({ stepFormula: " 5*L^2 " })).toBe(5)
+    expect(stepCoefficient({})).toBe(4)
+  })
+
+  it("refuses anything outside the family rather than reading it as 4L²", () => {
+    for (const f of ["2^(L/7)", "4 * L^3", "0 * L^2", "", "L^2"]) {
+      expect(() => stepCoefficient({ stepFormula: f })).toThrow(/k> \* L\^2/)
+    }
+  })
+
+  it("a steeper curve gives a lower level at unchanged XP, exact at every boundary", () => {
+    const steep = { maxLevel: 99, stepFormula: "5 * L^2" }
+    for (let L = 2; L <= 99; L++) {
+      expect(cumulativeXp(L, 5)).toBe((5 * (L - 1) * L * (2 * L - 1)) / 6)
+      expect(Number.isInteger(cumulativeXp(L, 5))).toBe(true)
+      expect(levelForXp(cumulativeXp(L, 5), steep)).toBe(L)
+      expect(levelForXp(cumulativeXp(L, 5) - 1, steep)).toBe(L - 1)
+    }
+    expect(levelForXp(cumulativeXp(40), steep)).toBeLessThan(40)
   })
 })

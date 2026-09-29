@@ -3585,3 +3585,43 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     seeder change beyond the ticket, and it would stamp by deploy time rather than by the row.
   - **Not covered:** flipping `enabled: false → true` (Slayer, D-122) also mints a point, and
     `introducedIn` cannot see it. Filed as a follow-up.
+- **D-258** **The XP replay (`0066`) builds T1 `Profile`, uses the finished `ReplayRun` as the
+  chronicle entry, and settles five gaps in `02` §4.4–§4.6.**
+  *(Agent, 2026-09-29, ticket `0066`. The operator chose points 1 and 2 at the start of the ticket.)*
+  - **T1 `Profile` is built here.** No ticket owned it (`0182` assumed "T1 arrives with the XP
+    engine"), and step 1 needs somewhere to write `replayInProgress`. The operator chose to widen
+    `0066` rather than inject a no-table stub. All of `02` T1's attributes are declared, plus
+    `replayInProgress`. The model is `allow.owner()` as T1 says, but **`totalXp`, `totalLevel`,
+    `exploredGeneration` and `replayInProgress` are owner-READ at the field**. The XP trust
+    boundary (`01` §5, I-20) still holds for a total denormalised onto a row the client can
+    otherwise edit.
+  - **The chronicle entry is the `ReplayRun` row with `status: DONE`.** `02` never said where
+    *"The rules of the world shifted… nothing was taken away"* is stored. The DONE row already
+    carries `from`/`to`, `finishedAt` and the per-skill `floorsWritten`, which is everything the
+    line needs. `0088` renders it. A second row type would duplicate it.
+  - **The ReplayRun row is a complete T4 item.** Every required T4 attribute is filled, so AppSync
+    can list the partition without a non-null error on the audit row:
+    - `activityId = skillId = "__replay__"`;
+    - `reason: "replay_run"` (added to `LEDGER_REASONS`);
+    - `seq = "0000-00-00T00:00:00Z#__replay__#<id>"`, which sorts first, so an unfinished run is
+      one `begins_with` query and needs no scan.
+
+    Its extra fields are declared on the model.
+  - **A tombstoned activity's rows survive step 2.** `§4.4` re-scores only ACTIVE activities, but
+    `§4.7` says a tombstone's ledger rows are *kept*. Clearing them would have turned every
+    tombstone into a floor, and a v1 → v1 replay would then not be a no-op. Tombstoned
+    activities are still **folded**, because their cells stay revealed (D-020).
+  - **`curve.stepFormula` is honoured.** It is parsed as `"<k> * L^2"`; anything else throws.
+    Before this, `levels.ts` hard-coded `4L²` and ignored the field, so I-17's "change only
+    `stepFormula`" test could not have failed.
+  - **Where the trace comes from.** Step 3's path metres come from the exact archived object
+    `Activity.raw` names, through the shipped normalizer. The 6-dp route GeoJSON is lossy, and a
+    split from rounded coordinates would score a v1 → v1 replay differently from ingest.
+  - **How step 2 deletes.** It uses one conditional `DeleteItem` per row (`isFloor = false`)
+    instead of `§4.4`'s `BatchWriteItem` of 25, because a batch write cannot carry I-18's guard.
+  - **How step 4 writes T6.** It is a monotone merge: `min` `firstRunAt`, `max` `lastRunAt`,
+    `max` on both counts. It lives in its own file so the I-7 gate stays per file and exact.
+  - **Rejected:** clamping `displayedXp` (D-142 forbids it). The THAW write instead carries a
+    *condition* that refuses to lower `displayedXp` or `levelHighWater`.
+  - **Not covered:** an ingest racing a replay can lose or double one activity's XP. Filed as a
+    follow-up.
