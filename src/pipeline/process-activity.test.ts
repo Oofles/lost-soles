@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs"
 
 import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3"
-import { BatchGetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import {
+  BatchGetCommand,
+  QueryCommand,
+  TransactWriteCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import { SourceRateLimitedError } from "@/src/adapters/errors"
@@ -37,6 +42,8 @@ const SOURCE = "gpslogger"
 const BUCKET = "test-bucket"
 const ACTIVITY_TABLE = "Activity-testapi-NONE"
 const CELL_TABLE = "TestExploredCell"
+const LEDGER_TABLE = "XpLedgerEntry-testapi-NONE"
+const SKILL_STATE_TABLE = "SkillState-testapi-NONE"
 const FIXTURE = readFileSync(new URL("./__fixtures__/verbatim-payload.json", import.meta.url))
 
 const JOB: IngestJob = {
@@ -62,6 +69,7 @@ function ingestOf(over: Options["ingest"] = {}): NormalizedIngest {
       userId: "u-1",
       kind: over.kind ?? "run",
       hasTrace: over.hasTrace ?? false,
+      distanceM: over.distanceM,
       /**
        * `0195`. What `normalize()` actually produces — the contract says the pipeline fills it
        * in, so the value arriving here is always null and never absent. The fixture omitted it
@@ -93,7 +101,7 @@ interface Options {
    * Ticket `0047`. Overrides on the normalized ingest, so one rig can produce a traceless
    * strength log, a run that reveals ground and a ride that must not.
    */
-  ingest?: { kind?: string; hasTrace?: boolean; trace?: Trace }
+  ingest?: { kind?: string; hasTrace?: boolean; trace?: Trace; distanceM?: number }
   /** Ticket `0047`. Every cell write throws this, to prove the ordering holds under failure. */
   cellsFail?: Error
   /** `0049`. A failed blob PUT, to prove it happens above the transaction. */
@@ -116,6 +124,10 @@ interface Options {
    * cell is already known" without knowing which cells the fixture trace produces.
    */
   known?: (cells: string[]) => Record<string, string>
+  /** `0062`. Rows T4's `byActivity` already holds for this activity (layer 1). */
+  ledgerExisting?: Array<Record<string, unknown>>
+  /** `0062`. The n-th (1-based) transaction throws what this returns, if anything. */
+  persistFails?: (n: number) => Error | undefined
 }
 
 /** The real v1 ruleset, because D-189's answer must be the shipped one, not a stub's. */
@@ -147,6 +159,9 @@ function rig(options: Options = {}) {
   const cellWrites: UpdateCommand["input"][] = []
   const aggWrites: UpdateCommand["input"][] = []
   const blobPuts: string[] = []
+  /** `0062`. Every transaction sent, and every T4/T2 read, in order. */
+  const transacts: TransactWriteCommand["input"][] = []
+  const ledgerReads: string[] = []
   let ticks = 0
   const clock = () => {
     ticks += 1
@@ -327,7 +342,27 @@ function rig(options: Options = {}) {
         async send(command: TransactWriteCommand) {
           calls.push("persist")
           expect(command).toBeInstanceOf(TransactWriteCommand)
+          transacts.push(command.input)
+          const failure = options.persistFails?.(transacts.length)
+          if (failure) throw failure
           return {}
+        },
+      },
+    },
+    /**
+     * `0062`. T4's `byActivity` answers `ledgerExisting`; T2 answers empty, so every ADD is a
+     * first write. Kept out of `calls` so the phase-order assertions above stay about phases.
+     */
+    ledger: {
+      ledgerTable: LEDGER_TABLE,
+      skillStateTable: SKILL_STATE_TABLE,
+      ddb: {
+        async send(command: QueryCommand) {
+          expect(command).toBeInstanceOf(QueryCommand)
+          const table = String(command.input.TableName)
+          ledgerReads.push(table)
+          if (table === LEDGER_TABLE) return { Items: options.ledgerExisting ?? [] }
+          return { Items: [] }
         },
       },
     },
@@ -379,7 +414,7 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts }
+  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts, transacts, ledgerReads }
 }
 
 describe("the fixed order", () => {
@@ -1379,5 +1414,88 @@ describe("the route geometry phase (0195, 02 §5.1 S-7)", () => {
     const { row, tracePuts } = await rowOf({ ingest: TRACED_RUN })
     expect(tracePuts).toHaveLength(0)
     expect(row.traceRef).toBeNull()
+  })
+})
+
+/**
+ * Ticket `0062`. The scorer and the ledger, wired into the pipeline. `xp-ledger.test.ts` owns
+ * the commit semantics; this file proves the wiring: what reaches the one transaction, and in
+ * what order relative to the cells.
+ */
+describe("XP — the ledger rides in the ingest transaction (0062)", () => {
+  const RUN = { hasTrace: true, trace: TRACE, distanceM: 280 }
+
+  it("a traced run's ledger rows and SkillState ADD reach the ONE transaction, after the cells", async () => {
+    const { deps, calls, transacts } = rig({ ingest: RUN })
+    const result = await processActivity(JOB, deps)
+
+    expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("persist"))
+    expect(transacts).toHaveLength(1)
+    const items = transacts[0]!.TransactItems!
+    const tables = items.map((i) => (i.Put ?? i.Update)!.TableName)
+    expect(tables.slice(2)).toEqual([LEDGER_TABLE, SKILL_STATE_TABLE])
+
+    // Every cell is unknown, so the whole path is new ground: 0.28 km × 100 XP/km.
+    const row = items[2]!.Put!.Item!
+    expect(row).toMatchObject({
+      id: "a-1#wayfaring#new_ground#v1",
+      reason: "new_ground",
+      xpAwarded: 28,
+      xpRulesVersion: 1,
+      isFloor: false,
+    })
+    expect(items[0]!.Put!.Item).toMatchObject({ xpAwarded: 28, xpRulesVersion: 1 })
+    expect(items[1]!.Update!.ExpressionAttributeValues).toMatchObject({ ":xpAwarded": 28 })
+    expect(result).toMatchObject({
+      outcome: "persisted",
+      xp: { xpAwarded: 28, rowsWritten: 1, alreadyScored: false, xpRulesVersion: 1 },
+    })
+  })
+
+  it("ground the store already knows is rated as recent ground, at half XP (D-120)", async () => {
+    const { deps, transacts } = rig({
+      ingest: RUN,
+      known: (cells) => Object.fromEntries(cells.map((c) => [c, "2026-09-01T00:00:00.000Z"])),
+    })
+    await processActivity(JOB, deps)
+    const row = transacts[0]!.TransactItems![2]!.Put!.Item!
+    expect(row).toMatchObject({ reason: "recent_ground", xpAwarded: 14 })
+  })
+
+  it("an activity that already has ledger rows awards nothing: two items, the old sum on the row", async () => {
+    const { deps, transacts } = rig({
+      ingest: RUN,
+      ledgerExisting: [{ id: "a-1#wayfaring#new_ground#v1", xpAwarded: 28, xpRulesVersion: 1 }],
+    })
+    const result = await processActivity(JOB, deps)
+    expect(transacts[0]!.TransactItems).toHaveLength(2)
+    expect(transacts[0]!.TransactItems![0]!.Put!.Item).toMatchObject({ xpAwarded: 28 })
+    expect(result).toMatchObject({ xp: { alreadyScored: true, rowsWritten: 0, xpAwarded: 28 } })
+  })
+
+  it("a traceless run scores through the ungrounded skill as a `distance` row", async () => {
+    const { deps, transacts } = rig({ ingest: { hasTrace: false, distanceM: 5000 } })
+    await processActivity(JOB, deps)
+    const rows = transacts[0]!.TransactItems!.filter((i) => i.Put?.TableName === LEDGER_TABLE)
+    expect(rows.map((r) => r.Put!.Item!.reason)).toEqual(["distance"])
+    expect(rows[0]!.Put!.Item).toMatchObject({ xpAwarded: 500 })
+  })
+
+  it("a lost race is retried; a receipt failure is not", async () => {
+    const race = Object.assign(new Error("x"), {
+      name: "TransactionCanceledException",
+      CancellationReasons: [{ Code: "None" }, { Code: "None" }, { Code: "ConditionalCheckFailed" }],
+    })
+    const retried = rig({ ingest: RUN, persistFails: (n) => (n === 1 ? race : undefined) })
+    await processActivity(JOB, retried.deps)
+    expect(retried.transacts).toHaveLength(2)
+
+    const stolen = Object.assign(new Error("x"), {
+      name: "TransactionCanceledException",
+      CancellationReasons: [{ Code: "None" }, { Code: "ConditionalCheckFailed" }],
+    })
+    const refused = rig({ ingest: RUN, persistFails: () => stolen })
+    await expect(processActivity(JOB, refused.deps)).rejects.toBe(stolen)
+    expect(refused.transacts).toHaveLength(1)
   })
 })

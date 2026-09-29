@@ -228,6 +228,16 @@ describe("degenerate activities", () => {
     expect(rows).toEqual([{ skillId: "vigil", reason: "distance", units: 5, unitsEffective: 5 }])
   })
 
+  it("an ungrounded row's reason follows its measure kernel: reps → `reps`, seconds → `duration` (02 §4.2, 0062)", () => {
+    expect(rateGround({ skillId: "might", measure: "reps:pushup", units: 30 }, null, null)).toEqual([
+      { skillId: "might", reason: "reps", units: 30, unitsEffective: 30 },
+    ])
+    expect(rateGround({ skillId: "endurance", measure: "seconds:plank", units: 60 }, null, null)).toEqual([
+      { skillId: "endurance", reason: "duration", units: 60, unitsEffective: 60 },
+    ])
+    expect(() => rateGround({ skillId: "x", measure: "cells" as never, units: 1 }, null, null)).toThrow(/no ledger reason/)
+  })
+
   it("a ground-scored skill whose path was entirely filtered out is known ground (05 §3.6): one recent row", () => {
     const rows = rateGround({ skillId: "wayfaring", measure: "distanceKm", units: 4 }, wayfaring.groundMultipliers, {
       new: 0,

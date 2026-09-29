@@ -3521,3 +3521,27 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     - two-finger tap and the wet-screen multi-contact rule are dropped.
   - **No push notification when a run lands (`0078`).** The plinth's new-run line reports it the
     next time the app is opened. Anything more would be the nagging D-013 refuses.
+- **D-254** **Ingest awards an activity's XP at most once, checked per activity, not per ledger
+  row.** *(Agent, 2026-09-28, ticket `0062`; operator approved "a duplicate is already scored,
+  mark DONE, write nothing" at the start of the ticket.)*
+  - **The hole.** T4's deterministic `id` (`activity#skill#reason#vN`) with
+    `attribute_not_exists(id)` stops a *concurrent* duplicate. It does not stop a *later* one. A
+    `reingest` (`0192`), or a redelivery after the 90-day receipt TTL, re-runs the cell writes
+    first. The cells then carry this activity's own `lastRunAt`, so the run reclassifies as 100%
+    `cooled`, and the rows come back as `recent_ground` under ids the first delivery never wrote.
+    Every condition passes and half the XP is paid again, permanently (D-135).
+    `ingest-receipt.ts`'s *"`newCells \ explored` is empty on a replay"* holds for cells, not for
+    XP: recent ground still pays (D-120).
+  - **The rule.** Before building rows, the ingest path queries T4 GSI1 `byActivity` for any
+    `isFloor = false` row for this activity, under **any** ruleset version. If one exists, the
+    delivery writes no ledger rows and no `SkillState` ADDs, commits the `Activity` put and the
+    receipt's `DONE` with the existing sum, and reports `alreadyScored`. The row condition stays
+    as the backstop for the concurrent case: a cancellation there is retried, and the retry's
+    GSI read sees the winner.
+  - **Why any version.** Moving an activity to a new ruleset is the replay job's (`0066`): it
+    deletes and rewrites. If ingest layered v2 rows on top of v1 rows, the activity would be paid
+    twice under two rulesets.
+  - **Accepted cost.** GSI reads are eventually consistent. The case this guards is seconds to
+    months after the first commit, and the concurrent case never relies on it.
+  - **Not fixed by this:** the reclassified *discovery award* still overwrites T3's cell counts
+    on a replay. That is filed as `0220`.

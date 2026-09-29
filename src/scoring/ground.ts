@@ -44,12 +44,40 @@ import type { SkillUnits } from "./units"
 export type Ground = keyof Multipliers
 
 /** `02` §4.2's reason vocabulary, as far as this module writes it. */
-export type GroundReason = "new_ground" | "rearmed_ground" | "recent_ground" | "distance"
+export type GroundReason =
+  | "new_ground"
+  | "rearmed_ground"
+  | "recent_ground"
+  | "distance"
+  | "reps"
+  | "duration"
 
 const REASON: Record<Ground, GroundReason> = {
   new: "new_ground",
   rearmed: "rearmed_ground",
   recent: "recent_ground",
+}
+
+/**
+ * THE REASON OF AN UNGROUNDED ROW, BY MEASURE KERNEL. `02` §4.2: `distance` is traceless
+ * distance (Vigil), `reps` is `logMode: reps`, `duration` is `logMode: duration`.
+ *
+ * Keyed on the measure's KERNEL — the part before the colon — so `reps:pushup` and a future
+ * `reps:squat` share one entry and adding an exercise is still a data row (D-031). `0061`
+ * returned `distance` for every ungrounded skill, which filed Might's pushups under distance;
+ * `0062` found it when the ledger started writing the reason down.
+ */
+const UNGROUNDED_REASON: Record<string, GroundReason> = {
+  distanceKm: "distance",
+  reps: "reps",
+  seconds: "duration",
+}
+
+function ungroundedReason(measure: string): GroundReason {
+  const kernel = measure.split(":", 1)[0]!
+  const reason = UNGROUNDED_REASON[kernel]
+  if (!reason) throw new Error(`no ledger reason for measure ${JSON.stringify(measure)} (02 §4.2)`)
+  return reason
 }
 
 /** Bucket order. Fixed, so output is deterministic and the remainder always lands last. */
@@ -149,7 +177,9 @@ export function rateGround(
   split: GroundSplit | null,
 ): GroundedUnits[] {
   const { skillId, units } = scored
-  if (multipliers === null) return [{ skillId, reason: "distance", units, unitsEffective: units }]
+  if (multipliers === null) {
+    return [{ skillId, reason: ungroundedReason(scored.measure), units, unitsEffective: units }]
+  }
 
   const total = split === null ? 0 : split.new + split.rearmed + split.recent
   const shares: GroundSplit =

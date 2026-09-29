@@ -22,10 +22,9 @@ import { doneTransactItem } from "./ingest-receipt"
  * as stale and scores the same run again, on an XP ledger that can only ever add
  * (D-135). The duplicate would be permanent and unattributable.
  *
- * At this milestone there is no XP engine (capability 09), so the transaction carries
- * two items. `extraItems` is how the `SkillState` `ADD`s and the `XpLedgerEntry`
- * conditional puts join it later WITHOUT this function being restructured — which
- * matters, because restructuring the atomic commit is exactly the change nobody wants
+ * `extraItems` is how the `SkillState` `ADD`s and the `XpLedgerEntry` conditional puts
+ * join it (`0062`, `src/pipeline/xp-ledger.ts`) without this function being restructured —
+ * which matters, because restructuring the atomic commit is exactly the change nobody wants
  * to be making under pressure.
  *
  * ─── WHAT IS DELIBERATELY NOT IN THE TRANSACTION ────────────────────────────
@@ -85,9 +84,17 @@ export interface PersistDeps {
  */
 export const AMPLIFY_MODEL_TYPENAME = "Activity"
 
-export function amplifyMetadata(userId: string, ingestedAt: string) {
+export function amplifyMetadata(
+  userId: string,
+  ingestedAt: string,
+  /**
+   * `0062`. T2 and T4 are Amplify models written the same way, so they carry the same four
+   * attributes under their own type name. Defaults to T3's so existing callers are unchanged.
+   */
+  typename: string = AMPLIFY_MODEL_TYPENAME,
+) {
   return {
-    __typename: AMPLIFY_MODEL_TYPENAME,
+    __typename: typename,
     owner: `${userId}::${userId}`,
     /**
      * FROM THE ACTIVITY, NOT THE CLOCK. Criterion 2 asks that re-persisting the same
@@ -140,6 +147,12 @@ export function activityItem(
    * still writes the column, so no reader distinguishes "absent" from "none".
    */
   rejects: TraceRejects = NO_REJECTS,
+  /**
+   * `0062`. What the ledger awarded for this activity, and under which ruleset. Denormalised
+   * onto the row for the activity list; the ledger (T4) is authoritative. Defaults to an
+   * unscored row: `0` and `null`, written rather than omitted so the row shape never varies.
+   */
+  xp: { xpAwarded: number; xpRulesVersion: number | null } = { xpAwarded: 0, xpRulesVersion: null },
 ): Record<string, unknown> {
   return {
     ...amplifyMetadata(activity.userId, activity.ingestedAt),
@@ -177,10 +190,11 @@ export function activityItem(
      * cells, and it still carries `cellCount: 0` — so a reader never has to know which
      * era wrote a row, and "absent" never has to be distinguished from "none".
      *
-     * `xpAwarded` is 0 here because capability 09 does not exist yet. It is written
-     * rather than omitted for the same reason: the row shape must not vary.
+     * `xpAwarded` is the ledger's sum for this activity (`0062`), and `xpRulesVersion` is the
+     * ruleset those rows cite (04 §7.6: "pinned at scoring time").
      */
-    xpAwarded: 0,
+    xpAwarded: xp.xpAwarded,
+    xpRulesVersion: xp.xpRulesVersion,
 
     /**
      * THE DISCOVERY AWARD (`0048`, 05 §3.2). **Stored, not recomputed** — this is what the
@@ -314,12 +328,17 @@ export async function persistActivity(
   award: DiscoveryAward = NO_CELLS,
   /** `0180`. Rides in the same transaction as the award, for the same reason. */
   rejects: TraceRejects = NO_REJECTS,
+  /** `0062`. The ruleset the ledger rows in `extraItems` cite; `null` when nothing was scored. */
+  xpRulesVersion: number | null = null,
 ): Promise<void> {
   const items: NonNullable<TransactWriteCommandInput["TransactItems"]> = [
     {
       Put: {
         TableName: deps.activityTable,
-        Item: activityItem(activity, award, rejects),
+        Item: activityItem(activity, award, rejects, {
+          xpAwarded: receipt.xpAwarded ?? 0,
+          xpRulesVersion,
+        }),
       },
     },
     /**

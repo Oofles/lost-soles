@@ -343,6 +343,12 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
       traces: { s3, bucket: required("USER_DATA_BUCKET") },
       registry: RULES,
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
+      /** `0062`. T4 and T2, both Amplify-generated names handed in by `backend.ts`. */
+      ledger: {
+        ddb,
+        ledgerTable: required("XP_LEDGER_TABLE"),
+        skillStateTable: required("SKILL_STATE_TABLE"),
+      },
       onPhase: (entered) => {
         phase = entered
       },
@@ -410,6 +416,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
             blobs: result.blobs,
             /** `0180`. Null for a traceless activity; zeros for a clean one. */
             rejects: result.rejects,
+            /** `0062`. `alreadyScored: true` is a later delivery that awarded nothing. */
+            xp: result.xp,
           }
         : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })

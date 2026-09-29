@@ -987,6 +987,31 @@ const activityTable = backend.data.resources.tables["Activity"]
 activityTable.grant(processActivityLambda, "dynamodb:PutItem")
 
 /**
+ * T4 `XpLedgerEntry` and T2 `SkillState`, ticket `0062`. Written directly for the reason T3
+ * is (D-207): the ledger rows and the `SkillState` ADDs join the ingest transaction, and an
+ * AppSync mutation cannot. The models expose NO mutation at all (`disableOperations`), so
+ * this role is the only writer either table has.
+ *
+ * T4: `PutItem` for the conditional append, and `Query` on `byActivity` ALONE for the
+ * layer-1 "has this activity been scored" check (`src/pipeline/xp-ledger.ts`). No `UpdateItem`
+ * and no `DeleteItem`: ingest never changes or removes a row (I-18). The replay job (`0066`)
+ * deletes, under its own role.
+ *
+ * T2: `UpdateItem` for the ADD, and `Query` on the base table for the strongly consistent
+ * pre-read the ADD's condition compares against. No `DeleteItem` either.
+ */
+const xpLedgerTable = backend.data.resources.tables["XpLedgerEntry"]
+const skillStateTable = backend.data.resources.tables["SkillState"]
+xpLedgerTable.grant(processActivityLambda, "dynamodb:PutItem")
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["dynamodb:Query"],
+    resources: [`${xpLedgerTable.tableArn}/index/byActivity`],
+  }),
+)
+skillStateTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+
+/**
  * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a
  * `HeadObject` on the already-archived path — S3 authorises a HEAD with `s3:GetObject`,
  * so a grant of PutObject alone would fail on exactly the re-delivery path the archive
@@ -1211,6 +1236,9 @@ processActivityLambda.addToRolePolicy(
  * exposes as an `IFunction` with no such method.
  */
 backend.processActivity.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+/** `0062`. T4 and T2 — generated names, like T3's. */
+backend.processActivity.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.processActivity.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 backend.processActivity.addEnvironment(
   "RAW_ARCHIVE_BUCKET",
   backend.storage.resources.bucket.bucketName,

@@ -236,9 +236,14 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
      * credential material of any kind. Every field on it is written server-side by the
      * pipeline; the client cannot even create one.
      *
+     * `SkillState` (T2) and `XpLedgerEntry` (T4) were added by ticket 0062: one person's XP
+     * totals and the rows they sum, `allow.owner().to(['read'])` with mutations and
+     * subscriptions disabled outright. Integers, skill ids and activity ids — no credential
+     * material of any kind.
+     *
      * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
      */
-    expect(models).toEqual(["Activity", "DeploySmokeTest"])
+    expect(models).toEqual(["Activity", "SkillState", "XpLedgerEntry", "DeploySmokeTest"])
   })
 })
 

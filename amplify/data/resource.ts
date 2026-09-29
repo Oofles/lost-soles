@@ -217,6 +217,103 @@ const schema = a.schema({
     .authorization((allow) => [allow.owner().to(["read"])]),
 
   /**
+   * T2 `SkillState`. Ticket 0062, `02-data-model.md` T2.
+   *
+   * `xpLedgerSum` is a pure SUM of this (user, skill)'s ledger rows, maintained by `ADD` on
+   * ingest. `displayedXp` equals it by construction (§4.6), and it is a SECOND attribute so
+   * a bug in one shows against the other (I-15).
+   *
+   * `level` and `levelHighWater` are declared and not yet written: the curve is `0063` and
+   * the ratchet is the replay job's (`0066`). They are optional so a row written before then
+   * reads cleanly.
+   */
+  SkillState: a
+    .model({
+      userId: a.string().required(),
+      /** Opaque. NEVER an enum (D-031). */
+      skillId: a.string().required(),
+      xpLedgerSum: a.integer().required(),
+      displayedXp: a.integer().required(),
+      level: a.integer(),
+      /** Never decreases (04 §7.5, D-135). */
+      levelHighWater: a.integer(),
+      /** From `activity.startedAt`, never the clock (I-12). */
+      firstXpAt: a.datetime(),
+      lastXpAt: a.datetime(),
+      rulesVersionLastComputed: a.integer(),
+    })
+    /** T2: `PK userId, SK skillId`. No GSIs: "all skills for this user" is the base-table query. */
+    .identifier(["userId", "skillId"])
+    /**
+     * NO MUTATIONS AND NO SUBSCRIPTIONS EXIST, rather than existing and being denied (I-20).
+     * `allow.owner().to(["read"])` alone still generates `createSkillState` and friends, with
+     * an auth check that refuses them; `Activity` above is that shape today. For the two
+     * tables that ARE the XP, "no auth rule is as safe as no reachability" (§2.1) wins.
+     * Subscriptions go too: they fire only on AppSync mutations, and the pipeline writes
+     * DynamoDB directly, so one could never fire.
+     */
+    .disableOperations(["mutations", "subscriptions"])
+    .authorization((allow) => [allow.owner().to(["read"])]),
+
+  /**
+   * T4 `XpLedgerEntry`. Ticket 0062, `02-data-model.md` T4 and §4.
+   *
+   * APPEND-ONLY. The pipeline writes rows with a conditional put inside the ingest
+   * transaction; the replay job (`0066`) deletes and rewrites over IAM. Nothing reaches this
+   * table through AppSync except a read (I-18).
+   */
+  XpLedgerEntry: a
+    .model({
+      /** `${activityId}#${skillId}#${reason}#v${xpRulesVersion}` — `src/scoring/ledger.ts`. */
+      id: a.id().required(),
+      userId: a.string().required(),
+      /** `__floor__` on a D-135 floor row. */
+      activityId: a.string().required(),
+      skillId: a.string().required(),
+      /** Closed vocabulary, `02` §4.2 — `LEDGER_REASONS`. */
+      reason: a.string().required(),
+      /** GSI1's sort key, `${skillId}#${reason}`. Derived; see `byActivity` below. */
+      skillIdReason: a.string().required(),
+      /** GSI3's partition key, `${userId}#${skillId}`. Derived; see `bySkill` below. */
+      userIdSkillId: a.string().required(),
+      units: a.float().required(),
+      unitsEffective: a.float().required(),
+      /** INTEGER, rounded once at write time (I-19). */
+      xpAwarded: a.integer().required(),
+      /** The row is meaningless without it (04 §7.6). */
+      xpRulesVersion: a.integer().required(),
+      /** The D-135 marker. `false` on every rule-derived row. */
+      isFloor: a.boolean().required(),
+      /** `<startedAt>#<activityId>#<nn>` — replay order. */
+      seq: a.string().required(),
+      /** Ingest wall clock. Audit only; never a scoring input. */
+      awardedAt: a.datetime().required(),
+    })
+    .identifier(["id"])
+    .secondaryIndexes((index) => [
+      /**
+       * GSI1 `byActivity`, ALL. "Which rows did this activity earn" — the post-run card, and
+       * the ingest path's layer-1 check (`xp-ledger.ts`). T4 writes the sort key as
+       * `skillId#reason`; Amplify indexes name a single field, so it is stored as one,
+       * the same way T3 stores `userIdLocalDay`.
+       */
+      index("activityId").sortKeys(["skillIdReason"]).name("byActivity").projection("ALL"),
+      /** GSI2 `byUserAndSeq`, ALL — replay order for the whole ledger (04 §7.4). */
+      index("userId").sortKeys(["seq"]).name("byUserAndSeq").projection("ALL"),
+      /**
+       * GSI3 `bySkill`, INCLUDE — one skill's history, newest last. The skill sheet's
+       * `RECENT` list needs the XP and the version and nothing else.
+       */
+      index("userIdSkillId")
+        .sortKeys(["awardedAt"])
+        .name("bySkill")
+        .projection("INCLUDE", ["xpAwarded", "xpRulesVersion"]),
+    ])
+    /** See `SkillState` above: no mutation exists, rather than one that is refused. */
+    .disableOperations(["mutations", "subscriptions"])
+    .authorization((allow) => [allow.owner().to(["read"])]),
+
+  /**
    * 0012's placeholder. Kept until a second real model lands — see the header.
    */
   DeploySmokeTest: a

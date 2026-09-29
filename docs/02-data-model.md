@@ -348,6 +348,12 @@ Full item shape and semantics in §4. Summary:
 
 Auth: `allow.owner().to(['read'])`. Append-only: no `update`, no `delete` in the AppSync schema
 at all. The replay job deletes and rewrites via IAM, outside AppSync.
+
+*As built (`0062`):* Amplify indexes key on a single named field, so GSI1's sort key is stored as
+the attribute `skillIdReason` (`${skillId}#${reason}`) and GSI3's partition key as `userIdSkillId`
+(`${userId}#${skillId}`), the same way T3 stores `userIdLocalDay`. Both T2 and T4 use
+`disableOperations(["mutations", "subscriptions"])`, so the API has no mutation for them at all,
+rather than one that is generated and then denied.
 Access patterns: **AP-7**, **AP-9**, **AP-11**.
 5-year count: ~4.5 rows/activity → **9,000–25,000 items**, ~200 bytes each → ~5 MB.
 
@@ -1058,6 +1064,13 @@ the pre-read `SkillState` and writes them with a `ConditionExpression` on the pr
 `xpLedgerSum`; a lost race retries the whole transaction. At ≤ 6 users with at most one ingest in
 flight each, that race is theoretical — but the condition costs nothing and its absence would be
 a silent lost update.
+
+**An activity is awarded once (D-254).** The row condition stops a concurrent duplicate; it does
+not stop a later one, because a redelivery re-classifies the ground as `recent` and produces rows
+under different ids. So before building rows, ingest checks GSI1 `byActivity` for any
+rule-derived row of this activity. If one exists, it writes no rows and no `ADD`s and commits the
+`Activity` put and the receipt with the existing sum. *As built (`0062`), the `SET level …` half
+and the `Update Profile` line are not written yet: see `0219`.*
 
 **Cell writes stay outside** this transaction when a run touches more than ~60 cells, because
 `TransactWriteItems` caps at 100 items and a run touches 40–130 (R3 §2). The ordering is: cell

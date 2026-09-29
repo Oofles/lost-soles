@@ -12,6 +12,14 @@ import {
 import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSkill } from "@/src/rules/schema"
+import {
+  groundSplit,
+  ledgerEntries,
+  lookupFromClassified,
+  scoreGround,
+  scoreUnits,
+  type GroundSplit,
+} from "@/src/scoring"
 
 import type { ArchiveDeps } from "./archive"
 import {
@@ -38,8 +46,9 @@ import {
   type ReceiptDeps,
   type ReceiptStatus,
 } from "./ingest-receipt"
-import { persistActivity, type PersistDeps } from "./persist"
+import type { PersistDeps } from "./persist"
 import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
+import { persistWithLedger, type LedgerCommit, type LedgerDeps } from "./xp-ledger"
 
 /**
  * THE WORKER, AS A FUNCTION. Ticket 0042, `01-architecture.md` §4 steps 6-15.
@@ -222,6 +231,11 @@ export type ProcessResult =
        * `award.cellCount === 0` is §3.6's silently-garbage recording, and the handler warns.
        */
       rejects: TraceRejects | null
+      /**
+       * `0062`. What the ledger did. `alreadyScored` is layer 1 in `xp-ledger.ts`: a later
+       * delivery of an activity that already has rows awards nothing and reports their sum.
+       */
+      xp: LedgerCommit
     }
   /**
    * A previous delivery finished this activity. The winner's numbers, read off the
@@ -276,6 +290,8 @@ export interface ProcessDeps<TCreds> {
    */
   traces?: RouteTraceDeps
   persist: PersistDeps
+  /** `0062`. T4 and T2: the layer-1 read, the `SkillState` pre-read, and their table names. */
+  ledger: LedgerDeps
   /**
    * THE RULESET, AS AN ARGUMENT. D-189, D-217.
    *
@@ -288,7 +304,7 @@ export interface ProcessDeps<TCreds> {
    * (D-217) — the YAML cannot be read from inside a bundled Lambda, and T5 does not exist
    * until capability 09.
    */
-  registry: { skills: RuleSkill[] }
+  registry: { version: number; skills: RuleSkill[] }
   /** Injected so timings are assertable. Wall clock; only differences are ever used. */
   clock?: () => number
   /**
@@ -451,7 +467,7 @@ export async function processActivity<TCreds>(
    */
   phase("cells")
   const t3c = clock()
-  const { cells, award, touched, rejects } = await projectCells(ingest, deps)
+  const { cells, award, touched, rejects, split } = await projectCells(ingest, deps)
   const cellsMs = clock() - t3c
 
   /**
@@ -508,25 +524,40 @@ export async function processActivity<TCreds>(
 
   phase("persist")
   const t3 = clock()
+  const activity = traceRef === null ? ingest.activity : { ...ingest.activity, traceRef }
+  /**
+   * THE SCORE (`0060` → `0061` → `0062`). Pure, and computed from the same classification the
+   * cells were written with, so the ground a metre is rated on is ground that metre revealed.
+   * `awardedAt` is `ingestedAt`: the ingest wall clock, stamped for audit and never read back.
+   */
+  const entries = ledgerEntries(
+    scoreGround(scoreUnits(activity, deps.registry), deps.registry, split),
+    { activity, rules: deps.registry, awardedAt: activity.ingestedAt },
+  )
   /**
    * THE AWARD GOES IN THE TRANSACTION, not in a write of its own. §3.2: *"the award is
    * stored, not recomputed"* — and it is stored in the same atomic commit that closes the
    * receipt, so there is no state in which an activity is `DONE` and its cell counts are
    * missing. `newCellCount` also lands on the receipt, which is how a later duplicate
    * answers without reclassifying against a store that has since changed.
+   *
+   * `traceRef` REACHES T3 HERE AND NOWHERE ELSE. `normalize()` sets it to `null` and says the
+   * pipeline fills it in (`strava/normalize.ts`); until `0195` nothing did, so the column was
+   * null on every row ever written. `null` stays `null` when there was no trace to store.
+   *
+   * `0062`: the ledger rows and `SkillState` ADDs ride in the same transaction, through
+   * `persistWithLedger`. XP and its receipt commit or fail together (`02` §4.3).
    */
-  await persistActivity(
-    /**
-     * `traceRef` REACHES T3 HERE AND NOWHERE ELSE. `normalize()` sets it to `null` and says the
-     * pipeline fills it in (`strava/normalize.ts`); until `0195` nothing did, so the column was
-     * null on every row ever written. `null` stays `null` when there was no trace to store.
-     */
-    traceRef === null ? ingest.activity : { ...ingest.activity, traceRef },
-    { ingestKey: job.ingestKey, newCellCount: award.newCellCount },
-    deps.persist,
-    [],
-    award,
-    rejects ?? undefined,
+  const xp = await persistWithLedger(
+    {
+      activity,
+      ingestKey: job.ingestKey,
+      entries,
+      rulesVersion: deps.registry.version,
+      award,
+      rejects: rejects ?? undefined,
+    },
+    { persist: deps.persist, ledger: deps.ledger },
   )
   const persistMs = clock() - t3
 
@@ -537,6 +568,7 @@ export async function processActivity<TCreds>(
     award,
     blobs,
     rejects,
+    xp,
     timings: {
       credentialsMs,
       fetchMs,
@@ -604,9 +636,15 @@ async function projectCells<TCreds>(
    * nothing to project" from "there was something and it all failed the gates".
    */
   rejects: TraceRejects | null
+  /**
+   * `0062`. Metres of this run's path over new, re-armed and recent ground (`0061`), from
+   * the SAME classification the cells were written with. `null` when no projection ran or
+   * nothing survived it; a ground-scored skill then rates as recent ground (`05` §3.6).
+   */
+  split: GroundSplit | null
 }> {
   const { activity, trace } = ingest
-  const nothing = { cells: null, award: NO_CELLS, touched: null, rejects: null }
+  const nothing = { cells: null, award: NO_CELLS, touched: null, rejects: null, split: null }
 
   if (!revealsGround(matchable(activity), deps.registry)) return nothing
   if (!trace) return nothing
@@ -622,6 +660,7 @@ async function projectCells<TCreds>(
       // The case §3.6's last bullet is about: points went in, nothing came out. The counts
       // are the only thing that says why, and the handler warns on exactly this shape.
       rejects: cells.rejects,
+      split: null,
     }
   }
 
@@ -661,5 +700,11 @@ async function projectCells<TCreds>(
     await markReplayPending(activity.userId, activity.startedAt, deps.cells)
   }
 
-  return { cells: written, award, touched: cells, rejects: cells.rejects }
+  /**
+   * 8. THE GROUND SPLIT, for the scorer. Pure, from verdicts already in hand. `traceToSegments`
+   * runs again for the reason the `traces` phase gives: it is pure and cheap next to step 4.
+   */
+  const split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
+
+  return { cells: written, award, touched: cells, rejects: cells.rejects, split }
 }
