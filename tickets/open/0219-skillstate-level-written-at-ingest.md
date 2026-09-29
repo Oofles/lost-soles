@@ -154,7 +154,7 @@ below can be checked with a script. The agent ran all of it on 2026-09-29 agains
 
 Cleanup: a filtered scan of all five tables for `smoke-0219` counted **0 rows** in each.
 
-**Deployed worker** (commit `4e340f1`; backend deployed in Amplify job 250, Lambda
+**Deployed worker** (commit `4e340f1`; Amplify job 250 SUCCEEDED, Lambda
 `LastModified 2026-09-29T19:14:01Z`):
 - `PROFILE_TABLE` = `Profile-nog4xy2l7baqlhghpndh2565qe-NONE`.
 - An invoke with `{"Records":[]}` returned 200 with no `FunctionError`, so the module loads with
