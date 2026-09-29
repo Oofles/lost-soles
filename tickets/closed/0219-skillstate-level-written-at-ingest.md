@@ -4,7 +4,7 @@ slug: skillstate-level-written-at-ingest
 title: SkillState level and levelHighWater written at ingest, in the ledger transaction
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [62, 63]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T02:19:08Z
 started: 2026-09-29T19:04:46Z
+closed: 2026-09-29T19:23:02Z
 ---
 ## Description
 
