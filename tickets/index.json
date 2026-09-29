@@ -1459,7 +1459,7 @@
     "title": "Ground multipliers — new, re-armed and recent ground (D-120)",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "09-xp-engine-and-ledger",
     "depends_on": [
@@ -1469,10 +1469,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0061-ground-multipliers.md",
-    "ready": true,
+    "started": "2026-09-29T01:25:10Z",
+    "closed": "2026-09-29T01:29:18Z",
+    "path": "tickets/closed/0061-ground-multipliers.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
