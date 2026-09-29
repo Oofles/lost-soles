@@ -1532,7 +1532,7 @@
     "title": "Meta-skill propagation — Cartography and Constitution via feeds",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "09-xp-engine-and-ledger",
     "depends_on": [
@@ -1545,10 +1545,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-09-29T03:06:50Z",
-    "path": "tickets/open/0064-meta-skill-propagation.md",
-    "ready": true,
+    "closed": "2026-09-29T03:24:34Z",
+    "path": "tickets/closed/0064-meta-skill-propagation.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -1593,7 +1594,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0066-xp-replay-job-retained-floor.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 12
@@ -5049,7 +5050,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 3
     }
   }
 ]

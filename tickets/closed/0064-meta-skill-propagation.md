@@ -4,7 +4,7 @@ slug: meta-skill-propagation
 title: Meta-skill propagation — Cartography and Constitution via feeds
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 09-xp-engine-and-ledger
 depends_on: [48, 60, 61, 62]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-09-29T03:06:50Z
+closed: 2026-09-29T03:24:34Z
 ---
 
 ## Description
