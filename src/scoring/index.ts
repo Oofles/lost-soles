@@ -33,3 +33,4 @@ export {
   type UnratedRow,
   type XpLedgerEntry,
 } from "./ledger"
+export { cumulativeXp, levelForXp, totalLevel, totalLevelCeiling, totalXp, xpToAdvance } from "./levels"
