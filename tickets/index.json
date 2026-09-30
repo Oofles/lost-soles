@@ -3266,12 +3266,18 @@
     "status": "open",
     "size": "m",
     "capability": "null",
-    "depends_on": [],
+    "depends_on": [
+      100,
+      101,
+      197,
+      210,
+      211
+    ],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 7

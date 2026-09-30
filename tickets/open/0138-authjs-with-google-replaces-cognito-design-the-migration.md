@@ -7,7 +7,7 @@ priority: med
 status: open
 size: m
 capability: null
-depends_on: []
+depends_on: [100, 101, 197, 210, 211]
 blocked_by: []
 source: agent
 created: 2026-09-01T21:31:18Z
@@ -116,6 +116,14 @@ capability slot expresses. `deferred` is for waiting on the world.
 
 Related: `0129` (the decision and its costing), `0014` (the posture this must preserve), `0130`
 (the sandbox account), D-175, D-083.
+
+**2026-09-29 — held out of the ready set until capability `15` is built.** `next` offered this
+ticket twice ahead of the `09` burn-down, because it has no capability number and so is never
+gated. The operator asked for it to wait for the capabilities before it. Its slot is decided (after
+`15`, before `16`), so that is now expressed as `depends_on` on every open `15` ticket — 0100 and
+0101 (the ends of the planned 0097→0098→0099 chain) plus 0197, 0210 and 0211. Not `deferred`
+(D-174 — the wait is on us) and not a priority change (the work is not less important, only later).
+If `15` generates more tickets before it closes, add them here too.
 
 ## Operator validation
 
