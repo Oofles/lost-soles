@@ -4,7 +4,7 @@ slug: t3-discovery-awards-disagree-with-ledger
 title: Five real T3 discovery awards disagree with the ledger's Cartography credit
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [220]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-30T03:33:03Z
 started: 2026-09-30T19:14:59Z
+closed: 2026-09-30T19:20:31Z
 ---
 
 ## Description
