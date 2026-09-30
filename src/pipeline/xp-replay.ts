@@ -40,7 +40,7 @@ import { buildSnapshot, waterlineOfSnapshot, type SkillStateSnapshot } from "./s
  * 2 CLEAR       delete every T4 row with isFloor = false. Floors, ReplayRuns and the rows of
  *               TOMBSTONED activities survive.
  * 3 REPLAY      fold cells.bin in (startedAt, activityId) order; score each ACTIVE activity,
- *               and rewrite its T3 row's copy of that score (`0224`)
+ *               and rewrite its T3 row's copy of that score and its award (`0224`, `0226`)
  * 4 REBUILD     merge the fold into T6 (monotone), publish the blobs — ONE generation bump
  * 5 RECONCILE   floors for any shortfall against the waterline. The only step that adds rows.
  * 6 THAW        SkillState + Profile totals; clear the flag; ReplayRun → DONE (the chronicle entry)
@@ -134,6 +134,13 @@ export interface ActivityScoreWrite {
   activityId: string
   xpAwarded: number
   xpRulesVersion: number | null
+  /**
+   * `0226`, D-261. The fold's discovery award, for an activity the replay scored with cells.
+   * Absent for one it did not (no cells, or not a ground-revealing kind): its T3 award is left
+   * exactly as ingest wrote it. Present, it replaces §3.4's provisional award — the fold decides
+   * every cell, so `deferredCellCount` comes back 0 and the row stops being provisional.
+   */
+  award?: DiscoveryAward
 }
 
 /**
@@ -330,7 +337,8 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       const classified = classifiedBy.get(activityId) ?? []
       let award: DiscoveryAward = NO_CELLS
       let split = null
-      if (classified.length > 0 && revealsGround(matchable(activity), to)) {
+      const groundScored = classified.length > 0 && revealsGround(matchable(activity), to)
+      if (groundScored) {
         award = fold.awards.get(activityId)!
         const trace = await store.loadTrace(activity)
         if (trace === undefined) {
@@ -343,7 +351,12 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       }
       const rows = scoreActivity(activity, to, split, award, activity.ingestedAt)
       entries.push(...rows)
-      scores.push({ activityId, xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? toVersion : null })
+      scores.push({
+        activityId,
+        xpAwarded: sumXp(rows),
+        xpRulesVersion: rows.length > 0 ? toVersion : null,
+        ...(groundScored ? { award } : {}),
+      })
     }
     await store.putLedger(entries)
     // After the ledger, so T3 never shows a number the ledger does not hold yet. A crash between

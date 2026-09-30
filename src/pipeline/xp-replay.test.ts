@@ -2,7 +2,7 @@ import type { H3Index } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import type { Trace } from "@/src/domain/activity"
-import { awardOf, classifyCells, NO_CELLS, type CellRecord } from "@/src/domain/discovery"
+import { awardOf, classifyCells, NO_CELLS, type CellRecord, type DiscoveryAward } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments } from "@/src/domain/fog"
 import type { FoldedCell } from "@/src/domain/fold"
 import { matchable, revealsGround } from "@/src/rules/reveals-ground"
@@ -28,6 +28,7 @@ import {
   type StoredSkillState,
 } from "@/src/pipeline/xp-replay"
 import { buildSnapshot, snapshotKey, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
+import { auditT3, planT3Repair } from "@/src/pipeline/t3-repair"
 
 /**
  * Ticket 0066. `02-data-model.md` §4.4–§4.6; I-14, I-15, I-16, I-17.
@@ -142,6 +143,28 @@ function fixture(): Fixture {
   }
 }
 
+/** A T3 row's `0224`/`0226` columns, exactly as `activityItem` names them. */
+interface T3Row {
+  status: string
+  xpAwarded: number
+  xpRulesVersion: number | null
+  cellCount: number
+  newCellCount: number
+  rearmedCellCount: number
+  cooledCellCount: number
+  deferredCellCount: number
+  fogAlgoVersion: number
+}
+
+const awardColumns = (a: DiscoveryAward) => ({
+  cellCount: a.cellCount,
+  newCellCount: a.newCellCount,
+  rearmedCellCount: a.rearmedCellCount,
+  cooledCellCount: a.cooledCellCount,
+  deferredCellCount: a.deferredCellCount,
+  fogAlgoVersion: a.algoVersion,
+})
+
 class MemoryStore implements ReplayStore {
   runs = new Map<string, ReplayRunRecord>()
   skills = new Map<string, StoredSkillState & { levelHighWater?: number; level?: number }>()
@@ -151,8 +174,8 @@ class MemoryStore implements ReplayStore {
   runCells = new Map<string, H3Index[]>()
   generation = 0
   publishes = 0
-  /** T3's score columns (`0224`), as ingest's `LedgerCommit` would have written them. */
-  t3 = new Map<string, { xpAwarded: number; xpRulesVersion: number | null; status: string }>()
+  /** T3's score and award columns (`0224`, `0226`), flat, as ingest writes them. */
+  t3 = new Map<string, T3Row>()
   /** Every operation, in order, with whether SkillState had changed since the replay began. */
   ops: string[] = []
   /** Throws from inside an operation — a crash at that point. */
@@ -164,7 +187,9 @@ class MemoryStore implements ReplayStore {
     readonly rules: (v: number) => RuleSet,
   ) {
     // Every activity has a T3 row, scored or not — the drill's rebuilt stack included.
-    for (const a of fx.activities) this.t3.set(a.activityId, { xpAwarded: 0, xpRulesVersion: null, status: a.status })
+    for (const a of fx.activities) {
+      this.t3.set(a.activityId, { status: a.status, xpAwarded: 0, xpRulesVersion: null, ...awardColumns(NO_CELLS) })
+    }
   }
 
   private op(name: string) {
@@ -206,7 +231,7 @@ class MemoryStore implements ReplayStore {
       // Tombstoned after it was scored: its rows stay (§4.7).
       const rows = scoreActivity(a, V1, split, award, a.ingestedAt)
       for (const r of rows) this.ledger.set(r.id, r)
-      this.t3.set(a.activityId, { xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? 1 : null, status: a.status })
+      this.t3.set(a.activityId, { status: a.status, xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? 1 : null, ...awardColumns(award) })
       for (const [skillId, xp] of xpBySkill(rows)) {
         const s = this.skills.get(skillId)
         this.skills.set(skillId, {
@@ -319,12 +344,18 @@ class MemoryStore implements ReplayStore {
       this.op("writeActivityScores")
       const row = this.t3.get(w.activityId)
       if (row?.status !== "ACTIVE") throw new Error(`ConditionalCheckFailed: T3 ${w.activityId} is not ACTIVE`)
-      this.t3.set(w.activityId, { ...row, xpAwarded: w.xpAwarded, xpRulesVersion: w.xpRulesVersion })
+      this.t3.set(w.activityId, {
+        ...row,
+        xpAwarded: w.xpAwarded,
+        xpRulesVersion: w.xpRulesVersion,
+        ...(w.award ? awardColumns(w.award) : {}),
+      })
     }
   }
   async listActivities() {
     this.op("listActivities")
-    return [...this.fx.activities].reverse()
+    // The real store spreads the whole T3 item, score and award columns included.
+    return [...this.fx.activities].reverse().map((a) => ({ ...a, ...this.t3.get(a.activityId) }) as ReplayActivity)
   }
   async readRunCells(_u: string, activityId: string) {
     return this.runCells.get(activityId)
@@ -488,6 +519,76 @@ describe("T3's copy of the score (0224)", () => {
     await replayUser(USER, 2, deps(store, STINGY))
     expect(store.ops.indexOf("writeActivityScores")).toBeGreaterThan(store.ops.indexOf("putLedger"))
     expect(store.ops.indexOf("writeActivityScores")).toBeLessThan(store.ops.indexOf("mergeCells"))
+  })
+})
+
+describe("T3's discovery award after a replay (0226, D-261)", () => {
+  it("replaces a provisional (deferred) award and a stale one with the fold's, and agrees with the ledger", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(V1)).seedByIngest()
+    const truth = store.snapshot().t3
+    // a-again as a §3.4 backfill left it: every cell deferred, zero credit.
+    const again = store.t3.get("a-again")!
+    store.t3.set("a-again", { ...again, newCellCount: 0, rearmedCellCount: 0, cooledCellCount: 0, deferredCellCount: again.cellCount })
+    // b-tie as `0220`'s reingest left it: every cell cooled.
+    const tie = store.t3.get("b-tie")!
+    expect(tie.newCellCount).toBeGreaterThan(0)
+    store.t3.set("b-tie", { ...tie, newCellCount: 0, cooledCellCount: tie.cellCount })
+
+    await replayUser(USER, 1, deps(store, V1))
+
+    expect(store.snapshot().t3).toEqual(truth)
+    expect(store.t3.get("a-again")!.deferredCellCount).toBe(0)
+    expect(auditT3(await store.listActivities(), await store.listLedger())).toEqual([])
+  })
+
+  it("leaves the award of an activity it did not score with cells exactly as ingest wrote it", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const odd = { ...store.t3.get("treadmill")!, fogAlgoVersion: 99 }
+    store.t3.set("treadmill", odd)
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.t3.get("treadmill")).toMatchObject({ fogAlgoVersion: 99, cellCount: 0 })
+  })
+})
+
+describe("the T3 repair (0226)", () => {
+  /** The operator's data as the ticket found it: pre-`0062` zeros, and awards in both directions. */
+  function drifted() {
+    const store = new MemoryStore(fixture(), rulesFor(V1)).seedByIngest()
+    const truth = store.snapshot().t3
+    for (const [id, row] of store.t3) if (row.status === "ACTIVE") store.t3.set(id, { ...row, xpAwarded: 0, xpRulesVersion: null })
+    const tie = store.t3.get("b-tie")!
+    store.t3.set("b-tie", { ...tie, newCellCount: 0, cooledCellCount: tie.cellCount })
+    const again = store.t3.get("a-again")!
+    store.t3.set("a-again", { ...again, newCellCount: again.cellCount, cooledCellCount: 0 })
+    return { store, truth }
+  }
+
+  it("the audit finds both kinds of drift, and a tombstoned row that still agrees is not one", async () => {
+    const { store } = drifted()
+    const found = auditT3(await store.listActivities(), await store.listLedger())
+    expect(found.filter((m) => m.field === "newCellCount").map((m) => m.activityId).sort()).toEqual(["a-again", "b-tie"])
+    expect(found.filter((m) => m.field === "xpAwarded").length).toBeGreaterThan(0)
+    expect(found.some((m) => m.activityId === "z-gone")).toBe(false)
+  })
+
+  it("rewrites T3 to what ingest-in-order would have written, touching nothing else, then plans nothing", async () => {
+    const { store, truth } = drifted()
+    const before = store.snapshot()
+    const plan = await planT3Repair(USER, { store, rules: rulesFor(V1) })
+    expect(plan.writes.some((w) => w.activityId === "z-gone")).toBe(false)
+    store.ops = []
+    await store.writeActivityScores(USER, plan.writes)
+
+    const after = store.snapshot()
+    expect(after.t3).toEqual(truth)
+    expect(after.ledger).toEqual(before.ledger)
+    expect(after.t6).toEqual(before.t6)
+    expect(after.skills).toEqual(before.skills)
+    expect(store.runs.size).toBe(0)
+    expect(store.ops.every((o) => o === "writeActivityScores")).toBe(true)
+
+    expect(auditT3(await store.listActivities(), await store.listLedger())).toEqual([])
+    expect((await planT3Repair(USER, { store, rules: rulesFor(V1) })).writes).toEqual([])
   })
 })
 

@@ -220,6 +220,28 @@ describe("the T3 score write-back (0224)", () => {
     })
     expect(a2!.ExpressionAttributeValues).toMatchObject({ ":xp": 0, ":ver": null })
   })
+
+  it("with an award (0226), sets the six award columns too — the names activityItem writes", () => {
+    const award = {
+      cellCount: 121,
+      newCellCount: 32,
+      rearmedCellCount: 0,
+      cooledCellCount: 89,
+      deferredCellCount: 0,
+      discoveryCredits: 32,
+      res: 10,
+      algoVersion: 1,
+    }
+    const u = activityScoreItem({ activityId: "a-1", xpAwarded: 711, xpRulesVersion: 1, award }, "2026-09-30T00:00:00.000Z", "A")
+    expect(u.UpdateExpression).toBe(
+      "SET xpAwarded = :xp, xpRulesVersion = :ver, updatedAt = :now, cellCount = :cellCount, " +
+        "newCellCount = :newCellCount, rearmedCellCount = :rearmedCellCount, cooledCellCount = :cooledCellCount, " +
+        "deferredCellCount = :deferredCellCount, fogAlgoVersion = :fogAlgoVersion",
+    )
+    expect(u.ExpressionAttributeValues).toMatchObject({ ":newCellCount": 32, ":cooledCellCount": 89, ":fogAlgoVersion": 1 })
+    // discoveryCredits is not a column (D-193).
+    expect(JSON.stringify(u)).not.toMatch(/discoveryCredits/)
+  })
 })
 
 describe("the T6 merge (§4.4 step 4) never lowers a cell", () => {

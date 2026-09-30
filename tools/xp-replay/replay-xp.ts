@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 
-import { DynamoDBClient, ListTablesCommand } from "@aws-sdk/client-dynamodb"
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3"
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
@@ -10,6 +10,8 @@ import type { BlobStoreDeps } from "../../src/pipeline/explored-blob-store"
 import { replayUser, type ReplayActivity } from "../../src/pipeline/xp-replay"
 import { dynamoReplayStore } from "../../src/pipeline/xp-replay-store"
 import { loadRuleSet } from "../../src/rules/load"
+
+import { modelTables } from "./tables"
 
 /**
  * RUN A REBALANCE FOR ONE USER. Ticket `0066`. `02-data-model.md` §4.4.
@@ -66,28 +68,6 @@ const raw = new DynamoDBClient({ region })
 const ddb = DynamoDBDocumentClient.from(raw, { marshallOptions: { removeUndefinedValues: true } })
 const s3 = new S3Client({ region })
 
-/** `defineData` names each table `<Model>-<apiId>-NONE`. Exactly one of each, or stop. */
-async function modelTables(): Promise<Record<"Profile" | "SkillState" | "XpLedgerEntry" | "Activity", string>> {
-  const names: string[] = []
-  let ExclusiveStartTableName: string | undefined
-  do {
-    const page = await raw.send(new ListTablesCommand({ ExclusiveStartTableName }))
-    names.push(...(page.TableNames ?? []))
-    ExclusiveStartTableName = page.LastEvaluatedTableName
-  } while (ExclusiveStartTableName)
-  const one = (model: string) => {
-    const hits = names.filter((n) => new RegExp(`^${model}-[a-z0-9]+-NONE$`).test(n))
-    if (hits.length !== 1) throw new Error(`expected one ${model} table, found ${JSON.stringify(hits)}`)
-    return hits[0]!
-  }
-  return {
-    Profile: one("Profile"),
-    SkillState: one("SkillState"),
-    XpLedgerEntry: one("XpLedgerEntry"),
-    Activity: one("Activity"),
-  }
-}
-
 async function loadTrace(activity: ReplayActivity) {
   if (!activity.hasTrace) return undefined
   if (!activity.raw) throw new Error(`${activity.activityId} has a trace but no raw archive reference`)
@@ -106,7 +86,7 @@ async function loadTrace(activity: ReplayActivity) {
   return getAdapter(activity.source.source).normalize(body, activity.raw, job).trace
 }
 
-const tables = await modelTables()
+const tables = await modelTables(raw)
 const blobs: BlobStoreDeps = { s3: s3 as never, bucket, ddb: ddb as never }
 const store = dynamoReplayStore({
   ddb: ddb as never,

@@ -214,20 +214,34 @@ export function skillStateThawItem(userId: string, w: SkillStateWrite, at: strin
  * everything else on the row describes the recording, which a rebalance does not change.
  * Conditioned on the row existing and being ACTIVE, so a tombstoned row (D-258) cannot be touched
  * and a stray id cannot create a half-row.
+ *
+ * `0226`: with an `award`, the discovery-award columns too — the same six `activityItem` writes,
+ * so the row reads exactly as if ingest had classified it against the folded history.
  */
 export function activityScoreItem(w: ActivityScoreWrite, at: string, table: string) {
+  const sets = ["xpAwarded = :xp", "xpRulesVersion = :ver", "updatedAt = :now"]
+  const values: Item = { ":xp": w.xpAwarded, ":ver": w.xpRulesVersion, ":now": at, ":active": "ACTIVE" }
+  if (w.award) {
+    const award: Array<[string, number]> = [
+      ["cellCount", w.award.cellCount],
+      ["newCellCount", w.award.newCellCount],
+      ["rearmedCellCount", w.award.rearmedCellCount],
+      ["cooledCellCount", w.award.cooledCellCount],
+      ["deferredCellCount", w.award.deferredCellCount],
+      ["fogAlgoVersion", w.award.algoVersion],
+    ]
+    for (const [column, value] of award) {
+      sets.push(`${column} = :${column}`)
+      values[`:${column}`] = value
+    }
+  }
   return {
     TableName: table,
     Key: { id: w.activityId },
-    UpdateExpression: "SET xpAwarded = :xp, xpRulesVersion = :ver, updatedAt = :now",
+    UpdateExpression: `SET ${sets.join(", ")}`,
     ConditionExpression: "attribute_exists(id) AND #status = :active",
     ExpressionAttributeNames: { "#status": "status" },
-    ExpressionAttributeValues: {
-      ":xp": w.xpAwarded,
-      ":ver": w.xpRulesVersion,
-      ":now": at,
-      ":active": "ACTIVE",
-    },
+    ExpressionAttributeValues: values,
   }
 }
 

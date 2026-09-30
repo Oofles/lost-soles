@@ -5174,6 +5174,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-30T03:33:03Z",
+    "started": "2026-09-30T19:14:59Z",
     "path": "tickets/open/0226-t3-discovery-awards-disagree-with-ledger.md",
     "ready": true,
     "acceptance": {

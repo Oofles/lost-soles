@@ -3673,3 +3673,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Cost.** One `GetItem` per ingest, plus `dynamodb:GetItem` on T3 for the worker role.
     A row from before `0048` has no award columns; it counts as no stored award, and the fresh
     classification is written as before.
+
+- **D-261** **The XP replay owns T3's score and award columns, and the fold is the authority for a
+  replayed award.** *(Agent, 2026-09-30, tickets `0224` and `0226`. The operator chose a
+  standalone repair over a same-version replay for the one-off fix.)*
+  - **The gap.** T3 carries two denormalised copies: the score (`xpAwarded`, `xpRulesVersion`,
+    `0062`) and the discovery award (`0048`). The replay (`0066`) rewrote T4 and T6 but never T3.
+    After a rebalance, the row kept the old score. A row left provisional by §3.4
+    (`deferredCellCount > 0`) stayed provisional after the replay folded its history, which is
+    the one event `05` §3.4 says ends that state.
+  - **The rule.** Replay step 3 writes each ACTIVE activity's score back to its T3 row right after
+    `putLedger`. That is the SUM of its rows, and the version they cite, or `null` when there are
+    none (ingest's rule). For an activity the step scored **with cells** (cells present and
+    `revealsGround` under the target ruleset), it also writes the **fold's** award: all six
+    `activityItem` award columns, so `deferredCellCount` comes back 0. Any other activity keeps
+    the award ingest wrote. Tombstoned rows are never written (D-258). The `UpdateItem` is
+    conditioned on `status = ACTIVE`.
+  - **Why the fold and not the ledger.** T4 is the record, but it stores only credits, not the
+    cooled/deferred split. The fold is what wrote T4's discovery rows in the same step, so it
+    agrees with the ledger by construction and also supplies the split.
+  - **Repairs are not rebalances.** A `ReplayRun` is a chronicle entry (D-258), so correcting a
+    denormalised copy must not create one. `tools/xp-replay/repair-t3.ts` runs the same fold
+    and the same write, and takes the score from T4 as it stands. It writes no ledger rows,
+    floors, `ReplayRun` or generation. Without `--confirm` it is the standing
+    "T3 agrees with T4" check, and it exits 1 on drift.
+  - **The check matches by reason, not skill.** It compares T3's `newCellCount` and
+    `rearmedCellCount` against the `units` on the activity's `cells_new` and `cells_rearmed`
+    rows. Which skill earns discovery is a registry row (D-031). `0226` had compared credits
+    against the `units` on Cartography rows. That holds only when nothing was rearmed, because
+    `units` carries the raw count and the 0.5 is in `unitsEffective`.

@@ -1139,6 +1139,7 @@ replay(userId, toRulesVersion):
          it does NOT read ExploredCell, which is a cache of this very fold.
       c. write XpLedgerEntry rows with xpRulesVersion = toRulesVersion, isFloor = false
       d. accumulate newSum[skillId]
+      e. rewrite the Activity row's score and award columns from (c) and (b) — D-261
 
  4. REBUILD ExploredCell from the same fold (it is derived — §1.1, §2.9), and regenerate
     the blobs via AP-17 + §2.10. Bump generation ONCE, at the end.
@@ -1153,6 +1154,13 @@ replay(userId, toRulesVersion):
 Volume makes this trivial: 2,000–5,000 activities and 20k–50k cells at five years (§2), so a full
 replay is **seconds and a few hundred thousand RRU/WRU — well under a dollar, once**, comfortably
 inside D-083.
+
+*As built (`0224`, `0226`, D-261):* step 3e writes, after the ledger rows, `xpAwarded` (the SUM
+of the activity's rows) and `xpRulesVersion` (`null` when there are none). When the activity was
+scored with cells, it also writes the fold's discovery award, so a §3.4-provisional row stops
+being provisional. It is one `UpdateItem` per ACTIVE row, conditioned on `status = ACTIVE`.
+`tools/xp-replay/repair-t3.ts` is the same fold and write without a replay, and doubles as the
+"T3 agrees with T4" check.
 
 **Per-user, not global.** Six users (D-014) replayed one at a time keeps each transaction's blast
 radius to one person and makes a partial failure resumable rather than global.
