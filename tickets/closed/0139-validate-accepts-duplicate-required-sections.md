@@ -4,7 +4,7 @@ slug: validate-accepts-duplicate-required-sections
 title: validate accepts duplicate required sections, so a stub block can hide a phantom unchecked criterion
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T21:31:18Z
 started: 2026-09-30T20:32:39Z
+closed: 2026-09-30T20:36:45Z
 ---
 
 ## Description

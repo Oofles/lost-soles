@@ -3095,8 +3095,8 @@
     "path": "tickets/closed/0130-sandbox-environment-and-a-throwaway-agent-account-for-troubl.md",
     "ready": false,
     "acceptance": {
-      "checked": 6,
-      "total": 6
+      "checked": 5,
+      "total": 5
     }
   },
   {
@@ -3289,7 +3289,7 @@
     "title": "validate accepts duplicate required sections, so a stub block can hide a phantom unchecked criterion",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3297,10 +3297,11 @@
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "started": "2026-09-30T20:32:39Z",
-    "path": "tickets/open/0139-validate-accepts-duplicate-required-sections.md",
-    "ready": true,
+    "closed": "2026-09-30T20:36:45Z",
+    "path": "tickets/closed/0139-validate-accepts-duplicate-required-sections.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
