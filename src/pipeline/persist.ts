@@ -1,7 +1,7 @@
-import { TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb"
 
 import type { Activity } from "@/src/domain/activity"
-import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
+import { CREDIT_NEW, CREDIT_REARM, NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
 import { NO_REJECTS, type TraceRejects } from "@/src/domain/fog"
 
 import { objectKeys } from "./explored-blob-store"
@@ -54,7 +54,8 @@ import { doneTransactItem } from "./ingest-receipt"
  * bytes, which a `new Date()` anywhere in here would quietly make impossible.
  */
 export interface PersistDeps {
-  ddb: { send(command: TransactWriteCommand): Promise<unknown> }
+  /** `0220`: the `GetCommand` is `readStoredAward`'s, and it is the only read this module makes. */
+  ddb: { send(command: TransactWriteCommand | GetCommand): Promise<unknown> }
   /**
    * T3's physical table name. Amplify GENERATES it (`Activity-<apiId>-<env>`), so
    * unlike the three CDK tables it cannot be a literal anyone states — the worker is
@@ -265,6 +266,60 @@ export function activityItem(
 
     /** ACTIVE | TOMBSTONED. A source-side delete tombstones; cells are never removed. */
     status: "ACTIVE",
+  }
+}
+
+/** The T3 columns that ARE the discovery award (`activityItem` above). */
+const AWARD_COLUMNS = [
+  "cellCount",
+  "newCellCount",
+  "rearmedCellCount",
+  "cooledCellCount",
+  "deferredCellCount",
+  "fogAlgoVersion",
+] as const
+
+/**
+ * `0220`. THE AWARD THIS ACTIVITY WAS FIRST GIVEN, or `null` if T3 has no row for it yet.
+ *
+ * A second delivery of a committed activity — a `reingest` (`0192`), or a redelivery after the
+ * receipt's 90-day TTL — re-runs `projectCells` against a store that already holds this
+ * activity's cells, each carrying this activity's own `lastRunAt`. Everything classifies
+ * `cooled`, and an unconditional put would overwrite a run that opened new ground with one
+ * that opened none. §3.2: the award is *stored, not recomputed*. This is what lets the caller
+ * honour that on the second delivery as well as the first.
+ *
+ * STRONGLY CONSISTENT, because the case this guards can be seconds after the first commit.
+ *
+ * A row written before the award columns existed (pre-`0048`) has no award to keep, and
+ * returns `null` rather than a half-read one: the caller then writes the fresh classification,
+ * which is exactly what happened before this function existed.
+ */
+export async function readStoredAward(
+  activityId: string,
+  deps: PersistDeps,
+): Promise<DiscoveryAward | null> {
+  const out = (await deps.ddb.send(
+    new GetCommand({
+      TableName: deps.activityTable,
+      Key: { id: activityId },
+      ConsistentRead: true,
+      ProjectionExpression: AWARD_COLUMNS.join(", "),
+    }),
+  )) as { Item?: Record<string, unknown> } | undefined
+  const row = out?.Item
+  if (!row || !AWARD_COLUMNS.every((c) => typeof row[c] === "number")) return null
+  const n = (c: (typeof AWARD_COLUMNS)[number]) => row[c] as number
+  return {
+    cellCount: n("cellCount"),
+    newCellCount: n("newCellCount"),
+    rearmedCellCount: n("rearmedCellCount"),
+    cooledCellCount: n("cooledCellCount"),
+    deferredCellCount: n("deferredCellCount"),
+    // Not a column (see `activityItem`), so derived here exactly as `creditOf` would.
+    discoveryCredits: n("newCellCount") * CREDIT_NEW + n("rearmedCellCount") * CREDIT_REARM,
+    res: NO_CELLS.res,
+    algoVersion: n("fogAlgoVersion"),
   }
 }
 

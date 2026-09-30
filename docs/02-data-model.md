@@ -1087,6 +1087,16 @@ line **SETs** `totalXp` and `totalLevel` recomputed from the full pre-read rathe
 carried forward. It creates the row (`if_not_exists` metadata) if no replay has yet.
 `exploredGeneration` is not in it: that mirror is `0182`'s.
 
+*As built (`0220`, D-260):* the `Activity` put is **unconditional**, not
+`attribute_not_exists(id) OR revision < :rev`. Before building the transaction, ingest reads the
+T3 row (`GetItem`, strongly consistent, the six award columns). If one exists, the put carries
+**its** award — `cellCount`, `newCellCount`, `rearmedCellCount`, `cooledCellCount`,
+`deferredCellCount`, `fogAlgoVersion` — instead of this delivery's reclassification, and the
+receipt closes with its `newCellCount`. The condition above would have failed a same-revision
+redelivery's whole transaction and left the receipt `PROCESSING`; the pre-read keeps the first
+award and still commits. A source-side revision keeps the first award too, until the replay job
+(`0066`) does §3.5's un-award.
+
 **Cell writes stay outside** this transaction when a run touches more than ~60 cells, because
 `TransactWriteItems` caps at 100 items and a run touches 40–130 (R3 §2). The ordering is: cell
 writes first (idempotent set-inserts, §2 T6), then the transaction. A crash between the two leaves

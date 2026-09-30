@@ -978,13 +978,17 @@ sourceAccountKey.grantEncryptDecrypt(processActivityLambda)
  */
 const activityTable = backend.data.resources.tables["Activity"]
 /**
- * `PutItem` ALONE. The transaction writes the row and never reads it back, never updates
- * it in place, and — the one that matters — never deletes it. A source-side delete
- * TOMBSTONES an activity by setting `status`, which is an update this function does not
- * perform either: `aspect_type: "delete"` handling is capability 14's, and it will need
- * its own grant, written where a reviewer can see what it permits.
+ * `PutItem` and `GetItem`. The transaction writes the row, never updates it in place, and —
+ * the one that matters — never deletes it. A source-side delete TOMBSTONES an activity by
+ * setting `status`, which is an update this function does not perform either:
+ * `aspect_type: "delete"` handling is capability 14's, and it will need its own grant,
+ * written where a reviewer can see what it permits.
+ *
+ * `GetItem` is `0220`'s: before the put, `readStoredAward` reads the row's discovery award so
+ * a second delivery keeps the first one rather than overwriting it with an all-`cooled`
+ * reclassification (D-260). A single-key read of the award columns, nothing wider.
  */
-activityTable.grant(processActivityLambda, "dynamodb:PutItem")
+activityTable.grant(processActivityLambda, "dynamodb:PutItem", "dynamodb:GetItem")
 
 /**
  * T4 `XpLedgerEntry` and T2 `SkillState`, ticket `0062`. Written directly for the reason T3

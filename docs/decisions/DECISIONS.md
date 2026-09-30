@@ -3648,3 +3648,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Access.** The ingest role holds `s3:PutObject` on `snapshots/skillstate/*` and nothing else
     there. The only reader is the replay CLI, which runs under operator credentials. The prefix
     sits outside `users/*`, so no browser grant reaches it.
+- **D-260** **An activity's discovery award is written once: a later delivery keeps T3's stored
+  award.** *(Agent, 2026-09-29, ticket `0220`. The ticket's criterion 2 left the revision case to
+  the fix; the operator asked for the ticket to proceed.)*
+  - **The hole.** D-254's closing bullet. A `reingest` (`0192`), or a redelivery after the 90-day
+    receipt TTL, re-runs `projectCells` against cells that already carry this activity's own
+    `lastRunAt`, so every cell classifies `cooled`. The unconditional T3 put then overwrote
+    `newCellCount: N` with `0`. XP was already protected (D-254); the post-run card and activity
+    list, which read the stored award (`05` §3.2), were not.
+  - **The rule.** `persistWithLedger` reads the T3 row (strongly consistent `GetItem`, award
+    columns only) before building the transaction. If a row with an award exists, the put writes
+    that award and the receipt closes with its `newCellCount`. The fresh classification is
+    discarded. Everything else on the row is rewritten as before, including `traceRef` and
+    `traceRejectCounts`, which describe the recording rather than grant anything.
+  - **Revisions keep the first award too.** `05` §3.5's un-award-and-rescore belongs to the
+    replay job (`0066`), as `0050` already recorded for the XP half. Rescoring the award here
+    while D-254 kept the XP would leave T3's counts and T4's XP describing two versions of the run.
+  - **Why a pre-read and not `02` §4.3's `attribute_not_exists(id) OR revision < :rev`.** On a
+    same-revision redelivery, that condition cancels the whole transaction, so the receipt never
+    reaches `DONE` and the message redrives into the DLQ. It refuses the write when what we need
+    is to commit and keep the old award. An `UpdateItem` with `if_not_exists` on each award column
+    would also have worked without a read. It was rejected because the row is a `Put` everywhere
+    else and the caller would not learn which award won.
+  - **Cost.** One `GetItem` per ingest, plus `dynamodb:GetItem` on T3 for the worker role.
+    A row from before `0048` has no award columns; it counts as no stored award, and the fresh
+    classification is written as before.

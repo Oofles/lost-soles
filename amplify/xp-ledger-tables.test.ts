@@ -118,7 +118,7 @@ describe("T2 SkillState — keys", () => {
   })
 })
 
-describe("the worker's grants on T1/T2/T4", () => {
+describe("the worker's grants on T1/T2/T3/T4", () => {
   type Statement = { Action?: unknown; Resource?: unknown }
   const list = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : [v as string])
   const statements = (): Statement[] =>
@@ -148,6 +148,14 @@ describe("the worker's grants on T1/T2/T4", () => {
   /** `0219`. The Profile totals only; the ingest never reads or deletes T1. */
   it("T1: UpdateItem only", () => {
     expect(actionsOn("Profile")).toEqual(["dynamodb:UpdateItem"])
+  })
+
+  /** `0220`. The put, and the consistent read of the award that precedes it. No Update, no Delete. */
+  it("T3: GetItem and PutItem only", () => {
+    expect(actionsOn("ActivityNestedStack")).toEqual([
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+    ])
   })
 
   it("the worker is told all three table names", () => {

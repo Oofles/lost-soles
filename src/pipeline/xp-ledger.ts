@@ -7,7 +7,7 @@ import type { RuleCurve, RuleSkill } from "@/src/rules/schema"
 import { sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring/ledger"
 import { levelForXp } from "@/src/scoring/levels"
 
-import { amplifyMetadata, persistActivity, type PersistDeps } from "./persist"
+import { amplifyMetadata, persistActivity, readStoredAward, type PersistDeps } from "./persist"
 
 /**
  * THE LEDGER'S WRITE PATH. Ticket 0062. `02-data-model.md` §4.3, T2, T4; I-15, D-142.
@@ -396,6 +396,11 @@ export interface LedgerCommit {
   alreadyScored: boolean
   /** The ruleset the activity's rows cite, or `null` when it earned nothing. */
   xpRulesVersion: number | null
+  /**
+   * `0220`. T3 already held this activity's discovery award, and the commit kept it rather
+   * than writing this delivery's reclassification over it.
+   */
+  awardKept: boolean
 }
 
 /**
@@ -425,6 +430,16 @@ export async function persistWithLedger(
   for (let attempt = 1; ; attempt += 1) {
     const existing = await existingEntries(activity.activityId, deps.ledger)
     const alreadyScored = existing.length > 0
+    /**
+     * `0220` — D-254's rule, applied to the discovery award. An activity is awarded once: if
+     * T3 already has its row, the award on it stands, and this delivery's classification (which
+     * sees the activity's own cells and calls them all `cooled`) is discarded. That includes a
+     * source-side REVISION — `05` §3.5's un-award-and-rescore belongs to the replay job
+     * (`0066`), exactly as the XP half does, and half-handling it here would leave T3's counts
+     * and T4's XP describing two different versions of the run (D-260).
+     */
+    const stored = await readStoredAward(activity.activityId, deps.persist)
+    const committedAward = stored ?? award
 
     const commit: LedgerCommit = alreadyScored
       ? {
@@ -432,12 +447,14 @@ export async function persistWithLedger(
           rowsWritten: 0,
           alreadyScored: true,
           xpRulesVersion: existing[0]!.xpRulesVersion,
+          awardKept: stored !== null,
         }
       : {
           xpAwarded: sumXp(entries),
           rowsWritten: entries.length,
           alreadyScored: false,
           xpRulesVersion: entries.length > 0 ? rulesVersion : null,
+          awardKept: stored !== null,
         }
 
     const items =
@@ -456,10 +473,10 @@ export async function persistWithLedger(
     try {
       await persistActivity(
         activity,
-        { ingestKey, xpAwarded: commit.xpAwarded, newCellCount: award.newCellCount },
+        { ingestKey, xpAwarded: commit.xpAwarded, newCellCount: committedAward.newCellCount },
         deps.persist,
         items,
-        award,
+        committedAward,
         rejects,
         commit.xpRulesVersion,
       )

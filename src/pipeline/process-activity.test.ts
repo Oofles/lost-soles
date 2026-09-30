@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3"
 import {
   BatchGetCommand,
+  GetCommand,
   QueryCommand,
   TransactWriteCommand,
   UpdateCommand,
@@ -133,6 +134,8 @@ interface Options {
   ledgerExisting?: Array<Record<string, unknown>>
   /** `0062`. The n-th (1-based) transaction throws what this returns, if anything. */
   persistFails?: (n: number) => Error | undefined
+  /** `0220`. The T3 row a previous delivery committed, if any. Absent: a first delivery. */
+  storedActivity?: Record<string, unknown>
 }
 
 /** The real v1 ruleset, because D-189's answer must be the shipped one, not a stub's. */
@@ -167,6 +170,7 @@ function rig(options: Options = {}) {
   /** `0062`. Every transaction sent, and every T4/T2 read, in order. */
   const transacts: TransactWriteCommand["input"][] = []
   const ledgerReads: string[] = []
+  const activityReads: GetCommand["input"][] = []
   /** `0067`. Every `snapshots/skillstate/` PUT. Kept out of `calls`: it is not a phase. */
   const snapshotPuts: PutObjectCommand["input"][] = []
   let ticks = 0
@@ -346,7 +350,15 @@ function rig(options: Options = {}) {
     persist: {
       activityTable: ACTIVITY_TABLE,
       ddb: {
-        async send(command: TransactWriteCommand) {
+        async send(command: TransactWriteCommand | GetCommand) {
+          /**
+           * `0220`. `readStoredAward`'s consistent read of T3. Answers with `storedActivity`,
+           * or nothing — a first delivery. Kept out of `calls`, like the ledger reads.
+           */
+          if (command instanceof GetCommand) {
+            activityReads.push(command.input)
+            return options.storedActivity ? { Item: options.storedActivity } : {}
+          }
           calls.push("persist")
           expect(command).toBeInstanceOf(TransactWriteCommand)
           transacts.push(command.input)
@@ -433,7 +445,18 @@ function rig(options: Options = {}) {
     } as never
   }
 
-  return { deps, calls, cellWrites, aggWrites, blobPuts, tracePuts, transacts, ledgerReads, snapshotPuts }
+  return {
+    deps,
+    calls,
+    cellWrites,
+    aggWrites,
+    blobPuts,
+    tracePuts,
+    transacts,
+    ledgerReads,
+    activityReads,
+    snapshotPuts,
+  }
 }
 
 describe("the fixed order", () => {
@@ -1062,8 +1085,8 @@ describe("the award is stored, not recomputed (criterion 9, §3.2)", () => {
     const { deps } = rig({ ingest: TRACED_RUN })
     const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
     deps.persist.ddb = {
-      async send(command: TransactWriteCommand) {
-        transactions.push(command.input.TransactItems)
+      async send(command: TransactWriteCommand | GetCommand) {
+        if (command instanceof TransactWriteCommand) transactions.push(command.input.TransactItems)
         return inner(command)
       },
     }
@@ -1085,8 +1108,8 @@ describe("the award is stored, not recomputed (criterion 9, §3.2)", () => {
     const { deps } = rig({ ingest: TRACED_RUN })
     const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
     deps.persist.ddb = {
-      async send(command: TransactWriteCommand) {
-        transactions.push(command.input.TransactItems)
+      async send(command: TransactWriteCommand | GetCommand) {
+        if (command instanceof TransactWriteCommand) transactions.push(command.input.TransactItems)
         return inner(command)
       },
     }
@@ -1116,6 +1139,91 @@ describe("the award is stored, not recomputed (criterion 9, §3.2)", () => {
     expect(result).toEqual({ outcome: "already-done", xpAwarded: 0, newCellCount: 41 })
     expect(calls).not.toContain("cellsRead")
     expect(calls).not.toContain("cells")
+  })
+})
+
+describe("a second delivery keeps the first award (0220, D-260)", () => {
+  const AWARD_COLUMNS = [
+    "cellCount",
+    "newCellCount",
+    "rearmedCellCount",
+    "cooledCellCount",
+    "deferredCellCount",
+    "fogAlgoVersion",
+  ]
+  const t3Row = (transacts: ReturnType<typeof rig>["transacts"]) =>
+    transacts.at(-1)!.TransactItems!.find((i) => i.Put?.TableName === ACTIVITY_TABLE)!.Put!.Item!
+  const awardOf = (row: Record<string, unknown>) =>
+    Object.fromEntries(AWARD_COLUMNS.map((c) => [c, row[c]]))
+
+  /**
+   * THE BUG, END TO END. The second delivery sees a store that remembers the first run's cells,
+   * each carrying this activity's own `lastRunAt` — so it classifies every one `cooled`. The row
+   * it commits must still say what the first delivery awarded.
+   */
+  it("the same activity twice: T3's award is exactly what the first delivery wrote", async () => {
+    const first = rig({ ingest: TRACED_RUN })
+    const r1 = await processActivity(JOB, first.deps)
+    if (r1.outcome !== "persisted") throw new Error("expected persisted")
+    const firstRow = t3Row(first.transacts)
+    expect(firstRow.newCellCount).toBeGreaterThan(0)
+
+    const firstCells = new Set(first.cellWrites.map((w) => String((w.Key as { sk: string }).sk)))
+    const second = rig({
+      ingest: TRACED_RUN,
+      known: (cells) =>
+        Object.fromEntries(
+          cells.filter((c) => firstCells.has(c)).map((c) => [c, INGEST.activity.startedAt]),
+        ),
+      ledgerExisting: [{ id: "a-1#wayfaring#new_ground#v1", xpAwarded: 28, xpRulesVersion: 1 }],
+      storedActivity: firstRow,
+    })
+    const r2 = await processActivity(JOB, second.deps)
+    if (r2.outcome !== "persisted") throw new Error("expected persisted")
+
+    // The reclassification really did come back all-cooled — the bug's precondition holds.
+    expect(r2.award.newCellCount).toBe(0)
+    expect(r2.award.cooledCellCount).toBe(r1.award.cellCount)
+
+    expect(awardOf(t3Row(second.transacts))).toEqual(awardOf(firstRow))
+    expect(t3Row(second.transacts).cellsRef).toBe(firstRow.cellsRef)
+    expect(r2.xp).toMatchObject({ alreadyScored: true, awardKept: true })
+
+    // The receipt closes with the kept number too, so a later duplicate answers with it.
+    const done = second.transacts[0]!.TransactItems!.find((i) => i.Update)!.Update!
+    expect(done.ExpressionAttributeValues![":newCellCount"]).toBe(firstRow.newCellCount)
+  })
+
+  it("reads T3 consistently, by the activity's id, for the award columns only", async () => {
+    const { deps, activityReads } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+    expect(activityReads).toHaveLength(1)
+    expect(activityReads[0]).toMatchObject({
+      TableName: ACTIVITY_TABLE,
+      Key: { id: "a-1" },
+      ConsistentRead: true,
+    })
+    expect(String(activityReads[0]!.ProjectionExpression).split(", ")).toEqual(AWARD_COLUMNS)
+  })
+
+  it("a first delivery writes its own classification and reports nothing kept", async () => {
+    const { deps, transacts } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(t3Row(transacts).newCellCount).toBe(result.award.newCellCount)
+    expect(result.xp.awardKept).toBe(false)
+  })
+
+  /** A row from before `0048` has no award to keep; writing the fresh one is the old behaviour. */
+  it("a row with no award columns is not a stored award", async () => {
+    const { deps, transacts } = rig({
+      ingest: TRACED_RUN,
+      storedActivity: { id: "a-1", userId: "u-1" },
+    })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+    expect(t3Row(transacts).newCellCount).toBe(result.award.newCellCount)
+    expect(result.xp.awardKept).toBe(false)
   })
 })
 
@@ -1245,8 +1353,8 @@ describe("trace reject counts reach T3 (0180, §3.6)", () => {
     const { deps } = rig(options)
     const inner = deps.persist.ddb.send.bind(deps.persist.ddb)
     deps.persist.ddb = {
-      async send(command: TransactWriteCommand) {
-        transactions.push(command.input.TransactItems)
+      async send(command: TransactWriteCommand | GetCommand) {
+        if (command instanceof TransactWriteCommand) transactions.push(command.input.TransactItems)
         return inner(command)
       },
     }
@@ -1335,8 +1443,8 @@ describe("the route geometry phase (0195, 02 §5.1 S-7)", () => {
     const rigged = rig(options)
     const inner = rigged.deps.persist.ddb.send.bind(rigged.deps.persist.ddb)
     rigged.deps.persist.ddb = {
-      async send(command: TransactWriteCommand) {
-        transactions.push(command.input.TransactItems)
+      async send(command: TransactWriteCommand | GetCommand) {
+        if (command instanceof TransactWriteCommand) transactions.push(command.input.TransactItems)
         return inner(command)
       },
     }

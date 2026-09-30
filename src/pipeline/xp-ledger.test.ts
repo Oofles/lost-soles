@@ -1,4 +1,4 @@
-import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import type { Activity } from "@/src/domain/activity"
@@ -118,8 +118,13 @@ class Tables {
   }
 
   readonly ddb = {
-    send: async (command: TransactWriteCommand | QueryCommand): Promise<unknown> => {
+    send: async (command: TransactWriteCommand | QueryCommand | GetCommand): Promise<unknown> => {
       if (command instanceof QueryCommand) return this.query(command.input)
+      // `0220`: `readStoredAward`. The key is T3's `id`, which is also what `KEY_OF` stores it by.
+      if (command instanceof GetCommand) {
+        const item = this.table(command.input.TableName!).get(String(command.input.Key!.id))
+        return item ? { Item: item } : {}
+      }
       this.transacts += 1
       this.beforeTransact?.(this.transacts)
       const txItems = command.input.TransactItems!
@@ -415,7 +420,7 @@ describe("persistWithLedger — the commit", () => {
     const result = await commit(activity(), RUN_ROWS, deps)
 
     expect(t.transacts).toBe(1)
-    expect(result).toEqual({ xpAwarded: 400, rowsWritten: 2, alreadyScored: false, xpRulesVersion: 1 })
+    expect(result).toEqual({ xpAwarded: 400, rowsWritten: 2, alreadyScored: false, xpRulesVersion: 1, awardKept: false })
     expect([...t.table(LEDGER_TABLE).keys()]).toEqual([
       "a-1#wayfaring#new_ground#v1",
       "a-1#wayfaring#recent_ground#v1",
@@ -423,6 +428,32 @@ describe("persistWithLedger — the commit", () => {
     expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ xpLedgerSum: 400, displayedXp: 400 })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 400, xpRulesVersion: 1 })
     expect(t.table(INGEST_RECEIPT_TABLE).get("k-1")).toMatchObject({ status: "DONE", xpAwarded: 400 })
+  })
+
+  /** `0220`, D-260. The award half of D-254: the second delivery's all-cooled reclassification is discarded. */
+  it("re-delivering keeps T3's discovery award and the receipt's newCellCount from the first delivery", async () => {
+    const { t, deps, claim } = world()
+    const opened = { ...NO_CELLS, cellCount: 40, newCellCount: 30, rearmedCellCount: 10, discoveryCredits: 35 }
+    const cooled = { ...NO_CELLS, cellCount: 40, cooledCellCount: 40 }
+    const run = (award: typeof NO_CELLS, key: string) =>
+      persistWithLedger(
+        { activity: activity(), ingestKey: key, entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award, rejects: undefined },
+        deps,
+      )
+    claim("k-1")
+    await run(opened, "k-1")
+    claim("k-2") // a `reingest` claims a fresh key
+    const again = await run(cooled, "k-2")
+
+    expect(again.awardKept).toBe(true)
+    expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({
+      cellCount: 40,
+      newCellCount: 30,
+      rearmedCellCount: 10,
+      cooledCellCount: 0,
+      deferredCellCount: 0,
+    })
+    expect(t.table(INGEST_RECEIPT_TABLE).get("k-2")).toMatchObject({ status: "DONE", newCellCount: 30 })
   })
 
   it("writes level/levelHighWater and the Profile totals in the same commit, and moves them on the next (0219)", async () => {
@@ -482,7 +513,7 @@ describe("persistWithLedger — the commit", () => {
     claim("k-1") // the receipt's TTL expired, or a `reingest` re-claimed it
     const again = await commit(activity(), RUN_ROWS, deps)
 
-    expect(again).toEqual({ xpAwarded: 400, rowsWritten: 0, alreadyScored: true, xpRulesVersion: 1 })
+    expect(again).toEqual({ xpAwarded: 400, rowsWritten: 0, alreadyScored: true, xpRulesVersion: 1, awardKept: true })
     expect(t.table(LEDGER_TABLE).size).toBe(2)
     expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ xpLedgerSum: 400, displayedXp: 400 })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 400 })
@@ -567,7 +598,7 @@ describe("persistWithLedger — the commit", () => {
     const { t, deps, claim } = world()
     claim("k-1")
     const result = await commit(activity({ distanceM: 0 }), [], deps)
-    expect(result).toEqual({ xpAwarded: 0, rowsWritten: 0, alreadyScored: false, xpRulesVersion: null })
+    expect(result).toEqual({ xpAwarded: 0, rowsWritten: 0, alreadyScored: false, xpRulesVersion: null, awardKept: false })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 0, xpRulesVersion: null })
   })
 })
