@@ -15,6 +15,7 @@ import { latestSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from 
 import { LEDGER_TYPENAME, ledgerPutItem, SKILL_STATE_TYPENAME } from "./xp-ledger"
 import {
   REPLAY_ACTIVITY_ID,
+  type ActivityScoreWrite,
   REPLAY_SEQ_PREFIX,
   type ReplayActivity,
   type ReplayRunRecord,
@@ -208,6 +209,28 @@ export function skillStateThawItem(userId: string, w: SkillStateWrite, at: strin
   }
 }
 
+/**
+ * `0224`. One T3 row's score columns, rewritten after a replay rescored it. Only those columns:
+ * everything else on the row describes the recording, which a rebalance does not change.
+ * Conditioned on the row existing and being ACTIVE, so a tombstoned row (D-258) cannot be touched
+ * and a stray id cannot create a half-row.
+ */
+export function activityScoreItem(w: ActivityScoreWrite, at: string, table: string) {
+  return {
+    TableName: table,
+    Key: { id: w.activityId },
+    UpdateExpression: "SET xpAwarded = :xp, xpRulesVersion = :ver, updatedAt = :now",
+    ConditionExpression: "attribute_exists(id) AND #status = :active",
+    ExpressionAttributeNames: { "#status": "status" },
+    ExpressionAttributeValues: {
+      ":xp": w.xpAwarded,
+      ":ver": w.xpRulesVersion,
+      ":now": at,
+      ":active": "ACTIVE",
+    },
+  }
+}
+
 export function dynamoReplayStore(deps: ReplayStoreDeps): ReplayStore {
   const { tables } = deps
   const concurrency = deps.concurrency ?? 8
@@ -356,6 +379,12 @@ export function dynamoReplayStore(deps: ReplayStoreDeps): ReplayStore {
           }),
         )
       }
+    },
+
+    async writeActivityScores(_userId, rows, at) {
+      await pool(rows, concurrency, async (w) => {
+        await send(new UpdateCommand(activityScoreItem(w, at, tables.activity)))
+      })
     },
 
     async listActivities(userId) {

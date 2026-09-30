@@ -5128,6 +5128,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T13:55:21Z",
+    "started": "2026-09-30T19:11:44Z",
     "path": "tickets/open/0224-activity-xp-denorm-after-replay.md",
     "ready": true,
     "acceptance": {

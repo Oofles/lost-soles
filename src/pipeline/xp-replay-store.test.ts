@@ -5,6 +5,7 @@ import type { FoldedCell } from "@/src/domain/fold"
 import { reconcile, type XpLedgerEntry } from "@/src/scoring"
 import { mergeFolded } from "@/src/pipeline/explored-merge"
 import {
+  activityScoreItem,
   dynamoReplayStore,
   replayRunItem,
   skillStateThawItem,
@@ -194,6 +195,30 @@ describe("the THAW write (§4.4 step 6)", () => {
     expect(freeze!.input).toMatchObject({ TableName: "P", Key: { id: "u-1" } })
     expect(freeze!.input.ExpressionAttributeValues).toMatchObject({ ":t": true, ":tn": "Profile", ":owner": "u-1::u-1" })
     expect(thaw!.input.ExpressionAttributeValues).toMatchObject({ ":f": false, ":xp": 1234, ":lvl": 17 })
+  })
+})
+
+describe("the T3 score write-back (0224)", () => {
+  it("sets only the score columns, on an existing ACTIVE row", async () => {
+    const { sent, store } = recorder()
+    await store.writeActivityScores(
+      "u-1",
+      [
+        { activityId: "a-1", xpAwarded: 120, xpRulesVersion: 2 },
+        { activityId: "a-2", xpAwarded: 0, xpRulesVersion: null },
+      ],
+      "2026-09-29T12:00:00.000Z",
+    )
+    const [a1, a2] = (sent as UpdateCommand[]).map((c) => c.input)
+    expect(a1).toEqual(activityScoreItem({ activityId: "a-1", xpAwarded: 120, xpRulesVersion: 2 }, "2026-09-29T12:00:00.000Z", "A"))
+    expect(a1).toMatchObject({
+      TableName: "A",
+      Key: { id: "a-1" },
+      UpdateExpression: "SET xpAwarded = :xp, xpRulesVersion = :ver, updatedAt = :now",
+      ConditionExpression: "attribute_exists(id) AND #status = :active",
+      ExpressionAttributeValues: { ":xp": 120, ":ver": 2, ":active": "ACTIVE" },
+    })
+    expect(a2!.ExpressionAttributeValues).toMatchObject({ ":xp": 0, ":ver": null })
   })
 })
 

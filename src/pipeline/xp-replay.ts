@@ -13,6 +13,7 @@ import {
   ratchetLevel,
   reconcile,
   scoreActivity,
+  sumXp,
   waterlineOf,
   xpBySkill,
   type ShownState,
@@ -38,7 +39,8 @@ import { buildSnapshot, waterlineOfSnapshot, type SkillStateSnapshot } from "./s
  * 1 FREEZE      Profile.replayInProgress = true
  * 2 CLEAR       delete every T4 row with isFloor = false. Floors, ReplayRuns and the rows of
  *               TOMBSTONED activities survive.
- * 3 REPLAY      fold cells.bin in (startedAt, activityId) order; score each ACTIVE activity
+ * 3 REPLAY      fold cells.bin in (startedAt, activityId) order; score each ACTIVE activity,
+ *               and rewrite its T3 row's copy of that score (`0224`)
  * 4 REBUILD     merge the fold into T6 (monotone), publish the blobs — ONE generation bump
  * 5 RECONCILE   floors for any shortfall against the waterline. The only step that adds rows.
  * 6 THAW        SkillState + Profile totals; clear the flag; ReplayRun → DONE (the chronicle entry)
@@ -123,6 +125,18 @@ export interface SkillStateWrite {
 }
 
 /**
+ * `0224`. What step 3 writes back to one ACTIVE activity's T3 row: the row's denormalised copy of
+ * the ledger (`0062`), which the activity list and `/run/:id` read. Same rule as ingest's
+ * `LedgerCommit`: `xpRulesVersion` is the ruleset the rows cite, `null` when the activity earned
+ * nothing — so a v1 → v1 replay leaves the row exactly as ingest wrote it.
+ */
+export interface ActivityScoreWrite {
+  activityId: string
+  xpAwarded: number
+  xpRulesVersion: number | null
+}
+
+/**
  * THE STORE. Narrow, so the orchestration is tested against a map and the DynamoDB/S3 shapes are
  * tested on their own (`xp-replay-store.ts`) and on the real tables (the ticket's smoke test).
  */
@@ -159,6 +173,13 @@ export interface ReplayStore {
    * Floor rows: `attribute_not_exists(id)`, always. A floor is never overwritten.
    */
   putLedger(entries: readonly XpLedgerEntry[]): Promise<void>
+
+  /**
+   * Step 3, `0224`. One update per row, touching only the score columns. An ACTIVE row only —
+   * a tombstoned activity's row describes rows the replay kept as awarded (D-258), and the table
+   * refuses the write rather than trusting the caller to have filtered.
+   */
+  writeActivityScores(userId: string, rows: readonly ActivityScoreWrite[], at: string): Promise<void>
 
   /** T3 GSI1 `byUserAndStart`, every status. Order does not matter — the fold sorts. */
   listActivities(userId: string): Promise<ReplayActivity[]>
@@ -302,6 +323,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
     )
 
     const entries: XpLedgerEntry[] = []
+    const scores: ActivityScoreWrite[] = []
     for (const activityId of fold.order) {
       const activity = byId.get(activityId)!
       if (activity.status !== ACTIVE) continue
@@ -319,9 +341,14 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
         }
         split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
       }
-      entries.push(...scoreActivity(activity, to, split, award, activity.ingestedAt))
+      const rows = scoreActivity(activity, to, split, award, activity.ingestedAt)
+      entries.push(...rows)
+      scores.push({ activityId, xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? toVersion : null })
     }
     await store.putLedger(entries)
+    // After the ledger, so T3 never shows a number the ledger does not hold yet. A crash between
+    // the two is healed by the re-run, which writes the same values.
+    await store.writeActivityScores(userId, scores, at())
     const recomputedXp = xpBySkill(entries)
     run = {
       ...run,
@@ -330,7 +357,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       ),
     }
     await store.updateRun(run)
-    log(`step 3: ${fold.order.length} activities folded, ${entries.length} rows written`)
+    log(`step 3: ${fold.order.length} activities folded, ${entries.length} rows written, ${scores.length} T3 rows rescored`)
 
     // ── 4. REBUILD ───────────────────────────────────────────────────────────
     const { created, updated } = await store.mergeCells(userId, fold.cells)

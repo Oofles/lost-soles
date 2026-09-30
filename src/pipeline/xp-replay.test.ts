@@ -20,6 +20,7 @@ import {
 import {
   REPLAY_ACTIVITY_ID,
   replayUser,
+  type ActivityScoreWrite,
   type ReplayActivity,
   type ReplayRunRecord,
   type ReplayStore,
@@ -150,6 +151,8 @@ class MemoryStore implements ReplayStore {
   runCells = new Map<string, H3Index[]>()
   generation = 0
   publishes = 0
+  /** T3's score columns (`0224`), as ingest's `LedgerCommit` would have written them. */
+  t3 = new Map<string, { xpAwarded: number; xpRulesVersion: number | null; status: string }>()
   /** Every operation, in order, with whether SkillState had changed since the replay began. */
   ops: string[] = []
   /** Throws from inside an operation — a crash at that point. */
@@ -159,7 +162,10 @@ class MemoryStore implements ReplayStore {
   constructor(
     readonly fx: Fixture,
     readonly rules: (v: number) => RuleSet,
-  ) {}
+  ) {
+    // Every activity has a T3 row, scored or not — the drill's rebuilt stack included.
+    for (const a of fx.activities) this.t3.set(a.activityId, { xpAwarded: 0, xpRulesVersion: null, status: a.status })
+  }
 
   private op(name: string) {
     const n = (this.counts.get(name) ?? 0) + 1
@@ -200,6 +206,7 @@ class MemoryStore implements ReplayStore {
       // Tombstoned after it was scored: its rows stay (§4.7).
       const rows = scoreActivity(a, V1, split, award, a.ingestedAt)
       for (const r of rows) this.ledger.set(r.id, r)
+      this.t3.set(a.activityId, { xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? 1 : null, status: a.status })
       for (const [skillId, xp] of xpBySkill(rows)) {
         const s = this.skills.get(skillId)
         this.skills.set(skillId, {
@@ -222,6 +229,7 @@ class MemoryStore implements ReplayStore {
       ledger: sorted(this.ledger).map(([, e]) => ({ ...e, awardedAt: e.isFloor ? "<floor>" : e.awardedAt })),
       skills: sorted(this.skills).map(([, s]) => s),
       t6: sorted(this.t6 as Map<string, FoldedCell>),
+      t3: sorted(this.t3),
       profile: { ...this.profile },
     }
   }
@@ -306,6 +314,14 @@ class MemoryStore implements ReplayStore {
       this.ledger.set(e.id, { ...e })
     }
   }
+  async writeActivityScores(_u: string, rows: readonly ActivityScoreWrite[]) {
+    for (const w of rows) {
+      this.op("writeActivityScores")
+      const row = this.t3.get(w.activityId)
+      if (row?.status !== "ACTIVE") throw new Error(`ConditionalCheckFailed: T3 ${w.activityId} is not ACTIVE`)
+      this.t3.set(w.activityId, { ...row, xpAwarded: w.xpAwarded, xpRulesVersion: w.xpRulesVersion })
+    }
+  }
   async listActivities() {
     this.op("listActivities")
     return [...this.fx.activities].reverse()
@@ -373,6 +389,8 @@ describe("an unchanged ruleset is a no-op (v1 → v1)", () => {
     const after = store.snapshot()
     expect(after.ledger).toEqual(before.ledger)
     expect(after.t6).toEqual(before.t6)
+    // T3's copy of the score too (0224): the replay's write-back agrees with ingest's.
+    expect(after.t3).toEqual(before.t3)
     for (const s of after.skills) {
       const was = before.skills.find((b) => b.skillId === s.skillId)!
       expect(s.displayedXp).toBe(was.displayedXp)
@@ -420,6 +438,56 @@ describe("a stingier ruleset (I-16)", () => {
     // MemoryStore.deleteLedger throws on a floor id, so reaching here is half the proof.
     await replayUser(USER, 2, deps(store, STINGY))
     for (const f of floors) expect(store.ledger.get(f.id)).toEqual(f)
+  })
+})
+
+describe("T3's copy of the score (0224)", () => {
+  const ledgerSums = (store: MemoryStore) => {
+    const out = new Map<string, number>()
+    for (const e of store.ledger.values()) {
+      if (e.isFloor || e.activityId === REPLAY_ACTIVITY_ID) continue
+      out.set(e.activityId, (out.get(e.activityId) ?? 0) + e.xpAwarded)
+    }
+    return out
+  }
+
+  it("after a stingier replay, every ACTIVE row carries its ledger SUM and the target version", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    await replayUser(USER, 2, deps(store, STINGY))
+    const sums = ledgerSums(store)
+    let halved = 0
+    for (const a of store.fx.activities.filter((x) => x.status === "ACTIVE")) {
+      const row = store.t3.get(a.activityId)!
+      expect(row.xpAwarded).toBe(sums.get(a.activityId) ?? 0)
+      expect(row.xpRulesVersion).toBe(sums.has(a.activityId) ? 2 : null)
+      if (sums.has(a.activityId)) halved++
+    }
+    // The fixture must actually change the numbers, or this test proves nothing.
+    expect(halved).toBeGreaterThan(0)
+  })
+
+  it("leaves a tombstoned activity's row exactly as awarded (D-258)", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const before = { ...store.t3.get("z-gone")! }
+    expect(before.xpAwarded).toBeGreaterThan(0)
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.t3.get("z-gone")).toEqual(before)
+    expect(ledgerSums(store).get("z-gone")).toBe(before.xpAwarded)
+  })
+
+  it("is idempotent: a second replay to the same version writes identical rows", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    await replayUser(USER, 2, deps(store, STINGY))
+    const first = store.snapshot().t3
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.snapshot().t3).toEqual(first)
+  })
+
+  it("is written after the ledger rows it copies", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.ops.indexOf("writeActivityScores")).toBeGreaterThan(store.ops.indexOf("putLedger"))
+    expect(store.ops.indexOf("writeActivityScores")).toBeLessThan(store.ops.indexOf("mergeCells"))
   })
 })
 
