@@ -4,7 +4,7 @@ slug: activity-xp-denorm-after-replay
 title: Activity.xpAwarded and xpRulesVersion go stale after an XP replay
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [66]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T13:55:21Z
 started: 2026-09-30T19:11:44Z
+closed: 2026-09-30T19:14:52Z
 ---
 
 ## Description
