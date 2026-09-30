@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, slugify, deferral, compareFog, compareXp } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -695,6 +695,58 @@ describe("0126 — validate enforces required body sections on every non-inbox t
     assert.notEqual(r.code, 0, "an unfinished triage must not validate clean");
     assert.match(r.out, /Acceptance criteria/);
     rmSync(d, { recursive: true, force: true });
+  });
+});
+
+describe("0139 — a required section appears exactly once", () => {
+  // The 0129 shape: the full `create` stub block, then the real content below it.
+  const STUB = "\n## Description\n\nTODO\n\n## Acceptance criteria\n\n- [ ] TODO\n\n## Notes\n\n## Operator validation\n\nTODO\n";
+  const REAL = "\n## Description\n\nreal\n\n## Acceptance criteria\n\n- [x] real\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n";
+
+  test("a stub block followed by real content is an error naming each section and its count", () => {
+    const d = repo();
+    ticket(d, "open", FM({}), STUB + REAL);
+    const { errors } = withRoot(d, () => validateIn(d));
+    const dup = errors.filter((e) => e.rule === "duplicate-section").map((e) => e.msg);
+    for (const s of ["Description", "Acceptance criteria", "Notes", "Operator validation"]) {
+      assert.ok(dup.includes(`'## ${s}' appears 2 times`), `expected a duplicate-section for ${s}, got ${JSON.stringify(dup)}`);
+    }
+    // The phantom is exactly what the rule exists to catch: acceptance() still
+    // folds both blocks together, so without the error it would be counted.
+    assert.equal(acceptance(STUB + REAL).unchecked.length, 1);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("it applies in closed/ too, and to type-specific sections", () => {
+    assert.deepEqual(duplicateSections({ type: "bug" }, BODY + "\n## Steps to reproduce\n\n## Steps to reproduce\n", "open")
+      .find((x) => x.section === "Steps to reproduce"), { section: "Steps to reproduce", count: 2 });
+    assert.deepEqual(duplicateSections({}, BODY + "\n## Resolution\n\nx\n\n## Resolution\n\ny\n", "closed"),
+      [{ section: "Resolution", count: 2 }]);
+  });
+
+  test("a heading quoted in a fence, and '## Deferred — resumed', are not duplicates", () => {
+    const d = repo();
+    const body = BODY + "\n## Deferred — resumed 2026-09-01\n\nx\n\n## Deferred — resumed 2026-09-02\n\nx\n"
+      + "\nExample:\n\n```md\n## Acceptance criteria\n\n- [ ] TODO\n```\n";
+    ticket(d, "open", FM({}), body);
+    const r = run(d, "validate");
+    assert.equal(r.code, 0, r.out);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("closed/: the Operator validation result appended after Resolution is legal, a third copy is not", () => {
+    const closed = BODY + "\n## Resolution\n\nx\n\n## Operator validation\n\nresult\n";
+    assert.deepEqual(duplicateSections({}, closed, "closed"), []);
+    assert.deepEqual(duplicateSections({}, closed + "\n## Operator validation\n\nagain\n", "closed"),
+      [{ section: "Operator validation", count: 3 }]);
+    // Only closed/ earns the exemption, and only after Resolution.
+    assert.deepEqual(duplicateSections({}, closed, "open"), [{ section: "Operator validation", count: 2 }]);
+    assert.deepEqual(duplicateSections({}, BODY + "\n## Operator validation\n\nx\n\n## Resolution\n\nx\n", "closed"),
+      [{ section: "Operator validation", count: 2 }]);
+  });
+
+  test("inbox captures stay exempt", () => {
+    assert.deepEqual(duplicateSections({ type: "bug" }, STUB + REAL, "inbox"), []);
   });
 });
 

@@ -266,6 +266,50 @@ function missingSections(fm, body, folder) {
     .flatMap((r) => r.sections.filter((s) => !hasSection(body, s)).map((s) => ({ rule: r.rule, section: s })));
 }
 
+/**
+ * Every required section a ticket carries more than once, as [{section, count}].
+ *
+ * "Present" is the weaker half of the rule; "present exactly once" is the
+ * property the rest of the script assumes. acceptance() folds checkboxes from
+ * every '## Acceptance criteria' block into one list, so a leftover `create`
+ * stub's '- [ ] TODO' became a real unchecked criterion on 0129 — one that
+ * would have blocked its close — and validated clean for two days (0139).
+ *
+ * The match is the exact heading line, so '## Deferred — resumed …' (D-174) is
+ * a different section. Lines inside ``` fences are skipped: a ticket that quotes
+ * a heading in an example is not carrying it twice.
+ *
+ * One repeat is legitimate: the close procedure APPENDS '## Operator validation'
+ * with the result after '## Resolution' (reference.md), so a closed ticket
+ * carries the planning note and the result. Each half may appear once; the
+ * total is what gets reported.
+ */
+function duplicateSections(fm, body, folder) {
+  if (folder === "inbox") return [];
+  const before = new Map();
+  const after = new Map(); // headings after '## Resolution', closed/ only
+  let fenced = false;
+  let resolved = false;
+  for (const l of body.split("\n")) {
+    if (/^\s*```/.test(l)) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    const m = /^##\s+(.+?)\s*$/.exec(l);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const bucket = resolved && key === "operator validation" && folder === "closed" ? after : before;
+    bucket.set(key, (bucket.get(key) ?? 0) + 1);
+    if (key === "resolution") resolved = true;
+  }
+  return [...new Set(SECTION_RULES.filter((r) => r.applies(fm, folder)).flatMap((r) => r.sections))]
+    .map((section) => {
+      const k = section.toLowerCase();
+      const b = before.get(k) ?? 0, a = after.get(k) ?? 0;
+      return { section, count: b + a, dup: b > 1 || a > 1 };
+    })
+    .filter((d) => d.dup)
+    .map(({ section, count }) => ({ section, count }));
+}
+
 // ──────────────────────────────────────────────────────────────── loading ────
 
 function load() {
@@ -402,6 +446,9 @@ function validate(tickets) {
 
     for (const { rule, section } of missingSections(fm, body, folder)) {
       E(rule, `missing '## ${section}'`);
+    }
+    for (const { section, count } of duplicateSections(fm, body, folder)) {
+      E("duplicate-section", `'## ${section}' appears ${count} times`);
     }
 
     if (folder === "closed") {
@@ -2197,4 +2244,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER };

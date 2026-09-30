@@ -17,22 +17,6 @@ closed: 2026-09-01T19:14:40Z
 
 ## Description
 
-TODO
-
-## Acceptance criteria
-
-- [x] TODO — the generated stub's placeholder; the real criteria are below
-
-## Notes
-
-TODO
-
-## Operator validation
-
-TODO
-
-## Description
-
 Raised by the operator during ticket 0014: they asked for an authentication method for the agent, to
 assist with development and troubleshooting.
 

@@ -3296,6 +3296,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
+    "started": "2026-09-30T20:32:39Z",
     "path": "tickets/open/0139-validate-accepts-duplicate-required-sections.md",
     "ready": true,
     "acceptance": {
