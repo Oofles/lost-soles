@@ -5155,5 +5155,27 @@
       "checked": 5,
       "total": 5
     }
+  },
+  {
+    "id": 226,
+    "slug": "t3-discovery-awards-disagree-with-ledger",
+    "title": "Five real T3 discovery awards disagree with the ledger's Cartography credit",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [
+      220
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-09-30T03:33:03Z",
+    "path": "tickets/open/0226-t3-discovery-awards-disagree-with-ledger.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
   }
 ]
