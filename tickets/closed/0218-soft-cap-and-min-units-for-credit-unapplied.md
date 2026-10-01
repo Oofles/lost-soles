@@ -4,7 +4,7 @@ slug: soft-cap-and-min-units-for-credit-unapplied
 title: softCapUnits and minUnitsForCredit are declared on every skill row and applied nowhere
 type: design
 priority: med
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [60, 62]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T02:19:08Z
 started: 2026-10-01T20:28:53Z
+closed: 2026-10-01T20:33:07Z
 ---
 ## Description
 
