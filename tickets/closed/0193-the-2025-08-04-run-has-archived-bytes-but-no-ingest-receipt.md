@@ -4,7 +4,7 @@ slug: the-2025-08-04-run-has-archived-bytes-but-no-ingest-receipt
 title: The 2025-08-04 run has archived bytes but no ingest receipt, so it cannot be replayed
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-10T15:20:00Z
 started: 2026-10-01T15:15:01Z
+closed: 2026-10-01T15:20:56Z
 ---
 
 ## Description
