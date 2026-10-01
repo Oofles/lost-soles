@@ -34,14 +34,14 @@ Affected flags, all with an enum in `ENUMS` or a fixed set the rest of the scrip
 
 ## Acceptance criteria
 
-- [ ] `create` rejects an out-of-enum value for every enum-valued flag it accepts, **before** writing
+- [x] `create` rejects an out-of-enum value for every enum-valued flag it accepts, **before** writing
       any file or touching `index.json`, naming the flag and listing the permitted values.
-- [ ] `tickets.mjs create --title x --type bug --priority medium` exits non-zero and leaves
+- [x] `tickets.mjs create --title x --type bug --priority medium` exits non-zero and leaves
       `tickets/open/` and `index.json` byte-identical.
-- [ ] The permitted values come from the SAME `ENUMS` constant `validate` uses — not a second list
+- [x] The permitted values come from the SAME `ENUMS` constant `validate` uses — not a second list
       that can drift from it. A duplicated enum is this bug with a longer fuse.
-- [ ] A test covers at least one rejected value and one accepted value per enum flag.
-- [ ] `triage-move` is checked for the same gap, since it also writes frontmatter from flags.
+- [x] A test covers at least one rejected value and one accepted value per enum flag.
+- [x] `triage-move` is checked for the same gap, since it also writes frontmatter from flags.
 
 ## Steps to reproduce
 
@@ -75,3 +75,46 @@ Related: `0127` (create could not derive a valid slug), `0140` (where this was h
 
 None required — a CLI refusal with no rendered surface. Confirmable by running the reproduction
 above and seeing a non-zero exit with no file created.
+
+**Result (2026-09-30, agent smoke test, WSL2 terminal):** in the real repo,
+`tickets.mjs create --title "x" --type bug --priority medium --size s --capability 01-ticket-system --source agent`
+printed `--priority must be one of: high, med, low (got 'medium'). Nothing was written.` and exited 1;
+`sha256sum tickets/index.json` was unchanged and `tickets/open/` still held 78 files. A second run with
+`--size xl` refused the same way. `git status` afterwards showed only the two script files modified,
+and `validate` reported 0 errors. Nothing here for the operator to look at.
+
+## Resolution
+
+**Files:** `.claude/skills/tickets/scripts/tickets.mjs`, `.claude/skills/tickets/scripts/tickets.test.mjs`.
+
+- New `checkEnums(fm, name)` goes through `ENUMS`, the same constant `validate` reads, and `die`s on
+  the first field outside its list, naming where the value came from and listing the permitted
+  values. It is table-driven, so a field added to `ENUMS` is checked by every writer automatically.
+- `create` calls it on the frontmatter it has just built, after defaults are applied and before
+  `writeFileSync`/`writeIndex`. `status` is always `open` there, and `--type`, `--priority`,
+  `--size` and `--source` are all covered.
+- **`triage-move` had the same gap and more.** `--size` comes from a flag, but `type`, `priority` and
+  `source` come from the *capture's own frontmatter*, written on the phone, which nothing checked.
+  `triage-decline` and `triage-merge` build their frontmatter the same way (`triagedFrontmatter`),
+  so all three now call `checkTriageEnums` right after `readCapture`. For merge that is before it
+  rewrites the target ticket. A bad capture value is reported as `tickets/inbox/c.md: 'priority' must
+  be one of …` rather than as a flag the operator never typed. `triage-defer` is deliberately left
+  unchecked: it writes no frontmatter, and refusing to defer a malformed capture would block the
+  one action that leaves it alone.
+- `ENUMS` is now exported, and the tests iterate over the imported constant rather than restating it.
+- **Tests (`0141 —` suite, 9 cases):** the exact reproduction (non-zero exit, `tickets/open/` and
+  `index.json` byte-identical); a rejected and an accepted value for each create flag; a test that
+  every value `validate` rejects is also refused by `create`; `triage-move` with a bad `--size`; and
+  move/decline/merge with a bad capture `priority` (capture stays in the inbox, merge target
+  unchanged, nothing in `closed/`). Full suite 181/181.
+
+**What went wrong:** while switching the test to import `ENUMS`, a Python `str.replace` was given a
+slice whose end marker (`const base = {`) also matched earlier in the file. The slice was empty, so
+the replacement was inserted between every character of the test file (+372k lines). I caught it at
+the next test run, restored the file with `git checkout`, and re-appended the block. No commit was
+affected.
+
+**Filed:** `0227`. `triage-merge` writes the target's Notes before its *slug* check can refuse, so a
+punctuation-only capture title half-merges and a retry duplicates the note. It is the same "writes
+before it checks" class, and out of this ticket's scope.
+

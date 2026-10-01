@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp } = await import("./tickets.mjs");
+const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp, ENUMS } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -2306,5 +2306,90 @@ esac
     const s4 = src.slice(src.indexOf("// ── §4 regression"), src.indexOf("// ── §5 hygiene"));
     assert.ok(s4.length > 20, "the §4 block markers moved — update this sweep");
     assert.doesNotMatch(s4, /\b(NA|PASS)\(/, "a literal NA(…)/PASS(…) in §4 is the 0183 bug");
+  });
+});
+
+// ─────────────────────────────────────────── 0141 enum values checked on write ────
+
+describe("0141 — writers refuse an out-of-enum value before writing anything", () => {
+  // create takes every ENUMS field as a flag except status, which it always sets to open.
+  // Iterating the SAME imported constant means a field added to ENUMS is tested here too.
+  const FLAGS = Object.entries(ENUMS).filter(([k]) => k !== "status");
+  const base = { title: "x", type: "bug", priority: "med", size: "s", source: "agent" };
+  const createArgs = (o) => Object.entries({ ...base, ...o }).flatMap(([k, v]) => [`--${k}`, v]);
+  const snapshot = (d) => JSON.stringify({
+    open: readdirSync(join(d, "tickets/open")),
+    index: existsSync(join(d, "tickets/index.json")) ? readFileSync(join(d, "tickets/index.json"), "utf8") : null,
+  });
+
+  test("the reported repro: --priority medium exits non-zero and changes nothing", () => {
+    const d = repo();
+    run(d, "index");
+    const before = snapshot(d);
+    const r = run(d, "create", "--title", "x", "--type", "bug", "--priority", "medium");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /--priority must be one of: high, med, low/);
+    assert.equal(snapshot(d), before, "tickets/open/ and index.json must be byte-identical");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  for (const [flag, ok] of FLAGS) {
+    test(`create --${flag}: rejects a bad value, accepts '${ok[0]}'`, () => {
+      const d = repo();
+      const bad = run(d, "create", ...createArgs({ [flag]: "nope" }));
+      assert.notEqual(bad.code, 0);
+      assert.match(bad.out, new RegExp(`--${flag} must be one of: ${ok.join(", ")}`));
+      assert.deepEqual(readdirSync(join(d, "tickets/open")), []);
+      const good = run(d, "create", ...createArgs({ [flag]: ok[0] }));
+      assert.equal(good.code, 0, good.out);
+      assert.equal(parse(readFileSync(join(d, good.out.trim()), "utf8")).fm[flag], ok[0]);
+      rmSync(d, { recursive: true, force: true });
+    });
+  }
+
+  test("a value validate rejects is a value create refuses — one list, not two", () => {
+    for (const [flag] of FLAGS) {
+      const d = repo();
+      assert.notEqual(run(d, "create", ...createArgs({ [flag]: "nope" })).code, 0, flag);
+      ticket(d, "open", FM({ [flag]: "nope" }));
+      assert.match(run(d, "validate").out, new RegExp(`\\[enum\\]\\s+${flag}='nope'`), flag);
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  const capture = (d, o = {}) => {
+    writeFileSync(join(d, "tickets/inbox/c.md"), serialize({
+      status: "inbox", title: "an idea", type: "feature", priority: "med", source: "ui",
+      created: "2026-08-30T14:32:00Z", ...o,
+    }, "\n## Description\n\nidea\n"));
+    commitAll(d);
+    return "tickets/inbox/c.md";
+  };
+
+  test("triage-move refuses a bad --size and leaves the capture in the inbox", () => {
+    const d = repo(); const p = capture(d);
+    const r = run(d, "triage-move", p, "--slug", "an-idea", "--size", "medium");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /--size must be one of: s, m, l/);
+    assert.ok(existsSync(join(d, p)));
+    assert.deepEqual(readdirSync(join(d, "tickets/open")), []);
+    assert.equal(run(d, "triage-move", p, "--slug", "an-idea", "--size", "s").code, 0);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  test("triage-move / decline / merge refuse a bad value in the CAPTURE's frontmatter, naming the file", () => {
+    for (const [cmd, extra] of [["triage-move", ["--slug", "an-idea"]], ["triage-decline", ["--reason", "no"]], ["triage-merge", ["--into", "1"]]]) {
+      const d = repo();
+      ticket(d, "open", FM());
+      const target = readFileSync(join(d, "tickets/open/0001-a-ticket.md"), "utf8");
+      const p = capture(d, { priority: "medium" });
+      const r = run(d, cmd, p, ...extra);
+      assert.notEqual(r.code, 0, cmd);
+      assert.match(r.out, /tickets\/inbox\/c\.md: 'priority' must be one of: high, med, low/, cmd);
+      assert.ok(existsSync(join(d, p)), `${cmd}: capture stays put`);
+      assert.equal(readFileSync(join(d, "tickets/open/0001-a-ticket.md"), "utf8"), target, `${cmd}: merge target untouched`);
+      assert.deepEqual(readdirSync(join(d, "tickets/closed")), [], cmd);
+      rmSync(d, { recursive: true, force: true });
+    }
   });
 });

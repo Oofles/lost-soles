@@ -5184,5 +5184,25 @@
       "checked": 3,
       "total": 3
     }
+  },
+  {
+    "id": 227,
+    "slug": "triage-merge-writes-target-before-slug-check",
+    "title": "triage-merge writes the target's Notes before its slug check can refuse",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "01-ticket-system",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-01T00:38:18Z",
+    "path": "tickets/open/0227-triage-merge-writes-target-before-slug-check.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

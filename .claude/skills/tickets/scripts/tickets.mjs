@@ -1697,6 +1697,22 @@ function rewrite(t, fm, body = t.body) {
   writeFileSync(join(ROOT, t.path), serialize(fm, body));
 }
 
+/**
+ * 0141. Refuse a frontmatter value outside ENUMS, BEFORE anything is written.
+ *
+ * Reads the same ENUMS `validate` reads — a second list here would be this bug
+ * with a longer fuse. Table-driven over every enum field, so a field added to
+ * ENUMS is checked by every writer without anyone remembering to add an `if`.
+ * `name(k)` says where the bad value came from: a flag, or a capture's frontmatter.
+ */
+function checkEnums(fm, name) {
+  for (const [k, allowed] of Object.entries(ENUMS)) {
+    if (k in fm && !allowed.includes(fm[k])) {
+      die(`${name(k)} must be one of: ${allowed.join(", ")} (got '${fm[k]}'). Nothing was written.`);
+    }
+  }
+}
+
 function cmdCreate(flags) {
   if (!flags.title || !flags.type || !flags.priority) die("create requires --title, --type and --priority");
   const id = nextId();
@@ -1708,6 +1724,7 @@ function cmdCreate(flags) {
     depends_on: flags.depends ? flags.depends.split(",").map(Number) : [], blocked_by: [],
     source: flags.source ?? "agent", created: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
   };
+  checkEnums(fm, (k) => `--${k}`);
   // Type-specific sections are REQUIRED by validate (§3.3). Emitting them here
   // rather than leaving them to be remembered is the difference between `create`
   // producing a valid ticket and producing one that fails validation seconds later.
@@ -2005,6 +2022,17 @@ function triagedFrontmatter(cap, { id, slug, status, size, capability }) {
   };
 }
 
+/**
+ * 0141. The triage writers' half of `checkEnums`. `--size` comes from a flag;
+ * type, priority and source come from the capture's own frontmatter, written on
+ * the phone — so a bad value there is named with its file, not as a flag.
+ * Called straight after readCapture, before merge touches its target ticket.
+ */
+function checkTriageEnums(cap, flags, status) {
+  checkEnums(triagedFrontmatter(cap, { status, size: flags.size }),
+    (k) => k === "size" ? "--size" : `${cap.rel}: '${k}'`);
+}
+
 /** ISO date, for the dated notes §4.5 requires on merge and defer. */
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -2040,6 +2068,7 @@ function cmdTriageMove(path, flags) {
   if (!flags.slug) die("triage-move requires --slug");
   if (!SLUG_RE.test(flags.slug)) die(`slug '${flags.slug}' is not kebab-case (^[a-z0-9]+(-[a-z0-9]+)*$)`);
   const cap = readCapture(path, "triage-move", flags);
+  checkTriageEnums(cap, flags, "open");
   const fm = triagedFrontmatter(cap, {
     id: nextId(), slug: flags.slug, status: "open", size: flags.size, capability: flags.capability,
   });
@@ -2073,6 +2102,7 @@ function cmdTriageDecline(path, flags) {
         "  with extra steps, and §4.5/7 exists so a re-captured idea meets its own rejection.");
   }
   const cap = readCapture(path, "triage-decline", flags);
+  checkTriageEnums(cap, flags, "closed");
   const slug = flags.slug ?? slugify(cap.fm.title ?? "");
   if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
   const id = nextId();
@@ -2104,6 +2134,7 @@ function cmdTriageMerge(path, flags) {
   const into = Number(flags.into);
   if (!Number.isInteger(into)) die("triage-merge requires --into <id>");
   const cap = readCapture(path, "triage-merge", flags);
+  checkTriageEnums(cap, flags, "closed");
   const target = byId(load()).get(into);
   if (!target || !target.fm) die(`no ticket ${pad(into)} to merge into`);
   if (target.folder === "closed") {
@@ -2244,4 +2275,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER };
+export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER, ENUMS };
