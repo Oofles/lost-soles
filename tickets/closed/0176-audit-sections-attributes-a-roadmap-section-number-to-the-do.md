@@ -4,7 +4,7 @@ slug: audit-sections-attributes-a-roadmap-section-number-to-the-do
 title: audit --sections attributes a roadmap section number to the doc named beside it
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-06T15:57:14Z
 started: 2026-10-01T02:13:39Z
+closed: 2026-10-01T02:16:24Z
 ---
 
 ## Description

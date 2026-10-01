@@ -4095,7 +4095,7 @@
     "title": "audit --sections attributes a roadmap section number to the doc named beside it",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -4103,10 +4103,11 @@
     "source": "agent",
     "created": "2026-09-06T15:57:14Z",
     "started": "2026-10-01T02:13:39Z",
-    "path": "tickets/open/0176-audit-sections-attributes-a-roadmap-section-number-to-the-do.md",
-    "ready": true,
+    "closed": "2026-10-01T02:16:24Z",
+    "path": "tickets/closed/0176-audit-sections-attributes-a-roadmap-section-number-to-the-do.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
