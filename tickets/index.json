@@ -4471,6 +4471,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-10T15:20:00Z",
+    "started": "2026-10-01T15:15:01Z",
     "path": "tickets/open/0193-the-2025-08-04-run-has-archived-bytes-but-no-ingest-receipt.md",
     "ready": true,
     "acceptance": {

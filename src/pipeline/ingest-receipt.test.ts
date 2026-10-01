@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest"
 import { computeActivityId } from "@/src/domain/activity-id"
 import {
   acceptIngest,
+  adoptedKeyFor,
+  adoptReceipt,
   claimForScoring,
   doneTransactItem,
   INGEST_RECEIPT_TABLE,
@@ -555,5 +557,72 @@ describe("readReceipt", () => {
   it("returns undefined for a receipt that has aged out", async () => {
     const { deps } = stub([{}])
     expect(await readReceipt(KEY, deps)).toBeUndefined()
+  })
+})
+
+/**
+ * `0193`, D-265. An adopted receipt must be distinguishable from a minted one BY INSPECTION, and the
+ * ordinary accept path must be unable to produce one — otherwise "the gate saw this" stops meaning
+ * anything for every row in the table.
+ */
+describe("adoptReceipt — a reconstructed receipt", () => {
+  const ARCHIVED = `raw/${USER}/gpslogger/run-0193/abc123.gpx`
+  const ADOPT = {
+    userId: USER,
+    activityId: computeActivityId(USER, "gpslogger", "run-0193"),
+    source: "gpslogger" as const,
+    adoptedFrom: ARCHIVED,
+  }
+
+  it("writes an ADOPT row naming its archived object, conditionally, as QUEUED", async () => {
+    const { deps, sent } = stub()
+
+    const result = await adoptReceipt(ADOPT, deps)
+
+    expect(result).toEqual({ kind: "adopted", ingestKey: adoptedKeyFor(ADOPT.activityId) })
+    const input = (sent[0] as PutCommand).input
+    expect(input.ConditionExpression).toBe("attribute_not_exists(ingestKey)")
+    expect(input.Item).toMatchObject({
+      ingestKey: `adopt#${ADOPT.activityId}`,
+      keyKind: "ADOPT",
+      status: "QUEUED",
+      attempts: 0,
+      adoptedFrom: ARCHIVED,
+      acceptedAt: NOW.toISOString(),
+      ttl: receiptTtl(NOW),
+    })
+  })
+
+  it("is idempotent — a second adoption reports the existing key, not an error", async () => {
+    const { deps } = stub([conditionFailed()])
+    expect(await adoptReceipt(ADOPT, deps)).toEqual({
+      kind: "exists",
+      ingestKey: adoptedKeyFor(ADOPT.activityId),
+    })
+  })
+
+  it("refuses an object outside this user's own archive prefix", async () => {
+    const { deps, sent } = stub()
+    await expect(
+      adoptReceipt({ ...ADOPT, adoptedFrom: "raw/someone-else/gpslogger/run-0193/x.gpx" }, deps),
+    ).rejects.toThrow(/under raw\//)
+    await expect(
+      adoptReceipt({ ...ADOPT, adoptedFrom: `raw/${USER}/another-source/run-0193/x.gpx` }, deps),
+    ).rejects.toThrow()
+    expect(sent).toHaveLength(0)
+  })
+
+  it("cannot be produced by the accept path, which never writes ADOPT or adoptedFrom", async () => {
+    const { deps, sent } = stub()
+    await acceptIngest(ACCEPT, deps)
+    const minted = (sent[0] as PutCommand).input.Item as IngestReceipt
+    expect(minted.keyKind).toBe("ACCEPT")
+    expect(minted).not.toHaveProperty("adoptedFrom")
+    expect(minted.ingestKey.startsWith("adopt#")).toBe(false)
+
+    // The type refuses `keyKind: "ADOPT"`; a caller arriving through a cast is refused at runtime.
+    const forged = { ...ACCEPT, keyKind: "ADOPT" } as unknown as Parameters<typeof acceptIngest>[0]
+    await expect(acceptIngest(forged, deps)).rejects.toThrow(/cannot mint an ADOPT/)
+    expect(sent).toHaveLength(1)
   })
 })

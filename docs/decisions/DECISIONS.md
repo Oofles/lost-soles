@@ -3769,3 +3769,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **If a hand edit ever does it.** Fix it by hand with an unconditional `UpdateItem`, using the
     manifest's `generation`. The mirror is a notification channel: while it is wrong, the cost is a
     missed push, and `05` §7.4's focus-revalidation and manual sync still deliver the map.
+
+- **D-265** **A receipt may be reconstructed, and says so: `keyKind: ADOPT`, an `adopt#<activityId>`
+  key, and `adoptedFrom` naming the archived object.**
+  *(Operator, 2026-10-01, ticket `0193`. Extends `02-data-model.md` T8; leaves `recordDelivery`'s
+  throw-on-missing-row untouched.)*
+  - **The case.** An activity with archived bytes and an `Activity` row but no receipt cannot be
+    replayed: `recordDelivery` rejects a delivery with no receipt row, and that rejection is what
+    stops a forged or long-expired message. One run from 2025 was imported before the accept gate
+    existed. **Every** receipt joins it after the 90-day TTL, so this is the general shape, not a
+    one-off.
+  - **Chosen: adopt, visibly.** `adoptReceipt` (`src/pipeline/ingest-receipt.ts`) writes the
+    missing row, called only by `tools/replay/replay-activities.ts --adopt`. Bytes alone are not
+    enough; the tool also requires the `Activity` row. The row starts `QUEUED` with zero attempts,
+    so the ordinary delivery → claim → commit path takes over unchanged.
+  - **Why a new `keyKind` and not just a flag.** The ACCEPT key is
+    `sha256(source:owner:externalId:aspect)`, and only the adapter knows the owner id (D-100).
+    A reconstructed key is therefore a different shape, and `keyKind` exists to name shapes.
+    `adoptedFrom` carries the provenance. `acceptIngest`'s type excludes `ADOPT`, and it throws on
+    one at runtime, so the ordinary path cannot produce a reconstructed row. A test asserts this.
+  - **Rejected: let `reingest` tolerate a missing receipt.** That would remove one of the four
+    idempotency layers to save an operator one flag.
+  - **A later real accept of the same activity** mints its own ACCEPT key alongside the ADOPT one.
+    That is the same situation as re-accepting after the TTL, and layer 4 plus the ledger's
+    `alreadyScored` check make it award nothing.
+

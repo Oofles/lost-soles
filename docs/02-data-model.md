@@ -581,12 +581,16 @@ accept-time  (01 §4 step 3):
 
 score-time   (05 §3.5):
   ingestKey = `${source}#${externalId}#${sha256(canonicalJson({points, startedAt})).slice(0,16)}#v${FOG_ALGO_VERSION}`
+
+adopted      (ticket 0193, D-265 — operator tool only, never the pipeline):
+  ingestKey = `adopt#${activityId}`
 ```
 
 | attr | type | notes |
 |---|---|---|
 | `ingestKey` | S | |
-| `keyKind` | S | `ACCEPT \| SCORE` |
+| `keyKind` | S | `ACCEPT \| SCORE \| ADOPT`. **`ADOPT` means no gate saw this acceptance** (D-265): the row was reconstructed by `tools/replay/replay-activities.ts --adopt` for an activity with archived bytes and an `Activity` row but no receipt — imported before the gate existed, or past its TTL. `acceptIngest` cannot write it. |
+| `adoptedFrom` | S | *Ticket `0193`, D-265.* Present iff `keyKind = ADOPT`: the `raw/<uid>/<source>/…` object the receipt was reconstructed from. `acceptedAt` on such a row is when it was adopted, not when the run was first imported. |
 | `status` | S | `QUEUED → PROCESSING → DONE`, plus `FAILED`. Every transition is a conditional update. |
 | `userId`, `activityId` | S | |
 | `processingStartedAt` | S | a `PROCESSING` older than the 15-minute Lambda timeout is reclaimable by the next attempt (01 §4) — which is why the state carries a timestamp |

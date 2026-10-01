@@ -2,18 +2,20 @@ import { readFileSync } from "node:fs"
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3"
-import { ScanCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, ScanCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs"
 
 import { computeActivityId } from "../../src/domain/activity-id"
 import type { IngestJob } from "../../src/adapters/types"
 import type { SourceId } from "../../src/domain/activity"
+import { adoptReceipt, type ReceiptDdb } from "../../src/pipeline/ingest-receipt"
 
 /**
  * REPLAY ARCHIVED ACTIVITIES THROUGH THE REAL PIPELINE. Ticket `0192`.
  *
  *   npx vite-node tools/replay/replay-activities.ts -- --user <sub>
  *   npx vite-node tools/replay/replay-activities.ts -- --user <sub> --confirm
+ *   npx vite-node tools/replay/replay-activities.ts -- --user <sub> --adopt --confirm
  *
  * Enqueues one `command: "reingest"` job per archived activity. The worker reads the bytes back out
  * of `raw/` rather than from the source (`src/pipeline/replay.ts`), and the score gate re-claims the
@@ -42,13 +44,25 @@ import type { SourceId } from "../../src/domain/activity"
  * runs re-scored once XP exists. A tool typed once into a terminal is a tool that gets reinvented,
  * differently, under time pressure.
  *
+ * ─── `--adopt`: ARCHIVED BYTES WITH NO RECEIPT. Ticket `0193`, D-265 ─────────
+ *
+ * An activity imported before the accept gate existed — or one whose receipt has outlived its 90-day
+ * TTL, which will be every activity eventually — has no row for `recordDelivery` to count, and the
+ * worker rejects its reingest by design. `--adopt` writes the missing row through `adoptReceipt`:
+ * `keyKind: "ADOPT"`, naming the archived object it came from, so the table never claims the gate
+ * saw an acceptance it did not. Only for an activity with BOTH archived bytes and an `Activity` row;
+ * bytes alone could be a run that never got as far as being one.
+ *
+ * Without `--adopt` the orphans are listed with the flag that would recover them. They are not
+ * "skipped" — that word read as a verdict, and it was only ever a missing operator decision.
+ *
  * AWS: the ambient profile. `AWS_PROFILE=devault`, account 286588821906, us-east-1 (CLAUDE.md).
  */
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const outputs = JSON.parse(readFileSync(`${ROOT}/amplify_outputs.json`, "utf8")) as {
   storage?: { bucket_name?: string }
-  custom?: { activityIngestQueueUrl?: string }
+  custom?: { activityIngestQueueUrl?: string; activityTableName?: string }
   data?: { aws_region?: string }
 }
 
@@ -62,10 +76,11 @@ const flag = (name: string): string | undefined => {
 const userId = flag("user")
 const only = flag("external")
 const confirm = args.includes("--confirm")
+const adopt = args.includes("--adopt")
 
 if (!userId) {
   console.error(
-    "usage: replay-activities.ts --user <cognito-sub> [--external <externalId>] [--confirm]",
+    "usage: replay-activities.ts --user <cognito-sub> [--external <externalId>] [--adopt] [--confirm]",
   )
   process.exit(2)
 }
@@ -73,9 +88,11 @@ if (!userId) {
 const region = outputs.data?.aws_region ?? "us-east-1"
 const bucket = outputs.storage?.bucket_name
 const queue = outputs.custom?.activityIngestQueueUrl
-if (!bucket || !queue) {
+const activityTable = outputs.custom?.activityTableName
+if (!bucket || !queue || !activityTable) {
   console.error(
-    "amplify_outputs.json has no storage.bucket_name or custom.activityIngestQueueUrl — this " +
+    "amplify_outputs.json has no storage.bucket_name, custom.activityIngestQueueUrl or " +
+      "custom.activityTableName — this " +
       "file is generated per environment and a missing value means it predates the deploy.",
   )
   process.exit(2)
@@ -170,8 +187,14 @@ async function receiptsByActivityId(): Promise<
 const activities = await archivedActivities()
 const receipts = await receiptsByActivityId()
 
-const plan: Array<{ activity: Archived; ingestKey: string; status: string; cells: number }> = []
-const orphans: Archived[] = []
+const plan: Array<{
+  activity: Archived
+  ingestKey: string
+  status: string
+  cells: number
+  adopting?: { activityId: string }
+}> = []
+const orphans: Array<Archived & { hasActivityRow: boolean }> = []
 
 for (const activity of activities) {
   if (only && activity.externalId !== only) continue
@@ -179,9 +202,17 @@ for (const activity of activities) {
   const receipt = receipts.get(activityId)
   if (!receipt) {
     // No receipt means `recordDelivery`'s condition would fail and the message would be rejected
-    // having written nothing. Reported rather than enqueued — a reingest is not an ingest, and
-    // inventing a receipt row here would forge the accept gate's own record.
-    orphans.push(activity)
+    // having written nothing. Never enqueued as-is. With `--adopt` and an `Activity` row to prove
+    // the run was real, a receipt is reconstructed — marked as such — and the run joins the plan.
+    const row = await ddb.send(
+      new GetCommand({ TableName: activityTable, Key: { id: activityId }, ProjectionExpression: "id" }),
+    )
+    const hasActivityRow = row.Item !== undefined
+    if (adopt && hasActivityRow) {
+      plan.push({ activity, ingestKey: "", status: "ADOPT", cells: 0, adopting: { activityId } })
+    } else {
+      orphans.push({ ...activity, hasActivityRow })
+    }
     continue
   }
   plan.push({
@@ -204,7 +235,12 @@ for (const entry of plan) {
   )
 }
 for (const orphan of orphans) {
-  console.log(`  ${`${orphan.source}/${orphan.externalId}`.padEnd(22)} NO RECEIPT — skipped`)
+  console.log(
+    `  ${`${orphan.source}/${orphan.externalId}`.padEnd(22)} NO RECEIPT — ` +
+      (orphan.hasActivityRow
+        ? "re-run with --adopt to reconstruct one"
+        : "and no Activity row; not adoptable, investigate by hand"),
+  )
 }
 
 if (!confirm) {
@@ -215,6 +251,19 @@ if (!confirm) {
 const enqueuedAt = new Date().toISOString()
 let sent = 0
 for (const entry of plan) {
+  if (entry.adopting) {
+    const adopted = await adoptReceipt(
+      {
+        userId: userId!,
+        activityId: entry.adopting.activityId,
+        source: entry.activity.source,
+        adoptedFrom: entry.activity.newestKey,
+      },
+      { ddb: ddb as unknown as ReceiptDdb },
+    )
+    entry.ingestKey = adopted.ingestKey
+    console.log(`  ${adopted.kind} receipt ${adopted.ingestKey}`)
+  }
   /**
    * `startedAt` is `IngestJob`'s "when the activity happened" (D-208), and it exists on the job for
    * the WATERMARK's benefit — `listSince` is written in terms of activity start dates. A replay does

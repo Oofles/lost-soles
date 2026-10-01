@@ -101,18 +101,23 @@ export const FAILED_BY_USER_INDEX = "failedByUser"
 export type ReceiptStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED"
 
 /**
- * Which gate minted this key. Two shapes coexist in one table (T8):
+ * Which gate minted this key. Three shapes coexist in one table (T8):
  *
  *   ACCEPT — `sha256("<source>:<ownerId>:<externalId>:<aspectType>")`, built by the
  *            adapter, because only the adapter knows what its events look like.
  *   SCORE  — `${source}#${externalId}#${hash(points, startedAt)}#v${FOG_ALGO_VERSION}`,
  *            built in 0050. Carrying the algorithm version means a deliberate scoring
  *            change invalidates every key and forces an auditable rescore.
+ *   ADOPT  — `adopt#${activityId}`, built by `adoptReceipt` (`0193`, D-265). NO GATE SAW THIS
+ *            ACCEPTANCE: the row was reconstructed by an operator from bytes already in the
+ *            archive. A distinct kind because it is a distinct shape — the ACCEPT formula needs
+ *            the source's owner id, which only the adapter knows (D-100) — and because a row
+ *            that says "accepted" must be able to say "nobody watched this happen".
  *
- * Only ACCEPT keys are written at this stage; the union is declared now so the SCORE
- * half is a value and not a schema change.
+ * Only ACCEPT and ADOPT keys are written at this stage; SCORE is declared so that half is
+ * a value and not a schema change.
  */
-export type ReceiptKeyKind = "ACCEPT" | "SCORE"
+export type ReceiptKeyKind = "ACCEPT" | "SCORE" | "ADOPT"
 
 export interface IngestReceipt {
   ingestKey: string
@@ -166,6 +171,13 @@ export interface IngestReceipt {
    * different urgencies and the runbook branches on this field.
    */
   rawArchived?: boolean
+
+  /**
+   * `0193`, D-265. The archived object this receipt was reconstructed from. Present if and only
+   * if `keyKind` is `ADOPT`, and `acceptIngest` cannot write it — so "was this acceptance ever
+   * observed?" is answered by inspecting the row, not by remembering.
+   */
+  adoptedFrom?: string
 }
 
 /**
@@ -266,10 +278,15 @@ export async function acceptIngest(
     userId: string
     activityId: string
     source: SourceId
-    keyKind?: ReceiptKeyKind
+    /** Never `ADOPT` — that kind means *no gate saw this*, and this is the gate. */
+    keyKind?: Exclude<ReceiptKeyKind, "ADOPT">
   },
   deps: ReceiptDeps,
 ): Promise<AcceptResult> {
+  // The type already refuses it; this is for the caller that arrived through a cast or JSON.
+  if ((receipt.keyKind as ReceiptKeyKind | undefined) === "ADOPT") {
+    throw new Error("acceptIngest cannot mint an ADOPT receipt — that is adoptReceipt's job alone")
+  }
   const now = nowOf(deps)
   const item: IngestReceipt = {
     ingestKey: receipt.ingestKey,
@@ -294,6 +311,83 @@ export async function acceptIngest(
     return { kind: "accepted" }
   } catch (error) {
     if (isConditionalFailure(error)) return { kind: "duplicate" }
+    throw error
+  }
+}
+
+/** `0193`. Keyed on the deterministic `activityId` (I-5), so adopting twice finds the first row. */
+export function adoptedKeyFor(activityId: string): string {
+  return `adopt#${activityId}`
+}
+
+export type AdoptResult = { kind: "adopted"; ingestKey: string } | { kind: "exists"; ingestKey: string }
+
+/**
+ * RECONSTRUCT A RECEIPT FOR AN ACTIVITY THE ACCEPT GATE NEVER SAW. Ticket `0193`, D-265.
+ *
+ * The case: bytes in `raw/` and no receipt row — an activity imported before the gate existed, or
+ * one whose receipt has passed its 90-day TTL. `recordDelivery` throws on a missing row, which is
+ * what stops a forged message, so a `reingest` for such an activity is refused having written
+ * nothing. That guard stays exactly as it is. This writes the row instead, and says so on the row.
+ *
+ * ─── WHAT MAKES IT HONEST ───────────────────────────────────────────────────
+ *
+ *   - `keyKind: "ADOPT"` and an `adopt#` key: a shape the accept gate cannot produce, so a minted
+ *     receipt and a reconstructed one are never confused by inspection.
+ *   - `adoptedFrom` names the archived object. Adoption is only for bytes that are already ours —
+ *     the key must sit under `raw/<userId>/<source>/`, the archive's own layout (`archive.ts`).
+ *   - `acceptedAt` is when this row was written. It does not pretend to be when the run was
+ *     imported; nothing recorded that, and inventing it is the forgery this avoids.
+ *
+ * QUEUED with zero attempts, the same starting state as `acceptIngest`, so the ordinary
+ * `recordDelivery` → `claimForScoring` path takes it from here unchanged. Conditional on the key not
+ * existing: re-adopting is a no-op that returns the existing key rather than an error.
+ *
+ * NOT CALLED BY ANYTHING IN THE PIPELINE. Its one caller is `tools/replay/replay-activities.ts
+ * --adopt`, an operator action.
+ */
+export async function adoptReceipt(
+  adoption: {
+    userId: string
+    activityId: string
+    source: SourceId
+    adoptedFrom: string
+  },
+  deps: ReceiptDeps,
+): Promise<AdoptResult> {
+  const prefix = `raw/${adoption.userId}/${adoption.source}/`
+  if (!adoption.adoptedFrom.startsWith(prefix)) {
+    throw new Error(
+      `cannot adopt from ${adoption.adoptedFrom}: an adopted receipt must name an archived ` +
+        `object under ${prefix}`,
+    )
+  }
+  const now = nowOf(deps)
+  const ingestKey = adoptedKeyFor(adoption.activityId)
+  const item: IngestReceipt = {
+    ingestKey,
+    keyKind: "ADOPT",
+    status: "QUEUED",
+    userId: adoption.userId,
+    activityId: adoption.activityId,
+    source: adoption.source,
+    attempts: 0,
+    acceptedAt: now.toISOString(),
+    adoptedFrom: adoption.adoptedFrom,
+    ttl: receiptTtl(now),
+  }
+
+  try {
+    await deps.ddb.send(
+      new PutCommand({
+        TableName: INGEST_RECEIPT_TABLE,
+        Item: item,
+        ConditionExpression: "attribute_not_exists(ingestKey)",
+      }),
+    )
+    return { kind: "adopted", ingestKey }
+  } catch (error) {
+    if (isConditionalFailure(error)) return { kind: "exists", ingestKey }
     throw error
   }
 }
