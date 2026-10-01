@@ -4,7 +4,7 @@ slug: res-parent-must-move-6-to-7-now-that-cells-are-res-11
 title: RES_PARENT must move 6 to 7 now that cells are res 11
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-11T01:04:51Z
 started: 2026-10-01T18:27:07Z
+closed: 2026-10-01T18:54:55Z
 ---
 
 ## Description

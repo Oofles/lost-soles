@@ -4573,7 +4573,7 @@
     "title": "RES_PARENT must move 6 to 7 now that cells are res 11",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [],
@@ -4581,10 +4581,11 @@
     "source": "agent",
     "created": "2026-09-11T01:04:51Z",
     "started": "2026-10-01T18:27:07Z",
-    "path": "tickets/open/0198-res-parent-must-move-6-to-7-now-that-cells-are-res-11.md",
-    "ready": true,
+    "closed": "2026-10-01T18:54:55Z",
+    "path": "tickets/closed/0198-res-parent-must-move-6-to-7-now-that-cells-are-res-11.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -5240,7 +5241,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   }
 ]
