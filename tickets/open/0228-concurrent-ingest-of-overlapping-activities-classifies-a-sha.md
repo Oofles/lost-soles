@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-01T18:53:31Z
+started: 2026-10-01T19:05:39Z
 ---
 
 ## Description
@@ -44,10 +45,10 @@ activity was replayed exactly once onto empty rows.
 
 ## Acceptance criteria
 
-- [ ] Two activities sharing cells, ingested concurrently, award `new` credit for each shared cell
+- [x] Two activities sharing cells, ingested concurrently, award `new` credit for each shared cell
       exactly once in total. A test drives the interleaving that loses today.
-- [ ] AGG `exploredChildren` cannot be double-counted by that interleaving.
-- [ ] `visitCount` and `discoveryCount` do not grow when the same activity is replayed, or the
+- [x] AGG `exploredChildren` cannot be double-counted by that interleaving.
+- [x] `visitCount` and `discoveryCount` do not grow when the same activity is replayed, or the
       ticket records why that stat is allowed to drift.
 - [x] The live AGG rows for the operator's account are corrected to the counts T6 actually holds
       (1,141 per rung as of 2026-10-01), **with the operator's go-ahead**. `0198`'s attempt to
@@ -77,7 +78,71 @@ activity was replayed exactly once onto empty rows.
   matches how D-219 resolved the manifest race. It needs a design decision before code (D-152).
 - Evidence: `tmp/0198/before.json` / `after.json` (gitignored) and `0198`'s Resolution.
 
+## Resolution
+
+**Decision D-268** (operator-approved, including the extension to `rearmed`): a verdict that awards
+credit is a CLAIM that the write settles, not a decision the read makes.
+
+- `src/pipeline/explored-cells.ts`:
+  - `cellUpdate` takes an optional `CellClaim`. `new` writes under
+    `attribute_not_exists(lastRunAt)`, `rearmed` under `lastRunAt = :seen`. It is the same update
+    expression under a stricter condition, so an uncontested ingest sends exactly what it did before.
+  - `writeCells` now returns `{ written, classified }`, where `classified` holds the SETTLED
+    verdicts. A lost claim is collected, the lost cells are re-read in one `readCells` (consistent
+    `BatchGetItem`, already granted, so no IAM change) and reclassified by the same
+    `classifyCells`, and the loop repeats. It is capped at 5 rounds, then throws.
+  - `cooled` and `deferred` take the unclaimed path, with credit hard 0.
+  - `CellWriteResult` gains `contested` for the log line.
+- `src/pipeline/process-activity.ts`: `awardOf`, `writeAggregates` and the ground split now read
+  the settled verdicts. The phase-2 read is renamed `candidates` so nothing scores it by accident.
+- Tests (`explored-cells.test.ts`): the fake table evaluates both claim conditions and answers the
+  re-read.
+  - New `concurrent claims` block, which reads both activities first and then writes: earlier
+    wins → later is `cooled`; later wins → earlier is `deferred`; true `Promise.all`; AGG sums
+    exact at rungs 6/7/8 in both orders; a re-arm claimed once; a lost `new` that re-arms against an
+    older winner; the round budget throws.
+  - New `replay` block: replaying the first, middle and last activity on a cell changes no attribute.
+  - **Mutation check:** relaxing the two claim conditions back to the unclaimed one fails 6 of the
+    new tests.
+  - Existing tests that used the helper's `"new"` default over existing cells now report
+    `contested`, because the writer corrects the stale verdict instead of crediting it.
+    `process-activity.test.ts` now asserts that a first run's writes are claims.
+  - `same-run-cases.test.ts`'s fake learned the claim conditions.
+- Docs: `05` §3.2 has an amendment block after the I-10 correction, and §3.3 gains the
+  allowed-re-read sentence and a "two activities in flight" case. D-268 is in `DECISIONS.md`.
+
+**Criterion 3: no guard needed, and the historical drift is unexplained.** Against the current
+writer, a replay cannot move `visitCount` or `discoveryCount`. The activity is either the cell's
+`lastRunAt` (`<` is false at equality), its `firstRunAt` (`>` is false), or between them (nothing
+applies). A test proves it. I did **not** find what produced `0198`'s "18 visits from 18
+activities after several replays". It does not reproduce against this code, so it predates the
+current conditions or came from a path since removed. Recorded as unexplained, not as fixed.
+
+**What went wrong / found on the way.**
+- The smoke test showed concurrency makes T6's documented "middle arrival writes nothing" hole
+  routine for `visitCount`: 164 counted against 340 real visits. A `cooled` write overtaken by a
+  later run lands nowhere and marks no replay. Credit is unaffected, and nothing reads
+  `visitCount` yet. Filed as **`0229`** (low) rather than widening this ticket.
+- A whole-suite run failed ten `amplify/*` CDK suites with `ENOSPC`. `/tmp` (16 GB tmpfs) was full
+  of 509 leaked `cdk.out*` directories from earlier synth tests, about 300 MB per run. I cleared
+  them and the suite went green. That is not this ticket's defect, and it is not filed.
+
 ## Operator validation
 
-None beyond a smoke test. The evidence is a replay of the archived activities at concurrency 5
-whose AGG sums equal T6's cell count.
+No perceptual check: this ticket changes nothing visible. **Smoke test, real DynamoDB**
+(`AWS_PROFILE=devault`, us-east-1, 2026-10-01): `tmp/0228/smoke.ts` (gitignored) created a
+throwaway `PAY_PER_REQUEST` table with T6's key schema. It ran five synthetic Point Nemo runs one
+day apart, sharing a k=4 disk (61 cells) plus 7 private cells each. All five `readCells` ran first,
+then all five `writeCells`+`writeAggregates` ran under `Promise.all`. The table was deleted
+afterwards. Run twice:
+
+- 340 cells read as `new`, which **settled to 96 `new` = 96 distinct cell rows**.
+- `contested` was `[0, 61, 61, 61, 61]`: the race happened on every shared cell, and each lost claim
+  re-read and reclassified (`cooled` or `deferred`).
+- **AGG `exploredChildren` summed to 96 at rungs 6, 7 and 8.** Before this fix the same shape
+  would have summed to 340.
+- **Max `discoveryCount` = 1** across all rows.
+- `visitCount` summed to 164 of 340. That is the separate undercount filed as `0229`.
+
+The live operator account was not replayed. Its AGG rows were already corrected (criterion 4), and
+another concurrent replay of real history would need your go-ahead for writes to shared data.

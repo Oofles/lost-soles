@@ -406,7 +406,12 @@ describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
 
     expect(result.outcome).toBe("persisted")
     if (result.outcome !== "persisted") return
-    expect(result.cells).toEqual({ advanced: expect.any(Number), backfilled: 0, unchanged: 0 })
+    expect(result.cells).toEqual({
+      advanced: expect.any(Number),
+      backfilled: 0,
+      unchanged: 0,
+      contested: 0,
+    })
     expect(result.cells!.advanced).toBeGreaterThan(0)
     expect(result.timings.cellsMs).toBeGreaterThanOrEqual(0)
   })
@@ -419,7 +424,8 @@ describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
     for (const input of cellWrites) {
       expect(input.TableName).toBe(CELL_TABLE)
       expect(input.Key!.pk).toMatch(/^U#u-1#C#/)
-      expect(input.ConditionExpression).toContain("lastRunAt < :at")
+      // Every cell of a first run is `new`, so every write is D-268's claim on absence.
+      expect(input.ConditionExpression).toBe("attribute_not_exists(lastRunAt)")
       // The cell's clock is the RUN's clock, never the ingest's.
       expect(input.ExpressionAttributeValues![":at"]).toBe("2026-09-06T03:00:00.000Z")
     }

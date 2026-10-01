@@ -3866,3 +3866,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Rejected: a second bucketing key alongside a res-6 partition** (option C). A second source of
     truth about where a cell lives. **Rejected: res 8** — 343 children, the same rejection res 7
     got against res 10.
+
+- **D-268** **A cell's discovery credit is claimed by a conditional write, not decided by the read.
+  `new` writes under `attribute_not_exists(lastRunAt)`, `rearmed` under `lastRunAt = <seen>`; a lost
+  claim re-reads that cell and reclassifies it, and the award and the AGG counters are computed
+  from the settled verdicts. Amends `05` §3.2 phase 4 and §3.3's "never re-read".**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0228`.)*
+  - **The race.** `readCells` then `writeCells` is read-then-write, and D-266 runs five workers.
+    Two activities sharing a cell both read it absent and both classified it `new`. `0198`'s replay
+    measured 58 duplicates in 1,141 cells (AGG 1,199 per rung) and 23 cells with
+    `discoveryCount = 2` inside six months. On a replay the stored award wins (`0220`), but on a
+    first ingest both awards would credit the shared ground, and D-135 makes that permanent.
+  - **Guarded: `new` AND `rearmed`.** Both award credit and both race identically: two runs that
+    read the same stale `lastRunAt` would each take the half credit. `cooled` and `deferred` award
+    nothing, a concurrent write can only make them more pessimistic, so they are unchanged.
+  - **The claim is the existing primary write under a stricter condition**, so an uncontested
+    ingest pays nothing extra. A lost claim costs one `BatchGetItem` for the contested cells,
+    already granted (AP-15); no IAM change. Rounds are capped at five, then the job throws, which is
+    safe for the reason partial failure always was: map ahead of XP, redelivery heals.
+  - **The later run winning is not a new case.** The earlier run's re-read finds a `lastRunAt` in
+    its future, classifies `deferred`, and marks §3.4's replay, exactly as a sequential
+    out-of-order arrival does.
+  - **Same shape as D-219**, which settled the manifest race by making the write conditional on
+    what the merge was based on. Rejected: a per-user lock (a second mechanism to keep correct, and
+    it would serialise the backfill D-266 parallelised); classifying inside a transaction (130
+    cells exceed `TransactWriteItems`' 100, the reason I-10 exists).
+  - **`visitCount` and `discoveryCount` do not grow on a replay**, and need no per-activity guard:
+    a replayed activity is its cell's `lastRunAt` (the `max` is false at equality), its
+    `firstRunAt` (the `min` is false at equality) or strictly between (neither applies). Proven by
+    test. The drift `0198` saw is not reproducible against the current writer.

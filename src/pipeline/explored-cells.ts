@@ -6,7 +6,12 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import { cellToParent, type H3Index } from "h3-js"
 
-import { awardsDiscovery, type CellRecord, type ClassifiedCell } from "@/src/domain/discovery"
+import {
+  awardsDiscovery,
+  classifyCells,
+  type CellRecord,
+  type ClassifiedCell,
+} from "@/src/domain/discovery"
 import { AGG_RESOLUTIONS, totalChildren } from "@/src/domain/explored-agg"
 import { parentOf } from "@/src/domain/fog"
 
@@ -269,7 +274,22 @@ export interface CellWriteDeps {
 }
 
 /**
+ * A CREDIT CLAIM (D-268, ticket `0228`). The state the classifier saw, which the write must
+ * still find for the verdict to stand: `seen` absent means "the cell did not exist" (`new`),
+ * present means "its `lastRunAt` was exactly this" (`rearmed`).
+ */
+export interface CellClaim {
+  seen?: string
+}
+
+/**
  * THE PRIMARY WRITE. `02-data-model.md` T6's expression, transcribed.
+ *
+ * With a `claim`, the same update under a STRICTER condition: compare-and-set against the
+ * state the verdict was read from, rather than the `max` alone. `lastRunAt = :seen` implies
+ * `lastRunAt < :at` for a re-armed cell (its delta is positive by definition), and
+ * `attribute_not_exists` is the first disjunct of the unclaimed condition, so a claim that
+ * applies is always a write the unclaimed form would also have applied.
  *
  * The condition is what makes it safe for out-of-order arrival: a backfilled 2024 run
  * cannot stomp a 2026 `lastRunAt`, because the write simply does not apply. When it
@@ -284,6 +304,7 @@ export function cellUpdate(
   activity: CellWriteActivity,
   credit: 0 | 1,
   table = EXPLORED_CELL_TABLE,
+  claim?: CellClaim,
 ): UpdateCommandInput {
   return {
     TableName: table,
@@ -293,8 +314,13 @@ export function cellUpdate(
       "firstRunId = if_not_exists(firstRunId, :rid), " +
       "lastRunAt = :at, lastRunId = :rid, lastRunDay = :day " +
       "ADD visitCount :one, discoveryCount :credit",
-    ConditionExpression: "attribute_not_exists(lastRunAt) OR lastRunAt < :at",
+    ...(claim === undefined
+      ? { ConditionExpression: "attribute_not_exists(lastRunAt) OR lastRunAt < :at" }
+      : claim.seen === undefined
+        ? { ConditionExpression: "attribute_not_exists(lastRunAt)" }
+        : { ConditionExpression: "lastRunAt = :seen" }),
     ExpressionAttributeValues: {
+      ...(claim?.seen === undefined ? {} : { ":seen": claim.seen }),
       ":at": activity.startedAt,
       ":rid": activity.activityId,
       ":day": lastRunDay(activity.startedAt),
@@ -360,6 +386,25 @@ export interface CellWriteResult {
   backfilled: number
   /** Cells where both conditions failed — a replay, or an out-of-order middle arrival. */
   unchanged: number
+  /**
+   * Credit claims another activity won first (D-268), so the cell was re-read and re-judged.
+   * Zero outside a concurrent backfill or replay; anything else in the log is worth a look.
+   */
+  contested: number
+}
+
+/**
+ * `writeCells`' answer. The counts are for the log; `classified` is the CONTROL-FLOW half,
+ * and the only verdicts any caller may score or aggregate from (D-268).
+ */
+export interface CellWriteOutcome {
+  written: CellWriteResult
+  /**
+   * The verdicts the writes SETTLED, one per input cell. Identical to the input unless a
+   * claim was lost, in which case that cell carries its re-read verdict: `cooled`,
+   * `deferred`, or a `rearmed` that then won its own claim.
+   */
+  classified: ClassifiedCell[]
 }
 
 const THROTTLE = new Set([
@@ -375,7 +420,40 @@ const isConditionalFailure = (e: unknown): boolean =>
 const isThrottle = (e: unknown): boolean => THROTTLE.has((e as { name?: string })?.name ?? "")
 
 /**
+ * How many times one run re-reads its contested cells before giving up. Each round needs a
+ * different activity to have won the same cell in the window since the last read, so the
+ * second round is already improbable for one user at five workers (D-266). Exhausting it
+ * throws, which is safe for the reason partial failure is: map ahead of XP, redelivery heals.
+ */
+const MAX_CLAIM_ROUNDS = 5
+
+/**
  * WRITE ONE RUN'S CELLS. Idempotent, unordered, and safe to call twice.
+ *
+ * ─── A CREDIT VERDICT IS ONLY A CANDIDATE UNTIL ITS WRITE WINS (D-268) ──────
+ *
+ * `readCells` and these writes are separate round trips, and D-266 runs five workers. Two
+ * activities crossing the same cell can both read it absent and both call it `new`, or both
+ * read the same stale `lastRunAt` and both call it `rearmed`. Every write here is still safe
+ * on its own (I-8), but the CREDIT would land twice, and D-135 means it never comes back.
+ * `0198`'s replay measured it: 58 duplicate `new`s across 1,141 cells.
+ *
+ * So a verdict that awards credit is written as a CLAIM, conditional on exactly the state
+ * the classifier saw (`cellUpdate`'s `claim`). If it applies, the verdict stands, and no
+ * other activity can also have won it: both conditions name the pre-write state, and only
+ * one write can find it. If it fails, another activity changed the cell first, so it is
+ * re-read and re-judged by the same `classifyCells`. The result is `cooled` (the winner was
+ * earlier), `deferred` (it was later, and §3.4's replay takes over exactly as for any
+ * out-of-order arrival), or `rearmed` against the winner, which claims again.
+ *
+ * §3.3 forbids the write phase re-reading, because it would see THIS run's own writes. This
+ * re-read cannot: a contested cell is one this run has not written (the claim was its first
+ * write, and a run's cells are a set), so whatever it finds was written by someone else.
+ *
+ * Cooled and deferred verdicts award nothing, so they take the unclaimed path unchanged. A
+ * stale one can only be too pessimistic, and a concurrent write cannot make it award.
+ *
+ * ─── EVERYTHING ELSE ────────────────────────────────────────────────────────
  *
  * **A `ConditionalCheckFailedException` is not an error here.** It is the `min`/`max`
  * working — the whole mechanism is "attempt the write and let DynamoDB decide" — so it
@@ -394,15 +472,15 @@ const isThrottle = (e: unknown): boolean => THROTTLE.has((e as { name?: string }
 export async function writeCells(
   classified: Iterable<ClassifiedCell>,
   activity: CellWriteActivity,
-  deps: CellWriteDeps,
-): Promise<CellWriteResult> {
+  deps: CellWriteDeps & CellReadDeps,
+): Promise<CellWriteOutcome> {
   const table = deps.table ?? EXPLORED_CELL_TABLE
   const concurrency = deps.concurrency ?? 8
   const maxRetries = deps.maxRetries ?? 3
   const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
-  const queue = [...classified]
-  const result: CellWriteResult = { advanced: 0, backfilled: 0, unchanged: 0 }
+  const written: CellWriteResult = { advanced: 0, backfilled: 0, unchanged: 0, contested: 0 }
+  const settled: ClassifiedCell[] = []
 
   async function send(input: UpdateCommandInput): Promise<"applied" | "condition-failed"> {
     for (let attempt = 0; ; attempt++) {
@@ -420,35 +498,66 @@ export async function writeCells(
     }
   }
 
-  async function one({ cell, discovery }: ClassifiedCell): Promise<void> {
-    // The credit is decided by the CLASSIFIER, against pre-run state, and merely carried
-    // here. Deriving it in this function would mean re-reading the record — which is
-    // exactly the phase-2/phase-4 collapse §3.3's last bullet forbids.
-    const credit = awardsDiscovery(discovery) ? 1 : 0
+  /** @returns `false` when a claim was lost and the cell must be re-judged. */
+  async function one(c: ClassifiedCell): Promise<boolean> {
+    if (awardsDiscovery(c.discovery)) {
+      // A `rearmed` verdict with no record has nothing to compare-and-set against, so it is
+      // treated as lost and re-read rather than trusted. Production never builds one.
+      if (c.discovery === "rearmed" && c.record === undefined) return false
+      const claim = { seen: c.discovery === "rearmed" ? c.record!.lastRunAt : undefined }
+      if ((await send(cellUpdate(c.cell, activity, 1, table, claim))) === "condition-failed") {
+        return false
+      }
+      written.advanced++
+      settled.push(c)
+      return true
+    }
 
-    if ((await send(cellUpdate(cell, activity, credit, table))) === "applied") {
-      result.advanced++
-      return
+    // The credit is decided by the CLASSIFIER and merely carried here; on this path it is 0.
+    settled.push(c)
+    if ((await send(cellUpdate(c.cell, activity, 0, table))) === "applied") {
+      written.advanced++
+      return true
     }
-    if ((await send(firstRunBackfill(cell, activity, credit, table))) === "applied") {
-      result.backfilled++
-      return
+    if ((await send(firstRunBackfill(c.cell, activity, 0, table))) === "applied") {
+      written.backfilled++
+      return true
     }
-    result.unchanged++
+    written.unchanged++
+    return true
   }
 
-  /**
-   * A fixed pool of workers pulling from one queue, rather than chunking into slices of
-   * `concurrency` and awaiting each slice. Chunking idles the whole batch on its slowest
-   * member, which at 130 cells and a tail-latency spike is the difference between one
-   * round-trip of delay and sixteen.
-   */
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    for (let next = queue.pop(); next !== undefined; next = queue.pop()) await one(next)
-  })
-  await Promise.all(workers)
+  let queue = [...classified]
+  for (let round = 0; queue.length > 0; round++) {
+    if (round > MAX_CLAIM_ROUNDS) {
+      throw new Error(
+        `writeCells: ${queue.length} cells still contested after ${MAX_CLAIM_ROUNDS} ` +
+          "re-reads. Refusing to guess a verdict; a redelivery will re-run them (D-268).",
+      )
+    }
 
-  return result
+    const lost: ClassifiedCell[] = []
+    const pending = [...queue]
+    /**
+     * A fixed pool of workers pulling from one queue, rather than chunking into slices of
+     * `concurrency` and awaiting each slice. Chunking idles the whole batch on its slowest
+     * member, which at 130 cells and a tail-latency spike is the difference between one
+     * round-trip of delay and sixteen.
+     */
+    const workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
+      for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+        if (!(await one(next))) lost.push(next)
+      }
+    })
+    await Promise.all(workers)
+
+    if (lost.length === 0) break
+    written.contested += lost.length
+    const cells = lost.map((c) => c.cell)
+    queue = classifyCells(cells, await readCells(cells, activity.userId, deps), activity.startedAt)
+  }
+
+  return { written, classified: settled }
 }
 
 /**
@@ -495,6 +604,10 @@ export async function writeCells(
  * a table that now holds them, classifies them `cooled`, and adds zero. The idempotency is
  * inherited from the read, not asserted about the write — which is the same property that
  * makes `0048`'s whole classify-then-write ordering work.
+ *
+ * **The verdicts passed here must be `writeCells`' settled ones** (D-268), never the read's.
+ * Two concurrent activities can both READ a cell absent, and only one can WIN its claim; an
+ * aggregate built from the read counted that cell twice (`0228`, 58 times in `0198`'s replay).
  */
 export interface AggWriteResult {
   /** Aggregate items touched, across all three resolutions. 3–6 for a typical run. */

@@ -550,6 +550,19 @@ function scoreActivity(activity, trace, store):
 >
 > Everything else in phase 4 stands, including the rule the next paragraph states.
 
+> **A CREDIT VERDICT IS A CLAIM THE WRITE SETTLES. Amended 2026-10-01 (ticket `0228`, D-268).**
+> Phase 2's read and phase 4's writes are separate round trips, and D-266 runs five workers, so
+> two activities crossing the same cell can both read it absent (or both read the same stale
+> `lastRunAt`) and both award it. Measured: 58 duplicate `new`s in one replay. So:
+>
+> - A `new` cell's first write is conditional on `attribute_not_exists(lastRunAt)`; a `rearmed`
+>   cell's on `lastRunAt = <the value phase 2 read>`. Only one activity can find either state.
+> - **A lost claim re-reads that one cell and reclassifies it** with the same rule: `cooled` if
+>   the winner was earlier, `deferred` (and §3.4's replay) if it was later, or `rearmed` against
+>   a winner more than six months older, which claims again.
+> - **Phase 3 and `bumpAggregates` count the SETTLED verdicts**, not phase 2's. Scoring the read is
+>   the double award. Cooled and deferred verdicts award nothing and are written as before.
+
 **The award is stored, not recomputed.** Everything the UI shows about a run — "41 new cells",
 "+410 Cartography" — reads the ledger entry. Recomputing it later would give a different answer
 (the cells are now in the store) and would make XP silently drift. R3 §4(e) makes the same point.
@@ -578,6 +591,12 @@ deserves an explicit statement so nobody "optimises" it away:
   against the store state *as it was before this activity*. Do not update `lastRunAt` inside the
   classify loop — if you do, a cell would be re-read as "cooled" by a later iteration. Classify
   fully, then write. The pseudocode above enforces this by separating phase 2 from phase 4.
+  **The one re-read that is allowed** is of a cell whose credit claim lost (D-268): that cell is
+  one this run has not yet written, so the re-read sees another activity's write and never this
+  run's own.
+- **Two activities in flight at once** (a backfill at D-266's five workers). Each shared cell is
+  credited to exactly one of them, by whichever claim lands first (D-268, above). If the later
+  run wins, the earlier one is deferred and replayed, exactly as if it had arrived out of order.
 
 ### 3.4 Out-of-order and backfilled activities
 

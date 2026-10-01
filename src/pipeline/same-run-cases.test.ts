@@ -1,4 +1,4 @@
-import { UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import { BatchGetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { cellToParent } from "h3-js"
 import { describe, expect, it } from "vitest"
 
@@ -51,14 +51,26 @@ function traceOf(points: GeoPoint[]): Trace {
 function fakeTable(seed: Record<string, Record<string, unknown>> = {}) {
   const store: Record<string, Record<string, unknown>> = { ...seed }
   const ddb = {
-    async send(command: UpdateCommand) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async send(command: UpdateCommand | BatchGetCommand): Promise<any> {
+      if (command instanceof BatchGetCommand) {
+        const [[name, { Keys }]] = Object.entries(command.input.RequestItems!)
+        const hit = Keys!.filter((k) => store[`${k.pk}|${k.sk}`])
+        return { Responses: { [name]: hit.map((k) => ({ ...store[`${k.pk}|${k.sk}`], sk: k.sk })) } }
+      }
       const input = command.input
       const id = `${String(input.Key!.pk)}|${String(input.Key!.sk)}`
       const item = store[id]
       const v = input.ExpressionAttributeValues as Record<string, string | number>
 
       if (String(input.UpdateExpression).startsWith("SET firstRunAt = if_not_exists")) {
-        if (item && !(String(item.lastRunAt) < String(v[":at"]))) throw conditionalFailure()
+        const holds =
+          input.ConditionExpression === "attribute_not_exists(lastRunAt)"
+            ? item?.lastRunAt === undefined
+            : input.ConditionExpression === "lastRunAt = :seen"
+              ? item?.lastRunAt === v[":seen"]
+              : !item || String(item.lastRunAt) < String(v[":at"])
+        if (!holds) throw conditionalFailure()
         store[id] = {
           ...item,
           firstRunAt: item?.firstRunAt ?? v[":at"],

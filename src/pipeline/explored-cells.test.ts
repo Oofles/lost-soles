@@ -2,7 +2,7 @@ import { BatchGetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { cellToParent, gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
-import type { ClassifiedCell, Discovery } from "@/src/domain/discovery"
+import { classifyCells, type ClassifiedCell, type Discovery } from "@/src/domain/discovery"
 import { RES, RES_PARENT } from "@/src/domain/fog"
 
 import {
@@ -70,6 +70,10 @@ const PRIMARY_EXPRESSION =
 const BACKFILL_EXPRESSION =
   "SET firstRunAt = :at, firstRunId = :rid ADD visitCount :one, discoveryCount :credit"
 
+const UNCLAIMED_CONDITION = "attribute_not_exists(lastRunAt) OR lastRunAt < :at"
+const NEW_CLAIM = "attribute_not_exists(lastRunAt)"
+const REARM_CLAIM = "lastRunAt = :seen"
+
 /** `0049`, T6 item type B. */
 const AGG_TOTAL_EXPRESSION = "SET totalChildren = :total ADD exploredChildren :added"
 const AGG_DAY_EXPRESSION = "SET lastRunDay = :day"
@@ -91,7 +95,15 @@ function fakeTable(seed: Record<string, Item> = {}) {
   const sent: UpdateCommand["input"][] = []
 
   const ddb = {
-    async send(command: UpdateCommand) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async send(command: UpdateCommand | BatchGetCommand): Promise<any> {
+      // D-268's re-read of a lost claim. Consistent by construction: it reads `store`.
+      if (command instanceof BatchGetCommand) {
+        const [[table, { Keys }]] = Object.entries(command.input.RequestItems!)
+        const items = Keys!.filter((k) => store[`${k.pk}|${k.sk}`]).map((k) => ({ ...store[`${k.pk}|${k.sk}`], sk: k.sk }))
+        return { Responses: { [table]: items } }
+      }
+
       const input = command.input
       sent.push(input)
 
@@ -100,7 +112,15 @@ function fakeTable(seed: Record<string, Item> = {}) {
       const v = input.ExpressionAttributeValues as Record<string, string | number>
 
       if (input.UpdateExpression === PRIMARY_EXPRESSION) {
-        if (item && !(String(item.lastRunAt) < String(v[":at"]))) throw conditionalFailure()
+        const holds = {
+          // The `max` (I-8). An absent attribute satisfies `attribute_not_exists`.
+          [UNCLAIMED_CONDITION]: () => !item || String(item.lastRunAt) < String(v[":at"]),
+          // D-268's two claims: compare-and-set against what the classifier saw.
+          [NEW_CLAIM]: () => item?.lastRunAt === undefined,
+          [REARM_CLAIM]: () => item !== undefined && item.lastRunAt === v[":seen"],
+        }[String(input.ConditionExpression)]
+        if (!holds) throw new Error(`unrecognised condition: ${input.ConditionExpression}`)
+        if (!holds()) throw conditionalFailure()
         store[id] = {
           ...item,
           firstRunAt: item?.firstRunAt ?? v[":at"],
@@ -157,6 +177,11 @@ function fakeTable(seed: Record<string, Item> = {}) {
 }
 
 /**
+ * The `"new"` default is now also a D-268 claim, so a call that writes it over a cell already
+ * in the table loses that claim, re-reads, and is re-judged. That is why the out-of-order and
+ * idempotency tests below report `contested`: the helper's verdict was stale on purpose, and
+ * the writer corrected it rather than crediting it.
+ *
  * `0048` made `writeCells` take CLASSIFIED cells, because `discoveryCount` is now the
  * classifier's answer rather than a hard zero. The default here is `"new"`: a cell being
  * written for the first time is new by definition, and a helper that defaulted to
@@ -172,7 +197,7 @@ const write = (
     cells.map((cell) => ({ cell, discovery })),
     activity,
     { ddb: t.ddb, sleep: async () => {} },
-  )
+  ).then((outcome) => outcome.written)
 
 describe("the key shape (T6)", () => {
   it("is `U#<uid>#C#<res7parent>` / `<res11cell>` — D-267", () => {
@@ -281,7 +306,7 @@ describe("writeCells — a first run", () => {
     const t = fakeTable()
     const result = await write([NEMO_CELL], RUN_2026, t)
 
-    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 0 })
+    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 0, contested: 0 })
     expect(t.at(NEMO_CELL)).toEqual({
       firstRunAt: RUN_2026.startedAt,
       firstRunId: "a-2026",
@@ -308,7 +333,7 @@ describe("writeCells — out-of-order arrival (I-8, criterion 4)", () => {
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL], RUN_2024, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 1, unchanged: 0 })
+    expect(result).toEqual({ advanced: 0, backfilled: 1, unchanged: 0, contested: 1 })
     const item = t.at(NEMO_CELL)
     expect(item.firstRunAt).toBe(RUN_2024.startedAt)
     expect(item.lastRunAt).toBe(RUN_2026.startedAt)
@@ -354,7 +379,7 @@ describe("writeCells — out-of-order arrival (I-8, criterion 4)", () => {
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL], RUN_2025, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 1 })
+    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 1, contested: 1 })
     expect(t.at(NEMO_CELL).firstRunAt).toBe(RUN_2024.startedAt)
     expect(t.at(NEMO_CELL).lastRunAt).toBe(RUN_2026.startedAt)
     expect(t.at(NEMO_CELL).visitCount).toBe(2)
@@ -385,7 +410,7 @@ describe("writeCells — idempotency (criterion 9)", () => {
 
     const result = await write([NEMO_CELL, NEMO_CELL_2], RUN_2026, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 2 })
+    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 2, contested: 2 })
     expect(t.store).toEqual(before)
   })
 
@@ -403,7 +428,7 @@ describe("writeCells — idempotency (criterion 9)", () => {
     const t = fakeTable()
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL, NEMO_CELL_2], RUN_2026, t)
-    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 1 })
+    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 1, contested: 1 })
   })
 })
 
@@ -478,7 +503,12 @@ describe("writeCells — throughput and failure", () => {
 
   it("an empty cell set is a no-op, not an error — 05 §3.6's traceless case", async () => {
     const t = fakeTable()
-    expect(await write([], RUN_2026, t)).toEqual({ advanced: 0, backfilled: 0, unchanged: 0 })
+    expect(await write([], RUN_2026, t)).toEqual({
+      advanced: 0,
+      backfilled: 0,
+      unchanged: 0,
+      contested: 0,
+    })
     expect(t.sent).toHaveLength(0)
   })
 })
@@ -780,5 +810,200 @@ describe("writeAggregates — T6 item type B (0049)", () => {
     await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
     // 3 levels x a few parents x 2 writes each. Against 37 cells.
     expect(table.sent.length).toBeLessThan(20)
+  })
+})
+
+/**
+ * Ticket `0228`, D-268. THE INTERLEAVING THAT LOST BEFORE: both activities read, THEN both
+ * write. Under D-266's five workers that is what a backfill or a replay does routinely, and
+ * `0198`'s replay measured 58 duplicate `new`s from it.
+ *
+ * `ingest` is `projectCells`' read and classify; `land` is its write and aggregate. Calling
+ * them in two separate phases is the race, made deterministic.
+ */
+describe("writeCells — concurrent claims (0228, D-268)", () => {
+  const A = { userId: "u-1", activityId: "a-early", startedAt: "2026-09-06T03:00:00.000Z" }
+  const B = { userId: "u-1", activityId: "a-late", startedAt: "2026-09-07T03:00:00.000Z" }
+
+  // A ring of shared ground, plus a cell each that only one of them crossed.
+  const shared = gridDisk(NEMO_CELL, 2)
+  const onlyA = latLngToCell(-48.83, -123.393, RES)
+  const onlyB = latLngToCell(-48.92, -123.393, RES)
+
+  const deps = (t: ReturnType<typeof fakeTable>) => ({ ddb: t.ddb, sleep: async () => {} })
+
+  async function ingest(cells: string[], run: CellWriteActivity, t: ReturnType<typeof fakeTable>) {
+    return classifyCells(cells, await readCells(cells, run.userId, deps(t)), run.startedAt)
+  }
+
+  async function land(
+    candidates: ClassifiedCell[],
+    run: CellWriteActivity,
+    t: ReturnType<typeof fakeTable>,
+  ) {
+    const { classified } = await writeCells(candidates, run, deps(t))
+    await writeAggregates(classified, run, deps(t))
+    return classified
+  }
+
+  const count = (classified: ClassifiedCell[], d: Discovery) =>
+    classified.filter((c) => c.discovery === d).length
+
+  /** Sum of `exploredChildren` at one AGG rung — must equal the distinct cells in T6. */
+  const aggSum = (t: ReturnType<typeof fakeTable>, res: number) =>
+    Object.entries(t.store)
+      .filter(([id]) => id.startsWith(`U#u-1#AGG#${res}|`))
+      .reduce((n, [, item]) => n + Number(item.exploredChildren), 0)
+
+  const cellRows = (t: ReturnType<typeof fakeTable>) =>
+    Object.keys(t.store).filter((id) => id.includes("#C#")).length
+
+  it("both READ every shared cell as new — the precondition the race needs", async () => {
+    const t = fakeTable()
+    const a = await ingest([...shared, onlyA], A, t)
+    const b = await ingest([...shared, onlyB], B, t)
+    expect(count(a, "new")).toBe(shared.length + 1)
+    expect(count(b, "new")).toBe(shared.length + 1)
+  })
+
+  it("earlier wins: each shared cell is new exactly once, and the later run is cooled there", async () => {
+    const t = fakeTable()
+    const a = await ingest([...shared, onlyA], A, t)
+    const b = await ingest([...shared, onlyB], B, t)
+
+    const settledA = await land(a, A, t)
+    const settledB = await land(b, B, t)
+
+    expect(count(settledA, "new") + count(settledB, "new")).toBe(shared.length + 2)
+    expect(count(settledB, "new")).toBe(1) // its own cell only
+    expect(count(settledB, "cooled")).toBe(shared.length)
+    for (const cell of shared) {
+      expect(t.at(cell).discoveryCount).toBe(1)
+      expect(t.at(cell).visitCount).toBe(2)
+      expect(t.at(cell).firstRunId).toBe("a-early")
+      expect(t.at(cell).lastRunId).toBe("a-late")
+    }
+  })
+
+  it("later wins: the earlier run is DEFERRED there, never also new (§3.4 takes over)", async () => {
+    const t = fakeTable()
+    const a = await ingest([...shared, onlyA], A, t)
+    const b = await ingest([...shared, onlyB], B, t)
+
+    const settledB = await land(b, B, t)
+    const settledA = await land(a, A, t)
+
+    expect(count(settledA, "new") + count(settledB, "new")).toBe(shared.length + 2)
+    expect(count(settledA, "deferred")).toBe(shared.length)
+    for (const cell of shared) {
+      expect(t.at(cell).discoveryCount).toBe(1)
+      // The backfill still lowered firstRunAt: the map is right, only the credit waits.
+      expect(t.at(cell).firstRunId).toBe("a-early")
+      expect(t.at(cell).lastRunId).toBe("a-late")
+    }
+  })
+
+  it("truly concurrent writes settle to the same totals", async () => {
+    const t = fakeTable()
+    const a = await ingest([...shared, onlyA], A, t)
+    const b = await ingest([...shared, onlyB], B, t)
+
+    const [settledA, settledB] = await Promise.all([land(a, A, t), land(b, B, t)])
+
+    expect(count(settledA, "new") + count(settledB, "new")).toBe(shared.length + 2)
+    for (const cell of shared) expect(t.at(cell).discoveryCount).toBe(1)
+  })
+
+  it("the AGG rows cannot double-count the shared ground, at any rung", async () => {
+    for (const order of ["AB", "BA"] as const) {
+      const t = fakeTable()
+      const a = await ingest([...shared, onlyA], A, t)
+      const b = await ingest([...shared, onlyB], B, t)
+      if (order === "AB") await land(a, A, t).then(() => land(b, B, t))
+      else await land(b, B, t).then(() => land(a, A, t))
+
+      expect(cellRows(t)).toBe(shared.length + 2)
+      for (const res of [6, 7, 8]) expect(aggSum(t, res)).toBe(shared.length + 2)
+    }
+  })
+
+  it("a re-arm is claimed once: two runs reading the same stale lastRunAt credit it once", async () => {
+    const t = fakeTable()
+    // Discovered in 2024, so both 2026 runs read it as more than six months cold.
+    await land(await ingest([NEMO_CELL], RUN_2024, t), RUN_2024, t)
+    expect(t.at(NEMO_CELL).discoveryCount).toBe(1)
+
+    const a = await ingest([NEMO_CELL], A, t)
+    const b = await ingest([NEMO_CELL], B, t)
+    expect(a[0]!.discovery).toBe("rearmed")
+    expect(b[0]!.discovery).toBe("rearmed")
+
+    const settledA = await land(a, A, t)
+    const settledB = await land(b, B, t)
+
+    expect(settledA[0]!.discovery).toBe("rearmed")
+    expect(settledB[0]!.discovery).toBe("cooled")
+    expect(t.at(NEMO_CELL).discoveryCount).toBe(2)
+    expect(t.at(NEMO_CELL).visitCount).toBe(3)
+  })
+
+  it("a lost new claim can still re-arm against a winner more than six months older", async () => {
+    // The winner here is a 2024 run that landed between this 2026 run's read and its write.
+    const t = fakeTable()
+    const late = await ingest([NEMO_CELL], A, t)
+    await land(await ingest([NEMO_CELL], RUN_2024, t), RUN_2024, t)
+
+    const settled = await land(late, A, t)
+
+    expect(settled[0]!.discovery).toBe("rearmed")
+    expect(t.at(NEMO_CELL).discoveryCount).toBe(2)
+  })
+
+  it("refuses rather than guesses when a cell stays contested past the budget", async () => {
+    const t = fakeTable()
+    const real = t.ddb.send.bind(t.ddb)
+    // Every claim fails, as though another run won the cell each time it was re-read.
+    const ddb = {
+      async send(command: UpdateCommand | BatchGetCommand) {
+        const claim = command instanceof UpdateCommand && command.input.ConditionExpression
+        if (claim === NEW_CLAIM) throw conditionalFailure()
+        return real(command)
+      },
+    }
+    await expect(
+      writeCells([{ cell: NEMO_CELL, discovery: "new" }], A, { ddb, sleep: async () => {} }),
+    ).rejects.toThrow(/still contested/)
+  })
+})
+
+/**
+ * Ticket `0228`'s third criterion. A REPLAY of an activity already in T6, classified honestly
+ * against what T6 holds, must not move `visitCount` or `discoveryCount`. It does not, and no
+ * per-activity guard is needed: the activity is either the cell's `lastRunAt` (the `max` is
+ * false at equality), its `firstRunAt` (the `min` is false at equality), or strictly between
+ * the two (neither write applies, the documented hole above). The drift `0198` saw (18 visits
+ * from 18 activities) predates this writer's conditions holding on every path; it is not
+ * reproducible against them.
+ */
+describe("writeCells — replaying an activity changes no counter (0228)", () => {
+  const deps = (t: ReturnType<typeof fakeTable>) => ({ ddb: t.ddb, sleep: async () => {} })
+  const run = async (cell: string, a: CellWriteActivity, t: ReturnType<typeof fakeTable>) => {
+    const candidates = classifyCells([cell], await readCells([cell], "u-1", deps(t)), a.startedAt)
+    return (await writeCells(candidates, a, deps(t))).classified[0]!.discovery
+  }
+
+  it("replaying the first, middle and last activity on a cell leaves both counters alone", async () => {
+    const t = fakeTable()
+    for (const a of [RUN_2024, RUN_2025, RUN_2026]) await run(NEMO_CELL, a, t)
+    const before = { ...t.at(NEMO_CELL) }
+    expect(before.visitCount).toBe(3)
+    expect(before.discoveryCount).toBe(3) // new, then two >6-month re-arms
+
+    for (const a of [RUN_2026, RUN_2024, RUN_2025, RUN_2026]) {
+      const verdict = await run(NEMO_CELL, a, t)
+      // The latest replays as cooled (delta 0); the older two are deferred to the fold.
+      expect(["cooled", "deferred"]).toContain(verdict)
+    }
+    expect(t.at(NEMO_CELL)).toEqual(before)
   })
 })

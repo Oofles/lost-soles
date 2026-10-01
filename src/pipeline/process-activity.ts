@@ -763,7 +763,7 @@ async function projectCells<TCreds>(
     // A trace with points but nothing that survived §2.2 is no-GPS (§3.6). Distinguished
     // from "no trace" only in the log; both award nothing and write nothing.
     return {
-      cells: { advanced: 0, backfilled: 0, unchanged: 0 },
+      cells: { advanced: 0, backfilled: 0, unchanged: 0, contested: 0 },
       award: NO_CELLS,
       touched: null,
       // The case §3.6's last bullet is about: points went in, nothing came out. The counts
@@ -775,11 +775,17 @@ async function projectCells<TCreds>(
 
   // 2. CLASSIFY, against pre-run state, in one read.
   const records = await readCells(cells, activity.userId, deps.cells)
-  const classified = classifyCells(cells, records, activity.startedAt)
-  const award = awardOf(classified)
+  const candidates = classifyCells(cells, records, activity.startedAt)
 
-  // 4. WRITE, carrying each cell's verdict. Never re-reading.
-  const written = await writeCells(classified, activity, deps.cells)
+  /**
+   * 4. WRITE, carrying each cell's verdict. A verdict that awards credit is a CLAIM the write
+   * settles (D-268, `0228`): a concurrent activity that reached the cell first turns it into
+   * whatever a re-read of that one cell says. So the award, the aggregate and the ground split
+   * below all read `classified` FROM THE WRITE, never `candidates`. Scoring the read is the
+   * double award D-268 exists to stop.
+   */
+  const { written, classified } = await writeCells(candidates, activity, deps.cells)
+  const award = awardOf(classified)
 
   /**
    * 5. THE AGGREGATE ITEMS, AFTER the cells and never before. T6 item type B exists so

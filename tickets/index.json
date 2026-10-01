@@ -5237,11 +5237,32 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T18:53:31Z",
+    "started": "2026-10-01T19:05:39Z",
     "path": "tickets/open/0228-concurrent-ingest-of-overlapping-activities-classifies-a-sha.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 1,
       "total": 4
+    }
+  },
+  {
+    "id": 229,
+    "slug": "concurrent-ingest-undercounts-visitcount-an-overtaken-write",
+    "title": "Concurrent ingest undercounts visitCount: an overtaken write lands nowhere",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-01T19:11:58Z",
+    "path": "tickets/open/0229-concurrent-ingest-undercounts-visitcount-an-overtaken-write.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]
