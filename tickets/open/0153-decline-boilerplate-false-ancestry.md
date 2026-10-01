@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-03T01:20:57Z
+started: 2026-10-01T00:53:43Z
 ---
 
 ## Description
@@ -61,17 +62,17 @@ On `0152` that gives exactly two commits: `1927a7e` (the endpoint's own `capture
 
 ## Acceptance criteria
 
-- [ ] `git log --follow` on a declined capture either finds its true inbox ancestor or finds
+- [x] `git log --follow` on a declined capture either finds its true inbox ancestor or finds
       nothing — it never reports a different capture's file.
-- [ ] Reproduced first as a failing test with two declined captures, so the fix is shown to fix
+- [x] Reproduced first as a failing test with two declined captures, so the fix is shown to fix
       the actual reported behaviour rather than a plausible-looking substitute.
-- [ ] `closedCaptureBody` emits a Description with real content when the capture had a heading but
+- [x] `closedCaptureBody` emits a Description with real content when the capture had a heading but
       no body — checked for content, not just for the heading.
-- [ ] The `-M20%` guidance is replaced everywhere it appears with the `--full-history` form:
+- [x] The `-M20%` guidance is replaced everywhere it appears with the `--full-history` form:
       `reference.md`, `docs/capabilities/03-ticket-capture-endpoint.md`, and the pointer left on
       `0023`. **Corrected in those three places already** — this criterion is to confirm nothing
       else recommends it.
-- [ ] `tickets.mjs validate` stays clean, and `0152` is either left as the historical evidence it
+- [x] `tickets.mjs validate` stays clean, and `0152` is either left as the historical evidence it
       is or regenerated deliberately, with the choice stated.
 
 ## Notes
@@ -97,3 +98,58 @@ capture happens to be about the same length.
 
 Recorded here at close as the reproduction and the after-state, with `--follow` shown reaching the
 right file (or nothing) on a repository holding at least two declined captures.
+
+**Before**, on this repo (2026-09-30): `git log --follow -M20% --name-status` on `0152` printed
+`C033 tickets/closed/0150-capture-endpoint-smoke-test.md → tickets/closed/0152-…` in `89e8534`, then
+walked on into 0150's own inbox file. The new test failed the same way at the **default** threshold
+before the fix.
+
+**After**, replayed in a scratch git repo with `TICKETS_ROOT` pointed at it: two title-only
+captures (`capture endpoint smoke test`, `bearer auth works`) declined in separate commits through
+the real `triage-decline`. On `closed/0002-bearer-auth-works.md`:
+- `git log --follow` → only `A tickets/closed/0002-…` (nothing, which is allowed).
+- `git log --follow -M20%` → `R020 tickets/inbox/b.md → tickets/closed/0002-…`, then the capture
+  commit: its **own** inbox file. No sibling anywhere in the output.
+- The file's `## Description` reads `bearer auth works`, not empty.
+
+Suite: `node --test tickets.test.mjs` → 183/183. `tickets.mjs validate` → 0 errors, 0 warnings.
+
+## Resolution
+
+**The ticket's diagnosis was half right, and the suggested fix would not have worked.** Replaying
+`git log --follow -M20% --name-status` on `0152` showed `C033 closed/0150 → closed/0152` in
+`89e8534`, which was a one-item triage commit. So this was never two renames paired wrongly inside a
+batch. It was a **copy** from a sibling's closed file that already existed, scoring 33% against
+`0152`'s own 6-line inbox stub, which scored lower. And git similarity ignores line order, so the
+Notes' suggestion (capture text on top, boilerplate below) changes nothing. Only *unshared*
+generated text helps.
+
+**Fix — `closedCaptureBody` in `tickets.mjs`:**
+- Every generated filler line now names its own capture: the Acceptance criteria and Operator
+  validation lines quote the title, and Notes already carried `created`. Two declined captures now
+  share only their bare `##` headings and the `**Declined at triage, <date>.**` prefix.
+- The Description is checked for **content**, not just for the heading. When the heading is there
+  with nothing under it (the tile's common case), it is filled with the title in place. If the
+  heading is missing entirely, it is appended as before.
+
+**Tests (`tickets.test.mjs`):** new `--follow on a declined capture never reaches a SIBLING capture
+(0153)` models 0150/0152 exactly: title-only captures declined in separate commits. It asserts no
+sibling in the output at the default threshold or at `-M20%`, and that Description is non-empty. It
+**failed before the fix** at the default threshold and passes after. I rewrote the comment on the
+older single-decline test so it points to `--full-history` instead of implying `-M20%` is the way
+back.
+
+**Docs:** `reference.md` now records the real mechanism (copy, not rename) and the fix. It still
+says to use `--full-history` and not `--follow`, because the fix makes a correct match likely, not
+guaranteed: the true ancestor clears `-M20%` at only `R020`. A grep of every `.md`/`.mjs`/`.sh`
+outside `tickets/` found no other `-M20%` advice. The ones inside `tickets/` are `0023` (already
+marked superseded) and this ticket. `docs/capabilities/03-ticket-capture-endpoint.md` no longer
+mentions it.
+
+**`0152` is left as is**, deliberately. It is the historical evidence for this bug, and its own
+Resolution already says to use `--full-history` and why. Regenerating it would destroy the
+reproduction. `0150` is left alone for the same reason.
+
+**Not separately tested:** the merge path also uses `closedCaptureBody`, so it gets the same fix,
+but only decline has a two-capture test. No D-xxx: the decline format's structure (D-170) is
+unchanged; only the filler wording is.

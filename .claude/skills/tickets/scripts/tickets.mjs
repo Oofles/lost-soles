@@ -2083,15 +2083,28 @@ const today = () => new Date().toISOString().slice(0, 10);
  * it. Zero criteria is zero unchecked criteria, and it validates.
  */
 function closedCaptureBody(cap, resolution) {
+  const title = cap.fm.title ?? "";
+  const created = cap.fm.created ?? "unknown";
   const has = (name) => new RegExp(`^##\\s+${name}\\s*$`, "im").test(cap.body);
   let body = cap.body.replace(/\s*$/, "\n");
-  if (!has("Description")) body += `\n## Description\n\n${cap.fm.title}\n`;
-  if (!has("Acceptance criteria")) {
-    body += `\n## Acceptance criteria\n\nNone — this capture was closed at triage, not built.\n`;
+  // A Description HEADING with nothing under it is the tile's common case
+  // (capture.sh omits `body` under 200 characters). Fill it with the title.
+  const desc = /^##\s+Description\s*$\n?([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(body);
+  if (!desc) body += `\n## Description\n\n${title}\n`;
+  else if (!desc[1].trim()) {
+    body = body.slice(0, desc.index) + `## Description\n\n${title}\n` +
+      (desc.index + desc[0].length < body.length ? "\n" : "") + body.slice(desc.index + desc[0].length);
   }
-  if (!has("Notes")) body += `\n## Notes\n\nCaptured ${cap.fm.created}, closed at triage.\n`;
+  // Every generated line names THIS capture (0153). git's --follow is pure
+  // similarity, line order ignored, and a title-only capture is a few lines of
+  // frontmatter — so fixed filler shared by every decline made each closed
+  // capture a better "copy source" for the next one than its own inbox file.
+  if (!has("Acceptance criteria")) {
+    body += `\n## Acceptance criteria\n\nNone — "${title}" was closed at triage, not built.\n`;
+  }
+  if (!has("Notes")) body += `\n## Notes\n\nCaptured ${created}, closed at triage.\n`;
   if (!has("Operator validation")) {
-    body += `\n## Operator validation\n\nNone — nothing was built, so there is nothing to check.\n`;
+    body += `\n## Operator validation\n\nNone — "${title}" was never built, so there is nothing to check.\n`;
   }
   body += `\n## Resolution\n\n${resolution}\n`;
   return body;

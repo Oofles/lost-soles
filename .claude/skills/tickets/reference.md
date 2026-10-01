@@ -298,6 +298,11 @@ span the rewrite is exactly what lets git match the wrong sibling: on 2026-09-03
 `0152`'s ancestor as `0150` — a different capture, from a different day. A confident wrong trail is
 worse than no trail. Filed as `0153`.
 
+The match was a **copy**, not a rename (`C033 closed/0150 → closed/0152`): the sibling's closed file
+shared more lines with `0152` than `0152`'s own inbox stub did. Since `0153`, every generated line
+names its own capture, so on a new decline `--follow` finds the true ancestor or nothing — but that
+is a similarity score clearing a bar, not a fact, and `0150`–`0152` predate it.
+
 Use the original path's own history instead. No heuristic, no ambiguity:
 
 ```sh

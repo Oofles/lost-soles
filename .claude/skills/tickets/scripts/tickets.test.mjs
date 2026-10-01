@@ -1756,11 +1756,11 @@ describe("0023 — triage: promote, merge, decline, defer", () => {
    * two-line capture changes most of the file, so the pair falls below 50%.
    *
    * The file still moved with `git mv` and the content is still in history —
-   * only the default-threshold heuristic misses it. `-M20%` finds it HERE — but do not
-   * generalise from that: this repo holds exactly one declined capture, so there is no
-   * sibling to mismatch against. With two, `-M20%` matches the WRONG one (0153). Written
-   * down here because the natural reaction to `--follow` coming up empty is to
-   * assume the move was done wrong.
+   * only the default-threshold heuristic misses it. `-M20%` finds it HERE, but it is
+   * not the documented way back: before 0153 a sibling decline matched instead, and a
+   * threshold is only as good as the next capture's length. reference.md documents
+   * `git log --full-history -- <inbox path>`. Written down here because the natural
+   * reaction to `--follow` coming up empty is to assume the move was done wrong.
    */
   test("a DECLINED capture follows only at a lower rename threshold, and that is expected", () => {
     const d = repo();
@@ -1773,6 +1773,47 @@ describe("0023 — triage: promote, merge, decline, defer", () => {
       ["log", "--follow", ...extra, "--name-only", "--format=%h", "--", dest], { cwd: d, encoding: "utf8" });
     assert.doesNotMatch(follow(), /tickets\/inbox\//, "default -M50% does not span the rewrite");
     assert.match(follow("-M20%"), /tickets\/inbox\/2026-08-30T1432-streak\.md/, "-M20% does");
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  /**
+   * 0153, reproduced as it actually happened on 0150/0152. Two title-only
+   * captures (the tile's common case: a heading, no body), declined in SEPARATE
+   * commits. The false ancestor was never a rename mix-up inside a batch — git's
+   * --follow reported `C033 closed/0150 → closed/0152`, a COPY from the sibling's
+   * closed file, because every declined capture carried the same ~20 lines of
+   * generated text and the capture itself is a 6-line frontmatter stub.
+   *
+   * Similarity ignores line order, so moving the boilerplate down cannot help.
+   * Only making it unshared can.
+   */
+  test("--follow on a declined capture never reaches a SIBLING capture (0153)", () => {
+    const d = repo();
+    const titleOnly = "\n## Description\n";
+    const a = capture(d, "2026-09-01T0144-smoke.md",
+      { title: "capture endpoint smoke test", type: "chore", priority: "low", created: "2026-09-01T01:44:12.101Z" },
+      titleOnly);
+    commitAll(d, "capture: a");
+    run(d, "triage-decline", a, "--reason", "Smoke test.");
+    commitAll(d, "tickets: triage inbox (1 item)");
+    const b = capture(d, "2026-09-03T0114-bearer.md",
+      { title: "bearer auth works", type: "chore", priority: "low", created: "2026-09-03T01:14:48.907Z" },
+      titleOnly);
+    commitAll(d, "capture: b");
+    run(d, "triage-decline", b, "--reason", "Evidence, not an idea.");
+    commitAll(d, "tickets: triage inbox (1 item)");
+
+    const dest = "tickets/closed/0002-bearer-auth-works.md";
+    const follow = (...extra) => execFileSync("git",
+      ["log", "--follow", ...extra, "--name-only", "--format=%h", "--", dest], { cwd: d, encoding: "utf8" });
+    for (const flags of [[], ["-M20%"]]) {
+      const log = follow(...flags);
+      assert.doesNotMatch(log, /0001-capture-endpoint-smoke-test|2026-09-01T0144-smoke/,
+        `--follow ${flags.join(" ")} must not reach the sibling capture`);
+    }
+    // And the generated Description carries the title, not an empty section.
+    const body = readFileSync(join(d, dest), "utf8");
+    assert.match(body, /## Description\n\nbearer auth works\n/);
     rmSync(d, { recursive: true, force: true });
   });
 
