@@ -5,6 +5,7 @@ import type { DiscoveryAward } from "@/src/domain/discovery"
 import type { TraceRejects } from "@/src/domain/fog"
 import type { RuleCurve, RuleSkill } from "@/src/rules/schema"
 import { sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring/ledger"
+import { ledgerAward } from "@/src/scoring/propagate"
 import { levelForXp } from "@/src/scoring/levels"
 
 import { amplifyMetadata, persistActivity, readStoredAward, type PersistDeps } from "./persist"
@@ -100,7 +101,7 @@ async function queryAll(
 export async function existingEntries(
   activityId: string,
   deps: LedgerDeps,
-): Promise<Pick<XpLedgerEntry, "id" | "xpAwarded" | "xpRulesVersion">[]> {
+): Promise<Pick<XpLedgerEntry, "id" | "xpAwarded" | "xpRulesVersion" | "reason" | "units">[]> {
   const items = await queryAll(deps, {
     TableName: deps.ledgerTable,
     IndexName: BY_ACTIVITY_INDEX,
@@ -112,6 +113,9 @@ export async function existingEntries(
     id: String(i.id),
     xpAwarded: Number(i.xpAwarded),
     xpRulesVersion: Number(i.xpRulesVersion),
+    // `0233`: what the rows credited, for `ledgerAward`. `byActivity` projects ALL.
+    reason: i.reason as XpLedgerEntry["reason"],
+    units: Number(i.units),
   }))
 }
 
@@ -439,7 +443,8 @@ export async function persistWithLedger(
      * and T4's XP describing two different versions of the run (D-260).
      */
     const stored = await readStoredAward(activity.activityId, deps.persist)
-    const committedAward = stored ?? award
+    // `0233`, D-271: scored but nothing stored (a pre-`0048` row) — T3 records what T4 credited.
+    const committedAward = stored ?? (alreadyScored ? ledgerAward(award, existing) : award)
 
     const commit: LedgerCommit = alreadyScored
       ? {

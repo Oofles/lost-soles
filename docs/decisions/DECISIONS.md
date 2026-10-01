@@ -3937,3 +3937,25 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     calls it any more.
   - **No live effect.** All 18 live activities on 2026-10-01 were traced runs of at least
     1,043 m, so no cell revealed by a sub-250 m run needs recording, and a replay changes nothing.
+- **D-271** **An already-scored activity re-ingested with no stored award records the award its
+  ledger rows credited, and the rest of its cells as deferred. A deferral is settled only by a
+  replay, and the T3 repair cannot stand in for one.**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0233`.)*
+  - **The hole.** `0220`'s rule (D-260) keeps T3's stored award on a re-delivery. A row written
+    before `0048` has no award columns to keep, so the commit fell back to the fresh
+    classification even though `alreadyScored` wrote no ledger rows. This happened to the
+    2025-08-04 run under `0193`'s `--adopt`: T3 recorded 2 new and 177 deferred cells, and its
+    ledger credited none.
+  - **The rule.** In that case `ledgerAward(fresh, existingRows)` (`src/scoring/propagate.ts`)
+    applies: new and rearmed are the `cells_new`/`cells_rearmed` units, read by reason and
+    never by skill (D-031). The fresh classification's cooled cells stay cooled, and everything
+    else is deferred to the replay (`05` §3.4). `creditedCounts`, the inverse of
+    `discoveryRows`, is now also what `auditT3` compares against, so the writer and the check
+    share one definition.
+  - **Audit and repair legitimately differ.** `auditT3` compares T3 with T4. `planT3Repair`
+    compares T3 with the fold. Both read 0 only when T4 agrees with the fold. When T4 holds an
+    unsettled deferral, the repair (D-261) would write fold awards the ledger never paid, and
+    the audit would then flag them. The remedy is a v1 → v1 XP replay, which was run live on
+    2026-10-01 (`ReplayRun` `0MUQ31EOUZG76JU`): Cartography 14,807 → 15,985, Constitution
+    1,553 → 1,557, Wayfaring 4,661 → 4,675, no floors. This accepts the chronicle entry that
+    `0226` avoided, because a deferral is exactly what §3.4 says the replay is for.

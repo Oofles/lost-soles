@@ -35,7 +35,7 @@
  * No skill id appears in this file (I-25, D-031). Pure: no clock, no store.
  */
 
-import type { DiscoveryAward } from "@/src/domain/discovery"
+import { CREDIT_NEW, CREDIT_REARM, type DiscoveryAward } from "@/src/domain/discovery"
 import type { RuleSkill } from "@/src/rules/schema"
 
 import { ledgerEntries, type LedgerReason, type UnratedRow, type XpLedgerEntry } from "./ledger"
@@ -68,6 +68,45 @@ export function discoveryRows(
     }
   }
   return out
+}
+
+/**
+ * THE INVERSE OF `discoveryRows`: the cell counts an activity's ledger rows credited. `0233`.
+ * Every discovery skill's row carries the same raw count, so it is read by REASON, never by
+ * skill (D-031); no row is 0.
+ */
+export function creditedCounts(entries: readonly Pick<XpLedgerEntry, "reason" | "units">[]): Record<"newCellCount" | "rearmedCellCount", number> {
+  const out = { newCellCount: 0, rearmedCellCount: 0 }
+  for (const e of entries) {
+    const hit = CELL_REASONS.find((c) => c.reason === e.reason)
+    if (hit) out[hit.count] = Math.max(out[hit.count], e.units)
+  }
+  return out
+}
+
+/**
+ * THE AWARD T3 RECORDS FOR AN ACTIVITY THE LEDGER ALREADY SCORED, when T3 holds no award to keep
+ * (a row written before `0048`'s columns, re-ingested by `--adopt`). `0233`, D-271.
+ *
+ * T3 says what T4 says: new and rearmed are what the rows credited. Of the rest, this delivery's
+ * cooled cells stay cooled and everything else is DEFERRED — ground this run covered and was never
+ * credited for, which only a replay settles (`05` §3.4). Taking the fresh classification instead
+ * is how a 2025 run came to claim 2 new cells its ledger never paid for.
+ */
+export function ledgerAward(fresh: DiscoveryAward, entries: readonly Pick<XpLedgerEntry, "reason" | "units">[]): DiscoveryAward {
+  const credited = creditedCounts(entries)
+  const newCellCount = Math.min(credited.newCellCount, fresh.cellCount)
+  const rearmedCellCount = Math.min(credited.rearmedCellCount, fresh.cellCount - newCellCount)
+  const rest = fresh.cellCount - newCellCount - rearmedCellCount
+  const cooledCellCount = Math.min(fresh.cooledCellCount, rest)
+  return {
+    ...fresh,
+    newCellCount,
+    rearmedCellCount,
+    cooledCellCount,
+    deferredCellCount: rest - cooledCellCount,
+    discoveryCredits: newCellCount * CREDIT_NEW + rearmedCellCount * CREDIT_REARM,
+  }
 }
 
 /**

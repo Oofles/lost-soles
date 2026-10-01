@@ -1111,6 +1111,10 @@ receipt closes with its `newCellCount`. The condition above would have failed a 
 redelivery's whole transaction and left the receipt `PROCESSING`; the pre-read keeps the first
 award and still commits. A source-side revision keeps the first award too, until the replay job
 (`0066`) does §3.5's un-award.
+*As built (`0233`, D-271):* when the row exists but has **no** award columns (written before
+`0048`) and the activity is already scored, the put carries `ledgerAward`: new and rearmed as its
+ledger rows credited them, this delivery's cooled cells cooled, and the remainder deferred to the
+replay. It does not carry the fresh classification, which would claim cells T4 never paid for.
 
 **Cell writes stay outside** this transaction when a run touches more than ~60 cells, because
 `TransactWriteItems` caps at 100 items and a run touches 40–130 (R3 §2). The ordering is: cell
@@ -1176,6 +1180,8 @@ scored with cells, it also writes the fold's discovery award, so a §3.4-provisi
 being provisional. It is one `UpdateItem` per ACTIVE row, conditioned on `status = ACTIVE`.
 `tools/xp-replay/repair-t3.ts` is the same fold and write without a replay, and doubles as the
 "T3 agrees with T4" check.
+The two only agree while T4 agrees with the fold. An unsettled §3.4 deferral breaks that, and the
+remedy is a v1 → v1 replay, not the repair (`0233`, D-271).
 
 **Per-user, not global.** Six users (D-014) replayed one at a time keeps each transaction's blast
 radius to one person and makes a partial failure resumable rather than global.

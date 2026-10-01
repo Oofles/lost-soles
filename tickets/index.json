@@ -5346,10 +5346,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T21:46:19Z",
+    "started": "2026-10-01T21:59:09Z",
     "path": "tickets/open/0233-live-t3-has-drifted-from-the-ledger-again-repair-t3-reports.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   }

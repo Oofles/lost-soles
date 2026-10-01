@@ -2,7 +2,7 @@ import type { DiscoveryAward } from "@/src/domain/discovery"
 import { foldActivities } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
-import type { XpLedgerEntry } from "@/src/scoring"
+import { creditedCounts, type XpLedgerEntry } from "@/src/scoring"
 
 import { REPLAY_ACTIVITY_ID, type ActivityScoreWrite, type ReplayActivity, type ReplayStore } from "./xp-replay"
 
@@ -52,34 +52,21 @@ export interface T3Mismatch {
 }
 
 /**
- * The discovery rows' reasons, and the T3 count each one's `units` carries (`discoveryRows`,
- * `src/scoring/propagate.ts`). Matched by REASON, not by skill: which skill earns discovery is a
- * registry row (D-031), and every discovery skill's row carries the same raw count.
- */
-const COUNT_OF_REASON = { cells_new: "newCellCount", cells_rearmed: "rearmedCellCount" } as const
-
-/**
  * THE CHECK. Per activity: `xpAwarded` against the SUM of its ledger rows, and T3's
  * `newCellCount`/`rearmedCellCount` against the `units` on its `cells_new`/`cells_rearmed` rows
  * (no row: 0). Pure over what the store returned, so the CLI runs it before and after a repair
  * against the same reads.
  */
 export function auditT3(activities: readonly ReplayActivity[], ledger: readonly XpLedgerEntry[]): T3Mismatch[] {
-  const xp = new Map<string, number>()
-  const counts = new Map<string, Record<(typeof COUNT_OF_REASON)[keyof typeof COUNT_OF_REASON], number>>()
-  for (const e of activityRows(ledger)) {
-    xp.set(e.activityId, (xp.get(e.activityId) ?? 0) + e.xpAwarded)
-    const count = COUNT_OF_REASON[e.reason as keyof typeof COUNT_OF_REASON]
-    if (count === undefined) continue
-    const c = counts.get(e.activityId) ?? { newCellCount: 0, rearmedCellCount: 0 }
-    c[count] = Math.max(c[count], e.units)
-    counts.set(e.activityId, c)
-  }
+  const byActivity = new Map<string, XpLedgerEntry[]>()
+  for (const e of activityRows(ledger)) byActivity.set(e.activityId, [...(byActivity.get(e.activityId) ?? []), e])
   const out: T3Mismatch[] = []
   for (const a of [...activities].sort((x, y) => (x.startedAt < y.startedAt ? -1 : 1))) {
     const t3 = scoresOf(a)
     const base = { activityId: a.activityId, startedAt: a.startedAt }
-    const want = { xpAwarded: xp.get(a.activityId) ?? 0, ...(counts.get(a.activityId) ?? { newCellCount: 0, rearmedCellCount: 0 }) }
+    const own = byActivity.get(a.activityId) ?? []
+    // `creditedCounts` is the inverse of `discoveryRows`: matched by reason, never by skill (D-031).
+    const want = { xpAwarded: own.reduce((s, e) => s + e.xpAwarded, 0), ...creditedCounts(own) }
     for (const field of ["xpAwarded", "newCellCount", "rearmedCellCount"] as const) {
       const stored = t3[field] ?? 0
       if (stored !== want[field]) out.push({ ...base, field, t3: stored, ledger: want[field] })

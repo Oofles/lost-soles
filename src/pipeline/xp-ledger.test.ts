@@ -17,7 +17,7 @@ import {
   type LedgerDeps,
 } from "@/src/pipeline/xp-ledger"
 import { loadRuleSet } from "@/src/rules/load"
-import { cumulativeXp, ledgerEntries, levelForXp, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
+import { cumulativeXp, discoveryRows, ledgerEntries, levelForXp, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
 
 /**
  * Ticket 0062. `02-data-model.md` §4.3, I-15.
@@ -454,6 +454,61 @@ describe("persistWithLedger — the commit", () => {
       deferredCellCount: 0,
     })
     expect(t.table(INGEST_RECEIPT_TABLE).get("k-2")).toMatchObject({ status: "DONE", newCellCount: 30 })
+  })
+
+  /**
+   * `0233`. The live case: a 2025 run scored before T3 had award columns, then re-ingested by
+   * `--adopt`. Its fresh classification (2 new, 177 deferred) is not what the ledger credited
+   * (nothing), and T3 must say what T4 says — the uncredited cells are deferred to the replay.
+   */
+  it("an already-scored re-delivery with no stored award writes the award the ledger credited, not a fresh one", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    await commit(activity(), RUN_ROWS, deps)
+    for (const c of ["cellCount", "newCellCount", "rearmedCellCount", "cooledCellCount", "deferredCellCount", "fogAlgoVersion"]) {
+      delete t.table(ACTIVITY_TABLE).get("a-1")![c] // a row written before the columns existed
+    }
+    claim("k-2")
+    const fresh = { ...NO_CELLS, cellCount: 179, newCellCount: 2, deferredCellCount: 177, discoveryCredits: 2 }
+    const again = await persistWithLedger(
+      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: fresh, rejects: undefined },
+      deps,
+    )
+
+    expect(again).toMatchObject({ alreadyScored: true, rowsWritten: 0, awardKept: false })
+    expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({
+      cellCount: 179,
+      newCellCount: 0,
+      rearmedCellCount: 0,
+      cooledCellCount: 0,
+      deferredCellCount: 179,
+    })
+    expect(t.table(INGEST_RECEIPT_TABLE).get("k-2")).toMatchObject({ status: "DONE", newCellCount: 0 })
+  })
+
+  it("…and keeps the counts the ledger did credit, with the fresh cooled cells still cooled", async () => {
+    const { t, deps, claim } = world()
+    const credited = [...RUN_ROWS, ...discoveryRows({ newCellCount: 30, rearmedCellCount: 10 }, RULES.skills)]
+    claim("k-1")
+    await commit(activity(), credited, deps)
+    for (const c of ["cellCount", "newCellCount", "rearmedCellCount", "cooledCellCount", "deferredCellCount", "fogAlgoVersion"]) {
+      delete t.table(ACTIVITY_TABLE).get("a-1")![c]
+    }
+    claim("k-2")
+    // `0220`'s reingest: the run's own cells are on the map, so every one comes back cooled.
+    const cooled = { ...NO_CELLS, cellCount: 50, cooledCellCount: 50 }
+    await persistWithLedger(
+      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), credited), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: cooled, rejects: undefined },
+      deps,
+    )
+
+    expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({
+      cellCount: 50,
+      newCellCount: 30,
+      rearmedCellCount: 10,
+      cooledCellCount: 10,
+      deferredCellCount: 0,
+    })
   })
 
   it("writes level/levelHighWater and the Profile totals in the same commit, and moves them on the next (0219)", async () => {
