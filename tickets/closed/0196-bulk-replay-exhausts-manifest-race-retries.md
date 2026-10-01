@@ -4,7 +4,7 @@ slug: bulk-replay-exhausts-manifest-race-retries
 title: A bulk replay exhausts regenerateExplored's manifest-race retries
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-10T23:08:17Z
 started: 2026-10-01T16:00:32Z
+closed: 2026-10-01T16:16:18Z
 ---
 
 ## Description

@@ -4531,7 +4531,7 @@
     "title": "A bulk replay exhausts regenerateExplored's manifest-race retries",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [],
@@ -4539,10 +4539,11 @@
     "source": "agent",
     "created": "2026-09-10T23:08:17Z",
     "started": "2026-10-01T16:00:32Z",
-    "path": "tickets/open/0196-bulk-replay-exhausts-manifest-race-retries.md",
-    "ready": true,
+    "closed": "2026-10-01T16:16:18Z",
+    "path": "tickets/closed/0196-bulk-replay-exhausts-manifest-race-retries.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
