@@ -3849,6 +3849,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T17:40:35Z",
+    "started": "2026-10-01T01:08:17Z",
     "path": "tickets/open/0164-check-bundle-leak-scans-only-the-first-ssm-value-per-key-so.md",
     "ready": true,
     "acceptance": {

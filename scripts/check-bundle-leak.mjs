@@ -312,50 +312,70 @@ function fromEnvFile(base) {
 /**
  * Returns { literals, resolved, skipped, sources }. Values are never logged —
  * only key names and where they came from.
+ *
+ * EVERY SSM value under a registry key is a candidate, not just the first (0164).
+ * ssmPaths() is narrowest first, and the old `first path wins` turned that
+ * ordering preference into an exclusion: on a laptop the sandbox
+ * STRAVA_CLIENT_SECRET won and the shared value — the one the deployed app loads —
+ * was never searched for, while the run still printed a clean pass.
+ * process.env and .env.local stay fallbacks for keys SSM did not resolve at all.
  */
 export function resolveLiterals(base) {
-  const found = new Map()
+  const candidates = []
   const sources = []
   const ssm = fromSsm()
-  for (const h of ssm.hits) if (!found.has(h.key)) found.set(h.key, h)
+  for (const h of ssm.hits) candidates.push({ key: h.key, value: h.value, origin: h.at })
   sources.push(...ssm.notes.map((n) => `ssm ${n}`))
+  const has = (key) => candidates.some((c) => c.key === key)
+  let fromEnv = false
   for (const key of SSM_KEYS) {
-    if (!found.has(key) && process.env[key]) found.set(key, { key, value: process.env[key], from: "env" })
+    if (!has(key) && process.env[key]) { candidates.push({ key, value: process.env[key], origin: "env" }); fromEnv = true }
   }
-  if ([...found.values()].some((h) => h.from === "env")) sources.push("process.env")
-  for (const h of fromEnvFile(base)) if (!found.has(h.key)) { found.set(h.key, h); }
-  if ([...found.values()].some((h) => h.from === ".env.local")) sources.push(".env.local")
+  if (fromEnv) sources.push("process.env")
+  let fromFile = false
+  for (const h of fromEnvFile(base)) {
+    if (!has(h.key)) { candidates.push({ key: h.key, value: h.value, origin: ".env.local" }); fromFile = true }
+  }
+  if (fromFile) sources.push(".env.local")
 
-  const { literals, skipped } = resolveLiteralsFrom(
-    Object.fromEntries([...found.values()].map((h) => [h.key, h.value])),
-  )
-  // Where each surviving literal came from — so a key sitting in the wrong
-  // environment is visible in the log rather than inferred from its absence.
-  const origins = Object.fromEntries(
-    [...found.values()].map((h) => [h.key, h.at ?? h.from]),
-  )
-  const unresolved = SSM_KEYS.filter((k) => !found.has(k))
-  return { literals, skipped, unresolved, sources, origins }
+  const { literals, skipped } = resolveLiteralsFrom(candidates)
+  const unresolved = SSM_KEYS.filter((k) => !has(k))
+  return { literals, skipped, unresolved, sources }
 }
 
 /**
  * The filtering half, split out so the self-test can drive it directly: which
  * candidate values are worth scanning for, and why the rest were dropped.
+ *
+ * `candidates` is [{ key, value, origin }] — a LIST, because one key can hold a
+ * different value at each path (0164). Identical values are de-duplicated BY
+ * VALUE, so the common case (one secret copied to several paths) is one literal
+ * listing every origin rather than the same scan repeated. Each literal comes
+ * back as { key, value, origins: [...] }; skips are reported per value.
  */
 export function resolveLiteralsFrom(candidates) {
+  const byValue = new Map()
+  for (const { key, value, origin } of candidates) {
+    if (!value) continue
+    const seen = byValue.get(value)
+    // A different key sharing the value is named on its origin, so it is not lost.
+    const where = !seen || seen.key === key ? origin : `${origin} (as ${key})`
+    if (seen) { if (where && !seen.origins.includes(where)) seen.origins.push(where) }
+    else byValue.set(value, { key, value, origins: where ? [where] : [] })
+  }
   const literals = []
   const skipped = []
-  for (const [key, value] of Object.entries(candidates)) {
-    if (!value) continue
-    if (PLACEHOLDER.test(value)) {
-      skipped.push(`${key} — placeholder value, not a real secret`)
+  for (const c of byValue.values()) {
+    const named = c.origins.length ? `${c.key} from ${c.origins.join(", ")}` : c.key
+    if (PLACEHOLDER.test(c.value)) {
+      skipped.push(`${named} — placeholder value, not a real secret`)
       continue
     }
-    if (value.length < MIN_LITERAL_LENGTH) {
-      skipped.push(`${key} — value is ${value.length} chars, under the ${MIN_LITERAL_LENGTH}-char floor that keeps short numeric ids from matching every minified chunk`)
+    if (c.value.length < MIN_LITERAL_LENGTH) {
+      skipped.push(`${named} — value is ${c.value.length} chars, under the ${MIN_LITERAL_LENGTH}-char floor that keeps short numeric ids from matching every minified chunk`)
       continue
     }
-    literals.push({ key, value })
+    literals.push(c)
   }
   return { literals, skipped }
 }
@@ -452,10 +472,46 @@ if (isMain && process.argv.includes("--self-test")) {
     console.log(`  ${clean ? "ok" : "FAIL"}  findings never contain the secret value itself`)
 
     // The literal floor: a short id must be skipped, and skipped BY NAME.
-    const shortSkip = resolveLiteralsFrom({ STRAVA_CLIENT_ID: "180450" })
+    const shortSkip = resolveLiteralsFrom([{ key: "STRAVA_CLIENT_ID", value: "180450", origin: "/amplify/shared/app" }])
     const okShort = shortSkip.literals.length === 0 && shortSkip.skipped.some((s) => s.startsWith("STRAVA_CLIENT_ID"))
     if (!okShort) failed++
     console.log(`  ${okShort ? "ok" : "FAIL"}  a 6-char id is skipped, and the skip is reported by name`)
+
+    // 0164: one key, two paths, two DIFFERENT values — and only the value at the
+    // NON-narrowest path is in the bundle. First-path-wins resolution scanned for
+    // the sandbox value alone and passed this clean.
+    const PROD = fixture("feedface0987654321", "0123456789abcdef012345")
+    const twoPaths = resolveLiteralsFrom([
+      { key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/lostsoles/root-sandbox-0000" },
+      { key: "STRAVA_CLIENT_SECRET", value: PROD, origin: "/amplify/shared/app" },
+      { key: "STRAVA_CLIENT_SECRET", value: PROD, origin: "/amplify/app/main" },
+    ])
+    const okTwo = twoPaths.literals.length === 2
+      && twoPaths.literals[1].origins.join() === "/amplify/shared/app,/amplify/app/main"
+    if (!okTwo) failed++
+    console.log(`  ${okTwo ? "ok" : "FAIL"}  two values under one key are two literals; a repeated value is one, listing both paths`)
+
+    const prodOnly = mkdtempSync(join(tmpdir(), "bundle-leak-prod-"))
+    try {
+      mkdirSync(join(prodOnly, ".next/static/chunks"), { recursive: true })
+      writeFileSync(join(prodOnly, ".next/static/chunks/prod.js"), `const k="${PROD}"\n`)
+      const fired = scanBuild(prodOnly, twoPaths.literals).some((f) => f.label === ".next/static/chunks/prod.js")
+      if (!fired) failed++
+      console.log(`  ${fired ? "ok" : "FAIL"}  must fire   a value present only at the non-narrowest path`)
+    } finally {
+      rmSync(prodOnly, { recursive: true, force: true })
+    }
+
+    // The floor is applied per VALUE: a short value at one path does not hide a
+    // real one under the same key at another, and the skip names its path.
+    const mixed = resolveLiteralsFrom([
+      { key: "STRAVA_CLIENT_SECRET", value: "abc123", origin: "/amplify/lostsoles/root-sandbox-0000" },
+      { key: "STRAVA_CLIENT_SECRET", value: PROD, origin: "/amplify/shared/app" },
+    ])
+    const okMixed = mixed.literals.length === 1 && mixed.skipped.length === 1
+      && mixed.skipped[0].startsWith("STRAVA_CLIENT_SECRET from /amplify/lostsoles/root-sandbox-0000")
+    if (!okMixed) failed++
+    console.log(`  ${okMixed ? "ok" : "FAIL"}  the length floor skips per value, naming the path`)
   } finally {
     rmSync(base, { recursive: true, force: true })
   }
@@ -480,13 +536,15 @@ if (!built.length) {
   process.exit(1)
 }
 
-const { literals, skipped, unresolved, sources, origins } = resolveLiterals(ROOT)
+const { literals, skipped, unresolved, sources } = resolveLiterals(ROOT)
 
 console.log(`Bundle leak check — zones: ${built.join(", ")}`)
 for (const s of sources) console.log(`  source: ${s}`)
 if (literals.length) {
   console.log("  scanning for literals:")
-  for (const l of literals) console.log(`    ${l.key}  from ${origins[l.key]}`)
+  // One line per distinct VALUE, with every path it was found at: two different
+  // values under one key are visibly two lines, never collapsed into one (0164).
+  for (const l of literals) console.log(`    ${l.key}  from ${l.origins.join(", ") || "(unknown)"}`)
 } else {
   console.log("  scanning for literals: (none)")
 }

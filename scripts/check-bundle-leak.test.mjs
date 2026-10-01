@@ -98,18 +98,50 @@ describe("which candidate values are worth scanning for", () => {
   it("skips a short id by name rather than silently", () => {
     // STRAVA_CLIENT_ID is a five- or six-digit number. Scanning for it would
     // match minified chunk names and integer constants many times per bundle.
-    const { literals, skipped } = resolveLiteralsFrom({ STRAVA_CLIENT_ID: "180450" })
+    const { literals, skipped } = resolveLiteralsFrom([{ key: "STRAVA_CLIENT_ID", value: "180450", origin: "env" }])
     expect(literals).toEqual([])
     expect(skipped.join()).toContain("STRAVA_CLIENT_ID")
   })
 
   it("skips .env.example placeholders", () => {
-    const { literals } = resolveLiteralsFrom({ STRAVA_CLIENT_SECRET: "replace-me" })
+    const { literals } = resolveLiteralsFrom([{ key: "STRAVA_CLIENT_SECRET", value: "replace-me", origin: ".env.local" }])
     expect(literals).toEqual([])
   })
 
   it("keeps a real 40-character secret", () => {
-    const { literals } = resolveLiteralsFrom({ STRAVA_CLIENT_SECRET: SECRET })
+    const { literals } = resolveLiteralsFrom([{ key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/shared/app" }])
     expect(literals.map((l) => l.key)).toEqual(["STRAVA_CLIENT_SECRET"])
+  })
+
+  it("keeps every value under one key, not just the first path's (0164)", () => {
+    // Narrowest path first, as ssmPaths() orders them. The sandbox value used to
+    // win outright and the production value was never scanned for.
+    const PROD = ["0d9e8f7a6b5c4d3e", "2f1a0b9c8d7e6f5a4b3c2d1e"].join("")
+    const { literals } = resolveLiteralsFrom([
+      { key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/lostsoles/root-sandbox-abc" },
+      { key: "STRAVA_CLIENT_SECRET", value: PROD, origin: "/amplify/shared/app" },
+      { key: "STRAVA_CLIENT_SECRET", value: "abcdef0123456789abcdef", origin: "/amplify/app/main" },
+    ])
+    expect(literals).toHaveLength(3)
+    expect(scanText(`k="${PROD}"`, "chunk.js", literals).map((f) => f.key)).toEqual(["STRAVA_CLIENT_SECRET"])
+  })
+
+  it("de-duplicates an identical value by value, listing every path it sat at", () => {
+    const { literals } = resolveLiteralsFrom([
+      { key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/shared/app" },
+      { key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/app/main" },
+    ])
+    expect(literals).toHaveLength(1)
+    expect(literals[0].origins).toEqual(["/amplify/shared/app", "/amplify/app/main"])
+  })
+
+  it("reports a length-floor skip per value, with its path", () => {
+    const { literals, skipped } = resolveLiteralsFrom([
+      { key: "STRAVA_CLIENT_SECRET", value: "short1", origin: "/amplify/lostsoles/root-sandbox-abc" },
+      { key: "STRAVA_CLIENT_SECRET", value: SECRET, origin: "/amplify/shared/app" },
+    ])
+    expect(literals).toHaveLength(1)
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0]).toMatch(/^STRAVA_CLIENT_SECRET from \/amplify\/lostsoles\/root-sandbox-abc — value is 6 chars/)
   })
 })
