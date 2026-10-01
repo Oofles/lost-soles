@@ -3842,7 +3842,7 @@
     "title": "check-bundle-leak scans only the first SSM value per key, so the production secret is never searched locally",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "02-deploy-and-auth",
     "depends_on": [],
@@ -3850,10 +3850,11 @@
     "source": "agent",
     "created": "2026-09-04T17:40:35Z",
     "started": "2026-10-01T01:08:17Z",
-    "path": "tickets/open/0164-check-bundle-leak-scans-only-the-first-ssm-value-per-key-so.md",
-    "ready": true,
+    "closed": "2026-10-01T01:10:12Z",
+    "path": "tickets/closed/0164-check-bundle-leak-scans-only-the-first-ssm-value-per-key-so.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

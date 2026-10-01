@@ -4,7 +4,7 @@ slug: check-bundle-leak-scans-only-the-first-ssm-value-per-key-so
 title: check-bundle-leak scans only the first SSM value per key, so the production secret is never searched locally
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 02-deploy-and-auth
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T17:40:35Z
 started: 2026-10-01T01:08:17Z
+closed: 2026-10-01T01:10:12Z
 ---
 
 ## Description
