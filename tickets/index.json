@@ -5015,10 +5015,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T02:19:08Z",
+    "started": "2026-10-01T20:28:53Z",
     "path": "tickets/open/0218-soft-cap-and-min-units-for-credit-unapplied.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -5302,6 +5303,28 @@
     "created": "2026-10-01T20:01:11Z",
     "path": "tickets/open/0231-pre-commit-hook-does-not-check-docs-index-md-or-tickets-inde.md",
     "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 232,
+    "slug": "min-units-for-credit-gates-discovery",
+    "title": "minUnitsForCredit does not gate discovery: a sub-250 m run reveals cells",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [
+      218
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-01T20:31:55Z",
+    "path": "tickets/open/0232-min-units-for-credit-gates-discovery.md",
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 5
