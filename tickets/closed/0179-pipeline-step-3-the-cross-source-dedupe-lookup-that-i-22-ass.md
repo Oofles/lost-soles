@@ -4,7 +4,7 @@ slug: pipeline-step-3-the-cross-source-dedupe-lookup-that-i-22-ass
 title: Pipeline step 3 — the cross-source dedupe lookup that I-22 assumes exists
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 06-ingest-pipeline
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-07T22:40:00Z
 started: 2026-10-01T02:37:02Z
+closed: 2026-10-01T02:57:16Z
 ---
 
 ## Description
