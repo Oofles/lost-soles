@@ -419,6 +419,20 @@ describe("02 §3.8 checks 3 and 4 — ambiguity and zero-match fail the BUILD (t
   })
 })
 
+describe("0217 — a derived measure on an activity row fails at seed time (I-26)", () => {
+  for (const measure of ["cells", "share"]) {
+    it(`rejects \`measure: ${measure}\` on might, naming 02 §3.7's derived kernel`, () => {
+      const errs = broken((r) => {
+        ;(find(r, "might").match as Record<string, unknown>).measure = measure
+      })
+      const e = errs.find((x) => x.path === `skills[${at("might")}].match.measure`)
+      expect(e, JSON.stringify(errs)).toBeDefined()
+      expect(e!.message).toContain("02 §3.7")
+      expect(e!.message).toContain("`derived` kernel")
+    })
+  }
+})
+
 describe("reporting", () => {
   it("returns EVERY error, so a broken file takes one edit rather than three builds", () => {
     const errs = broken((r) => {

@@ -135,6 +135,14 @@ export interface RuleSet {
 export const ACTIVITY_KINDS = ["run", "walk", "hike", "ride", "strength", "other"] as const
 export const LOG_MODES = ["trace", "reps", "duration", "derived"] as const
 export const FIXED_MEASURES = ["distanceKm", "cells", "share"] as const
+/**
+ * The `derived` kernel's measures (`02` §3.7). Their units are supplied by another subsystem
+ * (the fog, `feeds`), never read off an `Activity`, so a `kind: activity` row may not name
+ * one (0217). `units.test.ts` asserts the scorer has a kernel for every measure NOT in here.
+ */
+export const DERIVED_MEASURES = ["cells", "share"] as const satisfies readonly (
+  typeof FIXED_MEASURES
+)[number][]
 export const MEASURE_PREFIXES = ["reps:", "seconds:"] as const
 
 // These four are bound to the domain's unions by compile-time assertions in

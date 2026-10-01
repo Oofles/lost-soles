@@ -25,6 +25,7 @@ import {
 } from "./select-activity-skills"
 import {
   ACTIVITY_KINDS,
+  DERIVED_MEASURES,
   FIXED_MEASURES,
   LOG_MODES,
   MEASURE_PREFIXES,
@@ -137,6 +138,16 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
         `${JSON.stringify(m.measure)} is not a measure. Expected one of ` +
         `${FIXED_MEASURES.join(", ")}, or a ${MEASURE_PREFIXES.join("/")}<exerciseId> form ` +
         "(02 §3.7 — the extractor set is closed; a new one is a new logMode kernel, i.e. code).",
+    })
+  } else if ((DERIVED_MEASURES as readonly string[]).includes(m.measure as string)) {
+    // I-26: a registry that cannot score fails at seed time, not once per activity at ingest.
+    // The scorer has no extractor for these, so every matching activity would go to the DLQ.
+    errs.push({
+      path: `${at}.measure`,
+      message:
+        `${JSON.stringify(m.measure)} is a measure of 02 §3.7's \`derived\` kernel: its units ` +
+        "come from another subsystem (the fog, `feeds`), never off an Activity, so a " +
+        "`kind: activity` row cannot use it (0217).",
     })
   }
 

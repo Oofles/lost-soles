@@ -6,7 +6,14 @@ import { describe, expect, it } from "vitest"
 import type { WorkoutSet } from "@/src/domain/activity"
 import { runWithPurityTraps } from "@/src/purity/traps"
 import { loadRuleSet } from "@/src/rules/load"
-import { ACTIVITY_KINDS, type RuleSkill } from "@/src/rules/schema"
+import {
+  ACTIVITY_KINDS,
+  DERIVED_MEASURES,
+  FIXED_MEASURES,
+  MEASURE_PREFIXES,
+  type Measure,
+  type RuleSkill,
+} from "@/src/rules/schema"
 import { candidatesByMeasure } from "@/src/rules/select-activity-skills"
 
 import { measureUnits, scoreUnits, selectActivitySkills, type ScorableActivity } from "./index"
@@ -110,6 +117,20 @@ describe("measureUnits — the closed kernel set (02 §3.7)", () => {
   it("throws on a derived measure, which no Activity carries", () => {
     expect(() => measureUnits(activity(), "cells")).toThrow(/derived by another subsystem/)
     expect(() => measureUnits(activity(), "share")).toThrow(/derived by another subsystem/)
+  })
+
+  // 0217: the validator's activity-measure set and this kernel set are written in different
+  // modules (rules must not import scoring), so this binds them. A measure the validator lets
+  // onto an activity row with no kernel here would throw once per activity at ingest.
+  it("has a kernel for every measure the validator allows on a `kind: activity` row", () => {
+    const derived = DERIVED_MEASURES as readonly string[]
+    const allowed: Measure[] = [
+      ...FIXED_MEASURES.filter((m) => !derived.includes(m)),
+      ...MEASURE_PREFIXES.map((p) => `${p}pushup` as Measure),
+    ]
+    expect(allowed.length).toBeGreaterThan(0)
+    for (const m of allowed) expect(() => measureUnits(activity(), m), m).not.toThrow()
+    for (const m of DERIVED_MEASURES) expect(() => measureUnits(activity(), m), m).toThrow()
   })
 
   it("throws on corrupt work rather than scoring it into a ledger that can only add (D-135)", () => {

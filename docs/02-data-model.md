@@ -992,6 +992,11 @@ Validation, run in CI and again in the seeder, failing the build on any violatio
 6. `grep -rE '"(wayfaring|vigil|might|fortitude|endurance|cartography|constitution)"' src/` returns
    nothing outside `rules/`, fixtures and tests — the skill-name equivalent of the contract §5
    `grep -ri strava` check.
+7. **A `kind: activity` row may not name a `derived` measure** (`cells`, `share` — ticket
+   `0217`). §3.7's table says those units come from another subsystem, so the scorer has no
+   kernel for them; without this check a ruleset carrying one validates clean and then fails
+   once per activity at ingest, which is exactly the run-time failure I-26 moves to seed time.
+   A test binds the validator's allowed set to the scorer's kernels so the two cannot drift.
 
 ---
 
