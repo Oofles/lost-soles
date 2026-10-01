@@ -347,6 +347,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        */
       snapshots: { s3, bucket: required("USER_DATA_BUCKET") },
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
+      /** `0179`. Step 3's GSI2 lookup — T3 again, and its own `dynamodb:Query` grant on the index. */
+      dedupe: { ddb, activityTable: required("ACTIVITY_TABLE") },
       /** `0062`. T4 and T2, both Amplify-generated names handed in by `backend.ts`. */
       ledger: {
         ddb,
@@ -435,7 +437,10 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
             /** `0067`. The snapshot key, or why it was missed. */
             snapshot: result.snapshot,
           }
-        : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
+        : result.outcome === "duplicate"
+          ? /** `0179`. The winner, and the archive object that records the pairing for good. */
+            { activityId: result.activityId, duplicateOf: result.duplicateOf, pointer: result.pointer }
+          : { xpAwarded: result.xpAwarded, newCellCount: result.newCellCount }),
     })
   } catch (error) {
     /**

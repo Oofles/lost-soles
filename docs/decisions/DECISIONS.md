@@ -3722,3 +3722,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     a slot of the drift budget of three, which is the cost that discourages it.
   - **Not changed.** `next`'s gate (`0209`) still counts an audit-filed ticket as open until the
     audit is recorded. After a passing record the gate lifts anyway.
+
+- **D-263** **On a cross-source collision the activity already scored wins, always; the loser's
+  `duplicateOf` pointer is archived beside its raw bytes, not on the receipt.**
+  *(Operator, 2026-09-30, ticket `0179`. Amends `03-integrations.md` §2.7's collision rule and its
+  migration-runbook line D-7.)*
+  - **What it replaces.** §2.7 said *"keep the higher-fidelity trace (more points; ties broken by
+    source priority)"*. That cannot be honoured once one side is committed. The first arrival's XP
+    is a floor (D-135) and its cells are revealed for good (D-020), so making a later, richer
+    recording the winner would mean un-awarding the first, which nothing may do. Step 3 runs before
+    the score gate on whichever recording arrives second, so the winner is decided by arrival order.
+    Fidelity could only decide if both arrived before either was scored, and that never happens in
+    practice.
+  - **What is lost.** A better second recording does not improve the map. Accepting that is cheaper
+    than an additive "reveal the extra cells but award nothing" rule. That rule would double visit
+    counts on the shared cells, which is the very failure §1493 names. It is revisitable with the
+    second adapter (D-112/D-113) if a richer source routinely arrives second.
+  - **Where the pointer lives.** `raw/<uid>/<source>/<externalId>.duplicate-of.json`, beside the
+    loser's archive prefix rather than inside it. `replay.ts` lists the prefix and replays the newest
+    object, so a pointer inside it would be replayed as the run. Under `raw/*` it is immutable and
+    undeletable (I-3), which is right for a permanent fact. It is not stored only on the T8 receipt
+    because receipts expire in 90 days, and the rebuild drill's step 8 check 2 subtracts *known*
+    collisions (`02-data-model.md` §1898). The receipt carries `duplicateOf` as well, so its `DONE`
+    with zero awards explains itself while it lives.
+  - **The receipt says `DONE`, not `FAILED`.** A duplicate is not a failure, and `FAILED` would put
+    "1 activity failed to import" on the Sync line for a run that is present.

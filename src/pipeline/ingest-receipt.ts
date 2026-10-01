@@ -128,6 +128,12 @@ export interface IngestReceipt {
   /** Written on DONE, so a duplicate returns the winner's numbers (T8). */
   xpAwarded?: number
   newCellCount?: number
+  /**
+   * `0179`. Set only by `recordDuplicate`: this delivery was a second recording of an activity
+   * another source already committed, and this is that activity's id. `DONE` with zero awards and
+   * this field is a duplicate, not an import that earned nothing.
+   */
+  duplicateOf?: string
   ttl: number
 
   /*
@@ -547,6 +553,64 @@ export async function recordFailure(
      */
     if (!isConditionalFailure(error)) throw error
     return undefined
+  }
+}
+
+/**
+ * A DUPLICATE IS TERMINAL, AND IT IS `DONE` — NOT `FAILED`. Ticket `0179`, pipeline step 3.
+ *
+ * Step 3 runs BEFORE the score gate, so this delivery holds no claim; the write takes the same
+ * conditions the gate would have (`QUEUED`, `FAILED`, or a stale `PROCESSING`) and goes straight
+ * to `DONE` with zero awards and `duplicateOf`. `FAILED` would have been wrong in the way that
+ * matters: the Sync line would report "1 activity failed to import" for a run that is present.
+ *
+ * NO TRANSACTION, deliberately, and it is not the window `doneTransactItem` refuses to open:
+ * that one guards XP committing without the receipt advancing, and a duplicate commits no XP.
+ *
+ * A live `PROCESSING` claim held by another invocation, or a receipt already `DONE`, fails the
+ * condition — and the answer is then read back exactly as the gate's losing path reads it, so
+ * the caller treats both the same way.
+ */
+export async function recordDuplicate(
+  ingestKey: string,
+  duplicateOf: string,
+  deps: ReceiptDeps,
+): Promise<{ kind: "recorded" } | Extract<ClaimResult, { kind: "duplicate" }>> {
+  const now = nowOf(deps)
+  try {
+    await deps.ddb.send(
+      new UpdateCommand({
+        TableName: INGEST_RECEIPT_TABLE,
+        Key: { ingestKey },
+        UpdateExpression:
+          "SET #status = :done, xpAwarded = :zero, newCellCount = :zero, duplicateOf = :winner " +
+          "REMOVE failedUserId, failedAt, errorClass, rawArchived",
+        ConditionExpression:
+          "attribute_exists(ingestKey) AND (#status = :queued OR #status = :failed OR " +
+          "(#status = :processing AND processingStartedAt < :stale))",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: {
+          ":done": "DONE",
+          ":zero": 0,
+          ":winner": duplicateOf,
+          ":queued": "QUEUED",
+          ":failed": "FAILED",
+          ":processing": "PROCESSING",
+          ":stale": new Date(now.getTime() - PROCESSING_STALE_MS).toISOString(),
+        },
+      }),
+    )
+    return { kind: "recorded" }
+  } catch (error) {
+    if (!isConditionalFailure(error)) throw error
+    const existing = await readReceipt(ingestKey, deps)
+    if (!existing) return { kind: "duplicate", status: "FAILED" }
+    return {
+      kind: "duplicate",
+      status: existing.status,
+      xpAwarded: existing.xpAwarded,
+      newCellCount: existing.newCellCount,
+    }
   }
 }
 

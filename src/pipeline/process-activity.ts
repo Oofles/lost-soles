@@ -42,9 +42,11 @@ import { fetchArchiveNormalize } from "./fetch-archive-normalize"
 import {
   claimForScoring,
   recordDelivery,
+  recordDuplicate,
   type ReceiptDeps,
   type ReceiptStatus,
 } from "./ingest-receipt"
+import { findDuplicate, recordDuplicatePointer, type DedupeDeps } from "./dedupe"
 import type { PersistDeps } from "./persist"
 import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
 import { buildSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
@@ -107,6 +109,13 @@ export const INGEST_PHASES = [
   "fetch",
   "archive",
   "normalize",
+  /**
+   * PIPELINE STEP 3, ADDED BY `0179` — the cross-source dedupe lookup (contract §3, I-22).
+   *
+   * After `normalize`, because it compares the normalized scalars; before `gate`, because the
+   * whole point is not to award. A duplicate never reaches the gate, so it never holds a claim.
+   */
+  "dedupe",
   "gate",
   /**
    * ITS OWN PHASE, ADDED BY `0047`, and not folded into `persist`.
@@ -174,6 +183,8 @@ export interface PhaseTimings {
   fetchMs: number
   archiveMs: number
   normalizeMs: number
+  /** `0179`. One or two GSI2 queries, plus a `GetItem` per candidate — almost always 0 or 1. */
+  dedupeMs: number
   gateMs: number
   /** The 40–130 conditional `UpdateItem`s. Zero when the activity reveals no ground. */
   cellsMs: number
@@ -258,6 +269,13 @@ export type ProcessResult =
    * claim to the very failure it was sent back to repair. The gate now reclaims it.
    */
   | { outcome: "not-claimable"; status: ReceiptStatus }
+  /**
+   * `0179`. ANOTHER SOURCE ALREADY COMMITTED THIS RUN. Nothing was written to T3, T4, T2 or T6;
+   * the receipt is `DONE` with zero awards and `duplicateOf`, and `pointer` is the archive
+   * object recording the same fact permanently. The winner is always the activity already
+   * scored (D-263) — its XP is a floor and its cells cannot re-fog.
+   */
+  | { outcome: "duplicate"; activityId: string; duplicateOf: string; pointer: string }
 
 export interface ProcessDeps<TCreds> {
   /**
@@ -295,6 +313,12 @@ export interface ProcessDeps<TCreds> {
    */
   traces?: RouteTraceDeps
   persist: PersistDeps
+  /**
+   * `0179`. GSI2 `byUserAndDedupe` and the per-candidate `GetItem` — T3, the same table
+   * `persist` writes. REQUIRED: a worker that could be built without it would be one that
+   * silently doubles XP the day a second source lands.
+   */
+  dedupe: DedupeDeps
   /** `0062`. T4 and T2: the layer-1 read, the `SkillState` pre-read, and their table names. */
   ledger: LedgerDeps
   /**
@@ -433,6 +457,44 @@ export async function processActivity<TCreds>(
   const t1 = clock()
   const { ingest } = await fetchArchiveNormalize(timedAdapter, job, creds, deps.archive)
   const archiveMs = Math.max(0, clock() - t1 - fetchMs - normalizeMs)
+
+  /**
+   * STEP 3 — CROSS-SOURCE DEDUPE (`0179`, contract §3, I-22). See `dedupe.ts`.
+   *
+   * POINTER FIRST, RECEIPT SECOND. If the archive write fails, the receipt is still claimable
+   * and the redelivery repeats both; the other order could leave a `DONE` duplicate with no
+   * permanent record of what it duplicated once the receipt expires.
+   */
+  phase("dedupe")
+  const td = clock()
+  const winner = await findDuplicate(ingest.activity, deps.dedupe)
+  if (winner) {
+    const loser = {
+      userId: ingest.activity.userId,
+      source: job.source,
+      externalId: job.externalId,
+      activityId: ingest.activity.activityId,
+    }
+    const pointer = await recordDuplicatePointer(
+      loser,
+      winner,
+      deps.archive,
+      deps.archive.now?.() ?? new Date(),
+    )
+    const marked = await recordDuplicate(job.ingestKey, winner.activityId, deps.receipt)
+    if (marked.kind === "duplicate") {
+      if (marked.status === "DONE") {
+        return {
+          outcome: "already-done",
+          xpAwarded: marked.xpAwarded ?? 0,
+          newCellCount: marked.newCellCount ?? 0,
+        }
+      }
+      return { outcome: "not-claimable", status: marked.status }
+    }
+    return { outcome: "duplicate", activityId: loser.activityId, duplicateOf: winner.activityId, pointer }
+  }
+  const dedupeMs = clock() - td
 
   /**
    * THE SCORE GATE (§4 step 12, layer 2). Everything above this line is repeatable and
@@ -594,6 +656,7 @@ export async function processActivity<TCreds>(
       fetchMs,
       archiveMs,
       normalizeMs,
+      dedupeMs,
       gateMs,
       cellsMs,
       blobsMs,

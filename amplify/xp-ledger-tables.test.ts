@@ -150,12 +150,24 @@ describe("the worker's grants on T1/T2/T3/T4", () => {
     expect(actionsOn("Profile")).toEqual(["dynamodb:UpdateItem"])
   })
 
-  /** `0220`. The put, and the consistent read of the award that precedes it. No Update, no Delete. */
-  it("T3: GetItem and PutItem only", () => {
+  /**
+   * `0220`. The put, and the consistent read of the award that precedes it. No Update, no Delete.
+   * `0179` adds `Query` — on GSI2 alone, asserted below.
+   */
+  it("T3: GetItem, PutItem and Query only", () => {
     expect(actionsOn("ActivityNestedStack")).toEqual([
       "dynamodb:GetItem",
       "dynamodb:PutItem",
+      "dynamodb:Query",
     ])
+  })
+
+  /** `0179`. Step 3's dedupe lookup reaches `byUserAndDedupe` and never the base table. */
+  it("T3: the Query reaches the byUserAndDedupe index and not the base table", () => {
+    const query = reaching("ActivityNestedStack").filter((s) => list(s.Action).includes("dynamodb:Query"))
+    expect(query).toHaveLength(1)
+    expect(JSON.stringify(query[0]!.Resource)).toMatch(/index\/byUserAndDedupe/)
+    expect(list(query[0]!.Action)).toEqual(["dynamodb:Query"])
   })
 
   it("the worker is told all three table names", () => {

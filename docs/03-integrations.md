@@ -849,9 +849,15 @@ It was previously private to the Strava adapter, where a second adapter could no
 would have had to reimplement it — and two implementations of a cross-source key agree right up
 until the day they matter.
 
-On collision, **keep the higher-fidelity trace** (more points; ties broken by source priority
+On collision, ~~**keep the higher-fidelity trace** (more points; ties broken by source priority
 `healthconnect > gpslogger > suunto/polar > fileupload > strava > manual`) and record the loser
-as a `duplicateOf` pointer so the archive stays complete. **Never dedupe on filename.**
+as a `duplicateOf` pointer so the archive stays complete.~~ **Superseded by D-263 (ticket `0179`, 2026-09-30):** the activity **already scored** wins,
+always. Its XP is a floor (D-135) and its cells cannot re-fog (D-020), so a later recording can
+never displace it, however many more points it has. Step 3 (`src/pipeline/dedupe.ts`) runs
+before the score gate, so the loser writes no `Activity`, no XP and no cells. Its receipt goes
+to `DONE` with zero awards and `duplicateOf`, and the permanent pointer is
+`raw/<uid>/<source>/<externalId>.duplicate-of.json`. That sits *beside* the archive prefix, never
+inside it, because replay lists that prefix. **Never dedupe on filename.**
 `external_id` (often the device filename, e.g. `garmin_push_123456789`) is useful as a
 *corroborating* signal when correlating an API activity with the same activity in a bulk export
 — use it to raise confidence, never as the key on its own.
@@ -1576,7 +1582,8 @@ D-10   Build the vendor adapter (§4.4): client.ts (OAuth + webhook/poll + FIT d
 
 D-7    Run both adapters live. Cross-source dedupe (§2.7) is now doing real work for the
        first time: the same run arrives twice, and the dedupeKey must collapse them with
-       the vendor trace winning on source priority. Watch the duplicateOf counts.
+       ~~the vendor trace winning on source priority~~ whichever recording was scored first
+       winning (D-263). Watch the duplicateOf counts (`*.duplicate-of.json` under `raw/`).
        Zero duplicates is a BUG, not a success — it means the key is too tight.
 
 D-0    Request the Strava bulk data export from the website. It is legal to keep forever

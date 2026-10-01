@@ -133,7 +133,7 @@ export class RawArchiveError extends Error {
 }
 
 /** S3 answers a refused conditional write with 412 and this code. */
-function isPreconditionFailed(error: unknown): boolean {
+export function isPreconditionFailed(error: unknown): boolean {
   const e = error as S3ServiceException | undefined
   return e?.name === "PreconditionFailed" || e?.$metadata?.httpStatusCode === 412
 }

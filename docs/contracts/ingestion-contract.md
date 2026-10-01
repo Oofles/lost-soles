@@ -276,7 +276,7 @@ accept()                                   → ack the source in <2s, enqueue
   → fetchRaw()
   → 1. ARCHIVE raw bytes to S3             (D-101/D-121.2 — before anything trusts them)
   → 2. normalize()  [PURE]                 (vendor types die here)
-  → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source — NOT BUILT, ticket 0179)
+  → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source — `src/pipeline/dedupe.ts`, 0179)
   → 4. SANITIZE trace                      (speed-gate implausible jumps; honour `gaps`)
   → 5. PROJECT to H3 res 10 cells          (D-115)
   → 6. SCORE fog + XP                      (D-120: full / half / 50% re-arm)

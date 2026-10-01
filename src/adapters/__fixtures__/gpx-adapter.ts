@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto"
 
 import { computeActivityId } from "@/src/domain/activity-id"
+import { computeDedupeKey } from "@/src/domain/dedupe-key"
 import type { Activity, GeoPoint, NormalizedIngest, RawArchiveRef, Trace } from "@/src/domain/activity"
 import { MAX_IMPLIED_SPEED_MS, metresBetween } from "@/src/domain/geo"
 
@@ -172,7 +172,12 @@ export const gpxFixtureAdapter: SourceAdapter<never> = {
       timezone: "UTC",
       elapsedS: elapsed,
       hasTrace: trace !== undefined,
-      dedupeKey: createHash("sha256").update(`${job.userId}:${startedAt}`).digest("hex"),
+      /**
+       * `0179`: the shared derivation, never a private one. This line used to hash its own
+       * `userId:startedAt`, which was a second cross-source key — harmless while nothing queried
+       * GSI2, and exactly the disagreement D-211 forbids once step 3 does.
+       */
+      dedupeKey: computeDedupeKey(job.userId, Date.parse(startedAt)),
       ingestedAt: ref.archivedAt,
       revision: 1,
       source: {

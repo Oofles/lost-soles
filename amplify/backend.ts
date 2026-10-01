@@ -991,6 +991,20 @@ const activityTable = backend.data.resources.tables["Activity"]
 activityTable.grant(processActivityLambda, "dynamodb:PutItem", "dynamodb:GetItem")
 
 /**
+ * `0179`, pipeline step 3 — `dynamodb:Query` on GSI2 `byUserAndDedupe` ALONE (contract §3, I-22).
+ *
+ * The index, not the table: a table-level `Query` would let the worker read whole activity rows by
+ * user, which step 3 never needs. GSI2 is `KEYS_ONLY`, so this grant yields ids and nothing else,
+ * and the three fields `isSameActivity` compares come through the `GetItem` granted above.
+ */
+processActivityLambda.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["dynamodb:Query"],
+    resources: [`${activityTable.tableArn}/index/byUserAndDedupe`],
+  }),
+)
+
+/**
  * T4 `XpLedgerEntry` and T2 `SkillState`, ticket `0062`. Written directly for the reason T3
  * is (D-207): the ledger rows and the `SkillState` ADDs join the ingest transaction, and an
  * AppSync mutation cannot. The models expose NO mutation at all (`disableOperations`), so

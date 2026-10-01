@@ -4165,6 +4165,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-07T22:40:00Z",
+    "started": "2026-10-01T02:37:02Z",
     "path": "tickets/open/0179-pipeline-step-3-the-cross-source-dedupe-lookup-that-i-22-ass.md",
     "ready": true,
     "acceptance": {
