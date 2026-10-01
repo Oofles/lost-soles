@@ -4102,6 +4102,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-06T15:57:14Z",
+    "started": "2026-10-01T02:13:39Z",
     "path": "tickets/open/0176-audit-sections-attributes-a-roadmap-section-number-to-the-do.md",
     "ready": true,
     "acceptance": {

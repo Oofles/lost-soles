@@ -1255,24 +1255,45 @@ function parseDivergence(raw) {
  * "`07-ticketsmith.md` §3, §4.1–§4.8" and the backticks sit between the two
  * halves. Two constraints keep the list honest:
  *
- *  - `(?<!\d)` so `0121-tickets-audit-subcommand.md` does not yield a phantom
+ *  - a filename is matched whole and tested as `NN-name.md`, so
+ *    `0121-tickets-audit-subcommand.md` does not yield a phantom
  *    `21-tickets-audit-subcommand.md`; ticket filenames look exactly like
  *    design-doc names from the middle.
  *  - the doc must actually exist at `docs/NN-name.md`. Capability docs share the
  *    naming scheme but live in `docs/capabilities/`, and they are the audit's
  *    output, not its reading list.
  */
+const CITE_TOKEN = /(?<file>[\w./-]*\.md)\b|(?<sec>§\s*\d+(?:\.\d+)*)/g;
+/**
+ * Words that may sit directly before a § without changing what it belongs to:
+ * `§3 and §4.7`, `the §9.6 table`, `at §2.2`. Any other word there is the §'s own
+ * referent — `roadmap §4.3`, `R6 §2.1`, `contract §5`, `` `02` §4 ``.
+ */
+const CITE_CONNECTORS = new Set(["and", "or", "to", "through", "plus", "also", "vs", "the", "a", "at", "in", "see", "with"]);
+
 function citedSections(capability, tickets) {
-  const isDesignDoc = (f) => existsSync(join(ROOT, "docs", f));
+  const isDesignDoc = (f) => /^\d\d-[a-z0-9-]+\.md$/.test(f) && existsSync(join(ROOT, "docs", f));
   const cites = new Map();
   for (const t of tickets.filter((x) => x.fm?.capability === capability)) {
     for (const line of t.raw.split("\n")) {
-      const docs = [...line.matchAll(/(?<!\d)(\d\d-[a-z0-9-]+\.md)/g)].map((m) => m[1]).filter(isDesignDoc);
-      if (!docs.length) continue;
-      const secs = [...line.matchAll(/§\s*[\d]+(?:\.[\d]+)*/g)].map((m) => m[0].replace(/\s+/g, ""));
-      for (const d of docs) {
-        if (!cites.has(d)) cites.set(d, new Set());
-        for (const sec of secs) cites.get(d).add(sec);
+      // One scan, not a cross product of docs × sections (0176). A § belongs to the
+      // nearest preceding design doc, unless the word directly before it names some
+      // other referent — then it is dropped, never misattributed. A § with no design
+      // doc before it on the line is dropped too; any other .md file ends the run.
+      let doc = null;
+      for (const m of line.matchAll(CITE_TOKEN)) {
+        const { file, sec } = m.groups;
+        if (file) {
+          const base = file.split("/").pop();
+          doc = isDesignDoc(base) ? base : null;
+          if (doc && !cites.has(doc)) cites.set(doc, new Set());
+          continue;
+        }
+        if (!doc) continue;
+        const before = line.slice(0, m.index).replace(/[\s`*_"'“”]+$/, "");
+        const word = before.match(/[\w'’.-]+$/)?.[0];
+        if (word && !word.endsWith(doc) && !CITE_CONNECTORS.has(word.toLowerCase())) continue;
+        cites.get(doc).add(sec.replace(/\s+/g, ""));
       }
     }
   }

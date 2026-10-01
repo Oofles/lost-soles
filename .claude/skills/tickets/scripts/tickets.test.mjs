@@ -1090,6 +1090,42 @@ describe("0134 — the audit record, the divergence list and the drift budget", 
     assert.ok(!/00-x\.md/.test(out), `a capability doc leaked into the reading list:\n${out}`);
     rmSync(d, { recursive: true, force: true });
   });
+
+  /** --sections --json for one ticket whose Description is `lines`, against the named docs. */
+  const sectionsOf = (docs, lines) => {
+    const [d, cap] = ready();
+    for (const doc of docs) writeFileSync(join(d, "docs", doc), "# spec\n");
+    ticket(d, "open", FM({ id: 2, slug: "b", capability: cap }),
+      `\n## Description\n\n${lines.join("\n")}\n\n## Acceptance criteria\n\n- [ ] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n`);
+    const { cited } = JSON.parse(run(d, "audit", cap, "--sections", "--json").out);
+    rmSync(d, { recursive: true, force: true });
+    return Object.fromEntries(cited.map((c) => [c.doc, c.sections]));
+  };
+
+  test("0176: a § after a prose referent is dropped, not hung on the doc sharing its line", () => {
+    // 0036, verbatim. "roadmap" is prose, not 09-roadmap.md — §4.3 is the roadmap's.
+    const got = sectionsOf(["02-data-model.md", "09-roadmap.md"],
+      ["**the rebuild drill depends on it** (`02-data-model.md` §8.3 step 2, roadmap §4.3). A drill"]);
+    assert.deepEqual(got, { "02-data-model.md": ["§8.3"] });
+  });
+
+  test("0176: with two docs on a line, each § goes to the nearer preceding doc only", () => {
+    const got = sectionsOf(["02-data-model.md", "05-fog-of-war.md"],
+      ["See `02-data-model.md` §3.2 and §3.4, and `05-fog-of-war.md` §4.1–§4.3, §9 table."]);
+    assert.deepEqual(got, { "02-data-model.md": ["§3.2", "§3.4"], "05-fog-of-war.md": ["§4.1", "§4.3", "§9"] });
+  });
+
+  test("0176: a § with no design doc before it is dropped, not attached to a later one", () => {
+    const got = sectionsOf(["00-vision.md"],
+      ["And §9.6, which is the reason: `00-vision.md` §5 says so. R6 §2.1 and `AUDIT.md` §2 too."]);
+    assert.deepEqual(got, { "00-vision.md": ["§5"] });
+  });
+
+  test("0176: a description between sections keeps the run — only the word right before a § decides", () => {
+    const got = sectionsOf(["06-ui-ux.md"],
+      ["Work the `06-ui-ux.md` §9 accessibility requirements and run the §9.6 reality-check table; `02` §4 is not this doc's."]);
+    assert.deepEqual(got, { "06-ui-ux.md": ["§9", "§9.6"] });
+  });
 });
 
 // ─────────────────────────────────────── 0135 the capability gate in `next` ────
