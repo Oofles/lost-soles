@@ -39,20 +39,20 @@ activity looks completely normal — and by the time anyone notices, the correct
 
 ## Acceptance criteria
 
-- [ ] `process-activity.ts` runs the dedupe lookup as step 3, **after normalize and before the
+- [x] `process-activity.ts` runs the dedupe lookup as step 3, **after normalize and before the
       score gate**, using `dedupeCandidateKeys` and `isSameActivity` from
       `src/domain/dedupe-key.ts`. No second implementation of either (D-211).
-- [ ] A duplicate is dropped without writing an `Activity`, without awarding XP, and without a
+- [x] A duplicate is dropped without writing an `Activity`, without awarding XP, and without a
       cell write — and the receipt still reaches a terminal state rather than being retried.
-- [ ] The loser records a `duplicateOf` pointer at the winner, per `03-integrations.md` §2.7,
+- [x] The loser records a `duplicateOf` pointer at the winner, per `03-integrations.md` §2.7,
       so the archive stays complete. Higher-fidelity trace wins; ties by the source priority
       §2.7 lists.
-- [ ] The worker holds `dynamodb:Query` on `byUserAndDedupe` — it does not today, and the grant
+- [x] The worker holds `dynamodb:Query` on `byUserAndDedupe` — it does not today, and the grant
       in `amplify/backend.ts` is an explicit action list, not `grantReadWriteData`.
-- [ ] The CI fixture I-22 names: one run supplied through two adapters with differing
+- [x] The CI fixture I-22 names: one run supplied through two adapters with differing
       `externalId`s and components that straddle every old bucket boundary, asserting **one**
       activity and **one** award.
-- [ ] I-22's evidence column is rewritten from "NOT YET ENFORCED" to what actually enforces it,
+- [x] I-22's evidence column is rewritten from "NOT YET ENFORCED" to what actually enforces it,
       and contract §3's step 3 loses its `NOT BUILT` marker.
 
 ## Notes
@@ -72,9 +72,116 @@ neighbouring decision and worth reading first.
 **A second adapter is `0112`/`0113` territory (D-112 GPSLogger, D-113 Health Connect).** This
 should land before either, and the CI fixture is the only way to test it until one exists.
 
+## Resolution
+
+**Decisions (operator, 2026-09-30): D-263.** The ticket's criterion 3 quoted §2.7's rule that the
+higher-fidelity trace wins. That rule can't be honoured: the recording that arrives first is
+already scored, its XP is a floor (D-135) and its cells can't re-fog (D-020). So **the activity
+already scored always wins**, and criterion 3's "higher-fidelity wins" is satisfied by that
+amendment, not by code. The `duplicateOf` pointer is archived permanently, because the receipt
+expires after 90 days and the rebuild drill has to count collisions. §2.7 and the migration
+runbook line D-7 are amended, struck through, not rewritten.
+
+**Files**
+- `src/pipeline/dedupe.ts` *(new)*:
+  - `findDuplicate` queries GSI2 for each of `dedupeCandidateKeys`, `GetItem`s the three compared
+    fields per candidate, and calls `isSameActivity`. It never restates either function.
+  - `recordDuplicatePointer` writes `raw/<uid>/<source>/<externalId>.duplicate-of.json` with
+    `If-None-Match`, and treats a 412 as already written.
+- `src/pipeline/process-activity.ts`: a new `dedupe` phase between `normalize` and `gate`, a
+  required `dedupe` dep, `dedupeMs` in the timings, and a new `{ outcome: "duplicate" }` result.
+  The pointer is written **before** the receipt, so a failed pointer write leaves the receipt
+  claimable.
+- `src/pipeline/ingest-receipt.ts`: `recordDuplicate` moves the receipt to `DONE` with zero awards
+  and `duplicateOf`. It uses the score gate's claimability conditions, because no claim is held at
+  step 3. `IngestReceipt.duplicateOf` is new.
+- `src/pipeline/archive.ts`: `isPreconditionFailed` is now exported for reuse.
+- `amplify/backend.ts`: `dynamodb:Query` on `…/index/byUserAndDedupe` alone.
+- `amplify/functions/process-activity/handler.ts`: wires `dedupe`, and logs the duplicate's winner
+  and pointer.
+- `src/adapters/__fixtures__/gpx-adapter.ts`: had **its own private dedupe-key hash**, a second
+  implementation D-211 forbids. It now calls `computeDedupeKey`.
+- `src/pipeline/__fixtures__/process-rig.ts` *(new)*: the `process-activity.test.ts` rig, moved
+  unchanged except for exports and an `adapter` option. The criterion-5 fixture has to live in
+  `src/adapters/strava/` (D-188), and a second copy of a 450-line rig would drift.
+- Docs:
+  - contract §4 step 3 loses `NOT BUILT`. The ticket cited §3, but the pipeline list is §4.
+  - I-22's evidence column is rewritten.
+  - T8 gains a `duplicateOf` row.
+  - `01` §4 row 10 notes the step.
+  - `03` §2.7 and runbook D-7 are amended.
+  - D-263 is added.
+
+**Tests**
+- `src/pipeline/dedupe.test.ts`, 8 tests:
+  - a match across the neighbouring anchor bucket, with two queries
+  - an absent distance abstains
+  - a distance beyond max(100 m, 3%) doesn't match
+  - the activity's own row is skipped
+  - the pointer sits outside the replay prefix
+  - a 412 counts as success
+  - any other failure propagates
+  - the index name agrees with `resource.ts`
+- `process-activity.test.ts`, 7 tests:
+  - a duplicate stops before the gate, with no cells, blobs or transaction
+  - the receipt goes to `DONE`, not `FAILED`
+  - the pointer is placed correctly
+  - the query and projection shape
+  - the activity's own row is not a duplicate
+  - a different run in the same anchor bucket is kept
+  - a failed pointer write leaves the receipt untouched
+- `amplify/xp-ledger-tables.test.ts`: T3's grant is now `GetItem`/`PutItem`/`Query`, and the
+  `Query` reaches only `byUserAndDedupe`.
+- **Criterion 5:** `src/adapters/strava/cross-source-dedupe.test.ts`:
+  - The real `real-run-outdoor.json` goes through `normalizeStrava`, and the same run's
+    `equivalence-run.gpx` goes through the GPX fixture adapter under a different `externalId`.
+    Both share one T3 whose GSI2 fake filters on the real key.
+  - The GPX recording's start, distance and elapsed are placed one step across each bucket edge of
+    the formula D-211 retired. The test asserts the old formula would have split the pair.
+  - It asserts one activity, one transaction and `duplicate` → winner.
+  - **Mutation-checked:** with `findDuplicate` forced to return `null`, it fails
+    (`persisted` ≠ `duplicate`).
+  - The GPX fixture has no distance, so the test **overrides the three scalars** rather than
+    editing the GPX, whose points the equivalence test compares cell for cell. The trace is
+    untouched.
+
+**What went wrong along the way**
+- The first commit was blocked by the pre-commit hook because node wasn't on PATH (the
+  fnm-memory issue). It went through with node exported.
+- A test id `a-strava` in `src/pipeline` tripped D-100's boundary grep, so it was renamed.
+- `bundle-leak.test.mjs` "failed" only because I ran a vitest file with plain node. It passes
+  under vitest.
+
+**Known limits, stated in `dedupe.ts` and I-22:**
+- GSI reads are eventually consistent, so two sources delivering within about a second of each
+  other can each miss the other. That's accepted at one user's volume.
+- A `TOMBSTONED` activity still wins a collision. Its cells are permanent, so letting the copy
+  through would double the visit counts. Retraction semantics belong to capability 14.
+- The rebuild drill's collision count from the pointers is still planned (capability 16).
+
 ## Operator validation
 
-None expected — no rendered surface, and the failure is invisible by construction. The
-verification is the CI fixture in criterion 5. An honest end-to-end check only becomes possible
-once a second adapter exists, so a fix landing before then is verified by fixture and not by a
-real duplicate run — the same limitation `0169` recorded.
+Nothing for the operator to look at: no rendered surface, and a duplicate is invisible by design.
+Agent smoke tests, 2026-09-30, WSL2 + AWS `devault`:
+
+- **Full suite:** 2,460 passed and 1 skipped; `tsc`, `eslint --max-warnings 0` and every
+  `scripts/check-*.mjs` are clean.
+- **Deploy:** Amplify job 264 (commit `7a6bd6b`) SUCCEEDED. The worker
+  `…processactivitylambda939…` was last modified 2026-10-01T02:49Z, after the push.
+- **Live IAM (criterion 4):** `iam simulate-principal-policy` against the deployed worker role
+  gives `dynamodb:Query`:
+  - on `Activity-…/index/byUserAndDedupe`: **allowed**
+  - on the base table: **implicitDeny**
+  - on `index/byUserAndStart`: **implicitDeny**
+- **Live data, read-only:** I ran `findDuplicate` with my own credentials against the real
+  `Activity-nog4xy2l7baqlhghpndh2565qe-NONE`, using a real 2026-08-30 run (8,561.6 m, 4,137 s):
+  - a copy shifted +60 s, +20 s and +1% **matched the real row**
+  - the row itself returned `null`
+  - the same numbers 3 h later returned `null`
+
+  This proves the deployed index, its key names, and the stored `dedupeKey`s (rewritten under
+  `0169`) agree with `computeDedupeKey`. Nothing was written. I deliberately did **not** push a
+  synthetic duplicate through the live worker: it would write a permanent, undeletable pointer
+  under the real user's `raw/` (I-3), and no second source adapter is registered to send one.
+- **What remains unproven:** a real duplicate from a second real source. That becomes possible
+  with D-112/D-113, the same limitation `0169` recorded.
