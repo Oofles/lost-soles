@@ -876,6 +876,10 @@ Two more properties worth stating because they are easy to get wrong:
 
 - 3 receive attempts, then the **DLQ** (14-day retention). A CloudWatch alarm on
   `ApproximateNumberOfMessagesVisible > 0` on the DLQ is the only alarm this app needs.
+- At most **five** workers at once, capped on the SQS event source rather than by reserved
+  concurrency (a message not yet handed over burns no receive attempt). Every worker races the
+  same user's `manifest.json`; five keeps a bulk replay or backfill inside the publish's retry
+  budget (`0196`, D-266).
 - Strava 401 → refresh once, retry once, then fail to the DLQ. Do not loop; a revoked
   authorization must surface as a visible "reconnect Strava" state, not a retry storm.
 - Strava 429 (rate limit) → return the message to the queue with a delay. At 3–5 runs/week

@@ -3794,3 +3794,33 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     That is the same situation as re-accepting after the TTL, and layer 4 plus the ledger's
     `alreadyScored` check make it award nothing.
 
+
+- **D-266** **A lost manifest race is a 412 *or* a 409, it is retried up to ten times with
+  full-jitter backoff, and the ingest event source runs at most five workers.**
+  *(Operator, 2026-10-01, ticket `0196`. Extends D-219; amends `02` §4's worker envelope.)*
+  - **The finding.** `0196` was filed as *"a bulk replay exhausts the retry budget of three"*.
+    It did not. The worker log shows a raw `ConditionalRequestConflict` (**409**), not the
+    wrapped *"lost the manifest race N times"* error. S3 returns 409 when a rival's conditional
+    PUT to the same key is still *in flight*, and 412 only once the rival has landed. The retry
+    loop matched only 412, so a 409 threw on the **first** loss and the retries never ran. Two
+    of three ten-activity replays hit it.
+  - **Chosen.** `isManifestRaceLost` treats both codes as a lost race. Each re-merge waits
+    `uniform[0, min(2 s, 50 ms·2^attempt))` first. Full jitter, because every loser of one round
+    lost to the same winner at the same instant, and a fixed delay would line them up to collide
+    again. The `maxAttempts` default is **10**, and the worst-case total wait is under 10 s
+    against a 900 s timeout.
+  - **And the envelope.** In a single-user app every concurrent worker races one object. The SQS
+    event source had no cap, so a backfill of hundreds of activities could scale the poller to
+    dozens of rivals, and no retry budget absorbs that. `maxConcurrency: 5` bounds it to four
+    rivals. It is set on the event source, **not** as reserved concurrency: a message the poller
+    has not handed over has not been received, so it costs nothing against `maxReceiveCount: 3`.
+    Throughput is still ~5 activities per ~2 s.
+  - **The rebuild drill is not on this path.** `02` §8.3 publishes the manifest once, at step 7,
+    after a single-threaded fold. The ticket's *"two orders of magnitude"* worry assumed the drill
+    replays through the queue, and it does not. The volume that does reach this path is a bulk
+    `reingest` or a Strava history backfill, and the cap is sized for those.
+  - **`maxReceiveCount: 3` × 960 s stays.** With the retries actually running, redelivery is a
+    backstop for real failures, not the mechanism for an ordinary race.
+  - **Rejected: just raise `maxAttempts`.** It would have changed nothing, because the 409 never
+    reached the counter. **Rejected: a per-user lock or FIFO group.** The conditional PUT already
+    serialises the commit (D-219), and a lock would add a second mechanism to keep correct.

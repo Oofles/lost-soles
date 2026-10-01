@@ -1526,7 +1526,10 @@ or `IfNoneMatch: "*"` on a first publish (ticket `0049`, D-219). A unique genera
 concurrent workers writing the same filename; it does not stop them merging from the same base,
 which would drop one run's cells from the payload permanently. The precondition makes the merge
 chain linear: the loser gets a 412, discards its work, and re-merges against what the winner
-published. Its allocated generation becomes one more harmless orphan.
+published. Its allocated generation becomes one more harmless orphan. **A 409
+`ConditionalRequestConflict` is the same loss** — S3's answer when the winner's PUT is still in
+flight — and is retried identically, up to ten times with full-jitter backoff; the ingest event
+source runs at most five workers so that budget holds (`0196`, D-266).
 
 Boot sequence (05 §7.3, restated as an obligation rather than a suggestion):
 

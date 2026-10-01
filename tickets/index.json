@@ -4538,6 +4538,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-10T23:08:17Z",
+    "started": "2026-10-01T16:00:32Z",
     "path": "tickets/open/0196-bulk-replay-exhausts-manifest-race-retries.md",
     "ready": true,
     "acceptance": {

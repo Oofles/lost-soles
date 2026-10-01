@@ -837,9 +837,18 @@ const processActivityLambda = backend.processActivity.resources.lambda
  * thrown handler fails every message in its batch, so a batch of ten would send nine
  * healthy activities back to the queue and, after three rounds, into the DLQ alongside
  * the one that was actually broken.
+ *
+ * `maxConcurrency: 5` — `0196`, D-266. Every worker is the same user's in a single-user
+ * app, and every one of them commits through ONE conditional `manifest.json` PUT
+ * (`explored-blob-store.ts`). Unbounded, a backfill of hundreds of activities lets the
+ * poller scale to dozens of workers fighting over that object, and the unluckiest exhausts
+ * any sane retry budget. Five bounds it to four rivals inside a ten-attempt budget. It is
+ * the event source's cap, NOT reserved concurrency, on purpose: a message the poller does
+ * not hand over is not received, so it burns none of `maxReceiveCount`'s three — reserved
+ * concurrency would throttle the invocation and count it.
  */
 processActivityLambda.addEventSource(
-  new SqsEventSource(activityIngestQueue, { batchSize: 1 }),
+  new SqsEventSource(activityIngestQueue, { batchSize: 1, maxConcurrency: 5 }),
 )
 
 /**

@@ -149,6 +149,17 @@ describe("the worker's configuration (criterion 2)", () => {
   })
 
   /** The three generated values the handler reads by name and cannot know otherwise. */
+  /**
+   * `0196`, D-266. Every concurrent worker races the same user's `manifest.json`; five
+   * bounds the rivals inside `regenerateExplored`'s ten-attempt budget. The event source's
+   * cap rather than reserved concurrency, so a waiting message burns no receive count.
+   */
+  it("runs at most five workers at once, capped at the event source", () => {
+    workerStack.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+      ScalingConfig: { MaximumConcurrency: 5 },
+    })
+  })
+
   it("is handed the table, bucket and queue url it reads from the environment", () => {
     const environment = (
       workerFunction().Properties.Environment as { Variables?: Record<string, unknown> }

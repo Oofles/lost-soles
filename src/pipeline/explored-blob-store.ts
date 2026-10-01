@@ -67,7 +67,8 @@ import { mirrorGeneration, type MirrorDeps, type MirrorOutcome } from "./explore
  * ground and only an AP-17 repair would ever bring it back.
  *
  * The manifest PUT therefore carries `IfMatch` on the ETag the base was read from. The
- * loser gets a 412, discards its work and re-merges against the winner's blob. **This is
+ * loser gets a 412 (or a 409, if the winner's PUT is still in flight), discards its work
+ * and re-merges against the winner's blob. **This is
  * the merge chain being linear, expressed as a precondition** — and it is why the
  * allocator is a counter rather than "manifest + 1": the loser's blob 43 is an orphan, and
  * a counter guarantees no later run ever writes DIFFERENT bytes to that same immutable
@@ -200,10 +201,21 @@ export interface BlobStoreDeps extends GenerationDeps {
   /** Injected so `updatedAt` is assertable. */
   now?: () => Date
   /**
-   * How many times to re-merge after losing the manifest race. Three is generous: losing
-   * twice in a row needs three workers for one user interleaving inside one S3 round trip.
+   * How many times to re-merge after losing the manifest race (`0196`). Every concurrent
+   * worker is the same user's in a single-user app, so k workers in flight means up to k-1
+   * losses for the unluckiest of them — and a bulk `reingest` or a backfill puts ten or more
+   * in flight at once. Ten attempts, spread by {@link backoffDelayMs}, absorbs that; the
+   * queue's redelivery is the backstop beyond it, not the mechanism.
+   *
+   * It used to be three, on the argument that losing twice *"needs three workers for one
+   * user interleaving inside one S3 round trip"*. That is exactly what a bulk replay is.
    */
   maxAttempts?: number
+  /**
+   * Waits before a re-merge. Injected so a test can run a race without real time passing;
+   * production sleeps for {@link backoffDelayMs}.
+   */
+  backoff?: (attempt: number) => Promise<void>
 }
 
 /** What one regeneration published. Returned for the log line and for `0051`'s mirror. */
@@ -239,10 +251,44 @@ const isNoSuchKey = (e: unknown): boolean => {
   return x?.name === "NoSuchKey" || x?.name === "NotFound" || x?.$metadata?.httpStatusCode === 404
 }
 
-const isPreconditionFailed = (e: unknown): boolean => {
+/**
+ * Did this worker lose the manifest race? **Two answers mean yes** (`0196`).
+ *
+ * - **412 `PreconditionFailed`** — a rival's manifest landed between our read and our PUT.
+ * - **409 `ConditionalRequestConflict`** — a rival's conditional PUT to the same key was
+ *   *still in flight* when ours arrived, so S3 refused to order them. AWS's guidance is to
+ *   retry. Until `0196` this one fell through as an unknown error and threw on the FIRST
+ *   loss, which is why bulk replays stalled for a visibility timeout with the retry budget
+ *   untouched.
+ *
+ * Both mean the same thing to the merge: discard the work, re-read, re-merge.
+ */
+export const isManifestRaceLost = (e: unknown): boolean => {
   const x = e as S3ServiceException | undefined
-  return x?.name === "PreconditionFailed" || x?.$metadata?.httpStatusCode === 412
+  const status = x?.$metadata?.httpStatusCode
+  return (
+    x?.name === "PreconditionFailed" ||
+    x?.name === "ConditionalRequestConflict" ||
+    status === 412 ||
+    status === 409
+  )
 }
+
+/** Exponential backoff with full jitter: 50 ms doubling, capped at 2 s. */
+export const BACKOFF_BASE_MS = 50
+export const BACKOFF_CAP_MS = 2_000
+
+/**
+ * The wait before re-merge number `attempt + 1`. **Full jitter** — uniform over
+ * `[0, min(cap, base·2^attempt))` — because the losers of one round all lost to the same
+ * winner at the same instant; a fixed delay would line them up to collide again. Worst
+ * case across ten attempts is under ten seconds against a 900 s function timeout.
+ */
+export const backoffDelayMs = (attempt: number, random: () => number = Math.random): number =>
+  Math.floor(random() * Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** attempt))
+
+const sleepBackoff = (attempt: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, backoffDelayMs(attempt)))
 
 async function getBytes(
   key: string,
@@ -311,7 +357,8 @@ export async function regenerateExplored(
   deps: BlobStoreDeps,
 ): Promise<RegenerateResult> {
   const { userId } = input
-  const maxAttempts = deps.maxAttempts ?? 3
+  const maxAttempts = deps.maxAttempts ?? 10
+  const backoff = deps.backoff ?? sleepBackoff
   const touchedBig = new Set([...input.touched].map(cellToBig))
 
   for (let attempt = 0; ; attempt++) {
@@ -433,14 +480,18 @@ export async function regenerateExplored(
            * THE COMMIT. `IfMatch` on the ETag the base was read from — or `IfNoneMatch: "*"`
            * when there was no manifest, which is the same precondition spelled for a key
            * that must not yet exist. A 412 means another worker published while this one was
-           * merging, and the merge is redone against what it published.
+           * merging, and the merge is redone against what it published; a 409 means its PUT
+           * was still in flight, and is treated the same (`isManifestRaceLost`).
            */
           ...(prior?.etag !== undefined ? { IfMatch: prior.etag } : { IfNoneMatch: "*" }),
         }),
       )
     } catch (e) {
-      if (isPreconditionFailed(e) && attempt < maxAttempts) continue
-      if (isPreconditionFailed(e)) {
+      if (isManifestRaceLost(e) && attempt < maxAttempts) {
+        await backoff(attempt)
+        continue
+      }
+      if (isManifestRaceLost(e)) {
         throw new Error(
           `regenerateExplored: lost the manifest race ${attempt + 1} times for ${userId}. ` +
             "The cells are already in T6, so nothing is lost — a redelivery republishes.",

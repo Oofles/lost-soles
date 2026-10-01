@@ -19,7 +19,10 @@ import { raiseGenerationTo } from "./explored-generation"
 import { foldActivities } from "@/src/domain/fold"
 
 import {
+  BACKOFF_BASE_MS,
+  BACKOFF_CAP_MS,
   DELTA_CHAIN_KEEP,
+  backoffDelayMs,
   appendCellsToRun,
   readRunCells,
   IMMUTABLE_CACHE_CONTROL,
@@ -62,6 +65,15 @@ class FakeS3 {
   /** Set to make every delete fail the way a missing grant would. */
   failDeletes = false
 
+  /**
+   * Model S3's 409 (`0196`): a conditional PUT that arrives while another conditional PUT
+   * to the same key is still in flight is refused with `ConditionalRequestConflict`. When
+   * set, every conditional PUT yields to the event loop before landing, so concurrent
+   * `regenerateExplored` calls genuinely overlap there.
+   */
+  overlapConflicts = false
+  private readonly inFlight = new Set<string>()
+
   send = async (
     command: GetObjectCommand | PutObjectCommand | DeleteObjectCommand,
   ): Promise<unknown> => {
@@ -84,6 +96,16 @@ class FakeS3 {
 
     const input = command.input
     const key = input.Key!
+    const conditional = input.IfMatch !== undefined || input.IfNoneMatch !== undefined
+    if (this.overlapConflicts && conditional) {
+      if (this.inFlight.has(key)) throw conditionalRequestConflict()
+      this.inFlight.add(key)
+      try {
+        await new Promise((resolve) => setImmediate(resolve))
+      } finally {
+        this.inFlight.delete(key)
+      }
+    }
     this.beforePut?.(key)
     this.puts.push(command)
     const existing = this.objects.get(key)
@@ -120,6 +142,16 @@ function preconditionFailed(): Error {
   }
   e.name = "PreconditionFailed"
   return e
+}
+
+/** S3's 409, shaped as the SDK throws it — the signature in `0196`'s worker log. */
+function conditionalRequestConflict(): Error {
+  return Object.assign(
+    new Error(
+      "The conditional request cannot succeed due to a conflicting operation against this resource.",
+    ),
+    { name: "ConditionalRequestConflict", $fault: "client", $metadata: { httpStatusCode: 409 } },
+  )
 }
 
 /**
@@ -175,6 +207,8 @@ beforeEach(() => {
     ddb: ddb as unknown as BlobStoreDeps["ddb"],
     table: "T",
     now: () => new Date("2026-09-08T12:00:00.000Z"),
+    // No real sleeping in tests; the race below yields to the event loop instead.
+    backoff: () => new Promise((resolve) => setImmediate(resolve)),
   }
 })
 
@@ -423,6 +457,104 @@ describe("regenerateExplored — the manifest is the commit point (02 §6.4)", (
     ).rejects.toThrow(/lost the manifest race/)
   })
 
+  /**
+   * `0196`. The 409 is what bulk replays actually hit, and before the fix it threw on the
+   * first loss with the retry budget untouched.
+   */
+  it("treats a 409 ConditionalRequestConflict as a lost race and re-merges", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    let fired = false
+    s3.beforePut = (key) => {
+      if (fired || key !== objectKeys.manifest(USER)) return
+      fired = true
+      throw conditionalRequestConflict()
+    }
+    const result = await regenerateExplored({ userId: USER, touched: run(2), day: 2450 }, deps)
+    expect(result.conflicts).toBe(1)
+  })
+
+  it("backs off between re-merges, and not before the first attempt", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    let losses = 2
+    s3.beforePut = (key) => {
+      if (key === objectKeys.manifest(USER) && losses-- > 0) throw conditionalRequestConflict()
+    }
+    const waited: number[] = []
+    await regenerateExplored(
+      { userId: USER, touched: run(2), day: 2450 },
+      { ...deps, backoff: async (attempt) => void waited.push(attempt) },
+    )
+    expect(waited).toEqual([0, 1])
+  })
+
+  it("still throws an unrelated S3 error at once, without retrying it", async () => {
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    let backoffs = 0
+    s3.beforePut = (key) => {
+      if (key === objectKeys.manifest(USER)) throw Object.assign(new Error("AccessDenied"), {
+        name: "AccessDenied",
+        $metadata: { httpStatusCode: 403 },
+      })
+    }
+    await expect(
+      regenerateExplored(
+        { userId: USER, touched: run(2), day: 2450 },
+        { ...deps, backoff: async () => void backoffs++ },
+      ),
+    ).rejects.toThrow(/AccessDenied/)
+    expect(backoffs).toBe(0)
+  })
+
+  /**
+   * `0196`'s first criterion: N concurrent publishes for one user, N well past the old
+   * default of three. Every worker is the same user in this app, so this is what a bulk
+   * `reingest` or a backfill looks like from the manifest's point of view. The fake S3
+   * refuses overlapping conditional PUTs with a 409 and stale ones with a 412, so both
+   * kinds of loss occur — and every one of the N activities' ground must be in the final
+   * blob, published by a linear chain of N generations.
+   */
+  it.each([10, 20])("%i concurrent publishes for one user all commit, losing no cells", async (n) => {
+    s3.overlapConflicts = true
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+
+    const runs = Array.from({ length: n }, (_, i) =>
+      gridDisk(latLngToCell(-48.876 + 0.05 * (i + 1), -123.393, RES), 1),
+    )
+    const results = await Promise.all(
+      runs.map((touched, i) =>
+        regenerateExplored({ userId: USER, touched, day: 2450 + i }, { ...deps, maxAttempts: 2 * n }),
+      ),
+    )
+
+    // The race was real: someone lost, and at least one loss was the 409 kind.
+    const conflicts = results.reduce((sum, r) => sum + r.conflicts, 0)
+    expect(conflicts).toBeGreaterThan(0)
+
+    const manifest = s3.json<{ cells: string; cellCount: number }>(objectKeys.manifest(USER))
+    const published = new Set(decodeExploredBlob(s3.plain(manifest.cells)).cells.map(String))
+    for (const c of [...run(1), ...runs.flat()]) expect(published.has(String(cellToBig(c)))).toBe(true)
+    expect(manifest.cellCount).toBe(new Set([...run(1), ...runs.flat()]).size)
+
+    // Linear chain: every committed publish saw the one before it.
+    const prev = results.map((r) => r.previousGeneration).sort((a, b) => a - b)
+    expect(new Set(prev).size).toBe(n)
+  })
+
+  it("the default budget absorbs ten concurrent publishes — the 0195/0194 replay size", async () => {
+    s3.overlapConflicts = true
+    await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
+    const runs = Array.from({ length: 10 }, (_, i) =>
+      gridDisk(latLngToCell(-48.876, -123.393 + 0.05 * (i + 1), RES), 1),
+    )
+    const { maxAttempts: _unset, ...defaults } = deps
+    void _unset
+    await expect(
+      Promise.all(
+        runs.map((touched, i) => regenerateExplored({ userId: USER, touched, day: 2450 + i }, defaults)),
+      ),
+    ).resolves.toHaveLength(10)
+  })
+
   it("uses IfNoneMatch on the first publish, so two bootstraps cannot both win", async () => {
     await regenerateExplored({ userId: USER, touched: run(1), day: 2444 }, deps)
     const manifestPut = s3.puts.find((p) => p.input.Key === objectKeys.manifest(USER))!
@@ -560,6 +692,23 @@ function fastForward(n: number): void {
   })
   ddb.value.set(`U#${USER}#GEN`, n)
 }
+
+describe("backoffDelayMs — full jitter (0196)", () => {
+  it("spans [0, base·2^attempt) and caps at BACKOFF_CAP_MS", () => {
+    expect(backoffDelayMs(0, () => 0)).toBe(0)
+    expect(backoffDelayMs(0, () => 0.999)).toBeLessThan(BACKOFF_BASE_MS)
+    expect(backoffDelayMs(3, () => 0.999)).toBeLessThan(BACKOFF_BASE_MS * 8)
+    expect(backoffDelayMs(3, () => 0.999)).toBeGreaterThanOrEqual(BACKOFF_BASE_MS * 4)
+    expect(backoffDelayMs(30, () => 0.999)).toBeLessThan(BACKOFF_CAP_MS)
+  })
+
+  it("worst case across the default ten attempts is seconds, not the function timeout", () => {
+    const worst = Array.from({ length: 10 }, (_, a) => backoffDelayMs(a, () => 1)).reduce(
+      (x, y) => x + y,
+    )
+    expect(worst).toBeLessThan(15_000)
+  })
+})
 
 describe("delta retention — criterion 6 (02 §6.5)", () => {
   it("keeps the newest ~20 hops and expires nothing before that", () => {
