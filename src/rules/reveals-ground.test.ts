@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import { loadRuleSet, rulesPath } from "./load"
-import { matchable, revealsGround } from "./reveals-ground"
+import type { ScorableActivity } from "@/src/scoring/units"
+
+import { revealsGround } from "./reveals-ground"
 import type { RuleSkill } from "./schema"
-import type { MatchableActivity } from "./select-activity-skills"
 
 /**
  * D-189, ticket `0047`. The gate that decides whether an activity's cells are written at
@@ -17,12 +18,15 @@ import type { MatchableActivity } from "./select-activity-skills"
  */
 const REGISTRY = loadRuleSet(1)
 
-const activity = (over: Partial<MatchableActivity> = {}): MatchableActivity => ({
-  kind: "run",
-  hasTrace: true,
-  source: { source: "gpslogger" },
-  ...over,
-})
+const activity = (over: Partial<ScorableActivity> = {}): ScorableActivity =>
+  ({
+    kind: "run",
+    hasTrace: true,
+    source: { source: "gpslogger" },
+    distanceM: 5000,
+    sets: [],
+    ...over,
+  }) as ScorableActivity
 
 describe("revealsGround — against the shipped v1 ruleset", () => {
   it("an outdoor run opens the map", () => {
@@ -102,20 +106,49 @@ describe("revealsGround — a missing field is a throw, never a guess (D-189)", 
   })
 })
 
-describe("matchable", () => {
-  it("lifts exactly the three fields the matcher reads, and nothing else", () => {
-    const full = {
-      kind: "run",
-      hasTrace: true,
-      source: { source: "gpslogger", sourceActivityId: "9001", sourceTypeRaw: "Run" },
-      distanceM: 8369,
-      elevationGainM: 120,
-    } as never
-    expect(matchable(full)).toEqual({
-      kind: "run",
-      hasTrace: true,
-      source: { source: "gpslogger" },
-    })
+/**
+ * Ticket `0232`, `04` §3.5, D-269. `minUnitsForCredit` gates DISCOVERY: a run under the
+ * revealing row's threshold opens nothing. The threshold is read off the shipped row here
+ * rather than written as 0.25, so the test follows the YAML the same way the code does.
+ */
+describe("revealsGround — minUnitsForCredit gates the reveal", () => {
+  const revealing = REGISTRY.skills.find((s) => s.kind === "activity" && s.revealsGround === true)!
+  const thresholdM = revealing.minUnitsForCredit * 1000
+
+  it("the shipped revealing row's threshold is 0.25 km", () => {
+    expect(revealing.minUnitsForCredit).toBe(0.25)
+  })
+
+  it("just under it — 249 m — reveals nothing", () => {
+    expect(revealsGround(activity({ distanceM: thresholdM - 1 }), REGISTRY)).toBe(false)
+  })
+
+  it("exactly at it reveals — the threshold is inclusive", () => {
+    expect(revealsGround(activity({ distanceM: thresholdM }), REGISTRY)).toBe(true)
+  })
+
+  it("just over it — 251 m — reveals", () => {
+    expect(revealsGround(activity({ distanceM: thresholdM + 1 }), REGISTRY)).toBe(true)
+  })
+
+  it("no distance at all reveals nothing", () => {
+    expect(revealsGround(activity({ distanceM: undefined }), REGISTRY)).toBe(false)
+  })
+
+  it("is read off the row, never a literal — raising it in the data moves the gate", () => {
+    const raised: RuleSkill[] = REGISTRY.skills.map((s) =>
+      s.id === revealing.id ? { ...s, minUnitsForCredit: 10 } : s,
+    )
+    expect(revealsGround(activity({ distanceM: 9_999 }), { skills: raised })).toBe(false)
+    expect(revealsGround(activity({ distanceM: 10_000 }), { skills: raised })).toBe(true)
+  })
+
+  it("changes nothing on a revealsGround: false row (D-269) — a long ride still reveals nothing", () => {
+    expect(revealsGround(activity({ kind: "ride", distanceM: 40_000 }), REGISTRY)).toBe(false)
+    const zeroed: RuleSkill[] = REGISTRY.skills.map((s) =>
+      s.kind === "activity" && s.revealsGround === false ? { ...s, minUnitsForCredit: 0 } : s,
+    )
+    expect(revealsGround(activity({ kind: "ride", distanceM: 40_000 }), { skills: zeroed })).toBe(false)
   })
 })
 

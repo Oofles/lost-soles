@@ -354,7 +354,8 @@ describe("archiveCompletedBy", () => {
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-const TRACED_RUN: Options["ingest"] = { kind: "run", hasTrace: true, trace: TRACE }
+// 280 m: over the revealing row's minUnitsForCredit (0.25 km), so the trace reveals (0232).
+const TRACED_RUN: Options["ingest"] = { kind: "run", hasTrace: true, trace: TRACE, distanceM: 280 }
 
 describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
   it("puts the cell writes between the gate and persist, in that order", async () => {
@@ -606,6 +607,39 @@ describe("revealsGround gates the whole projection (D-189)", () => {
     const { deps, cellWrites } = rig({ ingest: { kind: "run", hasTrace: false } })
     await processActivity(JOB, deps)
     expect(cellWrites).toHaveLength(0)
+  })
+})
+
+/**
+ * Ticket `0232`, `04` §3.5, D-269. Under the revealing row's `minUnitsForCredit` (0.25 km) a
+ * traced run is almost always a mis-started recording: it writes no cells and so earns no
+ * Cartography, but its Wayfaring is still paid — at the recent-ground rate, `rateGround`'s
+ * existing answer for a ground-scored skill with no classified path (operator, 2026-10-01).
+ */
+describe("minUnitsForCredit gates the reveal at ingest (0232)", () => {
+  const ledgerRows = (transacts: { TransactItems?: { Put?: { TableName?: string; Item?: Record<string, unknown> } }[] }[]) =>
+    transacts[0]!.TransactItems!.filter((i) => i.Put?.TableName === LEDGER_TABLE).map((i) => i.Put!.Item!)
+
+  it("249 m: no ExploredCell writes, no Cartography row, Wayfaring still paid", async () => {
+    const { deps, calls, cellWrites, transacts } = rig({ ingest: { ...TRACED_RUN, distanceM: 249 } })
+    const result = await processActivity(JOB, deps)
+
+    expect(cellWrites).toHaveLength(0)
+    expect(calls).not.toContain("cells")
+    expect(result.outcome === "persisted" && result.award.cellCount).toBe(0)
+    const rows = ledgerRows(transacts as never)
+    expect(rows.map((r) => r.reason)).toEqual(["recent_ground", "constitution_share"])
+    expect(rows[0]).toMatchObject({ id: "a-1#wayfaring#recent_ground#v1", units: 0.249 })
+    expect(rows[0]!.xpAwarded).toBeGreaterThan(0)
+  })
+
+  it("251 m: the cells are written and Cartography is paid", async () => {
+    const { deps, cellWrites, transacts } = rig({ ingest: { ...TRACED_RUN, distanceM: 251 } })
+    await processActivity(JOB, deps)
+
+    expect(cellWrites.length).toBeGreaterThan(0)
+    const rows = ledgerRows(transacts as never)
+    expect(rows.map((r) => r.reason)).toEqual(["new_ground", "cells_new", "constitution_share"])
   })
 })
 

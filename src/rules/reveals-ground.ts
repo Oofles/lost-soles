@@ -1,6 +1,6 @@
-import type { Activity } from "@/src/domain/activity"
+import { measureUnits, type ScorableActivity } from "@/src/scoring/units"
 
-import { selectActivitySkills, type MatchableActivity } from "./select-activity-skills"
+import { selectActivitySkills } from "./select-activity-skills"
 import type { RuleSkill } from "./schema"
 
 /**
@@ -35,9 +35,28 @@ import type { RuleSkill } from "./schema"
  * silent readings are wrong in the same way — `false` means the map quietly stops filling,
  * `true` means D-189 never happened. So it throws, and the ingest fails loudly onto a
  * queue that will retry it once the ruleset is fixed.
+ *
+ * ─── TOO SHORT TO COUNT: `minUnitsForCredit` (ticket `0232`, D-269) ────────
+ *
+ * A revealing row opens the map only if the activity carries at least the row's
+ * `minUnitsForCredit` of its measure — 0.25 km on the distance rows. `04` §3.5: a sub-250 m
+ * run is almost always a mis-started recording, and a reveal cannot be taken back. It
+ * **gates discovery, not XP**: the activity's own row still pays in full, because that
+ * reading of the field lives here and nowhere in scoring.
+ *
+ * The gate sits on the REVEAL, not on Cartography, on purpose. Writing the cells and then
+ * zeroing the award would spend their discovery value for nothing — they would no longer be
+ * `new` when a real run covered them. Refuse the reveal and Cartography follows, because
+ * the award is empty. Ingest, the XP replay and T3 repair all ask this one function, so
+ * none of them can reveal or credit what another refused.
+ *
+ * This is why the input is a `ScorableActivity` and not the matcher's `MatchableActivity`.
+ * The matcher's narrowing still holds — distance never influences WHICH skills match — but
+ * whether the matched row's threshold is met is a question about the work done.
+ * On a `revealsGround: false` row the threshold is never read (D-269).
  */
 export function revealsGround(
-  activity: MatchableActivity,
+  activity: ScorableActivity,
   registry: { skills: RuleSkill[] },
 ): boolean {
   const matched = selectActivitySkills(activity, registry)
@@ -50,22 +69,6 @@ export function revealsGround(
           "revealed by an omitted line is permanent (D-020).",
       )
     }
-    return skill.revealsGround
+    return skill.revealsGround && measureUnits(activity, skill.match!.measure) >= skill.minUnitsForCredit
   })
-}
-
-/**
- * The three fields the matcher reads, lifted off a full `Activity`.
- *
- * A named function rather than an inline object literal at the call site, because the
- * matcher's input is deliberately narrow (`MatchableActivity`) and the narrowing is a
- * statement: nothing about distance, duration or elevation may influence which skills an
- * activity trains, and a structural type would let a caller widen it by accident.
- */
-export function matchable(activity: Activity): MatchableActivity {
-  return {
-    kind: activity.kind,
-    hasTrace: activity.hasTrace,
-    source: { source: activity.source.source },
-  }
 }

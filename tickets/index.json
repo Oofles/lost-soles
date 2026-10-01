@@ -5324,11 +5324,32 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T20:31:55Z",
+    "started": "2026-10-01T20:42:21Z",
     "path": "tickets/open/0232-min-units-for-credit-gates-discovery.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
+    }
+  },
+  {
+    "id": 233,
+    "slug": "live-t3-has-drifted-from-the-ledger-again-repair-t3-reports",
+    "title": "Live T3 has drifted from the ledger again: repair-t3 reports 1 mismatch and plans 6 rewrites",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-01T21:46:19Z",
+    "path": "tickets/open/0233-live-t3-has-drifted-from-the-ledger-again-repair-t3-reports.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

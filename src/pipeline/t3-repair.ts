@@ -1,6 +1,6 @@
 import type { DiscoveryAward } from "@/src/domain/discovery"
 import { foldActivities } from "@/src/domain/fold"
-import { matchable, revealsGround } from "@/src/rules/reveals-ground"
+import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
 import type { XpLedgerEntry } from "@/src/scoring"
 
@@ -132,7 +132,7 @@ export async function planT3Repair(
   for (const a of activities) {
     if (a.status !== "ACTIVE") continue
     const own = byActivity.get(a.activityId) ?? []
-    const groundScored = cells.get(a.activityId)!.length > 0 && revealsGround(matchable(a), rules)
+    const groundScored = cells.get(a.activityId)!.length > 0 && revealsGround(a, rules)
     const w: ActivityScoreWrite = {
       activityId: a.activityId,
       xpAwarded: own.reduce((s, e) => s + e.xpAwarded, 0),

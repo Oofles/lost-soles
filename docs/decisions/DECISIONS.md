@@ -3918,3 +3918,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **No live effect today.** The ledger held 62 rows at the time, none of them `reps` or
     `duration`: through Strava, strength activities carry no sets. A replay therefore changes no
     existing row and writes no floor.
+- **D-270** **A run under `minUnitsForCredit` pays its Wayfaring at the recent-ground rate, and
+  the gate lives in `revealsGround`, which now reads the activity's work.**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0232`.)*
+  - **Rate.** A sub-threshold traced run reveals no cells, so it has no ground split, and
+    `rateGround`'s existing answer for a ground-scored skill with no classified path applies:
+    one `recent_ground` row at 0.5× (`05` §3.6). A 200 m run on new ground earns 10 Wayfaring XP,
+    not 20. This is §3.5's "no minimum for XP": the run is still paid, at the lowest rate. A
+    later correction can only add (D-135), and the cells it did not reveal keep their full new-ground
+    premium for the run that reveals them. Rejected: classifying the cells read-only to rate them
+    at new ground. That pays the new-ground premium twice for the same cells, and adds a second
+    classify path to both ingest and the replay.
+  - **Where.** `revealsGround(activity, registry)` takes a `ScorableActivity`: a matched row
+    reveals only if `revealsGround` is true **and** `measureUnits(activity, row.measure) >=
+    row.minUnitsForCredit`. Ingest, the XP replay and the T3 repair all call it, so none can
+    reveal or credit what another refused. The matcher keeps its narrow `MatchableActivity`:
+    distance still never decides *which* skills match. `matchable()` is removed, because nothing
+    calls it any more.
+  - **No live effect.** All 18 live activities on 2026-10-01 were traced runs of at least
+    1,043 m, so no cell revealed by a sub-250 m run needs recording, and a replay changes nothing.

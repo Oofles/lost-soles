@@ -4,7 +4,7 @@ import type { Activity, Trace } from "@/src/domain/activity"
 import { NO_CELLS, type ClassifiedCell, type DiscoveryAward } from "@/src/domain/discovery"
 import { traceToSegments } from "@/src/domain/fog"
 import { foldActivities, type FoldedCell } from "@/src/domain/fold"
-import { matchable, revealsGround } from "@/src/rules/reveals-ground"
+import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
 import {
   groundSplit,
@@ -337,7 +337,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       const classified = classifiedBy.get(activityId) ?? []
       let award: DiscoveryAward = NO_CELLS
       let split = null
-      const groundScored = classified.length > 0 && revealsGround(matchable(activity), to)
+      const groundScored = classified.length > 0 && revealsGround(activity, to)
       if (groundScored) {
         award = fold.awards.get(activityId)!
         const trace = await store.loadTrace(activity)

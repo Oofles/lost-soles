@@ -5,7 +5,7 @@ import type { Trace } from "@/src/domain/activity"
 import { awardOf, classifyCells, NO_CELLS, type CellRecord, type DiscoveryAward } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments } from "@/src/domain/fog"
 import type { FoldedCell } from "@/src/domain/fold"
-import { matchable, revealsGround } from "@/src/rules/reveals-ground"
+import { revealsGround } from "@/src/rules/reveals-ground"
 import { loadRuleSet } from "@/src/rules/load"
 import type { RuleSet } from "@/src/rules/schema"
 import {
@@ -210,7 +210,7 @@ class MemoryStore implements ReplayStore {
       const trace = this.fx.traces.get(a.activityId)
       let split = null
       let award = NO_CELLS
-      if (trace && revealsGround(matchable(a), V1)) {
+      if (trace && revealsGround(a, V1)) {
         const cells = traceToCells(trace)
         const classified = classifyCells(cells, records, a.startedAt)
         award = awardOf(classified)
@@ -592,6 +592,55 @@ describe("the T3 repair (0226)", () => {
   })
 })
 
+/**
+ * Ticket `0232`, `04` §3.5, D-269. The replay and T3 repair ask the same `revealsGround` as
+ * ingest, so a run under the revealing row's `minUnitsForCredit` (0.25 km) is credited no
+ * Cartography by any of them — even when its cells are already on disk.
+ */
+describe("minUnitsForCredit through the replay (0232)", () => {
+  function shortAndLong(): Fixture {
+    return {
+      traces: new Map([
+        ["short", line(0.05)],
+        ["long", line(0.06)],
+      ]),
+      activities: [
+        activity("short", "2026-04-01T07:00:00.000Z", { hasTrace: true, distanceM: 249 }),
+        activity("long", "2026-04-02T07:00:00.000Z", { hasTrace: true, distanceM: 251 }),
+      ],
+    }
+  }
+  const reasons = (store: MemoryStore, id: string) =>
+    [...store.ledger.values()].filter((e) => e.activityId === id).map((e) => e.reason).sort()
+
+  it("249 m earns Wayfaring and no Cartography; 251 m earns both; a v1 → v1 replay agrees", async () => {
+    const store = new MemoryStore(shortAndLong(), rulesFor(V1)).seedByIngest()
+    expect(reasons(store, "short")).toEqual(["constitution_share", "recent_ground"])
+    expect(reasons(store, "long")).toEqual(["cells_new", "constitution_share", "new_ground"])
+    const before = store.snapshot()
+
+    const result = await replayUser(USER, 1, deps(store, V1))
+
+    expect(result.floors).toEqual([])
+    expect(store.snapshot().ledger).toEqual(before.ledger)
+    expect(store.t3.get("short")!.cellCount).toBe(0)
+    expect(store.t3.get("long")!.newCellCount).toBeGreaterThan(0)
+  })
+
+  it("a short run whose cells are already on disk is still credited no Cartography by the replay or the repair", async () => {
+    const store = new MemoryStore(shortAndLong(), rulesFor(V1)).seedByIngest()
+    // As if ingested before the gate existed: the cells were written (and stay, D-020).
+    store.runCells.set("short", [...traceToCells(line(0.05))])
+
+    await replayUser(USER, 1, deps(store, V1))
+    expect(reasons(store, "short")).toEqual(["constitution_share", "recent_ground"])
+    expect(store.t3.get("short")!.cellCount).toBe(0)
+
+    const plan = await planT3Repair(USER, { store, rules: rulesFor(V1) })
+    expect(plan.writes.find((w) => w.activityId === "short")?.award).toBeUndefined()
+  })
+})
+
 describe("a curve-only ruleset (I-17)", () => {
   it("leaves XP untouched, no displayed level falls, and levelHighWater ratchets", async () => {
     const store = new MemoryStore(fixture(), rulesFor(STEEP)).seedByIngest()
@@ -892,7 +941,7 @@ describe("the skill-state snapshot (0067, D-143)", () => {
     const rebuilt = new MemoryStore(fx, rulesFor(STINGY))
     for (const a of fx.activities) {
       const trace = fx.traces.get(a.activityId)
-      if (trace && revealsGround(matchable(a), V1)) rebuilt.runCells.set(a.activityId, [...traceToCells(trace)])
+      if (trace && revealsGround(a, V1)) rebuilt.runCells.set(a.activityId, [...traceToCells(trace)])
     }
     rebuilt.s3Snapshots.set(snapshotKey(latest), latest)
 

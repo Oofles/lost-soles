@@ -813,6 +813,9 @@ overwhelmingly a mis-started or mis-stopped recording, and a bad reveal is perma
 lost 40 XP is not. The gate is on the **reveal**, so Cartography is zero because nothing was revealed. It is
 not a separate rule on the Cartography row. On a row with `revealsGround: false` there is nothing
 to gate and `minUnitsForCredit` has no effect: a 4-second plank is paid for 4 seconds (D-269).
+The Wayfaring XP of a run under the gate is rated as recent ground (0.5×), because it has no
+revealed path to rate. That is the same default as a run with no usable GPS (`05` §3.6) and the
+lowest rate, so a later correction can only add (D-270).
 
 **Absurd manual entries.** Two layers, both soft:
 

@@ -10,7 +10,7 @@ import {
   type DiscoveryAward,
 } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
-import { matchable, revealsGround } from "@/src/rules/reveals-ground"
+import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
 import {
   groundSplit,
@@ -755,7 +755,7 @@ async function projectCells<TCreds>(
   const { activity, trace } = ingest
   const nothing = { cells: null, award: NO_CELLS, touched: null, rejects: null, split: null }
 
-  if (!revealsGround(matchable(activity), deps.registry)) return nothing
+  if (!revealsGround(activity, deps.registry)) return nothing
   if (!trace) return nothing
 
   const cells = traceToCells(trace)
