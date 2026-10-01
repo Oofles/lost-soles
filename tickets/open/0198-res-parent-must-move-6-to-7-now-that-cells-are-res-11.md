@@ -94,12 +94,6 @@ cell lives, and `02` T6's whole design is that the partition key IS the bucketin
 - `0196` (a bulk replay exhausts `regenerateExplored`'s manifest-race retries) is in the path of any
   re-derivation and should be settled first or at the same time.
 
-## Operator validation
-
-None beyond a smoke test — this is a partition key, and nothing about it is visible on screen. The
-evidence is the measured `Query` item count in criterion 1 plus a post-migration read of the map at
-the same generation, confirming the same cell set comes back through the new key.
-
 ## Resolution
 
 **Option A shipped: `RES_PARENT = 7` (D-267).** Code in `d863189`, deployed by Amplify job 272.
@@ -185,7 +179,9 @@ That was a bug in the script, not the data; fixed and re-run.
 
 ## Operator validation
 
-**None asked of the operator.** This is a partition key, and nothing about it shows on screen.
+**None asked of the operator**, as planned: this is a partition key, and nothing about it shows on screen.
+The planned evidence was the measured `Query` count plus a post-migration read of the map at the same
+generation through the new key. Both are below.
 Smoke tests run against production on 2026-10-01:
 
 - **Gates:** `tsc --noEmit` 0, `eslint --max-warnings 0` 0, **2,474 tests** passed (133 files),
