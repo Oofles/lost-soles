@@ -3396,7 +3396,7 @@
     "title": "audit --record fails capability-tickets-closed on a ticket the audit itself just filed",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3404,10 +3404,11 @@
     "source": "agent",
     "created": "2026-09-02T01:59:37Z",
     "started": "2026-10-01T00:42:23Z",
-    "path": "tickets/open/0144-audit-record-fails-capability-tickets-closed-on-a-ticket-the.md",
-    "ready": true,
+    "closed": "2026-10-01T00:44:58Z",
+    "path": "tickets/closed/0144-audit-record-fails-capability-tickets-closed-on-a-ticket-the.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

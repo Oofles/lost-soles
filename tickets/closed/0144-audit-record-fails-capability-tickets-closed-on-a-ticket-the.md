@@ -4,7 +4,7 @@ slug: audit-record-fails-capability-tickets-closed-on-a-ticket-the
 title: audit --record fails capability-tickets-closed on a ticket the audit itself just filed
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T01:59:37Z
 started: 2026-10-01T00:42:23Z
+closed: 2026-10-01T00:44:58Z
 ---
 
 ## Description
