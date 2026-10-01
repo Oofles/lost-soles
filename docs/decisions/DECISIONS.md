@@ -3857,6 +3857,12 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     deleted** (D-020), and nothing reads them: every reader derives the key from `RES_PARENT`.
     The AGG rows are counters, and a replay `ADD`s to them, so they have to be cleared first or the
     same ground is counted twice (the `0194` finding).
+  - **What the migration actually produced** (2026-10-01): 1,141 res-7-keyed rows. `firstRunAt`,
+    `firstRunId`, `lastRunAt`, `lastRunId` and `lastRunDay` are identical on every cell, and the
+    `AGG#7` rebuild matches the published blob (generation 99 → 128) exactly. **The AGG counts came
+    back 58 high anyway.** The replay ran five workers wide (D-266), and overlapping activities
+    raced the read-then-classify step, so both classified a shared cell `new`. That is a live-ingest
+    defect, not a migration one, and is filed as `0228` along with correcting the rows.
   - **Rejected: a second bucketing key alongside a res-6 partition** (option C). A second source of
     truth about where a cell lives. **Rejected: res 8** — 343 children, the same rejection res 7
     got against res 10.

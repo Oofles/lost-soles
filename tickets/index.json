@@ -5222,5 +5222,25 @@
       "checked": 0,
       "total": 2
     }
+  },
+  {
+    "id": 228,
+    "slug": "concurrent-ingest-of-overlapping-activities-classifies-a-sha",
+    "title": "Concurrent ingest of overlapping activities classifies a shared cell new twice",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "07-fog-projection-and-cells",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-01T18:53:31Z",
+    "path": "tickets/open/0228-concurrent-ingest-of-overlapping-activities-classifies-a-sha.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
