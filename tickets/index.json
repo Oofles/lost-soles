@@ -5339,7 +5339,7 @@
     "title": "Live T3 has drifted from the ledger again: repair-t3 reports 1 mismatch and plans 6 rewrites",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [],
@@ -5347,8 +5347,9 @@
     "source": "agent",
     "created": "2026-10-01T21:46:19Z",
     "started": "2026-10-01T21:59:09Z",
-    "path": "tickets/open/0233-live-t3-has-drifted-from-the-ledger-again-repair-t3-reports.md",
-    "ready": true,
+    "closed": "2026-10-01T22:09:01Z",
+    "path": "tickets/closed/0233-live-t3-has-drifted-from-the-ledger-again-repair-t3-reports.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4

@@ -4,7 +4,7 @@ slug: live-t3-has-drifted-from-the-ledger-again-repair-t3-reports
 title: Live T3 has drifted from the ledger again: repair-t3 reports 1 mismatch and plans 6 rewrites
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T21:46:19Z
 started: 2026-10-01T21:59:09Z
+closed: 2026-10-01T22:09:01Z
 ---
 
 ## Description
