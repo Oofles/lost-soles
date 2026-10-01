@@ -376,11 +376,12 @@ because discovery scoring is a function of `now - lastRunAt`. It also needs `fir
 D-120 does not call out but which lifetime statistics require and which cannot be reconstructed
 from `lastRunAt` once the cell has been re-run.
 
-Extending R3 §7's schema (DynamoDB, single table, partitioned by res-6 parent per D-082):
+Extending R3 §7's schema (DynamoDB, single table, partitioned by the `RES_PARENT` parent per D-082 —
+res 7 since D-267; the implemented key shape is `02` T6's `U#<uid>#C#<res7parent>`):
 
 ```
 # ---- Explored cells ----
-PK: USER#<uid>#CELLS#<res6ParentId>     SK: <res10CellId>
+PK: USER#<uid>#CELLS#<res7ParentId>     SK: <res11CellId>
 attrs:
   firstRunAt    : ISO8601   # IMMUTABLE once written. Lifetime stats, "explorer since".
                             #   On backfill of an older activity: min(existing, incoming).
@@ -402,9 +403,11 @@ Why each field earns its place:
 - `discoveryCount` — separates "I've run this 40 times" from "this has re-armed twice", which are
   different stories and both interesting.
 
-`res6ParentId` in the partition key is not decoration: a res-6 partition is ~36 km² and holds at
-most ~2,401 res-10 children, which bounds partition size, makes a viewport read 1–20 `Query`
-calls, and — see §6.2 — gives the client a ready-made spatial bucketing for viewport culling.
+`res7ParentId` in the partition key is not decoration: a res-7 partition is ~5.16 km² and holds at
+most 2,401 res-11 children, which bounds partition size, keeps a rebuild read to one `Query` page
+per parent, and — see §6.2 — gives the client a ready-made spatial bucketing for viewport culling.
+(It was res 6 over res-10 cells, the same 2,401; D-237 moved the cells and D-267 moved the parent
+with them.)
 
 ---
 
@@ -1292,11 +1295,12 @@ dozen comparisons, and a surviving group whose bbox is wholly inside the viewpor
 no per-disc test at all.
 
 **The grouping resolution is 2,401 children, never finer than `RES_PARENT`.** The original claim —
-reuse the res-6 partition key, *"the third payoff of one decision"* — was arithmetic for `RES_PARENT =
-6` against res-10 cells: 7⁴ = 2,401, which bounds a DynamoDB partition, bounds a viewport `Query`, and
-bounds this. D-237 made a res-6 group hold 7⁵ = **16,807**, so the render grouping asks for `res - 4`
-and clamps at `RES_PARENT` — res 7 for the res-11 bucket today, and the same number as `RES_PARENT`
-again once `0198` moves the storage key to res 7.
+reuse the parent partition key, *"the third payoff of one decision"* — was arithmetic for
+`RES_PARENT = 6` against res-10 cells: 7⁴ = 2,401, which bounds a DynamoDB partition, bounds a
+rebuild `Query`, and bounds this. D-237 made a res-6 group hold 7⁵ = **16,807**; D-267 (ticket
+`0198`) moved `RES_PARENT` to 7 and restored it. The render grouping asks for `res - 4` and clamps at
+`RES_PARENT`, so every bucket at res 7 or finer groups at exactly the storage key and every coarser
+bucket groups at its own resolution.
 
 **A group's bbox must be padded, and by much more than a cell.** H3's hierarchy is index arithmetic,
 not containment: a child's centre can land **up to ~0.13 × the parent's edge length outside the
@@ -1605,8 +1609,8 @@ function applyDelta(state, delta):
     mergeSortedInPlace(state.cells, added)        # BigUint64Array stays sorted
     for c in added: state.set.add(c)
 
-    # Invalidate only what changed. This is why cells are grouped by res-6 parent (§6.2).
-    touchedParents = unique(added.map(c => cellToParent(c, 6)))
+    # Invalidate only what changed. This is why cells are grouped by parent (§6.2).
+    touchedParents = unique(added.map(c => cellToParent(c, RES_PARENT)))   # res 7, D-267
     for res in state.buckets.keys():
         state.buckets.get(res).invalidateParents(touchedParents)
 
@@ -1616,8 +1620,8 @@ function applyDelta(state, delta):
     persistToIndexedDB(state)                     # idle callback, not on the frame path
 ```
 
-- **Only the touched res-6 parents are rebuilt**, not the whole bucket. One run touches 1–2
-  parents, so a mid-session update is sub-millisecond of work and one VBO upload.
+- **Only the touched parents are rebuilt**, not the whole bucket. One run touches a handful of
+  res-7 parents, so a mid-session update is sub-millisecond of work and one VBO upload.
 - **Chain multiple deltas** if the client is several generations behind; each is validated
   `fromGen === state.generation` before applying. **Walk backwards**: start at
   `manifest.generation`, read each hop's `fromGen` from its header, and repeat. *Named
@@ -1825,7 +1829,7 @@ would have waited forever.
 **What it cost**, measured rather than quoted, is in D-237: 7× the cells (not R3's 4.4×), 2.02
 B/cell encoded (better than res 10's 3.01), `DENSIFY_STEP_M` 30 → 12, a resolution-derived
 `CANDIDATE_K` replacing a coincidence that had stopped holding, `RES_PARENT` left knowingly wrong
-with ticket `0198` filed, and `0058`'s culling promoted from optimisation to requirement.
+with ticket `0198` filed (and moved to 7 there, D-267), and `0058`'s culling promoted from optimisation to requirement.
 
 ### 9.5 GPS quality in urban canyons, tunnels and under tree cover
 The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix

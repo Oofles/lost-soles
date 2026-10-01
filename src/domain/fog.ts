@@ -55,45 +55,38 @@ import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
 export const RES = 11
 
 /**
- * THE PARENT RESOLUTION — res 6, and it is one decision with three payoffs.
- * `02-data-model.md` T6 and §2.4; `05-fog-of-war.md` §6.2; ticket `0047`.
+ * THE PARENT RESOLUTION — res 7, and it is one decision with three payoffs.
+ * `02-data-model.md` T6 and §2.4; `05-fog-of-war.md` §6.2; tickets `0047` and `0198`; D-267.
  *
- * A res-6 cell is ~36.13 km² and had exactly **7⁴ = 2,401** res-10 children, which is a
- * *hard ceiling*, not an average. That single fact did all three jobs:
+ * A res-7 cell is ~5.16 km² and has exactly **7⁴ = 2,401** res-11 children, which is a
+ * *hard ceiling*, not an average. That single fact does all three jobs:
  *
- *   1. **It bounds a DynamoDB partition.** 2,401 × ~160 B ≈ 384 KB, three orders of
- *      magnitude under the 10 GB limit, so T6's partition key can be the parent and no
- *      partition can ever go hot.
- *   2. **It bounds a viewport read** to 1–20 `Query` calls (AP-15/AP-16), and one 5-mile
- *      run touches 1–2 parents.
+ *   1. **It bounds a DynamoDB partition.** 2,401 × ~165 B ≈ 400 KB — one `Query` page —
+ *      and four orders of magnitude under the 10 GB limit, so T6's partition key can be the
+ *      parent and no partition can ever go hot.
+ *   2. **It bounds a rebuild read** (AP-16/AP-17) to one `Query` page per touched parent.
  *   3. **It hands the client its bucketing for free** (§6.2) and the delta-invalidation
- *      key with it (§7.4).
+ *      key with it (§7.4): `lib/fog/zoom-buckets.ts` groups at 2,401 children, never finer
+ *      than this, so the two coincide for every bucket at res 7 and above.
  *
- * Res 7 was rejected — 343 children makes partitions too small and multiplies rebuild
- * queries by 7 — and res 5 too, at 16,807 children and ~2.7 MB partitions.
+ * **The number that matters is the child count, not the resolution.** It was res 6 against
+ * res-10 cells (D-115) and the same 2,401. D-237 moved the cells to res 11, which left a res-6
+ * parent holding 7⁵ = 16,807 — the figure this comment always rejected, as res 5 against
+ * res 10 — and `0198` moved the parent with them. Measured on the operator's own 1,141 cells
+ * before the move: one res-6 partition held 1,139 of them (46 RCU per `Query`); at res 7 the
+ * largest holds 480. The res-6-keyed rows remain in the table, superseded and unread (D-020).
  *
- * ─── AND D-237 MOVED THE GRID OUT FROM UNDER IT. TICKET `0198` OWNS THE FIX ──
+ * Res 8 is rejected for the reason res 7 once was against res 10: 343 children makes
+ * partitions too small and multiplies rebuild queries by 7.
  *
- * At res 11 a res-6 parent has **7⁵ = 16,807** children, not 2,401 — *precisely the number
- * rejected above for res 5*, at ~2.7 MB per partition. Nothing breaks today: 2.7 MB is still
- * three orders of magnitude under the 10 GB partition limit and the account holds 695 cells,
- * so payoff (1) survives with a smaller margin. What degrades is (2) — a viewport read pulls
- * up to 7x the items per `Query`.
- *
- * **The fix is res 7, and it is exactly the arithmetic this comment already describes:** a
- * res-7 parent has 7⁴ = 2,401 res-11 children, restoring every number above unchanged. It is
- * not done here because it re-keys every T6 row and touches AP-15/AP-16, §6.2's client
- * bucketing and §7.4's delta-invalidation key — a migration in its own right, filed as `0198`.
- * Left as res 6 deliberately and visibly, rather than changed quietly along with `RES`.
- *
- * NOT A SECOND CANONICAL RESOLUTION. Nothing is ever *stored* at res 6: it is a grouping
- * of res-10 ids, derived on demand, and `RES` remains the only resolution this module
- * emits (D-115).
+ * NOT A SECOND CANONICAL RESOLUTION. Nothing is ever *stored* at res 7: it is a grouping
+ * of res-11 ids, derived on demand, and `RES` remains the only resolution this module
+ * emits (D-237).
  */
-export const RES_PARENT = 6
+export const RES_PARENT = 7
 
 /**
- * The res-6 parent of a res-11 cell — T6's partition key, minus the `U#<uid>#C#` prefix
+ * The res-7 parent of a res-11 cell — T6's partition key, minus the `U#<uid>#C#` prefix
  * that `src/pipeline/explored-cells.ts` owns.
  *
  * Here rather than in the pipeline because it is pure H3 and because D-115's

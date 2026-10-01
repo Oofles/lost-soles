@@ -36,12 +36,12 @@ import { decodeExplored, decodeStats, now } from "./decode"
  */
 
 /**
- * A derived render bucket that needs telling when a res-6 parent's contents changed.
+ * A derived render bucket that needs telling when a `RES_PARENT` (res-7) parent's contents changed.
  * Implemented by `0058`'s zoom bucketing; declared here because `applyDelta` is what
  * calls it and the criterion asks for a spy on it.
  *
- * `05` §7.4: *"Invalidate only what changed. This is why cells are grouped by res-6
- * parent."* One run touches 1–2 parents, so a mid-session update is sub-millisecond of
+ * `05` §7.4: *"Invalidate only what changed. This is why cells are grouped by `RES_PARENT`
+ * parent."* One run touches a handful of parents, so a mid-session update is sub-millisecond of
  * work and one VBO upload — the alternative, rebuilding every bucket, is the difference
  * between a new run appearing and the whole map visibly re-rendering (this ticket's third
  * operator check).
@@ -77,7 +77,7 @@ export class DeltaSkewError extends Error {
 export interface AppliedDelta {
   /** Cells the set did not already hold, ascending. Typically 40–130 (R3 §2). */
   added: H3Index[]
-  /** `unique(added.map(c => cellToParent(c, 6)))` — the only buckets that were dirtied. */
+  /** `unique(added.map(parentOf))` — the only buckets that were dirtied. */
   parents: H3Index[]
   /** The generation the set is now at — `delta.toGen`. */
   generation: number
@@ -189,7 +189,7 @@ export class ExploredSet {
    *
    *   1. `assert delta.fromGen == state.generation`   — else a full fetch
    *   2. merge the adds into the sorted array
-   *   3. invalidate ONLY the touched res-6 parents
+   *   3. invalidate ONLY the touched `RES_PARENT` parents
    *   4. `state.generation = delta.toGen`
    *
    * (§7.4's pseudocode also adds them to a `Set`; there is none since `0203`.)
@@ -212,8 +212,8 @@ export class ExploredSet {
     const merged = new BigUint64Array(this.#cells.length + delta.added.length)
     const added: H3Index[] = []
     /**
-     * Insertion-ordered, which is `unique()` over an ascending input: res-10 children of
-     * one res-6 parent are contiguous in id order, so this is nearly always 1 or 2
+     * Insertion-ordered, which is `unique()` over an ascending input: res-11 children of
+     * one res-7 parent are contiguous in id order, so this is nearly always a few
      * entries and the `Set` never grows past a handful.
      */
     const parents = new Set<H3Index>()
@@ -232,7 +232,7 @@ export class ExploredSet {
         merged[k++] = incoming!
         /**
          * The hex string is needed for `added` regardless, so the parent is computed
-         * off it rather than converting twice. `parentOf` is `cellToParent(c, 6)` —
+         * off it rather than converting twice. `parentOf` is `cellToParent(c, RES_PARENT)` —
          * `src/domain/fog.ts` owns it because it is one of the few h3 calls that
          * legitimately crosses resolutions, and it lives next to the constant that says
          * crossing is otherwise forbidden (D-237, superseding D-115).

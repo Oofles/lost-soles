@@ -127,10 +127,10 @@ export function computeAgg(cells: readonly bigint[], generation: number): Explor
  * The parents this activity touched, at every aggregate level.
  *
  * Two uses, and they are not the same one. `explored-cells.ts` writes T6's item type B
- * for exactly these parents; and `05` §7.4's client invalidates exactly the res-6 buckets
- * in this list when it applies a delta. One run touches 1–2 res-6 parents, which is what
- * makes both operations cheap — the third payoff of the res-6 grouping already chosen for
- * T6's partition key and the client's viewport buckets.
+ * for exactly these parents; and `05` §7.4's client invalidates exactly the `RES_PARENT` (res-7,
+ * D-267) buckets in this list when it applies a delta. One run touches a handful of res-7
+ * parents, which is what makes both operations cheap — the third payoff of the parent
+ * grouping already chosen for T6's partition key and the client's viewport buckets.
  */
 export function touchedParents(cells: Iterable<H3Index>): Map<AggResolution, Set<H3Index>> {
   const out = new Map<AggResolution, Set<H3Index>>(AGG_RESOLUTIONS.map((r) => [r, new Set()]))

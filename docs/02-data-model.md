@@ -405,7 +405,7 @@ the shared writer, not shared atomicity.)*
 **Item type A — the cell** (05 §2.4, verbatim, plus provenance):
 
 ```
-pk  = U#<uid>#C#<res6ParentCellId>          e.g. U#a3f1…#C#8628308ffffffff
+pk  = U#<uid>#C#<res7ParentCellId>          e.g. U#a3f1…#C#872830828ffffff   (RES_PARENT, D-267; was res 6 until 0198)
 sk  = <res11CellId>                          e.g. 8b… (res 11, D-237; was <res10CellId>, 8a2830828767fff)
 ```
 
@@ -450,7 +450,8 @@ sk  = <parentCellId>
     lastRunDay       : N       max
 ```
 
-The `AGG#6` partition doubles as **the index of which parents a user has touched**, which is
+The `AGG#7` partition — the rung at `RES_PARENT`, D-267; it was `AGG#6` while the parent was res 6 —
+doubles as **the index of which parents a user has touched**, which is
 what makes a full blob rebuild possible without a table scan (§2.4). That is the item's real
 job: the aggregate shipped to the browser (`explored-agg.<gen>.json`) is computed from the
 merged cell array, not read back from here, so these counts are a second and independent
@@ -495,28 +496,32 @@ refuses to lower the counter, which is I-11 expressed as something a test can at
 **Access patterns:** AP-15 (ingest diff), AP-16 (blob rebuild), AP-17 (repair scan).
 No GSIs. None are needed: every read is by known partition.
 
-**Partition math (why res-6 is the right parent, D-115 / 05 §2.4):**
+**Partition math (why res 7 is the right parent, D-267 / 05 §2.4):**
+
+The invariant is the **child count**, not the resolution: 7⁴ = 2,401 children per parent. It was
+res 6 against res-10 cells (D-115); D-237 moved the cells to res 11, which left a res-6 parent
+holding 7⁵ = 16,807, and ticket `0198` moved the parent with them (D-267).
 
 | | value |
 |---|---|
-| res-10 cell area | ~15,047 m² (~1.5 ha) |
-| res-6 cell area | ~36.13 km² |
-| res-10 children per res-6 parent | 7⁴ = **2,401** — a hard ceiling |
+| res-11 cell area | ~2,150 m² |
+| res-7 cell area | ~5.16 km² |
+| res-11 children per res-7 parent | 7⁴ = **2,401** — a hard ceiling |
+| max partition size | 2,401 × ~165 B (measured, `0198`) = **~400 KB** — one `Query` page, four orders of magnitude under DynamoDB's 10 GB limit |
+| parents touched by one 5-mile run | ~2–5 (estimate: a res-7 cell is ~2.8 km across) |
+| parents in a home metro after 5 years | a few hundred |
 
-**Amended by D-237 (08 audit, 2026-09-28):** the table above is res 10. At res 11 a res-6 parent
-has 7⁵ = **16,807** children (~2.7 MB partitions, still far under the limit) — the figure the
-*Rejected* paragraph below turns down for res 5. `RES_PARENT` stays 6 deliberately and visibly;
-moving it to 7 restores 2,401 and re-keys T6, filed as ticket `0198`.
-| max partition size | 2,401 × ~160 B = **~384 KB** — three orders of magnitude under DynamoDB's 10 GB limit, and no hot-partition risk at 6 users |
-| parents touched by one 5-mile run | 1–2 |
-| parents in a home metro after 5 years | ~20–60; ~100–200 including travel |
+**Measured before the move** (`0198`, 2026-10-01, 1,141 res-11 cells): one res-6 partition held
+1,139 of them at 46 RCU per `Query`; grouped at res 7 the same cells fall into 5 partitions, the
+largest 480. The res-6-keyed rows stay in the table, superseded and unread (D-020).
 
-Res-6 also gives the client its viewport bucketing for free (05 §6.2) and the delta-application
-invalidation key (05 §7.4) — the same grouping, three uses.
+The parent also gives the client its viewport bucketing for free (05 §6.2) and the
+delta-application invalidation key (05 §7.4) — the same grouping, three uses.
 
-*Rejected:* res-7 parents (343 children — partitions too small, 7× more `Query` calls on
-rebuild) and res-5 (16,807 children, ~2.7 MB partitions, and the client's bucket granularity
-becomes too coarse to invalidate cheaply).
+*Rejected:* res-8 parents (343 children — partitions too small, 7× more `Query` calls on
+rebuild) and res-6 (16,807 children, ~2.7 MB partitions over three `Query` pages, and the client's
+bucket granularity becomes too coarse to invalidate cheaply). Each is the same rejection the res-10
+design made of res 7 and res 5, one rung finer.
 
 **5-year item count** *(res 11 since D-237, ticket `0194`; multiply the old res-10 figures by 7)*:
 R3's absolute worst case (zero route overlap, which will never happen) is **~1,034,000** cells
@@ -642,7 +647,7 @@ activity a few times a year.
 
 ### 2.10 Blob regeneration does not re-read the table
 
-Naïvely, regenerating `explored-r11.bin` means `Query`ing every res-6 partition — ~24 MB of
+Naïvely, regenerating `explored-r11.bin` means `Query`ing every parent partition — ~24 MB of
 eventually-consistent reads ≈ 3,000 RRU per run. It works and costs $0.15/year, but there is a
 strictly better path that `process-activity` is already positioned for:
 
@@ -1302,7 +1307,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-13** | "Did I work out today" / a day's activities | T3 GSI3 `byUserAndDay` | `Query userIdLocalDay` | 0–4 | **0.5 RRU** — uses `startedAtLocal` (contract conflict #3) |
 | **AP-14** | Generation mirror for the AppSync subscription | T1 base | `GetItem` / subscription push | 1 | **0.5 RRU** |
 | **AP-15** | Ingest: which of this run's cells already exist | T6 `ExploredCell` base | **`BatchGetItem`, keys in batches of 100 — at res 11 (D-237) a run crosses ~7× the res-10 figure of 40–130 cells, so several calls, not one** (*amended by D-237, 08 audit, 2026-09-28*; `src/pipeline/explored-cells.ts` `BATCH_GET_LIMIT`, DynamoDB's hard cap) (was: `Query` per touched res-6 parent — corrected 2026-09-08, ticket `0048`: a `Query` returns the whole partition, up to 2,401 cells, to classify the ~45 this run crossed, and a point-to-point run through four parents is four calls instead of one) | ~280–900 (res 11; 40–130 at res 10) | **~20–70 RRU** (~3–10 at res 10) |
-| **AP-16** | Blob rebuild: the user's whole explored set | T6 base | `Query AGG#6` then `Query` per parent | 20k–150k | **~1,000–3,000 RRU** — **repair path only** (§2.10) |
+| **AP-16** | Blob rebuild: the user's whole explored set | T6 base | `Query AGG#<RES_PARENT>` (`AGG#7`, D-267) then `Query` per parent | 20k–150k | **~1,000–3,000 RRU** — **repair path only** (§2.10) |
 | **AP-17** | Consistency scan / rebuild drill | T6 base | as AP-16 + verification | all | as AP-16 |
 | **AP-18** | Idempotency gates | T8 `IngestReceipt` base | `GetItem` / conditional writes | 1 | **0.5 RRU** |
 | **AP-19** | `/tickets` drain: undrained inbox rows | `Ticket` base | `Query userId, filter attribute_not_exists(drainedAt)` | 0–50 | **0.5 RRU** |
@@ -1315,7 +1320,7 @@ them entirely:
 | AP | Pattern | Served by | Cost |
 |---|---|---|---|
 | **S-1** | Map load: the explored set | `GET /api/fog?since=<gen>` — the server reads `manifest.json`; `ETag` = generation, `no-store, private`, a real 304 — then on a cold load `GET /api/fog/blob/<gen>`, which gunzips `explored-r11.<gen>.bin` server-side and serves it `private, max-age=31536000, immutable` through the SSR compute role. No CloudFront, no presigned S3 URL (**amended by D-228, 08 audit, 2026-09-28**) | 1 conditional GET; a cold load adds one immutable GET (§6) |
-| **S-2** | Viewport render, pan, zoom | in-memory `BigUint64Array` + res-6 buckets (05 §6.1) | **zero** |
+| **S-2** | Viewport render, pan, zoom | in-memory `BigUint64Array` + `RES_PARENT` (res-7) buckets (05 §6.1) | **zero** |
 | **S-3** | "% explored" of a region | in-memory `Set.has()` over `region.cellsRes10` (05 §8.1) | **zero**; ~13k lookups, milliseconds |
 | **S-4** | "Unexplored near me" | in-memory `frontier()` (05 §8.4) | **zero** |
 | **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r11.<gen>.bin` | one GET, on demand only |
@@ -1587,9 +1592,9 @@ stays small, not to save bandwidth.
   matches the cached generation or drops below `deltasFrom`. This also survives the gaps D-219's
   counter introduces — a generation burned by a lost manifest race leaves no object, and an
   arithmetic guess of `from + 1` would land on it.
-- **Only the touched res-6 parents are invalidated** (`unique(added.map(c => cellToParent(c, 6)))`).
-  One run touches 1–2 parents, so the update is sub-millisecond and one VBO upload. This is the
-  third distinct use of the res-6 grouping already chosen for the T6 partition key and the client's
+- **Only the touched parents are invalidated** (`unique(added.map(parentOf))`, res 7 since D-267).
+  One run touches a handful of parents, so the update is sub-millisecond and one VBO upload. This is
+  the third distinct use of the parent grouping already chosen for the T6 partition key and the client's
   viewport bucketing (§2 T6) — one decision, three payoffs.
 - **Trigger order:** AppSync subscription on the generation counter (push, no polling, no VPC —
   D-081) → revalidate the manifest on `visibilitychange`/`focus` → a manual sync affordance.

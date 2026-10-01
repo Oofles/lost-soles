@@ -82,7 +82,7 @@ import { parentOf } from "@/src/domain/fog"
 export const EXPLORED_CELL_TABLE = "LostSolesExploredCell"
 
 /**
- * `U#<uid>#C#<res6parent>` / `<res10cell>`. T6, verbatim.
+ * `U#<uid>#C#<res7parent>` / `<res11cell>`. T6, verbatim — the parent is `RES_PARENT` (D-267).
  *
  * **The prefix is load-bearing in two places at once.** `persist.ts`'s `assertNoCellWrites`
  * recognises a cell write by exactly this shape, so changing it here silently disarms the
@@ -149,8 +149,8 @@ interface BatchGetOutput {
  * Both work; `BatchGetItem` is strictly better here and the ticket asks for it:
  *
  *   - **It reads what the run touched, and nothing else.** A `Query` returns the whole
- *     res-6 partition — up to 2,401 cells, every street the user has ever run within
- *     36 km² — to classify the 45 this activity crossed. AP-15's own estimate says so:
+ *     parent partition — up to 2,401 cells, every street the user has ever run within
+ *     ~5 km² — to classify the 45 this activity crossed. AP-15's own estimate says so:
  *     "1–2,401 items, ~1–50 RRU". A batch of 45 keys is ~45 items and a handful of RRU.
  *   - **It is one round trip regardless of how many parents the run crosses.** A long
  *     point-to-point run through four parents is four `Query` calls and one batch.
@@ -460,7 +460,7 @@ export async function writeCells(
  * ```
  * pk  = U#<uid>#AGG#<res>        res ∈ {6, 7, 8}
  * sk  = <parentCellId>
- *     exploredChildren : N       ADD (count of res-10 children newly added)
+ *     exploredChildren : N       ADD (count of res-11 children newly added)
  *     totalChildren    : N       constant = 7^(10-res)   (2401 / 343 / 49)
  *     lastRunDay       : N       max
  * ```
@@ -470,9 +470,9 @@ export async function writeCells(
  * `explored-agg.<gen>.json` is computed from the merged cell array in
  * `explored-blob-store.ts`, not from these rows. So why write them at all?
  *
- * `02` T6: *"The `AGG#6` partition doubles as **the index of which parents a user has
+ * `02` T6: *"The `AGG#<RES_PARENT>` partition (`AGG#7`, D-267) doubles as **the index of which parents a user has
  * touched**, which is what makes a full blob rebuild possible without a table scan."*
- * That is this item's real job. Without it, AP-17 has no way to enumerate a user's res-6
+ * That is this item's real job. Without it, AP-17 has no way to enumerate a user's cell
  * partitions except a `Scan`, and the repair path — the thing that exists precisely for
  * when the published blob is wrong — would be the most expensive operation in the system.
  *

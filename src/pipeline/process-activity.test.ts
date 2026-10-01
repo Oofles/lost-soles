@@ -411,7 +411,7 @@ describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
     expect(result.timings.cellsMs).toBeGreaterThanOrEqual(0)
   })
 
-  it("writes the real T6 update expression, keyed by res-6 parent", async () => {
+  it("writes the real T6 update expression, keyed by the res-7 parent", async () => {
     const { deps, cellWrites } = rig({ ingest: TRACED_RUN })
     await processActivity(JOB, deps)
 
@@ -992,7 +992,7 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
 
     expect(aggWrites.length).toBeGreaterThan(0)
     expect(calls.indexOf("cells")).toBeLessThan(calls.indexOf("cellsAgg"))
-    // Three levels, and `02` T6's own partition math says 1-2 res-6 parents for one run.
+    // Three levels, and `02` T6's own partition math bounds the parents one run touches.
     const partitions = new Set(aggWrites.map((w) => String(w.Key!.pk)))
     expect(partitions).toEqual(
       new Set(["U#u-1#AGG#6", "U#u-1#AGG#7", "U#u-1#AGG#8"]),

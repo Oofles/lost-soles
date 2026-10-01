@@ -3,6 +3,7 @@ import type { H3Index } from "h3-js"
 
 import { AGG_RESOLUTIONS } from "@/src/domain/explored-agg"
 import { cellToBig } from "@/src/domain/explored-blob"
+import { RES, RES_PARENT } from "@/src/domain/fog"
 
 import { EXPLORED_CELL_TABLE } from "./explored-cells"
 
@@ -37,12 +38,24 @@ import { EXPLORED_CELL_TABLE } from "./explored-cells"
  *
  * ─── WHY THIS NEEDS NO SCAN ─────────────────────────────────────────────────
  *
- * `02` T6: *"The `AGG#6` partition doubles as the index of which parents a user has
- * touched, which is what makes a full blob rebuild possible without a table scan."* That
- * is the entire job of item type B here — enumerate the res-6 parents, then `Query` each
- * one's cell partition. ~20–60 parents in a home metro after five years, ~100–200 including
- * travel, so it is a hundred-ish queries, not a scan of an eight-table account.
+ * `02` T6: *"The `AGG#<RES_PARENT>` partition doubles as the index of which parents a user
+ * has touched, which is what makes a full blob rebuild possible without a table scan."* That
+ * is the entire job of item type B here — enumerate the parents, then `Query` each one's
+ * cell partition. A few hundred res-7 parents in a home metro after five years, each one
+ * `Query` page at most, so it is hundreds of queries, not a scan of an eight-table account.
+ *
+ * **The index partition is `AGG#${RES_PARENT}`, never a literal and never
+ * `AGG_RESOLUTIONS[0]`.** Those coincided while the parent was res 6; `0198` (D-267) moved
+ * the parent to res 7 and left the AGG ladder at 6/7/8, and enumerating res-6 parents would
+ * then `Query` partition keys no cell is written under — an empty rebuild, published as a
+ * blank map. The assertion below is what stops the ladder ever losing the parent's rung.
  */
+if (!(AGG_RESOLUTIONS as readonly number[]).includes(RES_PARENT)) {
+  throw new Error(
+    `AGG_RESOLUTIONS [${AGG_RESOLUTIONS.join(", ")}] has no rung at RES_PARENT ${RES_PARENT}: ` +
+      "the rebuild could not enumerate a single cell partition.",
+  )
+}
 
 export interface RebuildDeps {
   ddb: { send(command: QueryCommand): Promise<QueryOutput> }
@@ -60,7 +73,7 @@ export interface RebuiltCell {
   lastRunDay: number
 }
 
-/** Every page of one `Query`, concatenated. A res-6 partition caps at 2,401 items. */
+/** Every page of one `Query`, concatenated. A res-7 partition caps at 2,401 items. */
 async function queryAll(input: QueryCommandInput, deps: RebuildDeps): Promise<Record<string, unknown>[]> {
   const items: Record<string, unknown>[] = []
   let startKey: Record<string, unknown> | undefined
@@ -73,7 +86,7 @@ async function queryAll(input: QueryCommandInput, deps: RebuildDeps): Promise<Re
 }
 
 /**
- * The res-6 parents this user has ever touched, from the `AGG#6` partition.
+ * The `RES_PARENT` parents this user has ever touched, from the `AGG#<RES_PARENT>` partition.
  *
  * `ProjectionExpression: "sk"` because the parent id is the sort key and nothing else on
  * the aggregate item is needed to enumerate — the counts on it are a cache this rebuild is
@@ -85,7 +98,7 @@ export async function listTouchedParents(userId: string, deps: RebuildDeps): Pro
     {
       TableName: deps.table ?? EXPLORED_CELL_TABLE,
       KeyConditionExpression: "pk = :pk",
-      ExpressionAttributeValues: { ":pk": `U#${userId}#AGG#${AGG_RESOLUTIONS[0]}` },
+      ExpressionAttributeValues: { ":pk": `U#${userId}#AGG#${RES_PARENT}` },
       ProjectionExpression: "sk",
     },
     deps,
@@ -157,7 +170,7 @@ export async function rebuildFromTable(
     if (i > 0 && cells[i] === cells[i - 1]) {
       throw new Error(
         `rebuildFromTable: cell ${sorted[i]!.big.toString(16)} appeared in two partitions. ` +
-          "A res-10 cell has exactly one res-6 ancestor; two means the key convention was " +
+          `A res-${RES} cell has exactly one res-${RES_PARENT} ancestor; two means the key convention was ` +
           "written differently by two code paths.",
       )
     }

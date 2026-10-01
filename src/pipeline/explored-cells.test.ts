@@ -175,13 +175,13 @@ const write = (
   )
 
 describe("the key shape (T6)", () => {
-  it("is `U#<uid>#C#<res6parent>` / `<res10cell>`", () => {
+  it("is `U#<uid>#C#<res7parent>` / `<res11cell>` — D-267", () => {
     const key = cellKey("u-1", NEMO_CELL)
-    expect(key.pk).toBe(`U#u-1#C#${cellToParent(NEMO_CELL, 6)}`)
+    expect(key.pk).toBe(`U#u-1#C#${cellToParent(NEMO_CELL, 7)}`)
     expect(key.sk).toBe(NEMO_CELL)
   })
 
-  it("groups by res 6, so one run's cells land in one or two partitions", () => {
+  it("groups by the parent, so neighbouring cells land in one partition", () => {
     expect(cellKey("u-1", NEMO_CELL).pk).toBe(cellKey("u-1", NEMO_CELL_2).pk)
   })
 
@@ -768,17 +768,17 @@ describe("writeAggregates — T6 item type B (0049)", () => {
   })
 
   it("still writes the parent for a run entirely over known ground — AP-17 must find it", async () => {
-    // Without this, a res-6 partition the user only ever re-runs would be invisible to
+    // Without this, a cell partition the user only ever re-runs would be invisible to
     // `listTouchedParents`, and the repair path would silently rebuild an incomplete map.
     const table = fakeTable()
     await writeAggregates(classified("cooled"), RUN_2026, { ddb: table.ddb })
-    expect(Object.keys(table.store).some((k) => k.includes("#AGG#6"))).toBe(true)
+    expect(Object.keys(table.store).some((k) => k.includes(`#AGG#${RES_PARENT}`))).toBe(true)
   })
 
   it("is a handful of writes for one run, not one per cell", async () => {
     const table = fakeTable()
     await writeAggregates(classified(), RUN_2026, { ddb: table.ddb })
-    // 3 levels x 1-2 parents x 2 writes each. Against 37 cells.
+    // 3 levels x a few parents x 2 writes each. Against 37 cells.
     expect(table.sent.length).toBeLessThan(20)
   })
 })

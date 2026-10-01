@@ -54,15 +54,14 @@ import type { BucketInvalidator, ExploredSet } from "./explored-set"
  * §6.2 says to reuse *"the res-6 parent grouping that already exists in the storage partition key"*,
  * and calls it the third payoff of one decision. That arithmetic was `RES_PARENT = 6` against res-10
  * cells: 7⁴ = 2,401 children, which bounds a DynamoDB partition, bounds a viewport `Query`, and
- * bounds this. D-237 moved the cells to res 11 and a res-6 group now holds 7⁵ = **16,807** — the
- * figure `src/domain/fog.ts`'s own comment rejects. `0198` is the ticket that moves `RES_PARENT` to
- * 7 and restores all three numbers at once.
+ * bounds this. D-237 moved the cells to res 11, which left a res-6 group holding 7⁵ = **16,807**, and
+ * `0198` (D-267) moved `RES_PARENT` to 7, restoring all three numbers at once.
  *
- * `groupResFor` therefore asks for 2,401 children (`res - 4`) but never finer than `RES_PARENT`,
- * because the invalidation key `applyDelta` hands over is at `RES_PARENT` and a group finer than the
- * key is a group the key cannot address. Today that is res 7 for the res-11 bucket and res 6 for
- * every coarser one; once `0198` lands the two coincide again and this function becomes `RES_PARENT`
- * for every bucket. There is a test that says so.
+ * `groupResFor` asks for 2,401 children (`res - 4`) but never finer than `RES_PARENT`, because the
+ * invalidation key `applyDelta` hands over is at `RES_PARENT` and a group finer than the key is a
+ * group the key cannot address. With the parent at res 7 the two coincide: every bucket at res 7 or
+ * finer groups at exactly `RES_PARENT`, and every coarser one groups at its own resolution. There is
+ * a test that says so.
  */
 
 /* ─── §6.1's table ──────────────────────────────────────────────────────────── */
@@ -624,11 +623,11 @@ export class ZoomBucket {
   /**
    * The groups affected by an invalidation key at `RES_PARENT`.
    *
-   * Two cases, and both are live today: when the grouping is coarser than the key (every bucket
-   * below res 11, grouped at res 6 against a res-6 key) it is one group, found by binary search.
-   * When it is finer (the res-11 bucket, grouped at res 7) the key covers up to seven groups, and
-   * they are found by a scan — there are a few hundred groups at 500k cells and this runs once per
-   * delta, so a second index to make it a range query would cost more than it saves.
+   * Two cases. When the grouping is at or coarser than the key — every bucket since D-267 moved
+   * the key to res 7 — it is one group, found by binary search. The finer case (a group below the
+   * key covers several, found by a scan) is unreachable while `groupResFor` clamps to
+   * `RES_PARENT`, and is kept because it is what makes that clamp a choice rather than a
+   * precondition this method would silently break on.
    */
   #groupsUnder(parent: H3Index): H3Index[] {
     if (this.groupRes <= RES_PARENT) {
@@ -701,7 +700,7 @@ export function wordParent(cell: bigint, res: number): H3Index {
  * and cache it."*
  *
  * IT IS THE SET'S INVALIDATOR. `explored-set.ts` declared `BucketInvalidator` for this class before
- * it existed; `applyDelta` calls `invalidateParents` with the res-6 parents one hop touched, and
+ * it existed; `applyDelta` calls `invalidateParents` with the `RES_PARENT` parents one hop touched, and
  * every cached bucket drops exactly those groups' geometry.
  *
  * NOT A DEBOUNCE. §6.1's *"re-derive only when the bucket index changes, debounced ~250 ms"* is a

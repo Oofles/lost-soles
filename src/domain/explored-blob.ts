@@ -449,7 +449,7 @@ export function decodeLastRunBlob(bytes: Uint8Array): LastRunBlob {
  *
  * Typically 40–130 cells ≈ 100–350 bytes — smaller than the HTTP headers requesting it,
  * which is the point: the incremental path exists so the CLIENT'S WORK stays small (one
- * merge, one VBO upload, 1–2 invalidated res-6 buckets), not to save bandwidth.
+ * merge, one VBO upload, a handful of invalidated res-7 buckets), not to save bandwidth.
  *
  * `0051` owns the contract this object is half of — the GC that keeps ~20 generations,
  * `manifest.deltasFrom`, and the client's `assert delta.fromGen === state.generation`.

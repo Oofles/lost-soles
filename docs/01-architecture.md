@@ -196,7 +196,7 @@ Every resource, what it does, and what would make it cost money.
 | 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
 | 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads/writes + **real-time subscriptions** | $4.00/M ops; $2.00/M real-time updates |
 | 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity`, `WorkoutEntry`, `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
-| 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res6parent>`, `SK = <res11cell>` | WRU — ~80–130 writes/run |
+| 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
 | 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d | Negligible |
 | 9 | S3 bucket | `defineStorage` → `lostSolesUserData` | `amplify/storage/resource.ts` | Raw trace archive (D-101, D-121.2), `explored/explored-r11.<gen>.bin`, aggregates | $0.023/GB-mo; PUT $0.005/1k |
@@ -789,7 +789,7 @@ The user finishes a run. Strava's app uploads it. Then:
 | 10 | Normalize | in-process, **pure** | `stravaAdapter.normalize(raw, ref, job)` → `{ activity, trace }`. First and last point where a Strava wire type exists. **Then cross-source dedupe** (contract §4 step 3, `0179`, D-263): GSI2 `byUserAndDedupe` plus a tolerance comparison. If another source already committed this run, stop here: the receipt goes `DONE` with `duplicateOf`, and nothing is scored. |
 | 11 | Trace → cells | in-process, `h3-js` (pure JS, bundles cleanly) | `latLngToCell(p.lat, p.lng, 10)` per densified sample, deduped into a `Set`. **Resolution 10 (D-115)** — R4's soft-disc splatting means hex geometry never appears visually, so res 11's 4.4× data cost buys nothing. A 5-mile run is **~80–130 cells**. No cell is emitted across a `gaps` interval. **Corrected 2026-09-07 (ticket `0045`):** this row said `k=0`, which is not what `05-fog-of-war.md` §2.2 specifies and never was. §2.2 collects `gridDisk(c, 1)` CANDIDATES and then filters them to within `REVEAL_R_M` of the polyline (step 5, ticket `0046`); the two-stage shape is what lets a path grazing a cell's edge qualify it without gifting the parallel street. The **~80–130** figure is right and describes the FILTERED set — §2.2 wins on the algorithm, this row wins on the count. **Amended by D-237 (08 audit, 2026-09-28):** the resolution is **11**, not 10 — D-237 supersedes D-115 (~~"res 11's 4.4× data cost buys nothing"~~; the real multiplier is 7× and it was taken to remove the res-10 brush's zig-zag). The per-run count scales by ~7× accordingly; `CANDIDATE_K` is 3 and `DENSIFY_STEP_M` 12 at res 11. |
 | 12 | Idempotency re-check | **DynamoDB** `IngestReceipt` | `UpdateItem ... SET status="PROCESSING" ... ConditionExpression: status = "QUEUED" OR status = "FAILED" OR (status = "PROCESSING" AND processingStartedAt < now − 15 min)`. A redelivered message loses this race and exits **before any XP is written**. The `FAILED` disjunct is **D-209** and the stale `PROCESSING` disjunct is layer 2's crash-recovery clause; the same update `REMOVE`s the failure fields, which is what makes a DLQ redrive clear the failure it was sent to repair. |
-| 13 | Diff against explored | **DynamoDB** `ExploredCell`, `BatchGetItem` | Read the ~80–130 candidate cells (`PK = U#<uid>#C#<res6parent>`, `SK = <res11cell>` since D-237; res-6 parents keep it to a handful of partitions). Partition each candidate into `new` / `stale` / `fresh` by `lastRunAt` — see below. |
+| 13 | Diff against explored | **DynamoDB** `ExploredCell`, `BatchGetItem` | Read the ~80–130 candidate cells (`PK = U#<uid>#C#<res7parent>` since D-267, `SK = <res11cell>` since D-237; res-7 parents keep it to a handful of partitions). Partition each candidate into `new` / `stale` / `fresh` by `lastRunAt` — see below. |
 | 14 | Score XP | in-process, `src/domain/xp.ts` | Deterministic pure function of `(cells, distanceM, kind, now)`. Server-side only: **never let the client claim XP.** |
 | 15 | Persist | **DynamoDB** `TransactWriteItems` | Atomic: `Activity` record + `Skill` XP increments + `IngestReceipt` → `status="DONE"` guarded by `status = "PROCESSING"`. Cell upserts follow via `BatchWriteItem` (idempotent by construction). |
 | 16 | Regenerate the blob | **S3** `users/<uid>/explored/explored-r11.<gen>.bin` + `explored-agg.<gen>.json` | Delta-varint-encoded sorted cell IDs. <100 ms even at the 5-year worst case. **Amended (08 audit, 2026-09-28):** objects are generation-named and immutable, with `manifest.json` the only mutable object (D-228, `02` §6.4); res 11 per D-237. |
@@ -815,7 +815,7 @@ The data-model implication is stated in the decision itself: **each explored cel
 `now - lastRunAt`. So the item is:
 
 ```
-PK: U#<uid>#C#<res6ParentCellId>
+PK: U#<uid>#C#<res7ParentCellId>   -- res 7 since D-267
 SK: <res11CellId>            -- res 11 since D-237
     firstSeenAt   ISO 8601   -- never mutated. D-020: the map only grows.
     firstRunId    string     -- provenance
@@ -1084,7 +1084,7 @@ const unexplored = gridDisk(latLngToCell(lat, lng, 11), k).filter(c => !explored
 
 **Live updates.** When `process-activity` finishes, the AppSync subscription fires (step 17).
 The client revalidates and applies the **delta** for the generations it is behind, rebuilding only
-the touched res-6 buckets (`05` §7.4) rather than refetching and re-decoding the whole set. Until
+the touched parent buckets (`05` §7.4) rather than refetching and re-decoding the whole set. Until
 that subscription exists (capability `14`), the trigger is `visibilitychange`/`focus` — never a
 timer (D-013). *Written here as "refetches `explored-r10.bin`" (now `explored-r11.<gen>.bin`, D-237); the incremental path is `05` §7.4's
 and landed in `0054`.* The

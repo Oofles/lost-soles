@@ -325,7 +325,7 @@ export async function readStoredAward(
 
 /**
  * T6's key shape (`02-data-model.md`), named here so the guard below can recognise one.
- * `PK: U#<uid>#C#<res6parent>` — nothing else in this system uses that prefix.
+ * `PK: U#<uid>#C#<res7parent>` — nothing else in this system uses that prefix.
  */
 const CELL_KEY_PREFIX = /^U#.+#C#/
 

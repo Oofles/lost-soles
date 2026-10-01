@@ -3824,3 +3824,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Rejected: just raise `maxAttempts`.** It would have changed nothing, because the 409 never
     reached the counter. **Rejected: a per-user lock or FIFO group.** The conditional PUT already
     serialises the commit (D-219), and a lock would add a second mechanism to keep correct.
+
+
+- **D-267** **The T6 parent resolution is 7, not 6: `RES_PARENT` follows the cells so a parent
+  always holds 7⁴ = 2,401 children. Supersedes the res-6 half of D-115's parent reasoning and the
+  "`RES_PARENT` stays 6" bullet of D-237.**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0198`. Amends `02` T6 / §2.4 / AP-16 /
+  §6.5, `05` §2.4 / §6.2 / §7.4, `01` §4.)*
+  - **The invariant was always the child count.** Res 6 was right against res-10 cells because it
+    gave 2,401 children: one bounded partition, one bounded rebuild `Query`, and the client's
+    bucketing and delta-invalidation key for free. D-237 moved the cells to res 11 and a res-6
+    parent became 16,807, the figure the original reasoning rejected for res 5. Res 7 against
+    res 11 is the same 2,401.
+  - **Measured, not argued** (criterion 1). Before the move, 1,141 res-11 cells sat in two res-6
+    partitions. The real `Query` returned 1,139 items for 46 RCU. Grouped at res 7 they fall into 5
+    partitions, the largest 480. **At today's size option B (stay at 6) costs nothing measurable.**
+    The case for A is the ceiling: a full res-6 partition is ~2.7 MB over three `Query` pages, and
+    the client's coarse render buckets (`lib/fog/zoom-buckets.ts`) grouped at 16,807 children per
+    invalidation, 7× the work per delta. Both grow silently with the map, and the map never shrinks
+    (D-020). The migration is cheapest now, while the table is small.
+  - **No viewport `Query` exists.** AP-15 has been `BatchGetItem` since `0048`, and the client
+    reads the blob, not T6. So "bounds a viewport read" in the old reasoning reads as **bounds a
+    rebuild read** (AP-16/AP-17): the total items a rebuild reads do not change with the parent,
+    only how many pages each partition takes.
+  - **The AGG ladder stays 6/7/8.** `totalChildren = 7^(RES − res)` already followed `RES`. The
+    rebuild's parent index is now the rung **at `RES_PARENT`** (`AGG#7`), not `AGG_RESOLUTIONS[0]`.
+    `explored-rebuild.ts` asserts at load time that the ladder contains `RES_PARENT`, because a
+    rebuild that enumerated res-6 parents would `Query` keys no cell is written under and publish
+    an empty map.
+  - **Migration: re-derived, not transformed.** The T6 cell rows are rebuilt by replaying the
+    archived activities through `0192`'s path (D-101). The res-6-keyed rows are **superseded, not
+    deleted** (D-020), and nothing reads them: every reader derives the key from `RES_PARENT`.
+    The AGG rows are counters, and a replay `ADD`s to them, so they have to be cleared first or the
+    same ground is counted twice (the `0194` finding).
+  - **Rejected: a second bucketing key alongside a res-6 partition** (option C). A second source of
+    truth about where a cell lives. **Rejected: res 8** — 343 children, the same rejection res 7
+    got against res 10.

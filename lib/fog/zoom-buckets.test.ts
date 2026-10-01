@@ -162,9 +162,8 @@ describe("resForZoom — criterion 1", () => {
 
 describe("groupResFor", () => {
   /**
-   * The arithmetic that made `RES_PARENT = 6` right — 7⁴ = 2,401 children — restored for res-11 cells.
-   * `0198` is the ticket that moves the storage key to res 7 and makes the two coincide again; when it
-   * lands this becomes `RES_PARENT` for every bucket and the second assertion is what will say so.
+   * The arithmetic that made `RES_PARENT = 6` right against res-10 cells — 7⁴ = 2,401 children —
+   * restored for res-11 cells. `0198` (D-267) moved the storage key to res 7 so the two coincide.
    */
   it("asks for 2,401 children at the canonical resolution", () => {
     expect(childrenPerGroup(RES, groupResFor(RES))).toBe(2401)
@@ -174,6 +173,10 @@ describe("groupResFor", () => {
     for (let res = 4; res <= RES; res++) expect(groupResFor(res)).toBeGreaterThanOrEqual(
       Math.min(res, RES_PARENT),
     )
+  })
+
+  it("coincides with RES_PARENT for every bucket at or finer than it — 0198 / D-267", () => {
+    for (let res = RES_PARENT; res <= RES; res++) expect(groupResFor(res), `res ${res}`).toBe(RES_PARENT)
   })
 
   it("is never finer than the bucket itself, so a bucket cell lies in exactly one group", () => {
@@ -499,16 +502,15 @@ describe("cross-group bridges", () => {
 })
 
 /**
- * CRITERION 9. `05` §7.4: *"invalidate only what changed. This is why cells are grouped by res-6
- * parent."* One run touches one or two parents, so a mid-session update must be a handful of groups
+ * CRITERION 9. `05` §7.4: *"invalidate only what changed. This is why cells are grouped by
+ * `RES_PARENT` parent."* One run touches a handful of parents, so a mid-session update must be a handful of groups
  * of work — not a bucket, and certainly not every bucket.
  */
 describe("delta invalidation — criterion 9", () => {
   it("drops only the touched parents' groups, and keeps the rest", () => {
-    // A wide disc, so there are groups under res-6 parents far from where the delta lands. The
-    // invalidation key is at `RES_PARENT` (6) and the groups are at res 7, so one key covers up to
-    // seven groups plus their neighbours — a small disc is entirely inside one key and nothing
-    // survives, which would make this test pass for the wrong reason.
+    // A wide disc, so there are groups under parents far from where the delta lands. A small disc
+    // is entirely inside one key and nothing survives, which would make this test pass for the
+    // wrong reason.
     const set = disc(120)
     const store = new ZoomBucketStore(set)
     const bucket = store.bucketFor(RES)

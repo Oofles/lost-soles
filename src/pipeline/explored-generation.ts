@@ -58,7 +58,7 @@ import { EXPLORED_CELL_TABLE } from "./explored-cells"
  * is easier to reason about than two.
  *
  * The `#GEN` suffix keeps it out of both existing key spaces by construction: a cell
- * partition is `U#<uid>#C#<res6parent>` and an aggregate is `U#<uid>#AGG#<res>`, so no
+ * partition is `U#<uid>#C#<res7parent>` and an aggregate is `U#<uid>#AGG#<res>`, so no
  * `Query` written for either can return this item, and `persist.ts`'s `assertNoCellWrites`
  * — which recognises a cell write by the `#C#` infix — is unaffected.
  */

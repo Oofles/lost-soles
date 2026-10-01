@@ -151,7 +151,7 @@ const sortBig = (cells: readonly string[]): bigint[] =>
   cells.map(cellToBig).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 
 describe("listTouchedParents — AP-16's index", () => {
-  it("enumerates the res-6 parents from the AGG#6 partition, with no Scan", async () => {
+  it("enumerates the parents from the AGG#7 partition — RES_PARENT, not the ladder's first rung — with no Scan", async () => {
     const table = new FakeT6()
     await ingest(table, gridDisk(ORIGIN, 4), "2026-01-01T08:00:00.000Z")
 
@@ -160,7 +160,7 @@ describe("listTouchedParents — AP-16's index", () => {
     expect(parents.length).toBeLessThanOrEqual(2)
     for (const q of table.queries) {
       expect(q.input.KeyConditionExpression).toBe("pk = :pk")
-      expect(q.input.ExpressionAttributeValues![":pk"]).toBe(`U#${USER}#AGG#6`)
+      expect(q.input.ExpressionAttributeValues![":pk"]).toBe(`U#${USER}#AGG#7`)
     }
   })
 
