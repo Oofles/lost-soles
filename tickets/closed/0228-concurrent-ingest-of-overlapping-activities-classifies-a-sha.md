@@ -4,7 +4,7 @@ slug: concurrent-ingest-of-overlapping-activities-classifies-a-sha
 title: Concurrent ingest of overlapping activities classifies a shared cell new twice
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T18:53:31Z
 started: 2026-10-01T19:05:39Z
+closed: 2026-10-01T19:13:43Z
 ---
 
 ## Description

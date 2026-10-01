@@ -5230,7 +5230,7 @@
     "title": "Concurrent ingest of overlapping activities classifies a shared cell new twice",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "07-fog-projection-and-cells",
     "depends_on": [],
@@ -5238,10 +5238,11 @@
     "source": "agent",
     "created": "2026-10-01T18:53:31Z",
     "started": "2026-10-01T19:05:39Z",
-    "path": "tickets/open/0228-concurrent-ingest-of-overlapping-activities-classifies-a-sha.md",
-    "ready": true,
+    "closed": "2026-10-01T19:13:43Z",
+    "path": "tickets/closed/0228-concurrent-ingest-of-overlapping-activities-classifies-a-sha.md",
+    "ready": false,
     "acceptance": {
-      "checked": 1,
+      "checked": 4,
       "total": 4
     }
   },
@@ -5262,7 +5263,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 2
     }
   }
 ]
