@@ -49,9 +49,12 @@ activity was replayed exactly once onto empty rows.
 - [ ] AGG `exploredChildren` cannot be double-counted by that interleaving.
 - [ ] `visitCount` and `discoveryCount` do not grow when the same activity is replayed, or the
       ticket records why that stat is allowed to drift.
-- [ ] The live AGG rows for the operator's account are corrected to the counts T6 actually holds
+- [x] The live AGG rows for the operator's account are corrected to the counts T6 actually holds
       (1,141 per rung as of 2026-10-01), **with the operator's go-ahead**. `0198`'s attempt to
       `SET` them was stopped at the permission layer as a write to shared data.
+      — done 2026-10-01 on the operator's explicit go-ahead: 7 rows corrected with conditional `SET`s
+      (e.g. AGG#6 1197 → 1139, AGG#7 522 → 480). Each rung now sums to 1,141, `rebuildFromTable`
+      still matches blob gen 128. This fixes the symptom only; the race above remains open.
 
 ## Steps to reproduce
 
