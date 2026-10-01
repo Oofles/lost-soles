@@ -66,7 +66,7 @@ export interface XpLedgerEntry {
   reason: LedgerReason
   /** Raw measured work, e.g. km. */
   units: number
-  /** After the D-120 ground split. */
+  /** After the soft cap (`04` §3.5, 0218) and the D-120 ground split. */
   unitsEffective: number
   /** INTEGER. Rounded once, here (I-19). */
   xpAwarded: number

@@ -3895,3 +3895,26 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     a replayed activity is its cell's `lastRunAt` (the `max` is false at equality), its
     `firstRunAt` (the `min` is false at equality) or strictly between (neither applies). Proven by
     test. The drift `0198` saw is not reproducible against the current writer.
+
+- **D-269** **`softCapUnits` is `04` §3.5's piecewise curve, applied per activity; `minUnitsForCredit`
+  gates discovery only and is inert on a row that reveals no ground. Both were already specified;
+  `0218` misread §3.5 as silent. Amends `04` §3.5 to say so in one place.**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0218`.)*
+  - **Soft cap.** `effective(n, S) = min(n,S) + 0.5·clamp(n−S, 0, S) + 0.25·clamp(n−2S, 0, 4S)`,
+    with a maximum of 2.5S at 6S, exactly as §3.5's table shows. One curve for every capped row,
+    like D-130's single level curve; `S` is the only per-skill number. The hard clamp that §9 row 5
+    lists as the way to reverse this was not chosen: the doc's judgement call stands.
+  - **Per activity, not per game day.** §3.5 says "within a session". Applied in `scoreGround` to
+    the whole activity's units before the ground split, so no caller can skip it. `units` stays
+    the raw count and `unitsEffective` carries the cap (`02` §4.1).
+  - **`minUnitsForCredit` is NOT an XP floor.** §3.5: *"No minimum for XP — a 400 m shakeout run
+    earns 40 Wayfaring XP and that is correct."* It stops a short activity revealing cells, and
+    Cartography follows from that. On `revealsGround: false` rows (pushups, situps, plank) there is
+    no discovery to gate, so the field does nothing. A 4-second plank is paid for 4 seconds.
+  - **The discovery gate goes on the reveal, in `0232`, and not in scoring.** Zeroing Cartography
+    while the fog still writes the cells would spend their discovery value for nothing (D-020): they
+    would not be `new` next time. The gate has to stop the write. Then Cartography is zero because
+    the award is empty.
+  - **No live effect today.** The ledger held 62 rows at the time, none of them `reps` or
+    `duration`: through Strava, strength activities carry no sets. A replay therefore changes no
+    existing row and writes no floor.

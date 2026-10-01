@@ -8,6 +8,7 @@
 
 export { selectActivitySkills, type MatchableActivity } from "@/src/rules/select-activity-skills"
 export { measureUnits, scoreUnits, type ScorableActivity, type SkillUnits } from "./units"
+export { softCap } from "./soft-cap"
 export {
   groundSplit,
   lookupFromClassified,

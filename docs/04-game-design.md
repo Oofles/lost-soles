@@ -810,7 +810,9 @@ in S3** (D-101, D-121 mitigation 2) so a better filter can be applied later by r
 that is correct; it happened. But `minUnitsForCredit` (0.25 km) gates *discovery*: below that,
 no cells are revealed and no Cartography is awarded. Rationale: the sub-250 m case is
 overwhelmingly a mis-started or mis-stopped recording, and a bad reveal is permanent while a
-lost 40 XP is not.
+lost 40 XP is not. The gate is on the **reveal**, so Cartography is zero because nothing was revealed. It is
+not a separate rule on the Cartography row. On a row with `revealsGround: false` there is nothing
+to gate and `minUnitsForCredit` has no effect: a 4-second plank is paid for 4 seconds (D-269).
 
 **Absurd manual entries.** Two layers, both soft:
 
@@ -822,7 +824,9 @@ effective(n, S) = min(n, S)
                 + 0.25 × clamp(n − 2S,  0, 4S)
 ```
 
-Maximum effective value is `2.5 × S`, reached at `n = 6S`. With S = 100 pushups:
+Maximum effective value is `2.5 × S`, reached at `n = 6S`. The cap is applied **per
+activity**, to the whole session's units before any ground split. A ledger row's `units` stays
+the raw count and `unitsEffective` carries the cap (D-269). With S = 100 pushups:
 
 | entered | 50 | 100 | 150 | 200 | 300 | 500 | 1,000 | 5,000 |
 |---|---|---|---|---|---|---|---|---|

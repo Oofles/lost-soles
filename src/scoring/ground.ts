@@ -38,6 +38,7 @@ import { RES } from "@/src/domain/fog"
 import { metresBetween } from "@/src/domain/geo"
 import type { Multipliers, RuleSkill } from "@/src/rules/schema"
 
+import { softCap } from "./soft-cap"
 import type { SkillUnits } from "./units"
 
 /** The three ground states, named as `groundMultipliers` names them. */
@@ -89,7 +90,10 @@ export type GroundLookup = (cell: H3Index) => Discovery | undefined
 /** Metres of filtered path over each ground state. */
 export type GroundSplit = Record<Ground, number>
 
-/** One ledger-row-to-be. `units` is raw work; `unitsEffective` is after the multiplier. */
+/**
+ * One ledger-row-to-be. `units` is raw work; `unitsEffective` is after the soft cap (`0218`)
+ * and the multiplier.
+ */
 export interface GroundedUnits {
   skillId: string
   reason: GroundReason
@@ -163,7 +167,11 @@ export function groundSplit(segments: readonly GeoPoint[][], ground: GroundLooku
  * `units` exactly — the filtered path's length and the source's `distanceM` never agree to the
  * metre, and the ledger must itemise the distance the user was told they ran (`04` §8.2).
  *
- * - `groundMultipliers: null` → one `distance` row, `unitsEffective = units`.
+ * `capped` is `units` after the row's soft cap (`softCap`, `0218`). It scales `unitsEffective`
+ * only — `units` stays the raw measurement, so the ledger shows what was logged next to what
+ * it was paid for. Defaults to `units`: no cap.
+ *
+ * - `groundMultipliers: null` → one `distance` row, `unitsEffective = capped`.
  * - A ground-scored skill with no path at all (every sample filtered) is known ground: one
  *   `recent_ground` row. `05` §3.6's default for `newShare = 0`, and the lowest rate, so a
  *   later correction can only add (D-135).
@@ -175,11 +183,15 @@ export function rateGround(
   scored: SkillUnits,
   multipliers: Multipliers | null,
   split: GroundSplit | null,
+  capped: number = scored.units,
 ): GroundedUnits[] {
   const { skillId, units } = scored
   if (multipliers === null) {
-    return [{ skillId, reason: ungroundedReason(scored.measure), units, unitsEffective: units }]
+    return [{ skillId, reason: ungroundedReason(scored.measure), units, unitsEffective: capped }]
   }
+  // What fraction of the work is paid for. `scoreUnits` never emits `units: 0`, but a
+  // division by it would write NaN into a ledger that cannot take it back.
+  const paid = units === 0 ? 0 : capped / units
 
   const total = split === null ? 0 : split.new + split.rearmed + split.recent
   const shares: GroundSplit =
@@ -196,14 +208,18 @@ export function rateGround(
     // The last bucket takes the remainder, so Σ units is `units` exactly, not to within 1e-15.
     const bucket = i === present.length - 1 ? units - assigned : units * shares[g]
     assigned += bucket
-    out.push({ skillId, reason: REASON[g], units: bucket, unitsEffective: bucket * multipliers[g] })
+    out.push({ skillId, reason: REASON[g], units: bucket, unitsEffective: bucket * paid * multipliers[g] })
   }
   return out
 }
 
 /**
- * Every scored skill of one activity through the ground step. `registry` supplies each row's
- * `groundMultipliers`; `split` is `null` for an activity with no path.
+ * Every scored skill of one activity through the soft cap and the ground step. `registry`
+ * supplies each row's `softCapUnits` and `groundMultipliers`; `split` is `null` for an
+ * activity with no path.
+ *
+ * The cap is applied HERE, on the whole activity's units and before they are split across
+ * ground, so it is per activity (`04` §3.5) and no caller of the scorer can skip it.
  */
 export function scoreGround(
   scored: readonly SkillUnits[],
@@ -214,6 +230,6 @@ export function scoreGround(
   return scored.flatMap((s) => {
     const row = rows.get(s.skillId)
     if (!row) throw new Error(`scoreGround: ${JSON.stringify(s.skillId)} is not in the registry`)
-    return rateGround(s, row.groundMultipliers, split)
+    return rateGround(s, row.groundMultipliers, split, softCap(s.units, row.softCapUnits))
   })
 }

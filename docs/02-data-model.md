@@ -745,7 +745,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | **`unitMultipliers`** | M/NULL | J3 | **D-120 discovery credit, scored per CELL rather than per km of ground** — `{new, rearmed, recent}`. Distinct from `groundMultipliers` and NOT a synonym: that one scales a distance skill by the ground it covered, this one scales a `logMode: derived` count by what each unit was worth. Only `cartography` carries it in v1. Present in `04-game-design.md` §1.3 and in the shipped file from the first seed; **omitted from this table until the capability `04` re-audit (2026-09-08) found it** — the same shape as the four gaps D-193 was written for. |
 | `softCapUnits` | N/NULL | J3 | per-session diminishing returns (04 §3.5) |
 | `sanityCeilingUnits` | N/NULL | J3 | flag-only; never blocks (D-123) |
-| `minUnitsForCredit` | N | J3 | |
+| `minUnitsForCredit` | N | J3 | gates discovery, never XP; inert when `revealsGround: false` (04 §3.5, D-269) |
 | `feeds` | L of M | J4 | `[{skill, rate}]`. Constitution's 1/3 is a row's attribute, not a constant in the scorer. |
 | `exercises` | L of M | J5 | for `logMode: reps\|duration` — `{id, label, entry, quickValues}`, what `(app)/log/page.tsx` renders (D-061). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
 
@@ -1026,7 +1026,7 @@ that table needs to be operable at all: a deterministic `id` and an explicit `se
 | `skillId` | S | opaque (§3) |
 | `reason` | S | closed vocabulary, §4.2 |
 | `units` | N | raw measured quantity — e.g. `8.37` km |
-| `unitsEffective` | N | after the D-120 ground split and any `softCapUnits` — e.g. `5.19` |
+| `unitsEffective` | N | after any `softCapUnits` (per activity, D-269) and the D-120 ground split — e.g. `5.19` |
 | `xpAwarded` | N | **integer.** Rounding happens once, here, at write time; never at read time, or two screens summing in different orders would disagree. |
 | `xpRulesVersion` | N | **the row is meaningless without this** (04 §7.6) |
 | `isFloor` | BOOL | **the D-135 marker.** `false` for every rule-derived row. `true` rows are facts about what the user was shown and are **never deleted by a replay** (§4.6). |
