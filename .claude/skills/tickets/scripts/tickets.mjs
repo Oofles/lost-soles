@@ -1061,7 +1061,7 @@ function walkTests(dir, acc) {
   return acc;
 }
 
-function auditChecks(capability, tickets) {
+function auditChecks(capability, tickets, filedByAudit = []) {
   const checks = [];
 
   // ── §1 automated ──────────────────────────────────────────────────────────
@@ -1120,16 +1120,32 @@ function auditChecks(capability, tickets) {
   // specified, and waiting on something the project does not control. It IS named
   // in both the row and the recorded audit, so a capability that passed with three
   // deferrals never reads as one that passed clean.
+  //
+  // Nor does a ticket THIS audit filed as a code-was-wrong divergence (0144). §2
+  // tells the auditor to file it; failing §5 for having done so is how audit
+  // findings stop being filed. Identified by the `--record` call naming it in
+  // `--divergence "code-was-wrong|<id>|…"` — the audit's own record, not a
+  // timestamp or a capability-wide flag, so an ordinary open ticket still fails,
+  // and naming one costs a slot of the drift budget in plain sight.
   const mine = tickets.filter((t) => t.fm?.capability === capability);
   const deferredInCap = mine.filter((t) => t.fm.status === "deferred");
-  const openInCap = openInCapability(capability, tickets);
-  const defNote = deferredInCap.length
+  const filedSet = new Set(filedByAudit);
+  const stillOpen = openInCapability(capability, tickets);
+  const filedInCap = stillOpen.filter((t) => filedSet.has(t.fm.id));
+  const openInCap = stillOpen.filter((t) => !filedSet.has(t.fm.id));
+  const defNote = (deferredInCap.length
     ? `; ${deferredInCap.length} deferred (${deferredInCap.map((t) => pad(t.fm.id)).join(", ")})`
+    : "") + (filedInCap.length
+    ? `; ${filedInCap.length} filed by this audit (${filedInCap.map((t) => pad(t.fm.id)).join(", ")})`
+    : "");
+  const hint = !filedByAudit.length && stillOpen.length
+    ? ` — one filed as this audit's own code-was-wrong finding is exempted by naming it in --record --divergence`
     : "";
   checks.push(openInCap.length
     ? FAIL("capability-tickets-closed", "5",
-        `${openInCap.length} still open: ${openInCap.map((t) => pad(t.fm.id)).join(", ")}${defNote}`)
-    : PASS("capability-tickets-closed", "5", `${mine.length - deferredInCap.length} closed${defNote}`));
+        `${openInCap.length} still open: ${openInCap.map((t) => pad(t.fm.id)).join(", ")}${defNote}${hint}`)
+    : PASS("capability-tickets-closed", "5",
+        `${mine.length - deferredInCap.length - filedInCap.length} closed${defNote}`));
 
   return checks;
 }
@@ -1265,6 +1281,21 @@ function citedSections(capability, tickets) {
     .sort((a, b) => a.doc.localeCompare(b.doc));
 }
 
+function recordDivergences(capability, flags) {
+  const asserted = "no-divergences" in flags;
+  const raw = flags.divergence ? [].concat(flags.divergence) : [];
+  if (!asserted && !raw.length) {
+    die(`${capability}: no divergence assertion.\n\n` +
+        `  AUDIT.md §2 asks for every place the implementation differs from the design.\n` +
+        `  Pass each as --divergence "<code-was-wrong|design-was-wrong>|<ref>|<description>",\n` +
+        `  or assert there were none with --no-divergences.\n\n` +
+        `  An empty list must be asserted, never assumed by omission — omission is what a\n` +
+        `  skipped §2 also looks like, and the two must not be indistinguishable.`);
+  }
+  if (asserted && raw.length) die(`--no-divergences was passed alongside ${raw.length} --divergence flag(s). Pick one.`);
+  return raw.map(parseDivergence);
+}
+
 function cmdAudit(capability, flags) {
   const tickets = load();
   const caps = existsSync(join(ROOT, "docs/capabilities"))
@@ -1290,7 +1321,13 @@ function cmdAudit(capability, flags) {
     return;
   }
 
-  const checks = auditChecks(capability, tickets);
+  // --record parses its divergences FIRST: a code-was-wrong divergence names the
+  // ticket the audit filed, and that ticket is exempt from capability-tickets-closed
+  // (0144). The plain table has no divergences and so exempts nothing.
+  const divergences = flags.record ? recordDivergences(capability, flags) : [];
+  const filedByAudit = divergences.filter((d) => d.resolution === "code-was-wrong")
+    .map((d) => Number(d.ref.replace(/^#/, ""))).filter(Number.isInteger);
+  const checks = auditChecks(capability, tickets, filedByAudit);
   const failed = checks.filter((c) => c.status === "fail");
   const na = checks.filter((c) => c.status === "na");
   const errored = checks.filter((c) => c.status === "error");
@@ -1310,18 +1347,6 @@ function cmdAudit(capability, flags) {
   if (force === true) die(`--force needs a reason: --force "why this is being overridden".\n` +
                           `  The override is recorded in the capability doc. Skipping is visible, not silent.`);
 
-  const asserted = "no-divergences" in flags;
-  const raw = flags.divergence ? [].concat(flags.divergence) : [];
-  if (!asserted && !raw.length) {
-    die(`${capability}: no divergence assertion.\n\n` +
-        `  AUDIT.md §2 asks for every place the implementation differs from the design.\n` +
-        `  Pass each as --divergence "<code-was-wrong|design-was-wrong>|<ref>|<description>",\n` +
-        `  or assert there were none with --no-divergences.\n\n` +
-        `  An empty list must be asserted, never assumed by omission — omission is what a\n` +
-        `  skipped §2 also looks like, and the two must not be indistinguishable.`);
-  }
-  if (asserted && raw.length) die(`--no-divergences was passed alongside ${raw.length} --divergence flag(s). Pick one.`);
-  const divergences = raw.map(parseDivergence);
 
   const problems = [];
   if (failed.length) problems.push(`${failed.length} mechanical check(s) failed: ${failed.map((c) => c.id).join(", ")}`);
@@ -1361,6 +1386,8 @@ function cmdAudit(capability, flags) {
   if (errored.length) record.mechanical.error = errored.length;
   const deferredInCap = tickets.filter((t) => t.fm?.capability === capability && t.fm.status === "deferred");
   if (deferredInCap.length) record.deferred = deferredInCap.map((t) => pad(t.fm.id));
+  const filedInCap = openInCapability(capability, tickets).filter((t) => filedByAudit.includes(t.fm.id));
+  if (filedInCap.length) record.filed = filedInCap.map((t) => pad(t.fm.id));
   if (problems.length) record.forced = String(force);
 
   const lines = [
@@ -1381,6 +1408,12 @@ function cmdAudit(capability, flags) {
                deferredInCap.map((t) => `\`${pad(t.fm.id)}\` ${t.fm.title}`).join("; ") +
                `. This capability passed with work outstanding — waiting on something outside the ` +
                `project, not forgotten. \`tickets.mjs recheck\` reports whether any wait is over.`, ``);
+  }
+  if (filedInCap.length) {
+    lines.push(`**Filed by this audit, and therefore excluded from \`capability-tickets-closed\`:** ` +
+               filedInCap.map((t) => `\`${pad(t.fm.id)}\` ${t.fm.title}`).join("; ") +
+               `. This capability passed with work outstanding — its own code-was-wrong findings, ` +
+               `filed as AUDIT.md §2 directs and listed under Divergences below, not forgotten.`, ``);
   }
   lines.push(divergences.length
     ? `**Divergences (${divergences.length} of a budget of 3):**`

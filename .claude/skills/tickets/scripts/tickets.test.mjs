@@ -1520,6 +1520,47 @@ describe("0136 — deferred: work that is correct, specified, and waiting on a t
     assert.deepEqual(record.deferred, ["0002"]);
     rmSync(d, { recursive: true, force: true });
   });
+
+  // 0144. AUDIT.md §2 says file a ticket for a code-was-wrong divergence; §5 must not
+  // then fail the audit for that ticket being open. Both directions, in one fixture.
+  test("capability-tickets-closed exempts a ticket the audit filed, and only that one", () => {
+    const d = repo();
+    const cap = "00-x";
+    writeFileSync(join(d, "docs/capabilities", `${cap}.md`), `# ${cap}\n\n## Reflection\n\n` +
+      "The design got the validator's flat rule list right, which is why conformance could be checked line by line rather than argued about. ".repeat(3) + "\n");
+    ticket(d, "closed", FM({ id: 1, slug: "a", status: "closed", closed: "2026-08-30T00:00:00Z" }),
+      "\n## Description\n\nx\n\n## Acceptance criteria\n\n- [x] a\n\n## Notes\n\nx\n\n## Operator validation\n\nx\n\n## Resolution\n\nx\n");
+    ticket(d, "open", FM({ id: 2, slug: "found-by-audit" }), BODY_OK);
+    const records = () => [...readFileSync(join(d, "docs/capabilities", `${cap}.md`), "utf8")
+      .matchAll(/<!--\s*audit-record\s+(\{.*?\})\s*-->/g)].map((m) => JSON.parse(m[1]));
+
+    // The plain table has no divergences, so it cannot know — it fails and says how.
+    const table = run(d, "audit", cap);
+    assert.notEqual(table.code, 0);
+    assert.match(table.out, /FAIL\s+capability-tickets-closed\s+1 still open: 0002.*--divergence/);
+
+    // Named as this audit's code-was-wrong finding: exempt, and the record says so.
+    const rec = run(d, "audit", cap, "--record", "--divergence", "code-was-wrong|0002|scanner skips src/");
+    assert.equal(rec.code, 0, rec.out);
+    assert.match(rec.out, /capability-tickets-closed\s+1 closed; 1 filed by this audit \(0002\)/);
+    const doc = readFileSync(join(d, "docs/capabilities", `${cap}.md`), "utf8");
+    assert.match(doc, /Filed by this audit, and therefore excluded from `capability-tickets-closed`:\*\* `0002`/);
+    assert.equal(records().pop().verdict, "pass", "the audit's own finding must not force the verdict");
+    assert.deepEqual(records().pop().filed, ["0002"]);
+
+    // An ordinary open ticket — not named — still fails, even alongside a named one.
+    ticket(d, "open", FM({ id: 3, slug: "unfinished" }), BODY_OK);
+    const bad = run(d, "audit", cap, "--record", "--divergence", "code-was-wrong|0002|scanner skips src/");
+    assert.notEqual(bad.code, 0, "unfinished work is not exempted by an audit having filed something else");
+    assert.match(bad.out, /FAIL\s+capability-tickets-closed\s+1 still open: 0003; 1 filed by this audit \(0002\)/);
+    assert.equal(records().length, 1, "a refused record writes nothing");
+
+    // A design-was-wrong divergence names a D-xxx, never a ticket: it exempts nothing.
+    const dw = run(d, "audit", cap, "--record", "--divergence", "design-was-wrong|3|x");
+    assert.notEqual(dw.code, 0);
+    assert.match(dw.out, /FAIL\s+capability-tickets-closed\s+2 still open: 0002, 0003/);
+    rmSync(d, { recursive: true, force: true });
+  });
 });
 
 // ─────────────────────────── 0023 — triage's four outcomes, end to end ────

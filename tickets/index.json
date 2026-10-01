@@ -3403,6 +3403,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T01:59:37Z",
+    "started": "2026-10-01T00:42:23Z",
     "path": "tickets/open/0144-audit-record-fails-capability-tickets-closed-on-a-ticket-the.md",
     "ready": true,
     "acceptance": {

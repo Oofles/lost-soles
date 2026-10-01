@@ -45,7 +45,10 @@ For each design-doc section this capability's tickets cited:
 
 - [ ] Re-read the section. **List every place the implementation differs from it.**
 - [ ] For each difference, choose explicitly and record which:
-      - **the code was wrong** → file a `bug` ticket, or fix now if trivial; or
+      - **the code was wrong** → file a `bug` ticket, or fix now if trivial, and name it in
+        `--record --divergence "code-was-wrong|<id>|…"`. A ticket filed this way does **not**
+        fail §5's `capability-tickets-closed` — it is this audit's own finding, tracked on purpose
+        (D-262). The record lists it as outstanding work; it never reads as a clean close; or
       - **the design was wrong** → amend the doc *in this commit*, record a new `D-xxx` in
         `DECISIONS.md` with the reasoning, and note which earlier decision it supersedes.
 - [ ] Check the **canonical contract** (`docs/contracts/ingestion-contract.md`) is still accurate.
@@ -95,6 +98,9 @@ reach it (no AWS credentials, an S3 error), the row is `ERR`. `ERR` fails the au
 - [ ] AWS spend still tracks the D-083 target (~$1–5/mo). Check the Billing console, not an
       estimate. A NAT Gateway appearing anywhere means something went badly wrong (D-081).
 - [ ] No `blocked_by` left pointing at a closed ticket.
+- [ ] Every ticket in the capability is closed (`capability-tickets-closed`). Two exceptions, both
+      named in the recorded audit rather than hidden: a `deferred` ticket (D-174), and a ticket this
+      audit filed as a §2 code-was-wrong divergence (D-262). Ordinary unfinished work still fails.
 - [ ] Any scope discovered mid-capability was filed as a new ticket (`source: agent`), not absorbed
       silently (D-152).
 

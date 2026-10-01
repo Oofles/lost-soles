@@ -3702,3 +3702,23 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     rows. Which skill earns discovery is a registry row (D-031). `0226` had compared credits
     against the `units` on Cartography rows. That holds only when nothing was rearmed, because
     `units` carries the raw count and the 0.5 is in `unitsEffective`.
+
+- **D-262** **A ticket an audit files as its own code-was-wrong finding does not fail that audit's
+  `capability-tickets-closed`; it is identified by the `--record` call naming it as a divergence.**
+  *(Agent, 2026-09-30, ticket `0144`.)*
+  - **The contradiction.** `AUDIT.md` §2 says to file a ticket for a code-was-wrong divergence. §5
+    failed the audit for any open ticket in the capability, so following §2 failed the audit
+    (hit for real on capability `02`, ticket `0142`). Each way out was worse: misfile the ticket,
+    absorb the fix into the audit, or quietly stop filing findings. That last one defeats D-153.
+  - **The mechanism.** An open ticket in the capability is exempt only when the same `--record`
+    names it in `--divergence "code-was-wrong|<id>|…"`. The record writes it into the capability
+    doc and as `filed` in the `audit-record` JSON, in the same voice as `deferred` (D-174).
+    The plain `audit <cap>` table has no divergences, so it exempts nothing; it fails and says how.
+  - **Why not the alternatives.** Comparing `created` against the audit time exempts any ticket
+    filed in the same window, so it is recency by another name. A `source: audit` value or a
+    frontmatter back-reference adds a field that outlives the audit and needs keeping honest. The
+    divergence list already names the ticket and already exists to be read. Naming an ordinary
+    unfinished ticket there to get a pass is possible, but it is visible in the record and spends
+    a slot of the drift budget of three, which is the cost that discourages it.
+  - **Not changed.** `next`'s gate (`0209`) still counts an audit-filed ticket as open until the
+    audit is recorded. After a passing record the gate lifts anyway.
