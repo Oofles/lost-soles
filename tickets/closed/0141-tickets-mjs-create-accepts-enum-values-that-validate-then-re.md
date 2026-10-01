@@ -4,13 +4,14 @@ slug: tickets-mjs-create-accepts-enum-values-that-validate-then-re
 title: tickets.mjs create accepts enum values that validate then rejects
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-01T22:29:42Z
+closed: 2026-10-01T00:38:46Z
 ---
 
 ## Description
