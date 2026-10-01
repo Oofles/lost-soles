@@ -119,7 +119,7 @@ and the handler is configuration. The live smoke tests below are the proof.
    wins"* is therefore only true in one direction. In the running system the other direction looks
    unreachable: the mirror is written only after the manifest commit, with the committed
    generation, and generations only rise (D-218/D-219). Only a hand edit could put the mirror
-   ahead. I did not change code or docs; raised with the operator for a decision.
+   ahead. No code change. The operator chose to record it rather than build a two-way repair: **D-264**, with `02` §6.4 amended.
 2. **On a first-ever ingest the mirror can create the Profile row before the ledger does.** Blobs
    publish before `persistWithLedger`. The mirror's `UpdateItem` would create `{id,
    exploredGeneration}` without `owner`/`__typename`, and the ledger's `profileTotalsItem` fills

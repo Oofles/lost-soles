@@ -3747,3 +3747,25 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     with zero awards explains itself while it lives.
   - **The receipt says `DONE`, not `FAILED`.** A duplicate is not a failure, and `FAILED` would put
     "1 activity failed to import" on the Sync line for a run that is present.
+
+- **D-264** **The `Profile.exploredGeneration` repair only ever raises the mirror; a mirror ahead
+  of the manifest is out of scope by design.**
+  *(Operator, 2026-10-01, ticket `0182`. Clarifies `02-data-model.md` §6.4's "the manifest wins".)*
+  - **What was found.** `repairGenerationMirror` is the conditional write
+    `exploredGeneration < :g`. It raises a mirror that lags the manifest and leaves one that is
+    ahead untouched. A live smoke test confirmed it: a row at 99, repaired against manifest 40,
+    stayed at 99. Read literally, §6.4's *"if they ever disagree, the manifest wins"* promised both
+    directions.
+  - **Why one direction is enough.** The mirror is written only after the manifest PUT commits,
+    and only with the generation just committed. Generations come from an atomic `ADD` (D-218),
+    and the manifest is serialised by `IfMatch` (D-219), so the manifest's generation never falls.
+    A mirror behind the manifest is reachable: a failed or out-of-order mirror write does it. A
+    mirror ahead of it is not reachable by any code path, only by a hand edit to T1.
+  - **Why not make it two-way.** Lowering the mirror would mean reading the row or writing
+    unconditionally. A read needs a `GetItem` grant the worker deliberately lacks, which would
+    reopen the possibility of writing the direction of authority backwards (`0051`, `0182`).
+    An unconditional write would lose the monotonic guard against out-of-order mirror writes. Both
+    weaken the system to cover a state it cannot reach.
+  - **If a hand edit ever does it.** Fix it by hand with an unconditional `UpdateItem`, using the
+    manifest's `generation`. The mirror is a notification channel: while it is wrong, the cost is a
+    missed push, and `05` §7.4's focus-revalidation and manual sync still deliver the map.

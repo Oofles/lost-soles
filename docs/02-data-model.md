@@ -1507,7 +1507,9 @@ atomic `ADD` on T6's item type C (§2 T6, D-218) and mirrored to
 `Profile.exploredGeneration` (T1) purely so the AppSync subscription has something to push
 (AP-14). **The manifest is authoritative; the Profile attribute is a notification channel.** If
 they ever disagree, the manifest wins and the mirror is repaired — which is why T1 documents it as
-a mirror rather than a source.
+a mirror rather than a source. **The repair only raises the mirror** (D-264): a mirror behind the
+manifest is the one disagreement the system can produce, and a mirror ahead of it can only come
+from a hand edit.
 
 The ordering obligation on the writer, in one line: **bump `generation` and write the new blobs
 before writing the new `manifest.json`.** The manifest is the commit point. A crash before it
