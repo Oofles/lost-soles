@@ -324,13 +324,12 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
         ddb,
         table: EXPLORED_CELL_TABLE,
         /**
-         * `0051`. The mirror is OFF: `mirrorGeneration` answers `"no-table"` and the publish is
-         * unaffected. The manifest is authoritative (`02` §6.4) and the mirror is only the
-         * AppSync subscription's push channel. `PROFILE_TABLE` is set since `0219` (the ledger's
-         * totals, below), but the mirror's grant and its repair path are `0182`'s, so it is
-         * deliberately not handed the name yet.
+         * `0051`/`0182`. `Profile.exploredGeneration`, the AppSync subscription's push channel.
+         * The manifest is authoritative (`02` §6.4): nothing reads this to decide anything, and
+         * a failed mirror write never fails the publish. `UpdateItem` only — the conditional
+         * write is the whole comparison.
          */
-        mirror: { ddb, table: undefined },
+        mirror: { ddb, table: required("PROFILE_TABLE") },
       },
       /**
        * `0195`. The per-activity route geometry (`02` §5.1, S-7). The SAME physical bucket as

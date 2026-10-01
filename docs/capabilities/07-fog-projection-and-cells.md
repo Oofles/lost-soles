@@ -75,8 +75,9 @@ payload. The same structural argument `02` §4.7 makes about there being no un-a
 AppSync subscription on the generation counter → revalidate the manifest on
 `visibilitychange`/`focus` → a manual sync affordance. **Never a timer**; background polling is
 exactly the upkeep D-013 rejects. At this milestone only the second and third exist in practice —
-the mirror that feeds the subscription is built and wired to nothing, because T1 `Profile` arrives
-with capability 09 (ticket `0182`).
+the mirror that feeds the subscription was built here and wired to nothing until T1 `Profile`
+arrived with capability 09. Since `0182` every publish writes `Profile.exploredGeneration`; the
+subscription that pushes it is capability 14's.
 
 ## Audit
 

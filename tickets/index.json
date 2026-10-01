@@ -4233,6 +4233,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-08T14:33:29Z",
+    "started": "2026-10-01T14:32:31Z",
     "path": "tickets/open/0182-wire-profile-exploredgeneration-once-t1-exists-env-var-grant.md",
     "ready": true,
     "acceptance": {

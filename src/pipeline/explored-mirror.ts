@@ -27,17 +27,13 @@ import { UpdateCommand } from "@aws-sdk/lib-dynamodb"
  * revalidating the manifest on `visibilitychange`/`focus`, and a manual sync — that do not
  * involve this attribute at all.
  *
- * ─── T1 DOES NOT EXIST YET, AND THAT IS WHY `table` IS OPTIONAL ─────────────
+ * ─── WHY `table` IS STILL OPTIONAL ──────────────────────────────────────────
  *
- * `amplify/data/resource.ts` carries `Activity` and `0012`'s placeholder; `Profile` arrives
- * with the XP engine (capability 09), which owns `totalXp`, `totalLevel` and the transaction
- * that writes them. Creating a nine-attribute T1 here to hold one integer would hand two later
- * capabilities a schema they did not choose — the widening D-152 forbids.
- *
- * So this module ships COMPLETE and tested, takes its table as a dependency, and answers
- * `"no-table"` today. The same shape D-217 chose for the ruleset: *"the pipeline takes the
- * registry as an ARGUMENT, so the day T5 exists is one line in the handler."* Here it is one
- * `addEnvironment` call and a grant. See ticket `0182`.
+ * Built in `0051` before T1 `Profile` existed, so it took its table as a dependency and
+ * answered `"no-table"` — the shape D-217 chose for the ruleset. T1 arrived with capability 09
+ * and `0182` handed the worker `PROFILE_TABLE`. `"no-table"` stays: it is still the right
+ * answer for a sandbox or a partial deploy, and a mirror that threw on a missing table would
+ * fail cold starts over a notification channel.
  */
 
 /** What a mirror attempt did. Every value is a normal outcome; none is an error. */
@@ -46,7 +42,7 @@ export type MirrorOutcome =
   | "mirrored"
   /** A higher generation is already there — a concurrent publish won. Correct, not a fault. */
   | "stale"
-  /** No `Profile` table configured. The state of the world until T1 lands. */
+  /** No `Profile` table configured — a sandbox or partial deploy. */
   | "no-table"
   /** The write failed. Logged, never thrown — see the module comment. */
   | "failed"
@@ -54,8 +50,7 @@ export type MirrorOutcome =
 export interface MirrorDeps {
   ddb: { send(command: UpdateCommand): Promise<unknown> }
   /**
-   * T1's physical table name. **Optional on purpose** — `undefined` is not a
-   * misconfiguration today, it is the accurate description of a model that does not exist.
+   * T1's physical table name. **Optional on purpose** — see the module comment.
    */
   table?: string
 }
