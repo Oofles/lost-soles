@@ -4,7 +4,7 @@ slug: min-units-for-credit-gates-discovery
 title: minUnitsForCredit does not gate discovery: a sub-250 m run reveals cells
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: [218]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T20:31:55Z
 started: 2026-10-01T20:42:21Z
+closed: 2026-10-01T21:47:15Z
 ---
 
 ## Description
@@ -41,8 +42,9 @@ to it has to see the activity's work.
       (D-031).
 - [x] Ingest and the XP replay apply the same gate through the same function, so a replay cannot
       reveal or credit what ingest refused.
-- [x] Below the threshold: no `ExploredCell` writes, no Cartography row. Wayfaring is still paid,
-      *amended 2026-10-01 (D-270):* at the recent-ground rate, not "unchanged". With no reveal
+- [x] Below the threshold: no `ExploredCell` writes, no Cartography row. ~~The activity XP rows are
+      unchanged~~ Wayfaring is still paid, *amended 2026-10-01 (D-270):* at the recent-ground
+      rate, not "unchanged". With no reveal
       there is no ground split, and `rateGround`'s no-path default applies. The operator chose this
       over a read-only classify; see Resolution.
 - [x] On a row with `revealsGround: false` the field changes nothing (D-269).
