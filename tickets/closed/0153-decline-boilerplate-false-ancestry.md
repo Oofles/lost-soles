@@ -4,7 +4,7 @@ slug: decline-boilerplate-false-ancestry
 title: Declined captures are near-identical, so git log --follow finds a FALSE ancestor
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-03T01:20:57Z
 started: 2026-10-01T00:53:43Z
+closed: 2026-10-01T00:55:40Z
 ---
 
 ## Description
