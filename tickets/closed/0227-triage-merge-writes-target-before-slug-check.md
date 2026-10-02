@@ -4,7 +4,7 @@ slug: triage-merge-writes-target-before-slug-check
 title: triage-merge writes the target's Notes before its slug check can refuse
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T00:38:18Z
 started: 2026-10-02T04:20:46Z
+closed: 2026-10-02T04:21:29Z
 ---
 
 ## Description
