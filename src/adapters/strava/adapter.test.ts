@@ -701,6 +701,34 @@ describe("what fetchRaw returns", () => {
 
 /** Criterion 4. */
 describe("no polyline decoder exists anywhere in this repository", () => {
+  /**
+   * Whether a shipped file's text reaches one of the exempted privacy-tooling scripts.
+   * Comment lines are skipped, for the reason `scripts/check-design-tokens.mjs` records
+   * for the same carve-out: a comment naming a script is documentation, not a leak
+   * (ticket 0189). An import, a require, or a string literal still counts. So does a
+   * trailing comment on a code line — the line is code, and the safe direction for a
+   * map that cannot re-fog is to fail it.
+   */
+  const reachesPrivacyTooling = (body: string, tooling: readonly string[]): boolean =>
+    body
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .some((line) => tooling.some((t) => line.includes(t.replace(/^scripts\//, ""))))
+
+  it("counts code that names privacy tooling, but not a comment that does (0189)", () => {
+    const tooling = ["scripts/check-fixture-geography.mjs"]
+    const reaches = (body: string) => reachesPrivacyTooling(body, tooling)
+
+    expect(reaches("// see scripts/check-fixture-geography.mjs")).toBe(false)
+    expect(reaches("/* check-fixture-geography.mjs covers this */")).toBe(false)
+    expect(reaches("/**\n * guarded by scripts/check-fixture-geography.mjs\n */")).toBe(false)
+
+    expect(reaches('import { scan } from "../../scripts/check-fixture-geography.mjs"')).toBe(true)
+    expect(reaches('const g = require("../scripts/check-fixture-geography.mjs")')).toBe(true)
+    expect(reaches('const path = "scripts/check-fixture-geography.mjs"')).toBe(true)
+    expect(reaches('await import("./check-fixture-geography.mjs") // lazy')).toBe(true)
+  })
+
   it("imports no polyline-decoding dependency, and declares none", () => {
     /**
      * D-121.4. The danger is not that someone writes a decoder — it is that someone adds
@@ -779,10 +807,9 @@ describe("no polyline decoder exists anywhere in this repository", () => {
       .flatMap((d) => walk(join(root, d)))
       .filter((f) => !/\.test\.(ts|tsx|mjs)$/.test(f))
 
-    const reachesTooling = shippedFiles.filter((f) => {
-      const body = readFileSync(f, "utf8")
-      return PRIVACY_TOOLING.some((t) => body.includes(t.replace(/^scripts\//, "")))
-    })
+    const reachesTooling = shippedFiles.filter((f) =>
+      reachesPrivacyTooling(readFileSync(f, "utf8"), PRIVACY_TOOLING),
+    )
     expect(reachesTooling.map((f) => f.slice(root.length + 1))).toEqual([])
 
     const decodesInline = shippedFiles.filter((f) =>
