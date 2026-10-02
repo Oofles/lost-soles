@@ -3418,7 +3418,7 @@
     "title": "build-index.mjs has no tests, so --check being read-only is asserted by nothing",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "01-ticket-system",
     "depends_on": [],
@@ -3426,8 +3426,9 @@
     "source": "agent",
     "created": "2026-09-02T02:08:41Z",
     "started": "2026-10-02T01:07:48Z",
-    "path": "tickets/open/0145-build-index-mjs-has-no-tests-so-check-being-read-only-is-ass.md",
-    "ready": true,
+    "closed": "2026-10-02T01:09:01Z",
+    "path": "tickets/closed/0145-build-index-mjs-has-no-tests-so-check-being-read-only-is-ass.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6

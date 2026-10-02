@@ -4,7 +4,7 @@ slug: build-index-mjs-has-no-tests-so-check-being-read-only-is-ass
 title: build-index.mjs has no tests, so --check being read-only is asserted by nothing
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 01-ticket-system
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T02:08:41Z
 started: 2026-10-02T01:07:48Z
+closed: 2026-10-02T01:09:01Z
 ---
 
 ## Description
