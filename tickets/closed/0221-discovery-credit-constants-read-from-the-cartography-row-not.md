@@ -4,7 +4,7 @@ slug: discovery-credit-constants-read-from-the-cartography-row-not
 title: Discovery credit constants read from the Cartography row, not discovery.ts
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T03:12:47Z
 started: 2026-10-02T01:35:51Z
+closed: 2026-10-02T01:39:59Z
 ---
 
 ## Description

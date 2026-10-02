@@ -5083,7 +5083,7 @@
     "title": "Discovery credit constants read from the Cartography row, not discovery.ts",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "09-xp-engine-and-ledger",
     "depends_on": [],
@@ -5091,8 +5091,9 @@
     "source": "agent",
     "created": "2026-09-29T03:12:47Z",
     "started": "2026-10-02T01:35:51Z",
-    "path": "tickets/open/0221-discovery-credit-constants-read-from-the-cartography-row-not.md",
-    "ready": true,
+    "closed": "2026-10-02T01:39:59Z",
+    "path": "tickets/closed/0221-discovery-credit-constants-read-from-the-cartography-row-not.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
