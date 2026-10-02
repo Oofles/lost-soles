@@ -4,7 +4,7 @@ slug: a-replay-that-completes-inside-one-ingest-invocation-leaves
 title: A replay that completes inside one ingest invocation leaves that activity on the pre-replay ruleset
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-02T02:55:51Z
 started: 2026-10-02T04:25:25Z
+closed: 2026-10-02T04:43:25Z
 ---
 
 ## Description
