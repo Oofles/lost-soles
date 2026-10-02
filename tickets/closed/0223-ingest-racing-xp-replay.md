@@ -4,7 +4,7 @@ slug: ingest-racing-xp-replay
 title: An ingest that lands during an XP replay can lose or double one activity's XP
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: [66]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T13:55:21Z
 started: 2026-10-02T01:51:51Z
+closed: 2026-10-02T02:23:05Z
 ---
 
 ## Description
