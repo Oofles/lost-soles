@@ -4,13 +4,14 @@ slug: d121-guard-fires-on-prose
 title: The D-121 polyline guard fires on prose, not just on code
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-10T01:26:56Z
+closed: 2026-10-02T01:13:38Z
 ---
 
 ## Description
