@@ -4,7 +4,7 @@ slug: workout-entry-accommodates-sets
 title: WorkoutEntry shape that accommodates sets from day one
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 10-add-workout
 depends_on: [25]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-02T19:52:51Z
+closed: 2026-10-02T19:59:29Z
 ---
 
 ## Description

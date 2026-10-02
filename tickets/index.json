@@ -1649,7 +1649,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0068-log-route-one-row-per-workout-type.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -1672,7 +1672,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0069-manual-adapter.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -1684,7 +1684,7 @@
     "title": "WorkoutEntry shape that accommodates sets from day one",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "10-add-workout",
     "depends_on": [
@@ -1694,8 +1694,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-02T19:52:51Z",
-    "path": "tickets/open/0070-workout-entry-accommodates-sets.md",
-    "ready": true,
+    "closed": "2026-10-02T19:59:29Z",
+    "path": "tickets/closed/0070-workout-entry-accommodates-sets.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9
