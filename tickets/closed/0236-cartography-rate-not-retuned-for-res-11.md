@@ -4,7 +4,7 @@ slug: cartography-rate-not-retuned-for-res-11
 title: Cartography pays ~7x its intended rate at res 11 — measure live cells/km and ship xp-rules-v2
 type: bug
 priority: high
-status: open
+status: closed
 size: m
 capability: 09-xp-engine-and-ledger
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-02T15:19:39Z
 started: 2026-10-02T16:42:38Z
+closed: 2026-10-02T17:12:34Z
 ---
 
 ## Description
