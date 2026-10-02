@@ -372,7 +372,8 @@ never feed back into what counts as explored.
 ### 2.4 The per-cell record
 
 D-120 is explicit: **each explored cell needs a `lastRunAt` timestamp, not just a presence bit**,
-because discovery scoring is a function of `now - lastRunAt`. It also needs `firstRunAt`, which
+because discovery scoring is a function of `activity.startedAt - lastRunAt` (amended by D-276: it
+said `now - lastRunAt`; scoring never reads the clock — `src/pipeline/explored-cells.ts`). It also needs `firstRunAt`, which
 D-120 does not call out but which lifetime statistics require and which cannot be reconstructed
 from `lastRunAt` once the cell has been re-run.
 
@@ -659,14 +660,20 @@ function idempotencyKey(activity, trace):
 - **Same source id, same content** → key hits, nothing is written, the stored award is returned.
   The map does not change, XP does not change.
 - **Same source id, different content** (edited activity) → key misses. This is a *revision*, not
-  a new activity: look up the prior ledger entry by `src`, **un-award** it (subtract its XP,
-  decrement `visitCount`/`discoveryCount` on its cells, restore `lastRunAt`/`lastRunId` by
-  replay), then score the new version. Do **not** remove cells — D-020. Ground that was revealed
-  stays revealed even if the activity that revealed it was edited to exclude it.
+  a new activity. **The first version's XP and its T3 discovery award are kept** (D-254, D-260):
+  an activity is awarded once. The revised geometry still reaches T6 and the per-run blob
+  (`appendCellsToRun`); cells are never removed (D-020), so ground the activity was edited to
+  exclude stays revealed. Rescoring the XP is left to a manually-run replay (`0066`); nothing
+  schedules it.
+  > **Amended by D-276 (09 audit, 2026-10-02):** this read *"**un-award** it (subtract its XP,
+  > decrement `visitCount`/`discoveryCount` …), then score the new version"* — a subtraction D-135
+  > forbids. Shipped behaviour is `src/pipeline/xp-ledger.ts` (`0220`); leaving the rescore manual is
+  > accepted by D-278 (single user, edits rare).
 - **`FOG_ALGO_VERSION` is in the key** so that a deliberate algorithm change invalidates every
   key and forces a full, auditable rescore rather than a silent mix of old and new scoring.
-- `store.appendCellsToRun(activity.id, cells)` exists precisely so un-award is possible without
-  re-deriving geometry.
+- `store.appendCellsToRun(activity.id, cells)` exists so a replay can fold each activity's newest
+  projection without re-deriving geometry (amended by D-276: it said *"so un-award is possible"*;
+  nothing un-awards).
 
 ### 3.6 Treadmill and no-GPS activities
 
@@ -1697,6 +1704,7 @@ recomputed:
 run.newCellCount       # never-seen cells        → unitMultipliers.new each (1.0)
 run.rearmedCellCount   # >6mo cells (D-120)      → unitMultipliers.rearmed each (0.5)
 run.cooledCellCount    # <6mo cells              → nothing; no ledger row
+run.deferredCellCount  # earlier than lastRunAt  → nothing until a replay folds it (§3.1, §3.4)
 ```
 
 Discovery credit is not stored (D-272). It is `discoveryCredits(counts, row)` in
@@ -1707,9 +1715,14 @@ One res-10 cell ≈ 15,048 m² ≈ 1.5 ha — a good XP unit. A first-ever run d
 ~80–130 new cells; the same run repeated yields 0. **That diminishing-returns curve *is* the game
 mechanic, and it falls out of the data model for free** (R3 §4e).
 
-The UI should surface all three counts, not just the total. "112 cells run · 41 new · 12
-rediscovered · 59 familiar" tells the story that a single XP number cannot. The `XP_PER_CELL`
-constant and the level curve belong to the progression document, not this one.
+The UI should surface all four counts, not just the total. "112 cells run · 41 new · 12
+rediscovered · 59 familiar" tells the story that a single XP number cannot. The per-cell rate is
+the Cartography row's `xpPerUnit` in `rules/xp-rules-v1.yaml` (D-215, D-272), and it and the
+level curve belong to the progression document, not this one.
+
+> **Amended by D-276 (09 audit, 2026-10-02):** this named an `XP_PER_CELL` constant and three
+> counts; there is no constant, and `deferredCellCount` is the fourth class (§3.1). The current
+> rate, 13, was tuned for res-10 density and is being retuned for res 11 by ticket `0236`.
 
 ### 8.3 Lifetime totals
 

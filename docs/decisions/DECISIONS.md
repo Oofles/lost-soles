@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-09-26
+Last updated: 2026-10-02
 
 ---
 
@@ -193,7 +193,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     genuinely new ground.
   - Supersedes the provisional D-022.
   - Implication for the data model: each explored cell needs a `lastRunAt` timestamp, not just
-    a presence bit, and discovery scoring is a function of `now - lastRunAt`.
+    a presence bit, and discovery scoring is a function of ~~`now - lastRunAt`~~
+    `activity.startedAt - lastRunAt`. → **Annotated at the capability `09` audit (D-276,
+    2026-10-02):** scoring never reads the clock (`src/pipeline/explored-cells.ts`); "now" here
+    was always the run's own start, and reading it literally would make replay non-deterministic.
 
 - **D-121** **MVP ingestion = Strava API adapter.** User's explicit decision, made with full
   knowledge of the retention terms (R1/R8) and after rejecting it once in Round 2.
@@ -306,9 +309,12 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     it — that shifts all levels equally. Diagnostic ratio `XP(99)/XP(50)`: RS 128.6, ours 7.88.
   - Progression: 1mo Wayfaring 22 · 2mo 27 (the hook target) · 1yr 47, Total 225 ·
     3yr Total 315 · 10yr Total 462 · **99 Wayfaring at 11.9 years**.
-  - Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/sec · new H3 cell 15 ·
+  - Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/sec · new H3 cell ~~15~~ ·
     Constitution = 1/3 of activity XP (pattern lifted from RS Hitpoints).
   - To rescale the whole timeline, change the one constant: `3L²` → 99 in 8.9y, `5L²` → 14.9y.
+  - → **Annotated at the capability `09` audit (D-276, 2026-10-02):** the per-cell rate is 13
+    (D-215, tuned for res-10 density), and is itself wrong at res 11 (D-237) — being retuned by
+    ticket `0236`. The rate lives only in the Cartography row's `xpPerUnit`, never here.
 
 - **D-131** **Strength-skill pacing left as-is.** 99 Might ≈ 27 years at modest volume is
   ACCEPTED as honest. Skill levels mean the same thing across disciplines; the remedy for a
@@ -3764,6 +3770,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Why not make it two-way.** Lowering the mirror would mean reading the row or writing
     unconditionally. A read needs a `GetItem` grant the worker deliberately lacks, which would
     reopen the possibility of writing the direction of authority backwards (`0051`, `0182`).
+    → **Annotated at the capability `09` audit (D-276, 2026-10-02):** the worker has held
+    `GetItem` on T1 since D-275 (`0235`, `amplify/backend.ts`). The grant half of this reason is
+    gone; the decision stands on the other half — the state is unreachable, and an
+    unconditional write would lose the monotonic guard.
     An unconditional write would lose the monotonic guard against out-of-order mirror writes. Both
     weaken the system to cover a state it cannot reach.
   - **If a hand edit ever does it.** Fix it by hand with an unconditional `UpdateItem`, using the
@@ -4006,7 +4016,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Not solved here.** The worker scores with the ruleset it was deployed with (pinned to v1
     in `handler.ts`). An activity redelivered after a replay to v*N* is scored under the
     worker's version, not necessarily v*N*. That is true of every activity after a rebalance
-    and is tracked separately.
+    and is tracked separately. → **RESOLVED by D-274** (version read per activity), and its
+    residual by D-275. Annotated at the capability `09` audit (D-276, 2026-10-02).
 
 - **D-274** **The ingest worker scores each activity under the version the user's ledger is on:
   the highest `SkillState.rulesVersionLastComputed`, read per activity, picked from every
@@ -4036,12 +4047,15 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `RulesVersionNotBundledError` before the score gate, so nothing is claimed or written, and
     the queue retries. The handler also refuses at cold start a JSON file whose `version`
     disagrees with its file name.
-  - **A user with no T2 rows** is scored under the newest bundled version.
+  - ~~**A user with no T2 rows** is scored under the newest bundled version.~~ → **Superseded by
+    D-275:** T2's max, then `Profile.ledgerRulesVersion`, then the newest bundled. The "no new
+    grant and no schema change" above no longer holds either (D-275 added `GetItem` on T1 and one
+    `Profile` field). Struck in place at the capability `09` audit (D-276, 2026-10-02).
   - **Known residual.** The version is read before the cells phase, and the commit comes later.
     If a whole replay (freeze, 60 s drain, thaw) completes between the two, the commit lands
     after the thaw under the old version. That needs one invocation to stall for more than the
     drain. The next replay re-prices the activity correctly. Tracked as a separate ticket rather
-    than widening this one.
+    than widening this one. → **RESOLVED by D-275** (`0235`).
 
 - **D-275** **An ingest commit with XP is refused unless the user's ledger is still on the version
   the activity was scored under. The replay's thaw stamps `Profile.ledgerRulesVersion`, and the
@@ -4070,3 +4084,66 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     order is T2's max, then `Profile.ledgerRulesVersion`, then the newest bundled. That costs
     the worker `dynamodb:GetItem` on T1 and adds one owner-read-only field to the `Profile`
     model.
+
+- **D-276** **Capability `09`'s drift audit found the design docs stale in about twenty places, and
+  they were amended in place to match the shipped code in the same session, not left for later.**
+  *(Agent, approved by the operator, 2026-10-02, capability `09` audit.)*
+  - **What was found.** The first §2 pass found roughly twenty places where a design doc
+    described something the code does not do. That is far over AUDIT.md's budget of three.
+    Almost all of them were decisions made during the build (D-144, D-217, D-254, D-257, D-260,
+    D-270, D-273–D-275) that were recorded here but never written back into the section they
+    changed. The biggest cases:
+    - `02` §3.8 and §4.4 describe a seeder and a T5 table that do not exist. Rules ship as
+      bundled JSON.
+    - `02` §4.3 puts cell writes inside the XP transaction, which the code forbids.
+    - `02` §4.3 stamps `lastXpAt` with the clock.
+    - `05` §3.5 un-awards a revision by subtracting XP, which violates D-135.
+  - **Resolution.** The budget rule says a blown budget means the design is stale and calls for
+    a DESIGN session. The operator chose to run that session inside the audit rather than as a
+    separate one.
+    - **Docs amended**, each amendment citing this decision: `02` §3.4, §3.7, §3.8, §4.1–§4.6;
+      `05` §3.5, §8.2; `04` §7.4; `06` §5.4; the `09-roadmap` capability row; the ingestion
+      contract §4 step 7; and every doc that stated `now - lastRunAt`.
+    - **Decisions annotated in place:** D-120, D-130, D-264, D-273, D-274.
+    - The audit then recorded only the code-was-wrong findings (`0236`, `0237`, `0238`), which is
+      within budget.
+  - **What should change.** A decision that changes a design section is not finished until the
+    section says so. The ticket that makes the decision amends the doc in its own commit. This
+    is D-153's rule ("code changes or doc changes, never neither") applied at ticket close, not
+    saved up for the capability audit.
+
+- **D-277** **For capability `09`, the USE step is met by real data through the deployed path, and
+  the desktop look moves to capability `11`'s audit.** Narrows AUDIT.md §3's USE row for `09`
+  only.
+  *(Operator, 2026-10-02, capability `09` audit.)*
+  - **The problem.** §3 named `09` as a capability that must be looked at on the desktop browser
+    (D-227). But `09` owns no screen: `/skills`, `/skills/[id]` and `/run/[id]` are stubs. The
+    first screen that shows XP is `0073`, in capability `11`, and D-153 gates `11` behind this
+    audit. Read literally, the USE step was circular.
+  - **What counts instead.** Real data went through the real deployed path, and the result was
+    checked against live tables:
+    - `0066` replayed the operator's 17 archived runs.
+    - `0067` and `0220` re-ingested through the deployed queue and worker.
+    - `0226` repaired the live T3 to agree with the ledger.
+    Live state at audit time: Cartography 14,807 / L22, Constitution 1,553 / L11, Wayfaring
+    4,661 / L15.
+  - **What it does not waive.** Capability `11`'s audit must *look at* XP and levels on the
+    desktop browser, against this same live data. That includes the flicker check `0066` moved
+    to `0073`.
+  - **What the look would have caught.** At least one finding was visible in the data but not in
+    any test: Cartography roughly 3× Wayfaring (`0236`).
+
+- **D-278** **A revised activity (same source id, different content) does not trigger an XP rescore.
+  The first version's XP and discovery award stand until an XP replay is run by hand.**
+  *(Operator, 2026-10-02, capability `09` audit. Amends `05` §3.5.)*
+  - **What ships** (D-254, D-260):
+    - The ledger's `alreadyScored` check keeps the first version's XP and its T3 discovery award.
+    - The revised geometry still reaches T6 and the per-run blob (`appendCellsToRun`), so the map
+      is correct. Cells are never removed (D-020).
+    - Nothing schedules a replay. `needsReplay` keys only on deferred cells.
+  - **Why accept it.** This is a single-user app, and an edited activity is rare. The error is
+    bounded: it is one run's XP, and a replay corrects it. An automatic rescore would have to
+    be an un-award, and D-135 forbids that. A per-revision replay would also freeze ingest for a
+    cosmetic gain.
+  - **Revisit if** activity edits stop being rare, for example a source that routinely
+    re-uploads cropped activities.

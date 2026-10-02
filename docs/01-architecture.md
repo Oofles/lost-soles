@@ -812,7 +812,8 @@ ground is visible forever (D-020). What re-arms is *discovery credit*:
 
 The data-model implication is stated in the decision itself: **each explored cell needs a
 `lastRunAt` timestamp, not just a presence bit**, and discovery scoring is a function of
-`now - lastRunAt`. So the item is:
+`activity.startedAt - lastRunAt` (amended by D-276, 09 audit: it said `now - lastRunAt`; scoring
+never reads the clock). So the item is:
 
 ```
 PK: U#<uid>#C#<res7ParentCellId>   -- res 7 since D-267

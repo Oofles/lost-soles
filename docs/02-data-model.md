@@ -414,7 +414,7 @@ sk  = <res11CellId>                          e.g. 8b… (res 11, D-237; was <res
 |---|---|---|---|
 | `firstRunAt` | S (ISO 8601 UTC) | `min(existing, incoming)` — **immutable in spirit; `min` because backfills arrive out of order** (05 §3.4) | lifetime stats, "explorer since", ordering territory by age of discovery. **Cannot be reconstructed from `lastRunAt` once the cell is re-run** — this is exactly why D-120 needs both. |
 | `firstRunId` | S | `if_not_exists` | audit: which run discovered this ground |
-| `lastRunAt` | S (ISO 8601 UTC) | `max(existing, incoming)` | **THE D-120 clock.** Discovery scoring is `now − lastRunAt`. A presence bit here is the bug D-120 was written to prevent. |
+| `lastRunAt` | S (ISO 8601 UTC) | `max(existing, incoming)` | **THE D-120 clock.** Discovery scoring is ~~`now − lastRunAt`~~ `activity.startedAt − lastRunAt` (*amended by D-276, per D-120 as built; I-9*). A presence bit here is the bug D-120 was written to prevent. |
 | `lastRunId` | S | set when `lastRunAt` advances | audit |
 | `visitCount` | N | `ADD 1` per *activity*, not per traversal (05 §3.3) | "most-run ground"; a future heat view |
 | `discoveryCount` | N | `ADD 1` only when credit was awarded | separates "run 40 times" from "re-armed twice" |
@@ -802,9 +802,11 @@ skill. Meta skills are never matched — they arrive through `feeds` (J4) and th
 subsystem's own derived award (Cartography, 05 §8.2).
 
 **The matcher is total and deterministic**, which 04 §7.4 requires for replay soundness: same
-activity + same `rulesVersion` ⇒ same skills, always, with no clock and no RNG. Zero matches for
-an activity that carries measurable work is a **hard seed-time error**, not a runtime surprise
-(§3.8, check 3).
+activity + same `rulesVersion` ⇒ same skills, always, with no clock and no RNG. ~~Zero matches for
+an activity that carries measurable work is a **hard seed-time error**~~ Zero **distance** skills
+for a kind that carries distance is a **hard validation error**, not a runtime surprise
+(§3.8, check 3). *Amended by D-276 (09 audit, 2026-10-02), per D-190:* `other` is exempt and
+`strength` excluded; `src/rules/validate.ts` check 3b.
 
 **Selection is not revelation.** Matching a skill decides which XP an activity earns; whether it
 opens the map is a separate question answered by that skill's `revealsGround` (§3.2, D-189). A
@@ -945,9 +947,14 @@ a programming language with no debugger. The line is drawn here:
 | `logMode` | Kernel | `measure` values it serves |
 |---|---|---|
 | `trace` | units = distance in km from the activity | `distanceKm` |
-| `reps` | units = Σ `sets[].reps` where `sets[].exercise` ∈ this skill's `exercises[].id` | `reps:<exerciseId>` |
-| `duration` | units = Σ `sets[].durationS` for this skill's exercises | `seconds:<exerciseId>` |
+| `reps` | units = Σ `sets[].reps` where `sets[].exercise` = ~~∈ this skill's `exercises[].id`~~ the measure's `<exerciseId>` | `reps:<exerciseId>` |
+| `duration` | units = Σ `sets[].durationS` for ~~this skill's exercises~~ the measure's `<exerciseId>` | `seconds:<exerciseId>` |
 | `derived` | units supplied by another subsystem (cells from fog; `feeds` shares) | `cells`, `share` |
+
+*Amended by D-276 (09 audit, 2026-10-02):* the kernel is selected by the **`measure` prefix**
+(`distanceKm`, `reps:`, `seconds:` — `src/scoring/units.ts` `KERNELS`); `logMode` is display/log-form
+metadata the scorer does not read. A validator check that the two agree is ticket `0238`. Reps and
+duration sum only the one exercise the measure's suffix names, not every `exercises[].id`.
 
 **Data (everything else):** which skills exist, their names, ids, order, units, rates, caps,
 floors, ground multipliers, meta-skill feeds, exercise rows and quick-log values — **and which
@@ -961,12 +968,16 @@ a special case."* Pool swimming (distance with no GPS) is not a new kernel — i
 
 ### 3.8 Seeding, and the CI checks that keep this true
 
-The deploy-time seeder reads `rules/xp-rules-vN.yaml`, validates it, and writes T5 items under
-partition `N`. It is **idempotent and append-only across versions**: it never edits an existing
-`rulesVersion` partition, because 04 §7.6 requires every shipped ruleset to survive forever —
-a ledger row citing `v1` is meaningless if `v1`'s rows were mutated.
+~~The deploy-time seeder reads `rules/xp-rules-vN.yaml`, validates it, and writes T5 items under
+partition `N`.~~ *Amended by D-276 (09 audit, 2026-10-02), per D-217/D-274/D-275:* there is no
+seeder and no T5. `scripts/build-rules-json.mjs` turns each `rules/xp-rules-vN.yaml` into
+`rules/xp-rules-vN.json` and regenerates `rules/xp-rules.bundled.ts`, which the ingest worker
+imports. The set is **append-only across versions**: a shipped `vN` is never edited, because 04
+§7.6 requires every shipped ruleset to survive forever — a ledger row citing `v1` is meaningless
+if `v1` was mutated.
 
-Validation, run in CI and again in the seeder, failing the build on any violation:
+Validation, run in CI and again by the worker at cold start (`assertValidRuleSet` on every bundled
+version), failing the build or the cold start on any violation:
 
 1. `skillId` unique within a version; `feeds[].skill` resolves to an existing `kind: meta` row.
 2. `feeds` has no cycles (Constitution feeds nothing — 04 §1.1), and is **empty on every
@@ -989,7 +1000,8 @@ Validation, run in CI and again in the seeder, failing the build on any violatio
    §3.5, and assert (a) the repo's TypeScript diff is empty, (b) a `hasTrace: false` run scores
    into `vigil` at full rate, (c) the same run with a trace scores into `wayfaring`, (d) neither
    writes an `ExploredCell` for the traceless case. **This test is the acceptance criterion for
-   D-031, wired into CI so the property cannot rot.**
+   D-031, wired into CI so the property cannot rot.** *Amended by D-276 (09 audit, 2026-10-02):*
+   clause (d) is not yet wired; it is deferred to open ticket `0159`.
 6. `grep -rE '"(wayfaring|vigil|might|fortitude|endurance|cartography|constitution)"' src/` returns
    nothing outside `rules/`, fixtures and tests — the skill-name equivalent of the contract §5
    `grep -ri strava` check.
@@ -1048,13 +1060,14 @@ extended by the two rows this design needs:
 |---|---|---|
 | `new_ground` | distance over never-seen cells | scorer, `logMode: trace` |
 | `rearmed_ground` | distance over cells last run > 6 months ago (D-120) | scorer |
-| `recent_ground` | distance over cells last run ≤ 6 months ago — **half XP, D-120/D-021** | scorer |
+| `recent_ground` | distance over cells last run ≤ 6 months ago — **half XP, D-120/D-021**. *Amended by D-276 (09 audit, 2026-10-02):* also distance over **deferred** cells (`GROUND_OF`, `src/scoring/ground.ts`; the replay can only raise it), and **one full row** when a ground-scored skill has no classified path, e.g. a run below `minUnitsForCredit` (D-270) | scorer |
 | `distance` | distance with **no ground classification at all** — this is Vigil's row (§3.5), and any future traceless distance skill | scorer |
 | `reps` | `logMode: reps` | scorer |
 | `duration` | `logMode: duration` | scorer |
-| `cells_new` / `cells_rearmed` | Cartography, 1.0 and 0.5 credit (05 §8.2) | fog subsystem |
+| `cells_new` / `cells_rearmed` | Cartography, 1.0 and 0.5 credit (05 §8.2) | ~~fog subsystem~~ scorer (`discoveryRows`, `src/scoring/propagate.ts`), from the fog's `DiscoveryAward` — *amended by D-276* |
 | `constitution_share` | the `feeds` propagation, 1/3 (04 §1.1); **one row per activity**, summed over every feeder (D-255) | scorer |
 | `retained_floor` | **D-135 only.** §4.6. | replay job |
+| `replay_run` | the §4.5 `ReplayRun` audit row, `xpAwarded: 0` (D-258). *Added to this table by D-276 (09 audit, 2026-10-02).* | replay job |
 | `slayer_win`, `slayer_loss`, `boss_phase` | reserved, post-MVP (D-122) | — |
 
 **`recent_ground` and `cells_recent` are asymmetric on purpose**: repeated ground still pays half
@@ -1069,8 +1082,8 @@ a strength session ≈ 4 (three exercises + share). That is the ~4.5 rows/activi
 ### 4.3 The write path
 
 Every ledger row is written inside the single `TransactWriteItems` described in §2 T8 layer 3,
-together with the `Activity` put, the `SkillState` `ADD`s, the `ExploredCell` updates and the
-receipt's `status = "DONE"`. **XP and its receipt commit or fail together**; there is no window in
+together with the `Activity` put, the `SkillState` `ADD`s, ~~the `ExploredCell` updates~~ and the
+receipt's `status = "DONE"` (*amended by D-276 — cells are never in it; see below*). **XP and its receipt commit or fail together**; there is no window in
 which a row exists without the idempotency gate that would stop it being written twice.
 
 ```
@@ -1080,6 +1093,8 @@ TransactWriteItems (≤ 100 items; a run is ~15, worst case ~40)
   Update SkillState × M        ADD xpLedgerSum :xp, displayedXp :xp
                                SET level = …, levelHighWater = …, lastXpAt = :now
   Update Profile               SET totalXp = totalXp + :xp, exploredGeneration = :gen
+                               Condition: replayInProgress not set (D-273) AND
+                               ledgerRulesVersion absent or = scoring version (D-275), §4.4 step 1
   Update IngestReceipt         SET status = "DONE"  ConditionExpression: status = "PROCESSING"
 ```
 
@@ -1088,6 +1103,10 @@ the pre-read `SkillState` and writes them with a `ConditionExpression` on the pr
 `xpLedgerSum`; a lost race retries the whole transaction. At ≤ 6 users with at most one ingest in
 flight each, that race is theoretical — but the condition costs nothing and its absence would be
 a silent lost update.
+
+*Amended by D-276 (09 audit, 2026-10-02):* ~~`lastXpAt = :now`~~ — `lastXpAt = max(prev,
+activity.startedAt)` and `firstXpAt = min(prev, activity.startedAt)`, never the clock (I-12,
+`src/pipeline/xp-ledger.ts`).
 
 **An activity is awarded once (D-254).** The row condition stops a concurrent duplicate; it does
 not stop a later one, because a redelivery re-classifies the ground as `recent` and produces rows
@@ -1117,7 +1136,9 @@ award and still commits. A source-side revision keeps the first award too, until
 ledger rows credited them, this delivery's cooled cells cooled, and the remainder deferred to the
 replay. It does not carry the fresh classification, which would claim cells T4 never paid for.
 
-**Cell writes stay outside** this transaction when a run touches more than ~60 cells, because
+**Cell writes stay outside** this transaction ~~when a run touches more than ~60 cells~~ —
+*always* (*amended by D-276, 09 audit, 2026-10-02; I-10, D-144*: `assertNoCellWrites` in
+`src/pipeline/persist.ts` throws on any cell key) — because
 `TransactWriteItems` caps at 100 items and a run touches 40–130 (R3 §2). The ordering is: cell
 writes first (idempotent set-inserts, §2 T6), then the transaction. A crash between the two leaves
 cells revealed with no XP awarded — which the replayed message then fixes, awarding XP while the
@@ -1135,7 +1156,8 @@ A rebalance is, **in this order** (D-274):
    the version the user's ledger is on: the highest `SkillState.rulesVersionLastComputed`; when
    the user has no rows, `Profile.ledgerRulesVersion`; when neither exists, the newest bundled
    version (`src/pipeline/worker-rules.ts`, D-275).
-3. Seed T5 partition `2` (§3.8).
+3. ~~Seed T5 partition `2` (§3.8).~~ *Amended by D-276 (09 audit, 2026-10-02):* nothing — there
+   is no T5; step 1's bundle is the registry (§3.8).
 4. Run the replay job to v2. Its thaw (step 6) rewrites every SkillState row to v2, and the next
    ingest follows on its own. Nothing is redeployed after the replay.
 
@@ -1178,7 +1200,7 @@ replay(userId, toRulesVersion):
  3. REPLAY, in 04 §7.4 order — Activity GSI1 byUserAndStart ascending, ties by activityId
     for each Activity with status = ACTIVE:
       a. load the registry for toRulesVersion (§3.2), select skills (§3.4)
-      b. ground classification: fold cells/<uid>/<activityId>.cells.bin (§2.9) in the SAME
+      b. ground classification: fold users/<uid>/cells/<activityId>.bin (§2.9) in the SAME
          order, maintaining an in-memory firstRunAt/lastRunAt map. This reconstructs the
          D-120 "was this ground run within 6 months" answer AS IT WAS, from facts —
          it does NOT read ExploredCell, which is a cache of this very fold.
@@ -1201,6 +1223,12 @@ Volume makes this trivial: 2,000–5,000 activities and 20k–50k cells at five 
 replay is **seconds and a few hundred thousand RRU/WRU — well under a dollar, once**, comfortably
 inside D-083.
 
+*Amended by D-276 (09 audit, 2026-10-02):* the per-run cell record is
+`users/<uid>/cells/<activityId>.bin` (`src/pipeline/explored-blob-store.ts` `runCells`), not
+`cells/<uid>/…`. The fold in 3b covers activities of **every** status, tombstoned included —
+their cells stay revealed (D-020); only scoring (3a, 3c–e) skips non-ACTIVE rows
+(`src/pipeline/xp-replay.ts`).
+
 *As built (`0224`, `0226`, D-261):* step 3e writes, after the ledger rows, `xpAwarded` (the SUM
 of the activity's rows) and `xpRulesVersion` (`null` when there are none). When the activity was
 scored with cells, it also writes the fold's discovery award, so a §3.4-provisional row stops
@@ -1220,7 +1248,7 @@ been shown. It is written to T4's table under a reserved partition rather than e
 table:
 
 ```
-XpLedgerEntry item, id = REPLAY#<userId>#<ulid>
+XpLedgerEntry item, id = REPLAY#<userId>#<sortableId>
   { userId, fromRulesVersion, toRulesVersion, startedAt, finishedAt,
     status: RUNNING | DONE | FAILED,
     waterline: { wayfaring: {xp: 412900, level: 47}, … },   # step 0
@@ -1237,6 +1265,10 @@ will be ~3 of them in five years.
 `seq = "0000-00-00T00:00:00Z#__replay__#<id>"`, which sorts first so an unfinished run is one
 `begins_with` query). The run with `status: DONE` **is** the chronicle entry step 6 writes. A
 re-run resumes the newest run that is not `DONE`, reusing its waterline.
+
+*Amended by D-276 (09 audit, 2026-10-02):* the id suffix is a base36 time+random sortable id
+(`sortableId`, `src/pipeline/xp-replay.ts`), not a ULID, and the row also carries `generation`
+(the explored generation step 4 produced) and `error` (on `FAILED`).
 
 ### 4.6 D-135, enforced — what happens when the new number is lower
 
@@ -1269,6 +1301,10 @@ if gap > 0:
 
 displayedXp = xpLedgerSum = newSum + existingFloors + gap    #  == prevDisplayed exactly
 ```
+
+*Known defect (D-276, 09 audit, 2026-10-02):* this id collides when two replays cover the same
+`from`→`to` pair with a fresh shortfall (e.g. two v1→v1 replays): the put throws at step 5 and the
+run is left `FAILED` with `replayInProgress` up — ticket `0237`.
 
 Five properties this buys, none of which a clamp would:
 

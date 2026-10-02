@@ -58,6 +58,12 @@ lockfile-exact cache (D-162, `0128`) is likely a large share of the ~9.5 minutes
 
 Related: D-083, D-150, D-162, `0128`, `0013`.
 
+- **2026-10-02 (capability 09 audit, §5):** September actuals from Cost Explorer: **$50.29 total**.
+  That is Business Support+ $29.00, Amplify $18.73 (`USE1-BuildDuration` 1,841.5 min = $18.41,
+  so worse than this ticket's $15 estimate), KMS $1.85, Route 53 $0.56 and S3 $0.10. NAT gateways: 0.
+  Excluding the support plan, the app runs about $21/mo against D-083's $1–5, and build minutes
+  are 88% of it.
+
 ## Operator validation
 
 None: build configuration with nothing on screen. Smoke test by the agent: push a docs-only commit

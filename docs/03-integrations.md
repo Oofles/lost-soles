@@ -1201,7 +1201,7 @@ gets fixed retroactively):
          for each activity, ordered by manifest.startedAt ASC:
            parse → dedupe → sanitize → project H3 res 10 → score
    Ordering by startedAt ascending is required: D-120's discovery scoring is a function of
-   `now - lastRunAt`, so cells must be visited in chronological order or the half-XP and
+   `activity.startedAt - lastRunAt` (amended by D-276; it said `now -`), so cells must be visited in chronological order or the half-XP and
    6-month re-arm rules produce different answers.
 3. Diff the new table against the snapshot. Investigate any cell that LOST its revealed bit —
    by D-020 that is impossible and indicates a parser regression.

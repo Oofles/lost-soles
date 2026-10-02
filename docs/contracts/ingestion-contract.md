@@ -278,10 +278,16 @@ accept()                                   → ack the source in <2s, enqueue
   → 2. normalize()  [PURE]                 (vendor types die here)
   → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source — `src/pipeline/dedupe.ts`, 0179)
   → 4. SANITIZE trace                      (speed-gate implausible jumps; honour `gaps`)
-  → 5. PROJECT to H3 res 10 cells          (D-115)
+  → 5. PROJECT to H3 res 11 cells          (D-237, superseding D-115; D-276)
   → 6. SCORE fog + XP                      (D-120: full / half / 50% re-arm)
   → 7. PERSIST activity + cell deltas      (DynamoDB, D-082; append-only, D-020)
 ```
+
+> **Amended by D-276 (09 audit, 2026-10-02):** step 7 is two writes in a fixed order. The cell
+> deltas (T6, plus the per-run blob) are written **first, outside and before** the XP transaction
+> (D-144, I-10) — a failure leaves the map ahead of XP, never the reverse. The transaction then
+> writes the ingest receipt, T3 `Activity`, T4 ledger rows, T2 `SkillState` and the Profile row
+> (conditioned per D-273/D-275), and the `snapshots/skillstate/` object follows it.
 
 ## 5. CI checks that prove the boundary holds (D-100)
 

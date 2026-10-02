@@ -1,10 +1,56 @@
 {
-  "note": "High-water marks for the AUDIT.md §4 regression rows (ticket 0183). fog.users maps a truncated sha256 of each Cognito sub to the largest manifest.json cellCount and generation seen at a recorded audit; the next audit fails if either is lower (D-020, I-7, I-11). Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an audit pass.",
+  "note": "High-water marks for the AUDIT.md §4 regression rows (tickets 0183, 0225). fog.users maps a truncated sha256 of each Cognito sub to the largest manifest.json cellCount and generation seen at a recorded audit; the next audit fails if either is lower (D-020, I-7, I-11). xp.users maps the same key to, per skill, the largest displayedXp and max(level, levelHighWater) in the newest snapshots/skillstate/ object; the next audit fails if any is lower (D-135, I-16). Advanced only by 'tickets.mjs audit --record'; never hand-edited to make an audit pass.",
   "fog": {
     "users": {
       "9ec8069a18c7209a": {
-        "cellCount": 1035,
-        "generation": 61
+        "cellCount": 1141,
+        "generation": 129
+      }
+    }
+  },
+  "xp": {
+    "users": {
+      "9ec8069a18c7209a": {
+        "cadence": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "cartography": {
+          "displayedXp": 14807,
+          "level": 22
+        },
+        "constitution": {
+          "displayedXp": 1553,
+          "level": 11
+        },
+        "endurance": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "fortitude": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "might": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "roving": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "slayer": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "vigil": {
+          "displayedXp": 0,
+          "level": 1
+        },
+        "wayfaring": {
+          "displayedXp": 4661,
+          "level": 15
+        }
       }
     }
   }

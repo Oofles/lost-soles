@@ -672,7 +672,8 @@ grows, and so do the numbers.**
 ### 3.1 Ground classification (D-120)
 
 Every explored cell carries its visit history. Discovery scoring is a function of
-`now − lastRunAt` (D-120's own stated implication). Three classes:
+`activity.startedAt − lastRunAt` (D-120's own stated implication; amended by D-276 — it said
+`now − lastRunAt`, but scoring never reads the clock). Three classes:
 
 | Class | Condition | Wayfaring XP | Cartography credit |
 |---|---|---|---|
@@ -1247,8 +1248,10 @@ One row per (activity, skill, reason). This single table does three jobs:
 For replay to be sound, everything downstream must be a pure function of facts + rules:
 
 - Ground classification: from `CellVisit` history. ✅
-- GPS filtering: from the raw trace + rule constants. ✅ (which is why filtering must live in
-  the derived layer, §3.5, not be baked in at ingest)
+- GPS filtering: from the raw trace + code constants (`TELEPORT_SPEED_MS`, `src/domain/fog.ts`). ✅
+  The XP replay folds the stored per-run cells (`readRunCells`), so a filter change needs an
+  explored rebuild, not a ruleset replay. **Amended by D-276 (09 audit, 2026-10-02):** this said
+  *"rule constants"*; the filter is not in the ruleset. Determinism still holds.
 - Encounter spawns: `hash(userId, cell, week)`. ✅ deterministic
 - Encounter outcomes: `seededRandom(activityId, creatureId)`. ✅ deterministic — **no
   unseeded RNG anywhere in this design.** This is a hard requirement.

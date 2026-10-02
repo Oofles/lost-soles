@@ -70,6 +70,10 @@ not that the code is sloppy. Stop shipping tickets and run a DESIGN session on t
       through the real path and LOOKED AT on the desktop browser (D-227), not merely unit-tested.
       It is **not** a blanket rule: a backend capability with no screen has nothing to look at, and
       demanding a ritual there is the ceremony D-181 removes.
+      **`09` is met by data alone** (D-277): it owns no screen, and the first one showing XP
+      (`0073`) sits in `11`, behind this gate. Real data through the deployed path, checked
+      against live tables, satisfies `09`; **`11`'s audit then owes the desktop look at XP and
+      levels** on that same data.
 - [ ] **A real run is welcome evidence and is never a precondition** (D-229). *Written here until
       then as "you went for an actual run with this build on your phone".* The operator runs to
       enjoy the app, not to unblock an audit — so the data comes from the manual adapter (`0069`), a

@@ -302,7 +302,7 @@ identically.
 | 1 | ▸ **`domain/fog.ts` — trace → H3 res-11 cell set** | `05-fog-of-war.md` §2.2. Res 11 canonical, never mixed (D-237, superseding D-115's res 10). |
 | 2 | ▸ **Reveal radius (65 m) and corridor fill** | §2.3. Note: every Cartography number scales linearly with this (04 §10) — changing it later is a rebalance. |
 | 3 | ▸ **`ExploredCell` writes with `lastRunAt`, outside the ingest transaction** | D-120, D-144. Failure mode is deliberately "map ahead of XP", never the reverse. DynamoDB's 100-item cap vs 130–430 cells/run (40–130 before D-237 moved the grid to res 11); the write path is per-item `UpdateItem` with a worker pool, never a 100-item transaction, precisely so the cap does not bind. |
-| 4 | ▸ **Discovery classification: new / cold (>6mo, 50%) / warm (<6mo, 0%)** | D-120. Pure function of `now - lastRunAt`; unit-tested at the boundaries. Feeds `09`, not consumed yet. |
+| 4 | ▸ **Discovery classification: new / cold (>6mo, 50%) / warm (<6mo, 0%)** | D-120. Pure function of `activity.startedAt - lastRunAt` (amended by D-276; said `now -`); unit-tested at the boundaries. Feeds `09`, not consumed yet. |
 | 5 | ▸ **`explored-r11.<gen>.bin` generation + `manifest.json` generation counter** | `05-fog-of-war.md` §7.1, `02-data-model.md` §6. Regeneration does not re-read the table (§2.10). |
 | 6 | ▸ **Same-run edge cases, out-of-order and backfilled activities, idempotency** | `05-fog-of-war.md` §3.3–3.5. |
 | 7 | **Cache invalidation contract between the Lambda and the browser** | `02-data-model.md` §6.4. |
@@ -342,7 +342,7 @@ browser (D-240), measured, not assumed. If it is not met, `08` is not done; do n
 | 1 | ▸ **The scorer: activity → per-skill unit counts, via `selectActivitySkills`** | Grouped by `measure`; one strength session trains Might *and* Fortitude (`02-data-model.md` §3.4). No `switch` on skill id, ever. |
 | 2 | ▸ **Ground multipliers** | New 100%, re-run half XP to the activity skill, cold ground 50% discovery credit, warm 0% (D-120, D-021). |
 | 3 | ▸ **`XpLedgerEntry` (T4): append-only, one row per (activity, skill, reason), each with `xpRulesVersion`** | D-142. `SkillState` is a pure SUM (T2). |
-| 4 | ▸ **Level maths: `4L²` to advance, `C(L) = 2(L−1)L(2L−1)/3`, `C(99) = 1,274,196`** | D-130. Cubic, not exponential. Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/s · new cell 15. |
+| 4 | ▸ **Level maths: `4L²` to advance, `C(L) = 2(L−1)L(2L−1)/3`, `C(99) = 1,274,196`** | D-130. Cubic, not exponential. Rates: 100 XP/km · pushup 4 · situp 3 · plank 1.5/s · new cell 13 (D-215; amended by D-276 — said 15; res-11 retune is ticket `0236`). |
 | 5 | ▸ **Meta-skill propagation: Cartography and Constitution** | Cartography from new cells (04 §3.3); Constitution = 1/3 of activity XP (§3.4). `feeds` in the ruleset — data, not code. |
 | 6 | ▸ **Total Level = Σ level(skill), Total XP = Σ xp(skill)** | Headline number on the home screen. Ceiling is **computed** — enabled rows × `maxLevel`, never a literal (D-192, §5.1). |
 | 7 | ▸ **Replay job: delete non-floor rows, write `retained_floor`, `ReplayRun` audit row, `levelHighWater` ratchet** | D-135, D-142. Corrections may only add. Two ratchets: XP floor covers rate changes, `levelHighWater` covers curve changes. |
