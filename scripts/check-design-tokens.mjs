@@ -104,6 +104,37 @@ const PALETTE = "app/tokens.css"
  * Neither narrowing weakens the real rule: `'#C9A227'`, `#000`, `#ffffff` and
  * `= '#0B1020'` all still fire, and the self-test asserts each of them still does.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT IS A COLOUR, AND WHAT IS A PRIVATE CLASS MEMBER  (ticket 0204)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * TypeScript `#private` members put a `#` in front of an identifier, and an
+ * identifier made only of the letters a–f is a hex run: `#acc`, `#face`, `#cafe`,
+ * `#bed`, `#fade`, `#decade`. `0059` hit it on `this.#acc()` and renamed its method
+ * to get past this check, the same dodge as 0019's key respelling. This repository
+ * uses `#private` heavily, so it will recur.
+ *
+ * THREE MORE NARROWINGS, each based on a place where a CSS colour never appears:
+ *
+ *   3. A COLOUR'S `#` IS NEVER PRECEDED BY `.`. `this.#acc`, `other.#fff` and
+ *      `x?.#face` are member accesses. No CSS or JS syntax puts a dot directly
+ *      before a colour.
+ *
+ *   4. A COLOUR IS NEVER FOLLOWED BY `(`. `#acc(): Accumulator {` declares a
+ *      method, and a colour is a value, never a call.
+ *
+ *   5. A PRIVATE FIELD DECLARATION IS NOT A COLOUR. `#face = 0` and
+ *      `readonly #cafe: Set<string>`: the `#` starts the line (after indentation
+ *      and modifiers only), and a `:` or `=` follows the name. A colour on a line by
+ *      itself is a CSS value continuation, ending in `;`, `,` or `)`, so it still
+ *      fires. The rare case this exempts in CSS is `#abc:hover`, an id selector,
+ *      which is not a colour either. This narrowing is token-level, not line-level:
+ *      `#face = '#C9A227'` still fires on the value.
+ *
+ * None of these weakens the real rule, and the self-test asserts both directions.
+ * A guard that fires on correct code gets disabled; a guard that cannot fail is a
+ * decoration.
+ *
  * The residual escape hatch is `design-tokens:allow` ON THE LINE — the same
  * convention `.githooks/pre-commit` uses for `gitleaks:allow`, and chosen for the same
  * reason: a suppression must be visible in the diff that introduces it. There is no
@@ -112,18 +143,35 @@ const PALETTE = "app/tokens.css"
  */
 
 /**
- * A `#` that opens a value rather than separating two segments of a key.
- * `(?<![\w}])` — not preceded by a word character or a closing template brace.
+ * A `#` that opens a value rather than separating two segments of a key or naming
+ * a private member. `(?<![\w}.])`: not preceded by a word character, a closing
+ * template brace, or a member-access dot (0204).
  */
-const COLOUR_START = "(?<![\\w}])#"
+const COLOUR_START = "(?<![\\w}.])#"
 
 /** The only digit counts CSS accepts: #RGB, #RGBA, #RRGGBB, #RRGGBBAA. */
 const HEX_RUN = "(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})"
 
+/** Modifiers that may precede a private field declaration on its line. */
+const MODIFIERS = "(?:(?:static|readonly|override|declare|accessor)\\s+)*"
+
+/**
+ * A colour token: a `#` that opens a value, the run, then a word boundary.
+ * Narrowings 4 and 5 are the two lookaheads (0204). The declaration lookahead checks
+ * a lookbehind from just after the `#`, so it exempts only a `#` that starts its line.
+ */
+const colour = (run) =>
+  new RegExp(
+    `${COLOUR_START}` +
+      `(?!(?<=^\\s*${MODIFIERS}#)${run}\\b\\s*[?!]?\\s*[:=])` +
+      `${run}\\b(?!\\s*\\()`,
+    "i",
+  )
+
 /** Pure black / pure white, in every spelling. Banned everywhere, no exceptions. */
-const ABSOLUTE = new RegExp(`${COLOUR_START}(?:000000|ffffff|000|fff)\\b`, "i")
+const ABSOLUTE = colour("(?:000000|ffffff|000|fff)")
 /** Any hex colour at all. Permitted only in the palette file. */
-const ANY_HEX = new RegExp(`${COLOUR_START}${HEX_RUN}\\b`, "i")
+const ANY_HEX = colour(HEX_RUN)
 
 /**
  * An on-line suppression, visible in the diff. Deliberately spelled out in full so
@@ -230,6 +278,33 @@ if (process.argv.includes("--self-test")) {
     "public/widget.js": ["const c = '#C9A227'", true],
     // A sibling whose name merely STARTS with the excluded one is not excluded.
     "public/maplibre-extras/x.js": ["const c = '#C9A227'", true],
+
+    // ── 0204: a private class member is not a colour ────────────────────────
+    // 0059's line, verbatim, plus the declaration that went with it.
+    "lib/fog/perf/collector.ts": ["    const culls = this.#acc().culls", false],
+    "lib/fog/perf/acc-decl.ts": ["  #acc(): Accumulator {", false],
+    "lib/fog/field-face.ts": ["  #face = 0", false],
+    // Narrowing 5 is line-anchored on purpose. A second declaration packed onto one
+    // line still fires; the cost is putting it on its own line, and it keeps the
+    // exemption from matching anything that is not a declaration.
+    "lib/fog/packed-decl.ts": ["  x = 1; static readonly #cafe: Set<string> = new Set()", true],
+    "lib/fog/static-decl.ts": ["  static readonly #cafe: Set<string> = new Set()", false],
+    "lib/fog/field-typed.ts": ["  readonly #face: Face", false],
+    "lib/fog/field-added.ts": ["  #added = new Set<string>()", false],
+    // Pure white's spelling as a member must not trip the ABSOLUTE rule either.
+    "lib/fog/fff.ts": ["    return this.#fff", false],
+    "lib/fog/optional.ts": ["    return other?.#bed", false],
+
+    // ...and none of the three narrowings opened a hole.
+    "components/abc.css": ["  color: #abc;", true],
+    "components/template.tsx": ["const s = `border: 1px solid #C9A227`", true],
+    "components/black.ts": ["const c = '#000'", true],
+    "components/white.css": ["  background: #ffffff;", true],
+    "components/assign.ts": ["const fog = '#0B1020'", true],
+    // A declaration exempts the NAME, not the line: its value is still checked.
+    "lib/fog/field-value.ts": ["  #face = '#C9A227'", true],
+    // A CSS value continued onto its own line starts with `#` too, and still fires.
+    "components/continued.css": ["    #0B1020;", true],
 
     // The escape hatch, visible on the line (criterion 4). A genuine colour that
     // has been looked at and judged — the gitleaks:allow convention.

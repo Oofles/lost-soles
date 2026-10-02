@@ -4718,7 +4718,7 @@
     "path": "tickets/open/0204-check-design-tokens-reads-typescript-private-fields-as-hex-c.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
