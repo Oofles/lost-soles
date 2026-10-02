@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
@@ -7,6 +7,7 @@ import { NO_CELLS } from "@/src/domain/discovery"
 import { loadRuleSet } from "@/src/rules/load"
 import type { RuleSet } from "@/src/rules/schema"
 import {
+  discoveryCredits,
   discoveryRows,
   feedRows,
   scoreGround,
@@ -156,6 +157,50 @@ describe("Cartography — discovery credit (D-120)", () => {
     const rules = structuredClone(RULES)
     rules.skills.find((s) => s.unitMultipliers)!.enabled = false
     expect(discoveryRows(cells(10, 4), rules.skills)).toEqual([])
+  })
+})
+
+/**
+ * `0221`, D-272. Discovery credit has ONE owner: the row. The ledger and `discoveryCredits` are
+ * both read off it, so editing the YAML's `rearmed` moves both — and no copy elsewhere is left
+ * quoting the old figure.
+ */
+describe("discovery credit has one owner (0221)", () => {
+  it("a cloned ruleset's rearmed multiplier moves the ledger and discoveryCredits together", () => {
+    const rules = structuredClone(RULES)
+    const row = rules.skills.find((s) => s.unitMultipliers)!
+    const before = discoveryCredits(cells(10, 4), row)
+    row.unitMultipliers!.rearmed = 0.25
+
+    const after = discoveryCredits(cells(10, 4), row)
+    const ledger = scoreWithPropagation([], cells(10, 4), ctx(rules)).filter((e) => e.skillId === row.id)
+    const ledgerCredit = ledger.reduce((n, e) => n + e.unitsEffective, 0)
+
+    expect(after).toBe(10 * row.unitMultipliers!.new + 4 * 0.25)
+    expect(after).not.toBe(before)
+    expect(ledgerCredit).toBe(after)
+    expect(ledger.find((e) => e.reason === "cells_rearmed")!.unitsEffective).toBe(4 * 0.25)
+  })
+
+  it("pays 0 under a disabled row, as discoveryRows writes none", () => {
+    const row = { ...discoverySkill, enabled: false }
+    expect(discoveryCredits(cells(10, 4), row)).toBe(0)
+  })
+
+  it("no production module outside the rules names a per-class credit constant", () => {
+    const root = new URL("../", import.meta.url)
+    const offenders: string[] = []
+    const walk = (dir: URL): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) walk(new URL(`${e.name}/`, dir))
+        else if (e.name.endsWith(".ts") && !e.name.endsWith(".test.ts")) {
+          const src = readFileSync(new URL(e.name, dir), "utf8")
+          if (/\bCREDIT_(NEW|REARM|COOLED|DEFERRED)\b/.test(src)) offenders.push(`${dir.pathname}${e.name}`)
+        }
+      }
+    }
+    walk(root)
+    expect(offenders).toEqual([])
   })
 })
 

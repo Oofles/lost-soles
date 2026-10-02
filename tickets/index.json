@@ -5090,10 +5090,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T03:12:47Z",
+    "started": "2026-10-02T01:35:51Z",
     "path": "tickets/open/0221-discovery-credit-constants-read-from-the-cartography-row-not.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

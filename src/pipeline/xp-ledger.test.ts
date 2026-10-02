@@ -433,7 +433,7 @@ describe("persistWithLedger — the commit", () => {
   /** `0220`, D-260. The award half of D-254: the second delivery's all-cooled reclassification is discarded. */
   it("re-delivering keeps T3's discovery award and the receipt's newCellCount from the first delivery", async () => {
     const { t, deps, claim } = world()
-    const opened = { ...NO_CELLS, cellCount: 40, newCellCount: 30, rearmedCellCount: 10, discoveryCredits: 35 }
+    const opened = { ...NO_CELLS, cellCount: 40, newCellCount: 30, rearmedCellCount: 10 }
     const cooled = { ...NO_CELLS, cellCount: 40, cooledCellCount: 40 }
     const run = (award: typeof NO_CELLS, key: string) =>
       persistWithLedger(
@@ -469,7 +469,7 @@ describe("persistWithLedger — the commit", () => {
       delete t.table(ACTIVITY_TABLE).get("a-1")![c] // a row written before the columns existed
     }
     claim("k-2")
-    const fresh = { ...NO_CELLS, cellCount: 179, newCellCount: 2, deferredCellCount: 177, discoveryCredits: 2 }
+    const fresh = { ...NO_CELLS, cellCount: 179, newCellCount: 2, deferredCellCount: 177 }
     const again = await persistWithLedger(
       { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: fresh, rejects: undefined },
       deps,

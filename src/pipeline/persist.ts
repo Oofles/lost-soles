@@ -1,7 +1,7 @@
 import { GetCommand, TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb"
 
 import type { Activity } from "@/src/domain/activity"
-import { CREDIT_NEW, CREDIT_REARM, NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
+import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
 import { NO_REJECTS, type TraceRejects } from "@/src/domain/fog"
 
 import { objectKeys } from "./explored-blob-store"
@@ -231,10 +231,10 @@ export function activityItem(
      */
 
     /**
-     * `discoveryCredits` is deliberately NOT a column. It is exactly
-     * `newCellCount + 0.5 × rearmedCellCount`, so storing it would be a second copy of two
-     * numbers already here — the two-owners failure D-193 names — and the derivation is
-     * `creditOf` in `src/domain/discovery.ts`.
+     * Discovery CREDIT is deliberately NOT a column. It is the counts above times the
+     * Cartography row's `unitMultipliers` — a second copy of numbers already here, and of a
+     * rate the rules file owns (D-193, D-272). `discoveryCredits` in
+     * `src/scoring/propagate.ts` derives it under a given rules version.
      */
 
     /**
@@ -246,7 +246,7 @@ export function activityItem(
      * has no object, and `null` says so rather than pointing at a 404.
      *
      * A REFERENCE, NOT A DERIVED NUMBER, which is why it earns a column where
-     * `discoveryCredits` did not: if the key convention ever moves, rows written before the
+     * discovery credit did not: if the key convention ever moves, rows written before the
      * move must still find their objects.
      */
     cellsRef:
@@ -316,8 +316,6 @@ export async function readStoredAward(
     rearmedCellCount: n("rearmedCellCount"),
     cooledCellCount: n("cooledCellCount"),
     deferredCellCount: n("deferredCellCount"),
-    // Not a column (see `activityItem`), so derived here exactly as `creditOf` would.
-    discoveryCredits: n("newCellCount") * CREDIT_NEW + n("rearmedCellCount") * CREDIT_REARM,
     res: NO_CELLS.res,
     algoVersion: n("fogAlgoVersion"),
   }

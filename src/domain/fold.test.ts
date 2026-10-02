@@ -2,7 +2,7 @@ import { gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import { OutOfOrderScoringError, SIX_MONTHS_MS } from "./discovery"
-import { foldActivities, foldOrder, totalCredits, type FoldActivity } from "./fold"
+import { foldActivities, foldOrder, totalCounts, type FoldActivity } from "./fold"
 import { RES } from "./fog"
 
 /**
@@ -53,7 +53,6 @@ describe("foldActivities — the canonical score", () => {
     const result = foldActivities([HISTORY[0]!])
     const award = result.awards.get("a")!
     expect(award.newCellCount).toBe(gridDisk(ORIGIN, 3).length)
-    expect(award.discoveryCredits).toBe(gridDisk(ORIGIN, 3).length)
 
     const cell = result.cells.get(ORIGIN)!
     expect(cell.firstRunId).toBe("a")
@@ -67,7 +66,6 @@ describe("foldActivities — the canonical score", () => {
     const award = result.awards.get("b")!
     expect(award.newCellCount).toBe(0)
     expect(award.rearmedCellCount).toBe(gridDisk(ORIGIN, 2).length)
-    expect(award.discoveryCredits).toBe(gridDisk(ORIGIN, 2).length * 0.5)
 
     const cell = result.cells.get(ORIGIN)!
     expect(cell.firstRunAt).toBe(iso(2024))
@@ -82,7 +80,7 @@ describe("foldActivities — the canonical score", () => {
     const soon = new Date(Date.parse(iso(2024)) + SIX_MONTHS_MS - 1000).toISOString()
     const result = foldActivities([HISTORY[0]!, activity("b", soon, gridDisk(ORIGIN, 1))])
     expect(result.awards.get("b")!.cooledCellCount).toBe(gridDisk(ORIGIN, 1).length)
-    expect(result.awards.get("b")!.discoveryCredits).toBe(0)
+    expect(result.awards.get("b")!.newCellCount + result.awards.get("b")!.rearmedCellCount).toBe(0)
 
     const cell = result.cells.get(ORIGIN)!
     expect(cell.visitCount).toBe(2)
@@ -115,7 +113,7 @@ describe("foldActivities — the canonical score", () => {
     const once = foldActivities(HISTORY)
     const twice = foldActivities(HISTORY)
     expect([...twice.cells.entries()]).toEqual([...once.cells.entries()])
-    expect(totalCredits(twice)).toBe(totalCredits(once))
+    expect(totalCounts(twice)).toEqual(totalCounts(once))
   })
 
   /**
@@ -165,7 +163,7 @@ describe("foldActivities — the canonical score", () => {
     const result = foldActivities([])
     expect(result.cells.size).toBe(0)
     expect(result.order).toEqual([])
-    expect(totalCredits(result)).toBe(0)
+    expect(totalCounts(result)).toEqual({ newCellCount: 0, rearmedCellCount: 0 })
   })
 
   /**
@@ -197,11 +195,13 @@ describe("foldActivities — the canonical score", () => {
     }).toThrow(OutOfOrderScoringError)
   })
 
-  it("totalCredits sums the per-activity awards and stays on a clean multiple of 0.5", () => {
+  it("totalCounts sums the per-activity awards' credit-earning counts", () => {
     const result = foldActivities(HISTORY)
-    const summed = [...result.awards.values()].reduce((n, a) => n + a.discoveryCredits, 0)
-    expect(totalCredits(result)).toBeCloseTo(summed, 6)
-    expect((totalCredits(result) * 2) % 1).toBe(0)
+    const awards = [...result.awards.values()]
+    expect(totalCounts(result)).toEqual({
+      newCellCount: awards.reduce((n, a) => n + a.newCellCount, 0),
+      rearmedCellCount: awards.reduce((n, a) => n + a.rearmedCellCount, 0),
+    })
   })
 
   it("is bounded work at the scale §3.4 promises — 1,000 activities x ~110 cells", () => {

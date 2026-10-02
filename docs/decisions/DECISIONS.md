@@ -3959,3 +3959,23 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     2026-10-01 (`ReplayRun` `0MUQ31EOUZG76JU`): Cartography 14,807 → 15,985, Constitution
     1,553 → 1,557, Wayfaring 4,661 → 4,675, no floors. This accepts the chronicle entry that
     `0226` avoided, because a deferral is exactly what §3.4 says the replay is for.
+- **D-272** **Discovery credit rates have one owner: the Cartography row's `unitMultipliers`.
+  The fog subsystem records class counts only, and `DiscoveryAward` carries no credit.**
+  *(Agent, approved by the operator, 2026-10-01, ticket `0221`.)*
+  - **The duplicate.** `0064` paid Cartography from the rules row (`new: 1.0`,
+    `rearmed: 0.5`). `src/domain/discovery.ts` also hardcoded `CREDIT_NEW` / `CREDIT_REARM`
+    (`05` §3.1) and filled in `DiscoveryAward.discoveryCredits` from them. `ledgerAward` and
+    `readStoredAward` copied the formula as well. Editing the YAML would have moved the ledger
+    and left the rest quoting the old figure.
+  - **The rule.** `discoveryCredits` and the `CREDIT_*` constants are removed. The domain says
+    *which* class a cell is in and whether it `awardsDiscovery`. It never says what a class is
+    worth. Credit is `discoveryCredits(counts, row)` in `src/scoring/propagate.ts`, which
+    sums `discoveryRows` and so cannot disagree with the ledger. Callers pass the row of the
+    activity's `xpRulesVersion`, never the current version's. `fold.ts`'s `totalCredits` became
+    `totalCounts` for the same reason: a folded history can span rule versions.
+  - **Why removed rather than derived.** Nothing in production read the field. A derived
+    number with no reader is exactly the copy that drifts. `src/domain` also cannot see the
+    registry, and D-100's boundary is not bent to let it.
+  - **Guarded.** `propagate.test.ts` clones the ruleset, changes `rearmed`, and asserts that the
+    ledger and `discoveryCredits` move together. It also fails if any non-test module under
+    `src/` names a `CREDIT_*` constant.

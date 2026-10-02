@@ -555,7 +555,7 @@ describe("reingest — the replay verb, ticket 0192", () => {
     // `advanced`/`unchanged` are about the T6 write, which still happens — visitCount advances
     // on a replay and that is correct. What must not repeat is the CREDIT.
     expect(result.award.newCellCount).toBe(0)
-    expect(result.award.discoveryCredits).toBe(0)
+    expect(result.award.rearmedCellCount).toBe(0)
     for (const input of cellWrites) {
       expect(input.ExpressionAttributeValues![":credit"]).toBe(0)
     }
@@ -670,7 +670,6 @@ describe("discovery classification, end to end", () => {
     if (result.outcome !== "persisted") throw new Error("expected persisted")
     expect(result.award.newCellCount).toBe(result.award.cellCount)
     expect(result.award.cooledCellCount).toBe(0)
-    expect(result.award.discoveryCredits).toBe(result.award.cellCount)
     for (const input of cellWrites) {
       expect(input.ExpressionAttributeValues![":credit"]).toBe(1)
     }
@@ -686,7 +685,7 @@ describe("discovery classification, end to end", () => {
     if (result.outcome !== "persisted") throw new Error("expected persisted")
     expect(result.award.cooledCellCount).toBe(result.award.cellCount)
     expect(result.award.newCellCount).toBe(0)
-    expect(result.award.discoveryCredits).toBe(0)
+    expect(result.award.rearmedCellCount).toBe(0)
     // The cells are still written — visitCount advances, discoveryCount does not.
     expect(cellWrites.length).toBeGreaterThan(0)
     for (const input of cellWrites) {
@@ -703,7 +702,6 @@ describe("discovery classification, end to end", () => {
 
     if (result.outcome !== "persisted") throw new Error("expected persisted")
     expect(result.award.rearmedCellCount).toBe(result.award.cellCount)
-    expect(result.award.discoveryCredits).toBe(result.award.cellCount * 0.5)
   })
 
   /**
@@ -744,7 +742,7 @@ describe("discovery classification, end to end", () => {
     // Every cell was undecidable, so every cell earned nothing.
     expect(result.award.deferredCellCount).toBe(result.award.cellCount)
     expect(result.award.newCellCount).toBe(0)
-    expect(result.award.discoveryCredits).toBe(0)
+    expect(result.award.rearmedCellCount).toBe(0)
 
     // The GROUND still landed — that is the half the DLQ used to lose.
     expect(cellWrites.length).toBeGreaterThan(0)
@@ -933,7 +931,6 @@ describe("no cells still writes a record (§3.6)", () => {
       rearmedCellCount: 0,
       cooledCellCount: 0,
       deferredCellCount: 0,
-      discoveryCredits: 0,
       res: RES,
       algoVersion: 1,
     })

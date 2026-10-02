@@ -35,7 +35,7 @@
  * No skill id appears in this file (I-25, D-031). Pure: no clock, no store.
  */
 
-import { CREDIT_NEW, CREDIT_REARM, type DiscoveryAward } from "@/src/domain/discovery"
+import type { DiscoveryAward } from "@/src/domain/discovery"
 import type { RuleSkill } from "@/src/rules/schema"
 
 import { ledgerEntries, type LedgerReason, type UnratedRow, type XpLedgerEntry } from "./ledger"
@@ -68,6 +68,22 @@ export function discoveryRows(
     }
   }
   return out
+}
+
+/**
+ * THE DISCOVERY CREDIT one row pays for these counts: `Σ unitsEffective` of that row's
+ * `discoveryRows`. `0221`, D-272.
+ *
+ * The only place a per-class rate becomes a number outside the ledger, and it is the ledger's
+ * own derivation summed, so the two cannot quote different figures. Pass the row from the
+ * activity's `xpRulesVersion`, never the current one: a replay under v1 pays v1's rates.
+ * A disabled row, or one with no `unitMultipliers`, pays 0 — exactly the rows it would write.
+ */
+export function discoveryCredits(
+  counts: Pick<DiscoveryAward, "newCellCount" | "rearmedCellCount">,
+  skill: PropagationSkill,
+): number {
+  return discoveryRows(counts, [skill]).reduce((n, r) => n + r.unitsEffective, 0)
 }
 
 /**
@@ -105,7 +121,6 @@ export function ledgerAward(fresh: DiscoveryAward, entries: readonly Pick<XpLedg
     rearmedCellCount,
     cooledCellCount,
     deferredCellCount: rest - cooledCellCount,
-    discoveryCredits: newCellCount * CREDIT_NEW + rearmedCellCount * CREDIT_REARM,
   }
 }
 

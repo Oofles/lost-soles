@@ -425,19 +425,25 @@ Per **D-120**, verbatim:
 
 ```
 SIX_MONTHS_MS   = 183 * 24 * 60 * 60 * 1000   # see §9.2 — 183 days, UTC, not calendar months
-CREDIT_NEW      = 1.0
-CREDIT_REARM    = 0.5
-CREDIT_COOLED   = 0.0
-CREDIT_DEFERRED = 0.0                        # the FOURTH class — §3.4, ticket 0050, D-221
+
+classes: new | rearmed | cooled | deferred   # the FOURTH is §3.4's, ticket 0050, D-221
+credit : the Cartography row's unitMultipliers — new: 1.0, rearmed: 0.5 (D-272)
+         cooled and deferred earn nothing: they have no ledger reason at all
 ```
+
+> **The rates are not defined here** (D-272, ticket `0221`). This block once defined
+> `CREDIT_NEW = 1.0` and `CREDIT_REARM = 0.5`, and `src/domain/discovery.ts` copied them.
+> Meanwhile the ledger paid from the rules file's Cartography row. The two agreed only by
+> coincidence. This subsystem decides a cell's **class** and records the **counts**. What a
+> class is worth belongs to the rules row of the activity's `xpRulesVersion`.
 
 > **There are four classes, not three, and this block said three until the capability `07`
 > audit (2026-09-08).** `"deferred"` is `0050`'s: a cell this activity cannot be scored
 > against incrementally, because the activity is *earlier* than the cell's `lastRunAt`. It is
 > fully specified in **§3.4** and its durable record is `Activity.deferredCellCount` (`02` T3,
 > D-221) — but a reader who came to §3.1 for the vocabulary left with three-quarters of it,
-> and `CREDIT_DEFERRED = 0.0` is indistinguishable from `CREDIT_COOLED` at the value level, so
-> nothing downstream would have caught the omission. **Zero here is a safety property, not a
+> and a deferred cell earns exactly what a cooled one does, so nothing downstream would have
+> caught the omission. **Zero here is a safety property, not a
 > verdict**: the award is provisional until a replay folds the history.
 
 **Scoring time is the activity's `startedAt`, never the ingest time.** A run uploaded three days
@@ -463,27 +469,24 @@ function scoreActivity(activity, trace, store):
       return scoreNoGpsActivity(activity)   # §3.6
 
   # ---------- 2. CLASSIFY ----------
-  credits = 0.0
   newCells = [];  rearmedCells = [];  cooledCells = []
 
   for cell in cells:                   # iteration order is irrelevant; classes are disjoint
       rec = store.getCell(cell)
 
       if rec == null:
-          credits += CREDIT_NEW
           newCells.push(cell)
 
       else if (at - rec.lastRunAt) < SIX_MONTHS_MS:
-          credits += CREDIT_COOLED     # i.e. += 0. Written out for symmetry.
           cooledCells.push(cell)
 
       else:
-          credits += CREDIT_REARM
           rearmedCells.push(cell)
 
   # ---------- 3. XP ----------
-  # Cartography (D-032): purely a function of discovery credit.
-  cartographyXp = round(credits * XP_PER_CELL)
+  # Cartography (D-032): purely a function of the counts, at the rules row's rates (D-272).
+  cartographyXp = round((newCells.length    * row.unitMultipliers.new +
+                         rearmedCells.length * row.unitMultipliers.rearmed) * row.xpPerUnit)
 
   # Wayfaring (D-031): distance/duration-based, halved on known ground (D-021).
   # Blend by the share of the run that was new, so a run that is half new
@@ -520,7 +523,6 @@ function scoreActivity(activity, trace, store):
                 newCellCount: newCells.length,
                 rearmedCellCount: rearmedCells.length,
                 cooledCellCount: cooledCells.length,
-                discoveryCredits: credits,
                 cartographyXp, wayfaringXp,
                 res: 10, algoVersion: FOG_ALGO_VERSION }
 
@@ -1692,12 +1694,14 @@ Cartography (D-032) is fed **directly** by the ledger entry written in §3.2. No
 recomputed:
 
 ```
-run.newCellCount       # never-seen cells        → 1.0 credit each
-run.rearmedCellCount   # >6mo cells (D-120)      → 0.5 credit each
-run.cooledCellCount    # <6mo cells              → 0.0
-run.discoveryCredits   # = newCellCount + 0.5 * rearmedCellCount
-run.cartographyXp      # = round(discoveryCredits * XP_PER_CELL)
+run.newCellCount       # never-seen cells        → unitMultipliers.new each (1.0)
+run.rearmedCellCount   # >6mo cells (D-120)      → unitMultipliers.rearmed each (0.5)
+run.cooledCellCount    # <6mo cells              → nothing; no ledger row
 ```
+
+Discovery credit is not stored (D-272). It is `discoveryCredits(counts, row)` in
+`src/scoring/propagate.ts`, which sums the ledger rows `discoveryRows` would write, so it cannot
+disagree with them. The row is the one from the activity's `xpRulesVersion`.
 
 One res-10 cell ≈ 15,048 m² ≈ 1.5 ha — a good XP unit. A first-ever run down a new street yields
 ~80–130 new cells; the same run repeated yields 0. **That diminishing-returns curve *is* the game
@@ -1886,8 +1890,9 @@ of which admin level a "neighbourhood" is. Not blocking; decide when §8.1 is bu
 
 ### 9.9 XP constants live elsewhere
 `XP_PER_CELL`, the Cartography level curve, and how `newShare` feeds Wayfaring belong in the
-progression design doc (D-030..D-033). This document defines the *inputs* — `discoveryCredits`,
-`newCellCount`, `newShare` — and deliberately stops there. If the progression doc needs a
+progression design doc (D-030..D-033). This document defines the *inputs* — `newCellCount`,
+`rearmedCellCount`, `newShare` — and deliberately stops there. Even the per-class credit rates
+are the rules row's (D-272). If the progression doc needs a
 different input, that is a change to §3.2's award record, not to the mechanic.
 
 ### 9.10 The explored blob is a precise map of the user's home

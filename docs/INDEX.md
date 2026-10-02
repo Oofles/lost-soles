@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,693 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,698 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 557 sections · regenerated 2026-10-01
+13 documents · 557 sections · regenerated 2026-10-02
 
 
 ## `docs/00-vision.md`
@@ -310,7 +310,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 1,932 lines
+**05 — Fog of War** — 1,937 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -324,54 +324,54 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.2 Trace → cells | `148-326` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
 | &nbsp;&nbsp;↳ 2.3 The reveal radius | `327-371` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
 | &nbsp;&nbsp;↳ 2.4 The per-cell record | `372-413` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
-| 3. The discovery-scoring algorithm | `414-704` | (D-021, D-120). |
-| &nbsp;&nbsp;↳ 3.1 Definitions | `424-446` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
-| &nbsp;&nbsp;↳ 3.2 The algorithm | `447-569` | key = idempotencyKey(activity, trace) |
-| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `570-600` | All of these are solved by one design decision — traceToCells returns a Set — but each |
-| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `601-639` | Activities do not arrive in chronological order. |
-| &nbsp;&nbsp;↳ 3.5 Idempotency | `640-668` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
-| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `669-704` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
-| 4. Rendering | `705-1115` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
-| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `719-775` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
-| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `776-893` | MapLibre calls prerender during its offscreen pass. |
-| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `894-1058` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
-| &nbsp;&nbsp;↳ 4.4 Layer order | `1059-1089` | map.on('style.load', () => { |
-| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1090-1100` | Drifting mist does not benefit from 60 and it halves the battery cost. |
-| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1101-1115` | Recorded so that a future session does not rediscover them the expensive way. |
-| 5. The two map modes | `1116-1187` | run) and adventure (full atmosphere, for admiring the map). |
-| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1125-1142` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
-| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1143-1165` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
-| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1166-1178` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
-| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1179-1187` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `1188-1444` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1200-1287` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1288-1347` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `1348-1363` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1364-1444` | None of the above is true until measured. |
-| 7. Data delivery | `1445-1658` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1467-1510` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1511-1532` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1533-1593` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1594-1658` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1659-1801` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1664-1688` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1689-1709` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1710-1722` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1723-1788` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1789-1801` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1802-1914` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1807-1814` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1815-1819` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1820-1829` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1830-1852` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1853-1860` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1861-1873` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1874-1880` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1881-1886` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1887-1892` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1893-1903` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1904-1914` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `1915-1932` | radius never feeds back into scoring. |
+| 3. The discovery-scoring algorithm | `414-706` | (D-021, D-120). |
+| &nbsp;&nbsp;↳ 3.1 Definitions | `424-452` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
+| &nbsp;&nbsp;↳ 3.2 The algorithm | `453-571` | key = idempotencyKey(activity, trace) |
+| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `572-602` | All of these are solved by one design decision — traceToCells returns a Set — but each |
+| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `603-641` | Activities do not arrive in chronological order. |
+| &nbsp;&nbsp;↳ 3.5 Idempotency | `642-670` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
+| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `671-706` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
+| 4. Rendering | `707-1117` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
+| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `721-777` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
+| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `778-895` | MapLibre calls prerender during its offscreen pass. |
+| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `896-1060` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
+| &nbsp;&nbsp;↳ 4.4 Layer order | `1061-1091` | map.on('style.load', () => { |
+| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1092-1102` | Drifting mist does not benefit from 60 and it halves the battery cost. |
+| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1103-1117` | Recorded so that a future session does not rediscover them the expensive way. |
+| 5. The two map modes | `1118-1189` | run) and adventure (full atmosphere, for admiring the map). |
+| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1127-1144` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
+| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1145-1167` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
+| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1168-1180` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
+| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1181-1189` | and style-layer switch, entirely client-side, with no path back to §3. |
+| 6. Performance | `1190-1446` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1202-1289` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1290-1349` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1350-1365` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1366-1446` | None of the above is true until measured. |
+| 7. Data delivery | `1447-1660` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1469-1512` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1513-1534` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1535-1595` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1596-1660` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1661-1805` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1666-1690` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1691-1713` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1714-1726` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1727-1792` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1793-1805` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1806-1919` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1811-1818` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1819-1823` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1824-1833` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1834-1856` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1857-1864` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1865-1877` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1878-1884` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1885-1890` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1891-1897` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1898-1908` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1909-1919` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `1920-1937` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 

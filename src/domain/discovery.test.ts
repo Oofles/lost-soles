@@ -5,11 +5,7 @@ import {
   awardOf,
   awardsDiscovery,
   classifyCells,
-  creditOf,
   needsReplay,
-  CREDIT_COOLED,
-  CREDIT_NEW,
-  CREDIT_REARM,
   FOG_ALGO_VERSION,
   NO_CELLS,
   newShare,
@@ -108,14 +104,9 @@ describe("the constants (§3.1, §9.2)", () => {
     expect(SIX_MONTHS_MS).toBe(15_811_200_000)
   })
 
-  it("the three credits are 1.0 / 0.5 / 0.0", () => {
-    expect([CREDIT_NEW, CREDIT_REARM, CREDIT_COOLED]).toEqual([1.0, 0.5, 0.0])
-  })
-
-  it("creditOf covers every class, and only new/rearmed award discovery", () => {
-    expect(creditOf("new")).toBe(1.0)
-    expect(creditOf("rearmed")).toBe(0.5)
-    expect(creditOf("cooled")).toBe(0.0)
+  // No credit constants: what each class is worth is the rules row's (0221, D-272), and
+  // `propagate.test.ts` asserts it there.
+  it("only new and rearmed award discovery", () => {
     expect(awardsDiscovery("new")).toBe(true)
     expect(awardsDiscovery("rearmed")).toBe(true)
     expect(awardsDiscovery("cooled")).toBe(false)
@@ -188,7 +179,7 @@ describe("classifyCells — classify-then-write (criterion 6, §3.3)", () => {
 
     expect(classified).toHaveLength(100)
     expect(by(classified, "new")).toHaveLength(100)
-    expect(awardOf(classified).discoveryCredits).toBe(100)
+    expect(awardOf(classified).newCellCount).toBe(100)
   })
 
   it("the classifier cannot see its own effects — the record map is never mutated", () => {
@@ -227,7 +218,6 @@ describe("classifyCells — out-of-order arrival (§3.4, revised by 0050)", () =
     const future = new RealDate(AT_MS + days(30)).toISOString()
     const classified = classifyCells([CELLS[0]], store({ [CELLS[0]]: future }), AT)
     expect(classified[0].discovery).toBe("deferred")
-    expect(creditOf(classified[0].discovery)).toBe(0)
     expect(awardsDiscovery(classified[0].discovery)).toBe(false)
   })
 
@@ -242,7 +232,7 @@ describe("classifyCells — out-of-order arrival (§3.4, revised by 0050)", () =
     const award = awardOf(classifyCells(CELLS.slice(0, 2), store({ [CELLS[0]]: future }), AT))
     expect(award.deferredCellCount).toBe(1)
     expect(award.newCellCount).toBe(1)
-    expect(award.discoveryCredits).toBe(1)
+    expect(award.rearmedCellCount).toBe(0)
     expect(needsReplay(award)).toBe(true)
   })
 
@@ -281,7 +271,6 @@ describe("awardOf", () => {
     const known = Object.fromEntries(cells.slice(30).map((c) => [c, iso(days(10))]))
     const award = awardOf(classifyCells(cells, store(known), AT))
 
-    expect(award.discoveryCredits).toBe(30)
     expect(award.newCellCount).toBe(30)
     expect(award.cooledCellCount).toBe(30)
     expect(award.rearmedCellCount).toBe(0)
@@ -301,7 +290,6 @@ describe("awardOf", () => {
       rearmedCellCount: 2,
       cooledCellCount: 2,
       deferredCellCount: 0,
-      discoveryCredits: 5,
       res: RES,
       algoVersion: FOG_ALGO_VERSION,
     })
@@ -313,12 +301,11 @@ describe("awardOf", () => {
     expect(a.newCellCount + a.rearmedCellCount + a.cooledCellCount).toBe(a.cellCount)
   })
 
-  it("does not accumulate float error over a long run", () => {
-    // 131 re-armed cells at 0.5 each. Summed naively this can land on 65.49999999999999,
-    // and the number is written to a permanent record a replay later compares against.
+  it("counts a long re-armed run exactly", () => {
+    // The award holds integer counts only (0221), so no float sum reaches the permanent record.
     const cells = Array.from({ length: 131 }, (_, i) => cellAt(i))
     const known = Object.fromEntries(cells.map((c) => [c, iso(days(400))]))
-    expect(awardOf(classifyCells(cells, store(known), AT)).discoveryCredits).toBe(65.5)
+    expect(awardOf(classifyCells(cells, store(known), AT)).rearmedCellCount).toBe(131)
   })
 
   it("records the canonical res and the algorithm version on every award", () => {
@@ -335,7 +322,7 @@ describe("awardOf", () => {
 describe("the no-cells award (§3.6)", () => {
   it("is zeros, not absence — a treadmill run still writes the record", () => {
     expect(NO_CELLS.cellCount).toBe(0)
-    expect(NO_CELLS.discoveryCredits).toBe(0)
+    expect(NO_CELLS.newCellCount + NO_CELLS.rearmedCellCount).toBe(0)
     expect(NO_CELLS.res).toBe(RES)
     expect(NO_CELLS.algoVersion).toBe(FOG_ALGO_VERSION)
   })

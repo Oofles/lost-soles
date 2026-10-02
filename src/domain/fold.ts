@@ -203,16 +203,22 @@ const awardsCredit = (discovery: Discovery): boolean =>
   discovery === "new" || discovery === "rearmed"
 
 /**
- * The total discovery credit a folded history earns — the number `0066`'s XP replay multiplies
- * by the Cartography rate, and the one the drill's step-8 verification compares against.
+ * The credit-earning cells a folded history holds: the counts `0066`'s XP replay hands to
+ * `discoveryRows`, and the ones the drill's step-8 verification compares against.
+ *
+ * COUNTS, NOT CREDIT (`0221`, D-272). What a new or re-armed cell is worth is the Cartography
+ * row's `unitMultipliers`, and which version's row applies is the caller's to say — a history
+ * can span rule versions, and this module cannot see the registry. `discoveryCredits` from
+ * `src/scoring/propagate.ts` turns these into credit under one row.
  *
  * Summed from the per-activity awards rather than recomputed from the cell map, because those
  * awards are what `02` §8.3 step 6 consumes and a second derivation could disagree with them.
- * Rounded for the reason `awardOf` rounds: every reachable total is a multiple of 0.5, but
- * summing a thousand floats can land on 64.99999999999999.
  */
-export function totalCredits(result: FoldResult): number {
-  let total = 0
-  for (const award of result.awards.values()) total += award.discoveryCredits
-  return Math.round(total * 10) / 10
+export function totalCounts(result: FoldResult): Record<"newCellCount" | "rearmedCellCount", number> {
+  const out = { newCellCount: 0, rearmedCellCount: 0 }
+  for (const award of result.awards.values()) {
+    out.newCellCount += award.newCellCount
+    out.rearmedCellCount += award.rearmedCellCount
+  }
+  return out
 }

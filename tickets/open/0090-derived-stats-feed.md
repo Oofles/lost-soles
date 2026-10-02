@@ -90,6 +90,11 @@ Resist adding period aggregates here even though they would be trivial. There is
 "this week's distance" in the design and the moment one exists on a screen, N2 follows
 (`06-ui-ux.md` §2.3).
 
+- 2026-10-01 (`0221`, D-272): `DiscoveryAward.discoveryCredits` no longer exists, and nor do
+  the `CREDIT_*` constants. Where this ticket says `run.discoveryCredits = new + 0.5 × rearmed`,
+  read it as `discoveryCredits(counts, cartographyRow)` from `src/scoring/propagate.ts`. Use the
+  row from the run's `xpRulesVersion`. Do not hardcode 0.5.
+
 ## Operator validation
 
 In the desktop browser after importing a run: compare the tally's `21 cells claimed · 8

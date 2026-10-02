@@ -57,17 +57,12 @@ import { RES } from "./fog"
  */
 export const SIX_MONTHS_MS = 183 * 24 * 60 * 60 * 1000
 
-/** Never seen. Full credit. */
-export const CREDIT_NEW = 1.0
-/** Last run more than `SIX_MONTHS_MS` ago. Half credit, and the cell re-arms. */
-export const CREDIT_REARM = 0.5
-/** Last run inside the window. **Zero** — written out for symmetry, per §3.1. */
-export const CREDIT_COOLED = 0.0
-/**
- * A cell this activity cannot be scored against incrementally. **Zero, and the zero is the
- * safety property** — see `Discovery`'s `"deferred"` and `05` §3.4.
+/*
+ * NO CREDIT CONSTANTS LIVE HERE (`0221`, D-272). This module decides which CLASS a cell falls
+ * in; what each class is worth is the Cartography row's `unitMultipliers` in the rules file,
+ * read only by `src/scoring/propagate.ts`. `05` §3.1 once wrote the rates down here as well,
+ * and two copies of a rate agree only until someone edits one of them.
  */
-export const CREDIT_DEFERRED = 0.0
 
 /**
  * THE VERSION OF THIS ALGORITHM, and it is part of an idempotency key.
@@ -146,11 +141,6 @@ export interface DiscoveryAward {
    * a stored column on T3 and not a derived one.
    */
   deferredCellCount: number
-  /**
-   * `new × 1.0 + rearmed × 0.5`. Capability 09 multiplies it by the Cartography rate
-   * (13 XP/cell, D-215) — this subsystem never names an XP number.
-   */
-  discoveryCredits: number
   /** Always 10. Present because a blob or a ledger row read in five years must say so. */
   res: number
   algoVersion: number
@@ -232,19 +222,11 @@ export function classifyCells(
   return out
 }
 
-/** The credit one classified cell earns. The only place the three constants are read. */
-export function creditOf(discovery: Discovery): number {
-  if (discovery === "new") return CREDIT_NEW
-  if (discovery === "rearmed") return CREDIT_REARM
-  if (discovery === "deferred") return CREDIT_DEFERRED
-  return CREDIT_COOLED
-}
-
 /**
  * Does this cell's write increment `discoveryCount`? §2.4: *"how many times it awarded
  * credit"* — so new and re-armed, and never cooled.
  *
- * A predicate rather than `creditOf(d) > 0` at each call site, because the two questions
+ * Stated here rather than read off the rules row's multipliers, because the two questions
  * are only accidentally the same. If a future rule ever awards partial credit without
  * re-arming, this is the one that has to change.
  */
@@ -263,14 +245,12 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
   let rearmedCellCount = 0
   let cooledCellCount = 0
   let deferredCellCount = 0
-  let discoveryCredits = 0
 
   for (const { discovery } of classified) {
     if (discovery === "new") newCellCount++
     else if (discovery === "rearmed") rearmedCellCount++
     else if (discovery === "deferred") deferredCellCount++
     else cooledCellCount++
-    discoveryCredits += creditOf(discovery)
   }
 
   return {
@@ -279,12 +259,6 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
     rearmedCellCount,
     cooledCellCount,
     deferredCellCount,
-    /**
-     * Rounded to one place. `CREDIT_REARM` is 0.5, so every reachable total is a multiple
-     * of 0.5 — but summing 130 floats in a loop can land on 64.99999999999999, and this
-     * number is written to a permanent record that a later replay compares against.
-     */
-    discoveryCredits: Math.round(discoveryCredits * 10) / 10,
     res: RES,
     algoVersion: FOG_ALGO_VERSION,
   }
@@ -304,7 +278,6 @@ export const NO_CELLS: DiscoveryAward = Object.freeze({
   rearmedCellCount: 0,
   cooledCellCount: 0,
   deferredCellCount: 0,
-  discoveryCredits: 0,
   res: RES,
   algoVersion: FOG_ALGO_VERSION,
 })

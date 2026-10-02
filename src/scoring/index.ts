@@ -34,7 +34,7 @@ export {
   type UnratedRow,
   type XpLedgerEntry,
 } from "./ledger"
-export { creditedCounts, discoveryRows, feedRows, ledgerAward, scoreWithPropagation } from "./propagate"
+export { creditedCounts, discoveryCredits, discoveryRows, feedRows, ledgerAward, scoreWithPropagation } from "./propagate"
 export {
   cumulativeXp,
   levelForXp,

@@ -148,7 +148,7 @@ describe("§3.3 case 2 — an out-and-back scores exactly its one-way version", 
     const b = await score(outAndBack, "2026-01-01T08:00:00.000Z", fakeTable())
 
     expect(b.cells.size).toBe(a.cells.size)
-    expect(b.award.discoveryCredits).toBe(a.award.discoveryCredits)
+    expect([b.award.newCellCount, b.award.rearmedCellCount]).toEqual([a.award.newCellCount, a.award.rearmedCellCount])
     expect(b.award.newCellCount).toBe(a.award.newCellCount)
   })
 })
@@ -186,12 +186,11 @@ describe("§3.3 case 4 — two activities on the same day score independently", 
     const evening = await score(traceOf(OUT), "2026-01-01T18:00:00.000Z", table)
 
     expect(morning.award.newCellCount).toBe(morning.cells.size)
-    expect(morning.award.discoveryCredits).toBe(morning.cells.size)
 
     expect(evening.award.cellCount).toBe(morning.cells.size)
     expect(evening.award.newCellCount).toBe(0)
     expect(evening.award.cooledCellCount).toBe(morning.cells.size)
-    expect(evening.award.discoveryCredits).toBe(0)
+    expect(evening.award.rearmedCellCount).toBe(0)
 
     for (const cell of evening.cells) expect(visitCountOf(table, cell)).toBe(2)
   })
@@ -260,7 +259,6 @@ describe("§3.3's closing rule — classify fully, THEN write", () => {
     expect(cells.size).toBeGreaterThan(30)
     expect(award.newCellCount).toBe(cells.size)
     expect(award.cooledCellCount).toBe(0)
-    expect(award.discoveryCredits).toBe(cells.size)
   })
 })
 

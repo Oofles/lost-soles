@@ -228,7 +228,6 @@ describe("the T3 score write-back (0224)", () => {
       rearmedCellCount: 0,
       cooledCellCount: 89,
       deferredCellCount: 0,
-      discoveryCredits: 32,
       res: 10,
       algoVersion: 1,
     }
@@ -239,8 +238,6 @@ describe("the T3 score write-back (0224)", () => {
         "deferredCellCount = :deferredCellCount, fogAlgoVersion = :fogAlgoVersion",
     )
     expect(u.ExpressionAttributeValues).toMatchObject({ ":newCellCount": 32, ":cooledCellCount": 89, ":fogAlgoVersion": 1 })
-    // discoveryCredits is not a column (D-193).
-    expect(JSON.stringify(u)).not.toMatch(/discoveryCredits/)
   })
 })
 
