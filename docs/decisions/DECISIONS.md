@@ -4169,8 +4169,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Shipped as v2, not by editing v1.** Ledger rows cite v1, and v1 must keep meaning what it
     meant (04 §7.6). v2 differs from v1 in this one field, plus `version`, `effectiveFrom` and
     comments. The user moves to v2 through an XP replay (02 §4.4, D-274). v1's excess Cartography
-    XP is permanent as a D-142 floor (D-135). The bar will therefore not move until real v2
-    discovery passes the floor. That is the rule working, not a bug.
+    XP is permanent as a D-142 floor (D-135): one `retained_floor` row of 13,342. The floor is a
+    fixed row in a ledger whose sum is the displayed XP, so **every new run's Cartography XP adds
+    on top of it immediately**. The bar keeps moving, at the corrected rate. (The `0236` ticket
+    and its first Resolution said the bar would stay flat until v2 earnings passed the floor.
+    That is the `max(old, new)` clamp `reconcile.ts` forbids, and it was wrong.)
   - **Docs re-derived.** 04 §3.2/§3.3, the §1.3 excerpt, the §4.2 tally and the §8.2 worked example
     now use res-11 counts (148 / 58 / 183 cells, Cartography 380). 05 §8.2's cell-size paragraph
     now describes res 11.

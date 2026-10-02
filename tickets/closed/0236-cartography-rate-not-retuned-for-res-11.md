@@ -61,7 +61,8 @@ then set the rate — not the fixture figure.
 ## Notes
 
 Under D-135 the inflated XP is permanent as a floor: Cartography will not visibly move until
-real v2 discovery passes the floor. That is accepted — XP never decreases — but say it in the
+real v2 discovery passes the floor. *(Wrong — see Resolution: the floor is a row, and new XP adds
+on top of it.)* That is accepted — XP never decreases — but say it in the
 Resolution so nobody reads a flat Cartography bar as a bug.
 
 ## Resolution
@@ -114,9 +115,14 @@ generation 130, **1 floor written**, status DONE.
 | Wayfaring | 4,675 / L15 | 4,675 / L15 (unchanged, as it should be) |
 | Constitution | 1,557 / L11 | 1,557 / L11 (unchanged; Cartography never feeds it) |
 
-**Cartography will sit flat for a while, and that is D-135 working, not a bug.** The 13,342 floor
-is v1's overpayment. The bar will not move until real v2 discovery passes it. At ~100 XP per new
-km, that means roughly 133 km of brand-new ground. 2,643 XP over the archive is about 6× less
+**Cartography does NOT sit flat. This corrects the ticket's own Notes and this Resolution's
+first draft.** The 13,342 floor is v1's overpayment, kept as one permanent `retained_floor` row.
+Displayed XP is the sum of the ledger (I-15), so each new run's v2 Cartography XP lands on top of
+15,985 straight away. "Flat until v2 earnings pass the floor" describes a `max(old, new)` clamp,
+which `src/scoring/reconcile.ts` explicitly forbids. The operator questioned the "~133 km of no
+progress" figure, and that is how this was caught. What the floor does mean: Cartography's level
+reflects v1's overpayment for good, and from here it climbs at the corrected rate.
+2,643 XP over the archive is about 6× less
 than before, which matches the ≈6× correction (13 / 2.15 = 6.05).
 
 ## Operator validation
