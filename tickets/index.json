@@ -5404,7 +5404,7 @@
     "path": "tickets/open/0235-a-replay-that-completes-inside-one-ingest-invocation-leaves.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   }
