@@ -48,7 +48,7 @@ describe("T1 Profile", () => {
     expect(profileType().split("\n")[0]).toMatch(/^type Profile @model @auth\(rules: \[\{allow: owner, ownerField: "owner"\}\]\)/)
   })
 
-  it.each(["totalLevel", "totalXp", "replayInProgress", "exploredGeneration"])(
+  it.each(["totalLevel", "totalXp", "replayInProgress", "exploredGeneration", "ledgerRulesVersion"])(
     "the owner can only READ %s",
     (field) => {
       const line = profileType()

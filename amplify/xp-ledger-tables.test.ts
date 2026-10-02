@@ -145,9 +145,12 @@ describe("the worker's grants on T1/T2/T3/T4", () => {
     expect(actionsOn("SkillState")).toEqual(["dynamodb:Query", "dynamodb:UpdateItem"])
   })
 
-  /** `0219`. The Profile totals only; the ingest never reads or deletes T1. */
-  it("T1: UpdateItem only", () => {
-    expect(actionsOn("Profile")).toEqual(["dynamodb:UpdateItem"])
+  /**
+   * `0219`. The Profile totals. `0235` adds `GetItem`, for `ledgerRulesVersion` — the worker's
+   * version fallback for a user with no T2 rows. Never `DeleteItem`.
+   */
+  it("T1: GetItem and UpdateItem only", () => {
+    expect(actionsOn("Profile")).toEqual(["dynamodb:GetItem", "dynamodb:UpdateItem"])
   })
 
   /**

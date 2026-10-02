@@ -1,4 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -64,9 +64,46 @@ describe("rulesForUser", () => {
         return pages[queries.length - 1]
       },
     }
-    const rules = await rulesForUser("u-1", { ddb, table: "SkillState-x", bundled: BUNDLED })
+    const rules = await rulesForUser("u-1", { ddb, table: "SkillState-x", profileTable: "Profile-x", bundled: BUNDLED })
     expect(rules).toBe(V2)
+    // T2 answered, so T1 is never read.
     expect(queries).toHaveLength(2)
     expect(queries[0]).toMatchObject({ TableName: "SkillState-x", ConsistentRead: true })
+  })
+
+  /** `0235`, D-275. No T2 rows: `Profile.ledgerRulesVersion`, then the newest bundled. */
+  describe("the Profile fallback", () => {
+    const world = (profile: Record<string, unknown> | undefined) => {
+      const gets: GetCommand["input"][] = []
+      const ddb = {
+        async send(command: QueryCommand | GetCommand) {
+          if (command instanceof GetCommand) {
+            gets.push(command.input)
+            return profile ? { Item: profile } : {}
+          }
+          return { Items: [] }
+        },
+      }
+      return { gets, deps: { ddb, table: "SkillState-x", profileTable: "Profile-x", bundled: BUNDLED } }
+    }
+
+    it("a replay that left no T2 rows still pins the user to the version it stamped", async () => {
+      const { gets, deps } = world({ ledgerRulesVersion: 1 })
+      expect(await rulesForUser("u-1", deps)).toBe(V1)
+      expect(gets).toEqual([
+        { TableName: "Profile-x", Key: { id: "u-1" }, ProjectionExpression: "ledgerRulesVersion", ConsistentRead: true },
+      ])
+    })
+
+    it("no stamp, or no Profile row at all: the newest bundled version", async () => {
+      expect(await rulesForUser("u-1", world({ id: "u-1" }).deps)).toBe(V2)
+      expect(await rulesForUser("u-1", world(undefined).deps)).toBe(V2)
+    })
+
+    it("a stamp this deployment does not bundle is refused, as a T2 version is", async () => {
+      await expect(rulesForUser("u-1", world({ ledgerRulesVersion: 3 }).deps)).rejects.toBeInstanceOf(
+        RulesVersionNotBundledError,
+      )
+    })
   })
 })

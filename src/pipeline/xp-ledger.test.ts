@@ -1,4 +1,4 @@
-import { GetCommand, QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb"
+import { GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
 import type { Activity } from "@/src/domain/activity"
@@ -18,6 +18,8 @@ import {
   skillStateUpdateItem,
   type LedgerDeps,
 } from "@/src/pipeline/xp-ledger"
+import { rulesForUser } from "@/src/pipeline/worker-rules"
+import { dynamoReplayStore, type ReplayStoreDeps } from "@/src/pipeline/xp-replay-store"
 import { loadRuleSet } from "@/src/rules/load"
 import { cumulativeXp, discoveryRows, ledgerEntries, levelForXp, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
 
@@ -95,11 +97,22 @@ class Tables {
     const op = (tx.Put ?? tx.Update)!
     const names = op.ExpressionAttributeNames
     const values = op.ExpressionAttributeValues ?? {}
-    // `0223`: `profileTotalsItem`'s flag condition.
+    // `0235`: `profileTotalsItem`'s two parenthesised clauses, the flag and the version.
+    const both = /^\((.*)\) AND \((.*)\)$/.exec(cond)
+    if (both) return this.holds(both[1], item, tx) && this.holds(both[2], item, tx)
+    // `0223`: one `attribute_not_exists(a) OR a = :v` clause.
     const notOrEq = /^attribute_not_exists\((\S+)\) OR (\S+) = (:\w+)$/.exec(cond)
     if (notOrEq) {
       const v = item?.[this.name(notOrEq[1]!, names)]
       return v === undefined || v === values[notOrEq[3]!]
+    }
+    // `0235`: the replay store's thaw writes, sent through this fake too.
+    const exists = /^attribute_exists\((\S+)\)$/.exec(cond)
+    if (exists) return item?.[this.name(exists[1]!, names)] !== undefined
+    const notOrLe = /^attribute_not_exists\((\S+)\) OR (\S+) <= (:\w+)$/.exec(cond)
+    if (notOrLe) {
+      const v = item?.[this.name(notOrLe[1]!, names)]
+      return v === undefined || Number(v) <= Number(values[notOrLe[3]!])
     }
     const notExists = /^attribute_not_exists\((\S+)\)$/.exec(cond)
     if (notExists) return item?.[this.name(notExists[1]!, names)] === undefined
@@ -126,8 +139,20 @@ class Tables {
   }
 
   readonly ddb = {
-    send: async (command: TransactWriteCommand | QueryCommand | GetCommand): Promise<unknown> => {
+    send: async (command: TransactWriteCommand | QueryCommand | GetCommand | UpdateCommand): Promise<unknown> => {
       if (command instanceof QueryCommand) return this.query(command.input)
+      // `0235`: a lone UpdateItem — the replay's freeze, SkillState thaw and Profile thaw.
+      if (command instanceof UpdateCommand) {
+        const tx = { Update: command.input } as TransactItem
+        const key = KEY_OF[command.input.TableName!]!(command.input.Key!)
+        const table = this.table(command.input.TableName!)
+        const current = table.get(key)
+        if (!this.holds(command.input.ConditionExpression, current, tx)) {
+          throw Object.assign(new Error("The conditional request failed"), { name: "ConditionalCheckFailedException" })
+        }
+        table.set(key, this.applyUpdate(tx.Update!, current ?? { ...command.input.Key }))
+        return {}
+      }
       // `0220`: `readStoredAward`. The key is T3's `id`, which is also what `KEY_OF` stores it by.
       if (command instanceof GetCommand) {
         const item = this.table(command.input.TableName!).get(String(command.input.Key!.id))
@@ -346,7 +371,7 @@ describe("the items (§4.3)", () => {
         ["fixture-off", { skillId: "fixture-off", xpLedgerSum: 999_999, displayedXp: 999_999 }],
       ])
       const item = profileTotalsItem(
-        { userId: "u-1", states, xpBySkill: new Map([[trained, cumulativeXp(7)]]), skills: [...enabled, disabled], curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        { userId: "u-1", states, xpBySkill: new Map([[trained, cumulativeXp(7)]]), skills: [...enabled, disabled], curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1 },
         PROFILE_TABLE,
       )
       expect(item.Update!.Key).toEqual({ id: "u-1" })
@@ -359,19 +384,25 @@ describe("the items (§4.3)", () => {
     it("a row written before 0219, never replayed, shows what its XP buys", () => {
       const states = new Map([[other, { skillId: other, xpLedgerSum: cumulativeXp(8), displayedXp: cumulativeXp(8) }]])
       const item = profileTotalsItem(
-        { userId: "u-1", states, xpBySkill: new Map([[trained, 1]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        { userId: "u-1", states, xpBySkill: new Map([[trained, 1]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 1 },
         PROFILE_TABLE,
       )
       expect(totals(item)[":tlvl"]).toBe(levelForXp(1, RULES.curve) + 8 + (enabled.length - 2))
     })
 
-    it("creates the row if the replay never has: Amplify metadata is if_not_exists, and only the flag is conditioned", () => {
+    it("creates the row if the replay never has: Amplify metadata is if_not_exists, and only the flag and version are conditioned", () => {
       const item = profileTotalsItem(
-        { userId: "u-1", states: new Map(), xpBySkill: new Map([[trained, 5]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
+        { userId: "u-1", states: new Map(), xpBySkill: new Map([[trained, 5]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z", rulesVersion: 3 },
         PROFILE_TABLE,
       ).Update!
-      expect(item.ConditionExpression).toBe("attribute_not_exists(replayInProgress) OR replayInProgress = :thawed")
+      expect(item.ConditionExpression).toBe(
+        "(attribute_not_exists(replayInProgress) OR replayInProgress = :thawed) AND " +
+          "(attribute_not_exists(ledgerRulesVersion) OR ledgerRulesVersion = :ver)",
+      )
       expect(item.ExpressionAttributeValues![":thawed"]).toBe(false)
+      expect(item.ExpressionAttributeValues![":ver"]).toBe(3)
+      // The version is a condition, never a write: only the replay's thaw sets it.
+      expect(item.UpdateExpression).not.toContain("ledgerRulesVersion")
       expect(item.UpdateExpression).toContain("#tn = if_not_exists(#tn, :tn)")
       expect(item.UpdateExpression).toContain("#owner = if_not_exists(#owner, :owner)")
       expect(item.UpdateExpression).toContain("totalXp = :txp, totalLevel = :tlvl")
@@ -450,6 +481,78 @@ describe("persistWithLedger — the commit", () => {
     t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: false })
     const result = await commit(activity(), RUN_ROWS, deps)
     expect(result.rowsWritten).toBe(2)
+  })
+
+  /**
+   * `0235`, D-275. The worker reads v1; a whole replay to v2 — freeze, thaw, flag down again —
+   * runs before it commits. The flag condition alone would let the v1 rows in. The replay's
+   * writes here are the real `dynamoReplayStore` items, sent through the same fake.
+   */
+  it("0235: a replay that completes between the version read and the commit refuses it; the redelivery scores under v2", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    const V2 = { ...RULES, version: 2 }
+    const bundled = new Map([
+      [1, RULES],
+      [2, V2],
+    ])
+    t.table(STATE_TABLE).set("u-1#wayfaring", {
+      userId: "u-1", skillId: "wayfaring", xpLedgerSum: 100, displayedXp: 100, rulesVersionLastComputed: 1,
+    })
+    t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: false })
+    const workerRules = () =>
+      rulesForUser("u-1", { ddb: t.ddb, table: STATE_TABLE, profileTable: PROFILE_TABLE, bundled })
+    const scoredUnder = (rules: typeof RULES, a: Activity) =>
+      persistWithLedger(
+        {
+          activity: a, ingestKey: "k-1", entries: ledgerEntries(RUN_ROWS, { activity: a, rules, awardedAt: a.ingestedAt }),
+          rulesVersion: rules.version, skills: rules.skills, curve: rules.curve, award: NO_CELLS, rejects: undefined,
+        },
+        deps,
+      )
+
+    // 1. The worker resolves its version. The ledger is on v1.
+    const read = await workerRules()
+    expect(read.version).toBe(1)
+
+    // 2. A whole replay to v2 runs in the gap: freeze, step 6's SkillState rewrite, thaw.
+    const store = dynamoReplayStore({
+      ddb: t.ddb as ReplayStoreDeps["ddb"],
+      tables: { ledger: LEDGER_TABLE, skillState: STATE_TABLE, profile: PROFILE_TABLE, activity: ACTIVITY_TABLE },
+      blobs: {} as ReplayStoreDeps["blobs"],
+      snapshots: {} as ReplayStoreDeps["snapshots"],
+      loadTrace: async () => undefined,
+    })
+    await store.freeze("u-1", "2026-09-06T09:00:03.000Z")
+    await store.writeSkillStates(
+      "u-1",
+      [{ skillId: "wayfaring", xp: 100, level: 2, levelHighWater: 2, rulesVersion: 2, introducedIn: 1 }],
+      "2026-09-06T09:00:04.000Z",
+    )
+    await store.thaw("u-1", { totalXp: 100, totalLevel: 2, ledgerRulesVersion: 2 }, "2026-09-06T09:00:04.000Z")
+    expect(t.table(PROFILE_TABLE).get("u-1")).toMatchObject({ replayInProgress: false, ledgerRulesVersion: 2 })
+
+    // 3. The stalled commit arrives, flag down. It is refused, atomically.
+    const before = t.snapshot()
+    await expect(scoredUnder(read, activity())).rejects.toBeInstanceOf(ReplayInProgressError)
+    expect(t.snapshot()).toBe(before)
+
+    // 4. The redelivery re-reads the version and commits under v2.
+    const again = await workerRules()
+    expect(again.version).toBe(2)
+    const result = await scoredUnder(again, activity())
+    expect(result).toMatchObject({ rowsWritten: 2, xpRulesVersion: 2 })
+    expect([...t.table(LEDGER_TABLE).values()].map((r) => r.xpRulesVersion)).toEqual([2, 2])
+    expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpRulesVersion: 2 })
+    expect(t.table(STATE_TABLE).get("u-1#wayfaring")).toMatchObject({ rulesVersionLastComputed: 2 })
+  })
+
+  it("0235: a user never replayed has no ledgerRulesVersion, and commits as before", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: false })
+    expect((await commit(activity(), RUN_ROWS, deps)).rowsWritten).toBe(2)
+    expect(t.table(PROFILE_TABLE).get("u-1")).not.toHaveProperty("ledgerRulesVersion")
   })
 
   it("0223: an activity that earns nothing is not gated — it has no XP for the replay to miss", async () => {

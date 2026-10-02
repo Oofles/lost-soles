@@ -348,7 +348,12 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        */
       traces: { s3, bucket: required("USER_DATA_BUCKET") },
       registry: (userId) =>
-        rulesForUser(userId, { ddb, table: required("SKILL_STATE_TABLE"), bundled: RULES }),
+        rulesForUser(userId, {
+          ddb,
+          table: required("SKILL_STATE_TABLE"),
+          profileTable: required("PROFILE_TABLE"),
+          bundled: RULES,
+        }),
       /**
        * `0067`. `snapshots/skillstate/` — the same bucket as the blobs, its own prefix and its own
        * grant in `backend.ts` (PutObject only: the ingest never reads a snapshot back).

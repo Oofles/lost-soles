@@ -1027,8 +1027,9 @@ processActivityLambda.addToRolePolicy(
  * T2: `UpdateItem` for the ADD, and `Query` on the base table for the strongly consistent
  * pre-read the ADD's condition compares against. No `DeleteItem` either.
  *
- * T1: `UpdateItem` ALONE, for §4.3's `Update Profile` totals (`0219`). The ingest never reads
- * the Profile row — the totals are computed from the T2 pre-read — and never deletes it.
+ * T1: `UpdateItem` for §4.3's `Update Profile` totals (`0219`), and `GetItem` for ONE
+ * attribute: `ledgerRulesVersion`, the version fallback for a user with no T2 rows (`0235`,
+ * D-275). The totals are still computed from the T2 pre-read. Never `DeleteItem`.
  */
 const xpLedgerTable = backend.data.resources.tables["XpLedgerEntry"]
 const skillStateTable = backend.data.resources.tables["SkillState"]
@@ -1041,7 +1042,7 @@ processActivityLambda.addToRolePolicy(
 )
 skillStateTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:Query")
 const profileTable = backend.data.resources.tables["Profile"]
-profileTable.grant(processActivityLambda, "dynamodb:UpdateItem")
+profileTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
 
 /**
  * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a

@@ -169,8 +169,15 @@ export interface ReplayStore {
 
   /** Step 1. Creates the T1 row if there is none. */
   freeze(userId: string, at: string): Promise<void>
-  /** Step 6. Totals and the flag in one write. */
-  thaw(userId: string, totals: { totalXp: number; totalLevel: number }, at: string): Promise<void>
+  /**
+   * Step 6. Totals, the flag and `ledgerRulesVersion` in one write. The version is what an ingest
+   * commit is conditioned on (`0235`, D-275): one scored before this replay cannot land after it.
+   */
+  thaw(
+    userId: string,
+    totals: { totalXp: number; totalLevel: number; ledgerRulesVersion: number },
+    at: string,
+  ): Promise<void>
 
   /** Every T4 row for the user (GSI2), floors and ReplayRuns included. */
   listLedger(userId: string): Promise<XpLedgerEntry[]>
@@ -452,7 +459,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       totalXp += w?.xp ?? 0
       totalLevel += w ? Math.max(w.level, w.levelHighWater) : 1
     }
-    await store.thaw(userId, { totalXp, totalLevel }, thawedAt)
+    await store.thaw(userId, { totalXp, totalLevel, ledgerRulesVersion: toVersion }, thawedAt)
 
     run = { ...run, status: "DONE", finishedAt: thawedAt }
     await store.updateRun(run)

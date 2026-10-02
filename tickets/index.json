@@ -5400,6 +5400,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-02T02:55:51Z",
+    "started": "2026-10-02T04:25:25Z",
     "path": "tickets/open/0235-a-replay-that-completes-inside-one-ingest-invocation-leaves.md",
     "ready": true,
     "acceptance": {

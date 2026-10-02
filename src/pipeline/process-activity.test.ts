@@ -1356,7 +1356,7 @@ describe("the worker scores under the version the ledger is on (0234, D-274)", (
 
   it("an activity ingested after a replay to v2 is scored under v2", async () => {
     const { deps, transacts } = rig({ ingest: RUN, skillStates: AFTER_REPLAY })
-    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, bundled: BUNDLED }
+    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, profileTable: PROFILE_TABLE, bundled: BUNDLED }
     const result = await processActivity(JOB, { ...deps, registry: (u) => rulesForUser(u, t2) })
 
     const items = transacts[0]!.TransactItems!
@@ -1376,7 +1376,7 @@ describe("the worker scores under the version the ledger is on (0234, D-274)", (
       ingest: RUN,
       skillStates: [{ ...AFTER_REPLAY[0], rulesVersionLastComputed: 3 }],
     })
-    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, bundled: BUNDLED }
+    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, profileTable: PROFILE_TABLE, bundled: BUNDLED }
     await expect(processActivity(JOB, { ...deps, registry: (u) => rulesForUser(u, t2) })).rejects.toBeInstanceOf(
       RulesVersionNotBundledError,
     )

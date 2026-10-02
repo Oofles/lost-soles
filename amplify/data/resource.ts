@@ -250,6 +250,11 @@ const schema = a.schema({
        * rather than refetching, so no number visibly moves until step 6 has written them all.
        */
       replayInProgress: a.boolean().authorization((allow) => [allow.owner().to(["read"])]),
+      /**
+       * `0235`, D-275. The version §4.4 step 6 moved the ledger to. Every ingest commit with XP
+       * is conditioned on it, so a commit scored before a replay cannot land after one.
+       */
+      ledgerRulesVersion: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
     })
     .authorization((allow) => [allow.owner()]),
 

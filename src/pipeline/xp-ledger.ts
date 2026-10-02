@@ -283,6 +283,16 @@ function shownLevel(row: Pick<SkillStateRow, "displayedXp" | "level" | "levelHig
  * commit XP while a replay is between its CLEAR and its THAW, where it would be either deleted
  * without being re-scored or left beside the replay's rows under another version. A refusal
  * surfaces as `ReplayInProgressError` and the message is redelivered after the replay.
+ *
+ * ─── AND ON THE VERSION THE ACTIVITY WAS SCORED UNDER (`0235`, D-275) ────────
+ *
+ * The flag alone misses a replay that runs ENTIRELY between the worker's version read
+ * (`worker-rules.ts`) and this commit: by the commit the flag is down again, and the rows would
+ * land under the pre-replay version in a ledger that is now on another. So the thaw also stamps
+ * `ledgerRulesVersion`, and this item requires it absent (a user never replayed) or equal to the
+ * version these rows cite. A mismatch is the same refusal, and the redelivery re-reads the
+ * version. `xpLedgerSum = :prev` on the T2 items does not cover this: the pre-read happens at
+ * commit time, after the thaw.
  */
 export function profileTotalsItem(
   args: {
@@ -292,10 +302,12 @@ export function profileTotalsItem(
     skills: readonly Pick<RuleSkill, "id" | "enabled">[]
     curve: RuleCurve
     ingestedAt: string
+    /** The version this activity's rows cite. The commit is refused unless the ledger is on it. */
+    rulesVersion: number
   },
   table: string,
 ): TransactItems[number] {
-  const { userId, states, xpBySkill: added, skills, curve, ingestedAt } = args
+  const { userId, states, xpBySkill: added, skills, curve, ingestedAt, rulesVersion } = args
   const meta = amplifyMetadata(userId, ingestedAt, PROFILE_TYPENAME)
   let totalXp = 0
   let totalLevel = 0
@@ -319,10 +331,13 @@ export function profileTotalsItem(
       UpdateExpression:
         "SET #tn = if_not_exists(#tn, :tn), #owner = if_not_exists(#owner, :owner), " +
         "createdAt = if_not_exists(createdAt, :now), updatedAt = :now, totalXp = :txp, totalLevel = :tlvl",
-      ConditionExpression: "attribute_not_exists(replayInProgress) OR replayInProgress = :thawed",
+      ConditionExpression:
+        "(attribute_not_exists(replayInProgress) OR replayInProgress = :thawed) AND " +
+        "(attribute_not_exists(ledgerRulesVersion) OR ledgerRulesVersion = :ver)",
       ExpressionAttributeNames: { "#tn": "__typename", "#owner": "owner" },
       ExpressionAttributeValues: {
         ":thawed": false,
+        ":ver": rulesVersion,
         ":tn": meta.__typename,
         ":owner": meta.owner,
         ":now": meta.updatedAt,
@@ -376,7 +391,7 @@ export function ledgerTransactItems(
     ),
   )
   const profile = profileTotalsItem(
-    { userId: activity.userId, states, xpBySkill: added, skills, curve, ingestedAt: activity.ingestedAt },
+    { userId: activity.userId, states, xpBySkill: added, skills, curve, ingestedAt: activity.ingestedAt, rulesVersion },
     deps.profileTable,
   )
   return [...puts, ...adds, profile]
@@ -401,7 +416,8 @@ export function isLostLedgerRace(err: unknown, firstXpItem: number): boolean {
 }
 
 /**
- * `0223`. The Profile item — always the LAST XP item — failed its `replayInProgress` condition.
+ * `0223`. The Profile item — always the LAST XP item — failed its condition: a replay holds the
+ * ledger, or (`0235`) one finished after this activity was scored and moved it to another version.
  * Checked before `isLostLedgerRace`, which would otherwise read it as a race and retry into the
  * same refusal.
  */
@@ -412,14 +428,18 @@ export function isReplayRefusal(err: unknown, profileItem: number): boolean {
 }
 
 /**
- * `0223`. An XP replay holds this user's ledger. Nothing was written — the whole transaction
- * cancelled — so it is safe to redeliver: the receipt is still `PROCESSING`, and the queue's
- * visibility timeout outlasts `PROCESSING_STALE_MS`, so the next delivery reclaims it after the
- * replay has thawed.
+ * `0223`. An XP replay holds this user's ledger — or (`0235`) one ran to completion between this
+ * activity's version read and its commit, and the ledger is no longer on `rulesVersion`. The
+ * Profile item cannot say which. Nothing was written — the whole transaction cancelled — so it is
+ * safe to redeliver: the receipt is still `PROCESSING`, the queue's visibility timeout outlasts
+ * `PROCESSING_STALE_MS`, and the next delivery reclaims it, re-reads the version and re-scores.
  */
 export class ReplayInProgressError extends Error {
-  constructor(userId: string) {
-    super(`An XP replay is in progress for ${userId}; the commit was refused and will be redelivered`)
+  constructor(userId: string, rulesVersion: number) {
+    super(
+      `An XP replay holds ${userId}'s ledger, or moved it off v${rulesVersion} after this activity ` +
+        "was scored; the commit was refused and will be redelivered",
+    )
     this.name = "ReplayInProgressError"
   }
 }
@@ -521,7 +541,7 @@ export async function persistWithLedger(
       return commit
     } catch (err) {
       if (items.length > 0 && isReplayRefusal(err, FIRST_XP_ITEM + items.length - 1)) {
-        throw new ReplayInProgressError(activity.userId)
+        throw new ReplayInProgressError(activity.userId, rulesVersion)
       }
       if (attempt < MAX_LEDGER_ATTEMPTS && isLostLedgerRace(err, FIRST_XP_ITEM)) continue
       throw err

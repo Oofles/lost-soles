@@ -4042,3 +4042,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     after the thaw under the old version. That needs one invocation to stall for more than the
     drain. The next replay re-prices the activity correctly. Tracked as a separate ticket rather
     than widening this one.
+
+- **D-275** **An ingest commit with XP is refused unless the user's ledger is still on the version
+  the activity was scored under. The replay's thaw stamps `Profile.ledgerRulesVersion`, and the
+  `Update Profile` item of ingest's §4.3 transaction is conditioned on it. A user with no T2 rows
+  takes their version from that stamp before falling back to the newest bundled version.**
+  *(Agent, approved by the operator, 2026-10-02, ticket `0235`.)* Resolves D-274's "Known
+  residual". Supersedes D-274's bullet *"A user with no T2 rows is scored under the newest bundled
+  version"*, and qualifies its *"no schema change"* rationale.
+  - **What was wrong.** D-273's flag check only refuses a commit while `replayInProgress` is up.
+    The worker reads its version before the cells phase. If a whole replay (freeze, drain,
+    thaw) ran between that read and the commit, the flag was down again by the commit, and the
+    rows landed under the old version in a ledger that is now on the new one. The T2 items'
+    `xpLedgerSum = :prev` does not catch it, because that pre-read happens at commit time.
+  - **Why `Profile` and not a condition on each T2 row's `rulesVersionLastComputed`.** Two
+    holes. A skill this activity trains for the first time has no T2 row for the replay to have
+    moved, so its row would still commit under the old version. And a T2 failure is classed as
+    a lost ledger race and retried with the same stale version, so it would never pick up the
+    new one. The `Profile` item is one item per user, already in every XP transaction, and a
+    failure on it is already `ReplayInProgressError` (redelivered after the replay).
+  - **Written by the thaw, in the same update that clears the flag.** No commit can see the
+    flag down and the old version. Ingest never writes it, so a user never replayed has no
+    stamp, and the condition accepts that (`attribute_not_exists`).
+  - **The worker's fallback.** T2's max is still the first answer (D-274). But a replay that
+    produced no XP leaves no T2 rows and does leave a stamp. Scoring that user under "the
+    newest bundled" would be refused on every redelivery once a newer version shipped. So the
+    order is T2's max, then `Profile.ledgerRulesVersion`, then the newest bundled. That costs
+    the worker `dynamodb:GetItem` on T1 and adds one owner-read-only field to the `Profile`
+    model.

@@ -187,14 +187,16 @@ describe("the THAW write (§4.4 step 6)", () => {
     expect(JSON.stringify(u)).not.toMatch(/max|greatest/i)
   })
 
-  it("freeze creates the Profile row if needed; thaw clears the flag with the totals", async () => {
+  it("freeze creates the Profile row if needed; thaw clears the flag with the totals and stamps the version", async () => {
     const { sent, store } = recorder()
     await store.freeze("u-1", "2026-09-29T12:00:00.000Z")
-    await store.thaw("u-1", { totalXp: 1234, totalLevel: 17 }, "2026-09-29T12:05:00.000Z")
+    await store.thaw("u-1", { totalXp: 1234, totalLevel: 17, ledgerRulesVersion: 2 }, "2026-09-29T12:05:00.000Z")
     const [freeze, thaw] = sent as UpdateCommand[]
     expect(freeze!.input).toMatchObject({ TableName: "P", Key: { id: "u-1" } })
     expect(freeze!.input.ExpressionAttributeValues).toMatchObject({ ":t": true, ":tn": "Profile", ":owner": "u-1::u-1" })
-    expect(thaw!.input.ExpressionAttributeValues).toMatchObject({ ":f": false, ":xp": 1234, ":lvl": 17 })
+    expect(thaw!.input.ExpressionAttributeValues).toMatchObject({ ":f": false, ":xp": 1234, ":lvl": 17, ":ver": 2 })
+    // `0235`: in the SAME write as the flag, so no commit can see the flag down and the old version.
+    expect(thaw!.input.UpdateExpression).toMatch(/replayInProgress = :f, .*ledgerRulesVersion = :ver/)
   })
 })
 

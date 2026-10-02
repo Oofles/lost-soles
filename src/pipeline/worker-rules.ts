@@ -1,3 +1,5 @@
+import { GetCommand, type QueryCommand } from "@aws-sdk/lib-dynamodb"
+
 import { readShownRows } from "@/src/pipeline/skillstate-snapshot"
 import type { RuleSet } from "@/src/rules/schema"
 
@@ -16,8 +18,12 @@ import type { RuleSet } from "@/src/rules/schema"
  * be scored under a version the ledger is not on. Reading it from the ledger means a deploy
  * only makes v*N* *available*; the replay is what switches the user to it.
  *
- * A USER WITH NO T2 ROWS has nothing to be consistent with and is scored under the newest
- * bundled version.
+ * A USER WITH NO T2 ROWS falls back to `Profile.ledgerRulesVersion`, which the replay's thaw
+ * stamps (`0235`, D-275). A replay that produced no XP leaves no T2 rows but does leave the
+ * stamp, and the ingest commit is conditioned on it — scoring such a user under "the newest
+ * bundled" would be refused on every redelivery once a newer version shipped. Only a user with
+ * neither — never scored, never replayed — has nothing to be consistent with, and is scored
+ * under the newest bundled version.
  */
 
 /** What the pipeline needs from a ruleset. Matches `ProcessDeps.registry`. */
@@ -67,21 +73,42 @@ export function pickBundledRules<R extends Registry>(
   return rules
 }
 
-/** The I/O half: one consistent query of the user's T2 partition, then `pickBundledRules`. */
+/**
+ * The I/O half: one consistent query of the user's T2 partition; only when that yields no
+ * version, one consistent read of their T1 row (`0235`); then `pickBundledRules`.
+ */
 export async function rulesForUser<R extends Registry>(
   userId: string,
   deps: {
-    ddb: Parameters<typeof readShownRows>[1]["ddb"]
+    ddb: { send(command: QueryCommand | GetCommand): Promise<unknown> }
     table: string
+    /** T1 `Profile`, for the fallback. */
+    profileTable: string
     bundled: ReadonlyMap<number, R>
   },
 ): Promise<R> {
   const rows = await readShownRows(userId, { ddb: deps.ddb, table: deps.table })
-  const states = rows.map((r) => ({
-    rulesVersionLastComputed:
-      r.rulesVersionLastComputed === undefined || r.rulesVersionLastComputed === null
-        ? undefined
-        : Number(r.rulesVersionLastComputed),
-  }))
-  return pickBundledRules(userId, ledgerRulesVersion(states), deps.bundled)
+  const states = rows.map((r) => ({ rulesVersionLastComputed: numberOrUndefined(r.rulesVersionLastComputed) }))
+  const version = ledgerRulesVersion(states) ?? (await profileRulesVersion(userId, deps))
+  return pickBundledRules(userId, version, deps.bundled)
+}
+
+/** `Profile.ledgerRulesVersion`, or `undefined` when the row or the attribute is absent. */
+async function profileRulesVersion(
+  userId: string,
+  deps: { ddb: { send(command: GetCommand): Promise<unknown> }; profileTable: string },
+): Promise<number | undefined> {
+  const out = (await deps.ddb.send(
+    new GetCommand({
+      TableName: deps.profileTable,
+      Key: { id: userId },
+      ProjectionExpression: "ledgerRulesVersion",
+      ConsistentRead: true,
+    }),
+  )) as { Item?: Record<string, unknown> }
+  return numberOrUndefined(out.Item?.ledgerRulesVersion)
+}
+
+function numberOrUndefined(v: unknown): number | undefined {
+  return v === undefined || v === null ? undefined : Number(v)
 }

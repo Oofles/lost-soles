@@ -169,7 +169,11 @@ const awardColumns = (a: DiscoveryAward) => ({
 class MemoryStore implements ReplayStore {
   runs = new Map<string, ReplayRunRecord>()
   skills = new Map<string, StoredSkillState & { levelHighWater?: number; level?: number }>()
-  profile = { replayInProgress: false, totalXp: 0, totalLevel: 0 }
+  profile: { replayInProgress: boolean; totalXp: number; totalLevel: number; ledgerRulesVersion?: number } = {
+    replayInProgress: false,
+    totalXp: 0,
+    totalLevel: 0,
+  }
   ledger = new Map<string, XpLedgerEntry>()
   t6 = new Map<H3Index, FoldedCell>()
   runCells = new Map<string, H3Index[]>()
@@ -315,7 +319,7 @@ class MemoryStore implements ReplayStore {
     this.op("freeze")
     this.profile.replayInProgress = true
   }
-  async thaw(_u: string, totals: { totalXp: number; totalLevel: number }) {
+  async thaw(_u: string, totals: { totalXp: number; totalLevel: number; ledgerRulesVersion: number }) {
     this.op("thaw")
     this.profile = { replayInProgress: false, ...totals }
   }
@@ -401,13 +405,17 @@ class MemoryStore implements ReplayStore {
   /**
    * `0223`. THE WORKER'S COMMIT, as far as the replay can see it: one atomic act that puts the T3
    * row, the ledger rows and the SkillState ADDs — or, when the activity earns XP and the flag is
-   * up, puts none of them (`profileTotalsItem`'s condition; its expression is asserted in
-   * `xp-ledger.test.ts`). Layer 1 included: an activity with rows already awards nothing.
+   * up — or (`0235`) the thaw stamped a version other than the one it scored under — puts none
+   * of them (`profileTotalsItem`'s condition; its expression is asserted in `xp-ledger.test.ts`).
+   * Layer 1 included: an activity with rows already awards nothing.
    */
   ingest(a: ReplayActivity, rules: RuleSet): "committed" | "refused" | "already-scored" {
     if ([...this.ledger.values()].some((e) => e.activityId === a.activityId && !e.isFloor)) return "already-scored"
     const rows = scoreActivity(a, rules, null, NO_CELLS, a.ingestedAt)
-    if (rows.length > 0 && this.profile.replayInProgress) return "refused"
+    const stamped = this.profile.ledgerRulesVersion
+    if (rows.length > 0 && (this.profile.replayInProgress || (stamped !== undefined && stamped !== rules.version))) {
+      return "refused"
+    }
     this.fx.activities.push(a)
     for (const r of rows) this.ledger.set(r.id, r)
     this.t3.set(a.activityId, { status: a.status, xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? rules.version : null, ...awardColumns(NO_CELLS) })
@@ -472,6 +480,29 @@ describe("the ingest worker follows the replay (0234, D-274)", () => {
     expect(await workerRules(store)).toBe(V1)
     await replayUser(USER, 2, deps(store, STINGY))
     expect(await workerRules(store)).toBe(STINGY)
+  })
+
+  /**
+   * `0235`, D-275. The worker read v1, then stalled past the drain while a whole replay to v2 ran.
+   * The flag is down by the time it commits; the thaw's version stamp is what refuses it.
+   */
+  it("a replay that completes inside one ingest refuses that ingest; the redelivery scores under v2", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const stalled = activity("stalled", "2026-03-04T07:00:00.000Z", { distanceM: 4_000 })
+
+    const read = await workerRules(store)
+    expect(read).toBe(V1)
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(store.profile.replayInProgress).toBe(false)
+    expect(store.ingest(stalled, read)).toBe("refused")
+
+    const again = await workerRules(store)
+    expect(again).toBe(STINGY)
+    expect(store.ingest(stalled, again)).toBe("committed")
+    const rows = [...store.ledger.values()].filter((e) => e.activityId === "stalled")
+    expect(rows.length).toBeGreaterThan(0)
+    expect(new Set(rows.map((r) => r.xpRulesVersion))).toEqual(new Set([2]))
+    expect(store.t3.get("stalled")).toMatchObject({ xpRulesVersion: 2 })
   })
 
   it("follows a rollback too: v2 then back to v1", async () => {
@@ -906,7 +937,7 @@ describe("the freeze (§4.4 step 1) and the generation (step 4)", () => {
       level += row ? Math.max(row.level!, row.levelHighWater!) : 1
       xp += row?.displayedXp ?? 0
     }
-    expect(store.profile).toEqual({ replayInProgress: false, totalXp: xp, totalLevel: level })
+    expect(store.profile).toEqual({ replayInProgress: false, totalXp: xp, totalLevel: level, ledgerRulesVersion: 2 })
   })
 })
 

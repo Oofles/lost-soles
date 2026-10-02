@@ -215,10 +215,11 @@ PK   id                = <userId>    (the Cognito sub; Amplify's default identif
 | `rulesVersionPinned` | N | which `RuleSkill` version the UI renders. Normally the newest. |
 | `totalLevel`, `totalXp` | N | denormalised from `SkillState` in the same transaction as an XP write; D-033's headline number, so it must not cost six reads. |
 | `replayInProgress` | BOOL | §4.4 step 1's freeze flag. `true` while a replay runs; the UI keeps rendering the `SkillState` it has. (D-258) |
+| `ledgerRulesVersion` | N | the version §4.4 step 6 moved the ledger to, written in the same update that clears `replayInProgress`. Absent until the first replay. Every ingest commit with XP is conditioned on it being absent or equal to the version the activity was scored under; it is also the worker's version fallback for a user with no `SkillState` rows. Only the replay writes it. (D-275) |
 | `createdAt`, `updatedAt` | S | ISO 8601 UTC |
 
-Auth: `allow.owner()`, with `totalXp`, `totalLevel`, `exploredGeneration` and `replayInProgress`
-narrowed to owner **read** at the field (D-258) — the client edits its preferences, never its
+Auth: `allow.owner()`, with `totalXp`, `totalLevel`, `exploredGeneration`, `replayInProgress` and
+`ledgerRulesVersion` narrowed to owner **read** at the field (D-258) — the client edits its preferences, never its
 numbers. Access patterns: **AP-1**, **AP-14**.
 5-year count: ≤ 6 (D-014). No GSIs.
 
@@ -1131,8 +1132,9 @@ A rebalance is, **in this order** (D-274):
    `rules/xp-rules-v2.json` and regenerates `rules/xp-rules.bundled.ts`, the index of every
    version the ingest worker carries.
 2. **Deploy.** The worker now bundles v2 but does not use it yet. It scores each activity under
-   the version the user's ledger is on: the highest `SkillState.rulesVersionLastComputed`, or
-   the newest bundled version when the user has no rows (`src/pipeline/worker-rules.ts`).
+   the version the user's ledger is on: the highest `SkillState.rulesVersionLastComputed`; when
+   the user has no rows, `Profile.ledgerRulesVersion`; when neither exists, the newest bundled
+   version (`src/pipeline/worker-rules.ts`, D-275).
 3. Seed T5 partition `2` (§3.8).
 4. Run the replay job to v2. Its thaw (step 6) rewrites every SkillState row to v2, and the next
    ingest follows on its own. Nothing is redeployed after the replay.
@@ -1159,8 +1161,11 @@ replay(userId, toRulesVersion):
     Ingest does NOT commit XP while the flag is up: the Update Profile item in its §4.3
     transaction is conditioned on the flag, so the check is atomic with the write. A
     refused commit writes nothing and is redelivered by the queue after the replay
-    (D-273). The drain covers a commit that landed just before the freeze but is not yet
-    visible to step 2's GSI reads. The UI reads the pre-replay SkillState throughout, so
+    (D-273). The same item is also conditioned on Profile.ledgerRulesVersion being absent
+    or equal to the version the activity was scored under, so a commit scored BEFORE a
+    replay that ran to completion while it stalled is refused too (D-275). The drain covers
+    a commit that landed just before the freeze but is not yet visible to step 2's GSI
+    reads. The UI reads the pre-replay SkillState throughout, so
     no number ever visibly flickers downward.
 
  2. CLEAR
@@ -1187,7 +1192,8 @@ replay(userId, toRulesVersion):
  5. RECONCILE against the waterline — §4.6. This is the only step that can add rows.
 
  6. THAW
-    write SkillState in one pass; clear replayInProgress; write the chronicle entry
+    write SkillState in one pass; clear replayInProgress and set
+    Profile.ledgerRulesVersion = toRulesVersion in ONE update (D-275); write the chronicle entry
     (04 §7.6: "The rules of the world shifted… nothing was taken away.")
 ```
 

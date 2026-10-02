@@ -339,12 +339,15 @@ export function dynamoReplayStore(deps: ReplayStoreDeps): ReplayStore {
         new UpdateCommand({
           TableName: tables.profile,
           Key: { id: userId },
-          UpdateExpression: "SET replayInProgress = :f, totalXp = :xp, totalLevel = :lvl, updatedAt = :now",
+          UpdateExpression:
+            "SET replayInProgress = :f, totalXp = :xp, totalLevel = :lvl, " +
+            "ledgerRulesVersion = :ver, updatedAt = :now",
           ConditionExpression: "attribute_exists(id)",
           ExpressionAttributeValues: {
             ":f": false,
             ":xp": totals.totalXp,
             ":lvl": totals.totalLevel,
+            ":ver": totals.ledgerRulesVersion,
             ":now": at,
           },
         }),
