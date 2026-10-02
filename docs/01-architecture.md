@@ -195,7 +195,7 @@ Every resource, what it does, and what would make it cost money.
 | 2 | Cognito user pool | `defineAuth` | `amplify/auth/resource.ts` | Identity. Email + passkey. `allowUnauthenticatedIdentities: false`, self-signup disabled | MAU (10,000 free, non-expiring) |
 | 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
 | 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads/writes + **real-time subscriptions** | $4.00/M ops; $2.00/M real-time updates |
-| 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity`, `WorkoutEntry`, `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
+| 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
 | 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
 | 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d | Negligible |

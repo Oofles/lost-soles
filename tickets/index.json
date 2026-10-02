@@ -1693,10 +1693,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-02T19:52:51Z",
     "path": "tickets/open/0070-workout-entry-accommodates-sets.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },

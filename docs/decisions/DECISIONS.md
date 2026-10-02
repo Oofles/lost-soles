@@ -4177,3 +4177,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Docs re-derived.** 04 §3.2/§3.3, the §1.3 excerpt, the §4.2 tally and the §8.2 worked example
     now use res-11 counts (148 / 58 / 183 cells, Cartography 380). 05 §8.2's cell-size paragraph
     now describes res 11.
+
+## The sets shape lives on `Activity`; `WorkoutEntry` is the `/log` request body  (2026-10-02, ticket `0070`)
+
+- **D-280** **There is no `WorkoutEntry` table. A manual log persists as the canonical
+  `Activity`, and its `sets: WorkoutSet[]` is the sets-from-day-one shape D-062 asks for.
+  `WorkoutEntry` is the `/log` request body, validated at `lib/log/workout-entry.ts`. A set's
+  field is resolved through the exercise row's measure KERNEL, not through the registry's
+  `unit`.** *(Operator, 2026-10-02, ticket `0070`. Amends `01` §3's row 5 and `0070` criterion 5.)*
+  - **The conflict.** `0070` specified a separate `WorkoutEntry { exerciseId, measure, sets:
+    [{reps: 30}] }` whose set key would be "named by the registry's `unit`". `01` §3 listed a
+    `WorkoutEntry` DynamoDB model. The canonical contract (D-140, transcribed by `0025`) already
+    had `Activity.sets: WorkoutSet[]`, in which each set carries its own `exercise` plus `reps` /
+    `durationS` / `weightKg`. The Amplify schema and the scorer (`0060`) were already built on
+    the contract.
+  - **Why the contract wins.** A second persisted type holding the same sets would give two
+    answers to "what did I log". Reshaping the contract would rewrite `0025`, the Amplify schema
+    and the scorer for no behavioural gain. The ticket's real requirements (a list, never a
+    scalar; scorer sums; nothing positional; back-datable instant; 0 sets refused) all hold on
+    the contract's shape.
+  - **Why the kernel, not `unit`.** The registry's `unit` is a display noun (`rep`, `second`)
+    and does not match a field name. `02` §3.7 makes the measure kernels a closed set in code:
+    adding a measure is code, and adding a skill or exercise over an existing measure is a row.
+    `SET_FIELDS` in `src/scoring/units.ts` is that one kernel→field map. The scorer sums through
+    it and the `/log` boundary validates through it, so the two cannot disagree. A new exercise
+    over `reps:` or `seconds:` is still a registry row only (D-031).
+  - **On the wire** the exercise is stated once per entry (`exerciseId`), and sets omit it
+    (`[{ reps: 30 }]`, as `06` §6.6 says). `entryActivityFields` stamps it onto each set and maps
+    `occurredAt` to `startedAt`. `measure` is not sent: it is derived from the registry.

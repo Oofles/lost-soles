@@ -18,7 +18,7 @@
  * registry an argument. A replay months later must count the same units the original did.
  */
 
-import type { Activity } from "@/src/domain/activity"
+import type { Activity, WorkoutSet } from "@/src/domain/activity"
 import type { Measure, RuleSkill } from "@/src/rules/schema"
 import { selectActivitySkills } from "@/src/rules/select-activity-skills"
 
@@ -39,17 +39,43 @@ export interface SkillUnits {
  */
 const KERNELS: Record<string, (a: ScorableActivity, exercise: string) => number> = {
   distanceKm: (a) => (a.distanceM ?? 0) / 1000,
-  reps: (a, exercise) => sumSets(a, exercise, (s) => s.reps),
-  seconds: (a, exercise) => sumSets(a, exercise, (s) => s.durationS),
+  reps: (a, exercise) => sumSets(a, exercise, SET_FIELDS.reps),
+  seconds: (a, exercise) => sumSets(a, exercise, SET_FIELDS.seconds),
 }
 
-function sumSets(
-  a: ScorableActivity,
-  exercise: string,
-  field: (s: Activity["sets"][number]) => number | undefined,
-): number {
+/**
+ * Which `WorkoutSet` field each set-summing kernel reads (D-280). The ONE place the measure's
+ * kernel is tied to a field name: the scorer sums through it and the `/log` boundary validates
+ * through it, so the two cannot disagree about where a plank's seconds live.
+ *
+ * Keyed by kernel, not by the registry's `unit` — `unit` is a display noun (`rep`, `second`),
+ * and the kernel set is code by design (`02` §3.7). A new exercise over an existing kernel is
+ * a registry row; a new kernel is a line here and in `KERNELS`.
+ */
+export const SET_FIELDS = {
+  reps: "reps",
+  seconds: "durationS",
+} as const satisfies Record<string, keyof WorkoutSet>
+
+export type SetField = (typeof SET_FIELDS)[keyof typeof SET_FIELDS]
+
+/**
+ * The set field a measure sums, and the exercise it sums it for — `reps:pushup` →
+ * `{ field: "reps", exercise: "pushup" }`. Null for a measure that does not read `sets`.
+ */
+export function setFieldOf(measure: Measure): { field: SetField; exercise: string } | null {
+  const colon = measure.indexOf(":")
+  if (colon === -1) return null
+  const kernel = measure.slice(0, colon)
+  if (!Object.hasOwn(SET_FIELDS, kernel)) return null
+  return { field: SET_FIELDS[kernel as keyof typeof SET_FIELDS], exercise: measure.slice(colon + 1) }
+}
+
+/** Σ over EVERY set — never positional. A three-set entry and a one-set entry of the same
+ *  total are the same work (D-062, ticket 0070). */
+function sumSets(a: ScorableActivity, exercise: string, field: SetField): number {
   let total = 0
-  for (const set of a.sets) if (set.exercise === exercise) total += field(set) ?? 0
+  for (const set of a.sets) if (set.exercise === exercise) total += set[field] ?? 0
   return total
 }
 
