@@ -3425,10 +3425,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-02T02:08:41Z",
+    "started": "2026-10-02T01:07:48Z",
     "path": "tickets/open/0145-build-index-mjs-has-no-tests-so-check-being-read-only-is-ass.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },

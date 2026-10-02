@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-02T02:08:41Z
+started: 2026-10-02T01:07:48Z
 ---
 
 ## Description
@@ -42,16 +43,16 @@ when capability `01` is next open, not ahead of anything that touches the build.
 
 ## Acceptance criteria
 
-- [ ] A test file exists for `build-index.mjs` and runs in `npm test`, so it rides both CI surfaces.
-- [ ] `--check` is asserted **read-only**: run it against a fixture tree and assert
+- [x] A test file exists for `build-index.mjs` and runs in `npm test`, so it rides both CI surfaces.
+- [x] `--check` is asserted **read-only**: run it against a fixture tree and assert
       `docs/.index-summaries.json` is byte-identical afterwards. This is the D-178 regression.
-- [ ] A heading inside a fenced code block is asserted **not** to be indexed, using a fixture that
+- [x] A heading inside a fenced code block is asserted **not** to be indexed, using a fixture that
       contains one — the `07:463` case, reduced.
-- [ ] Section ranges are asserted to end at the next heading of the same or higher level, including
+- [x] Section ranges are asserted to end at the next heading of the same or higher level, including
       the case where a `###` is followed by a `##`.
-- [ ] A hand-written sidecar summary is asserted to survive a regeneration that moves its line
+- [x] A hand-written sidecar summary is asserted to survive a regeneration that moves its line
       numbers.
-- [ ] The tests run against a **fixture directory**, not against `docs/` — a test that reads the
+- [x] The tests run against a **fixture directory**, not against `docs/` — a test that reads the
       real docs changes meaning every time a document is edited, which is how a test becomes noise
       and then gets deleted.
 
@@ -65,15 +66,53 @@ than building it here — `check-boundaries.mjs`, `check-design-tokens.mjs` and
 `check-bundle-leak.mjs` all carry their own `--self-test` instead, and whether that pattern or
 vitest is right for this script is worth one paragraph in the Resolution.
 
+## Resolution
+
+**Files touched**
+- `scripts/build-index.mjs` — one change for testability: a `--root <dir>` flag that replaces the
+  repo root (default unchanged). Without it the script can only read the real `docs/`, which the
+  last criterion forbids. Nothing else in the script moved.
+- `scripts/build-index.test.mjs` — new, 5 tests, picked up by the existing `**/*.test.mjs` include
+  in `vitest.config.ts`, so it runs in `npm test` on both CI surfaces with no config change.
+
+**What each test asserts** (all run the script as a child process against a temp fixture tree
+holding `docs/` and `docs/contracts/`):
+1. `--check` is read-only **even when it fails**: the fixture is made stale with a new section, so
+   the sidecar the script builds in memory differs from disk — the exact state in which the
+   pre-0140 ordering wrote it. `INDEX.md` and `.index-summaries.json` are compared byte-for-byte.
+2. `--check` passes on a fresh index whose `regenerated` date has been rewritten to 1999.
+3. A ```` ```markdown ```` fence holding `## Acceptance criteria` (07:463, reduced) yields no index
+   row and no sidecar key, and the `###` after the fence closes is still indexed.
+4. Ranges: `## Alpha` 3-10 spans its `###`; `### Alpha child` 7-10 ends before the following `##`
+   (the `###`→`##` case); the last `##` and `###` run to end of file.
+5. A hand-written sidecar summary survives a regeneration after three lines are inserted above
+   it; the range moves 11-23 → 15-27 and the summary does not.
+
+**Proved the tests bite, not just pass.** Two mutations, both reverted: (a) restoring the pre-0140
+sidecar write above the `--check` branch turns test 1 red, and only test 1; (b) commenting out
+`if (inFence) return;` turns tests 3, 4 and 5 red. A test suite that only ever ran green against
+the fixed code would not have shown it can catch the defect it was filed for.
+
+**`--self-test` vs vitest** (the paragraph Notes asked for). The `check-*` scripts carry
+`--self-test` because they run in the Amplify build container, where proving the guard works
+*in place* is the point, and their properties are pure functions of input text. `build-index.mjs`
+is different: every property this ticket cares about is a **file-system side effect** (what is
+on disk after `--check`, what the sidecar holds after a regenerate), which a child process plus a
+temp directory tests naturally and an in-process self-test can only simulate. So vitest is right
+here, as it was for `pre-commit-hook.test.mjs` (0125), which has the same shape. No general fixture
+harness for `scripts/*.mjs` suggested itself: the fixture is ~5 lines (`mkdtemp`, two `mkdir`s,
+writes), and two test files that each need one are not yet the pattern that justifies one.
+
+Nothing went wrong in the build; the tests passed first run, which is why the mutation step
+mattered.
+
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
-
-None expected — test-only work on a documentation generator, with no rendered surface and no
-deployed behaviour. The proof is the tests themselves and `npm test` staying green.
+**None — and correctly so.** Test-only work on a documentation generator, no rendered surface,
+nothing deployed. Verified by the agent, 2026-10-01:
+- `npx vitest run scripts/build-index.test.mjs` — 5/5 pass.
+- Both mutations above go red as described, then the file is restored (`git diff` shows only the
+  `--root` change).
+- `npm test` — 135 files, 2526 passed, 1 skipped.
+- `node scripts/build-index.mjs --check` against the real repo — "docs/INDEX.md is up to date.",
+  and `git status` shows no change to `docs/`, i.e. `--root` did not alter the default path.

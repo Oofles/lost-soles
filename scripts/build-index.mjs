@@ -13,11 +13,18 @@
 //
 //   node scripts/build-index.mjs           regenerate
 //   node scripts/build-index.mjs --check   exit 1 if out of date (CI)
+//   --root <dir>                           treat <dir> as the repo root (tests, 0145)
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+// --root exists so build-index.test.mjs can run against a fixture tree rather
+// than the real docs/, whose contents change meaning on every edit (ticket 0145).
+const rootArg = process.argv.indexOf("--root");
+const ROOT =
+  rootArg !== -1
+    ? resolve(process.argv[rootArg + 1])
+    : new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const SIDECAR = join(ROOT, "docs/.index-summaries.json");
 const OUT = join(ROOT, "docs/INDEX.md");
 
