@@ -29,6 +29,7 @@ import {
 } from "@/src/pipeline/xp-replay"
 import { buildSnapshot, snapshotKey, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
 import { auditT3, planT3Repair } from "@/src/pipeline/t3-repair"
+import { ledgerRulesVersion, pickBundledRules } from "@/src/pipeline/worker-rules"
 
 /**
  * Ticket 0066. `02-data-model.md` §4.4–§4.6; I-14, I-15, I-16, I-17.
@@ -455,6 +456,29 @@ describe("an unchanged ruleset is a no-op (v1 → v1)", () => {
       expect(s.levelHighWater).toBe(levelForXp(s.displayedXp, V1.curve))
     }
     expect(result.run.status).toBe("DONE")
+  })
+})
+
+describe("the ingest worker follows the replay (0234, D-274)", () => {
+  const BUNDLED = new Map([
+    [1, V1],
+    [2, STINGY],
+  ])
+  const workerRules = async (store: MemoryStore) =>
+    pickBundledRules(USER, ledgerRulesVersion(await store.readSkillStates()), BUNDLED)
+
+  it("is on v1 before, and on v2 after a replay to v2 — although v2 was bundled all along", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    expect(await workerRules(store)).toBe(V1)
+    await replayUser(USER, 2, deps(store, STINGY))
+    expect(await workerRules(store)).toBe(STINGY)
+  })
+
+  it("follows a rollback too: v2 then back to v1", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    await replayUser(USER, 2, deps(store, STINGY))
+    await replayUser(USER, 1, deps(store, STINGY))
+    expect(await workerRules(store)).toBe(V1)
   })
 })
 

@@ -4007,3 +4007,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     in `handler.ts`). An activity redelivered after a replay to v*N* is scored under the
     worker's version, not necessarily v*N*. That is true of every activity after a rebalance
     and is tracked separately.
+
+- **D-274** **The ingest worker scores each activity under the version the user's ledger is on:
+  the highest `SkillState.rulesVersionLastComputed`, read per activity, picked from every
+  bundled `rules/xp-rules-v*.json`. A rebalance deploys v*N* first and replays second; the
+  replay is what moves the worker.** *(Agent, approved by the operator, 2026-10-01, ticket
+  `0234`.)* Resolves the "Not solved here" note on D-273.
+  - **What was wrong.** `handler.ts` imported `rules/xp-rules-v1.json`, so the version was fixed
+    by an import path. `02` §4.4's rebalance procedure never touched the worker. After a replay
+    to v2, every new activity would have been scored under v1, and the next replay would have
+    silently re-priced all of them.
+  - **Why the ledger and not a deploy-time constant.** A constant moves at deploy and the ledger
+    moves at replay. Those can never happen at the same instant, so every activity in between
+    would be scored under a version the ledger is not on. Reading the ledger means a deploy only
+    makes v*N* available, and the replay switches the user to it. Rollback works the same way and
+    needs no deploy.
+  - **Why T2 and not a new `Profile` field.** Both writers already set
+    `rulesVersionLastComputed`: every ingest commit sets it on the rows it touches, and the
+    replay's thaw sets it on every row. `replayUser` already took the max of it as its own
+    `fromVersion`. The worker and the replay now share one function (`ledgerRulesVersion`), so
+    they cannot disagree. The worker already had `Query` on T2 for its snapshot (`0067`), so
+    there is no new grant and no schema change.
+  - **Why not T5.** T5 still does not exist, and D-217's reason for a JSON import (the YAML
+    cannot be read from a bundled Lambda) still holds. `scripts/build-rules-json.mjs` now also
+    generates `rules/xp-rules.bundled.ts`, which imports every version, under the same
+    `--check` gate.
+  - **A version the worker does not bundle is refused, never substituted.** It throws
+    `RulesVersionNotBundledError` before the score gate, so nothing is claimed or written, and
+    the queue retries. The handler also refuses at cold start a JSON file whose `version`
+    disagrees with its file name.
+  - **A user with no T2 rows** is scored under the newest bundled version.
+  - **Known residual.** The version is read before the cells phase, and the commit comes later.
+    If a whole replay (freeze, 60 s drain, thaw) completes between the two, the commit lands
+    after the thaw under the old version. That needs one invocation to stall for more than the
+    drain. The next replay re-prices the activity correctly. Tracked as a separate ticket rather
+    than widening this one.

@@ -1125,7 +1125,24 @@ the right direction: D-020 makes the map append-only, so an early cell write is 
 
 ### 4.4 Recomputation — the procedure
 
-A rebalance is: write `rules/xp-rules-v2.yaml`, seed T5 partition `2` (§3.8), run the replay job.
+A rebalance is, **in this order** (D-274):
+
+1. Write `rules/xp-rules-v2.yaml`, then run `node scripts/build-rules-json.mjs`. It emits
+   `rules/xp-rules-v2.json` and regenerates `rules/xp-rules.bundled.ts`, the index of every
+   version the ingest worker carries.
+2. **Deploy.** The worker now bundles v2 but does not use it yet. It scores each activity under
+   the version the user's ledger is on: the highest `SkillState.rulesVersionLastComputed`, or
+   the newest bundled version when the user has no rows (`src/pipeline/worker-rules.ts`).
+3. Seed T5 partition `2` (§3.8).
+4. Run the replay job to v2. Its thaw (step 6) rewrites every SkillState row to v2, and the next
+   ingest follows on its own. Nothing is redeployed after the replay.
+
+**Deploy before replaying, never after.** A worker that meets a ledger on a version it does not
+bundle throws `RulesVersionNotBundledError` before the score gate. Nothing is claimed or written,
+and the message retries, then goes to the DLQ, then can be redriven after the deploy. It never
+falls back to another version. A rollback is the same procedure with a lower target. It needs no
+deploy, because every shipped version stays bundled.
+
 **Ship the job in MVP, before it is needed** (04 §7.6) — an untested recompute path is not a
 recompute path.
 

@@ -3,7 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3"
 import { ChangeMessageVisibilityCommand, SQSClient } from "@aws-sdk/client-sqs"
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
-import RULES_V1 from "@/rules/xp-rules-v1.json"
+import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 
 import { log } from "@/lib/log"
 import { oauthCredentialsFor } from "@/lib/sources/adapter-credentials"
@@ -16,6 +16,7 @@ import { getAdapter } from "@/src/adapters/registry"
 import type { IngestJob } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
 import { EXPLORED_CELL_TABLE } from "@/src/pipeline/explored-cells"
+import { rulesForUser } from "@/src/pipeline/worker-rules"
 import type { RuleSet } from "@/src/rules/schema"
 import { assertValidRuleSet } from "@/src/rules/validate"
 import { recordFailure } from "@/src/pipeline/ingest-receipt"
@@ -102,15 +103,22 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
  * The generator does not validate on purpose: a build step that silently refuses to emit
  * is harder to debug than a runtime that refuses to start.
  *
- * PINNED TO v1 by the import path, which is honest about what this is: replay against an
- * older `rulesVersion` (04 §7.6) needs T5 and belongs to capability 09. The pipeline
- * takes the registry as an argument precisely so that day changes this line and nothing
- * else.
+ * EVERY VERSION, NOT ONE (`0234`, D-274). `rules/xp-rules.bundled.ts` is generated beside
+ * the JSON and imports all of them; which one an activity is scored under is the version the
+ * user's ledger is on (`worker-rules.ts`), read per activity. Until `0234` this was a single
+ * `xp-rules-v1.json` import, and a replay to v2 would have left every later ingest on v1.
+ * Each one is validated here, and its file name must agree with its own `version` field — a
+ * v2 file claiming to be v1 would score under the right rules and record the wrong version.
  */
-const RULES: RuleSet = (() => {
-  assertValidRuleSet(RULES_V1)
-  return RULES_V1
-})()
+const RULES: ReadonlyMap<number, RuleSet> = new Map(
+  Object.entries(BUNDLED_RULES).map(([key, rules]) => {
+    assertValidRuleSet(rules)
+    if (rules.version !== Number(key)) {
+      throw new Error(`rules/xp-rules-v${key}.json declares version ${rules.version}`)
+    }
+    return [rules.version, rules] as const
+  }),
+)
 
 /**
  * The SQS record fields this handler reads, DELIBERATELY PARTIAL — the same choice
@@ -339,7 +347,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        * a future split a search-and-replace across unrelated concerns.
        */
       traces: { s3, bucket: required("USER_DATA_BUCKET") },
-      registry: RULES,
+      registry: (userId) =>
+        rulesForUser(userId, { ddb, table: required("SKILL_STATE_TABLE"), bundled: RULES }),
       /**
        * `0067`. `snapshots/skillstate/` — the same bucket as the blobs, its own prefix and its own
        * grant in `backend.ts` (PutObject only: the ingest never reads a snapshot back).

@@ -23,6 +23,7 @@ import {
 
 import { lastRunDay } from "./explored-cells"
 import { buildSnapshot, waterlineOfSnapshot, type SkillStateSnapshot } from "./skillstate-snapshot"
+import { ledgerRulesVersion } from "./worker-rules"
 
 /**
  * THE XP REPLAY — A REBALANCE. Ticket `0066`. `02-data-model.md` §4.4–§4.6; D-135, D-142,
@@ -246,8 +247,8 @@ function sortableId(now: Date): string {
 
 /** The version SkillState was last computed under; `to` for a user with no XP yet. */
 function fromVersionOf(states: readonly StoredSkillState[], to: number): number {
-  const versions = states.map((s) => s.rulesVersionLastComputed).filter((v): v is number => v !== undefined)
-  return versions.length > 0 ? Math.max(...versions) : to
+  // The same reading the ingest worker takes (`0234`), so the two cannot disagree.
+  return ledgerRulesVersion(states) ?? to
 }
 
 export async function replayUser(userId: string, toVersion: number, deps: ReplayDeps): Promise<ReplayResult> {

@@ -29,6 +29,7 @@ import {
   processActivity,
   type IngestPhase,
 } from "@/src/pipeline/process-activity"
+import { rulesForUser, RulesVersionNotBundledError } from "@/src/pipeline/worker-rules"
 
 /**
  * Ticket 0042, criterion 4 — "a test asserts the ORDER, not just that each ran".
@@ -1334,6 +1335,55 @@ describe("XP — the ledger rides in the ingest transaction (0062)", () => {
     const refused = rig({ ingest: RUN, persistFails: () => stolen })
     await expect(processActivity(JOB, refused.deps)).rejects.toBe(stolen)
     expect(refused.transacts).toHaveLength(1)
+  })
+})
+
+describe("the worker scores under the version the ledger is on (0234, D-274)", () => {
+  const RUN = { hasTrace: true, trace: TRACE, distanceM: 280 }
+  /** v2 pays activity skills half — so the XP, not only the label, shows which rules ran. */
+  const V2 = {
+    ...REGISTRY,
+    version: 2,
+    skills: REGISTRY.skills.map((s) => (s.kind === "activity" ? { ...s, xpPerUnit: s.xpPerUnit / 2 } : s)),
+  }
+  const BUNDLED = new Map([
+    [1, REGISTRY],
+    [2, V2],
+  ])
+  const AFTER_REPLAY = [
+    { userId: "u-1", skillId: "wayfaring", displayedXp: 14, xpLedgerSum: 14, rulesVersionLastComputed: 2 },
+  ]
+
+  it("an activity ingested after a replay to v2 is scored under v2", async () => {
+    const { deps, transacts } = rig({ ingest: RUN, skillStates: AFTER_REPLAY })
+    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, bundled: BUNDLED }
+    const result = await processActivity(JOB, { ...deps, registry: (u) => rulesForUser(u, t2) })
+
+    const items = transacts[0]!.TransactItems!
+    expect(items[0]!.Put!.Item).toMatchObject({ xpRulesVersion: 2 })
+    expect(items[2]!.Put!.Item).toMatchObject({
+      id: "a-1#wayfaring#new_ground#v2",
+      xpAwarded: 14,
+      xpRulesVersion: 2,
+    })
+    const t2Writes = items.filter((i) => i.Update?.TableName === SKILL_STATE_TABLE)
+    for (const w of t2Writes) expect(w.Update!.ExpressionAttributeValues).toMatchObject({ ":ver": 2 })
+    expect(result).toMatchObject({ outcome: "persisted", xp: { xpRulesVersion: 2 } })
+  })
+
+  it("a ledger on a version the worker does not bundle is refused before the gate", async () => {
+    const { deps, calls, transacts } = rig({
+      ingest: RUN,
+      skillStates: [{ ...AFTER_REPLAY[0], rulesVersionLastComputed: 3 }],
+    })
+    const t2 = { ddb: deps.ledger.ddb as never, table: SKILL_STATE_TABLE, bundled: BUNDLED }
+    await expect(processActivity(JOB, { ...deps, registry: (u) => rulesForUser(u, t2) })).rejects.toBeInstanceOf(
+      RulesVersionNotBundledError,
+    )
+    // Nothing claimed, no cell written, nothing committed: the redelivery starts clean.
+    expect(calls).not.toContain("gate")
+    expect(calls).not.toContain("cells")
+    expect(transacts).toHaveLength(0)
   })
 })
 

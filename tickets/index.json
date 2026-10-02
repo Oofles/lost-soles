@@ -5376,11 +5376,32 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-02T02:20:55Z",
+    "started": "2026-10-02T02:50:40Z",
     "path": "tickets/open/0234-the-ingest-worker-scores-under-v1-for-ever-a-rebalance-to-vn.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 235,
+    "slug": "a-replay-that-completes-inside-one-ingest-invocation-leaves",
+    "title": "A replay that completes inside one ingest invocation leaves that activity on the pre-replay ruleset",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-02T02:55:51Z",
+    "path": "tickets/open/0235-a-replay-that-completes-inside-one-ingest-invocation-leaves.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]

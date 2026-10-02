@@ -11,7 +11,6 @@ import {
 } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
 import { revealsGround } from "@/src/rules/reveals-ground"
-import type { RuleSet } from "@/src/rules/schema"
 import {
   groundSplit,
   lookupFromClassified,
@@ -50,6 +49,7 @@ import { findDuplicate, recordDuplicatePointer, type DedupeDeps } from "./dedupe
 import type { PersistDeps } from "./persist"
 import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
 import { buildSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
+import type { Registry } from "./worker-rules"
 import { persistWithLedger, type LedgerCommit, type LedgerDeps } from "./xp-ledger"
 
 /**
@@ -329,11 +329,13 @@ export interface ProcessDeps<TCreds> {
    * not be the current one, and a module-level import would freeze that choice at build
    * time. It is also the only way this file stays testable without a filesystem.
    *
-   * The handler reads it from `rules/xp-rules-v1.json`, the build artefact `0047` added
-   * (D-217) — the YAML cannot be read from inside a bundled Lambda, and T5 does not exist
-   * until capability 09.
+   * EITHER A RULESET OR A RESOLVER (`0234`, D-274). The handler passes a resolver that reads
+   * the version the user's ledger is on and picks it from every bundled
+   * `rules/xp-rules-v*.json` (`worker-rules.ts`), so a replay to v*N* moves the worker with it.
+   * A test passes the ruleset itself. It is resolved ONCE per activity, before the score gate:
+   * a version this deployment does not carry throws while nothing is claimed or written.
    */
-  registry: Pick<RuleSet, "version" | "skills" | "curve">
+  registry: Registry | ((userId: string) => Promise<Registry>)
   /**
    * `0067`. Where the post-commit `snapshots/skillstate/` object goes (D-143). Required: the one
    * production caller must not be able to forget it, and a missed snapshot is only harmless
@@ -363,6 +365,9 @@ export interface ProcessDeps<TCreds> {
    */
   onPhase?(phase: IngestPhase): void
 }
+
+/** `ProcessDeps` once the ruleset is resolved for this activity's user (`0234`). */
+type Resolved<TCreds> = ProcessDeps<TCreds> & { registry: Registry }
 
 export async function processActivity<TCreds>(
   job: IngestJob,
@@ -497,6 +502,14 @@ export async function processActivity<TCreds>(
   const dedupeMs = clock() - td
 
   /**
+   * `0234`. THE RULESET THIS ACTIVITY IS SCORED UNDER, resolved above the gate so a refusal
+   * leaves nothing claimed. Every use below reads `scored`, never `deps.registry`.
+   */
+  const registry =
+    typeof deps.registry === "function" ? await deps.registry(ingest.activity.userId) : deps.registry
+  const scored: Resolved<TCreds> = { ...deps, registry }
+
+  /**
    * THE SCORE GATE (§4 step 12, layer 2). Everything above this line is repeatable and
    * writes nothing that a second run would corrupt; everything below it is the award.
    */
@@ -540,7 +553,7 @@ export async function processActivity<TCreds>(
    */
   phase("cells")
   const t3c = clock()
-  const { cells, award, touched, rejects, split } = await projectCells(ingest, deps)
+  const { cells, award, touched, rejects, split } = await projectCells(ingest, scored)
   const cellsMs = clock() - t3c
 
   /**
@@ -605,7 +618,7 @@ export async function processActivity<TCreds>(
    * Discovery credit and the Constitution share ride in the same rows, hence the same
    * transaction (`05` §8.2). `awardedAt` is `ingestedAt`: stamped for audit, never read back.
    */
-  const entries = scoreActivity(activity, deps.registry, split, award, activity.ingestedAt)
+  const entries = scoreActivity(activity, scored.registry, split, award, activity.ingestedAt)
   /**
    * THE AWARD GOES IN THE TRANSACTION, not in a write of its own. §3.2: *"the award is
    * stored, not recomputed"* — and it is stored in the same atomic commit that closes the
@@ -625,9 +638,9 @@ export async function processActivity<TCreds>(
       activity,
       ingestKey: job.ingestKey,
       entries,
-      rulesVersion: deps.registry.version,
-      skills: deps.registry.skills,
-      curve: deps.registry.curve,
+      rulesVersion: scored.registry.version,
+      skills: scored.registry.skills,
+      curve: scored.registry.curve,
       award,
       rejects: rejects ?? undefined,
     },
@@ -640,7 +653,7 @@ export async function processActivity<TCreds>(
    * and failing now would redeliver a message whose every write is already done. The next
    * ingest writes the next snapshot.
    */
-  const snapshot = await snapshotAfterIngest(activity.userId, blobs?.generation, deps)
+  const snapshot = await snapshotAfterIngest(activity.userId, blobs?.generation, scored)
 
   return {
     outcome: "persisted",
@@ -671,7 +684,7 @@ export async function processActivity<TCreds>(
 async function snapshotAfterIngest<TCreds>(
   userId: string,
   published: number | undefined,
-  deps: ProcessDeps<TCreds>,
+  deps: Resolved<TCreds>,
 ): Promise<{ key: string } | { failed: string }> {
   try {
     const generation = published ?? (await readManifest(userId, deps.blobs))?.manifest.generation ?? 0
@@ -728,7 +741,7 @@ async function snapshotAfterIngest<TCreds>(
  */
 async function projectCells<TCreds>(
   ingest: { activity: Activity; trace?: Trace },
-  deps: ProcessDeps<TCreds>,
+  deps: Resolved<TCreds>,
 ): Promise<{
   cells: CellWriteResult | null
   award: DiscoveryAward
