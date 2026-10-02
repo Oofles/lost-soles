@@ -36,7 +36,7 @@ import { buildSnapshot, waterlineOfSnapshot, type SkillStateSnapshot } from "./s
  * 0 PRE-FLIGHT  waterline from SkillState — or, when T2 is empty, from the newest
  *               snapshots/skillstate/ object (D-143) — written to S3 as a snapshot, then into
  *               ReplayRun (status RUNNING)
- * 1 FREEZE      Profile.replayInProgress = true
+ * 1 FREEZE      Profile.replayInProgress = true, then wait REPLAY_DRAIN_MS (`0223`)
  * 2 CLEAR       delete every T4 row with isFloor = false. Floors, ReplayRuns and the rows of
  *               TOMBSTONED activities survive.
  * 3 REPLAY      fold cells.bin in (startedAt, activityId) order; score each ACTIVE activity,
@@ -211,6 +211,8 @@ export interface ReplayDeps {
   now?: () => Date
   /** A sortable unique id for the ReplayRun. Injected for deterministic tests. */
   newId?: () => string
+  /** Step 1's drain. Injected so tests do not wait a minute. */
+  sleep?: (ms: number) => Promise<void>
   log?: (line: string) => void
 }
 
@@ -223,6 +225,18 @@ export interface ReplayResult {
 }
 
 const ACTIVE = "ACTIVE"
+
+/**
+ * STEP 1's DRAIN. `0223`, D-273.
+ *
+ * From the freeze on, ingest cannot commit XP: the `Update Profile` item in its transaction is
+ * conditioned on the flag (`xp-ledger.ts` `profileTotalsItem`), so the check is atomic with the
+ * write and no in-flight worker can slip past it. What the condition cannot cover is a commit that
+ * landed JUST BEFORE the freeze: step 2 reads T3 and T4 through GSIs, which are eventually
+ * consistent, and a row not yet visible there is either deleted without being re-scored or left
+ * beside the replay's own. GSI propagation is normally under a second; a minute is the margin.
+ */
+export const REPLAY_DRAIN_MS = 60_000
 
 /** Time-sortable and unique enough for ~3 rows per user per five years. */
 function sortableId(now: Date): string {
@@ -300,6 +314,8 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
   try {
     // ── 1. FREEZE ────────────────────────────────────────────────────────────
     await store.freeze(userId, at())
+    log(`step 1: frozen; draining ${REPLAY_DRAIN_MS / 1000}s for index propagation`)
+    await (deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))))(REPLAY_DRAIN_MS)
 
     // ── 2. CLEAR ─────────────────────────────────────────────────────────────
     // A TOMBSTONED activity's rows are KEPT, not re-derived (§4.7): its XP stays in the total

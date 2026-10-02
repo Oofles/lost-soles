@@ -5136,10 +5136,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T13:55:21Z",
+    "started": "2026-10-02T01:51:51Z",
     "path": "tickets/open/0223-ingest-racing-xp-replay.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -5359,6 +5360,26 @@
     "acceptance": {
       "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 234,
+    "slug": "the-ingest-worker-scores-under-v1-for-ever-a-rebalance-to-vn",
+    "title": "The ingest worker scores under v1 for ever — a rebalance to vN leaves new activities on the old ruleset",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "09-xp-engine-and-ledger",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-02T02:20:55Z",
+    "path": "tickets/open/0234-the-ingest-worker-scores-under-v1-for-ever-a-rebalance-to-vn.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]

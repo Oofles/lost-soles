@@ -3979,3 +3979,31 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Guarded.** `propagate.test.ts` clones the ruleset, changes `rearmed`, and asserts that the
     ledger and `discoveryCredits` move together. It also fails if any non-test module under
     `src/` names a `CREDIT_*` constant.
+- **D-273** **Ingest cannot commit XP while an XP replay holds the user's ledger. The flag check
+  is a condition on the `Update Profile` item of ingest's §4.3 transaction, and the replay waits
+  60 s after FREEZE before step 2.** *(Agent, approved by the operator, 2026-10-01, ticket
+  `0223`.)*
+  - **What was wrong.** `02` §4.4 step 1 said *"Ingest continues (it is idempotent and the
+    activity is picked up in step 3 or by the reconciliation sweep)"*. An activity committed
+    after step 2's `listActivities` was deleted without being re-scored, and one committed after
+    step 2's CLEAR was left beside the replay's rows under another version. I-15 held, but the
+    totals were wrong. D-135 has no exception for rare cases.
+  - **Why a transaction condition and not a read at the top of the worker.** The `Update
+    Profile` item (`0219`) already rides in the same transaction as the ledger rows and the
+    `Activity` put. Conditioning it on `replayInProgress` makes the check atomic with the write,
+    so no in-flight invocation can pass it. A `GetItem` at the start would have left the race
+    open at the flag's own write, and closing that would have needed a 16-minute drain (the
+    worker's timeout). This approach also needs no new IAM grant.
+  - **Why a 60 s drain anyway.** Step 2 reads T3 and T4 through GSIs, which are eventually
+    consistent. A commit that landed just before the freeze could still be invisible to them.
+  - **A refusal writes nothing** and throws `ReplayInProgressError`. The receipt stays
+    `PROCESSING`. The queue's 16-minute visibility timeout outlasts `PROCESSING_STALE_MS`, so the
+    redelivery reclaims it. Three receives give about 48 minutes against a replay of seconds plus
+    the drain. A replay stuck frozen for longer sends the message to the DLQ, recorded as
+    usual, to be redriven after the thaw.
+  - **An activity that earns no XP is not gated.** Its transaction has no `Update Profile`
+    item, and it has no XP for the replay to miss.
+  - **Not solved here.** The worker scores with the ruleset it was deployed with (pinned to v1
+    in `handler.ts`). An activity redelivered after a replay to v*N* is scored under the
+    worker's version, not necessarily v*N*. That is true of every activity after a rebalance
+    and is tracked separately.

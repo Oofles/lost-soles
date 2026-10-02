@@ -274,8 +274,15 @@ function shownLevel(row: Pick<SkillStateRow, "displayedXp" | "level" | "levelHig
  * run, and on a row the replay has never touched it is the first write.
  *
  * The row may not exist yet — T1 is created by the replay's freeze or by this write, whichever
- * comes first — so the Amplify metadata is `if_not_exists`, as `freeze` writes it. Unconditioned:
- * nothing about a Profile row can make this commit wrong.
+ * comes first — so the Amplify metadata is `if_not_exists`, as `freeze` writes it.
+ *
+ * ─── CONDITIONED ON THE REPLAY FLAG (`0223`, D-273) ─────────────────────────
+ *
+ * `replayInProgress` absent or false. This item rides in the same transaction as the ledger rows
+ * and the `Activity` put, so the flag check is ATOMIC with the XP write: an activity cannot
+ * commit XP while a replay is between its CLEAR and its THAW, where it would be either deleted
+ * without being re-scored or left beside the replay's rows under another version. A refusal
+ * surfaces as `ReplayInProgressError` and the message is redelivered after the replay.
  */
 export function profileTotalsItem(
   args: {
@@ -312,8 +319,10 @@ export function profileTotalsItem(
       UpdateExpression:
         "SET #tn = if_not_exists(#tn, :tn), #owner = if_not_exists(#owner, :owner), " +
         "createdAt = if_not_exists(createdAt, :now), updatedAt = :now, totalXp = :txp, totalLevel = :tlvl",
+      ConditionExpression: "attribute_not_exists(replayInProgress) OR replayInProgress = :thawed",
       ExpressionAttributeNames: { "#tn": "__typename", "#owner": "owner" },
       ExpressionAttributeValues: {
+        ":thawed": false,
         ":tn": meta.__typename,
         ":owner": meta.owner,
         ":now": meta.updatedAt,
@@ -389,6 +398,30 @@ export function isLostLedgerRace(err: unknown, firstXpItem: number): boolean {
     sawXpConflict = true
   }
   return sawXpConflict
+}
+
+/**
+ * `0223`. The Profile item — always the LAST XP item — failed its `replayInProgress` condition.
+ * Checked before `isLostLedgerRace`, which would otherwise read it as a race and retry into the
+ * same refusal.
+ */
+export function isReplayRefusal(err: unknown, profileItem: number): boolean {
+  const e = err as { name?: string; CancellationReasons?: Array<{ Code?: string }> }
+  if (e?.name !== "TransactionCanceledException" || !Array.isArray(e.CancellationReasons)) return false
+  return e.CancellationReasons[profileItem]?.Code === "ConditionalCheckFailed"
+}
+
+/**
+ * `0223`. An XP replay holds this user's ledger. Nothing was written — the whole transaction
+ * cancelled — so it is safe to redeliver: the receipt is still `PROCESSING`, and the queue's
+ * visibility timeout outlasts `PROCESSING_STALE_MS`, so the next delivery reclaims it after the
+ * replay has thawed.
+ */
+export class ReplayInProgressError extends Error {
+  constructor(userId: string) {
+    super(`An XP replay is in progress for ${userId}; the commit was refused and will be redelivered`)
+    this.name = "ReplayInProgressError"
+  }
 }
 
 export interface LedgerCommit {
@@ -487,6 +520,9 @@ export async function persistWithLedger(
       )
       return commit
     } catch (err) {
+      if (items.length > 0 && isReplayRefusal(err, FIRST_XP_ITEM + items.length - 1)) {
+        throw new ReplayInProgressError(activity.userId)
+      }
       if (attempt < MAX_LEDGER_ATTEMPTS && isLostLedgerRace(err, FIRST_XP_ITEM)) continue
       throw err
     }

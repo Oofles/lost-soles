@@ -1138,9 +1138,13 @@ replay(userId, toRulesVersion):
     snapshot them into ReplayRun (§4.5). THIS IS THE D-135 WATERLINE.
 
  1. FREEZE
-    set Profile.replayInProgress = true. Ingest continues (it is idempotent and the
-    activity is picked up in step 3 or by the reconciliation sweep); the UI reads the
-    pre-replay SkillState throughout, so no number ever visibly flickers downward.
+    set Profile.replayInProgress = true, then wait 60 s (REPLAY_DRAIN_MS) before step 2.
+    Ingest does NOT commit XP while the flag is up: the Update Profile item in its §4.3
+    transaction is conditioned on the flag, so the check is atomic with the write. A
+    refused commit writes nothing and is redelivered by the queue after the replay
+    (D-273). The drain covers a commit that landed just before the freeze but is not yet
+    visible to step 2's GSI reads. The UI reads the pre-replay SkillState throughout, so
+    no number ever visibly flickers downward.
 
  2. CLEAR
     delete every XpLedgerEntry for the user WHERE isFloor = false, via AP-11

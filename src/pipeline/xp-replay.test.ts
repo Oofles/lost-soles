@@ -393,6 +393,33 @@ class MemoryStore implements ReplayStore {
     this.publishes++
     return ++this.generation
   }
+
+  /** Step 1's drain (`0223`), recorded so its place in the order can be asserted. */
+  drain = async () => this.op("drain")
+
+  /**
+   * `0223`. THE WORKER'S COMMIT, as far as the replay can see it: one atomic act that puts the T3
+   * row, the ledger rows and the SkillState ADDs — or, when the activity earns XP and the flag is
+   * up, puts none of them (`profileTotalsItem`'s condition; its expression is asserted in
+   * `xp-ledger.test.ts`). Layer 1 included: an activity with rows already awards nothing.
+   */
+  ingest(a: ReplayActivity, rules: RuleSet): "committed" | "refused" | "already-scored" {
+    if ([...this.ledger.values()].some((e) => e.activityId === a.activityId && !e.isFloor)) return "already-scored"
+    const rows = scoreActivity(a, rules, null, NO_CELLS, a.ingestedAt)
+    if (rows.length > 0 && this.profile.replayInProgress) return "refused"
+    this.fx.activities.push(a)
+    for (const r of rows) this.ledger.set(r.id, r)
+    this.t3.set(a.activityId, { status: a.status, xpAwarded: sumXp(rows), xpRulesVersion: rows.length > 0 ? rules.version : null, ...awardColumns(NO_CELLS) })
+    for (const [skillId, xp] of xpBySkill(rows)) {
+      const s = this.skills.get(skillId)
+      this.skills.set(skillId, {
+        ...(s ?? { skillId, rulesVersionLastComputed: rules.version }),
+        xpLedgerSum: (s?.xpLedgerSum ?? 0) + xp,
+        displayedXp: (s?.displayedXp ?? 0) + xp,
+      })
+    }
+    return "committed"
+  }
 }
 
 const clock = () => {
@@ -402,7 +429,7 @@ const clock = () => {
 
 let runIds = 0
 function deps(store: MemoryStore, v2: RuleSet) {
-  return { store, rules: rulesFor(v2), now: clock(), newId: () => `RUN${String(++runIds).padStart(4, "0")}` }
+  return { store, rules: rulesFor(v2), now: clock(), newId: () => `RUN${String(++runIds).padStart(4, "0")}`, sleep: store.drain }
 }
 
 const sumBySkill = (store: MemoryStore) =>
@@ -955,5 +982,61 @@ describe("the skill-state snapshot (0067, D-143)", () => {
     // I-15 holds on the rebuilt stack too.
     const sums = sumBySkill(rebuilt)
     for (const [skillId, s] of rebuilt.skills) expect(s.displayedXp).toBe(sums.get(skillId) ?? 0)
+  })
+})
+
+describe("an ingest that lands during a replay (0223, D-273)", () => {
+  /** A late treadmill run: no trace, so it scores without cells and is easy to recognise. */
+  const late = () => activity("late", "2026-03-04T07:00:00.000Z", { distanceM: 4_000 })
+  const rowsOf = (store: MemoryStore, id: string) => [...store.ledger.values()].filter((e) => e.activityId === id)
+
+  /**
+   * The worker tries to commit at `op`'s first call, then — refused or not — is redelivered after
+   * the replay, scoring under the target ruleset as the deployed worker would.
+   */
+  async function raceAt(op: string) {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const attempts: string[] = []
+    store.crash = (name, n) => {
+      if (name === op && n === 1) attempts.push(store.ingest(late(), STINGY))
+      return undefined
+    }
+    await replayUser(USER, 2, deps(store, STINGY))
+    store.crash = undefined
+    attempts.push(store.ingest(late(), STINGY))
+    return { store, attempts }
+  }
+
+  /**
+   * The three windows of the ticket, plus the one before the freeze. Each ends the same way: one
+   * set of rows, under v2, counted once in SkillState (I-15).
+   */
+  it.each([
+    ["before the freeze — committed, then re-scored by step 3", "freeze", ["committed", "already-scored"]],
+    ["window 1: frozen, before step 2's listActivities", "listActivities", ["refused", "committed"]],
+    ["window 2: after listActivities, before listLedger", "listLedger", ["refused", "committed"]],
+    ["window 3: after step 2's CLEAR", "mergeCells", ["refused", "committed"]],
+    ["inside THAW, before the flag clears", "writeSkillStates", ["refused", "committed"]],
+  ])("%s", async (_label, op, expected) => {
+    const { store, attempts } = await raceAt(op)
+    expect(attempts).toEqual(expected)
+
+    const rows = rowsOf(store, "late")
+    const once = scoreActivity(late(), STINGY, null, NO_CELLS, late().ingestedAt)
+    expect(once.length).toBeGreaterThan(0)
+    expect(rows.map((r) => r.id).sort()).toEqual(once.map((r) => r.id).sort())
+    expect(new Set(rows.map((r) => r.xpRulesVersion))).toEqual(new Set([2]))
+
+    for (const [skillId, xp] of sumBySkill(store)) {
+      expect({ skillId, xp: store.skills.get(skillId)?.xpLedgerSum }).toEqual({ skillId, xp })
+    }
+  })
+
+  it("drains after the freeze and before anything is read for step 2", async () => {
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    await replayUser(USER, 2, deps(store, STINGY))
+    const freeze = store.ops.indexOf("freeze")
+    expect(store.ops[freeze + 1]).toBe("drain")
+    expect(store.ops.indexOf("listActivities")).toBeGreaterThan(freeze + 1)
   })
 })

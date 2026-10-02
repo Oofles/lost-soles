@@ -7,12 +7,14 @@ import { INGEST_RECEIPT_TABLE } from "@/src/pipeline/ingest-receipt"
 import {
   BY_ACTIVITY_INDEX,
   isLostLedgerRace,
+  isReplayRefusal,
   ledgerPutItem,
   ledgerTransactItems,
   MAX_LEDGER_ATTEMPTS,
   levelsAfter,
   persistWithLedger,
   profileTotalsItem,
+  ReplayInProgressError,
   skillStateUpdateItem,
   type LedgerDeps,
 } from "@/src/pipeline/xp-ledger"
@@ -93,6 +95,12 @@ class Tables {
     const op = (tx.Put ?? tx.Update)!
     const names = op.ExpressionAttributeNames
     const values = op.ExpressionAttributeValues ?? {}
+    // `0223`: `profileTotalsItem`'s flag condition.
+    const notOrEq = /^attribute_not_exists\((\S+)\) OR (\S+) = (:\w+)$/.exec(cond)
+    if (notOrEq) {
+      const v = item?.[this.name(notOrEq[1]!, names)]
+      return v === undefined || v === values[notOrEq[3]!]
+    }
     const notExists = /^attribute_not_exists\((\S+)\)$/.exec(cond)
     if (notExists) return item?.[this.name(notExists[1]!, names)] === undefined
     const eq = /^(\S+) = (:\w+)$/.exec(cond)
@@ -357,12 +365,13 @@ describe("the items (§4.3)", () => {
       expect(totals(item)[":tlvl"]).toBe(levelForXp(1, RULES.curve) + 8 + (enabled.length - 2))
     })
 
-    it("creates the row if the replay never has: Amplify metadata is if_not_exists, and nothing is conditioned", () => {
+    it("creates the row if the replay never has: Amplify metadata is if_not_exists, and only the flag is conditioned", () => {
       const item = profileTotalsItem(
         { userId: "u-1", states: new Map(), xpBySkill: new Map([[trained, 5]]), skills: enabled, curve: RULES.curve, ingestedAt: "2026-09-06T09:00:02.000Z" },
         PROFILE_TABLE,
       ).Update!
-      expect(item.ConditionExpression).toBeUndefined()
+      expect(item.ConditionExpression).toBe("attribute_not_exists(replayInProgress) OR replayInProgress = :thawed")
+      expect(item.ExpressionAttributeValues![":thawed"]).toBe(false)
       expect(item.UpdateExpression).toContain("#tn = if_not_exists(#tn, :tn)")
       expect(item.UpdateExpression).toContain("#owner = if_not_exists(#owner, :owner)")
       expect(item.UpdateExpression).toContain("totalXp = :txp, totalLevel = :tlvl")
@@ -413,7 +422,44 @@ describe("isLostLedgerRace", () => {
   })
 })
 
+describe("isReplayRefusal (0223)", () => {
+  const cancelled = (...codes: string[]) =>
+    Object.assign(new Error("x"), { name: "TransactionCanceledException", CancellationReasons: codes.map((Code) => ({ Code })) })
+
+  it("is true when the Profile item failed, whatever else did", () => {
+    expect(isReplayRefusal(cancelled("None", "None", "None", "ConditionalCheckFailed"), 3)).toBe(true)
+    expect(isReplayRefusal(cancelled("None", "None", "ConditionalCheckFailed", "ConditionalCheckFailed"), 3)).toBe(true)
+  })
+  it("is false when only another item failed", () => {
+    expect(isReplayRefusal(cancelled("None", "None", "ConditionalCheckFailed", "None"), 3)).toBe(false)
+    expect(isReplayRefusal(new Error("boom"), 3)).toBe(false)
+  })
+})
+
 describe("persistWithLedger — the commit", () => {
+  it("0223: refuses atomically while a replay holds the ledger, once, writing nothing", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: true })
+    const before = t.snapshot()
+    await expect(commit(activity(), RUN_ROWS, deps)).rejects.toBeInstanceOf(ReplayInProgressError)
+    expect(t.transacts).toBe(1)
+    expect(t.snapshot()).toBe(before)
+
+    // Thawed, the redelivery commits normally.
+    t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: false })
+    const result = await commit(activity(), RUN_ROWS, deps)
+    expect(result.rowsWritten).toBe(2)
+  })
+
+  it("0223: an activity that earns nothing is not gated — it has no XP for the replay to miss", async () => {
+    const { t, deps, claim } = world()
+    claim("k-1")
+    t.table(PROFILE_TABLE).set("u-1", { id: "u-1", replayInProgress: true })
+    const result = await commit(activity({ distanceM: 0 }), [], deps)
+    expect(result.rowsWritten).toBe(0)
+  })
+
   it("rows, ADDs, the Activity put and the receipt's DONE go in ONE transaction", async () => {
     const { t, deps, claim } = world()
     claim("k-1")
