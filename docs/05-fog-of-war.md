@@ -1711,18 +1711,20 @@ Discovery credit is not stored (D-272). It is `discoveryCredits(counts, row)` in
 `src/scoring/propagate.ts`, which sums the ledger rows `discoveryRows` would write, so it cannot
 disagree with them. The row is the one from the activity's `xpRulesVersion`.
 
-One res-10 cell ≈ 15,048 m² ≈ 1.5 ha — a good XP unit. A first-ever run down a new street yields
-~80–130 new cells; the same run repeated yields 0. **That diminishing-returns curve *is* the game
+One res-11 cell ≈ 2,150 m² (D-237). A kilometre of first-ever ground yields ~46 new cells
+(measured on the live ledger, D-279), so a first-ever 6 km run yields ~280; the same run
+repeated yields 0. **That diminishing-returns curve *is* the game
 mechanic, and it falls out of the data model for free** (R3 §4e).
 
 The UI should surface all four counts, not just the total. "112 cells run · 41 new · 12
 rediscovered · 59 familiar" tells the story that a single XP number cannot. The per-cell rate is
-the Cartography row's `xpPerUnit` in `rules/xp-rules-v1.yaml` (D-215, D-272), and it and the
+the Cartography row's `xpPerUnit` in the user's ruleset version — 2.15 in `rules/xp-rules-v2.yaml`
+(D-279, D-272), and it and the
 level curve belong to the progression document, not this one.
 
 > **Amended by D-276 (09 audit, 2026-10-02):** this named an `XP_PER_CELL` constant and three
-> counts; there is no constant, and `deferredCellCount` is the fourth class (§3.1). The current
-> rate, 13, was tuned for res-10 density and is being retuned for res 11 by ticket `0236`.
+> counts; there is no constant, and `deferredCellCount` is the fourth class (§3.1). v1's rate,
+> 13, was tuned for res-10 density; ticket `0236` retuned it to 2.15 for res 11 in v2 (D-279).
 
 ### 8.3 Lifetime totals
 

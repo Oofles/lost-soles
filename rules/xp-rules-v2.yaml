@@ -1,0 +1,338 @@
+# THE SKILL REGISTRY, v2 — the authority. Ticket 0236 (v1: ticket 0028).
+#
+# v2 CHANGES ONE NUMBER: Cartography's `xpPerUnit`, 13 → 2.15, because D-237 moved the canonical
+# H3 resolution from 10 to 11 and v1's rate was tuned for res-10 density (D-279). Every other row
+# is v1's, byte for byte. v1 stays in the tree: ledger rows citing it must keep meaning what they
+# meant (04 §7.6).
+#
+# Git is the source of truth; the RuleSkill table (T5) is a MATERIALISED PROJECTION of this
+# file, seeded verbatim at deploy time (02-data-model.md §3.2, §3.3). The seeder is
+# idempotent and append-only ACROSS VERSIONS: it never edits an existing rulesVersion
+# partition, because a ledger row citing v1 is meaningless if v1's rows were mutated
+# (04-game-design.md §7.6).
+#
+# ADDING A WORKOUT TYPE IS A ROW IN THIS FILE AND NOTHING ELSE (D-031, D-141). If a change
+# needs a `switch` on a skill id, the schema is wrong — stop and fix the schema.
+#
+# THE `match` BLOCK IS WHY THIS FILE EXISTS BEFORE THE SCORER DOES (D-141).
+# The schema first published in 04-game-design.md §1.3 covered measurement, rating,
+# propagation and presentation, and silently omitted SELECTION — which activities a skill
+# consumes. Under it, Wayfaring and Vigil were byte-identical, so the scorer would have had
+# to decide in code:
+#
+#     const skill = activity.hasTrace ? "wayfaring" : "vigil"   // THE FAILURE MODE
+#
+# Retrofitting selection into data after the scorer exists is a rewrite of every call site
+# plus a data migration of every ledger row's xpRulesVersion semantics. So v1 ships with
+# `match` on every activity skill from the very first seed.
+
+version: 2
+effectiveFrom: 2026-10-02T00:00:00Z
+
+# D-130. NOT per-skill: D-131 explicitly rejected per-skill curve constants, so this is one
+# RuleCurve item stored under SK = "__curve__" in the same partition (02 §3.2).
+curve:
+  stepFormula: "4 * L^2"   # XP to advance from level L to L+1
+  maxLevel: 99
+  deepMaxLevel: 120        # 04 §2.5
+
+skills:
+
+  # ── Activity skills ────────────────────────────────────────────────────────────────────
+  # Every `kind: activity` row carries an explicit `match` and `matchPriority`.
+
+  - id: wayfaring
+    name: Wayfaring
+    kind: activity
+    enabled: true
+    introducedIn: 1                # D-146: the version that first shipped this row. Never edited.
+    displayOrder: 10
+    logMode: trace
+    unit: km
+    match:                        # J1 SELECTION (D-141)
+      kinds: [run, walk, hike]    # ActivityKind values (contract §2). Absent/[] = any.
+      requiresTrace: true         # reads Activity.hasTrace
+      sources: any                # any | [<sourceId>, …] — escape hatch, rarely used
+      measure: distanceKm         # J2: which quantity off the Activity is the unit count
+    matchPriority: 100
+    xpPerUnit: 100
+    softCapUnits: null            # distance gets no diminishing returns — 04 §3.5
+    sanityCeilingUnits: 300       # flag-only, never blocks (D-123)
+    minUnitsForCredit: 0.25
+    groundMultipliers:            # D-120 — applies only to logMode: trace
+      new: 1.0
+      rearmed: 0.5
+      recent: 0.5
+    # THE ONLY `true` IN THIS FILE (D-189). Running is what opens the map — the vision's
+    # first sentence, and the operator's stated motivation. Every other skill earns its own
+    # XP and leaves the fog alone, so ground you cycle through keeps its FULL discovery
+    # value for the day you run it.
+    revealsGround: true
+    feeds:
+      - skill: constitution
+        rate: 0.3333             # Constitution's 1/3 lives HERE, never as a constant in code
+
+  # THE VIGIL ROW (D-132, D-141). GPS-less running: treadmill, track, a dead watch.
+  #
+  # ONE FIELD separates this row from Wayfaring — `match.requiresTrace` — and it is read off
+  # Activity.hasTrace, which the ingestion contract already defines and T3 already stores.
+  # No new type, no new concept, no code. That is the whole proof of D-031.
+  #
+  # Equal matchPriority with Wayfaring is SAFE and deliberate: requiresTrace true vs false
+  # makes the two rows mutually exclusive, so no activity is ever a candidate for both and
+  # the tie-break never fires. 02 §3.8 check 3 asserts that across the whole
+  # ActivityKind x hasTrace grid on every build (ticket 0029).
+  - id: vigil
+    name: Vigil                   # PROVISIONAL (D-132) — a display string, NEVER an
+                                  # identifier. A rename is an edit to this attribute alone.
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 15
+    logMode: trace                # same kernel: a distance-measured effort
+    unit: km
+    match:
+      kinds: [run, walk, hike]
+      requiresTrace: false        # <-- THE ENTIRE DISCRIMINATOR
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 100                # D-132: FULL activity XP, identical to Wayfaring. Not half.
+    softCapUnits: null
+    sanityCeilingUnits: 300
+    minUnitsForCredit: 0.25
+    # `null` means THIS SKILL IS NOT GROUND-SCORED — there is no ground. That is a different
+    # claim from {new: 1, rearmed: 1, recent: 1}, which would assert that ground exists and
+    # every kind of it scores the same. The two must never be conflated (02 §3.2).
+    groundMultipliers: null
+    # Redundant here, and stated anyway. A traceless run has no cells to write, so this
+    # could be inferred — but a reader should not have to reason about tracelessness to
+    # learn whether a skill opens the map, and a validator that requires the field on every
+    # activity row is what stops a future row omitting it silently.
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  # ── The cycling pair (D-189) ───────────────────────────────────────────────────────────
+  # The same construction as Wayfaring/Vigil one level down: `match.kinds` separates cycling
+  # from running, and `match.requiresTrace` separates outdoors from indoors. All four share
+  # `measure: distanceKm` and are pairwise mutually exclusive, so the matcher returns exactly
+  # one distance skill for any activity.
+  #
+  # NEITHER OPENS THE MAP. Running is the motivation the app is built around and the map is
+  # its reward; a bike covers three times the ground for the same effort, so letting rides
+  # reveal would have made cycling the dominant way to train Cartography — roughly 3:1 over
+  # running — and the map can never re-fog. See D-189 for the rejected middle option.
+
+  - id: roving
+    name: Roving
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 20
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: true
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    # SESSION PARITY at the operator's actual ride distance (D-189, amended by ticket 0158).
+    # 04 §3.2's anchor is that one typical hard session of anything is worth about the same as
+    # one of anything else. The operator's typical ride is 15 km, so 885/15 = 59, rounded to 60
+    # for legibility — a clean 3/5 of running, and 15 km lands at 900 against a typical run's
+    # 885 and a strength session's 840.
+    #
+    # Superseded: 35 XP/km, the speed-ratio anchor (100/3, cycling covering ~3x the distance
+    # for comparable effort). It was chosen against an ASSUMED 25 km ride; at the real 15 km it
+    # paid 525 XP, well under half a run, which is not what session parity means.
+    xpPerUnit: 60
+    softCapUnits: null
+    sanityCeilingUnits: 200        # a flag, never a block (D-123) — 200 km is a long day out
+    minUnitsForCredit: 0.5
+    groundMultipliers: null        # not ground-scored: it does not reveal ground to score
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  - id: cadence
+    name: Cadence                  # the pedalling rate — and a rhythm that goes nowhere,
+                                   # which is the joke Vigil makes about the treadmill
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 25
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: false         # <-- the discriminator, exactly as for Vigil
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 60                  # identical to Roving, as D-132 gave Vigil Wayfaring's rate
+    softCapUnits: null
+    sanityCeilingUnits: 200
+    minUnitsForCredit: 0.5
+    groundMultipliers: null
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  - id: might
+    name: Might
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 30
+    logMode: reps
+    unit: rep
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "reps:pushup"
+    matchPriority: 100
+    xpPerUnit: 4
+    softCapUnits: 100             # per session, 04 §3.5
+    sanityCeilingUnits: 600
+    minUnitsForCredit: 1
+    groundMultipliers: null       # not ground-scored: a pushup happens nowhere on the map
+    revealsGround: false       # a pushup happens nowhere on the map
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: pushup
+        label: Pushups
+        entry: count
+        quickValues: [10, 20, 25, 50]
+
+  - id: fortitude
+    name: Fortitude
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 40
+    logMode: reps
+    unit: rep
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "reps:situp"
+    matchPriority: 100
+    xpPerUnit: 3
+    softCapUnits: 120
+    sanityCeilingUnits: 720
+    minUnitsForCredit: 1
+    groundMultipliers: null
+    revealsGround: false       # a situp happens nowhere on the map
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: situp
+        label: Situps
+        entry: count
+        quickValues: [20, 30, 50]
+
+  - id: endurance
+    name: Endurance
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 50
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:plank"
+    matchPriority: 100
+    xpPerUnit: 1.5                # = 90 XP per plank-minute
+    softCapUnits: 300
+    sanityCeilingUnits: 1800
+    minUnitsForCredit: 5
+    groundMultipliers: null
+    revealsGround: false       # a plank happens nowhere on the map
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    exercises:
+      - id: plank
+        label: Plank
+        entry: seconds
+        quickValues: [30, 60, 90, 120]
+
+  # ── Meta skills ────────────────────────────────────────────────────────────────────────
+  # NEVER matched. They arrive through `feeds` (J4) and, for Cartography, through the fog
+  # subsystem's own derived award (02 §3.4, 05 §8.2). `match` is null on every one.
+
+  - id: cartography
+    name: Cartography
+    kind: meta
+    enabled: true
+    introducedIn: 1
+    displayOrder: 60
+    logMode: derived
+    unit: cell                    # H3 res-11 (D-237)
+    match: null
+    # 2.15, not 13. D-279 (ticket 0236). 04 §3.2 tunes Cartography to parity with Wayfaring
+    # — ~100 XP per kilometre of brand-new ground. v1's 13 was tuned against res-10 density,
+    # 7.67 cells/km (D-215); D-237 then moved the grid to res 11 and nobody retuned it, so v1
+    # paid ~600 XP/km and Cartography became the dominant skill. Measured on the operator's
+    # live ledger: 1,134 new cells over 24.404 km of new ground = 46.47 cells/km.
+    # 46.47 × 2.15 = 99.9.
+    xpPerUnit: 2.15
+    unitMultipliers:              # D-120 discovery credit. NOT groundMultipliers: this is
+      new: 1.0                    # scored per CELL, not per km of ground.
+      rearmed: 0.5
+      recent: 0.0
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []
+
+  - id: constitution
+    name: Constitution
+    kind: meta
+    enabled: true
+    introducedIn: 1
+    displayOrder: 70
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1                  # the share arrives pre-computed; the rate is on the FEEDER
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []                     # Constitution feeds nothing — 04 §1.1, and 02 §3.8 check 2
+
+  - id: slayer
+    name: Slayer
+    kind: meta
+    enabled: false                # POST-MVP (D-122): no combat in the MVP. `enabled: false`
+                                  # hides the skill AND stops it matching. Its historical
+                                  # ledger rows, when it ships, stay valid.
+    introducedIn: 1
+    displayOrder: 80
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []

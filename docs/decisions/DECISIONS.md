@@ -313,8 +313,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     Constitution = 1/3 of activity XP (pattern lifted from RS Hitpoints).
   - To rescale the whole timeline, change the one constant: `3L²` → 99 in 8.9y, `5L²` → 14.9y.
   - → **Annotated at the capability `09` audit (D-276, 2026-10-02):** the per-cell rate is 13
-    (D-215, tuned for res-10 density), and is itself wrong at res 11 (D-237) — being retuned by
-    ticket `0236`. The rate lives only in the Cartography row's `xpPerUnit`, never here.
+    (D-215, tuned for res-10 density), and is itself wrong at res 11 (D-237) — retuned to 2.15
+    in `xp-rules-v2` by ticket `0236` (D-279). The rate lives only in the Cartography row's `xpPerUnit`, never here.
 
 - **D-131** **Strength-skill pacing left as-is.** 99 Might ≈ 27 years at modest volume is
   ACCEPTED as honest. Skill levels mean the same thing across disciplines; the remedy for a
@@ -2385,6 +2385,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 - **D-215** **Cartography is 13 XP per new cell, not 15, because the reveal radius was never
   50 m and the measured density is 7.67 cells/km.** *(Ticket `0046`. Operator-authorised
   widening of that ticket's scope — see its Resolution.)*
+  - → **Figure superseded by D-279 (2026-10-02):** 13 was right for res 10; at res 11 (D-237) the
+    rate is 2.15, in `xp-rules-v2`. The parity target this decision set is unchanged.
   - **Two documents disagreed and one of them was doing arithmetic.** `05-fog-of-war.md` §2.3
     has always specified **65 m**, justified against res 10's 65.7 m inradius. `04-game-design.md`
     §10 said *"Reveal radius is assumed at 50 m, giving 6.5 cells/km"*, §6.2 gave the Lantern a
@@ -4147,3 +4149,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     cosmetic gain.
   - **Revisit if** activity edits stop being rare, for example a source that routinely
     re-uploads cropped activities.
+
+- **D-279** **Cartography is 2.15 XP per new cell at H3 res 11, shipped as `xp-rules-v2`.
+  Supersedes D-215's figure (13); D-215's parity target stands.** *(Ticket `0236`, 2026-10-02.)*
+  - **The defect.** D-215 set 13 against res-10 density, 7.67 cells/km × 13 ≈ 100 XP/km —
+    parity with Wayfaring (04 §3.2). D-237 then moved the grid to res 11 and flagged the rate as
+    a free parameter capability `09` had to set. `09` never set it, so v1 paid ≈600 XP per km of
+    new ground. The `09` audit found it in live state: Cartography 14,807 / L22 against Wayfaring
+    4,661 / L15. The §8.2 test had passed throughout because it fed res-10-shaped counts.
+  - **Measured, not derived.** The operator asked for the live figure rather than the fixture's.
+    Method: for every non-floor activity in the live T4 ledger, sum the Cartography `cells_new`
+    units and the Wayfaring `new_ground` km. Both are written by the same ingest, so the ratio is
+    cells per km of *new* ground — the quantity the parity claim is about. Pooled over 13 runs:
+    **1,134 cells / 24.404 km = 46.47 cells/km**. Per-run spread was 26–67, so the pooled figure
+    is the one to use. The fixture's whole-run 52 cells/km mixes in ground that is not new.
+  - **Rate.** 100 / 46.47 = 2.152 → **2.15**, giving 99.9 XP/km. Re-armed cells are worth half
+    that, 1.075, through the unchanged `unitMultipliers`. The rate is fractional, like Endurance's
+    1.5; per-row `Math.round` (I-19) absorbs it.
+  - **Shipped as v2, not by editing v1.** Ledger rows cite v1, and v1 must keep meaning what it
+    meant (04 §7.6). v2 differs from v1 in this one field, plus `version`, `effectiveFrom` and
+    comments. The user moves to v2 through an XP replay (02 §4.4, D-274). v1's excess Cartography
+    XP is permanent as a D-142 floor (D-135). The bar will therefore not move until real v2
+    discovery passes the floor. That is the rule working, not a bug.
+  - **Docs re-derived.** 04 §3.2/§3.3, the §1.3 excerpt, the §4.2 tally and the §8.2 worked example
+    now use res-11 counts (148 / 58 / 183 cells, Cartography 380). 05 §8.2's cell-size paragraph
+    now describes res 11.

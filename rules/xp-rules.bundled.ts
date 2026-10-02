@@ -3,7 +3,9 @@
 // the worker runs `assertValidRuleSet` on each at cold start.
 
 import V1 from "./xp-rules-v1.json"
+import V2 from "./xp-rules-v2.json"
 
 export const BUNDLED_RULES: Readonly<Record<number, unknown>> = {
   1: V1,
+  2: V2,
 }

@@ -88,7 +88,8 @@ describe("04-game-design.md §1.3's schema example", () => {
   it("agrees with the shipped file on every row it chooses to show", () => {
     // The excerpt may OMIT rows — it says so — but it must not CONTRADICT one. This is the
     // assertion that turns "copy the shape shipped" from an instruction into a property.
-    const shipped = new Map(loadRuleSet(1).skills.map((s) => [s.id, s]))
+    // The newest version: the excerpt describes the ruleset a user is scored under today (D-279).
+    const shipped = new Map(loadRuleSet(2).skills.map((s) => [s.id, s]))
     for (const doc of parsed.skills) {
       const real = shipped.get(doc.id)
       expect(real, `§1.3 shows "${doc.id}", which is not in rules/xp-rules-v1.yaml`).toBeDefined()

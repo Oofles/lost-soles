@@ -152,11 +152,11 @@ must be adding a row.** If it requires a code change, the design has failed.
 > matcher, §3.5 the worked Vigil test, §3.8 the CI checks that stop the property rotting. This
 > section carries the corrected schema; §3 carries the reasoning.
 
-The skill registry is a versioned data file (`rules/xp-rules-v1.yaml`), loaded at ingest time
+The skill registry is a versioned data file (`rules/xp-rules-v<N>.yaml`, currently v2), loaded at ingest time
 and pinned per activity (§7). The schema:
 
 ```yaml
-# rules/xp-rules-v1.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
+# rules/xp-rules-v2.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
 # this block is checked against it by `src/rules/doc-schema.test.ts`, which extracts the
 # YAML below and runs the 0028 validator over it. If it drifts, the build goes red.
 #
@@ -164,8 +164,8 @@ and pinned per activity (§7). The schema:
 # shape exactly. Nothing else is omitted — in particular all FOUR distance skills are here,
 # because the seed-time totality check (02 §3.8/3, ticket 0029) requires every distance-
 # carrying kind to have exactly one, and an excerpt that dropped one would not validate.
-version: 1
-effectiveFrom: 2026-09-01T00:00:00Z
+version: 2
+effectiveFrom: 2026-10-02T00:00:00Z
 
 curve:                       # D-130. NOT per-skill — D-131 rejected per-skill constants.
   stepFormula: "4 * L^2"
@@ -287,9 +287,9 @@ skills:
     introducedIn: 1
     displayOrder: 60
     logMode: derived
-    unit: cell               # H3 res-10 (D-115)
+    unit: cell               # H3 res-11 (D-237)
     match: null
-    xpPerUnit: 13            # D-215: 15 assumed 6.5 cells/km; the measured density is 7.67
+    xpPerUnit: 2.15          # D-279: 46.47 cells/km at res 11 (v1's 13 was D-215's, for res 10)
     unitMultipliers: { new: 1.0, rearmed: 0.5, recent: 0.0 }   # D-120 discovery credit
     softCapUnits: null
     sanityCeilingUnits: null
@@ -705,7 +705,7 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 | Might | pushup | **4** | 75 = 300 |
 | Fortitude | situp | **3** | 90 = 270 |
 | Endurance | plank-second | **1.5** (90/min) | 180 s = 270 |
-| Cartography | new cell | **13** | 68 cells = 884 |
+| Cartography | new cell | **2.15** (D-279) | 411 cells = 884 |
 | Constitution | — | 1/3 of activity XP | run 295 / strength 280 |
 
 **100 XP/km is the anchor**, chosen to be legible: a kilometre is a hundred, a mile is 161,
@@ -735,8 +735,9 @@ Those match, deliberately. Within the strength session, the internal ratios are:
   nearly the same rate under the assumed volume, which looks tidy and coherent on the skill
   panel and means a strength session usually produces *some* level-up somewhere.
 
-**Cartography is tuned to parity with Wayfaring, on purpose.** At 7.67 cells/km × 13 XP,
-a kilometre of brand-new ground yields ~99.7 Cartography XP against Wayfaring's 100. The
+**Cartography is tuned to parity with Wayfaring, on purpose.** At 46.47 cells/km × 2.15 XP
+(res 11, D-279), a kilometre of brand-new ground yields ~99.9 Cartography XP against
+Wayfaring's 100. The
 statement is clean and memorable: **a kilometre of new ground is worth roughly double —
 once in Wayfaring, once in Cartography.** Since novelty is the stated core motivator (D-012),
 the highest-value thing the user can do is exactly the thing they already want to do.
@@ -750,7 +751,7 @@ the strength `xpPerUnit` values, which is a one-line ruleset change.
 
 ### 3.3 Cartography, specifically
 
-`CartographyXP = 13 × (new cells) + 6.5 × (re-armed cells)`. Recent cells contribute nothing
+`CartographyXP = 2.15 × (new cells) + 1.075 × (re-armed cells)`. Recent cells contribute nothing
 (D-120).
 
 > **The rate was 15 and 7.5 until 2026-09-07 (ticket `0046`, D-215).** The reveal radius this
@@ -761,11 +762,19 @@ the strength `xpPerUnit` values, which is a one-line ruleset change.
 > steady-state floor below, the §5 projections — therefore still holds; the per-*run* cell
 > counts in §8.2 moved and were recomputed. This was a pre-ship rebalance with no ledger to
 > disturb, so D-135 and the D-142 XP floor were not engaged.
+>
+> **And 13 → 2.15 in `xp-rules-v2` (2026-10-02, ticket `0236`, D-279).** D-237 moved the canonical
+> grid to H3 res 11, which describes the same ground with ~6× the cells, and nobody retuned the
+> rate — so v1 paid ~600 XP per km of new ground. The res-11 density measured on the operator's
+> live ledger is **46.47 new cells per km of new ground**; 46.47 × 2.15 = 99.9. Per kilometre is
+> again unchanged, so the parity claim, the floor below and the §5 projections hold. Unlike
+> D-215 this one had a live ledger: it shipped as a replay, and v1's excess Cartography XP stays
+> as a D-142 floor (D-135).
 
 **Why Cartography does not die.** The obvious failure mode: the user maps their whole city in
 three years and the skill flatlines forever. The 6-month re-arm is what prevents it. At steady
-state (year 6+), 42% of a typical run is on re-armed ground, worth 6.5/cell — a permanent
-floor of ~31 Cartography XP/km even after every street nearby is known. (Unchanged by D-215:
+state (year 6+), 42% of a typical run is on re-armed ground, worth 1.075/cell — a permanent
+floor of ~31 Cartography XP/km even after every street nearby is known. (Unchanged by D-215 or D-279:
 the floor is proportional to cells/km × XP/cell, and that product was held constant.) And because the re-arm
 is a *rotation* incentive, it pushes the user to spread their routes across the whole map
 instead of grinding the same three loops, which is the behaviour D-012 says they want anyway.
@@ -902,15 +911,15 @@ a decision.
    time, in the gold-on-navy of D-050:
 
    ```
-   Wayfaring      +576      ▓▓▓▓▓▓▓░░░  L47   8,003 to 48
-   Cartography    +383      ▓▓▓▓▓░░░░░  L41   4,564 to 42
-   Constitution   +192      ▓░░░░░░░░░  L41 ↑  6,645 to 42
+   Wayfaring      +578      ▓▓▓▓▓▓▓░░░  L47   8,001 to 48
+   Cartography    +380      ▓▓▓▓▓░░░░░  L41   4,567 to 42
+   Constitution   +193      ▓░░░░░░░░░  L41 ↑  6,644 to 42
    ─────────────────────────────────────────────────────
-   25 cells claimed · 9 remembered · 3.18 km never run before
+   148 cells claimed · 58 remembered · 3.18 km never run before
    ```
 
-   Rows are itemised by *reason*, not just by skill, on tap: `318 new ground · 62 remembered ·
-   196 familiar`. The user should always be able to see *why* a number is what it is. This falls
+   Rows are itemised by *reason*, not just by skill, on tap: `318 new ground · 63 remembered ·
+   197 familiar`. The user should always be able to see *why* a number is what it is. This falls
    out for free from the `XpLedger` design in §7.
 
 3. **Level-ups interrupt.** A level-up stops the tally and takes the screen: a gold-leaf card,
@@ -1326,13 +1335,14 @@ distance = 5.2 mi × 1.609344 = 8.369 km
 
 | Class | Distance | Distinct cells (state before this run) |
 |---|---|---|
-| New — never entered | 3.180 km (38.0%) | **25** |
-| Re-armed — last run 211 days ago | 1.255 km (15.0%) | **9** |
-| Recent — last run 34 days ago | 3.933 km (47.0%) | 30 |
-| **Total** | **8.369 km** | 64 |
+| New — never entered | 3.180 km (38.0%) | **148** |
+| Re-armed — last run 211 days ago | 1.255 km (15.0%) | **58** |
+| Recent — last run 34 days ago | 3.933 km (47.0%) | 183 |
+| **Total** | **8.369 km** | 389 |
 
-(8.369 km × 7.67 cells/km ≈ 64. These counts were 21 / 8 / 26 = 55 while this document
-assumed 6.5 cells/km; D-215 corrected the density and they were rescaled with it.)
+(Each class's km × 46.47 cells/km, rounded — the res-11 density measured on the operator's live
+ledger, D-279. These counts were 21 / 8 / 26 at the assumed 6.5 cells/km, then 25 / 9 / 30 at
+res 10's 7.67 (D-215); D-237 moved the grid to res 11 and they were rescaled again.)
 
 **Step 7 — Wayfaring.**
 
@@ -1351,11 +1361,11 @@ user reads then always adds up exactly, which matters because §4.2 shows it.
 **Step 8 — Cartography.**
 
 ```
-new cells        25 × 13.0 = 325.0
-rearmed cells     9 ×  6.5 =  58.5      (D-120: 50% discovery credit past 6 months)
-recent cells     30 ×  0   =   0.0      (D-120: zero discovery credit inside 6 months)
-                             ───────
-                              384 XP     (rounded per ledger row: 325 + 59)
+new cells       148 × 2.15  = 318.2
+rearmed cells    58 × 1.075 =  62.35    (D-120: 50% discovery credit past 6 months)
+recent cells    183 × 0     =   0.0     (D-120: zero discovery credit inside 6 months)
+                              ───────
+                               380 XP    (rounded per ledger row: 318 + 62)
 ```
 
 **Step 9 — Constitution.**
@@ -1372,11 +1382,11 @@ round(578 × 0.3333) = round(192.65) = 193 XP   (the rate is the feeder row's `f
 | A-1041 | wayfaring | `new_ground` | 3.180 km | 318 |
 | A-1041 | wayfaring | `rearmed_ground` | 1.255 km | 63 |
 | A-1041 | wayfaring | `recent_ground` | 3.933 km | 197 |
-| A-1041 | cartography | `cells_new` | 25 cells | 325 |
-| A-1041 | cartography | `cells_rearmed` | 9 cells | 59 |
+| A-1041 | cartography | `cells_new` | 148 cells | 318 |
+| A-1041 | cartography | `cells_rearmed` | 58 cells | 62 |
 | A-1041 | constitution | `constitution_share` | 578 XP fed | 193 |
 
-(318 + 63 + 197 = 578 Wayfaring; 325 + 59 = 384 Cartography. One `constitution_share` row per
+(318 + 63 + 197 = 578 Wayfaring; 318 + 62 = 380 Cartography. One `constitution_share` row per
 activity, however many skills fed it — D-255. These numbers are asserted by
 `src/scoring/propagate.test.ts`.)
 
@@ -1385,7 +1395,7 @@ activity, however many skills fed it — D-255. These numbers are asserted by
 | Skill | Before | Award | After | Level | Next level at | Remaining |
 |---|---|---|---|---|---|---|
 | Wayfaring | 134,301 (L47) | +578 | 134,879 | **47** | 142,880 | 8,001 (~14 runs) |
-| Cartography | 90,337 (L41) | +384 | 90,721 | **41** | 95,284 | 4,563 |
+| Cartography | 90,337 (L41) | +380 | 90,717 | **41** | 95,284 | 4,567 |
 | Constitution | 88,447 (L40) | +193 | 88,640 | **41 ↑** | 95,284 | 6,644 |
 
 **Total Level +1. Constitution 40 → 41.** Level-up card fires (§4.2 step 3).
@@ -1399,14 +1409,14 @@ activity, however many skills fed it — D-255. These numbers are asserted by
     fog peeling back in soft discs behind it]
 
    Wayfaring      +578   ▓▓▓▓▓▓▓░░░  47      8,001 to 48  (~14 runs)
-   Cartography    +384   ▓▓▓▓▓░░░░░  41      4,563 to 42
+   Cartography    +380   ▓▓▓▓▓░░░░░  41      4,567 to 42
    Constitution   +193   ▓░░░░░░░░░  41 ↑    6,644 to 42
 
    ┌──────────────────────────────┐
    │   CONSTITUTION   40 → 41     │
    └──────────────────────────────┘
 
-   25 cells claimed · 9 remembered · 3.18 km never run before
+   148 cells claimed · 58 remembered · 3.18 km never run before
 
    "You returned to Ashgrove Lane after two hundred and eleven days.
     It remembered you."
@@ -1454,7 +1464,7 @@ Constitution   round(840 × 0.3333)     =  280   (one row, fed by all three — 
 
 | | Total XP awarded | Skills advanced |
 |---|---|---|
-| Example A (8.37 km run, 38% new) | 578 + 384 + 193 = **1,155** | 3 |
+| Example A (8.37 km run, 38% new) | 578 + 380 + 193 = **1,151** | 3 |
 | Example B (strength session) | 300 + 270 + 270 + 280 = **1,120** | 4 |
 
 Within 3%. A hard run and a hard strength session are worth the same. That is the design target

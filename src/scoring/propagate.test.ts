@@ -29,6 +29,8 @@ import {
  */
 
 const RULES = loadRuleSet(1)
+/** The worked examples follow the documents, which describe the current ruleset (D-279). */
+const RULES_V2 = loadRuleSet(2)
 const ACTIVITY = { activityId: "a-1", userId: "u-1", startedAt: "2026-09-06T03:00:00.000Z" }
 const ctx = (rules: RuleSet = RULES) => ({ activity: ACTIVITY, rules, awardedAt: "2026-09-06T09:00:00.000Z" })
 
@@ -219,19 +221,20 @@ describe("no literal the data owns (I-25, D-031)", () => {
 })
 
 describe("worked examples", () => {
-  it("04 §8.2 — 8.368 km, 38% new, 25 new / 9 re-armed / 30 recent cells", () => {
+  it("04 §8.2 — 8.368 km, 38% new, 148 new / 58 re-armed / 183 recent cells (v2, res 11)", () => {
     // Rounded per row with Math.round (I-19, D-256), not floored: 62.75 → 63, 196.65 → 197,
-    // 58.5 → 59. §8.2 was amended to these numbers.
-    const es = score(run(8368), { new: 3180, rearmed: 1255, recent: 3933 }, cells(25, 9))
+    // 62.35 → 62. The cell counts are each class's km × 46.47, the res-11 density measured on
+    // the live ledger (D-279); they were 25 / 9 / 30 at res 10 under v1's rate of 13.
+    const es = score(run(8368), { new: 3180, rearmed: 1255, recent: 3933 }, cells(148, 58), RULES_V2)
     expect(rows(es)).toEqual([
       ["wayfaring", "new_ground", 318],
       ["wayfaring", "rearmed_ground", 63],
       ["wayfaring", "recent_ground", 197],
-      ["cartography", "cells_new", 325],
-      ["cartography", "cells_rearmed", 59],
+      ["cartography", "cells_new", 318],
+      ["cartography", "cells_rearmed", 62],
       ["constitution", "constitution_share", 193],
     ])
-    expect(Object.fromEntries(xpBySkill(es))).toEqual({ wayfaring: 578, cartography: 384, constitution: 193 })
+    expect(Object.fromEntries(xpBySkill(es))).toEqual({ wayfaring: 578, cartography: 380, constitution: 193 })
   })
 
   it("04 §8.3 — 75 pushups, 90 situps, 180 s plank", () => {

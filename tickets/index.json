@@ -5422,6 +5422,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-02T15:19:39Z",
+    "started": "2026-10-02T16:42:38Z",
     "path": "tickets/open/0236-cartography-rate-not-retuned-for-res-11.md",
     "ready": true,
     "acceptance": {
