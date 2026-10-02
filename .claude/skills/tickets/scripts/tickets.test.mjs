@@ -1690,6 +1690,27 @@ describe("0023 — triage: promote, merge, decline, defer", () => {
     rmSync(d, { recursive: true, force: true });
   });
 
+  test("0227: a merge refused on the slug leaves the target byte-identical; the retry merges once", () => {
+    const d = repo();
+    ticket(d, "open", FM({ id: 7, slug: "streaks", title: "Streaks" }));
+    const p = capture(d, "2026-08-30T1432-bang.md", { title: "!!!" });
+    commitAll(d);
+    const targetPath = join(d, "tickets/open/0007-streaks.md");
+    const before = readFileSync(targetPath, "utf8");
+
+    const r = run(d, "triage-merge", p, "--into", "7");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /--slug/);
+    assert.equal(readFileSync(targetPath, "utf8"), before, "a refused merge must not touch the target");
+    assert.ok(existsSync(join(d, p)), "the capture survives a refused merge");
+
+    const retry = run(d, "triage-merge", p, "--into", "7", "--slug", "bang");
+    assert.equal(retry.code, 0, retry.out);
+    const merges = readFileSync(targetPath, "utf8").match(/Merged from a capture/g) ?? [];
+    assert.equal(merges.length, 1, "the retry must produce exactly one merged note");
+    rmSync(d, { recursive: true, force: true });
+  });
+
   test("defer leaves the capture in the inbox with a dated note and no id", () => {
     const d = repo();
     const p = capture(d, "2026-08-30T1432-streak.md");

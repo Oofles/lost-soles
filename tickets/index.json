@@ -5228,10 +5228,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T00:38:18Z",
+    "started": "2026-10-02T04:20:46Z",
     "path": "tickets/open/0227-triage-merge-writes-target-before-slug-check.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },

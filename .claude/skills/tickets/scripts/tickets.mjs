@@ -2209,13 +2209,17 @@ function cmdTriageMerge(path, flags) {
         `  a closed ticket's Notes are not re-read, and the inbox would report this capture as\n` +
         `  handled. Promote it or decline it instead.`);
   }
+  const secRe = /^##\s+Notes\s*$/im;
+  if (!secRe.test(target.body)) die(`${pad(into)} has no '## Notes' section to merge into`);
+  // Every refusal sits above the target write (0227): a refusal after it
+  // half-merges, and the retry appends the note a second time.
+  const slug = flags.slug ?? slugify(cap.fm.title ?? "");
+  if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
 
   // Appended at the END of ## Notes, not the top: Notes read chronologically,
   // and a merged idea is the newest thing known about the ticket.
   const note = `\n**Merged from a capture, ${today()}** (captured ${cap.fm.created}):\n` +
     `${cap.body.replace(/^##\s+Description\s*$/im, "").trim()}\n`;
-  const secRe = /^##\s+Notes\s*$/im;
-  if (!secRe.test(target.body)) die(`${pad(into)} has no '## Notes' section to merge into`);
   const lines = target.body.split("\n");
   const start = lines.findIndex((l) => secRe.test(l));
   let end = lines.length;
@@ -2225,8 +2229,6 @@ function cmdTriageMerge(path, flags) {
   const merged = [...lines.slice(0, end), ...note.split("\n"), ...lines.slice(end)].join("\n");
   writeFileSync(join(ROOT, target.path), serialize(target.fm, merged));
 
-  const slug = flags.slug ?? slugify(cap.fm.title ?? "");
-  if (!SLUG_RE.test(slug)) die(`derived slug '${slug}' is not kebab-case; pass --slug`);
   const id = nextId();
   const fm = {
     ...triagedFrontmatter(cap, { id, slug, status: "closed", size: flags.size, capability: flags.capability }),
