@@ -4,13 +4,14 @@ slug: check-design-tokens-reads-typescript-private-fields-as-hex-c
 title: check-design-tokens reads TypeScript private fields as hex colours — this.#acc() is '#acc'
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 00-preflight-and-repo
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-11T14:05:49Z
+closed: 2026-10-02T01:32:09Z
 ---
 
 ## Description
