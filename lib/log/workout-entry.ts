@@ -44,6 +44,12 @@ export interface WorkoutEntry {
   occurredAt: string
   /** Client-minted, so a retried click is one log, not two. */
   idempotencyKey: string
+  /**
+   * The client's IANA zone (`Intl.DateTimeFormat().resolvedOptions().timeZone`), or absent.
+   * Added by `0069` (D-281): `Activity.startedAtLocal` drives game-day bucketing and a UTC
+   * instant alone cannot produce it. Context about WHEN, never a claim about what it is worth.
+   */
+  timezone?: string
 }
 
 export type WorkoutEntryErrorCode =
@@ -53,6 +59,7 @@ export type WorkoutEntryErrorCode =
   | "BAD_SET"
   | "BAD_OCCURRED_AT"
   | "BAD_IDEMPOTENCY_KEY"
+  | "BAD_TIMEZONE"
 
 /** The one named error the `/log` boundary throws. `code` says which rule failed. */
 export class WorkoutEntryError extends Error {
@@ -70,6 +77,17 @@ const MAX_IDEMPOTENCY_KEY = 128
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v)
+
+/** A zone `Intl` can format in. Throws `RangeError` on anything else, including `""`. */
+export function isIanaZone(v: unknown): v is string {
+  if (typeof v !== "string" || v === "") return false
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: v })
+    return true
+  } catch {
+    return false
+  }
+}
 
 const isPositiveInt = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v > 0
@@ -105,7 +123,7 @@ export function parseWorkoutEntry(
 ): WorkoutEntry {
   if (!isRecord(input)) throw new WorkoutEntryError("NOT_AN_OBJECT", "a workout entry must be a JSON object")
 
-  const { exerciseId, sets, occurredAt, idempotencyKey } = input
+  const { exerciseId, sets, occurredAt, idempotencyKey, timezone } = input
 
   if (typeof exerciseId !== "string" || exerciseId === "") {
     throw new WorkoutEntryError("UNKNOWN_EXERCISE", "exerciseId must be a non-empty string")
@@ -129,7 +147,8 @@ export function parseWorkoutEntry(
     if (!isPositiveInt(s[field])) {
       throw new WorkoutEntryError("BAD_SET", `sets[${i}].${field} must be a positive integer`)
     }
-    const stray = otherFields.find((f) => s[f] !== undefined)
+    // `!= null`: GraphQL hands an unset nullable input field over as `null` (0069).
+    const stray = otherFields.find((f) => s[f] != null)
     if (stray) {
       throw new WorkoutEntryError(
         "BAD_SET",
@@ -137,7 +156,7 @@ export function parseWorkoutEntry(
       )
     }
     const set: EntrySet = { [field]: s[field] }
-    if (s.weightKg !== undefined) {
+    if (s.weightKg != null) {
       if (typeof s.weightKg !== "number" || !Number.isFinite(s.weightKg) || s.weightKg <= 0) {
         throw new WorkoutEntryError("BAD_SET", `sets[${i}].weightKg must be a positive number`)
       }
@@ -161,7 +180,17 @@ export function parseWorkoutEntry(
     )
   }
 
-  return { exerciseId, sets: clean, occurredAt, idempotencyKey }
+  if (timezone !== undefined && timezone !== null && !isIanaZone(timezone)) {
+    throw new WorkoutEntryError("BAD_TIMEZONE", `timezone must be an IANA zone id, got ${JSON.stringify(timezone)}`)
+  }
+
+  return {
+    exerciseId,
+    sets: clean,
+    occurredAt,
+    idempotencyKey,
+    ...(typeof timezone === "string" ? { timezone } : {}),
+  }
 }
 
 /**

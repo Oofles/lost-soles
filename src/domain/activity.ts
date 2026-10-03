@@ -118,7 +118,7 @@ export interface Activity {
   name?: string               // free text from the source, display only
 
   source: SourceRef
-  /** Null only for `manual`. */
+  /** Nullable by contract. Every adapter built so far archives, manual included (D-281). */
   raw: RawArchiveRef | null
   /**
    * S3 key of the route geometry (D-235): `traceToSegments`'s output as a GeoJSON

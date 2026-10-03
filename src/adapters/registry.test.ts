@@ -253,6 +253,6 @@ describe("the registry answers for exactly the adapters that are built", () => {
 
   it("throws for an enumerated source that simply has no adapter yet", () => {
     // `SourceId` enumerating a source is documentation, not a promise that it is built.
-    expect(() => getAdapter("manual")).toThrow(UnknownAdapterError)
+    expect(() => getAdapter("health-connect")).toThrow(UnknownAdapterError)
   })
 })

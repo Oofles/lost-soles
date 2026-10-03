@@ -245,9 +245,15 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
      * denormalised XP totals plus the replay flag — the last four owner-READ at the field.
      * No credential material of any kind; a source connection's tokens live in T7, never here.
      *
+     * `logWorkout` was added by ticket 0069 and is a custom MUTATION, not a model — it matches
+     * this pattern because it is declared the same way, and it comes here anyway. It stores
+     * nothing of its own and reads no credential: measured work in, the manual adapter and the
+     * ingest pipeline behind it, an activity id and an XP total out. Its arguments are pinned
+     * by `amplify/log-workout-mutation.test.ts`.
+     *
      * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
      */
-    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "DeploySmokeTest"])
+    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "logWorkout", "DeploySmokeTest"])
   })
 })
 

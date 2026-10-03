@@ -51,11 +51,26 @@ export interface DedupeDeps {
   activityTable: string
 }
 
-/** The existing activity this one duplicates, or `null`. */
+/**
+ * The existing activity this one duplicates, or `null`.
+ *
+ * ─── AN ACTIVITY CARRYING SETS IS NEVER A CROSS-SOURCE DUPLICATE (D-281) ────
+ *
+ * Ticket 0069. `isSameActivity` abstains on a missing distance, and a logged set has no
+ * distance and an `elapsedS` near zero — so 40 pushups and a two-minute plank logged five
+ * minutes apart matched each other, and the plank scored nothing. Sets come from exactly one
+ * place (D-060: no API exposes reps), so there is no second source for one to duplicate.
+ * Re-submission of the SAME log is a different problem with a different guard — the client's
+ * idempotency key, enforced at the receipt — and that one is exact.
+ *
+ * A property of the activity, not a source id: the pipeline still names no source.
+ */
 export async function findDuplicate(
-  activity: Pick<Activity, "activityId" | "userId" | "startedAt" | "elapsedS" | "distanceM">,
+  activity: Pick<Activity, "activityId" | "userId" | "startedAt" | "elapsedS" | "distanceM"> &
+    Partial<Pick<Activity, "sets">>,
   deps: DedupeDeps,
 ): Promise<{ activityId: string } | null> {
+  if ((activity.sets?.length ?? 0) > 0) return null
   const self: DedupeCandidate = candidateOf(activity)
   const seen = new Set<string>([activity.activityId])
 

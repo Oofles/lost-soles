@@ -71,6 +71,24 @@ describe("findDuplicate", () => {
     const { deps } = t3([{ id: "incoming", startedAt: "2026-09-06T03:10:00Z", elapsedS: 1800, distanceM: 5000 }])
     expect(await findDuplicate(incoming("2026-09-06T03:10:00Z"), deps)).toBeNull()
   })
+
+  it("never treats an activity carrying sets as a cross-source duplicate (D-281)", async () => {
+    // Pushups at 07:00, a plank logged three minutes later: no distance, elapsed within 5 min.
+    // Without the rule these match each other and the plank scores nothing.
+    const pushups = { id: "pushups", startedAt: "2026-09-06T07:00:00Z", elapsedS: 0 }
+    const { deps, queried } = t3([pushups])
+    const plank = incoming("2026-09-06T07:03:00Z", {
+      elapsedS: 120,
+      distanceM: undefined,
+    })
+
+    expect(await findDuplicate({ ...plank, sets: [] }, deps)).toEqual({ activityId: "pushups" })
+    queried.length = 0
+    expect(
+      await findDuplicate({ ...plank, sets: [{ exercise: "plank", durationS: 120 }] }, deps),
+    ).toBeNull()
+    expect(queried, "short-circuits before any GSI read").toEqual([])
+  })
 })
 
 describe("the duplicateOf pointer", () => {

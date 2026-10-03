@@ -45,6 +45,7 @@ import { Queue } from "aws-cdk-lib/aws-sqs"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
+import { logWorkoutFunction } from "./functions/log-workout/resource"
 import { processActivity } from "./functions/process-activity/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { storage } from "./storage/resource"
@@ -81,6 +82,9 @@ export const backend = defineBackend({
   // bottom of this file — `defineFunction` has no queue primitive, which is the second
   // of the four escape-hatch uses 01-architecture.md §2 sanctions.
   processActivity,
+  // Ticket 0069. The `logWorkout` resolver (`data/resource.ts`). Its grants are below the
+  // worker's, and are a strict subset of them: no queue, no source credentials, no cells.
+  logWorkoutFunction,
 })
 
 /*
@@ -1645,3 +1649,62 @@ backend.addOutput({
     basemapDistributionId: tilesDistribution.distributionId,
   },
 })
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE `logWorkout` RESOLVER  (ticket 0069, `02` §2.11)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * It runs `processActivity`, so it needs what the worker's MANUAL path touches and nothing
+ * more. What it is deliberately NOT granted, and why each absence is a statement:
+ *
+ *   - `ExploredCell` and the explored blobs' write: a manual log has no trace, so it projects
+ *     no cells and publishes no generation (I-27). If a change ever made it try, the call
+ *     should fail loudly here rather than quietly reveal ground from a pushup.
+ *   - `SourceAccount`, its key, SSM: it has no credentials to read.
+ *   - SQS: it is synchronous; there is no queue between the user and the pipeline.
+ *
+ * Every grant is an explicit action list, for the worker's reason above.
+ */
+const logWorkoutLambda = backend.logWorkoutFunction.resources.lambda
+
+/** `PutItem` for the accept gate (`acceptIngest`), which the worker never runs — Sync does, for it. */
+ingestReceiptTable.grant(logWorkoutLambda, "dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem")
+activityTable.grant(logWorkoutLambda, "dynamodb:PutItem", "dynamodb:GetItem")
+logWorkoutLambda.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["dynamodb:Query"],
+    resources: [`${activityTable.tableArn}/index/byUserAndDedupe`, `${xpLedgerTable.tableArn}/index/byActivity`],
+  }),
+)
+xpLedgerTable.grant(logWorkoutLambda, "dynamodb:PutItem")
+skillStateTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+profileTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
+logWorkoutLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteAndReadRawArchive",
+    actions: ["s3:PutObject", "s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
+  }),
+)
+/** The skill-state snapshot reads the manifest for its generation stamp; it never writes there. */
+logWorkoutLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ReadExploredManifest",
+    actions: ["s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
+  }),
+)
+logWorkoutLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteSkillStateSnapshots",
+    actions: ["s3:PutObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*")],
+  }),
+)
+
+backend.logWorkoutFunction.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+backend.logWorkoutFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.logWorkoutFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
+backend.logWorkoutFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.logWorkoutFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)

@@ -13,6 +13,7 @@
  */
 
 import type { SourceId } from "@/src/domain/activity"
+import { manualAdapter } from "./manual/adapter"
 import { stravaAdapter } from "./strava/adapter"
 import { stravaOAuth } from "./strava/oauth"
 import type { OAuthConnector, SourceAdapter } from "./types"
@@ -60,6 +61,12 @@ export class UnknownAdapterError extends Error {
  */
 export const ADAPTERS: Readonly<Partial<Record<SourceId, SourceAdapter>>> = {
   strava: stravaAdapter as SourceAdapter,
+  /**
+   * Ticket 0069. In-app logging (D-060/D-061). Driven by the `logWorkout` mutation rather
+   * than a queue, but resolved through here like every other source. It has no OAuth
+   * connector: its caller is already the signed-in user.
+   */
+  manual: manualAdapter as SourceAdapter,
 }
 
 export function getAdapter(id: SourceId): SourceAdapter {

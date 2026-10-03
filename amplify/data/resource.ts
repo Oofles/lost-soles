@@ -1,5 +1,7 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend"
 
+import { logWorkoutFunction } from "../functions/log-workout/resource"
+
 /**
  * The AppSync-backed half of the data model. `02-data-model.md` §2.1: five
  * `defineData` models (one physical table each, which is how Gen 2 works) plus three
@@ -379,6 +381,44 @@ const schema = a.schema({
   /**
    * 0012's placeholder. Kept until a second real model lands — see the header.
    */
+  /**
+   * ─── THE ONE MUTATION THAT CREATES AN ACTIVITY (I-20's carve-out) ─────────────
+   *
+   * Ticket 0069, `02` §2.11. It runs the manual adapter and the SAME `processActivity` as the
+   * ingest worker (`amplify/functions/log-workout`), so a hand-logged pushup takes a Strava
+   * run's path. Its arguments are MEASURED WORK ONLY: an exercise, its sets, when, and an
+   * idempotency key. No XP, no skill id, no level — `log-workout-mutation.test.ts` asserts the
+   * generated SDL, because one optional `xp: Int` here would make every number in the game
+   * forgeable.
+   *
+   * `allow.authenticated()`, not `allow.owner()`: Amplify's owner rule applies to MODELS, and a
+   * custom operation has no row to own. The ticket's intent — only the user, about themselves —
+   * is met by the handler: the user is `identity.sub`, never an argument, and it must be on
+   * the owner allowlist.
+   */
+  LogWorkoutSet: a.customType({
+    reps: a.integer(),
+    durationS: a.integer(),
+    weightKg: a.float(),
+  }),
+  LogWorkoutResult: a.customType({
+    logged: a.boolean().required(),
+    activityId: a.string().required(),
+    xpAwarded: a.integer().required(),
+  }),
+  logWorkout: a
+    .mutation()
+    .arguments({
+      exerciseId: a.string().required(),
+      sets: a.ref("LogWorkoutSet").required().array().required(),
+      occurredAt: a.datetime(),
+      idempotencyKey: a.string().required(),
+      timezone: a.string(),
+    })
+    .returns(a.ref("LogWorkoutResult").required())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(logWorkoutFunction)),
+
   DeploySmokeTest: a
     .model({
       note: a.string(),

@@ -4205,3 +4205,40 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **On the wire** the exercise is stated once per entry (`exerciseId`), and sets omit it
     (`[{ reps: 30 }]`, as `06` §6.6 says). `entryActivityFields` stamps it onto each set and maps
     `occurredAt` to `startedAt`. `measure` is not sent: it is derived from the registry.
+- **D-281** **A manual log reaches the pipeline through `logWorkout`, a synchronous custom
+  mutation that drives the manual adapter and the unchanged `processActivity`. An activity that
+  carries `sets` is never a cross-source duplicate. The client sends its IANA `timezone`.**
+  *(Operator, 2026-10-03, ticket `0069`. Amends I-22's dedupe step, `02` §2.11's mutation
+  signature, the contract's "`raw` null only for manual", and `0069` criteria 4 and 10.)*
+  - **Dedupe.** `isSameActivity` abstains on a missing distance, and a logged set has no distance
+    and an `elapsedS` near zero. So 40 pushups and a two-minute plank logged within five minutes
+    matched each other, and the plank scored nothing. Sets come from one place only (D-060: no API
+    exposes reps), so there is no second source to duplicate one. `findDuplicate` returns `null`
+    for any activity with a non-empty `sets`, before any read. This tests a property, not a source
+    id, so the pipeline still names no source. Re-submitting the same log is caught exactly by the
+    client's idempotency key at the receipt (`manualIngestKey = sha256(manual:user:key)`).
+  - **Timezone.** `Activity.startedAtLocal` drives game-day bucketing, and a UTC instant cannot
+    produce it. `Profile` stores no zone. The entry therefore gains an optional `timezone` (IANA
+    id, from `Intl`), validated with `Intl.DateTimeFormat`. When it is absent, the local time is
+    UTC's wall clock. It describes when the work happened, not what it is worth.
+  - **Synchronous, not queued.** A webhook queues because its source allows two seconds and the
+    worker still has a fetch to make. Here there is nothing to fetch and the caller is waiting.
+    The retry queue lives in the client (`0068`), keyed on the idempotency key.
+  - **`allow.authenticated()`, not `allow.owner()`.** In Amplify the owner rule applies to models
+    only, and a custom operation has no row to own. The handler takes the user from
+    `identity.sub`, never from an argument, and refuses anyone not on `OWNER_USER_IDS`. The
+    allowlist moved to `lib/auth/owner-ids.ts`, which has no framework import, so the Lambda can
+    load it.
+  - **The archive.** The manual adapter archives the *validated* entry. So `Activity.raw` is
+    non-null for a manual log, and D-101's archive-everything holds for this source too. A retry
+    that carries its `occurredAt` (which `0068`'s queue always sends) produces identical bytes, so
+    the content-addressed PUT writes nothing new. A retry *without* one is defaulted to a new
+    "now" and archives a second object. That is harmless, since the receipt still awards once,
+    but it is why the client should send the instant of the click.
+  - **One exercise per call.** `0070` made a `WorkoutEntry` one exercise. `0069`'s "one session
+    moves Might, Fortitude and Constitution" is therefore two calls (pushups, then situps). A
+    `logWorkout(entries: [...])` list would give a multi-exercise log partial-failure semantics
+    for no benefit, since `/log` commits one row per click (`0068`).
+  - **Sync sweeps connectable sources, not registered ones.** The manual adapter is registered
+    and has nothing to connect or pull. Iterating `registeredSources()` made Sync report "manual
+    is not connected".

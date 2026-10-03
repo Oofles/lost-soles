@@ -70,7 +70,8 @@ describe("criterion 1 — sets is a list everywhere, with no scalar beside it", 
   it("in the type: WorkoutEntry carries sets[] and no reps/seconds/km field", () => {
     expectTypeOf<WorkoutEntry["sets"]>().toBeArray()
     expectTypeOf<keyof WorkoutEntry>().toEqualTypeOf<
-      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey"
+      // `timezone` (0069, D-281) is context about WHEN, not a measure.
+      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey" | "timezone"
     >()
     expectTypeOf<Activity["sets"]>().toEqualTypeOf<WorkoutSet[]>()
   })
@@ -210,5 +211,19 @@ describe("criterion 8 — a restSeconds key on a set is ignored by existing read
     const withRest = { ...plain, sets: [{ exercise: "pushup", reps: 30, restSeconds: 60 } as WorkoutSet] }
     expect(scoreUnits(withRest, rules)).toEqual(scoreUnits(plain, rules))
     expect(xpOf(withRest)).toEqual(xpOf(plain))
+  })
+})
+
+describe("0069 — the optional timezone, and GraphQL's nulls", () => {
+  it("keeps a valid IANA zone and refuses anything Intl cannot format in", () => {
+    expect(parseWorkoutEntry(body({ timezone: "America/Denver" }), rules).timezone).toBe("America/Denver")
+    expect(parseWorkoutEntry(body(), rules)).not.toHaveProperty("timezone")
+    expect(codeOf(() => parseWorkoutEntry(body({ timezone: "(GMT-07:00) America/Denver" }), rules))).toBe("BAD_TIMEZONE")
+    expect(codeOf(() => parseWorkoutEntry(body({ timezone: "" }), rules))).toBe("BAD_TIMEZONE")
+  })
+
+  it("reads an unset nullable set field arriving as null as absent, not as a stray", () => {
+    const entry = parseWorkoutEntry(body({ sets: [{ reps: 30, durationS: null, weightKg: null }] }), rules)
+    expect(entry.sets).toEqual([{ reps: 30 }])
   })
 })

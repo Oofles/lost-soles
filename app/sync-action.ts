@@ -15,7 +15,7 @@ import {
 } from "@/lib/sources/source-account-store"
 import { syncResultLine } from "@/lib/sources/sync-message"
 import { syncSource, type SourceSyncOutcome } from "@/lib/sources/sync"
-import { getAdapter, getOAuthConnector, registeredSources } from "@/src/adapters/registry"
+import { connectableSources, getAdapter, getOAuthConnector } from "@/src/adapters/registry"
 import { listFailedReceipts } from "@/src/pipeline/ingest-receipt"
 
 /**
@@ -108,7 +108,14 @@ export async function syncNow(): Promise<SyncSummary> {
 
   const outcomes: SourceSyncOutcome[] = []
 
-  for (const sourceId of registeredSources()) {
+  /**
+   * CONNECTABLE, NOT REGISTERED (ticket 0069). The sweep pulls from a source the operator
+   * CONNECTED, with credentials from that connection (`oauthCredentialsFor` below). The
+   * manual adapter is registered and has nothing to connect or pull — iterating every
+   * registered source made this press report "manual is not connected", which is true of
+   * no meaningful thing.
+   */
+  for (const sourceId of connectableSources()) {
     /**
      * CRITERION 7. A missing or disconnected row is not a failure and must not read as
      * one, and `NEEDS_REAUTH` is a different sentence again — one asks the operator to
