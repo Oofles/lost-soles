@@ -4,7 +4,7 @@ slug: manual-adapter
 title: The manual adapter — src/adapters/manual/ behind the ingestion contract
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [26, 70]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-03T05:53:23Z
+closed: 2026-10-03T14:38:53Z
 ---
 
 ## Description

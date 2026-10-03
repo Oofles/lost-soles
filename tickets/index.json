@@ -1661,7 +1661,7 @@
     "title": "The manual adapter — src/adapters/manual/ behind the ingestion contract",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -1672,10 +1672,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-03T05:53:23Z",
-    "path": "tickets/open/0069-manual-adapter.md",
-    "ready": true,
+    "closed": "2026-10-03T14:38:53Z",
+    "path": "tickets/closed/0069-manual-adapter.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
