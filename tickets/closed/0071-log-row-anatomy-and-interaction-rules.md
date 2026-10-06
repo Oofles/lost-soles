@@ -4,7 +4,7 @@ slug: log-row-anatomy-and-interaction-rules
 title: /log row anatomy and interaction rules
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [68]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-06T18:52:30Z
+closed: 2026-10-06T19:24:25Z
 ---
 
 ## Description
@@ -139,10 +140,20 @@ and no long-press action exists on the row.
 alone. Deliberately mis-click once and use `⟲ Undo` before it expires. Confirm there is no
 confirmation dialog anywhere.
 
-**Pending: the operator's look at `/log` in the desktop browser.** This is the one check the
-suite cannot make (D-229): whether the row reads at a glance, and whether the flow takes under
-three seconds without hunting. Undo inside the 8 seconds writes nothing, so the check costs no
-XP unless the operator lets a log stand.
+**Operator (2026-10-06, desktop browser, deployed build `008d3f8`).** *"The 'Add workout' reads
+clear with all the sections. It's working as expected and the undo works."* The operator logged
+and undid entries, saw no confirmation dialog, and **kept one real log: 20 pushups.**
+
+**That kept log, checked end to end by the agent in DynamoDB.**
+- **Activity:** exactly one `kind: strength`, `hasTrace: false` row, with
+  `sets: [{exercise: pushup, reps: 20}]`.
+- **Time:** `startedAt 19:22:26.707Z` is the instant of the click. `startedAtLocal 15:22:26`
+  is in `America/New_York`, the timezone the browser sent.
+- **Flush:** `ingestedAt` is **9.4 s after the click**, which is the 8-second undo hold plus the
+  runner's 1-second poll, as designed.
+- **SkillState:** Might moved to 80 XP (20 × 4) at L4, and Constitution's `lastXpAt` moved to
+  the same instant.
+- The undone entries left no trace.
 
 **Automated (agent, 2026-10-06):** see `0068`'s validation. The suite (148 files, 2,685 tests),
 typecheck, lint, `next build` (`○ /log`) and the deployed-stack smoke all ran over this code.

@@ -1712,7 +1712,7 @@
     "title": "/log row anatomy and interaction rules",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -1722,10 +1722,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-06T18:52:30Z",
-    "path": "tickets/open/0071-log-row-anatomy-and-interaction-rules.md",
-    "ready": true,
+    "closed": "2026-10-06T19:24:25Z",
+    "path": "tickets/closed/0071-log-row-anatomy-and-interaction-rules.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 13,
       "total": 13
     }
   },
@@ -1746,7 +1747,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0072-new-workout-type-is-a-yaml-row-only.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 12
