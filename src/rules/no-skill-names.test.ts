@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 
+import { NEW_IDS } from "./__fixtures__/new-workout-type"
 import { loadRuleSet } from "./load"
 
 /**
@@ -45,7 +46,9 @@ function walk(dir: string, out: string[] = []): string[] {
 const posix = (p: string) => p.split(sep).join("/")
 
 describe("no code names a skill (02 §3.8 check 6, D-031)", () => {
-  const skillIds = loadRuleSet(1).skills.map((s) => s.id)
+  // Plus 0072's never-shipped Pull-ups fixture (I-25): the day code names the type the
+  // zero-diff test adds, that test's claim is false, and this is the line that says so.
+  const skillIds = [...new Set([...loadRuleSet(1).skills.map((s) => s.id), ...NEW_IDS])]
   const files = walk(join(ROOT, "src"))
     .concat(walk(join(ROOT, "app")), walk(join(ROOT, "lib")), walk(join(ROOT, "components")))
     .map((f) => posix(relative(ROOT, f)))
@@ -55,6 +58,7 @@ describe("no code names a skill (02 §3.8 check 6, D-031)", () => {
     // staleness this test exists to avoid reproducing in itself.
     expect(skillIds.length).toBeGreaterThanOrEqual(8)
     expect(new Set(skillIds).size).toBe(skillIds.length)
+    expect(skillIds).toEqual(expect.arrayContaining([...NEW_IDS]))
   })
 
   it("scans a non-trivial number of files, so an empty sweep cannot pass silently", () => {

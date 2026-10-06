@@ -1746,6 +1746,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-06T19:47:50Z",
     "path": "tickets/open/0072-new-workout-type-is-a-yaml-row-only.md",
     "ready": true,
     "acceptance": {
@@ -1773,7 +1774,7 @@
     "path": "tickets/open/0073-skills-panel-grid-and-total-level.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 13,
       "total": 13
     }
   },
