@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import type { ReactNode } from "react"
 
 import { AuthGate } from "@/components/auth-gate"
+import { LogQueueRunner } from "@/components/log-queue-runner"
 import { APP_NAME, APP_TAGLINE } from "@/lib/app-meta"
 
 export const metadata: Metadata = {
@@ -21,7 +22,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         they inherit this by construction rather than each remembering to opt in.
       */}
       <body>
-        <AuthGate>{children}</AuthGate>
+        <AuthGate>
+          {/* Flushes `/log`'s queue on every route, not only `/log` (ticket 0068, D-282). */}
+          <LogQueueRunner />
+          {children}
+        </AuthGate>
       </body>
     </html>
   )

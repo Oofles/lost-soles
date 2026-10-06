@@ -3,6 +3,8 @@ import { join, relative, sep } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
+
 import { loadRuleSet } from "./load"
 
 /**
@@ -109,5 +111,51 @@ describe("no code names a skill (02 §3.8 check 6, D-031)", () => {
         })
     }
     expect(violations).toEqual([])
+  })
+})
+
+/**
+ * Ticket 0068 criterion 8 (I-25): *"No skill id or exercise id is legible to the compiler in
+ * `(app)/log/`."* Wider than the check above in two ways — EXERCISE ids too, from EVERY bundled
+ * ruleset — and narrower in scope: `/log`'s own code, `app/log/` and `lib/log/`. Exercise ids
+ * appear in a few comments elsewhere (`src/domain/activity.ts` documents the field with them),
+ * so comment lines are skipped rather than widening the scope and inviting a bypass.
+ */
+describe("/log names no skill and no exercise (0068, I-25)", () => {
+  const versions = Object.keys(BUNDLED_RULES).map((v) => loadRuleSet(Number(v)))
+  const ids = [
+    ...new Set(
+      versions.flatMap((r) => r.skills.flatMap((s) => [s.id, ...(s.exercises ?? []).map((e) => e.id)])),
+    ),
+  ]
+  const pattern = new RegExp(`["'\`](${ids.join("|")})["'\`]`)
+  const files = walk(join(ROOT, "app/log"))
+    .concat(walk(join(ROOT, "lib/log")))
+    .map((f) => posix(relative(ROOT, f)))
+    .filter((rel) => !isExempt(rel))
+  const isComment = (line: string) => /^\s*(\/\/|\*|\/\*)/.test(line)
+
+  it("covers exercise ids, and scans the /log files", () => {
+    expect(ids.length).toBeGreaterThan(versions[1].skills.length)
+    expect(files).toEqual(expect.arrayContaining(["app/log/log-page.tsx", "app/log/log-row.tsx", "lib/log/rows.ts"]))
+  })
+
+  it("finds none", () => {
+    const violations: string[] = []
+    for (const rel of files) {
+      readFileSync(join(ROOT, rel), "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          if (!isComment(line) && pattern.test(line)) violations.push(`${rel}:${i + 1}  ${line.trim()}`)
+        })
+    }
+    expect(violations).toEqual([])
+  })
+
+  it("would find one", () => {
+    const exercise = versions[1].skills.flatMap((s) => s.exercises ?? [])[0].id
+    expect(pattern.test(`if (row.exerciseId === "${exercise}")`)).toBe(true)
+    expect(versions.length).toBeGreaterThanOrEqual(2)
+    expect(isComment(` * the "${exercise}" row`)).toBe(true)
   })
 })

@@ -1636,7 +1636,7 @@
     "title": "/log route — one row per workout type, one click to log",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -1648,10 +1648,12 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0068-log-route-one-row-per-workout-type.md",
-    "ready": true,
+    "started": "2026-10-06T18:35:58Z",
+    "closed": "2026-10-06T18:52:05Z",
+    "path": "tickets/closed/0068-log-route-one-row-per-workout-type.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -1720,7 +1722,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0071-log-row-anatomy-and-interaction-rules.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 13
@@ -5489,6 +5491,46 @@
     "source": "agent",
     "created": "2026-10-02T15:19:39Z",
     "path": "tickets/open/0239-exclude-tmp-from-typecheck-and-lint.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 240,
+    "slug": "manual-distance-logging-on-log",
+    "title": "Manual distance logging on /log (treadmill / track) needs a distance set field",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-06T18:50:58Z",
+    "path": "tickets/open/0240-manual-distance-logging-on-log.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 241,
+    "slug": "app-shell-service-worker-offline-reload",
+    "title": "App-shell service worker so a cold reload renders offline",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-06T18:50:58Z",
+    "path": "tickets/open/0241-app-shell-service-worker-offline-reload.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

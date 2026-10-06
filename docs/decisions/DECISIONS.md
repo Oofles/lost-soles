@@ -4242,3 +4242,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Sync sweeps connectable sources, not registered ones.** The manual adapter is registered
     and has nothing to connect or pull. Iterating `registeredSources()` made Sync report "manual
     is not connected".
+- **D-282** **`/log`'s stepper takes its step from the exercise's `entry` kind, not from a
+  registry field. Undo cancels the write; it never compensates. `/log` renders only rows the
+  registry can log today. "Offline" means reached by navigation, with no service worker.**
+  *(Operator, 2026-10-06, ticket `0068`. Corrects `06` §6.5's procedure, which lists a `step`
+  field no registry row has, and narrows `0068`'s `trace-manual` criterion.)*
+  - **Step and starting value.** `RuleExercise` carries `quickValues`, not `step`, and the
+    ticket's numbers (pushups ±5, situps ±5, plank ±15 s) are exactly a function of `entry`:
+    `count → 5`, `seconds → 15`. That is one table keyed on a schema enum, like `SET_FIELDS` keyed
+    on a kernel, so a new exercise over an existing entry kind is still a YAML row only (D-031).
+    A fresh install starts at the exercise's first `quickValue`. Adding `step`/`defaultValue` to
+    the registry was rejected: rule versions are immutable once seeded, so two display numbers
+    would cost a v3 ruleset and a replay.
+  - **Undo cancels; it never compensates.** Once a log reaches `logWorkout`, XP is awarded, and
+    XP never decreases (D-135), so there is nothing to compensate *with*. The entry lands in
+    IndexedDB at the click and is held there until the 8-second undo window closes. Only then is
+    it eligible to flush. Undo deletes it before it has left the browser. A tab closed inside the
+    window leaves the entry queued, and it flushes on the next app open. The XP therefore reaches
+    the server at least 8 seconds after the click, which nothing on `/log` can see.
+  - **No `trace-manual` row.** No `logMode: trace-manual` exists: Vigil is `logMode: trace` with no
+    `exercises`, and a `WorkoutSet` can carry reps or seconds but not distance. `/log` renders the
+    `reps | duration` rows the registry has. Manual distance logging needs its own schema decision
+    and is filed as a separate ticket.
+  - **Offline without a service worker.** The app has none. `/log` renders from the bundled
+    registry plus skill state cached in IndexedDB, so reaching it from `/` with the network off
+    works, and a log still queues locally. Surviving a cold reload while offline needs an app-shell
+    service worker for every route, and is filed as a separate ticket.

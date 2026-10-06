@@ -1,6 +1,7 @@
 import { ExploredProvider } from "@/components/map/explored-provider"
 import { FogStatus } from "@/components/map/fog-status"
 import { MapShell } from "@/components/map/map-shell"
+import { AddWorkoutLink } from "@/components/add-workout-link"
 import { SyncButton } from "@/components/sync-button"
 import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
@@ -61,6 +62,11 @@ export default async function Home() {
           zIndex: 1,
         }}
       >
+        {/*
+          D-061: ONE "Add workout" affordance, never a button per exercise. It lives here, beside
+          Sync, until the plinth (capability 13) gives both a proper home.
+        */}
+        <AddWorkoutLink />
         <SyncButton />
       </div>
     </ExploredProvider>
