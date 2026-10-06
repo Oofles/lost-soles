@@ -191,7 +191,7 @@ computed the panel from live SkillState and the ledger:
 - Untrained (5): Vigil, Roving, Cadence, Fortitude, Endurance.
 - NEXT: `~1 session to Might 5`.
 
-**★ Awaiting the operator (desktop browser), on `/skills` once this push deploys:**
+**Operator, desktop browser, `/skills` — verified 2026-10-06: "All 5 steps validate perfectly!"** The five checks were:
 1. Read the TOTAL LEVEL figure in under two seconds without scrolling. It should say 58.
 2. Make the window short, scroll to the bottom, and confirm the header stays put.
 3. Check that an untrained skill is findable: `Untrained (5)` opens to show it.
