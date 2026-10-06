@@ -1761,7 +1761,7 @@
     "title": "/skills panel — every skill, level, bar, Total Level headline",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1772,8 +1772,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-06T19:30:50Z",
-    "path": "tickets/open/0073-skills-panel-grid-and-total-level.md",
-    "ready": true,
+    "closed": "2026-10-06T23:28:49Z",
+    "path": "tickets/closed/0073-skills-panel-grid-and-total-level.md",
+    "ready": false,
     "acceptance": {
       "checked": 13,
       "total": 13
@@ -1821,7 +1822,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0075-panel-rules-for-year-ten.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10

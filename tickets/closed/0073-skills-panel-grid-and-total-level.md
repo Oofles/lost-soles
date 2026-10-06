@@ -4,7 +4,7 @@ slug: skills-panel-grid-and-total-level
 title: /skills panel — every skill, level, bar, Total Level headline
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 11-skills-panel
 depends_on: [16, 63]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-06T19:30:50Z
+closed: 2026-10-06T23:28:49Z
 ---
 
 ## Description
