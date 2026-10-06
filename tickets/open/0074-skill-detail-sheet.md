@@ -4,11 +4,11 @@ slug: skill-detail-sheet
 title: /skills/:skillId detail sheet
 type: feature
 priority: high
-status: open
+status: blocked
 size: m
 capability: 11-skills-panel
 depends_on: [62, 63, 73]
-blocked_by: []
+blocked_by: [242]
 source: operator
 created: 2026-08-30T00:00:00Z
 ---
@@ -65,6 +65,9 @@ deadline, and a deadline is an obligation this app does not create.
 - [ ] The sheet renders offline from cache.
 
 ## Notes
+
+
+**Blocked 2026-10-06 on 0242:** RECENT reads bySkill (GSI3), which AppSync cannot query until its projection carries owner
 
 `RECENT` reads the ledger (T4) via the owner-read path — one row per (activity, skill, reason),
 so a single run may contribute two or three rows to one skill. Decide once whether to group them

@@ -1,0 +1,108 @@
+import { describe, expect, it, vi } from "vitest"
+
+import type { CachedSkill } from "@/lib/log/optimistic"
+import { memoryLogStore, skillsKey } from "@/lib/log/queue"
+
+import { loadSkillsPanel, REPLAY_POLL_MS, sessionsKey, type PanelDeps, type PanelState } from "./load"
+
+/**
+ * Ticket 0073 — cache first, the replay gate, and silence on failure. Against the in-memory store
+ * and fakes: the network paths are `fetchSkills` (already 0068's) and two AppSync reads.
+ */
+
+const UID = "user-1"
+const CACHED: CachedSkill[] = [{ skillId: "s-cached", xp: 100 }]
+const FRESH: CachedSkill[] = [{ skillId: "s-fresh", xp: 200 }]
+
+function harness(over: Partial<PanelDeps> = {}) {
+  const store = memoryLogStore()
+  const timers: (() => void)[] = []
+  const deps: PanelDeps = {
+    currentUid: async () => UID,
+    store,
+    fetchSkills: vi.fn(async () => FRESH),
+    fetchRecentLedger: vi.fn(async () => []),
+    fetchReplayInProgress: vi.fn(async () => false),
+    later: (fn) => {
+      timers.push(fn)
+      return () => {}
+    },
+    ...over,
+  }
+  const states: PanelState[] = []
+  return { store, deps, states, timers, emit: (s: PanelState) => states.push(s) }
+}
+
+const settle = () => new Promise((r) => setTimeout(r, 0))
+
+describe("loadSkillsPanel", () => {
+  it("emits the cache first, then fresh state, and writes the fresh state back to the cache", async () => {
+    const h = harness()
+    await h.store.setKv(skillsKey(UID), CACHED)
+    loadSkillsPanel(h.deps, h.emit)
+    await settle()
+    expect(h.states.map((s) => s.skills)).toEqual([CACHED, FRESH])
+    expect(await h.store.getKv(skillsKey(UID))).toEqual(FRESH)
+    expect(await h.store.getKv(sessionsKey(UID))).toBeDefined()
+  })
+
+  it("offline: emits the cache and stops there, with no error and no empty state", async () => {
+    const h = harness({
+      fetchReplayInProgress: vi.fn(async () => {
+        throw new Error("offline")
+      }),
+    })
+    await h.store.setKv(skillsKey(UID), CACHED)
+    await h.store.setKv(sessionsKey(UID), { "s-cached": [40] })
+    loadSkillsPanel(h.deps, h.emit)
+    await settle()
+    expect(h.states).toEqual([{ skills: CACHED, sessions: { "s-cached": [40] } }])
+  })
+
+  it("while a replay runs, refetches nothing and polls only the flag; refetches once when it clears", async () => {
+    let replaying = true
+    const h = harness({ fetchReplayInProgress: vi.fn(async () => replaying) })
+    await h.store.setKv(skillsKey(UID), CACHED)
+    loadSkillsPanel(h.deps, h.emit)
+    await settle()
+    expect(h.deps.fetchSkills).not.toHaveBeenCalled()
+    expect(h.states).toHaveLength(1)
+    expect(h.timers).toHaveLength(1)
+
+    h.timers.shift()!() // still replaying
+    await settle()
+    expect(h.deps.fetchSkills).not.toHaveBeenCalled()
+    expect(h.timers).toHaveLength(1)
+
+    replaying = false
+    h.timers.shift()!()
+    await settle()
+    expect(h.deps.fetchSkills).toHaveBeenCalledTimes(1)
+    expect(h.states.map((s) => s.skills)).toEqual([CACHED, FRESH])
+    expect(h.timers).toHaveLength(0)
+  })
+
+  it("polls at REPLAY_POLL_MS", async () => {
+    const later = vi.fn(() => () => {})
+    const h = harness({ fetchReplayInProgress: vi.fn(async () => true), later })
+    loadSkillsPanel(h.deps, h.emit)
+    await settle()
+    expect(later).toHaveBeenCalledWith(expect.any(Function), REPLAY_POLL_MS)
+  })
+
+  it("signed out: emits an empty standing once and calls nothing", async () => {
+    const h = harness({ currentUid: async () => undefined })
+    loadSkillsPanel(h.deps, h.emit)
+    await settle()
+    expect(h.states).toEqual([{ skills: [], sessions: {} }])
+    expect(h.deps.fetchReplayInProgress).not.toHaveBeenCalled()
+  })
+
+  it("emits nothing after stop", async () => {
+    const h = harness()
+    const stop = loadSkillsPanel(h.deps, h.emit)
+    stop()
+    await settle()
+    expect(h.states).toEqual([])
+  })
+})

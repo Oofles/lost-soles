@@ -46,11 +46,16 @@ export { creditedCounts, discoveryCredits, discoveryRows, feedRows, ledgerAward,
 export {
   cumulativeXp,
   levelForXp,
+  levelProgress,
   stepCoefficient,
+  TOTAL_LEVEL_MILESTONES,
   totalLevel,
   totalLevelCeiling,
+  totalLevelRung,
   totalXp,
   xpToAdvance,
+  type LevelProgress,
+  type Rung,
 } from "./levels"
 export {
   FLOOR_SEQ_PREFIX,

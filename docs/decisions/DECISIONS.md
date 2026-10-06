@@ -4268,3 +4268,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     registry plus skill state cached in IndexedDB, so reaching it from `/` with the network off
     works, and a log still queues locally. Surviving a cold reload while offline needs an app-shell
     service worker for every route, and is filed as a separate ticket.
+- **D-283** **The skills panel's open questions, settled at `0073`: sigils are data in
+  `rules/sigils.json`; the Total Level ladder is a constant beside the level maths; the `NEXT` line
+  names the skill fewest sessions away; and the panel reads recent sessions from `byUserAndSeq`.**
+  *(Operator, 2026-10-06, ticket `0073`. Settles what `06` §5.2 and §8.6 leave open.)*
+  - **Sigils live in `rules/sigils.json`,** keyed by skill id: SVG path data, monoline, on a
+    24-unit box. `components/sigil.tsx` names no skill and draws a fallback seal for a skill with
+    no entry. So "one sigil added to the icon set" (`0072`, `06` §6.5) is a JSON row with no
+    change under `src/`, `app/`, `lib/` or `components/`. The file is separate from
+    `xp-rules-v*.yaml` on purpose: a redrawn sigil is not a rescore, and a field on the ruleset
+    would cost a new rules version. The first nine marks were drawn by the agent and are judged
+    on the desktop browser. A redraw changes data only.
+  - **`TOTAL_LEVEL_MILESTONES` is a constant in `src/scoring/levels.ts`** (`04` §4.3: 100…500).
+    The ceiling is always appended from `totalLevelCeiling`, never written down (D-192). It is
+    not a ruleset field, because the ladder presents Total Level and is not an XP rule. Above
+    500 the header bar runs to the ceiling. §4.3's recorded gap stands until someone makes the
+    pacing decision.
+  - **`NEXT` picks the trained activity skill fewest sessions from its next level,** estimated
+    as XP still needed ÷ the median of its last 10 sessions. Ties go to registry order. A skill
+    with no sessions is skipped, and with none at all the card is not drawn. The noun comes from
+    `logMode`: `trace` counts runs and anything hand-logged counts sessions. So Roving and
+    Cadence (rides) also say "runs". That is accepted for now rather than adding a display noun
+    to the schema.
+  - **Recent sessions come from `byUserAndSeq` (GSI2), the newest 500 rows,** not from
+    `bySkill` (GSI3). GSI3's INCLUDE projection lacks `owner`, so AppSync's owner filter makes
+    DynamoDB refuse every `bySkill` query. `0073`'s smoke test found this, and `0242` fixes it.
+  - **Ceiling criterion.** `0073`'s "the header reads **693**" was a remembered number, which
+    D-192 and `06` §5.4 forbid. It is amended to `totalLevelCeiling` (9 × 99 = 891 at v1 and v2).

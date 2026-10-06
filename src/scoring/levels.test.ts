@@ -8,8 +8,11 @@ import type { RuleSkill } from "@/src/rules/schema"
 import {
   cumulativeXp,
   levelForXp,
+  levelProgress,
+  TOTAL_LEVEL_MILESTONES,
   totalLevel,
   totalLevelCeiling,
+  totalLevelRung,
   totalXp,
   stepCoefficient,
   xpToAdvance,
@@ -221,5 +224,53 @@ describe("stepFormula is honoured (0066, I-17)", () => {
       expect(levelForXp(cumulativeXp(L, 5) - 1, steep)).toBe(L - 1)
     }
     expect(levelForXp(cumulativeXp(40), steep)).toBeLessThan(40)
+  })
+})
+
+describe("levelProgress — the tile's level and bar (0073)", () => {
+  it("is levelForXp with the XP still needed and the fraction into the level", () => {
+    const xp = cumulativeXp(47) + xpToAdvance(47) / 4
+    const p = levelProgress(xp, CURVE)
+    expect(p.level).toBe(47)
+    expect(p.fraction).toBeCloseTo(0.25)
+    expect(p.xpToNext).toBe(cumulativeXp(48) - xp)
+  })
+
+  it("never shows a level below levelHighWater (I-17), with an empty bar rather than a negative one", () => {
+    const p = levelProgress(cumulativeXp(10), CURVE, 12)
+    expect(p.level).toBe(12)
+    expect(p.fraction).toBe(0)
+    expect(p.xpToNext).toBe(cumulativeXp(13) - cumulativeXp(12))
+  })
+
+  it("is full and owes nothing at maxLevel", () => {
+    expect(levelProgress(Number.MAX_SAFE_INTEGER, CURVE)).toEqual({ level: CURVE.maxLevel, xpToNext: 0, fraction: 1 })
+  })
+
+  it("starts untrained skills at level 1 with an empty bar", () => {
+    expect(levelProgress(0, CURVE)).toEqual({ level: 1, xpToNext: cumulativeXp(2), fraction: 0 })
+  })
+})
+
+describe("totalLevelRung — the header's milestone bar (0073, 04 §4.3)", () => {
+  const ceiling = totalLevelCeiling(RULES.skills, CURVE)
+
+  it("runs from the rung passed to the next one", () => {
+    expect(totalLevelRung(271, ceiling)).toEqual({ from: 250, to: 300, fraction: 21 / 50 })
+    expect(totalLevelRung(9, ceiling)).toEqual({ from: 0, to: TOTAL_LEVEL_MILESTONES[0], fraction: 9 / TOTAL_LEVEL_MILESTONES[0]! })
+  })
+
+  it("runs to the ceiling above the last rung, computed rather than remembered (D-192)", () => {
+    const last = TOTAL_LEVEL_MILESTONES[TOTAL_LEVEL_MILESTONES.length - 1]!
+    expect(totalLevelRung(last + 1, ceiling)).toMatchObject({ from: last, to: ceiling })
+  })
+
+  it("is full at the ceiling", () => {
+    expect(totalLevelRung(ceiling, ceiling)).toEqual({ from: ceiling, to: ceiling, fraction: 1 })
+  })
+
+  it("drops any rung at or above a smaller ceiling", () => {
+    expect(totalLevelRung(120, 180)).toEqual({ from: 100, to: 150, fraction: 20 / 50 })
+    expect(totalLevelRung(160, 180)).toEqual({ from: 150, to: 180, fraction: 10 / 30 })
   })
 })

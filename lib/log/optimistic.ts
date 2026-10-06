@@ -25,6 +25,8 @@ export interface CachedSkill {
   /** `displayedXp` — what the user has been shown, which is what a level is read from. */
   xp: number
   rulesVersionLastComputed?: number
+  /** I-17's ratchet. The displayed level is never below it (`levelProgress`, 0073). */
+  levelHighWater?: number
 }
 
 /** XP per skill that one log adds. Every skill it touches, feeds included. */

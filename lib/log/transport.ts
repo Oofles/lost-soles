@@ -80,6 +80,7 @@ export async function fetchSkills(): Promise<CachedSkill[]> {
     skillId: s.skillId,
     xp: s.displayedXp,
     ...(s.rulesVersionLastComputed != null ? { rulesVersionLastComputed: s.rulesVersionLastComputed } : {}),
+    ...(s.levelHighWater != null ? { levelHighWater: s.levelHighWater } : {}),
   }))
 }
 

@@ -1769,6 +1769,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-06T19:30:50Z",
     "path": "tickets/open/0073-skills-panel-grid-and-total-level.md",
     "ready": true,
     "acceptance": {
@@ -1782,7 +1783,7 @@
     "title": "/skills/:skillId detail sheet",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1790,7 +1791,9 @@
       63,
       73
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      242
+    ],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0074-skill-detail-sheet.md",
@@ -5537,6 +5540,26 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 242,
+    "slug": "xpledgerentry-byskill-gsi3-cannot-be-queried-through-appsync",
+    "title": "XpLedgerEntry bySkill (GSI3) cannot be queried through AppSync — its INCLUDE projection lacks owner",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "11-skills-panel",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-06T19:45:30Z",
+    "path": "tickets/open/0242-xpledgerentry-byskill-gsi3-cannot-be-queried-through-appsync.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

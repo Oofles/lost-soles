@@ -1,0 +1,16 @@
+{
+  "_doc": "Skill sigils, keyed by skill id. Ticket 0073, 06-ui-ux.md §8.6: monoline, stroked at 1.5 on a 24-unit box, no fills. Each value is a list of SVG path `d` strings. Data, not code (D-031): a new workout type adds one entry here and nothing under src/, app/, lib/ or components/. A skill with no entry renders the fallback seal in components/sigil.tsx. Not versioned with the XP rules: redrawing a sigil is not a rescore.",
+  "viewBox": 24,
+  "sigils": {
+    "wayfaring": ["M4 20 C 9 18, 6 12, 11 11 S 15 6, 19 5", "M14.5 4.5 L19 5 L18 9.5"],
+    "vigil": ["M2.5 12 C 6 6.5, 18 6.5, 21.5 12 C 18 17.5, 6 17.5, 2.5 12 Z", "M9.5 12 A 2.5 2.5 0 1 0 14.5 12 A 2.5 2.5 0 1 0 9.5 12"],
+    "roving": ["M2.5 16 A 3.5 3.5 0 1 0 9.5 16 A 3.5 3.5 0 1 0 2.5 16", "M14.5 16 A 3.5 3.5 0 1 0 21.5 16 A 3.5 3.5 0 1 0 14.5 16", "M6 16 L9.5 8.5 L15 8.5 L18 16", "M9.5 8.5 L12.5 16 L15 8.5"],
+    "cadence": ["M4 12 A 8 8 0 1 0 20 12 A 8 8 0 1 0 4 12", "M12 4 L12 20", "M5.1 8 L18.9 16", "M5.1 16 L18.9 8"],
+    "might": ["M5 20 L13.1 11.9", "M12.4 5.6 L19.5 12.6 L16.6 15.5 L9.5 8.4 Z"],
+    "fortitude": ["M12 3 L19 6 L19 12 C 19 16, 16 19, 12 21 C 8 19, 5 16, 5 12 L5 6 Z", "M12 7 L12 17"],
+    "endurance": ["M6 3 L18 3", "M6 21 L18 21", "M7 3 C 7 8, 11 10, 11 12 C 11 14, 7 16, 7 21", "M17 3 C 17 8, 13 10, 13 12 C 13 14, 17 16, 17 21"],
+    "cartography": ["M12 2.5 L15.5 12 L12 21.5 L8.5 12 Z", "M2.5 12 L8.5 12", "M15.5 12 L21.5 12"],
+    "constitution": ["M12 20 C 5 15, 3 11.5, 3 8.5 A 4.5 4.5 0 0 1 12 7 A 4.5 4.5 0 0 1 21 8.5 C 21 11.5, 19 15, 12 20 Z"],
+    "slayer": ["M4 4 L20 20", "M20 4 L4 20", "M3 8 L8 3", "M16 3 L21 8"]
+  }
+}
