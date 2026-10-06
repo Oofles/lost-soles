@@ -4,7 +4,7 @@ slug: new-workout-type-is-a-yaml-row-only
 title: A new workout type arrives as a YAML row only — proven by a zero-diff test
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [68, 71]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-06T19:47:50Z
+closed: 2026-10-06T19:56:28Z
 ---
 
 ## Description

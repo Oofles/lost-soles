@@ -1736,7 +1736,7 @@
     "title": "A new workout type arrives as a YAML row only — proven by a zero-diff test",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -1747,10 +1747,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-06T19:47:50Z",
-    "path": "tickets/open/0072-new-workout-type-is-a-yaml-row-only.md",
-    "ready": true,
+    "closed": "2026-10-06T19:56:28Z",
+    "path": "tickets/closed/0072-new-workout-type-is-a-yaml-row-only.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 12
     }
   },
