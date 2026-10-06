@@ -223,7 +223,7 @@ describe("logging the new row scores it at the registry's rate and feeds Constit
 })
 
 describe("selectActivitySkills (0072)", () => {
-  const sources = ["manual", "strava", "gpslogger"]
+  const sources = ["manual", "gpslogger", "a-source-nobody-wrote"]
   it("returns the new skill for activities its match covers, and leaves every other selection as it was", () => {
     for (const kind of ACTIVITY_KINDS) {
       for (const hasTrace of [true, false]) {

@@ -136,6 +136,11 @@ Reverted.
 **What went wrong.** The first run had two failures, both in the test: the last `<li>` carried
 `</ul></main>`, and the order check compared across sections instead of within each one. Fixed
 in the test. No production code changed for this ticket. That is the point.
+The first CI run of the close commit (`991f7b0`) **failed the D-100 boundary grep**: the
+`selectActivitySkills` sweep listed `"strava"` as a source, and `check-boundaries.mjs` forbids
+that identifier outside the adapter, tests included. I had run the `check-*` scripts before this
+test existed and not again afterwards. Fixed in the follow-up commit with made-up source ids,
+which also suits the sweep better, and every `scripts/check-*.mjs` was re-run green locally.
 
 **Finding, not acted on.** The home screen does not read the registry at all, so "byte-identical"
 holds trivially today. It stays in the test as a tripwire for the plinth (capability 13), which
