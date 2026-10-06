@@ -1721,6 +1721,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-06T18:52:30Z",
     "path": "tickets/open/0071-log-row-anatomy-and-interaction-rules.md",
     "ready": true,
     "acceptance": {
