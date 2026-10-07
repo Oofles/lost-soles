@@ -4,13 +4,14 @@ slug: the-skills-grid-is-five-columns-at-1024px-and-wider
 title: The skills grid is five columns at 1024px and wider
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 11-skills-panel
 depends_on: []
 blocked_by: []
 source: operator
 created: 2026-10-07T17:11:22Z
+closed: 2026-10-07T18:00:26Z
 ---
 
 ## Description
