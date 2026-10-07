@@ -16,6 +16,7 @@
 import { rulesForSkills, type CachedSkill } from "@/lib/log/optimistic"
 import { skillsKey, type LogStore } from "@/lib/log/queue"
 
+import type { DetailLedgerRow } from "./detail"
 import { recentSessions, type SkillLedgerRow } from "./next"
 
 /** How often the flag is re-read while a replay runs. Replays take seconds to minutes. */
@@ -89,5 +90,46 @@ export function loadSkillsPanel(deps: PanelDeps, emit: (state: PanelState) => vo
   return () => {
     live = false
     cancel?.()
+  }
+}
+
+export const skillLedgerKey = (uid: string, skillId: string) => `skill-ledger:${uid}:${skillId}`
+
+export interface LedgerDeps {
+  currentUid(): Promise<string | undefined>
+  store: Pick<LogStore, "getKv" | "setKv">
+  fetchSkillLedger(uid: string, skillId: string): Promise<DetailLedgerRow[]>
+  fetchReplayInProgress(uid: string): Promise<boolean>
+}
+
+/**
+ * ONE SKILL'S LEDGER FOR ITS SHEET (0074). The panel's shape, smaller: the cache is emitted as
+ * soon as IndexedDB answers (offline, that is the sheet), then a fresh read is written back and
+ * emitted — unless a replay is rewriting the ledger, when the cache stands. The panel underneath
+ * polls the flag; the next opening of the sheet reads the settled ledger.
+ */
+export function loadSkillLedger(deps: LedgerDeps, skillId: string, emit: (rows: DetailLedgerRow[]) => void): () => void {
+  let live = true
+  void (async () => {
+    const uid = await deps.currentUid()
+    if (!live) return
+    if (!uid) {
+      emit([])
+      return
+    }
+    const cached = await deps.store.getKv<DetailLedgerRow[]>(skillLedgerKey(uid, skillId))
+    if (!live) return
+    emit(cached ?? [])
+    try {
+      if (await deps.fetchReplayInProgress(uid)) return
+      const rows = await deps.fetchSkillLedger(uid, skillId)
+      await deps.store.setKv(skillLedgerKey(uid, skillId), rows)
+      if (live) emit(rows)
+    } catch {
+      // Offline or slow: the cache stands.
+    }
+  })()
+  return () => {
+    live = false
   }
 }

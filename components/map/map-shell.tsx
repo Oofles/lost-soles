@@ -8,6 +8,7 @@ import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import {
   EXTRACT_FALLBACK,
   firstLoadRunCamera,
+  parseAt,
   readCamera,
   writeCamera,
   type Camera,
@@ -309,6 +310,26 @@ export function MapShell({ home }: { home: Camera | null }) {
    * `jumpTo`, not `flyTo`: this is the map's starting position arriving a moment late, not a
    * navigation. The `moveend` it fires writes it to storage, so the next load opens here directly.
    */
+  /**
+   * Ticket `0074`. `/?at=<lng>,<lat>` — the skill sheet's `→ fly to`. A `flyTo`, unlike the run
+   * centring below, because this IS a navigation: the operator asked to be taken somewhere, and
+   * the flight is what says where it is relative to where they were.
+   *
+   * It outranks the run centring (an explicit request beats a default), so it marks the camera as
+   * already centred. The parameter is then dropped from the address bar, so a reload opens on
+   * the stored camera — which the flight's `moveend` has just written — rather than flying again.
+   */
+  useEffect(() => {
+    if (!loaded) return
+    const at = parseAt(window.location.search)
+    if (!at) return
+    centredOnRun.current = true
+    loaded.flyTo({ center: [at.lng, at.lat], zoom: at.zoom, bearing: at.bearing })
+    const url = new URL(window.location.href)
+    url.searchParams.delete("at")
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
+  }, [loaded])
+
   useEffect(() => {
     if (!loaded) return
     const target = firstLoadRunCamera({

@@ -5,7 +5,9 @@ import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
 import {
   EXTRACT_FALLBACK,
   HOME_ZOOM,
+  atHref,
   firstLoadRunCamera,
+  parseAt,
   parseCamera,
   runCamera,
 } from "./map-camera"
@@ -124,5 +126,19 @@ describe("whether the run may move the map (0186)", () => {
 
   it("leaves the configured home in place when there is no run", () => {
     expect(firstLoadRunCamera({ ...free, runs: EMPTY_COLLECTION })).toBeNull()
+  })
+})
+
+describe("?at= — the skill sheet's fly to (0074)", () => {
+  it("round-trips atHref through parseAt at neighbourhood zoom", () => {
+    const href = atHref({ lng: -83.12345, lat: 27.5 })
+    expect(href).toBe("/?at=-83.12345,27.50000")
+    expect(parseAt(href.slice(1))).toStrictEqual({ lng: -83.12345, lat: 27.5, zoom: HOME_ZOOM, bearing: 0 })
+  })
+
+  it("ignores a missing, malformed or out-of-range coordinate rather than throwing", () => {
+    for (const search of ["", "?fog=perf", "?at=", "?at=1", "?at=1,2,3", "?at=abc,2", "?at=200,0", "?at=0,95", "?at=,2"]) {
+      expect(parseAt(search), search).toBeNull()
+    }
   })
 })

@@ -146,3 +146,25 @@ export function firstLoadRunCamera(state: {
   if (state.storedAtMount || state.userMoved || state.alreadyCentred) return null
   return runCamera(state.runs)
 }
+
+/**
+ * `/?at=<lng>,<lat>` — WHERE A LINK ASKED THE MAP TO GO. Ticket 0074: the skill sheet's
+ * `→ fly to` (`06` §5.5), the only navigation out of the sheet, and it points at the map.
+ *
+ * Validated like a stored camera: the query string is user-writable, and a bad coordinate must
+ * leave the map where it was rather than throw inside MapLibre. Neighbourhood zoom, north up.
+ */
+export function parseAt(search: string): Camera | null {
+  const raw = new URLSearchParams(search).get("at")
+  if (!raw) return null
+  const parts = raw.split(",")
+  if (parts.length !== 2 || parts.some((p) => p.trim() === "")) return null
+  const [lng, lat] = parts.map(Number)
+  if (!isFiniteIn(lng, -180, 180) || !isFiniteIn(lat, -90, 90)) return null
+  return { lng, lat, zoom: HOME_ZOOM, bearing: 0 }
+}
+
+/** The `?at=` link to `place` — the one writer of the parameter `parseAt` reads. */
+export function atHref(place: { lng: number; lat: number }): string {
+  return `/?at=${place.lng.toFixed(5)},${place.lat.toFixed(5)}`
+}

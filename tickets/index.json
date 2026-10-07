@@ -1797,6 +1797,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-07T20:44:12Z",
     "path": "tickets/open/0074-skill-detail-sheet.md",
     "ready": true,
     "acceptance": {
@@ -5688,6 +5689,26 @@
     "acceptance": {
       "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 248,
+    "slug": "record-place-bound-milestones-landmarks-where-they-were-earn",
+    "title": "Record place-bound milestones (landmarks) where they were earned",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-07T20:57:39Z",
+    "path": "tickets/open/0248-record-place-bound-milestones-landmarks-where-they-were-earn.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
     }
   }
 ]

@@ -961,9 +961,9 @@ Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep l
 │   … 7 more                                   │
 │                                              │
 │  ──  AHEAD  ───────────────────────────────  │
-│   50   Pathfinder        ~4 months           │
-│   75   Roadwarden        ~3 years            │
-│   99   Wayfarer          ~11 years           │
+│   50   Adept             ~4 months           │
+│   75   Veteran           ~3 years            │
+│   99   Mastery           ~11 years           │
 │                                              │
 │  ──  ON THE MAP  ──────────────────────────  │
 │   ◈ Cairn at Level 25 — Beck Rd    → fly to  │
@@ -974,12 +974,16 @@ Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep l
 - **`~9 runs to 48` is required, not decorative** (04 §4.1). A percentage that moves 1.8% reads
   as nothing; "nine runs away" reads as a plan. It is computed from that skill's own trailing
   median session, so it is honest and it improves as you do.
-- **`AHEAD` is the milestone ladder** with tier names (04 §4.3) and an *estimate*, not a target.
+- **`AHEAD` is the milestone ladder** with tier names (04 §4.3 — one ladder for every skill,
+  **D-290**; earlier drafts of this mockup showed per-skill names, which no registry field
+  carries) and an *estimate*, not a target.
   The estimates are deliberately shown at low precision — "~3 years" — because a precise date is
   a deadline, and a deadline is N2.
 - **`ON THE MAP` is the payoff of place-bound milestones** (04 §4.3): the ones that put something
   on the map get a row here and a `→ fly to` that closes the sheet and flies the map there. This
   is the only navigation out of the sheet, and it points at the map, which is correct (P4).
+  Until landmarks are recorded (ticket `0248`, D-290) every skill has none, and the heading is
+  omitted rather than shown empty.
 - **`RECENT` is ten rows, not a history.** It is there to answer "is this thing moving," not to
   be browsed. Full history is the Chronicle's job.
 - No charts. A line going up over time is a stats page (§1.4) and it invites comparison with your

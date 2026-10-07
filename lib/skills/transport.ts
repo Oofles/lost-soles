@@ -20,6 +20,7 @@
 import type { Schema } from "@/amplify/data/resource"
 import { API_TIMEOUT_MS, errorFrom } from "@/lib/log/transport"
 
+import type { DetailLedgerRow } from "./detail"
 import type { SkillLedgerRow } from "./next"
 
 /**
@@ -78,4 +79,46 @@ export async function fetchReplayInProgress(uid: string): Promise<boolean> {
   const { data, errors } = await timed(c.models.Profile.get({ id: uid }, { selectionSet: ["id", "replayInProgress"] }), "Profile.get")
   if (errors?.length) throw errorFrom(errors)
   return data?.replayInProgress === true
+}
+
+/**
+ * ONE SKILL'S WHOLE LEDGER, for its detail sheet (0074): `bySkill` (GSI3), every ruleset version,
+ * unordered — `skillDetail` sorts by `seq`, which is activity time; GSI3's sort key is ingest time.
+ *
+ * Whole rather than ten rows because the sheet COUNTS what it does not list (`… n more`) and its
+ * total must equal the bar (I-15). One skill's rows are a few per activity: years of history is
+ * a few thousand rows, read in pages, once per sheet opening.
+ */
+export async function fetchSkillLedger(uid: string, skillId: string): Promise<DetailLedgerRow[]> {
+  const c = await dataClient()
+  const out: DetailLedgerRow[] = []
+  let nextToken: string | null | undefined
+  do {
+    const { data, errors, nextToken: more } = await timed(
+      c.models.XpLedgerEntry.listXpLedgerEntryByUserIdSkillIdAndAwardedAt(
+        { userIdSkillId: `${uid}#${skillId}` },
+        {
+          limit: 1000,
+          nextToken,
+          selectionSet: ["skillId", "activityId", "reason", "units", "xpAwarded", "xpRulesVersion", "isFloor", "seq"],
+        },
+      ),
+      "XpLedgerEntry.bySkill",
+    )
+    if (errors?.length) throw errorFrom(errors)
+    for (const r of data) {
+      out.push({
+        skillId: r.skillId,
+        activityId: r.activityId,
+        reason: r.reason,
+        units: r.units,
+        xpAwarded: r.xpAwarded,
+        xpRulesVersion: r.xpRulesVersion,
+        isFloor: r.isFloor,
+        seq: r.seq,
+      })
+    }
+    nextToken = more
+  } while (nextToken)
+  return out
 }

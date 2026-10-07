@@ -4471,3 +4471,27 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **What this does not change.** Registry order, the sections, and Untrained collapsing are
     untouched. "Tile 3" now means the third tile in reading order, which is what it always meant
     on a phone.
+- **D-290** **The skill detail sheet uses ONE milestone ladder for every skill — `04` §4.3's
+  Initiate · Journeyman · Adept · Veteran · Elder · Mastery · Deep Mastery — and `ON THE MAP`
+  ships empty until landmarks are recorded.** *(Operator, 2026-10-07, ticket `0074`. Amends `06`
+  §5.5's mockup.)*
+  - **The tier names.** §5.5's mockup wrote per-skill names (`50 Pathfinder`, `75 Roadwarden`,
+    `99 Wayfarer`); `04` §4.3, which owns the ladder, names one ladder for all skills, and no
+    registry field carries a per-skill name. Per-skill names would be a new `RuleSkill` field and
+    a naming exercise for every row, present and future. The mockup's names were illustrative.
+    The ladder is a constant beside `TOTAL_LEVEL_MILESTONES` (`lib/skills/detail.ts`), not a rule:
+    renaming a rung is not a rescore. Rungs above `curve.maxLevel` (Deep Mastery, 120, against a
+    99 cap) are not shown, because the current curve cannot reach them.
+  - **`ON THE MAP` has no data yet.** Nothing records where a level was earned — no cairn, no
+    shrine. The section is built and its `→ fly to` (`/?at=<lng>,<lat>`, read by the map shell)
+    is proven against a fixture, but every skill passes an empty list, so the heading is omitted
+    everywhere. Recording landmarks is ticket `0248`; it was not derived from the ledger plus
+    traces inside `0074`, which would have doubled that ticket.
+  - **`RECENT` groups by activity.** One row per activity, its ledger reasons summed (a run over
+    new and familiar ground is one run), with the underlying rows expandable inline so the sheet
+    still answers "why do I have this XP". `retained_floor` XP is shown once, as a line
+    (`+13,342 carried from an earlier ruleset`), never as a `RECENT` row.
+  - **Found while building it: a floor row is stamped with the version that WROTE it.** The live
+    Cartography floor is `xpRulesVersion: 2` under a v3 ledger, and it counts. So the sheet's I-15
+    partition reads every row of the skill, whatever its version; only the session estimate reads
+    the current version, as the panel's `NEXT` line does.

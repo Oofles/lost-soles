@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { memoryLogStore, skillsKey } from "@/lib/log/queue"
 
-import { loadSkillsPanel, REPLAY_POLL_MS, sessionsKey, type PanelDeps, type PanelState } from "./load"
+import { loadSkillLedger, loadSkillsPanel, REPLAY_POLL_MS, sessionsKey, skillLedgerKey, type LedgerDeps, type PanelDeps, type PanelState } from "./load"
 
 /**
  * Ticket 0073 — cache first, the replay gate, and silence on failure. Against the in-memory store
@@ -104,5 +104,50 @@ describe("loadSkillsPanel", () => {
     stop()
     await settle()
     expect(h.states).toEqual([])
+  })
+})
+
+describe("loadSkillLedger (0074)", () => {
+  const ROWS = [
+    { skillId: "s", activityId: "a", reason: "distance", units: 5, xpAwarded: 500, xpRulesVersion: 3, isFloor: false, seq: "2026-10-01T00:00:00Z#a#00" },
+  ]
+  const deps = (over: Partial<LedgerDeps> = {}) => {
+    const store = memoryLogStore()
+    const d: LedgerDeps = {
+      currentUid: async () => UID,
+      store,
+      fetchSkillLedger: vi.fn(async () => ROWS),
+      fetchReplayInProgress: vi.fn(async () => false),
+      ...over,
+    }
+    return { store, d }
+  }
+
+  it("emits the cache first, then the fresh ledger, written back to the cache", async () => {
+    const { store, d } = deps()
+    await store.setKv(skillLedgerKey(UID, "s"), [])
+    const seen: unknown[] = []
+    loadSkillLedger(d, "s", (r) => seen.push(r))
+    await settle()
+    expect(seen).toEqual([[], ROWS])
+    expect(await store.getKv(skillLedgerKey(UID, "s"))).toEqual(ROWS)
+  })
+
+  it("offline: the cached ledger is the sheet, with no error", async () => {
+    const { store, d } = deps({ fetchSkillLedger: vi.fn(async () => Promise.reject(new Error("offline"))) })
+    await store.setKv(skillLedgerKey(UID, "s"), ROWS)
+    const seen: unknown[] = []
+    loadSkillLedger(d, "s", (r) => seen.push(r))
+    await settle()
+    expect(seen).toEqual([ROWS])
+  })
+
+  it("does not read the ledger while a replay is rewriting it", async () => {
+    const { d } = deps({ fetchReplayInProgress: vi.fn(async () => true) })
+    const seen: unknown[] = []
+    loadSkillLedger(d, "s", (r) => seen.push(r))
+    await settle()
+    expect(d.fetchSkillLedger).not.toHaveBeenCalled()
+    expect(seen).toEqual([[]])
   })
 })
