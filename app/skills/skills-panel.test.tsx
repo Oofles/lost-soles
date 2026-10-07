@@ -43,8 +43,8 @@ describe("/skills markup (0073)", () => {
   it("renders every enabled skill exactly once, each with a sigil, a name and a level", () => {
     expect(tilesIn(html).sort()).toEqual(enabled.map((s) => s.id).sort())
     for (const s of enabled) expect(html).toContain(`aria-label="${s.name}, level `)
-    // One svg per tile, plus the header's crest and the crest tile.
-    expect(html.match(/<svg/g)).toHaveLength(enabled.length + 2)
+    // One svg per tile, plus the header's crest mark.
+    expect(html.match(/<svg/g)).toHaveLength(enabled.length + 1)
   })
 
   it("renders ACTIVITY, then META, then the collapsed Untrained group", () => {
@@ -62,13 +62,11 @@ describe("/skills markup (0073)", () => {
     expect(tilesIn(html.slice(u))).toEqual([untrainedSkill.id])
   })
 
-  it("ends META with the crest: Total Level, and inert — not a link, not a button, no handler", () => {
+  it("shows Total Level once, in the header: META holds skills and nothing else (D-289)", () => {
+    expect(html).not.toContain("data-crest")
     const metaSection = /<section aria-label="META">[\s\S]*?<\/section>/.exec(html)![0]
-    const items = metaSection.match(/<li>[\s\S]*?<\/li>/g)!
-    const crest = items[items.length - 1]!
-    expect(crest).toContain("data-crest")
-    expect(crest).toContain(`aria-label="Total Level ${model.totalLevel}"`)
-    expect(crest).not.toMatch(/<a |<button|role="button"|tabindex|onclick/i)
+    expect(metaSection.match(/<li>/g)).toHaveLength(meta.length)
+    expect(html.match(new RegExp(`>${model.totalLevel}<`, "g"))).toHaveLength(1)
   })
 
   it("pins a header carrying TOTAL LEVEL and Total XP", () => {
@@ -167,10 +165,20 @@ describe("/skills in year ten (0075)", () => {
     expect(html15).not.toMatch(/overflow(-y)?:(auto|scroll)/)
   })
 
-  it("lays every section out in three shrinkable columns, so nothing can push the page sideways", () => {
-    const grids = html15.match(/<ul style="[^"]*display:grid[^"]*"/g)!
+  it("lays every section out in shrinkable columns, so nothing can push the page sideways", () => {
+    const grids = html15.match(/<ul style="[^"]*display:grid[^"]*"[^>]*>/g)!
     expect(grids).toHaveLength(3)
-    for (const g of grids) expect(g).toContain("grid-template-columns:repeat(3, minmax(0, 1fr))")
+    for (const g of grids) expect(g).toContain('class="skills-grid"')
+  })
+
+  it("has exactly two column counts: three, and five at ≥1024px — never auto-fill (D-289)", () => {
+    const css = /<style>([\s\S]*?)<\/style>/.exec(html15)![1]!
+    const cols = [...css.matchAll(/grid-template-columns:\s*([^;}]+)/g)].map((x) => x[1]!.trim())
+    expect(cols).toEqual(["repeat(3, minmax(0, 1fr))", "repeat(5, minmax(0, 1fr))"])
+    expect(css).toMatch(/@media \(min-width: 1024px\) \{[^@]*repeat\(5/)
+    expect(css).not.toMatch(/auto-fill|auto-fit/)
+    // And nothing inline overrides the class.
+    expect(html15).not.toMatch(/style="[^"]*grid-template-columns/)
   })
 
   it("tints each bar by the row's kind, never by which skill it is (rule 5)", () => {

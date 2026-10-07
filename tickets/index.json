@@ -5645,5 +5645,45 @@
       "checked": 3,
       "total": 3
     }
+  },
+  {
+    "id": 246,
+    "slug": "total-level-appears-once-on-skills-the-crest-tile-leaves-met",
+    "title": "Total Level appears once on /skills: the crest tile leaves META",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "11-skills-panel",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-10-07T17:11:22Z",
+    "path": "tickets/open/0246-total-level-appears-once-on-skills-the-crest-tile-leaves-met.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 247,
+    "slug": "the-skills-grid-is-five-columns-at-1024px-and-wider",
+    "title": "The skills grid is five columns at 1024px and wider",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "11-skills-panel",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-10-07T17:11:22Z",
+    "path": "tickets/open/0247-the-skills-grid-is-five-columns-at-1024px-and-wider.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]

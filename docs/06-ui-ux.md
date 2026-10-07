@@ -818,7 +818,9 @@ What it gets right, and what we take:
 - **Every skill is on one surface, always, at a fixed position.** You learn the layout with your
   eyes, not by reading. Tile 3 is Fortitude forever.
 - **One glance = one number per skill.** The level. Everything else is a tap away.
-- **Total Level lives in the panel**, in the corner, as the summary of the grid it sits in.
+- **Total Level lives in the panel**, as the summary of the grid it sits in, in the pinned header
+  and only there. RS also repeats it in the grid's corner; we did, until the operator found the
+  second copy redundant with the header always in view (**D-289**).
 - **A skill you have never trained still exists.** The panel shows you the shape of the whole
   game, not just the part you have played.
 
@@ -856,12 +858,12 @@ What we do *not* take:
 │ └───────────┴───────────┴───────────┘        │
 │                                              │
 │  META                                        │
-│ ┌───────────┬───────────┬───────────┐        │
-│ │    ◇      │    ❖      │     ✦     │        │
-│ │Cartography│Constitution│   TOTAL  │        │  ← crest tile, RS's corner,
-│ │    52     │    58     │    271    │        │    tap → nothing. It is a seal.
-│ │ ▓▓▓▓░░░░░ │ ▓▓▓▓▓▓▓░░ │  ▓▓▓░░░░  │        │
-│ └───────────┴───────────┴───────────┘        │
+│ ┌───────────┬───────────┐                    │
+│ │    ◇      │    ❖      │                    │  ← skills only: no crest tile.
+│ │Cartography│Constitution│                   │    Total Level is the header's
+│ │    52     │    58     │                    │    alone (D-289)
+│ │ ▓▓▓▓░░░░░ │ ▓▓▓▓▓▓▓░░ │                    │
+│ └───────────┴───────────┘                    │
 │                                              │
 │ ┌──────────────────────────────────────────┐ │
 │ │  NEXT                                    │ │
@@ -872,7 +874,10 @@ What we do *not* take:
 └──────────────────────────────────────────────┘
 ```
 
-Tile: 104 × 104dp, 8dp gutter, three across at 360dp width. Sigil 28dp, skill name 12sp
+Tile: 104 × 104dp, 8dp gutter, three across at 360dp width. **Five across at ≥1024px**, the
+desktop breakpoint §2 already uses, with the panel widening to hold them (**D-289**). Two fixed
+layouts and nothing between them — never `auto-fill`, which would reflow the grid on every resize
+and make a tile's position depend on the window. On any one device the position stays a constant. Sigil 28dp, skill name 12sp
 `--ink-600`, level 24sp `--ink-900` tabular figures, progress bar 3dp full-tile-width.
 
 ### 5.3 The rules that keep it readable in year ten
@@ -1532,7 +1537,7 @@ gloves. Both are the same design problem: **precision is unavailable.**
   brightness, not hue (§4.5). Cold ground is a *desaturation* as much as a hue shift, so it
   survives deuteranopia and protanopia (§4.6) — and it gets a one-time three-swatch legend.
 - **Text scaling to 200%.** Layouts reflow rather than truncate: the skills grid drops from three
-  columns to two at ≥1.3× and to one at ≥1.8×; the plinth grows and the map shrinks to a floor of
+  (or five, D-289) columns to two at ≥1.3× and to one at ≥1.8×; the plinth grows and the map shrinks to a floor of
   45% of viewport height, below which the plinth scrolls internally. Levels and XP never
   ellipsize; skill names may.
 - **TalkBack.** The map is not a decorative image — its container carries a live text summary:

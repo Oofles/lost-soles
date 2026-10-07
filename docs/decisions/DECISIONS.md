@@ -4453,3 +4453,21 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
     Before closing a decision, grep the docs for what it changed, not just the section that
     prompted it.
+
+- **D-289** **`/skills` shows Total Level once, in the pinned header, and the grid is five
+  columns at ≥1024px.** *(Operator, 2026-10-07, while validating `0075`. Amends `06` §5.1 and
+  §5.2. Tickets `0246` and `0247`.)*
+  - **The crest tile goes.** §5.2 copied RS's corner: a `TOTAL` tile ending META. Once the
+    header was pinned (§5.3 rule 4), Total Level was always on screen twice, a few centimetres
+    apart. The operator: *"I don't need a Total level under Meta while also at the top — the top
+    bar is enough."* The header keeps its `✦` mark, and META holds skills only.
+  - **Five columns at ≥1024px, three below, nothing else.** On a full-screen desktop window,
+    three tiles in a 36rem column left most of the screen empty. The operator offered "dynamic, or
+    a minimum of 5", and chose the two-step layout over `auto-fill`. Fully dynamic columns would
+    reflow on every resize, so a tile's place would depend on the window. That is the muscle
+    memory §5.1 exists for (*"Tile 3 is Fortitude forever"*). Two fixed layouts keep the position
+    constant on any one device. 1024px is the desktop breakpoint `06` §2 already uses, and the
+    panel widens to 60rem there.
+  - **What this does not change.** Registry order, the sections, and Untrained collapsing are
+    untouched. "Tile 3" now means the third tile in reading order, which is what it always meant
+    on a phone.

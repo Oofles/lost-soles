@@ -9,11 +9,11 @@ import type { SkillsPanelModel, SkillTile } from "@/lib/skills/panel"
  *
  * Pure presentation of `skillsPanel()`'s model: one tile component for every skill, and no skill
  * named anywhere (I-25). The layout is §5.2's wireframe — a pinned header carrying the two numbers
- * P5 promises in two seconds, then `ACTIVITY`, `META` ending in the crest, the one-line `NEXT`
- * card, and the collapsed `Untrained` group.
+ * P5 promises in two seconds, then `ACTIVITY`, `META`, the one-line `NEXT` card, and the
+ * collapsed `Untrained` group. Total Level appears once, in that header — no crest tile (D-289).
  *
- * Three columns at every width, so a tile's position never depends on the window: "tile 3 is
- * Fortitude forever" (§5.1) is muscle memory, and a reflowing grid would break it.
+ * Three columns, or five at ≥1024px, and nothing in between (D-289): "tile 3 is Fortitude
+ * forever" (§5.1) is muscle memory, and a grid that reflowed with every resize would break it.
  *
  * NOTHING HERE IS AN INSTRUCTION (§5.3 rule 6, D-013): no target, no goal, no "train this", no
  * neglected-skill warning, no decay. The `NEXT` line is an estimate, not a prompt.
@@ -67,30 +67,26 @@ function Tile({ tile }: { tile: SkillTile }) {
   )
 }
 
-/** RS's corner (§5.2). Total Level again, as a seal: not a link, not a button, does nothing. */
-function Crest({ model }: { model: SkillsPanelModel }) {
-  return (
-    <div aria-label={`Total Level ${model.totalLevel}`} style={{ ...tileStyle, cursor: "default" }} data-crest="">
-      <span style={{ color: "var(--accent-text)" }}>
-        <Mark paths={CREST} />
-      </span>
-      <span style={{ fontSize: ".75rem", color: "var(--text-secondary)", letterSpacing: ".08em" }}>TOTAL</span>
-      <span style={{ ...tabular, fontSize: "1.5rem", lineHeight: 1.1 }}>{model.totalLevel}</span>
-      <span style={{ display: "block", marginTop: "auto", width: "100%" }}>
-        <Bar fraction={model.rung.fraction} tint="activity" />
-      </span>
-    </div>
-  )
-}
-
 const grid: CSSProperties = {
   listStyle: "none",
   margin: 0,
   padding: 0,
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
   gap: ".5rem",
 }
+
+/**
+ * The column count, and the only thing on `/skills` that depends on the window (D-289): three
+ * below 1024px, five at and above it — the breakpoint 06 §2 already uses for desktop. Two fixed
+ * layouts, never `auto-fill`: on any one device a tile's position is still a constant, which is
+ * the muscle memory §5.1 is for. In a stylesheet because inline styles cannot hold a media query.
+ */
+const LAYOUT_CSS =
+  ".skills-main { max-width: 36rem; }" +
+  " .skills-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }" +
+  " @media (min-width: 1024px) {" +
+  " .skills-main { max-width: 60rem; }" +
+  " .skills-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }"
 
 const sectionLabel: CSSProperties = {
   fontSize: ".75rem",
@@ -99,22 +95,17 @@ const sectionLabel: CSSProperties = {
   margin: "1.25rem 0 .5rem",
 }
 
-function Section({ label, tiles, crest }: { label: string; tiles: SkillTile[]; crest?: SkillsPanelModel }) {
-  if (tiles.length === 0 && !crest) return null
+function Section({ label, tiles }: { label: string; tiles: SkillTile[] }) {
+  if (tiles.length === 0) return null
   return (
     <section aria-label={label}>
       <h2 style={sectionLabel}>{label}</h2>
-      <ul style={grid}>
+      <ul style={grid} className="skills-grid">
         {tiles.map((t) => (
           <li key={t.skillId}>
             <Tile tile={t} />
           </li>
         ))}
-        {crest ? (
-          <li>
-            <Crest model={crest} />
-          </li>
-        ) : null}
       </ul>
     </section>
   )
@@ -123,7 +114,8 @@ function Section({ label, tiles, crest }: { label: string; tiles: SkillTile[]; c
 export function SkillsPanel({ model, next }: { model: SkillsPanelModel; next: string | null }) {
   const atCeiling = model.rung.to === model.rung.from
   return (
-    <main style={{ maxWidth: "36rem", margin: "0 auto", padding: "0 1rem 2rem" }}>
+    <main className="skills-main" style={{ margin: "0 auto", padding: "0 1rem 2rem" }}>
+      <style>{LAYOUT_CSS}</style>
       {/* App bar and header pinned together: they never scroll away, at any skill count (rule 4). */}
       <div style={{ position: "sticky", top: 0, zIndex: 1, background: "var(--bg)", paddingTop: "1rem" }}>
         <header style={{ display: "flex", alignItems: "center", gap: ".75rem", marginBottom: ".75rem" }}>
@@ -162,7 +154,7 @@ export function SkillsPanel({ model, next }: { model: SkillsPanelModel; next: st
       </div>
 
       <Section label="ACTIVITY" tiles={model.activity} />
-      <Section label="META" tiles={model.meta} crest={model} />
+      <Section label="META" tiles={model.meta} />
 
       {next ? (
         <section
@@ -179,7 +171,7 @@ export function SkillsPanel({ model, next }: { model: SkillsPanelModel; next: st
           <summary style={{ cursor: "pointer", color: "var(--text-secondary)", fontSize: ".875rem" }}>
             Untrained ({model.untrained.length})
           </summary>
-          <ul style={{ ...grid, marginTop: ".5rem" }}>
+          <ul style={{ ...grid, marginTop: ".5rem" }} className="skills-grid">
             {model.untrained.map((t) => (
               <li key={t.skillId}>
                 <Tile tile={t} />
