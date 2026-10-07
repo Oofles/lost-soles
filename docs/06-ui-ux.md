@@ -1539,7 +1539,8 @@ the critical path to seeing your map.**
 
 - **First paint is cache-only.** Cached basemap tiles plus the last `explored-r11.<gen>.bin` (D-237)
   from IndexedDB render before any request is issued (§2.4, §4.8). Target: usable first paint in
-  **under 1 s with the radio off.**
+  **under 1 s with the radio off.** *This applies to a running app (D-287): there is no service
+  worker, so a cold load with no signal at all shows the browser's offline page.*
 - **The fog payload is fetched after first paint, never before**, and revalidated with
   `If-None-Match` (05 §7.3). A 304 costs nothing; a changed payload swaps in without a flash.
 - **There is no offline banner.** The plinth already shows *"Last: Thu · 8.4 km"*, which is the

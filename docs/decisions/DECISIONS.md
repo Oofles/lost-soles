@@ -4392,3 +4392,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     new version because a seeded version never changes (04 §7.6, D-282). The operator's ledger
     moves onto it by a replay that moves no XP. Until that replay runs, the server scores the
     operator under v2 and refuses the exercise as unknown.
+
+- **D-287** **No service worker. A cold reload with no signal at all shows the browser's
+  offline page. 06 §9.5's cache-only first paint applies to a running app, not to a cold
+  load.** *(Operator, 2026-10-07, ticket `0241`, declined. Amends `06` §9.5's first bullet.)*
+  - **What already works offline:** reaching `/log` from `/` (it is static and prefetched,
+    D-282); logging, which queues in IndexedDB; the queue flushing when the network returns; and
+    the map repainting from the explored blob cached in IndexedDB once the page is loaded. A
+    weak signal is slow, not broken. The only gap is a cold load with no signal at all.
+  - **Why not.**
+    - **Upkeep (D-013).** A service worker is the stickiest part of the platform: a buggy one
+      keeps serving a broken app until it is explicitly replaced. So it needs a kill switch,
+      versioned caches, an update path every deploy has to get past, and an exemption for
+      `/sw.js` from the auth middleware. That is permanent machinery for one person's edge
+      case, with nobody to support it (N5).
+    - **Criterion 1 conflicts with criterion 2 for `/`.** `/` is dynamic because its HTML
+      embeds the operator's home coordinate (`lib/map-home.ts`). Caching that HTML would cache
+      location data (`08` §9.10), and the cache would keep serving it after sign-out, past the
+      server-side auth check in `middleware.ts`. Meeting criterion 1 for `/` would first mean
+      moving the coordinate out of the HTML, which is map work, not this ticket's.
+  - **Rejected:** a narrow worker for `/log` and the static chunks only. It carries all of the
+    upkeep above, for the one route that is already reachable offline by navigation.
+  - **Revisit on evidence.** If a no-signal cold load bites in real use, capture it. The
+    revisit starts by moving the home coordinate into a client fetch, so `/` can become a
+    static shell.
+  - **Background Sync** stays unadopted. `LogQueueRunner`'s in-page flush (`0068`) does the
+    same job without a worker.
