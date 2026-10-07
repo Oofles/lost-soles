@@ -316,6 +316,11 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        * and `processActivity` throws rather than falling back if this is ever missing.
        */
       replay: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
+      /**
+       * `0243`. The operator's kind corrections, under `raw/` beside the archive (D-284). Covered by
+       * the grants `0192` already made: `GetObject` on `raw/*` and `ListBucket` scoped to `raw/*`.
+       */
+      kindOverrides: { s3: s3 as never, bucket: required("RAW_ARCHIVE_BUCKET") },
       receipt: { ddb },
       cells: { ddb, table: EXPLORED_CELL_TABLE },
       /**

@@ -1687,6 +1687,20 @@ logWorkoutLambda.addToRolePolicy(
     resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
   }),
 )
+/**
+ * `0243`. `processActivity` looks for an operator's kind correction beside the archive (D-284) on
+ * every activity, a manual log included, and a missing correction is answered by a LIST: without
+ * `s3:ListBucket` S3 answers a GET on an absent key with 403 rather than 404, and the log fails.
+ * Scoped by prefix to `raw/*`, as the worker's `ListOwnPrefixes` is.
+ */
+logWorkoutLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ListRawArchive",
+    actions: ["s3:ListBucket"],
+    resources: [backend.storage.resources.bucket.bucketArn],
+    conditions: { StringLike: { "s3:prefix": ["raw/*"] } },
+  }),
+)
 /** The skill-state snapshot reads the manifest for its generation stamp; it never writes there. */
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({

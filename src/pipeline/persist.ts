@@ -6,6 +6,7 @@ import { NO_REJECTS, type TraceRejects } from "@/src/domain/fog"
 
 import { objectKeys } from "./explored-blob-store"
 import { doneTransactItem } from "./ingest-receipt"
+import type { KindCorrected } from "./kind-override"
 
 /**
  * THE ATOMIC COMMIT. Ticket 0041, `02-data-model.md` T3 and T8 layer 3,
@@ -134,7 +135,11 @@ export function userIdLocalDay(userId: string, startedAtLocal: string): string {
  * can actually assert rather than a hope.
  */
 export function activityItem(
-  activity: Activity,
+  /**
+   * `0243`. An `Activity` straight from `normalize()` is accepted as-is and mirrors no override;
+   * one that went through `applyKindOverride` carries the provenance the row records.
+   */
+  activity: Activity & Partial<Pick<KindCorrected, "derivedKind" | "kindOverride">>,
   /**
    * `0048`. Defaults to `NO_CELLS` rather than being required, because §3.6 says a
    * treadmill run still writes the record — so "no award" and "an award of nothing" are
@@ -161,7 +166,15 @@ export function activityItem(
     /** THE DETERMINISTIC ID (I-5). Re-persisting the same activity is a no-op by key. */
     id: activity.activityId,
     userId: activity.userId,
+    /** The EFFECTIVE kind — an operator's override when there is one (`0243`, D-284). */
     kind: activity.kind,
+    /**
+     * `0243`. What `normalize()` said, so the UI can show "was X". WRITTEN ON EVERY ROW, equal to
+     * `kind` when nothing was overridden, so no reader has to tell "absent" from "not corrected".
+     */
+    derivedKind: activity.derivedKind ?? activity.kind,
+    /** `0243`. Who corrected the kind, when, and the `raw/` fact it mirrors. `null` when nobody did. */
+    kindOverride: activity.kindOverride ?? null,
 
     /** All three time fields (I-13). An offset is not a timezone. */
     startedAt: activity.startedAt,
@@ -368,7 +381,7 @@ export function assertNoCellWrites(
  * `Activity` row to find because the transaction never applied one.
  */
 export async function persistActivity(
-  activity: Activity,
+  activity: Parameters<typeof activityItem>[0],
   receipt: { ingestKey: string; xpAwarded?: number; newCellCount?: number },
   deps: PersistDeps,
   extraItems: NonNullable<TransactWriteCommandInput["TransactItems"]> = [],

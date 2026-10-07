@@ -131,6 +131,8 @@ async function archivedActivities(): Promise<Archived[]> {
       const parts = (object.Key ?? "").split("/")
       // raw / uid / source / externalId / <digest>.<ext>
       if (parts.length !== 5 || !parts[4]) continue
+      // `0243`. `<externalId>.kind-override/<id>.json` has the same depth and is a correction, not a run.
+      if (parts[3]!.endsWith(".kind-override")) continue
       const source = parts[2] as SourceId
       const externalId = parts[3]!
       const at = object.LastModified?.getTime() ?? 0

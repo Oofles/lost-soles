@@ -4325,3 +4325,24 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Validation surface** is the single-run page. There is no activity list yet. The agent
     proves survival across a re-sync by replaying the archived activity, not by waiting for a
     real sync.
+
+- **D-285** **A kind-override re-score rates ground as recent, and checks the replay flag inside
+  its own transaction rather than taking a lock.**
+  *(Operator, 2026-10-07, ticket `0243`, settling what D-284 left open.)*
+  - **Ground rate.** The re-score passes no ground split, so a ground-scored skill rates the whole
+    distance at the recent-ground multiplier (`05` §3.6's no-projection rule). That is 0.5× for
+    Wayfaring under v2.
+    - Rejected: classifying against the map as it stands now. That judges the run against a
+      "before" it was not run into, which is what D-284 c refused for discovery.
+    - Consequence: walk ↔ run ↔ hike gains nothing under v2 (all Wayfaring), so it writes no XP,
+      only the kind. The next ruleset replay folds history in order and rates the ground properly.
+  - **Concurrency.** The whole re-score is one `TransactWriteItems`: the T3 mirror, the ledger
+    deletes, puts and floors, the `SkillState` ADDs, and ingest's own Profile item
+    (`profileTotalsItem`, conditioned on `replayInProgress` and `ledgerRulesVersion`). When no XP
+    moves, a `ConditionCheck` on the same condition takes the Profile item's place.
+    - That is the replay's guard, checked atomically, exactly as ingest checks it (D-273, D-275).
+    - Rejected: setting the flag as a lock. The replay's `freeze` is unconditional and its `thaw`
+      clears the flag, so a lock shared with it would need a holder field on both sides. One
+      atomic check needs neither.
+  - **Floors** come from `reconcile`. The waterline is the activity's old per-skill sums, and the
+    run key is `kind-<overrideId>`, so each correction's floors are distinct (`0237`).

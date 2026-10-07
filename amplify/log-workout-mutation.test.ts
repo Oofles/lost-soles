@@ -84,6 +84,14 @@ describe("the log-workout Lambda's grants", () => {
     expect(JSON.stringify(statements())).not.toMatch(/ExploredCell/)
   })
 
+  it("can list raw/ for a kind override, and nothing else in the bucket (0243)", () => {
+    const lists = statements().filter((s) => [s.Action].flat().includes("s3:ListBucket")) as Array<{
+      Condition?: { StringLike?: { "s3:prefix"?: string[] } }
+    }>
+    expect(lists).toHaveLength(1)
+    expect(lists[0]!.Condition?.StringLike?.["s3:prefix"]).toEqual(["raw/*"])
+  })
+
   it("is not VPC-attached (D-081)", () => {
     for (const fn of Object.values(template.findResources("AWS::Lambda::Function"))) {
       expect((fn.Properties as Record<string, unknown>).VpcConfig).toBeUndefined()

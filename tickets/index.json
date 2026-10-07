@@ -5585,6 +5585,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-07T11:43:42Z",
+    "started": "2026-10-07T12:12:25Z",
     "path": "tickets/open/0243-kind-override-stored-and-honoured.md",
     "ready": true,
     "acceptance": {

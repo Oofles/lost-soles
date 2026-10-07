@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3"
 import {
   BatchGetCommand,
   GetCommand,
@@ -130,6 +130,8 @@ export interface Options {
    * keys, so a test that wants a row unreachable leaves it out rather than mis-keying it.
    */
   dedupeRows?: Array<{ id: string; startedAt: string; elapsedS: number; distanceM?: number }>
+  /** `0243`. The kind overrides under `raw/` for this activity, in any order. Absent: none. */
+  kindOverrides?: Array<Record<string, unknown>>
   /** `0179`. The `duplicate-of.json` pointer PUT throws this. */
   pointerFails?: Error
   /**
@@ -418,6 +420,24 @@ export function rig(options: Options = {}) {
           return { Item: rows.find((r) => r.id === command.input.Key?.id) }
         },
       },
+    },
+    /**
+     * `0243`. Answers a listing with one key per override and a GET with its body. Kept out of
+     * `calls`: reading the corrections is not a phase.
+     */
+    kindOverrides: {
+      bucket: BUCKET,
+      s3: {
+        async send(command: unknown) {
+          const all = options.kindOverrides ?? []
+          if (command instanceof ListObjectsV2Command) {
+            return { Contents: all.map((o) => ({ Key: `${command.input.Prefix}${String(o.id)}.json` })) }
+          }
+          const key = String((command as GetObjectCommand).input.Key)
+          const found = all.find((o) => key.endsWith(`/${String(o.id)}.json`))
+          return { Body: { transformToString: async () => JSON.stringify(found) } }
+        },
+      } as never,
     },
     snapshots: {
       bucket: BUCKET,

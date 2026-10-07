@@ -272,6 +272,8 @@ GSI3 byUserAndDay        PK userIdLocalDay  SK startedAtLocal   (INCLUDE: kind, 
 | `id` | S | contract `activityId` | Amplify's identifier. **Deterministic sha256 ⇒ re-ingest is idempotent for free** (contract conflict #6). |
 | `userId` | S | contract | GSI1/GSI2 partition |
 | `kind` | S | contract `ActivityKind` | `run\|walk\|hike\|ride\|strength\|other`. **Physical fact. Never a skill** (conflict #7). |
+| `derivedKind` | S | *Ticket `0243`, D-284* | What `normalize()` derived from the source's type string. `kind` is the **effective** kind: an operator's override when there is one, otherwise equal to this. Written on every row since `0243`; read it as `derivedKind ?? kind` on an older row. |
+| `kindOverride` | M \| null | *Ticket `0243`, D-284* | `{kind, derivedKind, setBy, setAt, key}` — the mirror of the newest `raw/<uid>/<source>/<externalId>.kind-override/<id>.json`, so the single-run page reads one row. The `raw/` object is the fact; this is a copy. `null` when nobody corrected the kind. |
 | `startedAt` | S | contract | ISO 8601 with a real `Z`. GSI1 sort key. **All scoring uses this, never ingest time** (05 §3.1). |
 | `startedAtLocal` | S | contract | naive wall clock, no offset. **All game-day bucketing** (conflict #3). |
 | `timezone` | S/NULL | contract | bare IANA id or null |
@@ -1929,10 +1931,19 @@ self-describing** — `raw/<uid>/<source>/<externalId>/<sha256>.<ext>` — so `(
 externalId)` come from the path with no index and no database. That is the entire reason the key
 has that shape, and it is why the drill needs nothing but the bucket.
 
+**Not every object under `raw/<uid>/` is a payload.** Two kinds of correction sit beside an
+activity's prefix, never inside it, and step 1 must not enumerate them as activities:
+`<externalId>.duplicate-of.json` (D-263) and `<externalId>.kind-override/<id>.json` (D-284). Both
+have the same path depth as a payload, so filter on the externalId segment, not on depth.
+
 **Step 2 — normalize, in parallel, order-independent.** For each object: reconstruct the
 `IngestJob` from the key, `GetObject` the bytes, verify the `sha256` in the key against the
 content, then call `registry.get(source).normalize(raw, ref, job)` — **pure, no network, no clock**
-(contract §3). Emit `{activity, trace}`. A `normalize()` failure is logged with the key and does
+(contract §3). **Then apply the activity's newest kind override, if any**
+(`applyKindOverride`, `src/pipeline/kind-override.ts`; D-284). It replaces `activity.kind` and
+records `derivedKind` beside it, and it never touches the trace: the outlier gate already ran
+inside `normalize()` against the derived kind, which is how a rebuild and live ingest agree. A
+rebuild that skipped this would silently revert every correction. Emit `{activity, trace}`. A `normalize()` failure is logged with the key and does
 not stop the run; the count of failures is a step-8 assertion. ~2,000–5,000 invocations at ~20 ms
 is **under two minutes** and embarrassingly parallel.
 
@@ -1993,7 +2004,7 @@ that must never appear to regress.
 | # | Assertion | Failure means |
 |---|---|---|
 | 1 | `normalize()` failures == 0 | an adapter regression, or a corrupt raw object — investigate the specific key |
-| 2 | rebuilt activity count == raw object count − known `dedupeKey` collisions | lost or duplicated history |
+| 2 | rebuilt activity count == raw **payload** count (step 1's, corrections excluded) − known `dedupeKey` collisions | lost or duplicated history |
 | 3 | rebuilt `cellCount` **== step-0 `cellCount`** when `fogAlgoVersion` is unchanged; **≥** it if the algorithm changed | a cell was lost — **stop; do not cut over** (D-020) |
 | 4 | every skill's rebuilt `displayedXp` ≥ the snapshot's | a D-135 violation; step 6's floors did not apply |
 | 5 | `SUM(XpLedgerEntry.xpAwarded)` per skill == `SkillState.xpLedgerSum` | the §4.1 invariant is broken |

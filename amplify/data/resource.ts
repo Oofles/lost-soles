@@ -73,8 +73,21 @@ const traceRejectCounts = a.customType({
   segments: a.integer().required(),
 })
 
+/**
+ * `0243`, D-284. The T3 mirror of an operator's kind correction. The FACT is the immutable object
+ * under `raw/` that `key` names; this copy exists so the single-run page reads one row.
+ */
+const kindOverride = a.customType({
+  kind: a.string().required(),
+  derivedKind: a.string().required(),
+  setBy: a.string().required(),
+  setAt: a.datetime().required(),
+  key: a.string().required(),
+})
+
 const schema = a.schema({
   SourceRef: sourceRef,
+  KindOverride: kindOverride,
   RawArchiveRef: rawArchiveRef,
   WorkoutSet: workoutSet,
   TraceRejectCounts: traceRejectCounts,
@@ -96,6 +109,14 @@ const schema = a.schema({
       userId: a.string().required(),
       /** PHYSICAL FACT, never a skill (conflict #7). run|walk|hike|ride|strength|other. */
       kind: a.string().required(),
+      /**
+       * `0243`, D-284. `kind` is the EFFECTIVE kind; this is what `normalize()` derived from the
+       * source's type string. Equal to `kind` on an uncorrected row. Optional only because rows
+       * written before `0243` lack it — read it as `derivedKind ?? kind`.
+       */
+      derivedKind: a.string(),
+      /** `0243`. Who corrected `kind`, when, and from which `raw/` fact. Null when nobody did. */
+      kindOverride: a.ref("KindOverride"),
 
       /** ISO 8601 with a real Z. ALL scoring uses this, never ingest time (05 §3.1). */
       startedAt: a.datetime().required(),

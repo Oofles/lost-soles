@@ -74,6 +74,8 @@ export const handler = async (event: AppSyncEvent): Promise<LogWorkoutResult> =>
       blobs: { s3, bucket, ddb, table: EXPLORED_CELL_TABLE },
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
       dedupe: { ddb, activityTable: required("ACTIVITY_TABLE") },
+      /** `0243`. A fresh log has no correction yet; looked for anyway, so the worker has one rule. */
+      kindOverrides: { s3: s3 as never, bucket },
       ledger: {
         ddb,
         ledgerTable: required("XP_LEDGER_TABLE"),

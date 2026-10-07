@@ -46,6 +46,7 @@ import {
   type ReceiptStatus,
 } from "./ingest-receipt"
 import { findDuplicate, recordDuplicatePointer, type DedupeDeps } from "./dedupe"
+import { applyKindOverride, readKindOverride, type KindOverrideDeps } from "./kind-override"
 import type { PersistDeps } from "./persist"
 import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
 import { buildSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
@@ -319,6 +320,12 @@ export interface ProcessDeps<TCreds> {
    * silently doubles XP the day a second source lands.
    */
   dedupe: DedupeDeps
+  /**
+   * `0243`. Where an operator's kind correction is read from — `raw/`, beside the archive
+   * (`kind-override.ts`, D-284). REQUIRED, for `dedupe`'s reason: a worker that could be built
+   * without it would quietly revert every correction on the next sync.
+   */
+  kindOverrides: KindOverrideDeps
   /** `0062`. T4 and T2: the layer-1 read, the `SkillState` pre-read, and their table names. */
   ledger: LedgerDeps
   /**
@@ -460,8 +467,26 @@ export async function processActivity<TCreds>(
   }
 
   const t1 = clock()
-  const { ingest } = await fetchArchiveNormalize(timedAdapter, job, creds, deps.archive)
+  const normalized = await fetchArchiveNormalize(timedAdapter, job, creds, deps.archive)
   const archiveMs = Math.max(0, clock() - t1 - fetchMs - normalizeMs)
+
+  /**
+   * `0243` — THE OPERATOR'S KIND, APPLIED AFTER `normalize()` (D-284). Before dedupe and the gate,
+   * so everything from here on — the reveal decision, the score, the row — sees the effective kind.
+   *
+   * THE TRACE IS NOT TOUCHED. `normalize()` already sanitized it against the DERIVED kind (D-284 a,
+   * D-197), and only `activity` is replaced: an override never changes which fixes survived.
+   */
+  const ingest = {
+    ...normalized.ingest,
+    activity: applyKindOverride(
+      normalized.ingest.activity,
+      await readKindOverride(
+        { userId: normalized.ingest.activity.userId, source: job.source, externalId: job.externalId },
+        deps.kindOverrides,
+      ),
+    ),
+  }
 
   /**
    * STEP 3 — CROSS-SOURCE DEDUPE (`0179`, contract §3, I-22). See `dedupe.ts`.

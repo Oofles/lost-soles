@@ -468,7 +468,8 @@ export interface LedgerCommit {
  */
 export async function persistWithLedger(
   args: {
-    activity: Activity
+    /** `0243`: with its kind provenance when it went through `applyKindOverride`. */
+    activity: Parameters<typeof persistActivity>[0]
     ingestKey: string
     entries: readonly XpLedgerEntry[]
     rulesVersion: number

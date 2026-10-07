@@ -1451,3 +1451,119 @@ describe("the skill-state snapshot after the commit (0067, D-143)", () => {
     expect(result.snapshot).toEqual({ failed: "AccessDenied: denied" })
   })
 })
+
+/**
+ * Ticket `0243`, D-284. An operator's kind correction lives under `raw/` and every path that writes
+ * `kind` applies it after `normalize()`. These are the ingest and `reingest` halves; the re-score
+ * entry point is `kind-rescore.test.ts`.
+ */
+describe("a kind override is honoured by ingest (0243, D-284)", () => {
+  const override = (id: string, kind: string, derivedKind = "ride") => ({
+    id,
+    activityId: "a",
+    userId: "u-1",
+    source: SOURCE,
+    externalId: "9001",
+    derivedKind,
+    kind,
+    setBy: "operator",
+    setAt: "2026-10-07T12:00:00.000Z",
+  })
+  const t3Put = (transacts: TransactWriteCommand["input"][]) =>
+    transacts[0]!.TransactItems!.find((i) => i.Put?.TableName === ACTIVITY_TABLE)!.Put!.Item!
+
+  it("stores the overridden kind, keeps the derived one beside it, and mirrors the provenance", async () => {
+    const { deps, transacts } = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE },
+      kindOverrides: [override("20261007T120000000Z-aaaaaa", "walk")],
+    })
+    await processActivity(JOB, deps)
+
+    const row = t3Put(transacts)
+    expect(row.kind).toBe("walk")
+    expect(row.derivedKind).toBe("ride")
+    expect(row.kindOverride).toEqual({
+      kind: "walk",
+      derivedKind: "ride",
+      setBy: "operator",
+      setAt: "2026-10-07T12:00:00.000Z",
+      key: `raw/u-1/${SOURCE}/9001.kind-override/20261007T120000000Z-aaaaaa.json`,
+    })
+  })
+
+  it("the newest override wins, whatever order the listing returns", async () => {
+    const { deps, transacts } = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE },
+      kindOverrides: [
+        override("20261007T130000000Z-bbbbbb", "hike"),
+        override("20261007T120000000Z-aaaaaa", "walk"),
+      ],
+    })
+    await processActivity(JOB, deps)
+    expect(t3Put(transacts).kind).toBe("hike")
+  })
+
+  it("an uncorrected row says so: derivedKind equals kind and the mirror is null", async () => {
+    const { deps, transacts } = rig({ ingest: { kind: "ride", hasTrace: true, trace: TRACE } })
+    await processActivity(JOB, deps)
+    const row = t3Put(transacts)
+    expect(row.kind).toBe("ride")
+    expect(row.derivedKind).toBe("ride")
+    expect(row.kindOverride).toBeNull()
+  })
+
+  it("the effective kind decides the reveal: a ride corrected to a walk opens the map", async () => {
+    const plain = rig({ ingest: { kind: "ride", hasTrace: true, trace: TRACE, distanceM: 280 } })
+    await processActivity(JOB, plain.deps)
+    expect(plain.cellWrites).toHaveLength(0)
+
+    const corrected = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE, distanceM: 280 },
+      kindOverrides: [override("20261007T120000000Z-aaaaaa", "walk")],
+    })
+    await processActivity(JOB, corrected.deps)
+    expect(corrected.cellWrites.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * D-284 a. The sanitizer's outlier gate runs inside `normalize()` against the DERIVED kind; the
+   * override replaces the activity and never the trace. Proven by the projection: the cells a walk
+   * corrected from a ride writes are exactly the cells an honest walk with the same trace writes.
+   */
+  it("never changes the trace: the cells are the ones normalize's trace projects to", async () => {
+    const honest = rig({ ingest: { kind: "walk", hasTrace: true, trace: TRACE, distanceM: 280 } })
+    await processActivity(JOB, honest.deps)
+    const corrected = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE, distanceM: 280 },
+      kindOverrides: [override("20261007T120000000Z-aaaaaa", "walk")],
+    })
+    await processActivity(JOB, corrected.deps)
+    const keys = (w: UpdateCommand["input"][]) => w.map((c) => JSON.stringify(c.Key)).sort()
+    expect(keys(corrected.cellWrites)).toEqual(keys(honest.cellWrites))
+  })
+
+  it("a reingest of a corrected activity stores the corrected kind — a re-sync does not revert it", async () => {
+    const { deps, transacts } = rig({
+      ingest: { kind: "ride", hasTrace: true, trace: TRACE },
+      kindOverrides: [override("20261007T120000000Z-aaaaaa", "walk")],
+    })
+    const archive = {
+      bucket: BUCKET,
+      s3: {
+        async send(command: unknown) {
+          if (command instanceof ListObjectsV2Command) {
+            return { Contents: [{ Key: "raw/u-1/gpslogger/9001/abc.json", LastModified: new Date("2026-09-06") }] }
+          }
+          return {
+            Body: { transformToByteArray: async () => new Uint8Array(FIXTURE) },
+            ContentType: "application/json",
+            Metadata: { schemahint: "x@1" },
+          }
+        },
+      },
+    }
+    await processActivity({ ...JOB, command: "reingest" }, { ...deps, replay: archive as never })
+    expect(t3Put(transacts).kind).toBe("walk")
+    expect(t3Put(transacts).derivedKind).toBe("ride")
+  })
+})
