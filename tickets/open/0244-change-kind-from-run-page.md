@@ -35,6 +35,12 @@ still a stub.
 
 ## Notes
 
+- *(from `0243`, 2026-10-07)* Show "was X" only when `kindOverride` is non-null **and**
+  `kind != derivedKind`. An override set back to the derived kind leaves a non-null mirror: the
+  2026-09-07 run (`ab00f078…`) has one, from `0243`'s smoke test. Rows written before `0243` lack
+  `derivedKind`, so read it as `derivedKind ?? kind`. The backend is
+  `rescoreKind` (`src/pipeline/kind-rescore.ts`); its result has `xp: null` when no skill gained.
+
 - Keep the control secondary. Changing a kind is a rare correction, not a primary action on
   the page (D-051: legibility first).
 
