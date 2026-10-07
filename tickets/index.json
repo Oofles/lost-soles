@@ -1821,6 +1821,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-07T16:54:53Z",
     "path": "tickets/open/0075-panel-rules-for-year-ten.md",
     "ready": true,
     "acceptance": {

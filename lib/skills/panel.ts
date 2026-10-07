@@ -6,7 +6,7 @@
  * here (I-25): a tile is a registry row, so a new YAML row is a new tile.
  *
  * - **Sections** (§5.3 rule 1): `kind: activity` → `ACTIVITY`, `kind: meta` → `META`, and any
- *   enabled skill with no XP at all → `Untrained` (rule 3), whatever its kind.
+ *   enabled skill with zero lifetime XP → `Untrained` (rule 3), whatever its kind.
  * - **Registry order, forever** (rule 2): `displayOrder`, never level, recency or frequency.
  * - **Total Level** sums the DISPLAYED level of every enabled skill, meta included and untrained
  *   counting 1 — the same `max(level, levelHighWater)` the replay writes to `Profile.totalLevel`
@@ -50,7 +50,9 @@ export function skillsPanel(rules: RuleSet, standing: readonly CachedSkill[]): S
     return { skillId: skill.id, name: skill.name, kind: skill.kind, xp, level: p.level, fraction: p.fraction, xpToNext: p.xpToNext }
   })
 
-  const trained = (t: SkillTile) => t.xp > 0 || t.level > 1
+  // Lifetime XP, and nothing else (0075): a row added last week and a row ignored for five years
+  // are the same thing here. XP never decreases (D-135), so leaving this group is permanent.
+  const trained = (t: SkillTile) => t.xp > 0
   const totalLevel = tiles.reduce((sum, t) => sum + t.level, 0)
   const ceiling = totalLevelCeiling(rules.skills, rules.curve)
 

@@ -11,6 +11,7 @@ depends_on: [73]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-10-07T16:54:53Z
 ---
 
 ## Description
@@ -47,24 +48,24 @@ skill at level 3 you trained yesterday** (D-013).
 
 ## Acceptance criteria
 
-- [ ] Skills render in `displayOrder` order from the registry; a test seeded with skill levels in
+- [x] Skills render in `displayOrder` order from the registry; a test seeded with skill levels in
       descending, ascending and random order produces the **same** tile order every time.
-- [ ] There is no sort control, no "sort by level" setting, and no code path that orders tiles by
+- [x] There is no sort control, no "sort by level" setting, and no code path that orders tiles by
       any value other than `displayOrder`.
-- [ ] Adding a skill to the fixture registry appends it within its section and **moves no
+- [x] Adding a skill to the fixture registry appends it within its section and **moves no
       existing tile's index** — asserted positionally, not visually.
-- [ ] A skill with zero lifetime XP renders inside the collapsed `▸ Untrained (n)` group; the
+- [x] A skill with zero lifetime XP renders inside the collapsed `▸ Untrained (n)` group; the
       count is correct; expanding shows name and level 1.
-- [ ] A skill leaves the `Untrained` group permanently on its first award and takes its
+- [x] A skill leaves the `Untrained` group permanently on its first award and takes its
       registry-order position in `ACTIVITY` or `META`.
-- [ ] The header stays pinned with a **15-skill** fixture; scrolling the grid never moves it.
-- [ ] Activity bars fill `--gold-500` and meta bars `--verdigris-500`, taken from the row's
+- [x] The header stays pinned with a **15-skill** fixture; scrolling the grid never moves it.
+- [x] Activity bars fill `--gold-500` and meta bars `--verdigris-500`, taken from the row's
       `kind`, never from a skill-id lookup.
-- [ ] A 15-skill fixture renders without horizontal scroll, without tile clipping, and without a
+- [x] A 15-skill fixture renders without horizontal scroll, without tile clipping, and without a
       new section, at a typical desktop width and at a narrow (~400 CSS px) window.
-- [ ] No string on the panel is imperative: a test asserts the rendered text contains no
+- [x] No string on the panel is imperative: a test asserts the rendered text contains no
       target, streak, goal, decay or "neglected" language.
-- [ ] A skill untouched for a simulated year renders identically to one trained today at the same
+- [x] A skill untouched for a simulated year renders identically to one trained today at the same
       level — same tile, same tint, no badge.
 
 ## Notes
@@ -80,11 +81,85 @@ The `Untrained` test should key on **lifetime XP == 0**, not on `firstSeenRulesV
 added skill and a never-trained old skill are the same thing from the panel's point of view, and
 the distinction that matters (celebration suppression) lives in 0065, not here.
 
+## Resolution
+
+**Mostly proof, plus one rule change.** `0073` had already built the six rules into
+`lib/skills/panel.ts` and `app/skills/skills-panel.tsx`: sections, `displayOrder`, a closed
+`<details>`, a sticky header, and bar tint from `kind`. Its tests ran against the nine skills
+that ship today. This ticket proves the rules hold at fifteen and fixes one predicate.
+
+- **`lib/skills/panel.ts`.** Untrained now means **lifetime XP == 0** and nothing else, as the
+  ticket's Notes ask. It was `xp > 0 || level > 1`, so a skill with zero XP and a
+  `levelHighWater` above 1 counted as trained. XP never decreases (D-135), so leaving the group is
+  permanent by construction.
+- **`lib/skills/__fixtures__/fifteen-skills.ts`** (test-only, never in `rules/`). The newest
+  bundled ruleset plus six appended rows, five activity and one meta, added as the next version.
+  `appendSkills()` grows any ruleset the way §5.3 rule 2 says a registry grows. The names are
+  long on purpose (Mountaineering, Steadfastness), to stress the narrow window.
+- **`lib/skills/panel.test.ts`, +6 tests on the fixture:**
+  - Levels seeded descending, ascending and at random give the same tile order. So does a
+    registry file that lists its rows out of order.
+  - Appending an activity skill or a meta skill leaves every existing index in that section
+    unchanged, and leaves the other section untouched. Checked by index.
+  - Zero-XP skills sit in Untrained, with the right count, their names and level 1.
+  - Untrained keys on XP alone. This test fails against the old predicate.
+  - Training all fifteen in random order: each first award moves the skill out of Untrained into
+    its registry position, every section stays a subsequence of registry order, and nothing ever
+    returns.
+- **`app/skills/skills-panel.test.tsx`, +6 tests on the 15-skill render:**
+  - There are still exactly two sections plus one `<details>`.
+  - Total Level and Total XP are inside the sticky band, with no tile in it, and nothing on the
+    page is a scroll container.
+  - All three grids are `repeat(3, minmax(0, 1fr))`.
+  - Each tile's bar is checked one tile at a time. Then every tile's `kind` is swapped and the
+    tint follows, which proves nothing keys it on the skill id.
+  - A wider list of banned instruction words: target, streak, goal, decay, neglect, should,
+    must, try, aim, behind, "days ago", "last trained" and more.
+  - A skill last awarded a year ago and one awarded today, at the same XP, render byte-identical
+    tiles once the id, name and sigil are removed. The sigil differs by design, because it is
+    the skill.
+
+The existing `.sort(` ban in `app/skills/` and the model's single
+`sort((a, b) => a.displayOrder - b.displayOrder)` together cover "no sort control and no
+other ordering path". No change was needed there.
+
+**Two things I left as they were, deliberately:**
+- **The `▸` is the browser's own `<summary>` disclosure marker**, not a typed character. Typing
+  "▸" would show two markers, and the browser's marker turns to ▾ when the group opens.
+- **Dark mode fills bars with `--gold-300` and `--verdigris-300`**, through the
+  `--progress-activity` and `--progress-meta` tokens (`app/tokens.css`). The criterion names the
+  `-500` primitives, which are the light-theme values. The kind still picks the token, which is
+  the rule. That §5.3 names primitives where it means the semantic tokens is a doc imprecision to
+  raise at capability 11's audit. It is not a code change.
+
+**What went wrong.** The throwaway render script, run with `tsx` from the scratchpad, could not
+resolve `react-dom` (it needed `NODE_PATH`) and then had no React global under the classic JSX
+transform. Headless Chromium will not size a window below 500 px, so the ~400 px measurement ran
+inside a 400 px iframe. None of this touched the shipped code.
+
+Full suite on Node 22: 159 files, 2,858 tests green. `tsc` and `eslint` are clean.
+
 ## Operator validation
 
-On **`/skills`** in the desktop browser, with a 15-skill test ruleset deployed: find Fortitude
-**without reading the labels** — by position alone, from memory. Then have the levels change (log
-a session), reload, and find it again the same way; it must be in exactly the same place. Confirm
-the `▸ Untrained (n)` row is at the bottom, that expanding it does not push the pinned header
-off, and that the meta bars are visibly a different colour from the activity bars at a
-glance, without reading the section headings.
+*Planned at ticket-write:* On **`/skills`** in the desktop browser, with a 15-skill test ruleset
+deployed: find Fortitude **without reading the labels**, by position alone, from memory. Then
+have the levels change (log a session), reload, and find it again the same way. It must be in
+exactly the same place. Confirm the `▸ Untrained (n)` row is at the bottom, that expanding it does
+not push the pinned header off, and that the meta bars are visibly a different colour from the
+activity bars at a glance, without reading the section headings.
+
+**Not deploying a test ruleset** (D-229: never construct a scenario on the operator's live
+stack). `tmp/0075/render.tsx` (gitignored) renders the shipped `SkillsPanel` over the 15-skill
+fixture with the real `app/tokens.css`. It writes `before.html`, then `after.html` with every
+level changed in an order unrelated to the first: the "log a session" step, faked.
+
+**Headless Chromium layout probe (agent, 2026-10-07, WSL).** This opens Untrained, scrolls to the
+bottom, and measures:
+
+| Viewport | Horizontal scroll | Tiles clipped or overflowing | Header top, before → after scroll | Totals visible |
+|---|---|---|---|---|
+| 1280 px | none (scrollWidth = clientWidth) | 0 of 15 | 63 → 63 (scrolled 440 px) | yes |
+| 400 px (iframe) | none (385 = 385) | 0 of 15 | 63 → 63 (scrolled 353 px) | yes |
+
+A screenshot at 400 px shows three even columns, with "Mountaineering" and "Oarsmanship" inside
+their tiles.

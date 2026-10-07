@@ -4,7 +4,8 @@ import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 import { cumulativeXp, levelForXp, totalLevelCeiling } from "@/src/scoring/levels"
 
-import { skillsPanel } from "./panel"
+import { appendSkills, FIFTEEN } from "./__fixtures__/fifteen-skills"
+import { skillsPanel, type SkillsPanelModel } from "./panel"
 
 /**
  * Ticket 0073 — the panel's arithmetic and sections, against every bundled ruleset. No skill id
@@ -74,5 +75,102 @@ describe.each(versions)("skillsPanel under ruleset v%i", (v) => {
 
   it("ignores standing for a skill the registry does not carry", () => {
     expect(skillsPanel(rules, [{ skillId: "not-a-skill", xp: 1e9 }]).totalXp).toBe(0)
+  })
+})
+
+/**
+ * Ticket 0075 — §5.3's rules at fifteen skills, not nine. Positions are asserted as indices:
+ * "the tile did not move" is a claim about an array, and a screenshot cannot make it.
+ */
+describe("the panel in year ten (0075)", () => {
+  const rules = FIFTEEN
+  const enabled = rules.skills.filter((s) => s.enabled).sort((a, b) => a.displayOrder - b.displayOrder)
+  const ids = (m: SkillsPanelModel) => ({
+    activity: m.activity.map((t) => t.skillId),
+    meta: m.meta.map((t) => t.skillId),
+    untrained: m.untrained.map((t) => t.skillId),
+  })
+  // A seeded shuffle, so a failure reproduces.
+  const shuffled = <T,>(xs: readonly T[], seed: number): T[] => {
+    const out = [...xs]
+    let s = seed
+    for (let i = out.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) % 2 ** 31
+      const j = s % (i + 1)
+      ;[out[i], out[j]] = [out[j]!, out[i]!]
+    }
+    return out
+  }
+
+  it("the fixture is fifteen enabled skills of the two kinds that already exist", () => {
+    expect(enabled).toHaveLength(15)
+    expect(new Set(enabled.map((s) => s.kind))).toEqual(new Set(["activity", "meta"]))
+  })
+
+  it("draws the same tile order whether levels descend, ascend or are random (rule 2)", () => {
+    const n = enabled.length
+    const descending = enabled.map((s, i) => ({ skillId: s.id, xp: cumulativeXp(60 - i) }))
+    const ascending = enabled.map((s, i) => ({ skillId: s.id, xp: cumulativeXp(10 + i) }))
+    const random = shuffled(enabled, 7).map((s, i) => ({ skillId: s.id, xp: cumulativeXp(2 + ((i * 37) % 80)) }))
+    const expected = skillsPanel(rules, ascending)
+    for (const standing of [descending, random, shuffled(ascending, 3)]) {
+      expect(ids(skillsPanel(rules, standing))).toEqual(ids(expected))
+    }
+    expect(ids(expected).activity.length + ids(expected).meta.length).toBe(n)
+    // And the order is the registry's even when the file lists rows out of order.
+    expect(ids(skillsPanel({ ...rules, skills: shuffled(rules.skills, 11) }, ascending))).toEqual(ids(expected))
+    expect([...ids(expected).activity, ...ids(expected).meta]).toEqual([
+      ...enabled.filter((s) => s.kind === "activity").map((s) => s.id),
+      ...enabled.filter((s) => s.kind === "meta").map((s) => s.id),
+    ])
+  })
+
+  it("a new skill appends within its section and moves no existing tile's index (rules 1–2)", () => {
+    const standing = enabled.map((s) => ({ skillId: s.id, xp: 500 }))
+    const before = ids(skillsPanel(rules, standing))
+    for (const kind of ["activity", "meta"] as const) {
+      const grown = appendSkills(rules, [{ id: `yr11-${kind}`, name: "Newcomer", kind }])
+      const after = ids(skillsPanel(grown, [...standing, { skillId: `yr11-${kind}`, xp: 500 }]))
+      const section = kind === "activity" ? "activity" : "meta"
+      const other = kind === "activity" ? "meta" : "activity"
+      before[section].forEach((id, i) => expect(after[section].indexOf(id), id).toBe(i))
+      expect(after[section]).toEqual([...before[section], `yr11-${kind}`])
+      expect(after[other]).toEqual(before[other])
+    }
+  })
+
+  it("collapses every zero-XP skill into Untrained, counted, at level 1 (rule 3)", () => {
+    const trained = enabled.filter((_, i) => i % 3 === 0)
+    const m = skillsPanel(rules, trained.map((s) => ({ skillId: s.id, xp: 900 })))
+    const never = enabled.filter((s) => !trained.includes(s))
+    expect(m.untrained.map((t) => t.skillId)).toEqual(never.map((s) => s.id))
+    expect(m.untrained).toHaveLength(15 - trained.length)
+    for (const t of m.untrained) expect([t.name, t.level]).toEqual([enabled.find((s) => s.id === t.skillId)!.name, 1])
+  })
+
+  it("keys Untrained on lifetime XP == 0, and nothing else", () => {
+    const [s] = enabled
+    // A ratchet without XP is not training; an XP of 1 with no level gained is.
+    expect(skillsPanel(rules, [{ skillId: s!.id, xp: 0, levelHighWater: 4 }]).untrained.map((t) => t.skillId)).toContain(s!.id)
+    expect(skillsPanel(rules, [{ skillId: s!.id, xp: 1 }]).untrained.map((t) => t.skillId)).not.toContain(s!.id)
+  })
+
+  it("a first award moves a skill out of Untrained for good, into its registry position (rule 3)", () => {
+    const xp = new Map<string, number>()
+    // Train in a random order; after every award each section is still a registry-order subsequence.
+    for (const s of shuffled(enabled, 5)) {
+      const wasUntrained = new Set(skillsPanel(rules, [...xp].map(([skillId, x]) => ({ skillId, xp: x }))).untrained.map((t) => t.skillId))
+      expect(wasUntrained.has(s.id)).toBe(true)
+      xp.set(s.id, (xp.get(s.id) ?? 0) + 40)
+      const m = ids(skillsPanel(rules, [...xp].map(([skillId, x]) => ({ skillId, xp: x }))))
+      expect(m.untrained).not.toContain(s.id)
+      expect(m[s.kind]).toContain(s.id)
+      for (const section of ["activity", "meta", "untrained"] as const) {
+        expect(m[section]).toEqual(enabled.map((r) => r.id).filter((id) => m[section].includes(id)))
+      }
+      // Nothing trained ever returns.
+      for (const id of xp.keys()) expect(m.untrained).not.toContain(id)
+    }
+    expect(skillsPanel(rules, [...xp].map(([skillId, x]) => ({ skillId, xp: x }))).untrained).toEqual([])
   })
 })
