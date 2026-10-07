@@ -63,6 +63,11 @@ deadline, and a deadline is an obligation this app does not create.
 - [ ] Sum of all XP ever shown in `RECENT` plus older rows equals the level bar's XP — the sheet
       is the ledger rendered (I-15).
 - [ ] The sheet renders offline from cache.
+- [ ] *(from 0076)* Vigil's detail sheet renders from the same component as Wayfaring's, with the rules
+      sentence generated from `groundMultipliers: null` — it must **not** claim "half on ground
+      you have run before".
+- [ ] *(from 0076)* Vigil's sheet omits the `ON THE MAP` section entirely rather than rendering an empty one,
+      and this falls out of having no place-bound milestones, not a skill-id check.
 
 ## Notes
 
@@ -77,6 +82,11 @@ have this XP".
 
 A meta skill's sheet has no `ON THE MAP` section for most skills — omit the heading entirely
 rather than showing an empty one.
+
+- 2026-10-07 — two criteria were moved here from 0076 (operator decision). They assert Vigil's
+  sheet, and 0076 was ready before this sheet existed. Satisfy them with the general mechanism:
+  the rules sentence comes from `groundMultipliers`, and `ON THE MAP` is omitted when there are no
+  place-bound milestones. Never with a branch on the skill id.
 
 ## Operator validation
 

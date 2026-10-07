@@ -1846,6 +1846,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-07T18:51:08Z",
     "path": "tickets/open/0076-vigil-renders-as-peer-no-special-case.md",
     "ready": true,
     "acceptance": {
