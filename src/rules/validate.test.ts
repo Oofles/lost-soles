@@ -461,3 +461,45 @@ function clone3(): Record<string, unknown> {
   ;(find(r, "wayfaring").match as Record<string, unknown>).measure = "vibes"
   return r
 }
+
+/** `0240`, D-286. `exercises[]` was unvalidated until a distance entry and a declared kind arrived. */
+describe("exercises — what /log can hand-log against a row", () => {
+  const vigil = (r: Record<string, unknown>) => find(r, "vigil")
+  const might = (r: Record<string, unknown>) => find(r, "might")
+  const treadmill = { id: "treadmill", label: "Treadmill", entry: "distance", kind: "run", quickValues: [5] }
+
+  it("the shipped v3 validates, with its distance exercise", () => {
+    expect(validateRuleSet(parseRuleSetFile(3))).toEqual([])
+  })
+
+  it("accepts a distance exercise on a distanceKm row that matches its kind", () => {
+    expect(broken((r) => (vigil(r).exercises = [treadmill]))).toEqual([])
+  })
+
+  it("refuses a kind the row does not match — it would score nothing", () => {
+    const errs = broken((r) => (vigil(r).exercises = [{ ...treadmill, kind: "ride" }]))
+    expect(paths(errs)).toEqual([`skills[${at("vigil")}].exercises[0].kind`])
+  })
+
+  it("refuses an absent kind (strength) on a row that does not admit strength", () => {
+    const strength = { ...treadmill, kind: undefined }
+    expect(paths(broken((r) => (vigil(r).exercises = [strength])))).toEqual([`skills[${at("vigil")}].exercises[0].kind`])
+  })
+
+  it("refuses a distance entry on a set-summing row, and a count on a distance row", () => {
+    expect(paths(broken((r) => (might(r).exercises = [{ ...treadmill, kind: "strength" }])))).toEqual([
+      `skills[${at("might")}].exercises[0].entry`,
+    ])
+    expect(paths(broken((r) => (vigil(r).exercises = [{ ...treadmill, entry: "count" }])))).toEqual([
+      `skills[${at("vigil")}].exercises[0].entry`,
+    ])
+  })
+
+  it("refuses an unknown entry kind and a duplicate exercise id", () => {
+    expect(paths(broken((r) => (vigil(r).exercises = [{ ...treadmill, entry: "laps" }])))).toEqual([
+      `skills[${at("vigil")}].exercises[0].entry`,
+    ])
+    const dup = broken((r) => (vigil(r).exercises = [{ ...treadmill, id: "pushup" }]))
+    expect(dup.map((e) => e.message).join(" ")).toMatch(/duplicate exercise id "pushup"/)
+  })
+})

@@ -56,8 +56,17 @@ export interface RuleFeed {
 export interface RuleExercise {
   id: string
   label: string
-  entry: "count" | "seconds"
+  /**
+   * What `/log`'s stepper counts. `distance` (`0240`, D-286) is kilometres on the row and whole
+   * metres in the set (`WorkoutSet.distanceM`), and only sits on a `distanceKm` skill.
+   */
+  entry: "count" | "seconds" | "distance"
   quickValues: number[]
+  /**
+   * The `ActivityKind` a log of this exercise IS. Absent means `strength`, which every exercise
+   * before D-286 was. Must be one of its skill's `match.kinds`, or the log would score nothing.
+   */
+  kind?: ActivityKind
 }
 
 export interface RuleSkill {

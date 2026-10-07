@@ -21,8 +21,8 @@
  * cannot disagree, and a new exercise over an existing kernel is a registry row only (D-031).
  */
 
-import type { Activity, WorkoutSet } from "@/src/domain/activity"
-import type { RuleSkill } from "@/src/rules/schema"
+import type { Activity, ActivityKind, WorkoutSet } from "@/src/domain/activity"
+import type { RuleExercise, RuleSkill } from "@/src/rules/schema"
 import { SET_FIELDS, setFieldOf, type SetField } from "@/src/scoring/units"
 
 /**
@@ -50,6 +50,13 @@ export interface WorkoutEntry {
    * instant alone cannot produce it. Context about WHEN, never a claim about what it is worth.
    */
   timezone?: string
+  /**
+   * What the log IS — `0240`, D-286. NEVER taken from the client: `parseWorkoutEntry` stamps it
+   * from the exercise's registry row (`kind`, default `strength`), and that stamped entry is
+   * what is archived, so `normalize()` reads it without a registry and an archive written before
+   * D-286 (no `kind`) still reads as the strength log it was.
+   */
+  kind?: ActivityKind
 }
 
 export type WorkoutEntryErrorCode =
@@ -93,20 +100,56 @@ const isPositiveInt = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v > 0
 
 /**
+ * The field a set carries: a set-summing kernel's (`reps`, `durationS`), or `distanceM` for a
+ * distance entry (D-286). A distance is NOT a scoring kernel — the adapter folds it into
+ * `Activity.distanceM`, which the row's `distanceKm` measure already reads.
+ */
+export type EntryField = SetField | "distanceM"
+
+/**
+ * Optional companions a set may carry beside its field, by entry kind (D-286). A distance may
+ * carry its time; nothing else may carry another kernel's field. Keyed on the schema's entry
+ * enum, like `/log`'s `STEP_BY_ENTRY`, so a new exercise over an existing entry is data only.
+ */
+export const OPTIONAL_FIELDS_BY_ENTRY: Record<RuleExercise["entry"], readonly SetField[]> = {
+  count: [],
+  seconds: [],
+  distance: [SET_FIELDS.seconds],
+}
+
+/** The enabled activity row that logs `exerciseId`, and the exercise itself. */
+export function exerciseOf(
+  exerciseId: string,
+  registry: { skills: readonly RuleSkill[] },
+): { skill: RuleSkill; exercise: RuleExercise } | null {
+  for (const skill of registry.skills) {
+    if (skill.kind !== "activity" || !skill.enabled || !skill.match) continue
+    const exercise = skill.exercises?.find((e) => e.id === exerciseId)
+    if (exercise) return { skill, exercise }
+  }
+  return null
+}
+
+/**
  * The set field an exercise's entries carry, resolved through the registry: the activity row
- * listing the exercise, its measure, the measure's kernel. Null if no row logs this exercise.
+ * listing the exercise, its measure, the measure's kernel — or, for a distance entry on a
+ * `distanceKm` row, `distanceM` (D-286). Null if no row logs this exercise.
  */
 export function entryFieldFor(
   exerciseId: string,
   registry: { skills: readonly RuleSkill[] },
-): SetField | null {
-  for (const skill of registry.skills) {
-    if (skill.kind !== "activity" || !skill.enabled || !skill.match) continue
-    if (!skill.exercises?.some((e) => e.id === exerciseId)) continue
-    const resolved = setFieldOf(skill.match.measure)
-    if (resolved && resolved.exercise === exerciseId) return resolved.field
-  }
-  return null
+): EntryField | null {
+  const found = exerciseOf(exerciseId, registry)
+  if (!found) return null
+  const measure = found.skill.match!.measure
+  if (found.exercise.entry === "distance") return measure === "distanceKm" ? "distanceM" : null
+  const resolved = setFieldOf(measure)
+  return resolved && resolved.exercise === exerciseId ? resolved.field : null
+}
+
+/** The kind a log of `exerciseId` is: the exercise's `kind`, else `strength` (D-286). */
+export function exerciseKind(exerciseId: string, registry: { skills: readonly RuleSkill[] }): ActivityKind {
+  return exerciseOf(exerciseId, registry)?.exercise.kind ?? "strength"
 }
 
 /**
@@ -141,7 +184,10 @@ export function parseWorkoutEntry(
     throw new WorkoutEntryError("NO_SETS", "sets is empty — a log with no sets records no work")
   }
 
-  const otherFields = Object.values(SET_FIELDS).filter((f) => f !== field)
+  const optional = OPTIONAL_FIELDS_BY_ENTRY[exerciseOf(exerciseId, registry)!.exercise.entry]
+  const otherFields = [...Object.values(SET_FIELDS), "distanceM" as const].filter(
+    (f) => f !== field && !(optional as readonly string[]).includes(f),
+  )
   const clean: EntrySet[] = sets.map((s, i) => {
     if (!isRecord(s)) throw new WorkoutEntryError("BAD_SET", `sets[${i}] must be an object`)
     if (!isPositiveInt(s[field])) {
@@ -156,6 +202,13 @@ export function parseWorkoutEntry(
       )
     }
     const set: EntrySet = { [field]: s[field] }
+    for (const extra of optional) {
+      if (s[extra] == null) continue
+      if (!isPositiveInt(s[extra])) {
+        throw new WorkoutEntryError("BAD_SET", `sets[${i}].${extra} must be a positive integer when given`)
+      }
+      set[extra] = s[extra]
+    }
     if (s.weightKg != null) {
       if (typeof s.weightKg !== "number" || !Number.isFinite(s.weightKg) || s.weightKg <= 0) {
         throw new WorkoutEntryError("BAD_SET", `sets[${i}].weightKg must be a positive number`)
@@ -190,16 +243,29 @@ export function parseWorkoutEntry(
     occurredAt,
     idempotencyKey,
     ...(typeof timezone === "string" ? { timezone } : {}),
+    kind: exerciseKind(exerciseId, registry),
   }
 }
 
 /**
- * The part of an `Activity` an entry decides: WHEN (back-dating included) and WHAT. Identity,
- * kind, source and archive are the manual adapter's (`0069`).
+ * The part of an `Activity` an entry decides: WHEN (back-dating included), WHAT, and what it IS.
+ * Identity, source and archive are the manual adapter's (`0069`).
+ *
+ * `kind` is the stamped one, else `strength` (an entry archived before D-286). `distanceM` is
+ * the sum of the sets' distances, absent when none carries one — so a distance log reaches the
+ * row's `distanceKm` measure exactly as a synced traceless run does. `elapsedS` sums the sets'
+ * seconds: a plank's time under tension, or a distance's optional time.
  */
-export function entryActivityFields(entry: WorkoutEntry): Pick<Activity, "startedAt" | "sets"> {
+export function entryActivityFields(
+  entry: WorkoutEntry,
+): Pick<Activity, "startedAt" | "sets" | "kind" | "elapsedS"> & Partial<Pick<Activity, "distanceM">> {
+  const sets = entry.sets.map((s) => ({ ...s, exercise: entry.exerciseId }))
+  const distances = sets.filter((s) => typeof s.distanceM === "number")
   return {
     startedAt: entry.occurredAt,
-    sets: entry.sets.map((s) => ({ ...s, exercise: entry.exerciseId })),
+    sets,
+    kind: entry.kind ?? "strength",
+    elapsedS: sets.reduce((sum, s) => sum + (s.durationS ?? 0), 0),
+    ...(distances.length > 0 ? { distanceM: distances.reduce((sum, s) => sum + s.distanceM!, 0) } : {}),
   }
 }

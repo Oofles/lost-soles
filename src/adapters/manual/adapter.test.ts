@@ -126,6 +126,28 @@ describe("normalize — phase 3", () => {
     expect(manualAdapter.normalize(raw, REF, job).activity.startedAt).toBe("2026-03-01T06:00:00.000Z")
   })
 
+  it("an archive written before D-286 carries no kind, and is the strength log it was", async () => {
+    const job = await jobFor(ENTRY)
+    expect(manualAdapter.normalize(Buffer.from(JSON.stringify(ENTRY)), REF, job).activity.kind).toBe("strength")
+  })
+
+  it("a distance entry is a traceless activity of its stamped kind, with the sets' distance and time (D-286)", async () => {
+    const distance = { ...ENTRY, exerciseId: "a-distance", kind: "run", sets: [{ distanceM: 5000, durationS: 1800 }] }
+    const job = await jobFor(distance)
+    const { activity } = manualAdapter.normalize(Buffer.from(JSON.stringify(distance)), REF, job)
+    expect(activity).toMatchObject({ kind: "run", distanceM: 5000, elapsedS: 1800, hasTrace: false, traceRef: null })
+  })
+
+  it("a count carries no distance at all, so the row shape for strength is unchanged", async () => {
+    const job = await jobFor(ENTRY)
+    expect("distanceM" in manualAdapter.normalize(Buffer.from(JSON.stringify(ENTRY)), REF, job).activity).toBe(false)
+  })
+
+  it("refuses an archived kind that is not an ActivityKind", async () => {
+    const odd = { ...ENTRY, kind: "swim" }
+    expect((await manualAdapter.accept(request(odd))).status).toBe(400)
+  })
+
   it("counts a plank's seconds as elapsed time", async () => {
     const plank = { ...ENTRY, exerciseId: "plank", sets: [{ durationS: 60 }, { durationS: 45 }] }
     const job = await jobFor(plank)

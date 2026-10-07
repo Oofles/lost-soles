@@ -4346,3 +4346,49 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
       atomic check needs neither.
   - **Floors** come from `reconcile`. The waterline is the activity's old per-skill sums, and the
     run key is `kind-<overrideId>`, so each correction's floors are distinct (`0237`).
+
+- **D-286** **A hand-logged distance is a `WorkoutSet.distanceM` that the manual adapter adds into
+  `Activity.distanceM`, logged against an exercise that declares the kind it is. It never dedupes,
+  as D-281 says of every log with sets. It ships as rules v3.**
+  *(Operator, 2026-10-07, ticket `0240`. Settles what D-282 left open for "treadmill / track";
+  amends the contract's `WorkoutSet` and `06` §6.3's `trace-manual` row.)*
+  - **Shape.** `WorkoutSet` gains `distanceM` (whole metres) as a contract amendment, so a quick
+    log is still one set (`06` §6.6). It is NOT a scoring kernel. The manual adapter adds the
+    sets' distances into `Activity.distanceM`, and Vigil's existing `distanceKm` measure scores
+    that exactly as it scores a traceless run synced from a watch.
+    - Rejected: a set-less manual `Activity.distanceM`. It is a second entry shape for one
+      adapter, and it breaks "a quick log writes one set".
+  - **Kind.** `RuleExercise` gains an optional `kind`; absent means `strength`, as every exercise
+    was before.
+    - `parseWorkoutEntry` stamps it from the registry onto the entry that is archived. A client
+      cannot assert it, and `normalize()` stays pure. An archive written before D-286 has no
+      `kind` and still reads as strength.
+    - The validator refuses a `kind` the row's `match.kinds` would not admit, because that log
+      would score nothing. This is the first validation `exercises[]` has had. It also requires
+      `count` ⇒ `reps:<id>`, `seconds` ⇒ `seconds:<id>`, `distance` ⇒ `distanceKm`, and exercise
+      ids unique across the ruleset.
+  - **Entry kind `distance`.**
+    - `/log` steps it ±0.5 km, shows one decimal, and sends metres. These are tables keyed on the
+      entry enum (`STEP_BY_ENTRY`, `DECIMALS_BY_ENTRY`, `SET_SCALE_BY_ENTRY`), so a new distance
+      exercise is a YAML row.
+    - It may carry an optional time (`durationS`), which becomes `elapsedS`. That is the one
+      companion field any entry allows (`OPTIONAL_FIELDS_BY_ENTRY`); a stray field on any other
+      entry is still refused.
+    - The time input is a single `.tsx` addition keyed on `row.optionalTime`, not on an
+      exercise.
+  - **Rows.** `/log` renders every exercise an enabled activity row declares; the `logMode`
+    filter (`reps | duration`) is gone. Declaring an exercise is what makes a row hand-loggable.
+    Vigil stays `logMode: trace`.
+  - **No dedupe.** D-281 is unchanged: an activity with sets is never a cross-source duplicate.
+    - Considered: narrowing the exemption so a hand log and a watch-synced treadmill run would
+      collapse. It almost never matches, because a log is stamped at the click (after the run)
+      and a synced run at its start, and with no time `elapsedS` is 0.
+    - It would also recreate D-281's original bug in reverse: a no-time distance log within five
+      minutes of a pushup log has `elapsedS` 0 on both and no distance on one, so it would be
+      judged a duplicate of the pushups.
+    - The treadmill row is for a run the watch did not record. Logging one that also synced
+      counts twice, which is the operator's to avoid, as with any manual log.
+  - **Versioning.** v3 is v2 plus Vigil's `treadmill` exercise, with no number changed. It is a
+    new version because a seeded version never changes (04 §7.6, D-282). The operator's ledger
+    moves onto it by a replay that moves no XP. Until that replay runs, the server scores the
+    operator under v2 and refuses the exercise as unknown.

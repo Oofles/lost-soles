@@ -43,7 +43,7 @@ describe("/log's first render (0068)", () => {
     for (const r of rows) {
       expect(html).toContain(`aria-label="Decrease ${r.label} by`)
       expect(html).toContain(`aria-label="Increase ${r.label} by`)
-      expect(html).toMatch(new RegExp(`aria-label="${r.label}, (count|minutes and seconds)"`))
+      expect(html).toMatch(new RegExp(`aria-label="${r.label}, (count|minutes and seconds|kilometres)"`))
       // Before IndexedDB answers, the number is the registry's fallback (D-282).
       expect(html).toContain(`aria-label="Log ${formatValue(r, r.fallback)} ${r.label}"`)
     }

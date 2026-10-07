@@ -13,7 +13,7 @@
  */
 
 import type { WorkoutEntry } from "@/lib/log/workout-entry"
-import { entryActivityFields } from "@/lib/log/workout-entry"
+import { entryActivityFields, exerciseKind } from "@/lib/log/workout-entry"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 import { cumulativeXp, levelForXp, stepCoefficient } from "@/src/scoring/levels"
@@ -52,13 +52,15 @@ export function rulesForSkills(skills: readonly CachedSkill[]): RuleSet {
 
 /** What one entry is worth, per skill, under `rules`. Mirrors the manual adapter's activity. */
 export function awardFor(entry: WorkoutEntry, rules: RuleSet): Award {
-  const { startedAt, sets } = entryActivityFields(entry)
+  // The kind the server will stamp (D-286): the exercise's, from the same registry.
+  const { startedAt, sets, kind, distanceM } = entryActivityFields({ ...entry, kind: exerciseKind(entry.exerciseId, rules) })
   const rows = scoreActivity(
     {
       activityId: `optimistic:${entry.idempotencyKey}`,
       userId: "self",
       startedAt,
-      kind: "strength",
+      kind,
+      ...(distanceM !== undefined ? { distanceM } : {}),
       hasTrace: false,
       source: { source: "manual", externalId: entry.idempotencyKey, sourceTypeRaw: entry.exerciseId, fetchedAt: startedAt },
       sets,

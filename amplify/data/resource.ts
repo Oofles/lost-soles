@@ -50,6 +50,8 @@ const workoutSet = a.customType({
   exercise: a.string().required(),
   reps: a.integer(),
   durationS: a.integer(),
+  /** `0240`, D-286. A hand-logged distance (treadmill / track), whole metres. */
+  distanceM: a.integer(),
   weightKg: a.float(),
 })
 
@@ -421,6 +423,8 @@ const schema = a.schema({
   LogWorkoutSet: a.customType({
     reps: a.integer(),
     durationS: a.integer(),
+    /** `0240`, D-286. Whole metres. With it, `durationS` is the optional time, not a plank. */
+    distanceM: a.integer(),
     weightKg: a.float(),
   }),
   LogWorkoutResult: a.customType({

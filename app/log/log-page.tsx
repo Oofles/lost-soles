@@ -87,13 +87,14 @@ export function LogPage() {
   )
 
   const onLog = useCallback(
-    async (row: LogRow, value: number): Promise<Logged | undefined> => {
+    async (row: LogRow, value: number, durationS?: number): Promise<Logged | undefined> => {
       if (!uid) return undefined
       const now = Date.now()
       const entry = entryFor(row, value, rules, {
         now: new Date(now),
         idempotencyKey: crypto.randomUUID(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        durationS,
       })
       const award = awardFor(entry, rules)
       const result = rowResult(row.skillId, award, { xp: standing(row.skillId) }, rules)
@@ -154,7 +155,7 @@ export function LogPage() {
               row={row}
               initialValue={lastValues === undefined ? undefined : (lastValues[row.exerciseId] ?? row.fallback)}
               disabled={!uid}
-              onLog={(value) => onLog(row, value)}
+              onLog={(value, durationS) => onLog(row, value, durationS)}
               onUndo={(logged) => onUndo(row, logged)}
             />
           </li>

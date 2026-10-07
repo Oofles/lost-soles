@@ -106,7 +106,8 @@ export interface SourceRef {
 export interface WorkoutSet {
   exercise: string            // "pushup" | "situp" | "plank" | future — data, not code (D-031)
   reps?: number
-  durationS?: number          // planks
+  durationS?: number          // planks; a hand-logged distance's optional time (D-286)
+  distanceM?: number          // a hand-logged distance, whole metres (D-286)
   weightKg?: number
 }
 

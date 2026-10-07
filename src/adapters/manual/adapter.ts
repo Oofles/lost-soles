@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { entryActivityFields, isIanaZone, type WorkoutEntry } from "@/lib/log/workout-entry"
 import { computeActivityId } from "@/src/domain/activity-id"
 import type { NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
+import { ACTIVITY_KINDS } from "@/src/rules/schema"
 import { computeDedupeKey } from "@/src/domain/dedupe-key"
 
 import { AUTHENTICATED_SUB_HEADER } from "../principal"
@@ -59,7 +60,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 function readEntry(raw: Buffer | string): WorkoutEntry {
   const parsed: unknown = JSON.parse(raw.toString())
   if (!isRecord(parsed)) throw new Error("manual entry is not a JSON object")
-  const { exerciseId, sets, occurredAt, idempotencyKey, timezone } = parsed
+  const { exerciseId, sets, occurredAt, idempotencyKey, timezone, kind } = parsed
   if (typeof exerciseId !== "string" || exerciseId === "") throw new Error("manual entry has no exerciseId")
   if (!Array.isArray(sets) || sets.length === 0 || !sets.every(isRecord)) {
     throw new Error("manual entry has no sets")
@@ -71,12 +72,17 @@ function readEntry(raw: Buffer | string): WorkoutEntry {
     throw new Error("manual entry has no idempotencyKey")
   }
   if (timezone !== undefined && !isIanaZone(timezone)) throw new Error("manual entry has a bad timezone")
+  if (kind !== undefined && !(ACTIVITY_KINDS as readonly unknown[]).includes(kind)) {
+    throw new Error(`manual entry has an unknown kind ${JSON.stringify(kind)}`)
+  }
   return {
     exerciseId,
     sets: sets as WorkoutEntry["sets"],
     occurredAt,
     idempotencyKey,
     ...(timezone !== undefined ? { timezone } : {}),
+    // D-286: stamped by `parseWorkoutEntry` from the registry. Absent on pre-D-286 archives.
+    ...(kind !== undefined ? { kind: kind as WorkoutEntry["kind"] } : {}),
   }
 }
 
@@ -158,18 +164,22 @@ export const manualAdapter: SourceAdapter<null> = {
   /** PHASE 3. PURE. The archived entry, and the job's identity, become an `Activity`. */
   normalize(raw: Buffer, ref: RawArchiveRef, job: IngestJob): NormalizedIngest {
     const entry = readEntry(raw)
-    const { startedAt, sets } = entryActivityFields(entry)
+    const { startedAt, sets, kind, elapsedS, distanceM } = entryActivityFields(entry)
     const timezone = entry.timezone ?? null
     return {
       activity: {
         activityId: computeActivityId(job.userId, job.source, job.externalId),
         userId: job.userId,
-        kind: "strength",
+        kind,
         startedAt,
         startedAtLocal: localWallClock(startedAt, timezone),
         timezone,
-        // Time under tension where the measure is time (planks); zero where it is a count.
-        elapsedS: sets.reduce((sum, s) => sum + (s.durationS ?? 0), 0),
+        // Time under tension where the measure is time (planks), a distance's optional time
+        // (D-286), zero where it is a count.
+        elapsedS,
+        // D-286: Σ the sets' distances, so the row's `distanceKm` measure scores a hand-logged
+        // distance. Absent for a count or a plank, which carry none.
+        ...(distanceM !== undefined ? { distanceM } : {}),
         source: {
           source: job.source,
           externalId: job.externalId,

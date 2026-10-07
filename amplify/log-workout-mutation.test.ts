@@ -54,7 +54,7 @@ describe("logWorkout's arguments are measured work only (I-20)", () => {
   })
 
   it("a set carries only the measurement fields `WorkoutSet` has", () => {
-    expect(fieldsOf("input", "LogWorkoutSetInput")).toEqual(["reps", "durationS", "weightKg"])
+    expect(fieldsOf("input", "LogWorkoutSetInput")).toEqual(["reps", "durationS", "distanceM", "weightKg"])
   })
 
   it("is one of exactly two custom mutations the API serves (0244 added setActivityKind)", () => {

@@ -160,6 +160,66 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
 }
 
 /**
+ * `exercises[]` — what `/log` can hand-log against this row. `0240`, D-286. Unvalidated before
+ * then, which was survivable while every exercise was a count or seconds over its own
+ * `reps:<id>` / `seconds:<id>` measure; a distance entry and a declared `kind` are the first
+ * shapes that can be wrong in a way that scores nothing rather than failing loudly.
+ *
+ * - `entry` is one of the three, and agrees with the row's measure: `count` ⇒ `reps:<id>`,
+ *   `seconds` ⇒ `seconds:<id>`, `distance` ⇒ `distanceKm`. Keyed on the entry enum, as
+ *   `/log`'s `STEP_BY_ENTRY` is.
+ * - `kind`, when present, is an ActivityKind the row's `match.kinds` admits. Absent means
+ *   `strength`, which must then be admitted too — a log the row would not match scores zero.
+ * - An exercise id is unique across the whole ruleset, because a log names only the exercise.
+ */
+const ENTRY_KINDS = ["count", "seconds", "distance"] as const
+
+function entryAgreesWithMeasure(entry: string, exerciseId: string, measure: unknown): boolean {
+  if (entry === "count") return measure === `reps:${exerciseId}`
+  if (entry === "seconds") return measure === `seconds:${exerciseId}`
+  return measure === "distanceKm"
+}
+
+function validateExercises(skill: RuleSkill, i: number, errs: RuleError[], ids: Map<string, string>): void {
+  const exercises = skill.exercises
+  if (exercises === undefined) return
+  if (!Array.isArray(exercises)) {
+    errs.push({ path: `skills[${i}].exercises`, message: "must be an array" })
+    return
+  }
+  exercises.forEach((ex, j) => {
+    const at = `skills[${i}].exercises[${j}]`
+    if (!isObject(ex) || typeof ex.id !== "string" || ex.id === "") {
+      errs.push({ path: at, message: "an exercise needs a non-empty string id" })
+      return
+    }
+    const first = ids.get(ex.id)
+    if (first !== undefined) errs.push({ path: `${at}.id`, message: `duplicate exercise id ${JSON.stringify(ex.id)} — already at ${first}` })
+    else ids.set(ex.id, at)
+    if (!(ENTRY_KINDS as readonly string[]).includes(ex.entry)) {
+      errs.push({ path: `${at}.entry`, message: `${JSON.stringify(ex.entry)} is not an entry kind (${ENTRY_KINDS.join(", ")})` })
+    } else if (!entryAgreesWithMeasure(ex.entry, ex.id, skill.match?.measure)) {
+      errs.push({
+        path: `${at}.entry`,
+        message: `a ${ex.entry} exercise cannot be logged against measure ${JSON.stringify(skill.match?.measure)}: the log would score nothing`,
+      })
+    }
+    const kind = ex.kind ?? "strength"
+    if (!(ACTIVITY_KINDS as readonly string[]).includes(kind)) {
+      errs.push({ path: `${at}.kind`, message: `${JSON.stringify(kind)} is not an ActivityKind (${ACTIVITY_KINDS.join(", ")})` })
+    } else {
+      const kinds = skill.match?.kinds
+      if (kinds && kinds.length > 0 && !kinds.includes(kind)) {
+        errs.push({
+          path: `${at}.kind`,
+          message: `a log of this exercise is a ${kind}${ex.kind ? "" : " (the default)"}, which the row's match.kinds [${kinds.join(", ")}] does not admit — it would score nothing`,
+        })
+      }
+    }
+  })
+}
+
+/**
  * `enabled` is required on every row, and there is deliberately NO DEFAULT — ticket 0160.
  *
  * The same argument as `revealsGround` (D-189), and stronger here, because the dangerous
@@ -404,6 +464,7 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
     }
   })
 
+  const exerciseIds = new Map<string, string>()
   skills.forEach((s, i) => {
     if (!isObject(s)) {
       errs.push({ path: `skills[${i}]`, message: "must be an object" })
@@ -421,6 +482,7 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
     validateEnabled(s, i, errs)
     validateIntroducedIn(s, i, ruleSet.version, errs)
     validateMatch(s, i, errs)
+    validateExercises(s, i, errs, exerciseIds)
     validateRevealsGround(s, i, errs)
 
     // §3.8 check 1b — feeds[].skill resolves to an existing `kind: meta` row.

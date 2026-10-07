@@ -43,7 +43,6 @@ function persisted(entry: WorkoutEntry): ScorableActivity & {
   return {
     activityId: `a-${entry.idempotencyKey}`,
     userId: "u-1",
-    kind: "strength",
     hasTrace: false,
     source: { source: "manual", externalId: entry.idempotencyKey, sourceTypeRaw: "log", fetchedAt: "" },
     ...entryActivityFields(entry),
@@ -70,8 +69,9 @@ describe("criterion 1 — sets is a list everywhere, with no scalar beside it", 
   it("in the type: WorkoutEntry carries sets[] and no reps/seconds/km field", () => {
     expectTypeOf<WorkoutEntry["sets"]>().toBeArray()
     expectTypeOf<keyof WorkoutEntry>().toEqualTypeOf<
-      // `timezone` (0069, D-281) is context about WHEN, not a measure.
-      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey" | "timezone"
+      // `timezone` (0069, D-281) is context about WHEN, not a measure. `kind` (0240, D-286) is
+      // what the log IS, stamped by the server from the registry — not a measure either.
+      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey" | "timezone" | "kind"
     >()
     expectTypeOf<Activity["sets"]>().toEqualTypeOf<WorkoutSet[]>()
   })

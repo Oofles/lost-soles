@@ -19,7 +19,7 @@ const RULES = loadRuleSet(2)
  * also runs the accept gate, so its `PutItem` is intercepted here: recorded, and refused as a
  * conditional failure when the key was already accepted (`resubmit`).
  */
-function harness(options: Options = {}, resubmit = false) {
+function harness(options: Options = {}, resubmit = false, rules = RULES) {
   const r = rig(options)
   const accepts: PutCommand["input"][] = []
   const workerReceipt = r.deps.receipt.ddb
@@ -36,7 +36,7 @@ function harness(options: Options = {}, resubmit = false) {
       },
     },
   }
-  const deps = { ...r.deps, receipt, registry: async () => RULES, now: () => new Date("2026-10-02T13:15:00.000Z") }
+  const deps = { ...r.deps, receipt, registry: async () => rules, now: () => new Date("2026-10-02T13:15:00.000Z") }
   return { ...r, deps, accepts }
 }
 
@@ -148,5 +148,68 @@ describe("refusals the client caused", () => {
     const result = await logWorkout({ ...pushups, xpAwarded: 999_999, skillId: "slayer", level: 99 }, USER, h.deps)
     expect(result.xpAwarded).toBeLessThan(999_999)
     expect(ledgerSkills(h.transacts)).not.toContain("slayer")
+  })
+})
+
+/**
+ * `0240`, D-286, criterion 4: a hand-logged distance through the UNCHANGED `processActivity`.
+ * Under v3, whose Vigil row declares a distance exercise asserting `kind: run`. The scorer is
+ * not told anything new: the adapter makes a traceless run with a `distanceM`, and Vigil's
+ * `distanceKm` measure scores it exactly as it would a treadmill run synced from a watch.
+ */
+describe("a hand-logged distance (0240, D-286)", () => {
+  const V3 = loadRuleSet(3)
+  const exercise = V3.skills.flatMap((s) => s.exercises ?? []).find((e) => e.entry === "distance")!
+  const distance = { exerciseId: exercise.id, sets: [{ distanceM: 5000, durationS: 1800 }], idempotencyKey: "k-distance", timezone: "America/Denver" }
+  const activityOf = (h: ReturnType<typeof harness>) =>
+    h.transacts[0]!.TransactItems!.find((i) => String(i.Put?.TableName).startsWith("Activity"))!.Put!.Item!
+
+  it("persists a traceless run whose distance and time come from the set", async () => {
+    const h = harness({}, false, V3)
+    expect(await logWorkout(distance, USER, h.deps)).toMatchObject({ logged: true })
+    expect(activityOf(h)).toMatchObject({ kind: "run", hasTrace: false, distanceM: 5000, elapsedS: 1800, traceRef: null })
+  })
+
+  it("scores the distance skill and its feed, at the distance skill's own rate", async () => {
+    const h = harness({}, false, V3)
+    const result = await logWorkout(distance, USER, h.deps)
+    const skill = V3.skills.find((s) => s.exercises?.some((e) => e.id === exercise.id))!
+    expect(new Set(ledgerSkills(h.transacts))).toEqual(new Set([skill.id, ...(skill.feeds ?? []).map((f) => f.skill)]))
+    const own = h.transacts[0]!.TransactItems!.find((i) => i.Put?.TableName === LEDGER_TABLE && i.Put.Item!.skillId === skill.id)!
+    expect(own.Put!.Item!.xpAwarded).toBe(5 * skill.xpPerUnit)
+    expect(result.xpAwarded).toBe(activityOf(h).xpAwarded)
+  })
+
+  it("reveals no ground: no cell, no blob, no generation", async () => {
+    const h = harness({}, false, V3)
+    await logWorkout(distance, USER, h.deps)
+    expect(h.cellWrites).toEqual([])
+    expect(h.aggWrites).toEqual([])
+    expect(h.blobPuts).toEqual([])
+    expect(h.calls).not.toContain("generation")
+    expect(ledgerSkills(h.transacts)).not.toContain("cartography")
+  })
+
+  it("the time is optional", async () => {
+    const h = harness({}, false, V3)
+    await logWorkout({ ...distance, sets: [{ distanceM: 3000 }] }, USER, h.deps)
+    expect(activityOf(h)).toMatchObject({ distanceM: 3000, elapsedS: 0 })
+  })
+
+  it("is never a cross-source duplicate, as any log with sets (D-281 unchanged)", async () => {
+    const h = harness({ dedupeRows: [{ id: "watch-run", startedAt: "2026-10-02T13:14:00.000Z", elapsedS: 1800, distanceM: 5000 }] }, false, V3)
+    expect(await logWorkout(distance, USER, h.deps)).toMatchObject({ logged: true })
+    expect(h.dedupeReads).toEqual([])
+  })
+
+  it("a time on a count exercise is refused, not half-scored", async () => {
+    const h = harness({}, false, V3)
+    await expect(logWorkout({ ...pushups, sets: [{ reps: 30, durationS: 60 }] }, USER, h.deps)).rejects.toBeInstanceOf(LogWorkoutRefused)
+  })
+
+  it("a client cannot assert the kind: the registry's is stamped over it", async () => {
+    const h = harness({}, false, V3)
+    await logWorkout({ ...pushups, kind: "run" }, USER, h.deps)
+    expect(activityOf(h).kind).toBe("strength")
   })
 })

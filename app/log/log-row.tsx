@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import type { Award, RowResult } from "@/lib/log/optimistic"
-import { clampValue, formatValue, parseValue, stepValue, type LogRow } from "@/lib/log/rows"
+import { clampValue, formatValue, parseTime, parseValue, stepValue, type LogRow } from "@/lib/log/rows"
 import { holdToRepeat } from "@/lib/log/repeat"
 
 /**
@@ -82,11 +82,14 @@ export function LogRowView({
   /** The last logged value, or the registry fallback. `undefined` while IndexedDB answers. */
   initialValue: number | undefined
   disabled: boolean
-  onLog(value: number): Promise<Logged | undefined>
+  /** `durationS` only from a row with `optionalTime` (a distance's time, D-286), and only if typed. */
+  onLog(value: number, durationS?: number): Promise<Logged | undefined>
   onUndo(logged: Logged): Promise<boolean>
 }) {
   const [value, setValue] = useState<number>()
   const [draft, setDraft] = useState<string>()
+  /** The optional time, as typed. Cleared after each log: a run's time is not the next run's. */
+  const [time, setTime] = useState("")
   const [logged, setLogged] = useState<Logged>()
   const [now, setNow] = useState(() => Date.now())
   const [wiped, setWiped] = useState(false)
@@ -155,8 +158,10 @@ export function LogRowView({
       setValue(v)
       setDraft(undefined)
     }
-    const result = await onLog(v)
+    const durationS = row.optionalTime ? (parseTime(time) ?? undefined) : undefined
+    const result = await onLog(v, durationS)
     if (result) {
+      setTime("")
       setNow(Date.now())
       setLogged(result)
     }
@@ -239,8 +244,14 @@ export function LogRowView({
         <button {...stepper(minus, -1, "Decrease")}>−</button>
         <input
           type="text"
-          inputMode="numeric"
-          aria-label={row.entry === "seconds" ? `${row.label}, minutes and seconds` : `${row.label}, count`}
+          inputMode={row.decimals > 0 ? "decimal" : "numeric"}
+          aria-label={
+            row.entry === "seconds"
+              ? `${row.label}, minutes and seconds`
+              : row.entry === "distance"
+                ? `${row.label}, kilometres`
+                : `${row.label}, count`
+          }
           value={draft ?? shown}
           disabled={disabled}
           onFocus={(e) => {
@@ -280,6 +291,35 @@ export function LogRowView({
           LOG
         </button>
       </div>
+      {/*
+        THE OPTIONAL TIME (D-286). Only on a row whose entry allows one — today a distance — and
+        never required: a blank time logs the distance alone. Read from `row.optionalTime`, so
+        this is the one place every such row gets it, not a branch on any exercise.
+      */}
+      {row.optionalTime ? (
+        <label style={{ display: "flex", alignItems: "center", gap: ".5rem", marginTop: ".5rem", color: "var(--text-secondary)", fontSize: ".875rem" }}>
+          Time <span style={{ color: "var(--text-muted)" }}>(optional)</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="mm:ss"
+            aria-label={`${row.label}, time, optional, minutes and seconds`}
+            value={time}
+            disabled={disabled}
+            onChange={(e) => setTime(e.currentTarget.value)}
+            style={{
+              ...control,
+              height: "2.25rem",
+              width: "6rem",
+              fontSize: "1rem",
+              textAlign: "center",
+              cursor: "text",
+              borderColor: time.trim() && parseTime(time) === null ? "var(--accent)" : "var(--line)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          />
+        </label>
+      ) : null}
     </div>
   )
 }

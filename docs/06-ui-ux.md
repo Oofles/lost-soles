@@ -1065,7 +1065,7 @@ Immediately after a tap, that row — and only that row — becomes:
 |---|---|
 | **Sigil + skill name + unit label** | From the registry. The unit label is the *plain-English* one (`pushups`, `plank`, `treadmill / track`), because "reps" and "seconds" are schema words |
 | **The number** | Pre-filled with **your last logged value for this type**, not a goal, not an average, not a target. Tap it → numeric keypad, select-all on focus |
-| **− / +** | Step by the exercise's `entry` kind (D-282): pushups ±5, situps ±5, plank ±15 s. (Vigil ±0.5 km awaits `0240`.) Long-press repeats at 4/s. Clamped at the registry's `minUnitsForCredit` |
+| **− / +** | Step by the exercise's `entry` kind (D-282): pushups ±5, situps ±5, plank ±15 s, Vigil ±0.5 km (D-286; a distance row also takes an optional time). Long-press repeats at 4/s. Clamped at the registry's `minUnitsForCredit` |
 | **LOG** | Commits *that row* immediately. No page-level save button, no "done", no dialog |
 
 **Committing.** The write lands in IndexedDB before the animation starts, is rendered
