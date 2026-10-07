@@ -4295,3 +4295,33 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     DynamoDB refuse every `bySkill` query. `0073`'s smoke test found this, and `0242` fixes it.
   - **Ceiling criterion.** `0073`'s "the header reads **693**" was a remembered number, which
     D-192 and `06` §5.4 forbid. It is amended to `totalLevelCeiling` (9 × 99 = 891 at v1 and v2).
+- **D-284** **A kind override is an immutable correction under `raw/`, applied after
+  `normalize()` everywhere that `kind` is written. Re-scoring after an override follows the D-142
+  replay rule for that one activity. The trace and discovery do not move.**
+  *(Operator, 2026-10-07, ticket `0171`, split into `0243` (storage and scoring) and `0244` (UI).)*
+  - **Storage.** The override is an immutable fact under `raw/`, a sibling of the activity's
+    archive prefix, as dedupe's `.duplicate-of.json` already is. A later override is a new
+    object, and the newest wins.
+    - It survives a rebuild because a rebuild reads `raw/` (D-101).
+    - It survives a re-sync because ingest applies it after `normalize()`.
+    - The Activity row mirrors it for fast reads: `kind` (effective), `derivedKind`, and who set
+      it and when.
+  - **XP.** For one activity: delete its non-floor rows, re-score under the new kind, and write
+    `retained_floor` for each skill's shortfall. So for walk → run, Walking keeps what it had and
+    Running gains in full.
+    - The operator accepted that this double-counts.
+    - D-135 allows nothing else: the old skill cannot go down.
+    - If nothing would gain, it writes nothing and says so.
+  - **Settles the interaction with `0048`:**
+    - **(a)** The sanitizer's outlier gate uses the DERIVED kind. An override never changes the
+      trace, so live data and a rebuild agree.
+    - **(b)** If the old kind revealed ground, those cells stay revealed (D-020).
+    - **(c)** If the new kind reveals ground and the old did not, its cells are revealed with
+      `firstRunAt = startedAt`. **No discovery XP is awarded.** The discovery award is stored
+      once (D-260). Awarding it here would mean re-judging every later run against a different
+      "before" state.
+  - **Not D-278.** D-278 covers the source revising an activity and stays as it is. This covers
+    the operator asserting a kind, which re-scores on purpose.
+  - **Validation surface** is the single-run page. There is no activity list yet. The agent
+    proves survival across a re-sync by replaying the archived activity, not by waiting for a
+    real sync.

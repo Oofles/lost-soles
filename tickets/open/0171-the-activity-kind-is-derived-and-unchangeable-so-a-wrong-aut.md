@@ -4,11 +4,11 @@ slug: the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut
 title: The activity kind is derived and unchangeable, so a wrong auto-classification is permanent
 type: feature
 priority: med
-status: open
+status: blocked
 size: m
 capability: 10-add-workout
 depends_on: []
-blocked_by: []
+blocked_by: [243, 244]
 source: operator
 created: 2026-09-06T00:37:31Z
 ---
@@ -63,6 +63,12 @@ correction path has to be designed rather than assumed.
 
 ## Notes
 
+
+
+**Blocked 2026-10-07 on 0244:** split per D-284: UI half
+
+**Blocked 2026-10-07 on 0243:** split per D-284: storage and scoring half
+
 **This is not a small ticket, and `size: m` may be optimistic.** It touches the data model (a
 correction needs somewhere to live), the scorer (D-135's add-only rule), the ingest path
 (re-ingest must not clobber it), and the UI. Splitting it is likely — probably "store and
@@ -78,6 +84,11 @@ wanted once the override exists.
 **Capability placement is a guess.** `10-add-workout` is where manual entry lives, which is
 the nearest existing home for "the operator asserts something about an activity". If the
 override turns out to belong with the ledger correction machinery, it should move to `09`.
+
+**Split 2026-10-07 (D-284)** into `0243` (store and honour the override, re-score) and `0244`
+(edit it from the run page). This ticket stays blocked on both and closes as the umbrella once
+the operator has validated `0244`. The surface is the single-run page, not an activity list:
+there is no activity list yet.
 
 ## Operator validation
 
