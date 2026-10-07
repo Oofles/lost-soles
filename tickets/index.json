@@ -1786,7 +1786,7 @@
     "title": "/skills/:skillId detail sheet",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1798,10 +1798,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-07T20:44:12Z",
-    "path": "tickets/open/0074-skill-detail-sheet.md",
-    "ready": true,
+    "closed": "2026-10-07T21:10:14Z",
+    "path": "tickets/closed/0074-skill-detail-sheet.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 13,
       "total": 13
     }
   },
@@ -1872,7 +1873,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0077-gold-leaf-and-contrast-compliance.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -5708,7 +5709,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 6
+      "total": 5
     }
   }
 ]
