@@ -104,6 +104,13 @@ jobs:
       - name: design tokens — no raw colour outside app/tokens.css
         run: node scripts/check-design-tokens.mjs
 
+      # D-148 / ticket 0077. 06 §8.3's measured-contrast table, recomputed from the tokens.
+      - name: contrast check self-test
+        run: node scripts/check-contrast.mjs --self-test
+
+      - name: contrast — every skills-panel pair at WCAG AA, both themes
+        run: node scripts/check-contrast.mjs
+
       # D-217 / ticket 0047. rules/xp-rules-v*.json is what the ingest Lambda imports:
       # the YAML cannot be read from inside a bundled function and T5 does not exist
       # until capability 09. A stale .json means the deployed worker is scoring against

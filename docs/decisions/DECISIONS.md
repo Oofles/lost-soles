@@ -4495,3 +4495,19 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     Cartography floor is `xpRulesVersion: 2` under a v3 ledger, and it counts. So the sheet's I-15
     partition reads every row of the skill, whatever its version; only the session estimate reads
     the current version, as the panel's `NEXT` line does.
+- **D-291** **The light theme's activity progress fill is `--gold-700`, not `--gold-500`. A fill
+  that carries meaning is a non-text graphic and needs 3:1 (WCAG 1.4.11); gold leaf at `--gold-500`
+  is decoration only.** *(Operator, 2026-10-07, ticket `0077`. Amends `06` §5.3 rule 5 and the §8.3
+  `--progress-activity` row; refines D-148.)*
+  - **Why.** `0077` required activity bars to be `--gold-500` *and* to pass 3:1 against the tile —
+    which cannot both hold: `--gold-500` on `--parch-50` measures **2.24:1**. `scripts/check-contrast.mjs`
+    found it the first time it ran. `--gold-700` measures **3.95:1**; the dark theme's `--gold-300`
+    on `--navy-800` was already 10.7:1 and is unchanged.
+  - **The tint still separates the two kinds.** `--gold-700` vs `--verdigris-500` is ΔE76 58.5, and
+    52.0–53.3 under simulated protanopia, deuteranopia and tritanopia (Machado 2009, full severity) —
+    against 60–72 for the old pair. And it is not the only carrier: the `ACTIVITY` / `META`
+    headings stay, and each tile's accessible name states its kind.
+  - **Rejected:** keeping `--gold-500` with a `--gold-700` edge (a 3–4px bar is mostly edge, so it
+    is `--gold-700` with extra drawing code), and accepting 2.24:1 as an exception (the bar is the
+    tile's only progress signal; nothing else on the tile carries the fraction).
+  - **Reach.** `--progress-activity` also fills `/log`'s post-save bar, which inherits the darker leaf.

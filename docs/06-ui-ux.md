@@ -902,7 +902,7 @@ still satisfies RS's "show me the whole game," just one tap down.
 **4. The grid scrolls; the header does not.** Total Level and Total XP are pinned. They are the
 two numbers P5 promises in two seconds, and they must not require a scroll at any skill count.
 
-**5. Meta skills are tinted, not just labelled.** Activity bars fill `--gold-500`; meta bars fill
+**5. Meta skills are tinted, not just labelled.** Activity bars fill `--gold-700` *(D-291; was `--gold-500`)*; meta bars fill
 `--verdigris-500`. You can tell what kind of skill you are looking at without reading the section
 header, which matters when the panel is long enough that the header has scrolled away.
 
@@ -1340,7 +1340,7 @@ white on navy vibrates. `--ink-900` and `--parch-50` are the extremes.
 | `--accent` | `--gold-500` | `--gold-300` |
 | `--accent-text` | `--gold-700` | `--gold-300` |
 | `--scrim` | `--navy-900` @ 0.72 | `--navy-900` @ 0.82 |
-| `--progress-activity` | `--gold-500` | `--gold-300` |
+| `--progress-activity` | `--gold-700` *(D-291)* | `--gold-300` |
 | `--progress-meta` | `--verdigris-500` | `--verdigris-300` |
 
 **The dark theme does not darken the map.** It restyles chrome and switches the basemap to its
@@ -1357,7 +1357,9 @@ manual override, and it is the only visual preference the app offers.
 | `--ink-500` on `--parch-100` | **4.8:1** | AA for normal text, and the floor. Nothing lighter carries text |
 | `--gold-700` on `--parch-100` | **3.7:1** | **Large text only** (≥24sp, or ≥19sp bold). Never body copy |
 | `--gold-300` on `--navy-900` | **11.7:1** | The dark theme's accent text, unrestricted |
-| `--gold-500` on `--parch-100` | 2.1:1 | **Fills and rules only. Never text, at any size.** |
+| `--gold-500` on `--parch-100` | 2.1:1 | **Fills and rules only. Never text, at any size** — and never a fill that carries meaning (D-291) |
+| `--gold-700` on `--parch-50` | **3.95:1** | Activity progress fill: passes 3:1 as a non-text graphic (D-291) |
+| `--verdigris-500` on `--parch-50` | **4.49:1** | Meta progress fill |
 
 That last row is the palette's one genuine trap: gold leaf is the app's signature and it is a
 poor text colour on parchment. Where gold must carry meaning in type — the plinth's "1 new run",

@@ -267,12 +267,21 @@ function Body({ detail, onFly }: { detail: SkillDetail; onFly(place: PlaceMilest
         <Section label="ON THE MAP">
           {detail.places.map((p) => (
             <div key={`${p.level}:${p.label}`} data-place="" style={{ display: "flex", gap: ".5rem", alignItems: "baseline", padding: ".25rem 0" }}>
-              <span style={{ color: "var(--accent-text)" }}>◈</span>
+              {/* Ink, not gold: a typed glyph and a 15sp label are text, and gold text is ≥24sp only (D-148). */}
+              <span aria-hidden="true" style={{ color: "var(--text-secondary)" }}>◈</span>
               <span style={{ flex: 1 }}>{p.label}</span>
               <button
                 type="button"
                 onClick={() => onFly(p)}
-                style={{ background: "none", border: "none", color: "var(--accent-text)", cursor: "pointer", padding: ".25rem", font: "inherit" }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-primary)",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  padding: ".25rem",
+                  font: "inherit",
+                }}
               >
                 → fly to
               </button>

@@ -25,7 +25,12 @@
  *   --gold-700 on --parch-100    3.7:1   LARGE TEXT ONLY (>=24sp, or >=19sp bold).
  *                                        Never body copy
  *   --gold-300 on --navy-900    11.7:1   The dark theme's accent text, unrestricted
- *   --gold-500 on --parch-100    2.1:1   FILLS AND RULES ONLY. NEVER TEXT.
+ *   --gold-500 on --parch-100    2.1:1   FILLS AND RULES ONLY. NEVER TEXT. And not a
+ *                                        fill that carries meaning: a progress bar needs
+ *                                        3:1 as a graphic, so it is --gold-700 (D-291)
+ *
+ * These are no longer only a comment: scripts/check-contrast.mjs recomputes every
+ * pair the skills screens draw, in both themes, and fails the build below AA.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
@@ -82,7 +87,10 @@
   --accent: var(--gold-500);
   --accent-text: var(--gold-700);
   --scrim: rgb(11 16 32 / 0.72);          /* --navy-900 @ 0.72 */
-  --progress-activity: var(--gold-500);
+  /* --gold-700, not --gold-500 (D-291, ticket 0077): a bar carries meaning, so it is a non-text
+     graphic and needs 3:1 against the tile. --gold-500 on --parch-50 is 2.24:1; --gold-700 is 3.95:1.
+     scripts/check-contrast.mjs measures it on every build. */
+  --progress-activity: var(--gold-700);
   --progress-meta: var(--verdigris-500);
 
   /* The run polyline (ticket 0057). 05-fog-of-war.md §4.4 fixes the pairing:

@@ -54,7 +54,7 @@ const tileStyle: CSSProperties = {
 
 function Tile({ tile }: { tile: SkillTile }) {
   return (
-    <Link href={`/skills/${tile.skillId}`} aria-label={`${tile.name}, level ${tile.level}`} style={tileStyle} data-skill={tile.skillId}>
+    <Link href={`/skills/${tile.skillId}`} aria-label={`${tile.name}, level ${tile.level}, ${tile.kind} skill`} style={tileStyle} data-skill={tile.skillId}>
       <span style={{ color: "var(--text-secondary)" }}>
         <Sigil skillId={tile.skillId} />
       </span>
