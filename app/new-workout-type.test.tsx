@@ -140,6 +140,11 @@ describe("/log gains one row, at the bottom (0072)", () => {
     expect(after.logHtml).toContain(`aria-label="Increase pull-ups by ${row.step}"`)
     expect(after.logHtml).toContain(`aria-label="Log ${row.fallback} pull-ups"`)
   })
+
+  it("draws the new skill's sigil from the data map (0245)", () => {
+    const row = /<div[^>]*aria-label="Ascent: pull-ups"[\s\S]*?>LOG</.exec(after.logHtml)![0]
+    expect(row, I24).toContain(`d="${NEW_SIGIL[0]}"`)
+  })
 })
 
 describe("/skills gains one tile in ACTIVITY and nothing else moves (0072)", () => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import { Sigil } from "@/components/sigil"
 import type { Award, RowResult } from "@/lib/log/optimistic"
 import { clampValue, formatValue, parseTime, parseValue, stepValue, type LogRow } from "@/lib/log/rows"
 import { holdToRepeat } from "@/lib/log/repeat"
@@ -65,6 +66,20 @@ const card: React.CSSProperties = {
   padding: ".75rem",
   minHeight: "6.5rem",
   boxSizing: "border-box",
+}
+
+/**
+ * The row's head, idle and confirmed alike: the skill's sigil, then its name (§6.3–6.4, `0245`).
+ * The sigil is the `/skills` tile's mark, from the same data-keyed map, so a skill with no entry
+ * wears the fallback seal here too. It is decorative; the row's accessible name is unchanged.
+ */
+export function RowName({ row }: { row: Pick<LogRow, "skillId" | "skillName"> }) {
+  return (
+    <span style={{ display: "inline-flex", gap: ".5rem", alignItems: "center", letterSpacing: ".08em" }}>
+      <Sigil skillId={row.skillId} size={20} />
+      {row.skillName.toUpperCase()}
+    </span>
+  )
 }
 
 /** §8.7: reduced motion removes the wipe's motion, never the confirmation. */
@@ -199,9 +214,11 @@ export function LogRowView({
     return (
       <div ref={cardRef} role="group" aria-label={label} style={{ ...card, color: "var(--accent-text)" }}>
         <style>{REDUCED_MOTION_CSS}</style>
-        <p aria-live="polite" style={{ margin: 0, fontWeight: 700 }}>
-          <span style={{ letterSpacing: ".08em" }}>{row.skillName.toUpperCase()}</span>{" "}
-          {formatValue(row, logged.value)} {row.label}
+        <p aria-live="polite" style={{ margin: 0, fontWeight: 700, display: "flex", gap: ".5rem", alignItems: "center" }}>
+          <RowName row={row} />
+          <span>
+            {formatValue(row, logged.value)} {row.label}
+          </span>
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: ".75rem", marginTop: ".5rem" }}>
           <span>
@@ -234,9 +251,9 @@ export function LogRowView({
 
   return (
     <div ref={cardRef} role="group" aria-label={label} style={card}>
-      <p style={{ margin: "0 0 .5rem", display: "flex", gap: ".75rem", alignItems: "baseline" }}>
-        <span style={{ color: "var(--text-primary)", fontWeight: 700, letterSpacing: ".08em" }}>
-          {row.skillName.toUpperCase()}
+      <p style={{ margin: "0 0 .5rem", display: "flex", gap: ".75rem", alignItems: "center" }}>
+        <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+          <RowName row={row} />
         </span>
         <span style={{ color: "var(--text-secondary)" }}>{row.label}</span>
       </p>

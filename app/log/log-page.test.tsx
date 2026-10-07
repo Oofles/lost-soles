@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
+import { FALLBACK_SEAL, sigilPaths } from "@/components/sigil"
 import { formatValue, logRows } from "@/lib/log/rows"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
@@ -24,6 +25,7 @@ vi.mock("@/lib/log/transport", () => ({
 
 const { LogPage } = await import("./log-page")
 const { default: Log } = await import("./page")
+const { RowName } = await import("./log-row")
 
 const newest = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
 const rows = logRows(newest)
@@ -64,6 +66,22 @@ describe("/log's first render (0068)", () => {
     expect(html).not.toMatch(/type="submit"/)
   })
 
+  it("every row draws its skill's sigil, decorative, before the name (0245, 06 §6.3–6.4)", () => {
+    for (const r of rows) {
+      const row = new RegExp(`<div[^>]*role="group" aria-label="${r.skillName}: ${r.label}"[\\s\\S]*?>LOG<`).exec(html)![0]
+      const svg = /<svg[^>]*>[\s\S]*?<\/svg>/.exec(row)![0]
+      expect(svg, r.skillId).toContain('aria-hidden="true"')
+      for (const d of sigilPaths(r.skillId)) expect(svg, r.skillId).toContain(`d="${d}"`)
+      expect(row.indexOf("<svg"), "sigil before name").toBeLessThan(row.indexOf(r.skillName.toUpperCase()))
+    }
+  })
+
+  it("a skill with no sigil entry wears the fallback seal (0245)", () => {
+    const head = renderToStaticMarkup(<RowName row={{ skillId: "no-such-skill", skillName: "Nobody" }} />)
+    for (const d of FALLBACK_SEAL) expect(head).toContain(`d="${d}"`)
+    expect(head).toContain("NOBODY")
+  })
+
   it("never shows the schema's unit words as a label", () => {
     expect(html).not.toMatch(/>\s*(reps|seconds)\s*</)
   })
@@ -84,6 +102,11 @@ describe("app/log/ source (0068, 0071)", () => {
       expect(src, f).not.toMatch(/\bconfirm\(|window\.confirm|<dialog|role="dialog"/)
       expect(src, f).not.toMatch(/onDrag|draggable|onSwipe|onTouchMove/)
     }
+  })
+
+  it("both row states draw the head through RowName, so the confirmed row keeps its sigil (0245)", () => {
+    const row = sources.find(([f]) => f === "log-row.tsx")![1]
+    expect(row.match(/<RowName row=\{row\} \/>/g)).toHaveLength(2)
   })
 
   it("the server component reads no session, so the route stays static (D-282)", () => {
