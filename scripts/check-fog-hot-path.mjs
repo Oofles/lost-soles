@@ -75,6 +75,12 @@ const T6_NAMES = /EXPLORED_CELL_TABLE|LostSolesExploredCell|explored-cells/;
 const DELETE_COMMANDS =
   /\b(DeleteItemCommand|DeleteCommand|BatchWriteCommand|BatchWriteItemCommand)\b|["']dynamodb:(DeleteItem|BatchWriteItem)["']/;
 const DELETE_ROOTS = ["src", "amplify"];
+// ONE EXEMPTION, AND IT IS A GRANT ON A NAMED NON-T6 TABLE. `0244`'s `setActivityKind` role
+// re-scores an activity (D-142), which deletes that activity's non-floor XpLedgerEntry rows, and
+// `amplify/backend.ts` — where every grant lives, and which names T6 — must say so. A line that
+// grants on `xpLedgerTable` cannot reach T6; a `DeleteItem` anywhere else in that file still fires.
+// The role-level absence on T6 is asserted by `amplify/set-activity-kind-mutation.test.ts`.
+const LEDGER_GRANT = /^\s*xpLedgerTable\.grant\(/;
 
 const EXTS = [".ts", ".tsx", ".mjs", ".js"];
 
@@ -172,7 +178,7 @@ function scanDeletes(base = ROOT) {
       if (!T6_NAMES.test(src)) continue;
       const lines = src.split("\n");
       for (let i = 0; i < lines.length; i++) {
-        if (DELETE_COMMANDS.test(lines[i])) {
+        if (DELETE_COMMANDS.test(lines[i]) && !LEDGER_GRANT.test(lines[i])) {
           hits.push({ rel, n: i + 1, line: lines[i].trim() });
         }
       }
@@ -286,6 +292,16 @@ if (process.argv.includes("--self-test")) {
     {
       name: "an IAM grant string counts too",
       files: { "amplify/backend.ts": 'const a = ["dynamodb:DeleteItem"]\nconst t = "LostSolesExploredCell"' },
+      mustFire: true,
+    },
+    {
+      name: "0244 — a DeleteItem grant on xpLedgerTable, in a file that knows T6, passes",
+      files: { "amplify/backend.ts": 'xpLedgerTable.grant(fn, "dynamodb:PutItem", "dynamodb:DeleteItem")\nconst t = "LostSolesExploredCell"' },
+      mustFire: false,
+    },
+    {
+      name: "0244 — the same grant on the cell table still fires",
+      files: { "amplify/backend.ts": 'exploredCellTable.grant(fn, "dynamodb:DeleteItem")\nconst t = "LostSolesExploredCell"' },
       mustFire: true,
     },
     {

@@ -2,6 +2,7 @@ import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-s
 
 import { isPreconditionFailed } from "@/src/pipeline/archive"
 import type { Activity, ActivityKind, SourceId } from "@/src/domain/activity"
+import { knownKinds } from "@/src/rules/known-kinds"
 import type { RuleSkill } from "@/src/rules/schema"
 
 /**
@@ -81,19 +82,8 @@ export function newKindOverrideId(now: Date, rand: () => number = Math.random): 
   return `${stamp}-${tail}`
 }
 
-/**
- * THE KINDS THE RULES KNOW: every kind an enabled activity row matches on. Read off the registry
- * rather than off `ActivityKind`, because a kind no row matches would score nothing — and accepting
- * it would let an override quietly zero a run while saying it had been corrected.
- */
-export function knownKinds(registry: { skills: readonly RuleSkill[] }): ReadonlySet<string> {
-  const out = new Set<string>()
-  for (const s of registry.skills) {
-    if (s.kind !== "activity" || !s.enabled) continue
-    for (const k of s.match?.kinds ?? []) out.add(k)
-  }
-  return out
-}
+/** Moved to `src/rules/known-kinds.ts` by `0244`, so the browser can import it without the S3 SDK. */
+export { knownKinds }
 
 export class UnknownKindError extends Error {
   constructor(

@@ -57,8 +57,8 @@ describe("logWorkout's arguments are measured work only (I-20)", () => {
     expect(fieldsOf("input", "LogWorkoutSetInput")).toEqual(["reps", "durationS", "weightKg"])
   })
 
-  it("is the ONLY custom mutation the API serves", () => {
-    expect(fieldsOf("type", "Mutation")).toEqual(["logWorkout"])
+  it("is one of exactly two custom mutations the API serves (0244 added setActivityKind)", () => {
+    expect(fieldsOf("type", "Mutation")).toEqual(["logWorkout", "setActivityKind"])
   })
 
   it("is signed-in only, never public or guest", () => {

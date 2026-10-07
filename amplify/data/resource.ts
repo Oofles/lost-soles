@@ -1,6 +1,7 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend"
 
 import { logWorkoutFunction } from "../functions/log-workout/resource"
+import { setActivityKindFunction } from "../functions/set-activity-kind/resource"
 
 /**
  * The AppSync-backed half of the data model. `02-data-model.md` §2.1: five
@@ -439,6 +440,40 @@ const schema = a.schema({
     .returns(a.ref("LogWorkoutResult").required())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(logWorkoutFunction)),
+
+  /**
+   * `0244`, D-284. The operator corrects what an activity WAS, and that one activity is re-scored
+   * (`src/pipeline/kind-rescore.ts`). Owner-only on `logWorkout`'s pattern: `allow.authenticated()`
+   * here, and the handler takes the user from `identity.sub` and checks the owner allowlist. No
+   * user argument and no XP argument — `set-activity-kind-mutation.test.ts` pins both.
+   *
+   * The result reports the XP in plain parts for the run page: what each skill gained, and what
+   * was RETAINED as a floor because XP never goes down (D-135). Both empty is a real outcome.
+   */
+  SetActivityKindXp: a.customType({
+    skillId: a.string().required(),
+    xp: a.integer().required(),
+  }),
+  SetActivityKindResult: a.customType({
+    outcome: a.string().required(),
+    activityId: a.string().required(),
+    kind: a.string().required(),
+    from: a.string(),
+    derivedKind: a.string(),
+    gained: a.ref("SetActivityKindXp").required().array().required(),
+    retained: a.ref("SetActivityKindXp").required().array().required(),
+    cellsRevealed: a.integer().required(),
+    message: a.string().required(),
+  }),
+  setActivityKind: a
+    .mutation()
+    .arguments({
+      activityId: a.string().required(),
+      kind: a.string().required(),
+    })
+    .returns(a.ref("SetActivityKindResult").required())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(setActivityKindFunction)),
 
   DeploySmokeTest: a
     .model({

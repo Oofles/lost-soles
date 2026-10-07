@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs"
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3"
+import { S3Client } from "@aws-sdk/client-s3"
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb"
 
-import { getAdapter } from "../../src/adapters/registry"
-import type { IngestJob } from "../../src/adapters/types"
 import type { Activity } from "../../src/domain/activity"
+import { archivedTrace } from "../../src/pipeline/archived-trace"
 import type { BlobStoreDeps } from "../../src/pipeline/explored-blob-store"
 import { EXPLORED_CELL_TABLE } from "../../src/pipeline/explored-cells"
 import { assertKnownKind, readKindOverride } from "../../src/pipeline/kind-override"
@@ -21,8 +20,8 @@ import { modelTables } from "../xp-replay/tables"
  *   npx vite-node --config vitest.config.ts tools/kind-override/override-kind.ts -- --user <sub> --activity <id> --kind walk
  *   npx vite-node --config vitest.config.ts tools/kind-override/override-kind.ts -- --user <sub> --activity <id> --kind walk --confirm
  *
- * The operator's half of `src/pipeline/kind-rescore.ts` until `0244` puts it behind the single-run
- * page. DRY RUN BY DEFAULT, like every tool here that writes to a map that never re-fogs: without
+ * The operator's half of `src/pipeline/kind-rescore.ts` alongside `0244`'s `setActivityKind`
+ * mutation, which puts the same call behind the single-run page. DRY RUN BY DEFAULT, like every tool here that writes to a map that never re-fogs: without
  * `--confirm` it prints the activity, its current and derived kind, and any override already on
  * file, and writes nothing.
  *
@@ -81,24 +80,6 @@ if (!confirm) {
   process.exit(0)
 }
 
-async function loadTrace(activity: Activity) {
-  if (!activity.hasTrace) return undefined
-  if (!activity.raw) throw new Error(`${activity.activityId} has a trace but no raw archive reference`)
-  const got = await s3.send(new GetObjectCommand({ Bucket: activity.raw.bucket, Key: activity.raw.key }))
-  const body = Buffer.from(await got.Body!.transformToByteArray())
-  const job: IngestJob = {
-    ingestKey: `kind-override:${activity.activityId}`,
-    userId: activity.userId,
-    source: activity.source.source,
-    externalId: activity.source.externalId,
-    command: "reingest",
-    startedAt: activity.startedAt,
-    meta: null,
-    enqueuedAt: new Date().toISOString(),
-  }
-  return getAdapter(activity.source.source).normalize(body, activity.raw, job).trace
-}
-
 const blobs: BlobStoreDeps = { s3: s3 as never, bucket, ddb: ddb as never }
 const result = await rescoreKind(
   { userId, activityId, kind, setBy: "tools/kind-override" },
@@ -110,7 +91,7 @@ const result = await rescoreKind(
     registry,
     cells: { ddb: ddb as never, table: EXPLORED_CELL_TABLE },
     blobs,
-    loadTrace,
+    loadTrace: (activity) => archivedTrace(activity, { s3: s3 as never }, `kind-override:${activity.activityId}`),
   },
 )
 console.log(JSON.stringify(result, null, 2))

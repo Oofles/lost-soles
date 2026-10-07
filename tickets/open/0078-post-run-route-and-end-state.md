@@ -72,6 +72,11 @@ and may render them from a stub string. The tally rows are 0081; render them un-
 Do not put a "Run imported!" toast, a title card, or a spinner anywhere on this route. §3.2 forbids
 all three, and the prohibition applies to the static entry as much as to the animated one.
 
+- *(from `0244`, 2026-10-07)* `app/run/[activityId]/page.tsx` already renders
+  `<ActivityKind activityId>` (`./activity-kind.tsx`) under the stub: the kind, "was X", and a
+  quiet "Change" control backed by `setActivityKind`. Place it in the persistent end state; it is
+  self-contained and must stay secondary (D-051).
+
 ## Operator validation
 
 In the desktop browser, from the Chronicle, click a run from last week. It must open **static** — no

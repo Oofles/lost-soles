@@ -46,6 +46,7 @@ import { Queue } from "aws-cdk-lib/aws-sqs"
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
 import { logWorkoutFunction } from "./functions/log-workout/resource"
+import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
 import { processActivity } from "./functions/process-activity/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { storage } from "./storage/resource"
@@ -85,6 +86,8 @@ export const backend = defineBackend({
   // Ticket 0069. The `logWorkout` resolver (`data/resource.ts`). Its grants are below the
   // worker's, and are a strict subset of them: no queue, no source credentials, no cells.
   logWorkoutFunction,
+  // Ticket 0244. The `setActivityKind` resolver; its grants are below `logWorkout`'s.
+  setActivityKindFunction,
 })
 
 /*
@@ -1722,3 +1725,77 @@ backend.logWorkoutFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.table
 backend.logWorkoutFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 backend.logWorkoutFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
 backend.logWorkoutFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE `setActivityKind` RESOLVER  (ticket 0244, D-284, D-285)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * It runs `rescoreKind` for one activity, so it needs what that function touches and nothing
+ * more. Explicit action lists, as everywhere above. What it holds that `logWorkout` does not, and
+ * why each is narrow:
+ *
+ *   - `XpLedgerEntry` `DeleteItem`: D-142's re-score takes the activity's own non-floor rows out
+ *     before writing the new kind's. Every delete is conditioned `isFloor = false` at the table
+ *     (I-18), and a skill that would lose XP keeps it as a `retained_floor` (D-135). The replay
+ *     job holds the same action for the same reason.
+ *   - `Activity` `UpdateItem`: the T3 mirror (`kind`, `derivedKind`, `kindOverride`), conditioned
+ *     on the kind it was read with. Never `DeleteItem`.
+ *   - `Profile` `ConditionCheckItem`: the replay guard when no XP moves.
+ *   - `ExploredCell` and `users/*`: only when the new kind reveals ground and the old did not
+ *     (D-284 c). The worker's exact cell grants — `UpdateItem` and `BatchGetItem`, no delete, no
+ *     put (I-7, I-8) — and its delivery-layer grants, delta expiry included.
+ *
+ * Absent: SQS, SSM, `SourceAccount`, the receipt table, the snapshot prefix. A kind correction
+ * fetches nothing from a source and accepts no ingest.
+ */
+const setActivityKindLambda = backend.setActivityKindFunction.resources.lambda
+
+activityTable.grant(setActivityKindLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+xpLedgerTable.grant(setActivityKindLambda, "dynamodb:PutItem", "dynamodb:DeleteItem")
+setActivityKindLambda.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["dynamodb:Query"],
+    resources: [`${xpLedgerTable.tableArn}/index/byActivity`],
+  }),
+)
+skillStateTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+profileTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:ConditionCheckItem")
+exploredCellTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
+/** The override's PUT (`raw/<uid>/<source>/<externalId>.kind-override/<id>.json`) and the archive's GET. Never delete (I-3). */
+setActivityKindLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteAndReadRawArchive",
+    actions: ["s3:PutObject", "s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
+  }),
+)
+/** `raw/` for the override's newest-key list; `users/` so a missing blob reads as 404, not 403 (`0192`). */
+setActivityKindLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ListOwnPrefixes",
+    actions: ["s3:ListBucket"],
+    resources: [backend.storage.resources.bucket.bucketArn],
+    conditions: { StringLike: { "s3:prefix": ["raw/*", "users/*"] } },
+  }),
+)
+setActivityKindLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "WriteAndReadExploredDeliveryLayer",
+    actions: ["s3:PutObject", "s3:GetObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
+  }),
+)
+setActivityKindLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ExpireExploredDeltas",
+    actions: ["s3:DeleteObject"],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*/deltas/*")],
+  }),
+)
+
+backend.setActivityKindFunction.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+backend.setActivityKindFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.setActivityKindFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
+backend.setActivityKindFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.setActivityKindFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)

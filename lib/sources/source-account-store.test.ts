@@ -251,9 +251,13 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
      * ingest pipeline behind it, an activity id and an XP total out. Its arguments are pinned
      * by `amplify/log-workout-mutation.test.ts`.
      *
+     * `setActivityKind` was added by ticket 0244, a custom MUTATION like `logWorkout`. An activity
+     * id and a kind in; it reads the archive and re-scores one activity under the caller's own
+     * `sub`. No credential, no source call. Pinned by `amplify/set-activity-kind-mutation.test.ts`.
+     *
      * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
      */
-    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "logWorkout", "DeploySmokeTest"])
+    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "logWorkout", "setActivityKind", "DeploySmokeTest"])
   })
 })
 
