@@ -4,7 +4,7 @@ slug: gold-leaf-and-contrast-compliance
 title: Gold-leaf and contrast compliance on the skills panel (D-148)
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 11-skills-panel
 depends_on: [73, 74, 75]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-07T23:16:45Z
+closed: 2026-10-07T23:24:25Z
 ---
 
 ## Description

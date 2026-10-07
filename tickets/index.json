@@ -1861,7 +1861,7 @@
     "title": "Gold-leaf and contrast compliance on the skills panel (D-148)",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1873,10 +1873,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-07T23:16:45Z",
-    "path": "tickets/open/0077-gold-leaf-and-contrast-compliance.md",
-    "ready": true,
+    "closed": "2026-10-07T23:24:25Z",
+    "path": "tickets/closed/0077-gold-leaf-and-contrast-compliance.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
