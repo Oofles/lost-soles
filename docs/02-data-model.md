@@ -338,7 +338,7 @@ Table: XpLedgerEntry
 PK   id  = `${activityId}#${skillId}#${reason}#v${xpRulesVersion}`
 GSI1 byActivity     PK activityId  SK skillId#reason        (ALL)
 GSI2 byUserAndSeq   PK userId      SK seq                   (ALL)
-GSI3 bySkill        PK userId#skillId  SK awardedAt         (INCLUDE: xpAwarded, xpRulesVersion)
+GSI3 bySkill        PK userId#skillId  SK awardedAt         (ALL — 0242: INCLUDE could not pass the owner filter)
 ```
 
 Full item shape and semantics in §4. Summary:
@@ -1385,7 +1385,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-6** | Pre-read of `SkillState` before the ingest transaction (§4.3) | T2 base | `Query userId` **consistent** | 6–8 | **1 RRU** |
 | **AP-7** | XP itemisation for one activity (post-run tally, activity detail) | T4 GSI1 `byActivity` | `Query activityId` | 4–6 | **0.5 RRU** |
 | **AP-8** | The skill registry + curve for a rules version | T5 `RuleSkill` base | `Query rulesVersion` | ~9 | **0.5 RRU**; cached in the client for the session |
-| **AP-9** | One skill's XP history (sparkline, "training since") | T4 GSI3 `bySkill` | `Query userId#skillId, SK between` | 50–500 | **1–13 RRU** (INCLUDE projection keeps rows ~80 B) |
+| **AP-9** | One skill's XP history (sparkline, "training since") | T4 GSI3 `bySkill` | `Query userId#skillId, SK between` | 50–500 | **~5–45 RRU** (ALL projection, rows ~0.7 KB; was INCLUDE until 0242, which AppSync's owner filter cannot query) |
 | **AP-10** | Cross-source dedupe check at ingest | T3 GSI2 `byUserAndDedupe` | `Query userId, SK IN candidates(t)` (1–2 keys, D-211), then `GetItem` per hit | 0–2 | **~0.5–2.5 RRU** (KEYS_ONLY + a GetItem per candidate) |
 | **AP-11** | Replay: every ledger row for a user, in order | T4 GSI2 `byUserAndSeq` | `Query userId` paged | 9k–25k | **~1,250 RRU** once per rebalance |
 | **AP-12** | Webhook: `owner_id` → `userId`; worker: fetch tokens | T7 GSI1 `byExternalOwner` (KEYS_ONLY), then T7 base | `Query` + `GetItem` | 1 + 1 | **1 RRU**; the index cannot leak a token (§2 T7) |

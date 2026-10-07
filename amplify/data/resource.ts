@@ -390,13 +390,13 @@ const schema = a.schema({
       /** GSI2 `byUserAndSeq`, ALL — replay order for the whole ledger (04 §7.4). */
       index("userId").sortKeys(["seq"]).name("byUserAndSeq").projection("ALL"),
       /**
-       * GSI3 `bySkill`, INCLUDE — one skill's history, newest last. The skill sheet's
-       * `RECENT` list needs the XP and the version and nothing else.
+       * GSI3 `bySkill`, ALL — one skill's history, newest last: the skill sheet's `RECENT`
+       * list (0074). Not INCLUDE (0242): AppSync's owner rule filters on `owner`, which DynamoDB
+       * refuses on an attribute the index does not project, and the client's default selection
+       * set asks for required fields (`reason`, `activityId`, `units`…) that RECENT needs anyway.
+       * At one user's ledger size the extra index storage is negligible.
        */
-      index("userIdSkillId")
-        .sortKeys(["awardedAt"])
-        .name("bySkill")
-        .projection("INCLUDE", ["xpAwarded", "xpRulesVersion"]),
+      index("userIdSkillId").sortKeys(["awardedAt"]).name("bySkill").projection("ALL"),
     ])
     /** See `SkillState` above: no mutation exists, rather than one that is refused. */
     .disableOperations(["mutations", "subscriptions"])

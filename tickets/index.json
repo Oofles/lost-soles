@@ -5569,6 +5569,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-06T19:45:30Z",
+    "started": "2026-10-07T19:20:00Z",
     "path": "tickets/open/0242-xpledgerentry-byskill-gsi3-cannot-be-queried-through-appsync.md",
     "ready": true,
     "acceptance": {

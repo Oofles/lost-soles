@@ -8,10 +8,9 @@
  *   `XpLedgerEntry`'s `byUserAndSeq` index (GSI2), newest activity first and bounded. Never the
  *   whole ledger.
  *
- *   NOT `bySkill` (GSI3), which looks made for this. Its INCLUDE projection does not carry
- *   `owner`, and AppSync's owner rule filters on `owner`, so DynamoDB refuses every `bySkill`
- *   query from the browser outright ("Secondary index bySkill does not project one or more filter
- *   attributes: [owner]"). Found by this ticket's smoke test; filed as its own ticket.
+ *   Not `bySkill` (GSI3): NEXT wants the newest sessions across every skill, and GSI3 is one
+ *   skill's history. (Until 0242 it could not be queried through AppSync at all: its INCLUDE
+ *   projection lacked `owner`, which AppSync's owner rule filters on. It now projects ALL.)
  * - **`Profile.replayInProgress`**, `0066`'s read-side gate (`02` §4.4 step 1).
  *
  * Owner-scoped by AppSync's auth rule; nothing here passes a user id it was not handed by the

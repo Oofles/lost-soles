@@ -100,12 +100,8 @@ describe("T4 XpLedgerEntry — keys and indexes", () => {
     expect(gsis).toEqual({
       byActivity: { HASH: "activityId", RANGE: "skillIdReason", projection: "ALL", include: undefined },
       byUserAndSeq: { HASH: "userId", RANGE: "seq", projection: "ALL", include: undefined },
-      bySkill: {
-        HASH: "userIdSkillId",
-        RANGE: "awardedAt",
-        projection: "INCLUDE",
-        include: ["xpAwarded", "xpRulesVersion"],
-      },
+      // ALL, not INCLUDE (0242): an index AppSync's owner filter can query must project `owner`.
+      bySkill: { HASH: "userIdSkillId", RANGE: "awardedAt", projection: "ALL", include: undefined },
     })
   })
 })
