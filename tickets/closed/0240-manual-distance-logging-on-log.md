@@ -126,7 +126,11 @@ On `/log` in the desktop browser: the distance row reads like the others, and a 
 - **Not done live:** an accepted distance log. It would award real XP that can never be
   removed, so the operator makes the first one. `log-workout.test.ts` proves the accepted path.
 
-### For the operator: perceptual, still to do
+### For the operator: perceptual — verified 2026-10-07
+
+**Done by the operator, desktop browser, `/log`:** "All 3 validation steps are good for the vigil input." The row reads like the others, ± steps 0.5 km, and the confirmation reads right.
+
+The check as written:
 
 **Desktop browser, `/log`.** The Vigil row ("treadmill / track") now appears **first**, because
 the registry orders it there (`displayOrder` 15, before Might's 30). Check that:
