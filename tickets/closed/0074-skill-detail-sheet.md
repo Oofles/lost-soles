@@ -211,6 +211,6 @@ shipped `SkillsPanel` + `SkillSheet` bundled over the live data and driven over 
 behind the same auth gate as before; nothing leaked a signed-out render. The signed-in render is
 the operator check below.
 
-**Operator, desktop browser:** pending. Open `/skills`, click a tile and look at the sheet (layout,
+**Operator, desktop browser, deployed app (job 328), verified 2026-10-07: "checks are good."** Both checks below passed. Open `/skills`, click a tile and look at the sheet (layout,
 legibility, whether the long `AHEAD` estimates read as an estimate rather than a verdict). Press
 Esc, reopen it, press browser back. Both should land on `/skills`.
