@@ -4,13 +4,15 @@ slug: the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut
 title: The activity kind is derived and unchangeable, so a wrong auto-classification is permanent
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: []
 blocked_by: []
 source: operator
 created: 2026-09-06T00:37:31Z
+started: 2026-10-07T14:55:48Z
+closed: 2026-10-07T14:56:18Z
 ---
 
 ## Description
@@ -48,17 +50,21 @@ correction path has to be designed rather than assumed.
 
 ## Acceptance criteria
 
-- [ ] The operator can change an activity's `kind` after import, from the UI.
-- [ ] The change is recorded as a CORRECTION, not a mutation: the derived value and who
+- [x] The operator can change an activity's `kind` after import, from the UI.
+- [x] The change is recorded as a CORRECTION, not a mutation: the derived value and who
       overrode it both survive, so a rebuild from the archive (`02-data-model.md` §8.3) does
       not silently revert it.
-- [ ] Re-syncing or re-ingesting that activity does NOT overwrite the override. This is the
+- [x] Re-syncing or re-ingesting that activity does NOT overwrite the override. This is the
       criterion the whole ticket turns on — a correction that a webhook undoes is worse than
       no correction, because it looks like it worked.
-- [ ] Changing the kind re-scores the activity, and the re-score obeys D-135: XP may only be
+- [x] Changing the kind re-scores the activity, and the re-score obeys D-135: XP may only be
       added. A kind change that would lower the award writes nothing and says so.
-- [ ] Territory already revealed stays revealed (D-020), whatever the new kind is.
-- [ ] The interaction with `0048`'s discovery classification is settled explicitly, in
+      *Refined by D-284 (2026-10-07), before building.* A change in which no skill gains writes no XP
+      and says so ("no skill would gain"). In a MIXED change, the gaining skill gains in full and
+      each losing skill keeps its old sum as a `retained_floor`, so nothing goes down. The
+      operator accepted the double count.
+- [x] Territory already revealed stays revealed (D-020), whatever the new kind is.
+- [x] The interaction with `0048`'s discovery classification is settled explicitly, in
       writing, before building.
 
 ## Notes
@@ -90,6 +96,38 @@ override turns out to belong with the ledger correction machinery, it should mov
 the operator has validated `0244`. The surface is the single-run page, not an activity list:
 there is no activity list yet.
 
+## Resolution
+
+**Closed as the umbrella.** Split on 2026-10-07 (D-284) into `0243` (storage, ingest, scoring) and
+`0244` (UI). No code lands in this commit; each criterion is met as follows:
+
+1. **Change it from the UI.** `0244`: a "Change" control on `/run/[activityId]`, backed by the
+   owner-only `setActivityKind` mutation. The operator used it on 2026-10-07.
+2. **A correction, not a mutation.** `0243`: an immutable object under
+   `raw/<uid>/<source>/<externalId>.kind-override/`, where the newest wins. T3 keeps
+   `derivedKind` next to the effective `kind`, and `kindOverride` records who set it and when.
+   The §8.3 rebuild and `replay.ts` read `raw/`, so they apply it.
+3. **A re-sync does not undo it.** Ingest applies the override after `normalize()`. This was
+   proven live twice by replaying the archived activity through SQS and the real worker: in
+   `0243` via the tool, and in `0244` via the deployed mutation. Both times the row still read
+   `kind: walk`, `derivedKind: run`.
+4. **Re-score obeys D-135.** `rescoreKind` follows D-142 for one activity, as amended above.
+   No-gain is live-proven (run ↔ walk under v2, ledger identical). The mixed and floor paths are
+   proven by `kind-rescore.test.ts`, because the operator declined to move real XP to show them.
+5. **Territory stays revealed.** Nothing in the path deletes a cell (I-7). The new role has no
+   delete on T6, as the synth test in `0244` asserts. A newly ground-revealing kind adds cells with
+   `firstRunAt = startedAt` (D-284 c).
+6. **`0048`'s discovery classification**, settled in writing before building: D-284 (a)–(c).
+   The trace uses the derived kind, cells stay, and new cells award no discovery. D-285 adds that
+   the re-score rates ground as recent.
+
+**The walk-break concern** in the description needed nothing: one Strava activity is one kind,
+and nothing classifies by pace. **Auto-detection** stays out of scope, as the Notes say. No
+ticket was filed, because the operator has not asked again now that the override exists.
+
+**Capability placement** stayed `10-add-workout`. The ledger work reused `09`'s machinery
+(`reconcile`, D-142) without needing to move there.
+
 ## Operator validation
 
 **Surface: the desktop browser, on the activity list.** Take a real activity whose Strava
@@ -98,3 +136,18 @@ kind in the app, and confirm three things: it displays as the corrected kind, th
 the right direction (or explicitly does not move, per D-135), and it is STILL corrected after
 the next sync. That last one is the whole ticket and it cannot be checked without waiting for
 a second sync to happen.
+
+### Result: verified 2026-10-07
+
+The planned check, with the activity list replaced by the single-run page (D-284: there is no
+list yet) and the second sync replaced by an archived replay (D-229):
+
+- **Displays as the corrected kind.** The operator changed `ab00f078…` (Strava 20076758956) from
+  run to walk on the desktop browser: *"I just changed the run to walk - looks good from my end."*
+  T3: `kind: walk`, `derivedKind: run`, set by `setActivityKind` at 14:54:46Z.
+- **XP direction.** Under v2, run and walk both train Wayfaring at the recent-ground rate (D-285).
+  So the change correctly moved nothing and said so; the ledger stayed at constitution 17,
+  wayfaring 52.
+- **Still corrected after the next sync.** Shown by the agent's replays in `0243` and `0244`
+  (SQS → real worker → `kind` unchanged), not by waiting for a real sync.
+

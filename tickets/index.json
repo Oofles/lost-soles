@@ -4009,17 +4009,19 @@
     "title": "The activity kind is derived and unchangeable, so a wrong auto-classification is permanent",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-09-06T00:37:31Z",
-    "path": "tickets/open/0171-the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut.md",
-    "ready": true,
+    "started": "2026-10-07T14:55:48Z",
+    "closed": "2026-10-07T14:56:18Z",
+    "path": "tickets/closed/0171-the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
