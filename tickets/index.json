@@ -5562,7 +5562,7 @@
     "title": "XpLedgerEntry bySkill (GSI3) cannot be queried through AppSync — its INCLUDE projection lacks owner",
     "type": "bug",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "11-skills-panel",
     "depends_on": [],
@@ -5570,10 +5570,11 @@
     "source": "agent",
     "created": "2026-10-06T19:45:30Z",
     "started": "2026-10-07T19:20:00Z",
-    "path": "tickets/open/0242-xpledgerentry-byskill-gsi3-cannot-be-queried-through-appsync.md",
-    "ready": true,
+    "closed": "2026-10-07T19:48:18Z",
+    "path": "tickets/closed/0242-xpledgerentry-byskill-gsi3-cannot-be-queried-through-appsync.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
