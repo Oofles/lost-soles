@@ -4,13 +4,14 @@ slug: total-level-appears-once-on-skills-the-crest-tile-leaves-met
 title: Total Level appears once on /skills: the crest tile leaves META
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 11-skills-panel
 depends_on: []
 blocked_by: []
 source: operator
 created: 2026-10-07T17:11:22Z
+closed: 2026-10-07T18:00:25Z
 ---
 
 ## Description
