@@ -74,3 +74,7 @@ because headless Chromium will not size a window below 500px.
 
 A screenshot at 1440px shows five even columns in a 60rem panel: ACTIVITY in three rows, META
 as Cartography, Constitution and the fixture's third meta skill, and no `TOTAL` tile.
+
+**Operator, desktop browser, regenerated `before.html` (15-skill fixture), verified 2026-10-07:
+"Both checks are good."** Five across at full screen without the wide margins, and META ends
+with its last skill, with no TOTAL tile.
