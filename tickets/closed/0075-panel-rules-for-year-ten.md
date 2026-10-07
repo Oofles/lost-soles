@@ -4,7 +4,7 @@ slug: panel-rules-for-year-ten
 title: The rules that keep the skills panel readable in year ten
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 11-skills-panel
 depends_on: [73]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-07T16:54:53Z
+closed: 2026-10-07T17:09:52Z
 ---
 
 ## Description

@@ -1812,7 +1812,7 @@
     "title": "The rules that keep the skills panel readable in year ten",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1822,10 +1822,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-07T16:54:53Z",
-    "path": "tickets/open/0075-panel-rules-for-year-ten.md",
-    "ready": true,
+    "closed": "2026-10-07T17:09:52Z",
+    "path": "tickets/closed/0075-panel-rules-for-year-ten.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -1846,7 +1847,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0076-vigil-renders-as-peer-no-special-case.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
