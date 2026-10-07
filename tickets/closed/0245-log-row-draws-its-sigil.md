@@ -4,7 +4,7 @@ slug: log-row-draws-its-sigil
 title: The /log row draws its skill's sigil, as 06 §6.3–6.4 require
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 10-add-workout
 depends_on: [72]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-07T16:21:25Z
 started: 2026-10-07T16:27:35Z
+closed: 2026-10-07T16:29:53Z
 ---
 
 ## Description

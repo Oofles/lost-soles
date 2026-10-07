@@ -5626,7 +5626,7 @@
     "title": "The /log row draws its skill's sigil, as 06 §6.3–6.4 require",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "10-add-workout",
     "depends_on": [
@@ -5636,10 +5636,11 @@
     "source": "agent",
     "created": "2026-10-07T16:21:25Z",
     "started": "2026-10-07T16:27:35Z",
-    "path": "tickets/open/0245-log-row-draws-its-sigil.md",
-    "ready": true,
+    "closed": "2026-10-07T16:29:53Z",
+    "path": "tickets/closed/0245-log-row-draws-its-sigil.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }
