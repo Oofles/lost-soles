@@ -146,9 +146,11 @@ re-ingest: it replays the archived activity through the ingest path after the ch
 Neither is reachable without permanently moving XP on the real account.
 `kind-rescore.test.ts` remains their proof, as it was for `0243`.
 
-### For the operator: perceptual, still to do
+### For the operator: perceptual — verified 2026-10-07
 
-Not yet looked at by anyone. **Desktop browser** →
+**Done by the operator, desktop browser:** "I just changed the run to walk - looks good from my end." T3 afterwards showed `kind: walk`, `derivedKind: run`, `kindOverride.setBy: setActivityKind:<owner sub>`, set at 2026-10-07T14:54:46Z. That is the first call through the real path: the browser's Cognito token, then AppSync, then the Lambda. The ledger was unchanged (constitution 17, wayfaring 52). The run is left as Walk.
+
+The check as written: **Desktop browser** →
 `/run/ab00f0785a584d8704e81055a828103301dff427ed63e230cca3831f9d48b2d3`. Below the stub it should
 read **"Run · Change"**. Click Change, pick **Walk**, Save. Check that:
 - the line becomes **"Walk (was Run)"**;
