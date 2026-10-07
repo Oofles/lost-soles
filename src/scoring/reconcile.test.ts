@@ -13,6 +13,7 @@ const base = {
   userId: "u-1",
   fromVersion: 1,
   toVersion: 2,
+  runKey: "RUN1",
   awardedAt: "2026-09-29T00:00:00.000Z",
 }
 
@@ -29,7 +30,7 @@ describe("reconcile — the only step that may add rows (§4.6)", () => {
     })
     expect(rows).toEqual([
       {
-        id: "__floor__#wayfaring#v1-2",
+        id: "__floor__#wayfaring#v1-2#RUN1",
         userId: "u-1",
         activityId: FLOOR_ACTIVITY_ID,
         skillId: "wayfaring",
@@ -40,7 +41,7 @@ describe("reconcile — the only step that may add rows (§4.6)", () => {
         xpRulesVersion: 2,
         supersedesRulesVersion: 1,
         isFloor: true,
-        seq: `${FLOOR_SEQ_PREFIX}wayfaring`,
+        seq: `${FLOOR_SEQ_PREFIX}wayfaring#RUN1`,
         awardedAt: base.awardedAt,
       },
     ])
@@ -56,7 +57,7 @@ describe("reconcile — the only step that may add rows (§4.6)", () => {
       recomputed: new Map([["wayfaring", 396_100]]),
       existingFloors: new Map([["wayfaring", 14_800]]),
     })
-    expect(rows.map((r) => [r.id, r.xpAwarded])).toEqual([["__floor__#wayfaring#v2-3", 2_000]])
+    expect(rows.map((r) => [r.id, r.xpAwarded])).toEqual([["__floor__#wayfaring#v2-3#RUN1", 2_000]])
   })
 
   it("is idempotent: a re-run that finds its own floor computes a gap of zero (I-16c)", () => {
@@ -119,8 +120,15 @@ describe("reconcile — the only step that may add rows (§4.6)", () => {
     expect(4_321 + 1_000 + sumXp(rows)).toBe(9_999)
   })
 
-  it("floor ids are deterministic in (skill, from, to)", () => {
-    expect(floorId("might", 3, 4)).toBe("__floor__#might#v3-4")
+  it("floor ids are deterministic in (skill, from, to, run)", () => {
+    expect(floorId("might", 3, 4, "RUN1")).toBe("__floor__#might#v3-4#RUN1")
+  })
+
+  it("two runs over the same version pair write distinct floor ids (0237)", () => {
+    const input = { ...base, waterline: { s: { xp: 500, level: 5 } }, recomputed: new Map([["s", 300]]), existingFloors: new Map() }
+    const a = reconcile({ ...input, runKey: "RUN1" })
+    const b = reconcile({ ...input, runKey: "RUN2" })
+    expect(a[0]!.id).not.toBe(b[0]!.id)
   })
 })
 

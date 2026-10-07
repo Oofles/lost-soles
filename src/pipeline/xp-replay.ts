@@ -252,6 +252,11 @@ function sortableId(now: Date): string {
   return `${now.getTime().toString(36).padStart(9, "0")}${rand}`.toUpperCase()
 }
 
+/** The run's own id tail, `REPLAY#<user>#<runKey>`. Its floors carry it (`floorId`, `0237`). */
+export function replayRunKey(runId: string): string {
+  return runId.split("#").pop()!
+}
+
 /** The version SkillState was last computed under; `to` for a user with no XP yet. */
 function fromVersionOf(states: readonly StoredSkillState[], to: number): number {
   // The same reading the ingest worker takes (`0234`), so the two cannot disagree.
@@ -411,6 +416,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       existingFloors: survivors,
       fromVersion: run.fromRulesVersion,
       toVersion,
+      runKey: replayRunKey(run.id),
       awardedAt: at(),
     })
     await store.putLedger(floors)

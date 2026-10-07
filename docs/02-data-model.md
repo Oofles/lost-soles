@@ -1289,7 +1289,7 @@ gap            = prevDisplayed[skillId] - (newSum[skillId] + existingFloors)
 
 if gap > 0:
     Put XpLedgerEntry {
-      id:             `__floor__#${skillId}#v${fromVersion}-${toVersion}`,   # deterministic
+      id:             `__floor__#${skillId}#v${fromVersion}-${toVersion}#${runKey}`,   # deterministic per run
       activityId:     "__floor__",
       skillId, userId,
       reason:         "retained_floor",
@@ -1298,16 +1298,22 @@ if gap > 0:
       xpRulesVersion: toVersion,
       supersedesRulesVersion: fromVersion,
       isFloor:        true,
-      seq:            `9999-12-31T00:00:00Z#__floor__#${skillId}`,   # sorts last, always
+      seq:            `9999-12-31T00:00:00Z#__floor__#${skillId}#${runKey}`,   # sorts last, always
       awardedAt:      now
     }  ConditionExpression: attribute_not_exists(id)
 
 displayedXp = xpLedgerSum = newSum + existingFloors + gap    #  == prevDisplayed exactly
 ```
 
-*Known defect (D-276, 09 audit, 2026-10-02):* this id collides when two replays cover the same
-`from`→`to` pair with a fresh shortfall (e.g. two v1→v1 replays): the put throws at step 5 and the
-run is left `FAILED` with `replayInProgress` up — ticket `0237`.
+`runKey` is the ReplayRun id's time-sortable tail (`REPLAY#<userId>#<runKey>`, §4.5;
+`replayRunKey` in `src/pipeline/xp-replay.ts`). It exists because two DIFFERENT runs can cover
+the same `from`→`to` pair with a fresh shortfall. Examples are two v1→v1 replays with a tombstone
+between them, or v1→v2→v1→v2. Without `runKey` the second run's floor collided with the first's,
+the conditional put threw at step 5, and the run was left `FAILED` with `replayInProgress` up.
+That refused every ingest. *(Ticket `0237`, which fixes the defect D-276 recorded.)* A resumed
+run keeps its id, so it still finds its own floor and writes nothing twice. Floor rows written
+before `0237` keep the short id. Nothing parses a floor id: readers key on `isFloor` and
+`skillId`, so both shapes coexist.
 
 Five properties this buys, none of which a clamp would:
 
@@ -1316,8 +1322,8 @@ Five properties this buys, none of which a clamp would:
    with its own ledger would be an unfalsifiable number.
 2. **Auditable.** "Why is my Wayfaring 412,900 when the rules say 398,100?" is answered by a row
    the user can be shown: *14,800 XP retained from ruleset v1.*
-3. **Idempotent.** The `id` is deterministic in `(skill, fromVersion, toVersion)`, so re-running a
-   failed replay writes the same row once. Re-running an *already-completed* replay computes
+3. **Idempotent.** The `id` is deterministic in `(skill, fromVersion, toVersion, runKey)`, and a
+   resumed run keeps its `runKey`. So re-running a failed replay writes the same row once. Re-running an *already-completed* replay computes
    `gap = 0` and writes nothing.
 4. **No double counting across successive rebalances.** `existingFloors` is inside the `gap`
    arithmetic, so a v2→v3 replay only tops up whatever v3 still leaves short of the waterline.

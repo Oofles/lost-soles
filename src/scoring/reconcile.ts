@@ -37,9 +37,15 @@ export type Waterline = Record<string, WaterlineMark>
 /** Floor rows sort after every real row, so a chronological view shows them after their history. */
 export const FLOOR_SEQ_PREFIX = "9999-12-31T00:00:00Z#__floor__#"
 
-/** §4.6. Deterministic in `(skill, fromVersion, toVersion)`, which is what makes a re-run a no-op. */
-export function floorId(skillId: string, fromVersion: number, toVersion: number): string {
-  return `${FLOOR_ACTIVITY_ID}#${skillId}#v${fromVersion}-${toVersion}`
+/**
+ * §4.6. Deterministic in `(skill, fromVersion, toVersion, runKey)`, which is what makes a re-run of
+ * the SAME run a no-op. `runKey` is what lets two DIFFERENT runs over the same version pair (a
+ * second v1 → v1 after a tombstone) each write their own floor rather than colliding on the
+ * conditional put and wedging ingest (`0237`). It is the run's time-sortable id tail, so it also
+ * orders floors in the order they were written.
+ */
+export function floorId(skillId: string, fromVersion: number, toVersion: number, runKey: string): string {
+  return `${FLOOR_ACTIVITY_ID}#${skillId}#v${fromVersion}-${toVersion}#${runKey}`
 }
 
 export interface ReconcileInput {
@@ -51,6 +57,8 @@ export interface ReconcileInput {
   existingFloors: ReadonlyMap<string, number>
   fromVersion: number
   toVersion: number
+  /** The run writing the floors: stable across a resume, distinct between runs (`floorId`). */
+  runKey: string
   /** The replay's wall clock. Audit only (§4.1). */
   awardedAt: string
 }
@@ -63,7 +71,7 @@ export interface ReconcileInput {
  * recomputed total of 0, and its whole displayed XP is retained. That is the rule, not an edge.
  */
 export function reconcile(input: ReconcileInput): XpLedgerEntry[] {
-  const { userId, waterline, recomputed, existingFloors, fromVersion, toVersion, awardedAt } = input
+  const { userId, waterline, recomputed, existingFloors, fromVersion, toVersion, runKey, awardedAt } = input
   const out: XpLedgerEntry[] = []
 
   for (const skillId of Object.keys(waterline).sort()) {
@@ -74,7 +82,7 @@ export function reconcile(input: ReconcileInput): XpLedgerEntry[] {
       throw new Error(`reconcile: ${skillId}'s gap ${gap} is not an integer (I-19)`)
     }
     out.push({
-      id: floorId(skillId, fromVersion, toVersion),
+      id: floorId(skillId, fromVersion, toVersion, runKey),
       userId,
       activityId: FLOOR_ACTIVITY_ID,
       skillId,
@@ -85,7 +93,7 @@ export function reconcile(input: ReconcileInput): XpLedgerEntry[] {
       xpRulesVersion: toVersion,
       supersedesRulesVersion: fromVersion,
       isFloor: true,
-      seq: `${FLOOR_SEQ_PREFIX}${skillId}`,
+      seq: `${FLOOR_SEQ_PREFIX}${skillId}#${runKey}`,
       awardedAt,
     })
   }

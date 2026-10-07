@@ -437,8 +437,9 @@ const clock = () => {
 }
 
 let runIds = 0
-function deps(store: MemoryStore, v2: RuleSet) {
-  return { store, rules: rulesFor(v2), now: clock(), newId: () => `RUN${String(++runIds).padStart(4, "0")}`, sleep: store.drain }
+/** `runId` pins the run's id, for a comparison of two stores whose floors must carry the same one (0237). */
+function deps(store: MemoryStore, v2: RuleSet, runId?: string) {
+  return { store, rules: rulesFor(v2), now: clock(), newId: () => runId ?? `RUN${String(++runIds).padStart(4, "0")}`, sleep: store.drain }
 }
 
 const sumBySkill = (store: MemoryStore) =>
@@ -543,6 +544,30 @@ describe("a stingier ruleset (I-16)", () => {
     for (const [skillId, xp] of shown) expect(store.skills.get(skillId)!.displayedXp).toBe(xp)
   })
 
+  it("a second run over the same version pair with a fresh shortfall writes its own floor and completes (0237)", async () => {
+    // v1 → v2 floors the gap. v2 → v1 lifts the waterline above it (v1 rates + the surviving
+    // floor). v1 → v2 again then finds a NEW shortfall over the same (1, 2) pair — the case
+    // whose floor id used to collide, leaving the run FAILED and ingest refused.
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const first = await replayUser(USER, 2, deps(store, STINGY))
+    await replayUser(USER, 1, deps(store, STINGY))
+    const shown = new Map([...store.skills].map(([k, s]) => [k, s.displayedXp]))
+    const third = await replayUser(USER, 2, deps(store, STINGY))
+
+    expect(third.run.status).toBe("DONE")
+    expect(third.floors.length).toBeGreaterThan(0)
+    const ids = new Set(first.floors.map((f) => f.id))
+    for (const f of third.floors) {
+      expect(f).toMatchObject({ xpRulesVersion: 2, supersedesRulesVersion: 1 })
+      expect(ids.has(f.id)).toBe(false)
+    }
+    // Both runs' floors are on the ledger, and nothing fell.
+    const floorsOnLedger = [...store.ledger.values()].filter((e) => e.isFloor)
+    expect(floorsOnLedger).toHaveLength(first.floors.length + third.floors.length)
+    for (const [skillId, xp] of shown) expect(store.skills.get(skillId)!.displayedXp).toBe(xp)
+    expect(store.profile.replayInProgress).toBeFalsy()
+  })
+
   it("step 2 deletes only isFloor = false rows: every floor survives a replay (I-18)", async () => {
     const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
     await replayUser(USER, 2, deps(store, STINGY))
@@ -551,6 +576,30 @@ describe("a stingier ruleset (I-16)", () => {
     // MemoryStore.deleteLedger throws on a floor id, so reaching here is half the proof.
     await replayUser(USER, 2, deps(store, STINGY))
     for (const f of floors) expect(store.ledger.get(f.id)).toEqual(f)
+  })
+
+  it("a floor in the pre-0237 id shape is kept, counted, and does not collide with a later run's (0237)", async () => {
+    // Live T4 holds `__floor__#cartography#v1-2` from before the run key existed.
+    const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
+    const shown = new Map([...store.skills].map(([k, s]) => [k, s.displayedXp]))
+    await replayUser(USER, 2, deps(store, STINGY))
+    for (const f of [...store.ledger.values()].filter((e) => e.isFloor)) {
+      store.ledger.delete(f.id)
+      const legacy = { ...f, id: `__floor__#${f.skillId}#v1-2`, seq: `9999-12-31T00:00:00Z#__floor__#${f.skillId}` }
+      store.ledger.set(legacy.id, legacy)
+    }
+    const legacy = [...store.ledger.values()].filter((e) => e.isFloor)
+
+    // Counted: a same-version re-run finds the legacy floors and writes none of its own.
+    expect((await replayUser(USER, 2, deps(store, STINGY))).floors).toEqual([])
+    for (const [skillId, xp] of shown) expect(store.skills.get(skillId)!.displayedXp).toBe(xp)
+
+    // No collision: v2 → v1 → v2 floors a fresh shortfall over the same (1, 2) pair beside them.
+    await replayUser(USER, 1, deps(store, STINGY))
+    const again = await replayUser(USER, 2, deps(store, STINGY))
+    expect(again.run.status).toBe("DONE")
+    expect(again.floors.length).toBeGreaterThan(0)
+    for (const f of legacy) expect(store.ledger.get(f.id)).toEqual(f)
   })
 })
 
@@ -836,7 +885,8 @@ describe("the ReplayRun audit row (§4.5)", () => {
 describe("resumability", () => {
   async function finalOf(v2: RuleSet) {
     const clean = new MemoryStore(fixture(), rulesFor(v2)).seedByIngest()
-    await replayUser(USER, v2.version, deps(clean, v2))
+    // The killed run and the clean one share an id: floor ids carry it (0237).
+    await replayUser(USER, v2.version, deps(clean, v2, "RUN-R"))
     return clean.snapshot()
   }
 
@@ -862,14 +912,14 @@ describe("resumability", () => {
     } else {
       store.crash = (name, n) => (name === op && n === at ? new Error(`killed in ${op}`) : undefined)
     }
-    await expect(replayUser(USER, 2, deps(store, STINGY))).rejects.toThrow(/killed/)
+    await expect(replayUser(USER, 2, deps(store, STINGY, "RUN-R"))).rejects.toThrow(/killed/)
     if (op === "putLedger") {
       expect(floorPuts).toBe(1)
       store.putLedger = MemoryStore.prototype.putLedger.bind(store)
     }
     store.crash = undefined
 
-    const resumed = await replayUser(USER, 2, deps(store, STINGY))
+    const resumed = await replayUser(USER, 2, deps(store, STINGY, "RUN-R"))
     expect(resumed.resumed).toBe(true)
     expect(store.snapshot()).toEqual(want)
     expect(store.runs.size).toBe(1)
@@ -880,19 +930,19 @@ describe("resumability", () => {
     const want = await finalOf(STINGY)
     const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
     store.crash = (name, n) => (name === "loadTrace" && n === 2) || name === "updateRun" ? new Error("SIGKILL") : undefined
-    await expect(replayUser(USER, 2, deps(store, STINGY))).rejects.toThrow("SIGKILL")
+    await expect(replayUser(USER, 2, deps(store, STINGY, "RUN-R"))).rejects.toThrow("SIGKILL")
     expect([...store.runs.values()][0]!.status).toBe("RUNNING")
     store.crash = undefined
-    await replayUser(USER, 2, deps(store, STINGY))
+    await replayUser(USER, 2, deps(store, STINGY, "RUN-R"))
     expect(store.snapshot()).toEqual(want)
   })
 
   it("refuses to start a replay to a different version over an unfinished one", async () => {
     const store = new MemoryStore(fixture(), rulesFor(STINGY)).seedByIngest()
     store.crash = (name) => (name === "thaw" ? new Error("boom") : undefined)
-    await expect(replayUser(USER, 2, deps(store, STINGY))).rejects.toThrow()
+    await expect(replayUser(USER, 2, deps(store, STINGY, "RUN-R"))).rejects.toThrow()
     store.crash = undefined
-    await expect(replayUser(USER, 1, deps(store, STINGY))).rejects.toThrow(/unfinished replay to v2/)
+    await expect(replayUser(USER, 1, deps(store, STINGY, "RUN-R"))).rejects.toThrow(/unfinished replay to v2/)
   })
 })
 

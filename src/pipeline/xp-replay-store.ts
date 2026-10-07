@@ -22,6 +22,7 @@ import {
   type ReplayStore,
   type SkillStateWrite,
   type StoredSkillState,
+  replayRunKey,
 } from "./xp-replay"
 
 /**
@@ -106,7 +107,7 @@ async function batchWrite(deps: ReplayStoreDeps, table: string, requests: Item[]
 
 /** The ReplayRun as a T4 item: ledger-shaped so every required field is present (§4.5). */
 export function replayRunItem(run: ReplayRunRecord): Item {
-  const idTail = run.id.split("#").pop()!
+  const idTail = replayRunKey(run.id)
   return {
     ...amplifyMetadata(run.userId, run.startedAt, LEDGER_TYPENAME),
     updatedAt: run.finishedAt ?? run.startedAt,

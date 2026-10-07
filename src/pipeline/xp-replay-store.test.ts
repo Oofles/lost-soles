@@ -140,6 +140,7 @@ describe("I-18 at the table", () => {
       existingFloors: new Map(),
       fromVersion: 1,
       toVersion: 2,
+      runKey: "RUN1",
       awardedAt: "2026-09-29T12:00:00.000Z",
     })
     await store.putLedger([...rows, ...floors])
@@ -150,7 +151,7 @@ describe("I-18 at the table", () => {
     expect(puts).toHaveLength(1)
     expect(puts[0]!.input.ConditionExpression).toBe("attribute_not_exists(id)")
     expect(puts[0]!.input.Item).toMatchObject({
-      id: "__floor__#s#v1-2",
+      id: "__floor__#s#v1-2#RUN1",
       isFloor: true,
       xpAwarded: 699,
       supersedesRulesVersion: 1,
