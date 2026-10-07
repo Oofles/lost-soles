@@ -4,11 +4,11 @@ slug: skill-detail-sheet
 title: /skills/:skillId detail sheet
 type: feature
 priority: high
-status: blocked
+status: open
 size: m
 capability: 11-skills-panel
 depends_on: [62, 63, 73]
-blocked_by: [242]
+blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 ---

@@ -1786,7 +1786,7 @@
     "title": "/skills/:skillId detail sheet",
     "type": "feature",
     "priority": "high",
-    "status": "blocked",
+    "status": "open",
     "size": "m",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1794,13 +1794,11 @@
       63,
       73
     ],
-    "blocked_by": [
-      242
-    ],
+    "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0074-skill-detail-sheet.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 13
