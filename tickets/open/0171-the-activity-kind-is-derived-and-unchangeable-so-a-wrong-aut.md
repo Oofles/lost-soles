@@ -4,11 +4,11 @@ slug: the-activity-kind-is-derived-and-unchangeable-so-a-wrong-aut
 title: The activity kind is derived and unchangeable, so a wrong auto-classification is permanent
 type: feature
 priority: med
-status: blocked
+status: open
 size: m
 capability: 10-add-workout
 depends_on: []
-blocked_by: [243, 244]
+blocked_by: []
 source: operator
 created: 2026-09-06T00:37:31Z
 ---
