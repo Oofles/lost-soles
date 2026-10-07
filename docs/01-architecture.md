@@ -520,7 +520,9 @@ export interface Activity {
   name?: string
   source: SourceRef
   raw: RawArchiveRef
-  /** D-060/D-062: present only for kind === "strength". Sets modelled from day one. */
+  /** D-060/D-062: present only on a manual entry — `strength`, or since D-286 a hand-logged
+   *  distance (`{ exercise, distanceM, durationS? }`). Sets modelled from day one. The ingestion
+   *  contract is canonical for the shape; this sketch is not (D-288). */
   sets?: Array<{ exercise: string; reps?: number; durationS?: number; weightKg?: number }>
 }
 
@@ -663,7 +665,9 @@ fingerprinting, so a Garmin purchase means the file-upload adapter, not an API a
 API anywhere that exposes reps or sets. Not Strava, not Whoop, not Fitbit. This is forced,
 not chosen. The manual adapter has no `fetchRaw` network call: the "raw" archived artifact
 is the submitted form payload as JSON, so even hand-entered data has an immutable record.
-It emits `kind: "strength"` with `sets`, and **no `Trace`** — which is precisely why `trace`
+It emits ~~`kind: "strength"`~~ *(amended by D-288, per D-286: the exercise's own `kind` from the
+registry, defaulting to `strength`, so a treadmill log is `kind: "run"` with `distanceM`)* with
+`sets`, and **no `Trace`** — which is precisely why `trace`
 is optional on `NormalizedIngest` rather than a required empty array.
 
 **File upload (repair hatch).** GPX/FIT/TCX from a Strava bulk export or a watch. R10 kills

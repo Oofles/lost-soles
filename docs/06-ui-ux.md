@@ -1004,15 +1004,20 @@ review, no ticket.
 
 ### 6.2 What the page is for, physically
 
-The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with
-sweat on the screen. That is the design brief. Three consequences, all non-negotiable:
+~~The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with
+sweat on the screen. That is the design brief.~~ *Amended by D-288 (`10` audit, 2026-10-07), per
+D-251:* `/log` is a **desktop-browser** page. The phone is neither a viewing nor an input surface,
+and the operator has said they do not log from it. The brief is a person at their desk just after
+a workout who wants it recorded and gone. Two consequences, both non-negotiable:
 
-- **One tap logs the common case.** D-062: one-tap quick log for MVP.
+- **One click logs the common case.** D-062: one-tap quick log for MVP.
 - **Nothing waits on the network.** The page renders from cache; the write goes to IndexedDB and
   syncs behind you.
-- **Every interactive target is in the right-hand thumb arc and at least 56dp** (§9.2, §9.3).
+- ~~**Every interactive target is in the right-hand thumb arc and at least 56dp** (§9.2, §9.3).~~
+  *Withdrawn by D-251.* Targets are ordinary desktop controls, and the page must still not break
+  at a narrow width.
 
-Target: **from plinth tap to logged, under three seconds, one thumb, without looking twice.**
+Target: **from the plinth's "Add workout" to logged, under three seconds, without looking twice.**
 
 ### 6.3 Wireframe
 
@@ -1024,8 +1029,8 @@ Target: **from plinth tap to logged, under three seconds, one thumb, without loo
 │  │ ✥  MIGHT              pushups            ││
 │  │                                          ││
 │  │   ┌───┐   ┏━━━━━━━┓   ┌───┐   ┌────────┐ ││
-│  │   │ − │   ┃  30   ┃   │ + │   │  LOG   │ ││  ← 56dp controls,
-│  │   └───┘   ┗━━━━━━━┛   └───┘   └────────┘ ││    LOG on the right edge
+│  │   │ − │   ┃  30   ┃   │ + │   │  LOG   │ ││  ← LOG on the right
+│  │   └───┘   ┗━━━━━━━┛   └───┘   └────────┘ ││    edge (D-288)
 │  └──────────────────────────────────────────┘│
 │  ┌──────────────────────────────────────────┐│
 │  │ ✜  FORTITUDE          situps             ││
@@ -1089,7 +1094,10 @@ toast, no "workout saved!" confirmation banner. The row itself is the confirmati
 
 The whole point of D-061, stated as a procedure:
 
-1. Add a row to `rules/xp-rules-v1.yaml` (04 §1.3): `id`, `name`, `kind: activity`, `logMode`,
+1. Add a row ~~to `rules/xp-rules-v1.yaml`~~ *(amended by D-288: to **a new
+   `rules/xp-rules-vN.yaml`**, the newest version plus the row, because a shipped version is never
+   edited — 02 §3.8, 04 §7.6, D-282. The operator's ledger moves onto it by a replay that moves no
+   XP, as v3 did under D-286)* (04 §1.3): `id`, `name`, `kind: activity`, `logMode`,
    `unit`, `xpPerUnit`, `feeds: constitution`, and an `exercises` entry (`id`, `label`, `entry`,
    `quickValues`). The stepper's step comes from `entry` (D-282), not from the row.
 2. Add one sigil to the icon set.
@@ -1468,6 +1476,11 @@ Bright ambient light is the app's real display environment, and it is harsher th
 
 ### 9.2 One-handed reach on a large Android phone (D-124)
 
+> **Superseded by D-251 (struck here by D-288, `10` audit, 2026-10-07).** The phone is neither a
+> viewing nor an input surface, so nothing below is a requirement. The section stays as the
+> record of what was designed. The table's *placements* still describe the shipped layout
+> (`LOG` on the right edge, the gear top-right), but the thumb arc is no longer why they are there.
+
 Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking.
 The comfortable right-thumb arc covers roughly **y > 520dp** — the bottom ~43% — plus a narrow
 band up the right edge. The top-left corner is effectively unreachable without a grip change.
@@ -1487,9 +1500,10 @@ How each screen sits inside that:
   reachability but is never the only path (§1.5).
 - **The gear at top-right** is the one infrequent target in the upper band, and top-right is
   materially easier than top-left for a right thumb. That is the correct corner for it.
-- **Left-handed mirroring** is a single flexbox direction and one flag in `/settings`: it flips
+- ~~**Left-handed mirroring** is a single flexbox direction and one flag in `/settings`: it flips
   the `LOG` column, `SAVE`, and the recentre button to the left edge. Cheap enough to include,
-  and it is set once and never touched again — so it does not violate D-013.
+  and it is set once and never touched again — so it does not violate D-013.~~ *Withdrawn by
+  D-251 (`0215`); struck here by D-288. There is no `/settings` flag.*
 
 ### 9.3 Sweaty thumbs, cold hands, gloves
 

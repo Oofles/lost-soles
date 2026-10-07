@@ -4,7 +4,7 @@
     "users": {
       "9ec8069a18c7209a": {
         "cellCount": 1141,
-        "generation": 129
+        "generation": 134
       }
     }
   },
@@ -16,11 +16,11 @@
           "level": 1
         },
         "cartography": {
-          "displayedXp": 14807,
-          "level": 22
+          "displayedXp": 15985,
+          "level": 23
         },
         "constitution": {
-          "displayedXp": 1553,
+          "displayedXp": 1584,
           "level": 11
         },
         "endurance": {
@@ -32,8 +32,8 @@
           "level": 1
         },
         "might": {
-          "displayedXp": 0,
-          "level": 1
+          "displayedXp": 80,
+          "level": 4
         },
         "roving": {
           "displayedXp": 0,
@@ -48,7 +48,7 @@
           "level": 1
         },
         "wayfaring": {
-          "displayedXp": 4661,
+          "displayedXp": 4675,
           "level": 15
         }
       }

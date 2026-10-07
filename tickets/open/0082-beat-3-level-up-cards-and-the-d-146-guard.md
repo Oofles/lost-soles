@@ -83,6 +83,14 @@ D-148 applies to the card: gold leaf is a fill and a rule; gold type is permitte
 the skill name is ≥24sp-equivalent or sits on navy. Check the contrast, do not assume the card is
 exempt because it is celebratory.
 
+**2026-10-07 (capability `10` audit, D-288).** `06` §6.4 says level-ups still interrupt on
+`/log`: *"If a log crosses a level, the §3 Beat 3 card plays over the page, identically."*
+`0068` handed this to this ticket ("capability 12's Beat 3 (`0082`)"), but the body above never
+mentions `/log`. So it is in scope here: the card must also play over `/log` when a hand log
+crosses a level. The row already computes the resulting level optimistically
+(`lib/log/optimistic.ts` `rowResult`). The D-146 guard applies there too, since a new skill's
+first log mints a point.
+
 ## Operator validation
 
 **Use the next ordinary run, or an imported/replayed or synthetic activity (manual adapter or through the queue, D-229)**, ideally one long enough to gain a

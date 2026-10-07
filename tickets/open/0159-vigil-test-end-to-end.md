@@ -82,6 +82,13 @@ case DOES write them. Assert both arms.
 Capability is `12-post-run-moment` because `0082` is the last dependency to land, not because the
 test is about the post-run screen.
 
+**2026-10-07 (capability `10` audit).** A second registry-delta harness now exists:
+`app/new-workout-type.test.tsx` (`0072`). It already runs a real `logWorkout` and the Vigil
+traceless/traced clauses under a fresh ruleset, and it asserts the traceless run writes zero
+`ExploredCell`, but only that arm. Before extending `0030`'s harness, decide which of the two to
+extend, and do not build a third. The "two harnesses would drift" warning above now applies to
+these two.
+
 ## Operator validation
 
 None expected — a CI regression test with no rendered surface. The operator-visible consequence is

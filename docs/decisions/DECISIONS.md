@@ -4418,3 +4418,38 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     static shell.
   - **Background Sync** stays unadopted. `LogQueueRunner`'s in-page flush (`0068`) does the
     same job without a worker.
+
+- **D-288** **Capability `10`'s drift audit found three design sections stale against decisions
+  already made, and they were amended in place in the audit session, not left for later.**
+  *(Agent, approved by the operator, 2026-10-07, capability `10-add-workout` audit. Follows
+  D-276's precedent.)*
+  - **What was found.** §2 found four divergences, one over AUDIT.md's budget of three. Three of
+    them were decisions made during the build and never written back into the section they
+    changed:
+    - `06` §6.2, §6.3 and §9.2 still described a phone in a hallway: a one-thumb brief, 56dp
+      targets, the right-thumb arc, and a left-handed `/settings` flag. **D-251** withdrew all of
+      it and was applied to tickets `0071` and `0068`, but not to the doc.
+    - `06` §6.5 step 1 said to add a new workout type to `rules/xp-rules-v1.yaml`. A shipped
+      version is never edited (02 §3.8, 04 §7.6, **D-282**), so a new type ships as the next
+      version. `0072` had to amend its own criterion because of this.
+    - `01` §3 said the manual adapter emits `kind: "strength"`, and its `Activity` sketch said
+      `sets` exist only on strength. Since **D-286** it stamps the exercise's own kind (treadmill
+      → `run`) with `distanceM`. The ingestion contract was amended; `01` was not.
+  - **Resolution.** The operator chose to run the DESIGN session inside the audit, as for D-276.
+    Each amendment cites this decision: `06` §6.2, §6.3, §6.5 and §9.2; and `01` §3 (manual
+    entry, and the `Activity.sets` comment). No design changed: every amendment applies a
+    decision already recorded.
+  - **What remains is code.** The `/log` row draws no sigil, which §6.3–6.4 require. `0068` and
+    `0071` handed it to `0072`, and `0072` put sigils on `/skills` only. That is filed as a
+    code-was-wrong ticket. The audit records that ticket and this decision as its two
+    divergences.
+  - **Handoffs repaired.** `0068` handed §6.4's "level-ups still interrupt" `/log` to `0082`,
+    whose body never mentions `/log`. A dated note now carries it there.
+  - **The lesson is D-276's, again.** A decision that withdraws or changes a design section is
+    not finished until every section it touches says so. Each of these was applied partially:
+    - D-251 reached the tickets but not `06`.
+    - D-282 fixed §6.5's stepper sentence but not the file named one line above it.
+    - D-286 amended the contract and `06` §6.4 but not `01` §3.
+
+    Before closing a decision, grep the docs for what it changed, not just the section that
+    prompted it.
