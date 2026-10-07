@@ -5536,17 +5536,19 @@
     "title": "App-shell service worker so a cold reload renders offline",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-06T18:50:58Z",
-    "path": "tickets/open/0241-app-shell-service-worker-offline-reload.md",
-    "ready": true,
+    "started": "2026-10-07T16:07:45Z",
+    "closed": "2026-10-07T16:07:50Z",
+    "path": "tickets/closed/0241-app-shell-service-worker-offline-reload.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
