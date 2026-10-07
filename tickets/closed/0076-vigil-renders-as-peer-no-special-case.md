@@ -4,7 +4,7 @@ slug: vigil-renders-as-peer-no-special-case
 title: Vigil renders as a peer of Wayfaring with no special case — the UI half of D-132
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 11-skills-panel
 depends_on: [73, 75]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-07T18:51:08Z
+closed: 2026-10-07T19:14:16Z
 ---
 
 ## Description
@@ -145,7 +146,14 @@ criteria.
     tile as Wayfaring's with a gold bar. Wayfaring (15) and Cartography (23) look identical to
     before. Constitution's bar moved, at the same level.
 
-### For the operator: perceptual
+### For the operator: perceptual — verified 2026-10-07
+
+**Done by the operator, desktop browser, `tmp/0076/before.html` → `after.html`:** "both checks
+pass". Vigil's tile reads as the same kind of thing as Wayfaring's. Wayfaring's and Cartography's
+bars stay put, and Vigil's appears and fills.
+
+The check as written:
+
 
 **Desktop browser, open `tmp/0076/before.html` and then `tmp/0076/after.html`.** They show your
 live levels, before and after a 5 km treadmill run.

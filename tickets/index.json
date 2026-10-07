@@ -1803,7 +1803,7 @@
     "ready": false,
     "acceptance": {
       "checked": 0,
-      "total": 11
+      "total": 13
     }
   },
   {
@@ -1836,7 +1836,7 @@
     "title": "Vigil renders as a peer of Wayfaring with no special case — the UI half of D-132",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "11-skills-panel",
     "depends_on": [
@@ -1847,11 +1847,12 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-07T18:51:08Z",
-    "path": "tickets/open/0076-vigil-renders-as-peer-no-special-case.md",
-    "ready": true,
+    "closed": "2026-10-07T19:14:16Z",
+    "path": "tickets/closed/0076-vigil-renders-as-peer-no-special-case.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 10
+      "checked": 8,
+      "total": 8
     }
   },
   {
