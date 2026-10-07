@@ -5576,7 +5576,7 @@
     "title": "A kind override is stored as a correction and honoured by ingest, rebuild and scoring",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -5586,10 +5586,11 @@
     "source": "agent",
     "created": "2026-10-07T11:43:42Z",
     "started": "2026-10-07T12:12:25Z",
-    "path": "tickets/open/0243-kind-override-stored-and-honoured.md",
-    "ready": true,
+    "closed": "2026-10-07T12:44:47Z",
+    "path": "tickets/closed/0243-kind-override-stored-and-honoured.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -5609,7 +5610,7 @@
     "source": "agent",
     "created": "2026-10-07T11:43:43Z",
     "path": "tickets/open/0244-change-kind-from-run-page.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 4

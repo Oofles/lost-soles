@@ -4,7 +4,7 @@ slug: kind-override-stored-and-honoured
 title: A kind override is stored as a correction and honoured by ingest, rebuild and scoring
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [237]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-07T11:43:42Z
 started: 2026-10-07T12:12:25Z
+closed: 2026-10-07T12:44:47Z
 ---
 
 ## Description
