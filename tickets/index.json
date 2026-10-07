@@ -5515,17 +5515,18 @@
     "title": "Manual distance logging on /log (treadmill / track) needs a distance set field",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-06T18:50:58Z",
-    "path": "tickets/open/0240-manual-distance-logging-on-log.md",
-    "ready": true,
+    "closed": "2026-10-07T16:02:53Z",
+    "path": "tickets/closed/0240-manual-distance-logging-on-log.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
