@@ -163,3 +163,14 @@ bottom, and measures:
 
 A screenshot at 400 px shows three even columns, with "Mountaineering" and "Oarsmanship" inside
 their tiles.
+
+**Operator, desktop browser, `before.html` / `after.html` (15-skill fixture), verified 2026-10-07:
+"Looks great! All 4 validation steps are good."** The four checks:
+1. Find Fortitude by position alone.
+2. Find it in the same place after every level changed.
+3. `Untrained (1)` sits at the bottom, and opening it does not push the header off.
+4. Meta bars read as a different colour from activity bars at a glance.
+
+The operator also asked for two changes: drop the crest tile at the end of META, and use more
+than three columns on a wide window. Both contradict 06 §5.1–5.2 as written, so they were filed
+as their own tickets with a recorded decision, not folded into this one.
