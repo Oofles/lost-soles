@@ -5454,17 +5454,19 @@
     "title": "A second replay over the same version pair collides on the retained_floor id and wedges ingest",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "09-xp-engine-and-ledger",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-02T15:19:39Z",
-    "path": "tickets/open/0237-retained-floor-id-collides-across-replays.md",
-    "ready": true,
+    "started": "2026-10-07T12:01:28Z",
+    "closed": "2026-10-07T12:07:01Z",
+    "path": "tickets/closed/0237-retained-floor-id-collides-across-replays.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -5584,7 +5586,7 @@
     "source": "agent",
     "created": "2026-10-07T11:43:42Z",
     "path": "tickets/open/0243-kind-override-stored-and-honoured.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
