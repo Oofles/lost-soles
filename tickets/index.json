@@ -1887,7 +1887,7 @@
     "title": "/run/:activityId route, its four entry points, and the persistent end state",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -1898,10 +1898,11 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-08T15:29:31Z",
-    "path": "tickets/open/0078-post-run-route-and-end-state.md",
-    "ready": true,
+    "closed": "2026-10-08T16:15:14Z",
+    "path": "tickets/closed/0078-post-run-route-and-end-state.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -1970,7 +1971,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0081-beat-2-the-tally.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
