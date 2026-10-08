@@ -1922,6 +1922,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-08T19:20:14Z",
     "path": "tickets/open/0079-fog-reveal-animation-api.md",
     "ready": true,
     "acceptance": {
@@ -1941,7 +1942,8 @@
     "depends_on": [
       78,
       79,
-      57
+      57,
+      251
     ],
     "blocked_by": [],
     "source": "operator",
@@ -5750,6 +5752,48 @@
     "source": "agent",
     "created": "2026-10-08T15:18:40Z",
     "path": "tickets/open/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 251,
+    "slug": "run-reveal-cell-classes",
+    "title": "Serve the run's own new and re-armed cell ids to /run/:id, so beat 1 knows what to reveal",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      78
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-08T19:31:14Z",
+    "path": "tickets/open/0251-run-reveal-cell-classes.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 252,
+    "slug": "d238-elision-lowers-interior-vertices",
+    "title": "D-238's bridge elision lowers the steady mask at interior vertices where H3 cells run large",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-08T19:51:17Z",
+    "path": "tickets/open/0252-d238-elision-lowers-interior-vertices.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

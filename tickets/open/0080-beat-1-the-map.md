@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 12-post-run-moment
-depends_on: [78, 79, 57]
+depends_on: [78, 79, 57, 251]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -73,6 +73,12 @@ and sound is state you must configure, which is upkeep (D-013).
 
 Depends on 0079 for the animated mask (do not inline a second reveal path here), 0057 for the route
 polyline layer, and 0078 for the route and end state to land in.
+
+**And on 0251 for WHICH cells to reveal** (D-293). `0079`'s seam takes a run's cells whether or not
+they are persisted; on `/run/:id` they always are, so the reveal set must be this run's new (and
+possibly re-armed) cells as the server classified them — passed to `useFogMask`'s `reveal` input and
+driven with `layer.setRevealProgress`. Passing every cell the route touches (what `?fog=scrub` does)
+would fog familiar ground at `p = 0`.
 
 The three ground treatments read the discovery classification computed at ingest by 0048 — beat 1
 must not reclassify anything client-side. If the classification is missing (an older activity
