@@ -92,7 +92,7 @@ export function ActivityKind({ activityId }: { activityId: string }) {
   }
 
   return (
-    <section aria-label="Activity kind" style={{ padding: "0 1.5rem 1.5rem", maxWidth: "40rem" }}>
+    <section aria-label="Activity kind">
       <p style={{ color: "var(--text-primary)", margin: 0 }}>
         {kindLabel(row.kind)}
         {was ? <span style={{ color: "var(--text-muted)" }}> (was {kindLabel(was)})</span> : null}
