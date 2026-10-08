@@ -139,8 +139,11 @@ reached from inside those.
   scrim tap.
 - Deep links: the "run is on the map" notification opens `/run/:id` directly and back goes
   to `/`, not to a stack of nothing.
-- Desktop (secondary, D-124): the same routes; the plinth becomes a fixed left rail at
-  ≥1024px, and the map takes the remaining width. No separate desktop IA.
+- Desktop — **the viewing surface** (D-227, hardened to *only* by D-251; this line said
+  "secondary, D-124" until the `11` audit): the same routes; the plinth becomes a fixed left rail
+  at ≥1024px, and the map takes the remaining width. No separate desktop IA. The phone is for
+  capture and the occasional glance; a phone-only affordance (swipe-down, thumb arc) is
+  low priority by default.
 
 ---
 

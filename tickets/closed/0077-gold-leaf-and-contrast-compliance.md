@@ -151,7 +151,7 @@ background is the same opaque value at every scroll offset. Screenshots read cle
 largest font — every name and level legible, nothing clipped.
 `node scripts/check-contrast.mjs` → 28 pairs pass; full suite 2,926 passed.
 
-**Operator, desktop browser — pending.** In the desktop browser, on **`/skills`**: read every skill name and every level; anything you
+**Operator, desktop browser, deployed app (job 331), verified 2026-10-08: "Checks are good."** Recorded during the `11-skills-panel` audit; the ticket had closed with this marked pending. The check was: in the desktop browser, on **`/skills`**: read every skill name and every level; anything you
 have to squint at fails. Scroll the grid under the pinned
 header and confirm the header's text never changes legibility as content passes behind it — if it
 does, the header is not opaque. Repeat at 200% zoom and confirm nothing

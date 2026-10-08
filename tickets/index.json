@@ -5713,5 +5713,45 @@
       "checked": 0,
       "total": 5
     }
+  },
+  {
+    "id": 249,
+    "slug": "skill-and-chronicle-sheets-dismiss-on-swipe-down",
+    "title": "Skill and chronicle sheets dismiss on swipe-down",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-08T15:18:40Z",
+    "path": "tickets/open/0249-skill-and-chronicle-sheets-dismiss-on-swipe-down.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 250,
+    "slug": "typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d",
+    "title": "Typecheck, lint and tests ignore the gitignored tmp/ scratch directory",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-08T15:18:40Z",
+    "path": "tickets/open/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
