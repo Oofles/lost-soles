@@ -11,6 +11,7 @@ import {
   type ControllerHost,
   type ControllerMap,
 } from "./viewport-controller"
+import { INSTANCE_FLOATS } from "./mask"
 import { resForZoom, ZoomBucketStore } from "./zoom-buckets"
 
 /**
@@ -168,7 +169,7 @@ function controllerOn(options: { zoom?: number; k?: number } = {}) {
     store,
     host,
     onInstances: (instances, _result, res, fromData) =>
-      uploads.push({ count: instances.length / 4, res, fromData }),
+      uploads.push({ count: instances.length / INSTANCE_FLOATS, res, fromData }),
   })
   return { map, host, store, controller, uploads }
 }
@@ -651,5 +652,65 @@ describe("the debounce window warms the incoming bucket — 0202", () => {
     map.move({ zoom: 11 })
     host.runIdle()
     expect(controller.stats().prefetched).toBe(before)
+  })
+})
+
+describe("0079 — a reveal culls both stores against one box", () => {
+  it("rebuilds at once, hands the pre-run stream over, and is not a data change", () => {
+    const map = fakeMap(15)
+    const host = fakeHost()
+    const store = new ZoomBucketStore(solidDisc(30))
+    const got: Array<{ post: number; pre: number | null; fromData: boolean }> = []
+    const controller = new FogViewportController({
+      map,
+      store,
+      host,
+      onInstances: (instances, _result, _res, fromData, pre) =>
+        got.push({
+          post: instances.length / INSTANCE_FLOATS,
+          pre: pre ? pre.length / INSTANCE_FLOATS : null,
+          fromData,
+        }),
+    })
+    controller.start()
+    expect(got.at(-1)!.pre).toBeNull()
+
+    const pre = new ZoomBucketStore(solidDisc(10))
+    controller.setReveal({ pre, post: store })
+    // Synchronous: the layer must hold the pre-run stream before the next frame.
+    expect(got).toHaveLength(2)
+    expect(got[1]!.pre).toBeGreaterThan(0)
+    expect(got[1]!.pre!).toBeLessThan(got[1]!.post)
+    // NOT `fromData` — that would discard 0057's corridor, which is what a reveal animates.
+    expect(got[1]!.fromData).toBe(false)
+
+    // A pan out of the padded region keeps culling both.
+    map.move({ lng: NEMO.lng + 0.05 })
+    expect(got.at(-1)!.pre).not.toBeNull()
+
+    controller.setReveal(null)
+    expect(got.at(-1)!.pre).toBeNull()
+    // The same reveal twice is one rebuild, not two.
+    const before = got.length
+    controller.setReveal(null)
+    expect(got).toHaveLength(before)
+  })
+
+  it("installs nothing while hidden, and picks the reveal up when shown", () => {
+    const map = fakeMap(15)
+    const store = new ZoomBucketStore(solidDisc(30))
+    const got: Array<number | null> = []
+    const controller = new FogViewportController({
+      map,
+      store,
+      host: fakeHost(),
+      onInstances: (_i, _r, _res, _d, pre) => got.push(pre ? pre.length : null),
+    })
+    controller.start()
+    controller.setHidden(true)
+    controller.setReveal({ pre: new ZoomBucketStore(solidDisc(10)), post: store })
+    expect(got).toHaveLength(1)
+    controller.setHidden(false)
+    expect(got.at(-1)).not.toBeNull()
   })
 })

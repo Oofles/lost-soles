@@ -115,3 +115,17 @@ export function perfDataset(search: string): string | null {
 export function perfEnabled(search: string): boolean {
   return perfDataset(search) !== null
 }
+
+/**
+ * `0079`. `?fog=scrub` — the reveal scrub control on `/run/:id`: a slider that drags
+ * `revealProgress` from 0 to 1 by hand over this run's cells.
+ *
+ * THE TICKET SAYS "DEV BUILD ONLY", AND THIS IS THAT, in the form every other fog debug view
+ * already takes. The operator validates on the deployed site (D-227), so a control behind
+ * `NODE_ENV === "development"` would exist only where nobody looks at it. A query flag is equally
+ * invisible to normal use — nothing links to it and the next navigation drops it — and composes with
+ * `?fog=mask` (is the COVERAGE retreating?) and `?fog=perf` (what does a reveal frame cost?).
+ */
+export function revealScrubEnabled(search: string): boolean {
+  return fogFlags(search).has("scrub")
+}

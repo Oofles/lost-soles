@@ -5,7 +5,7 @@ import { metresBetween } from "@/src/domain/geo"
 import type { RouteTraceGeometry } from "@/lib/runs/wire"
 
 import { discRadiusM, mercatorX, mercatorY, metresToMercator } from "./instances"
-import { INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, INSTANCE_FLOATS } from "./mask"
 
 /**
  * THE OPTIMISTIC CORRIDOR. Ticket `0057`. `05-fog-of-war.md` §4.4's *"optimisation worth taking"*,
@@ -86,12 +86,19 @@ export interface CorridorPack {
   count: number
   /** True when `MAX_CORRIDOR_DISCS` stopped the walk early. Surfaced in `MaskStats` for the HUD. */
   truncated: boolean
+  /**
+   * `0079`. Each disc's position along its route, `0..1`, by arc length — the gaps between segments
+   * contribute no length. The instances themselves carry `ARC_ALWAYS`: a corridor is drawn whole
+   * unless a reveal is running, and then `reveal-tag.ts` writes these into the arc slot instead.
+   */
+  arcs: Float32Array
 }
 
 export const EMPTY_CORRIDOR: CorridorPack = {
   instances: new Float32Array(0),
   count: 0,
   truncated: false,
+  arcs: new Float32Array(0),
 }
 
 /**
@@ -124,8 +131,10 @@ export function packRouteCorridor(
   const radiusM = discRadiusM(res)
   const step = corridorStepM(res)
 
-  const discs: Array<{ lng: number; lat: number }> = []
+  const discs: Array<{ lng: number; lat: number; along: number }> = []
   let truncated = false
+  /** `0079`. Metres of route walked so far, across parts — the gaps add nothing. */
+  let walked = 0
 
   for (const part of geometry.coordinates) {
     if (truncated) break
@@ -135,7 +144,7 @@ export function packRouteCorridor(
 
     let carry = 0
     let previous = { lng: part[0]![0], lat: part[0]![1] }
-    if (!push(discs, previous)) {
+    if (!push(discs, { ...previous, along: walked })) {
       truncated = true
       break
     }
@@ -154,6 +163,7 @@ export function packRouteCorridor(
             !push(discs, {
               lng: previous.lng + (next.lng - previous.lng) * t,
               lat: previous.lat + (next.lat - previous.lat) * t,
+              along: walked + along,
             })
           ) {
             truncated = true
@@ -163,6 +173,7 @@ export function packRouteCorridor(
         }
         if (truncated) break
         carry = (carry + span) % step
+        walked += span
       }
       previous = next
     }
@@ -170,7 +181,7 @@ export function packRouteCorridor(
 
     // The final vertex, always. Without it a route ending mid-step leaves its tip fogged, and the
     // tip is where the operator's eye goes: it is where they stopped.
-    if (!push(discs, previous)) {
+    if (!push(discs, { ...previous, along: walked })) {
       truncated = true
       break
     }
@@ -179,8 +190,10 @@ export function packRouteCorridor(
   if (discs.length === 0) return EMPTY_CORRIDOR
 
   const instances = new Float32Array(discs.length * INSTANCE_FLOATS)
+  const arcs = new Float32Array(discs.length)
   for (let i = 0; i < discs.length; i++) {
-    const { lng, lat } = discs[i]!
+    const { lng, lat, along } = discs[i]!
+    arcs[i] = walked > 0 ? along / walked : 0
     const at = i * INSTANCE_FLOATS
     instances[at + 0] = mercatorX(lng)
     instances[at + 1] = mercatorY(lat)
@@ -188,12 +201,13 @@ export function packRouteCorridor(
     // 1.0, like every stored res-10 cell: the corridor is a claim that the operator ran HERE, not
     // a partial-coverage estimate. `0058`'s coarse buckets are where `a_fraction` earns its keep.
     instances[at + 3] = 1
+    instances[at + 4] = ARC_ALWAYS
   }
 
-  return { instances, count: discs.length, truncated }
+  return { instances, count: discs.length, truncated, arcs }
 }
 
-function push(discs: Array<{ lng: number; lat: number }>, point: { lng: number; lat: number }): boolean {
+function push<T>(discs: T[], point: T): boolean {
   if (discs.length >= MAX_CORRIDOR_DISCS) return false
   discs.push(point)
   return true
@@ -213,10 +227,16 @@ export function packCorridorForCollection(
   const packs = features.map((f) => packRouteCorridor(f.geometry, options))
   const count = packs.reduce((n, p) => n + p.count, 0)
   const instances = new Float32Array(count * INSTANCE_FLOATS)
+  const arcs = new Float32Array(count)
   let at = 0
+  let disc = 0
   for (const pack of packs) {
     instances.set(pack.instances, at)
+    // Each route keeps its own 0..1: several runs at once is not something a reveal plays, and
+    // concatenating them into one arc would make the second run's ground wait for the first's.
+    arcs.set(pack.arcs, disc)
     at += pack.instances.length
+    disc += pack.count
   }
-  return { instances, count, truncated: packs.some((p) => p.truncated) }
+  return { instances, count, truncated: packs.some((p) => p.truncated), arcs }
 }

@@ -40,7 +40,13 @@ const work = harnessWorkdir("fog-0055")
 //
 // THE CONSTRAINT THAT MATTERS IS UNCHANGED: nothing in these files may import anything that needs a
 // DOM, MapLibre, or a bundler. That is what keeps the GPU claims measurable at all.
-const MODULES = ["lib/fog/fog-uniforms.ts", "lib/fog/composite.ts", "lib/fog/mask.ts"]
+// `0079` adds `reveal-tag.ts`, which imports only `./mask` — constants, stripped like the rest.
+const MODULES = [
+  "lib/fog/fog-uniforms.ts",
+  "lib/fog/composite.ts",
+  "lib/fog/mask.ts",
+  "lib/fog/reveal-tag.ts",
+]
 
 execFileSync(
   "npx",
@@ -65,6 +71,25 @@ const compiled = MODULES.map((module) => {
     .replace(/^export /gm, "")
 }).join("\n")
 const driver = readFileSync(join(ROOT, "tools/fog-harness/harness.js"), "utf8")
+
+// `0079`. The reveal's streams come from the SHIPPED derivation — h3, buckets, cull — which cannot
+// run in this page, so they are produced here in Node and inlined as data. See reveal-fixture.ts.
+execFileSync(
+  join(ROOT, "node_modules/.bin/esbuild"),
+  [
+    join(ROOT, "tools/fog-harness/reveal-fixture.ts"),
+    "--bundle",
+    "--platform=node",
+    "--format=cjs",
+    `--outfile=${join(work, "reveal-fixture.cjs")}`,
+    "--log-level=warning",
+  ],
+  { stdio: "inherit" },
+)
+execFileSync(process.execPath, [join(work, "reveal-fixture.cjs"), join(work, "reveal-fixture.json")], {
+  stdio: "ignore",
+})
+const revealFixture = readFileSync(join(work, "reveal-fixture.json"), "utf8")
 const page = join(work, "harness.html")
 writeFileSync(
   page,
@@ -72,6 +97,7 @@ writeFileSync(
 <canvas id="c" width="1280" height="800"></canvas>
 <pre id="out">pending</pre>
 <script>\n${compiled}\n</script>
+<script>\nconst REVEAL_FIXTURE = ${revealFixture};\n</script>
 <script>\n${driver}\n</script>
 </body>`,
 )

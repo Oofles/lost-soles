@@ -149,6 +149,15 @@ export interface ControllerStats {
 }
 
 /**
+ * `0079`. A reveal's two stores: the explored set before the run and after it. `post` is the
+ * account's own store whenever the run's cells are already persisted, which is the ordinary case.
+ */
+export interface RevealStores {
+  pre: ZoomBucketStore
+  post: ZoomBucketStore
+}
+
+/**
  * Drives the cull off the camera. Owns the padded region, the debounce and the hidden switch; owns no
  * GL and no h3.
  */
@@ -162,7 +171,12 @@ export class FogViewportController {
     result: CullResult,
     res: number,
     fromData: boolean,
+    pre: Float32Array | null,
   ) => void
+
+  /** `0079`. While set, every rebuild culls BOTH stores against the same padded box. */
+  #reveal: RevealStores | null = null
+  #preBuffer: Float32Array | null = null
 
   #running = false
   #hidden = false
@@ -207,6 +221,11 @@ export class FogViewportController {
        * `FogMaskLayer.setInstances`.
        */
       fromData: boolean,
+      /**
+       * `0079`. While a reveal is set, the PRE-RUN set's survivors for the same bucket and the same
+       * padded box — also a view into a reused scratch buffer. `null` otherwise.
+       */
+      pre: Float32Array | null,
     ) => void
     host?: ControllerHost
     debounceMs?: number
@@ -284,6 +303,22 @@ export class FogViewportController {
     if (!this.#running || this.#hidden) return
     this.#cancelPending()
     this.#rebuild(reason, true)
+  }
+
+  /**
+   * `0079`. Start or stop a reveal. Rebuilds at once: the layer must hold the pre-run stream before
+   * the next frame, or a reveal set at `p = 0` would draw the post-run map for one frame.
+   *
+   * NOT `fromData`. A reveal is a different view of the same data, and `0057`'s corridor — which
+   * `fromData` discards — is exactly what a reveal animates.
+   */
+  setReveal(reveal: RevealStores | null): void {
+    if (this.#reveal === reveal) return
+    this.#reveal = reveal
+    if (!reveal) this.#preBuffer = null
+    if (!this.#running || this.#hidden) return
+    this.#cancelPending()
+    this.#rebuild(reveal ? "reveal" : "reveal cleared")
   }
 
   /* ─── The camera ─────────────────────────────────────────────────────────── */
@@ -474,8 +509,10 @@ export class FogViewportController {
     const zoom = this.#map.getZoom()
     const res = resForZoom(zoom)
     let bucket: ZoomBucket
+    let preBucket: ZoomBucket | null = null
     try {
-      bucket = this.#store.bucketFor(res)
+      bucket = (this.#reveal?.post ?? this.#store).bucketFor(res)
+      if (this.#reveal) preBucket = this.#reveal.pre.bucketFor(res)
     } catch (error) {
       // A bucket derivation that throws would otherwise take the whole move handler with it, and
       // MapLibre dispatches those inside its own frame. One line, and the fog stops updating rather
@@ -499,7 +536,20 @@ export class FogViewportController {
     this.#culls++
     this.#lastCull = result
 
-    this.#onInstances(result.instances, result, res, fromData)
+    /**
+     * `0079`. The pre-run cull, against the SAME box and resolution — the reveal diffs the two
+     * streams instance by instance, so anything that differs between them must be the data, never
+     * the cull. Not reported to the observer: `0059`'s numbers are about the map, and this is a
+     * second view of it that exists for 2.2 seconds.
+     */
+    let pre: Float32Array | null = null
+    if (preBucket) {
+      const preResult = cullBucket(preBucket, padded, this.#preBuffer)
+      this.#preBuffer = preResult.buffer
+      pre = preResult.instances
+    }
+
+    this.#onInstances(result.instances, result, res, fromData, pre)
     this.#map.triggerRepaint()
 
     /**

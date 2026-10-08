@@ -109,6 +109,7 @@ function main() {
     instances[i * INSTANCE_FLOATS + 1] = c.y
     instances[i * INSTANCE_FLOATS + 2] = r
     instances[i * INSTANCE_FLOATS + 3] = 1
+    instances[i * INSTANCE_FLOATS + 4] = ARC_ALWAYS
   })
 
   uploadInstances(gl, res, instances)

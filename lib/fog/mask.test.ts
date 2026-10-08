@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { fakeGl, GL } from "./__fixtures__/fake-gl"
 import {
   INSTANCE_FLOATS,
+  ORIGIN_GRID,
   MASK_FRAGMENT_SOURCE,
   MASK_SCALE,
   REVEAL_SCALE,
@@ -218,6 +219,41 @@ describe("ground-relative instances — 0200", () => {
     expect(worstError(true)).toBeLessThan(0.01)
   })
 
+  /**
+   * `0079` snaps the origin to `ORIGIN_GRID` instead of using the first centre itself, so the disc's
+   * relative coordinate is no longer 0 — it can be up to a grid step. The precision `0200` bought
+   * must survive that: same pan, same emulated float32 GPU, centre ~a grid step from its origin.
+   *
+   * MEASURED AGAINST THE STORED CENTRE, `f(PX)`, not `PX`. Every instance array is a `Float32Array`,
+   * so the centre the GPU is given is already `f(PX)` — 0.74 device px from `PX` at z17 here, a
+   * fixed offset the same on every frame, under either origin rule, and invisible: it does not move
+   * as you pan. What `0200` fixed was the JITTER, and the first version of this test charged the
+   * snapped origin with the input rounding and read 0.74 px. Against `f(PX)` it is ~0.0007 px.
+   */
+  it("still holds to a hundredth of a pixel with the origin snapped to ORIGIN_GRID", () => {
+    const origin = Math.floor(PX / ORIGIN_GRID) * ORIGIN_GRID
+    const rel = f(f(PX) - origin)
+    let worst = 0
+    for (let i = 0; i <= 50; i++) {
+      const camX = PX - 100 / WORLD + (i * 0.2) / WORLD
+      const exact = (f(PX) - camX) * WORLD
+      worst = Math.max(worst, Math.abs(gpuX(translated(mainMatrix(camX), [origin, 0]), rel) - exact))
+    }
+    expect(PX - origin).toBeGreaterThan(ORIGIN_GRID / 2) // the case is not trivially near 0
+    expect(worst).toBeLessThan(0.01)
+  })
+
+  it("snaps the origin down to ORIGIN_GRID, so two streams over one viewport share it", () => {
+    const a = resourcesOn()
+    const b = resourcesOn()
+    // Different first instances, ~100 m apart: a reveal's pre and post streams for one viewport.
+    uploadInstances(a.fake.gl, a.res, new Float32Array([0.29171, 0.38, 0.001, 1, -1]))
+    uploadInstances(b.fake.gl, b.res, new Float32Array([0.29173, 0.38002, 0.001, 1, -1]))
+    expect(a.res.origin).toEqual(b.res.origin)
+    expect(a.res.origin[0] % ORIGIN_GRID).toBe(0)
+    expect(a.res.origin[0]).toBeLessThanOrEqual(f(0.29171))
+  })
+
   it("translated() is M x T(origin): the relative point lands where the absolute one did", () => {
     const m = [1, 2, 0, 3, 4, 5, 0, 6, 0, 0, 1, 0, 7, 8, 0, 9]
     const t = translated(m, [0.25, 0.5])
@@ -226,21 +262,28 @@ describe("ground-relative instances — 0200", () => {
     expect(Array.from(t.slice(0, 12))).toEqual(m.slice(0, 12))
   })
 
-  it("uploads centres relative to the first, leaving radius and fraction alone", () => {
+  it("uploads centres relative to the first, leaving radius, fraction and arc alone", () => {
     const { fake, res } = resourcesOn()
-    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, 0.5001, 0.2499, 0.002, 0.5]))
+    // 0.5 and 0.25 sit on ORIGIN_GRID, so the snapped origin is the first centre exactly.
+    uploadInstances(
+      fake.gl,
+      res,
+      new Float32Array([0.5, 0.25, 0.001, 1, -1, 0.5001, 0.2499, 0.002, 0.5, 0.25]),
+    )
     expect(res.origin).toEqual([f(0.5), f(0.25)])
     const sent = fake.uploads.at(-1)!
     expect(sent[0]).toBe(0)
     expect(sent[1]).toBe(0)
-    expect(sent[4]).toBe(f(f(0.5001) - f(0.5)))
-    expect(sent[5]).toBe(f(f(0.2499) - f(0.25)))
-    expect([sent[2], sent[3], sent[6], sent[7]]).toEqual([f(0.001), 1, f(0.002), 0.5])
+    expect(sent[5]).toBe(f(f(0.5001) - f(0.5)))
+    expect(sent[6]).toBe(f(f(0.2499) - f(0.25)))
+    expect([sent[2], sent[3], sent[4], sent[7], sent[8], sent[9]]).toEqual([
+      f(0.001), 1, -1, f(0.002), 0.5, 0.25,
+    ])
   })
 
   it("folds the origin into the matrix under mercator, and zeroes u_origin", () => {
     const { fake, res } = resourcesOn()
-    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1]))
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1]))
     runMaskPass(fake.gl, res, PROJECTION)
     const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
     expect([sent[12], sent[13]]).toEqual([0.5, 0.25]) // identity x (0.5, 0.25, 0, 1)
@@ -255,7 +298,7 @@ describe("ground-relative instances — 0200", () => {
       width: fake.gl.drawingBufferWidth,
       height: fake.gl.drawingBufferHeight,
     })
-    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1]))
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1]))
     runMaskPass(fake.gl, res, PROJECTION)
     const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
     expect(Array.from(sent)).toEqual(Array.from(PROJECTION.mainMatrix))
@@ -334,10 +377,11 @@ describe("the instance buffer", () => {
       [1, 1], // a_center
       [2, 1], // a_radius
       [3, 1], // a_fraction
+      [4, 1], // a_arc (0079)
     ])
   })
 
-  it("uses criterion 5's byte layout: centre, radius, fraction, tightly strided", () => {
+  it("uses criterion 5's byte layout: centre, radius, fraction, arc, tightly strided", () => {
     const { fake } = resourcesOn()
     const stride = INSTANCE_FLOATS * 4
     const pointers = fake
@@ -348,6 +392,7 @@ describe("the instance buffer", () => {
       [1, 2, stride, 0], // a_center  — 2 floats at byte 0
       [2, 1, stride, 8], // a_radius  — 1 float  at byte 8
       [3, 1, stride, 12], // a_fraction — 1 float  at byte 12
+      [4, 1, stride, 16], // a_arc     — 1 float  at byte 16 (0079)
     ])
   })
 })

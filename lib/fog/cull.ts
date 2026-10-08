@@ -258,6 +258,7 @@ export function cullBucket(
       buffer[out + 1] = y
       buffer[out + 2] = r
       buffer[out + 3] = discs[i + 3]!
+      buffer[out + 4] = discs[i + 4]!
       out += INSTANCE_FLOATS
     }
   }

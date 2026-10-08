@@ -193,7 +193,7 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
     // Distinct locations per name, so a VAO that pointed two attributes at the same slot would show
     // up in `vertexAttribPointer`'s recorded arguments rather than look identical.
     getAttribLocation: (_p: object, name: string) =>
-      ["a_quad", "a_center", "a_radius", "a_fraction"].indexOf(name),
+      ["a_quad", "a_center", "a_radius", "a_fraction", "a_arc"].indexOf(name),
     enableVertexAttribArray: (loc: number) => record("enableVertexAttribArray", loc),
     vertexAttribPointer: (...args: unknown[]) => record("vertexAttribPointer", ...args),
     vertexAttribDivisor: (loc: number, divisor: number) =>
@@ -226,7 +226,11 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
       // the globe uniforms are unused and stripped, so their locations come back null. That is what
       // makes the null-guards in `setProjectionUniforms` load-bearing rather than decorative.
       // `u_origin` (`0200`) is the mask shader's own and always used, so it always resolves.
-      name === "u_projection_matrix" || name === "u_origin" || COMPOSITE_UNIFORMS.has(name)
+      // `u_reveal` (`0079`) likewise — the mask shader reads it on every vertex.
+      name === "u_projection_matrix" ||
+      name === "u_origin" ||
+      name === "u_reveal" ||
+      COMPOSITE_UNIFORMS.has(name)
         ? handle(name)
         : null,
     uniformMatrix4fv: (...args: unknown[]) => record("uniformMatrix4fv", ...args),

@@ -4523,3 +4523,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     switches off streaming metadata on every route to change a number nobody sees.
   - **Revisit** if a status-sensitive client (a crawler, a monitor, a non-browser API caller) ever
     reads `/run/:id`.
+
+- **D-293** **Beat 1's reveal is a diff of two culls through the unchanged renderer, carried by a
+  fifth instance float; and the reveal set is "this run's cells", not "cells not yet persisted".**
+  *(2026-10-08, ticket `0079`. Amends D-248's origin rule; files `0251` and `0252`.)*
+  - **The reveal set as first worded was empty for every run a user can open.** `0079` said *"cells
+    not yet in the persisted explored set"*, but `/run/:id` is reached after ingest, which writes the
+    cells. The seam now takes a run's cells **whether or not they are persisted** and holds them back
+    below their arc. *Which* cells is the server's to say — the browser's blob cannot tell a run's
+    discoveries from ground it re-ran — so `0251` serves this run's new and re-armed ids and `0080`
+    passes those. Until then `?fog=scrub` reveals every cell the run touched.
+  - **Two culls and a diff, not an overlay.** Tagging the reveal cells and splatting them over the
+    steady stream gets three things wrong away from the res-11 corridor: D-238 bridges appear and
+    disappear with neighbours, `0058`'s coarse fractions change rather than appear, and the cull
+    must apply to both. Culling pre- and post-run sets through the shipped derivation with one box
+    and diffing the results makes `p = 1` and `p = 0` equal the steady states **by construction**
+    (zero-tolerance pixel diffs, R1/R2). Cost: one extra store and cull, only while a reveal is set.
+  - **A fifth float (`arc`), and `u_reveal`.** `-1` outside a reveal, weight exactly `1.0`, so the
+    steady state is unchanged. Chosen over a second buffer and draw call to keep §4's one-call rule.
+  - **D-248's origin is snapped to a 2⁻¹⁰ grid.** Two streams with different first instances must
+    share an origin or a zero-tolerance diff sees float32 matrix rounding. Error vs the stored
+    float32 centre: ~0.0007 px at z17 (D-248's own test, extended).
+  - **"Dev build only" is `?fog=scrub`**, the form every fog debug view takes: the operator validates
+    on the deployed site (D-227), where a `NODE_ENV` gate would hide it.
+  - **Monotone up to the steady state's own behaviour.** D-238's elision can lower the steady mask at
+    an interior three-cell vertex when a run lands beside explored ground (1.0 → 0.58 where H3 cells
+    run large; ~0.72 at Orlando, which the composite renders clear). The reveal adds no dip of its
+    own — coverage never falls below `min(previous, settled)` — and the renderer property is `0252`.

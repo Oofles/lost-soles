@@ -9,7 +9,7 @@ import {
 } from "h3-js"
 
 import type { GeoPoint, Trace } from "./activity"
-import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween } from "./geo"
+import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs, metresBetween, type Located } from "./geo"
 
 /**
  * TRACE → TERRITORY. Tickets `0045` and `0046`. `05-fog-of-war.md` §2.2 is the
@@ -374,8 +374,24 @@ export function traceToSegments(trace: Trace): { segments: GeoPoint[][]; rejects
 }
 
 export function traceToCells(trace: Trace): CellSet {
-  const candidates = new Set<H3Index>()
   const { segments, rejects } = traceToSegments(trace)
+  return Object.assign(segmentsToCells(segments), { rejects })
+}
+
+/**
+ * Steps 4 and 5 of §2.2 alone: already-sanitised segments → the revealed cells.
+ *
+ * SPLIT OUT FOR `0079`, and the split is the point. The browser holds a run's segments exactly as
+ * step 3 produced them (`0195` stores the sanitiser's own output for the route line), and beat 1
+ * needs the cells that run reveals without waiting on the server. Running THIS function on them
+ * means the client's answer is the server's answer by construction — the same densify, the same
+ * candidate disc, the same 65 m filter — rather than a renderer-side approximation of it.
+ *
+ * It is still a pure function of geometry. What it returns is a RENDER INPUT on the client and is
+ * never written to the explored set (`lib/fog/explored-set.ts`: the client never invents cells).
+ */
+export function segmentsToCells(segments: readonly (readonly Located[])[]): Set<H3Index> {
+  const candidates = new Set<H3Index>()
 
   for (const segment of segments) {
     // 4. densify + collect candidates ──────────────────────────────────
@@ -402,7 +418,7 @@ export function traceToCells(trace: Trace): CellSet {
     const [lat, lng] = cellToLatLng(c)
     if (distancePointToSegments({ lat, lng }, segments) <= REVEAL_R_M) revealed.add(c)
   }
-  return Object.assign(revealed, { rejects })
+  return revealed
 }
 
 /**
@@ -709,7 +725,7 @@ function splitImplausible(points: readonly GeoPoint[]): GeoPoint[][] {
  * Endpoints are emitted once: each step contributes its start and its interior samples,
  * and the segment's final point is appended at the end.
  */
-function densify(points: readonly GeoPoint[]): Array<{ lat: number; lng: number }> {
+function densify(points: readonly Located[]): Array<{ lat: number; lng: number }> {
   if (points.length === 0) return []
   if (points.length === 1) return [{ lat: points[0].lat, lng: points[0].lng }]
 
@@ -727,8 +743,8 @@ function densify(points: readonly GeoPoint[]): Array<{ lat: number; lng: number 
 
 /** Great-circle point a fraction `f` of the way from `a` to `b`. */
 function interpolate(
-  a: GeoPoint,
-  b: GeoPoint,
+  a: Located,
+  b: Located,
   f: number,
 ): { lat: number; lng: number } {
   const toRad = Math.PI / 180

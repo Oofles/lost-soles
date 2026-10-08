@@ -801,10 +801,15 @@ uniform vec2 u_origin;  // (0,0) under mercator — see below the block (D-248)
 
 in vec2  a_center;    // cell centre, RELATIVE to the upload's origin (per-instance)
 in float a_radius;    // reveal radius, mercator units   (per-instance)
+in float a_fraction;  // coverage weight, §6.1           (per-instance)
+in float a_arc;       // reveal position, -1 outside a reveal (per-instance, D-293)
+uniform float u_reveal; // revealProgress; exactly 1.0 outside a reveal (D-293)
 
 out vec2 v_uv;
 
 void main() {
+    // D-293: weight w is exactly 1.0 for a_arc = -1 or u_reveal = 1, so the steady state is the
+    // pre-reveal shader byte for byte. An instance at w = 0 is moved outside the clip volume.
     v_uv = a_quad;
     // Offset in mercator space, then let MapLibre project. A mercator-space
     // disc is still a disc on screen, so no latitude correction is needed
@@ -821,7 +826,20 @@ jump while the basemap (drawn tile-local by MapLibre for this reason) slides. Th
 the first instance's centre; `setProjectionUniforms` uploads `M × T(origin)` composed on the CPU,
 and `u_origin` stays `(0,0)`. Under `#define GLOBE` the prelude does not reduce to `M × (p,0,1)`,
 so the matrix is left alone and `u_origin` carries the origin instead — the old precision, which
-only matters at zooms MapLibre does not show a globe at.
+only matters at zooms MapLibre does not show a globe at. **Amended by D-293:** the origin is the
+first centre snapped down to a 2⁻¹⁰ mercator grid (~39 km), so two streams over one viewport share
+it; measured against the stored float32 centre the error stays ~0.0007 px at z17.
+
+**The reveal seam (D-293, ticket `0079`).** Beat 1 (`06` §3.2) needs the mask to be a function of
+`revealProgress` as well as of the cells. Instances carry a fifth float, `arc`, and the pass a
+uniform, `u_reveal`. A reveal culls the explored set **twice through the unchanged derivation** —
+without the run's cells and with them, same bucket, same padded box — and `lib/fog/reveal-tag.ts`
+diffs the two streams: instances in both are always drawn, post-only ones fade in at their arc over
+a 0.03 ramp, and pre-only ones (a coarse parent's old fraction, a bridge D-238 now elides) switch
+off once everything near them has fully arrived. At `p = 1` the drawn stream is the steady-state
+post-run stream, same instances, same order; at `p = 0` it is the pre-run stream. Both are proved
+at zero pixel tolerance on a real rasteriser (`tools/fog-harness`, R1–R4). A scrub changes only
+`u_reveal` — no upload, no allocation.
 
 ```glsl
 // ---------- MASK PASS: fragment ----------

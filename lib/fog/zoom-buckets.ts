@@ -10,6 +10,7 @@ import { bigToCell } from "@/src/domain/explored-blob"
 import { RES, RES_PARENT } from "@/src/domain/fog"
 
 import { discRadiusM, mercatorX, mercatorY, metresToMercator, packBucket } from "./instances"
+import { INSTANCE_FLOATS } from "./mask"
 import type { BucketInvalidator, ExploredSet } from "./explored-set"
 
 /**
@@ -313,7 +314,7 @@ export class ZoomBucket {
     let minY = Infinity
     let maxX = -Infinity
     let maxY = -Infinity
-    for (let i = 0; i < discs.length; i += 4) {
+    for (let i = 0; i < discs.length; i += INSTANCE_FLOATS) {
       const x = discs[i]!
       const y = discs[i + 1]!
       const r = discs[i + 2]!

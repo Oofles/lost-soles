@@ -11,6 +11,7 @@ depends_on: [55, 56]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-10-08T19:20:14Z
 ---
 
 ## Description
@@ -51,19 +52,35 @@ a renderer regression gets bisected later.
 
 ## Acceptance criteria
 
-- [ ] The mask layer exposes `setReveal(cells, progress)` where each cell has a normalized arc
+- [x] The mask layer exposes `setReveal(cells, progress)` where each cell has a normalized arc
       position; calling it does not reallocate the FBO or rebuild the instance buffer per frame.
-- [ ] `progress = 1` produces a mask identical to passing the same cells through the steady-state
+      — `FogMaskLayer.setReveal` / `setRevealProgress`. `reveal.test.ts` scrubs 60 steps on a fake
+      GL: zero `bufferData`/`bufferSubData`/`texImage2D`/`createFramebuffer`, one draw per step,
+      `u_reveal` the only thing that changes.
+- [x] `progress = 1` produces a mask identical to passing the same cells through the steady-state
       path — verified by a pixel-diff of two `readPixels` captures at zero tolerance.
-- [ ] `progress = 0` produces a mask identical to the pre-run mask.
-- [ ] `progress` is monotonic in coverage: no cell that is revealed at `p` is unrevealed at `p'>p`.
-- [ ] The reveal set is computed from the local trace with no network call; the animation runs
+      — `tools/fog-harness` R1, SwiftShader: **0 of 256,000 pixels differ** at res 11 (z15) and at a
+      coarse bucket (z11.5), streams from the shipped derivation. CPU twin: same instances, same order.
+- [x] `progress = 0` produces a mask identical to the pre-run mask.
+      — harness R2: **0 of 256,000 pixels differ**, both zooms. R4 proves the diff can see a
+      difference in these streams (pre vs post: 49,965 and 256,000 pixels).
+- [x] `progress` is monotonic in coverage: no cell that is revealed at `p` is unrevealed at `p'>p`.
+      — per cell: `revealWeight` non-decreasing for every arc. Per PIXEL (stronger): harness R3, 65
+      steps, 0 pixel-steps below `min(previous, settled)`. The `settled` allowance is D-238's, not
+      the reveal's — see D-293 and `0252`. A sabotaged tagger fails the test at both zooms.
+- [x] The reveal set is computed from the local trace with no network call; the animation runs
       correctly with the network disabled entirely.
+      — `revealCellsForRoute` runs the domain's own `segmentsToCells` on the route the page holds.
+      `reveal.test.ts` stubs `fetch` to throw and removes `XMLHttpRequest`, then computes, culls,
+      tags and draws a full 0→1 sweep: `fetch` never called.
 - [ ] Frame time with a reveal set of 130 cells stays inside the `05-fog-of-war.md` §6.4 budget in
       the desktop browser, measured with the 0059 harness — not assumed.
 - [ ] The dev-only scrub control exists and moves the fog edge smoothly end to end.
-- [ ] Zoom bucketing and viewport culling (0058) still apply to the reveal set; a run partly
+- [x] Zoom bucketing and viewport culling (0058) still apply to the reveal set; a run partly
       offscreen does not splat offscreen cells.
+      — both streams go through `ZoomBucketStore` + `cullBucket` with one padded box.
+      `reveal.test.ts`: at z17 on the route's start, no instance lies beyond the padded east edge,
+      and none of the >10 reveal cells past it is in the stream.
 
 ## Notes
 

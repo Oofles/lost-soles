@@ -107,6 +107,7 @@ function pack(discs) {
     out[i * INSTANCE_FLOATS + 1] = d.y
     out[i * INSTANCE_FLOATS + 2] = d.r
     out[i * INSTANCE_FLOATS + 3] = d.fraction
+    out[i * INSTANCE_FLOATS + 4] = ARC_ALWAYS
   })
   return out
 }
@@ -324,6 +325,94 @@ function main() {
       plain.ratio < 0.9,
       `a bare cell chain measures ${plain.ratio.toFixed(2)} — if this ever passes 0.9 the probe has stopped measuring`,
     )
+  }
+
+  /* ── R1-R4 — the reveal seam. Ticket 0079, criteria 2, 3 and 4. ────────── */
+  //
+  // The streams are real: `reveal-fixture.ts` ran the shipped derivation — route → cells → zoom
+  // buckets → cull, for the explored set before and after a run — and `run.mjs` inlined them. This
+  // page tags them with the shipped `tagReveal` and draws them with the shipped pass, so every
+  // comparison below is between two things the app would actually put on screen.
+  //
+  //   R1  p = 1 against the steady post-run stream     ZERO tolerance, every pixel
+  //   R2  p = 0 against the steady pre-run stream      ZERO tolerance, every pixel
+  //   R3  a 65-step sweep: no pixel ever falls below min(its previous value, its settled value)
+  //   R4  the sabotage — p = 0.999 must NOT match, and pre must not match post, or R1/R2 are blind
+  {
+    const drawAt = (instances, progress) => {
+      uploadInstances(gl, res, instances)
+      res.revealProgress = progress
+      runMaskPass(gl, res, PROJECTION)
+      res.revealProgress = 1
+      return readMaskRed(gl, res).red
+    }
+    const diff = (a, b) => {
+      let n = 0
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++
+      return n
+    }
+    const lit = (red) => {
+      let n = 0
+      for (const v of red) if (v > 0) n++
+      return n
+    }
+    const points = REVEAL_FIXTURE.points
+
+    for (const c of REVEAL_FIXTURE.cases) {
+      const post = Float32Array.from(c.post)
+      const pre = Float32Array.from(c.pre)
+      const tagged = tagReveal(post, pre, points)
+
+      const steadyPost = drawAt(Float32Array.from(c.steadyPost), 1)
+      const steadyPre = drawAt(Float32Array.from(c.steadyPre), 1)
+      const at1 = drawAt(tagged, 1)
+      const at0 = drawAt(tagged, 0)
+
+      record(
+        `R1 p=1 ≡ steady (${c.label})`,
+        diff(at1, steadyPost) === 0 && lit(steadyPost) > 0,
+        `${diff(at1, steadyPost)} of ${at1.length} pixels differ (want 0); ` +
+          `${lit(steadyPost)} lit; ${post.length / INSTANCE_FLOATS} post, ` +
+          `${pre.length / INSTANCE_FLOATS} pre, ${tagged.length / INSTANCE_FLOATS} tagged`,
+      )
+      record(
+        `R2 p=0 ≡ pre-run (${c.label})`,
+        diff(at0, steadyPre) === 0,
+        `${diff(at0, steadyPre)} of ${at0.length} pixels differ (want 0); ${lit(steadyPre)} lit`,
+      )
+
+      let previous = at0
+      let drops = 0
+      let worst = 0
+      for (let step = 1; step <= 64; step++) {
+        const now = drawAt(tagged, step / 64)
+        for (let i = 0; i < now.length; i++) {
+          const floor = Math.min(previous[i], steadyPost[i])
+          if (now[i] < floor) {
+            drops++
+            worst = Math.max(worst, floor - now[i])
+          }
+        }
+        previous = now
+      }
+      record(
+        `R3 sweep monotone (${c.label})`,
+        drops === 0,
+        `${drops} pixel-steps fell below min(previous, settled) (want 0)` +
+          (drops ? `, worst by ${worst}` : ""),
+      )
+
+      // The comparator must be able to see a difference IN THESE STREAMS, or a zero in R1/R2 means
+      // nothing. `p = 0.999` is recorded too but not gated: at a coarse bucket the one fading disc
+      // has legitimately arrived by then, which is the ramp working, not the probe failing.
+      const nearlyDone = drawAt(tagged, 0.999)
+      record(
+        `R4 sabotage (${c.label})`,
+        diff(steadyPre, steadyPost) > 0,
+        `pre differs from post at ${diff(steadyPre, steadyPost)} pixels (must be > 0); ` +
+          `p=0.999 differs from settled at ${diff(nearlyDone, steadyPost)}`,
+      )
+    }
   }
 
   /* ── One instanced draw, whatever the count. Criterion 3, on a real GPU. ─ */
@@ -629,5 +718,5 @@ try {
 const failed = results.filter((r) => !r.pass)
 const lines = results.map((r) => `${r.pass ? "  ok  " : " FAIL "} ${r.id.padEnd(28)} ${r.detail}`)
 document.getElementById("out").textContent =
-  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass + 0056 composite\n${lines.join("\n")}`
+  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass + 0056 composite + 0079 reveal\n${lines.join("\n")}`
 document.title = failed.length === 0 ? "PASS" : "FAIL"

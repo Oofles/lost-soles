@@ -6,9 +6,16 @@ import { FogAnimator, browserAnimationHost, type AnimationHost } from "@/lib/fog
 import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
 import type { FogHarness } from "@/lib/fog/perf/harness"
-import { FogViewportController, type ControllerMap } from "@/lib/fog/viewport-controller"
+import { postRunCells, preRunCells, type RevealCell } from "@/lib/fog/reveal"
+import {
+  FogViewportController,
+  type ControllerMap,
+  type RevealStores,
+} from "@/lib/fog/viewport-controller"
 import { ZoomBucketStore } from "@/lib/fog/zoom-buckets"
 import { fogBeforeId } from "@/lib/map-layers"
+
+import { ExploredSet } from "@/lib/fog/explored-set"
 
 import { useExplored } from "./explored-provider"
 
@@ -52,6 +59,13 @@ export function useFogMask(
    * loop, which is where the frame clock lives.
    */
   harness: FogHarness | null = null,
+  /**
+   * `0079`. A run's reveal cells (`reveal.ts`), or `null` for no reveal. Changing it installs the
+   * reveal in the controller and the layer; PROGRESS is not here — it is driven imperatively with
+   * `layer.setRevealProgress`, because a value that changes sixty times a second must not be React
+   * state that re-renders the map shell.
+   */
+  reveal: readonly RevealCell[] | null = null,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -190,8 +204,8 @@ export function useFogMask(
     const created = new FogViewportController({
       map: map as unknown as ControllerMap,
       store,
-      onInstances: (instances, _result, res, fromData) =>
-        layer.setInstances(instances, res, { supersedesRoute: fromData }),
+      onInstances: (instances, _result, res, fromData, pre) =>
+        layer.setInstances(instances, res, { supersedesRoute: fromData, pre }),
       observer: harness?.perf,
     })
     // The subscription that keeps this in step with `document.hidden` belongs to the layer's effect
@@ -225,6 +239,48 @@ export function useFogMask(
     drawn.current = generation
     controller.current?.refresh(`generation ${generation}`)
   }, [layer, store, generation])
+
+  /**
+   * `0079`. THE REVEAL'S TWO STORES — the explored set without the run's cells and with them.
+   *
+   * Re-derived on a generation change as well as on a new reveal: `applyDelta` mutates the account's
+   * set in place, and stores built from a copy of the old array would animate toward a map that is
+   * no longer the map. `post` IS the account's store when the run's cells are already persisted
+   * (`postRunCells` returns the same array), so the ordinary `/run/:id` case derives one extra store,
+   * not two.
+   */
+  const revealStores = useMemo<RevealStores | null>(() => {
+    if (!set || !store || !reveal || reveal.length === 0) return null
+    const pre = new ZoomBucketStore(ExploredSet.fromCells(preRunCells(set.cells, reveal), -1))
+    const postCells = postRunCells(set.cells, reveal)
+    const post =
+      postCells === set.cells ? store : new ZoomBucketStore(ExploredSet.fromCells(postCells, -1))
+    // `generation` is read only as a dependency — it is what notices an in-place delta; see above.
+    void generation
+    return { pre, post }
+  }, [set, store, reveal, generation])
+
+  /**
+   * CONTROLLER FIRST, THEN THE LAYER, and back out in the reverse order. `setReveal` on the
+   * controller re-culls synchronously and hands the layer its pre-run stream; the layer only draws a
+   * reveal once it holds one, so this order means there is never a frame with the run's cells
+   * missing and nothing to bring them back.
+   *
+   * Progress starts at 1 — the settled map, which is what the page showed a moment ago — and
+   * whoever drives the reveal moves it from there.
+   */
+  useEffect(() => {
+    const active = controller.current
+    if (!layer || !active || !revealStores || !reveal) return
+    active.setReveal(revealStores)
+    layer.setReveal(reveal, 1)
+    map?.triggerRepaint()
+    return () => {
+      layer.setReveal(null)
+      active.setReveal(null)
+      map?.triggerRepaint()
+    }
+  }, [map, layer, store, revealStores, reveal])
 
   return layer
 }

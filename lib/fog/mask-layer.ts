@@ -31,6 +31,7 @@ import {
 import { RES } from "@/src/domain/fog"
 
 import type { PackedBucket } from "./instances"
+import { tagReveal, type RevealPoint, type TagStats } from "./reveal-tag"
 import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
 
 /**
@@ -113,6 +114,11 @@ export interface MaskStats {
    * worth asking when the fog looks wrong right after a sync.
    */
   optimisticDiscs: number
+  /**
+   * `0079`. The reveal, when one is set: how many reveal cells, the progress, and how the last
+   * upload's instances split between always-drawn, fading-in and switching-off. `null` otherwise.
+   */
+  reveal: ({ cells: number; progress: number } & TagStats) | null
 }
 
 /**
@@ -156,6 +162,16 @@ export class FogMaskLayer implements CustomLayerInterface {
   #corridor: CorridorPack = EMPTY_CORRIDOR
   #uploadDirty = false
   #res = RES
+  /**
+   * `0079`. The PRE-RUN survivors for the current buffer, owned and copied for `#cellFloats`'s
+   * reason. Held only while the controller is culling for a reveal; `null` otherwise.
+   */
+  #preFloats = new Float32Array(0)
+  #preLength: number | null = null
+  /** `0079`. The reveal set, by identity — a new array is a new reveal, the same one is a scrub. */
+  #revealCells: readonly RevealPoint[] | null = null
+  #revealProgress = 1
+  #tagStats: TagStats = { inBoth: 0, postOnly: 0, preOnly: 0, corridor: 0 }
   /**
    * `0058`, §6.2's other flag. The mask is screen-space, so it must be redrawn when the camera moves
    * — and **only** then. `prerender` runs every frame because `0056`'s composite animates; without
@@ -229,7 +245,11 @@ export class FogMaskLayer implements CustomLayerInterface {
   setInstances(
     instances: Float32Array,
     res: number,
-    options: { supersedesRoute?: boolean } = {},
+    options: {
+      supersedesRoute?: boolean
+      /** `0079`. The pre-run set's survivors for the same box, while a reveal is culling. */
+      pre?: Float32Array | null
+    } = {},
   ): void {
     if (this.#cellFloats.length < instances.length) {
       this.#cellFloats = new Float32Array(instances.length)
@@ -237,6 +257,14 @@ export class FogMaskLayer implements CustomLayerInterface {
     this.#cellFloats.set(instances)
     this.#cellLength = instances.length
     this.#res = res
+    const pre = options.pre ?? null
+    if (pre) {
+      if (this.#preFloats.length < pre.length) this.#preFloats = new Float32Array(pre.length)
+      this.#preFloats.set(pre)
+      this.#preLength = pre.length
+    } else {
+      this.#preLength = null
+    }
     /**
      * THE OPTIMISTIC CORRIDOR IS DISCARDED HERE, and that is criterion 5's *"cleared on the next
      * bucket rebuild"* stated as the one line that implements it.
@@ -271,6 +299,45 @@ export class FogMaskLayer implements CustomLayerInterface {
     this.#uploadDirty = true
   }
 
+  /**
+   * `0079` — THE REVEAL SEAM. `06-ui-ux.md` §3.2 beat 1: the mist retreats behind a travelling light.
+   *
+   * `cells` are the run's reveal cells with their arc positions (`reveal.ts`); `progress` is
+   * `revealProgress`, `0..1`. A cell is drawn once `progress` passes its arc, over `REVEAL_RAMP`.
+   *
+   * **The same `cells` array with a new `progress` is a uniform write and nothing else** — no
+   * upload, no tagging, no FBO allocation; the next `prerender` redraws the mask with one changed
+   * float. That is what makes it drivable from a rAF loop (`0080`) or a slider at 60 Hz. A NEW array
+   * re-tags the instance stream on the next `prerender`, which is once per reveal.
+   *
+   * It needs the pre-run stream to mean anything, and that comes from the controller
+   * (`FogViewportController.setReveal`), which must be told FIRST. Until the pre-run stream is here
+   * the layer draws the steady state, so a half-installed reveal shows the map as it is rather than
+   * a map with the run missing. `null` ends the reveal and restores the steady stream.
+   */
+  setReveal(cells: readonly RevealPoint[] | null, progress = 1): void {
+    const next = cells && cells.length > 0 ? cells : null
+    if (next !== this.#revealCells) {
+      this.#revealCells = next
+      this.#uploadDirty = true
+    }
+    const clamped = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 1
+    if (clamped !== this.#revealProgress) {
+      this.#revealProgress = clamped
+      this.#maskDirty = true
+    }
+  }
+
+  /** `0079`. `setReveal` with the current cells — the scrub control's and `0080`'s clock's call. */
+  setRevealProgress(progress: number): void {
+    this.setReveal(this.#revealCells, progress)
+  }
+
+  /** `0079`. Whether a reveal is drawing — cells set AND the pre-run stream in hand. */
+  #revealing(): boolean {
+    return this.#revealCells !== null && this.#preLength !== null
+  }
+
   /** §6.4 item 1, sampled by `0059`'s scripted camera path. */
   stats(): MaskStats {
     return {
@@ -293,6 +360,9 @@ export class FogMaskLayer implements CustomLayerInterface {
       noise: this.#noise,
       fogTime: this.#fogTime,
       compositeError: this.#compositeError,
+      reveal: this.#revealCells
+        ? { cells: this.#revealCells.length, progress: this.#revealProgress, ...this.#tagStats }
+        : null,
     }
   }
 
@@ -425,6 +495,8 @@ export class FogMaskLayer implements CustomLayerInterface {
 
     this.#remember(projection.mainMatrix)
     this.#maskDirty = false
+    // `0079`. Exactly 1 outside a reveal, and the shader short-circuits on exactly 1.
+    this.#resources.revealProgress = this.#revealing() ? this.#revealProgress : 1
     /**
      * TIMED AROUND THE PASS, NOT AROUND `prerender`. Everything above this line is the `maskDirty`
      * short-circuit, the resize check and the buffer upload — CPU work that §6.3 budgets on a
@@ -517,6 +589,20 @@ export class FogMaskLayer implements CustomLayerInterface {
    */
   #instanceFloats(): Float32Array {
     const cells = this.#cellFloats.subarray(0, this.#cellLength)
+    /**
+     * `0079`. While a reveal is drawing, the stream is the tagged merge of the post-run cells, the
+     * pre-run cells and the corridor — `reveal-tag.ts` says why that and not an overlay. Once per
+     * rebuild, never per frame: a scrub only moves `u_reveal`.
+     */
+    if (this.#revealing()) {
+      return tagReveal(
+        cells,
+        this.#preFloats.subarray(0, this.#preLength!),
+        this.#revealCells!,
+        this.#corridor.count > 0 ? this.#corridor : null,
+        this.#tagStats,
+      )
+    }
     if (this.#corridor.count === 0) return cells
     const merged = new Float32Array(this.#cellLength + this.#corridor.instances.length)
     merged.set(cells, 0)
@@ -548,7 +634,11 @@ export class FogMaskLayer implements CustomLayerInterface {
     }
     log.info(
       `fog mask: visibleInstanceCount=${stats.visibleInstanceCount} res=${stats.res} ` +
-        `optimistic=${stats.optimisticDiscs} mask=${stats.maskSize}`,
+        `optimistic=${stats.optimisticDiscs} mask=${stats.maskSize}` +
+        (stats.reveal
+          ? ` reveal=${stats.reveal.cells} cells (${stats.reveal.inBoth} always, ` +
+            `${stats.reveal.postOnly} in, ${stats.reveal.preOnly} out)`
+          : ""),
     )
   }
 }

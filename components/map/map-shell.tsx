@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
-import { perfEnabled } from "@/lib/fog/debug-flags"
+import { perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
+import { revealCellsForRoute, type RevealCell } from "@/lib/fog/reveal"
 import {
   EXTRACT_FALLBACK,
   firstLoadRunCamera,
@@ -19,6 +20,7 @@ import type { RunFeatureCollection } from "@/lib/runs/wire"
 
 import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
+import { RevealScrub } from "./reveal-scrub"
 import { useFogMask } from "./use-fog-mask"
 import { useLatestRun } from "./use-latest-run"
 
@@ -326,10 +328,27 @@ export function MapShell({
   }, [home, framed])
 
   /**
+   * `0079`. `?fog=scrub` on a run's page: this run's reveal set, computed from the route the page
+   * already holds — no fetch. Every cell the run touched, including ground earlier runs cleared:
+   * which of them are THIS run's discoveries is the server's to say (`0251`), and `0080` will pass
+   * exactly those. For judging how the edge reads, the whole route is the better test anyway.
+   *
+   * Read once, for `use-fog-mask.ts`'s reason: a debug flag is not watched.
+   */
+  const scrub = useMemo(
+    () => framed && typeof window !== "undefined" && revealScrubEnabled(window.location.search),
+    [framed],
+  )
+  const reveal: RevealCell[] | null = useMemo(
+    () => (scrub && run?.features[0] ? revealCellsForRoute(run.features[0].geometry) : null),
+    [scrub, run],
+  )
+
+  /**
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
    * Called unconditionally and before the early return below, because hooks are.
    */
-  const fogLayer = useFogMask(loaded, harness)
+  const fogLayer = useFogMask(loaded, harness, reveal)
 
   /**
    * Ticket `0057`. The route above the fog, and the optimistic corridor inside the mask.
@@ -410,6 +429,8 @@ export function MapShell({
       <MaskHud map={loaded} layer={fogLayer} />
       {/* Ticket 0059. Renders only under `?fog=perf`; `harness` is null otherwise. */}
       <PerfOverlay map={loaded} layer={fogLayer} harness={harness} />
+      {/* Ticket 0079. Renders only under `?fog=scrub`, on a run's page. */}
+      {reveal ? <RevealScrub layer={fogLayer} cells={reveal.length} /> : null}
     </>
   )
 }

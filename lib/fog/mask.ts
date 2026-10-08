@@ -101,8 +101,73 @@ export const SEAM_FLOOR = 0.87
  */
 export const MASK_SCALE = 0.5
 
-/** Floats per instance: `centerMercX`, `centerMercY`, `radiusMerc`, `fraction`. Criterion 5. */
-export const INSTANCE_FLOATS = 4
+/**
+ * Floats per instance: `centerMercX`, `centerMercY`, `radiusMerc`, `fraction`, `arc`. Criterion 5,
+ * plus `0079`'s fifth.
+ *
+ * `arc` is the REVEAL SEAM (`0079`, `06-ui-ux.md` §3.2 beat 1). Every producer outside a reveal
+ * writes `ARC_ALWAYS`, and an `ARC_ALWAYS` instance is weighted by exactly `1.0` — so the steady
+ * state draws the same bytes it drew when the layout had four floats. Only `reveal-tag.ts` writes
+ * anything else.
+ */
+export const INSTANCE_FLOATS = 5
+
+/** `arc` for an instance that is not part of a reveal: always drawn, at full weight. */
+export const ARC_ALWAYS = -1
+
+/**
+ * Added to `arc` for an instance that is drawn UNTIL its reveal position has fully arrived, and then
+ * not at all — the pre-run stream's instances that the post-run stream replaces. `reveal-tag.ts`
+ * explains which those are. Any `arc >= ARC_OUT_OFFSET - 0.5` is read as one.
+ */
+export const ARC_OUT_OFFSET = 2
+
+/**
+ * THE RAMP, as a fraction of the whole route. `0079`: *"a short ramp so the edge softens in rather
+ * than popping"*.
+ *
+ * A cell at arc `a` starts at `p = a x (1 - R)` and is at full weight by `p = a x (1 - R) + R`.
+ * Compressing the starts into `[0, 1 - R]` is what makes BOTH ends exact rather than approximately
+ * right: at `p = 0` every start is `>= 0`, so every reveal weight is exactly 0; at `p = 1` the shader
+ * short-circuits to exactly `1.0`. That pair is the ticket's safety property — the animation cannot
+ * leave the map in a state the steady-state renderer would not have produced.
+ *
+ * 0.03 of the route is ~90 m of a 3 km run and ~600 m of a 20 km one: a few cells' worth of feather
+ * on the edge that is travelling, on top of the disc falloff each cell already has. Tuned by eye with
+ * the scrub control; it is a look, and lives here for `REVEAL_SCALE`'s reason.
+ */
+export const REVEAL_RAMP = 0.03
+
+/**
+ * `0079`. THE SHADER'S REVEAL WEIGHT, IN JAVASCRIPT — the same branches as `maskVertexSource`'s
+ * `revealed()` and its caller, for the tests and the GPU harness to compute what a pass SHOULD draw.
+ * `mask.test.ts` holds the two to the same constants; the harness holds them to the same pixels.
+ */
+export function revealWeight(arc: number, progress: number): number {
+  if (arc < 0) return 1
+  const ramp = (a: number) => {
+    if (progress >= 1) return 1
+    const start = a * (1 - REVEAL_RAMP)
+    return Math.min(1, Math.max(0, (progress - start) / REVEAL_RAMP))
+  }
+  if (arc < ARC_OUT_OFFSET - 0.5) return ramp(arc)
+  return ramp(arc - ARC_OUT_OFFSET) >= 1 ? 0 : 1
+}
+
+/**
+ * THE ORIGIN GRID, `0079`. `uploadInstances` snaps its origin DOWN to a multiple of this.
+ *
+ * `0200` took the first instance's centre as the origin. A reveal uploads a merged stream whose first
+ * instance can differ from the steady state's first instance, and a different origin is a different
+ * float32 rounding of the folded matrix — a sub-pixel shift that a zero-tolerance pixel diff (the
+ * ticket's criterion 2) reports as a divergence. Snapped to a 2^-10 grid (~39 km at the equator), the
+ * two streams for one viewport share an origin unless the first instances straddle a grid line.
+ *
+ * The precision `0200` bought is kept: a float32 centre minus a multiple of 2^-10 is exact (fewer
+ * than 24 significant bits remain), and relative coordinates up to ~2^-9 keep the folded matrix's
+ * translation terms within ~0.004 CSS px of exact at z17 — `0200` measured the stair at 4.5 px.
+ */
+export const ORIGIN_GRID = 2 ** -10
 
 /* ─── Shaders ───────────────────────────────────────────────────────────────── */
 
@@ -130,13 +195,35 @@ uniform vec2 u_origin; // see MaskResources.origin — (0, 0) whenever it is fol
 in vec2  a_center;    // cell centre, RELATIVE to MaskResources.origin (per-instance)
 in float a_radius;    // disc radius, mercator units       (per-instance)
 in float a_fraction;  // 0..1 coverage weight              (per-instance)
+in float a_arc;       // 0079: reveal position, ARC_ALWAYS outside a reveal (per-instance)
+
+uniform float u_reveal; // 0079: revealProgress, 0..1. Exactly 1.0 whenever no reveal is running.
 
 out vec2  v_uv;
 out float v_fraction;
+// 0079. The reveal weight for a cell at route position arc. See REVEAL_RAMP for why both ends are exact.
+float revealed(float arc) {
+    if (u_reveal >= 1.0) return 1.0;
+    float start = arc * ${(1 - REVEAL_RAMP).toFixed(6)};
+    return clamp((u_reveal - start) / ${REVEAL_RAMP.toFixed(6)}, 0.0, 1.0);
+}
 
 void main() {
+    float w = 1.0;
+    if (a_arc >= 0.0) {
+        w = a_arc < ${(ARC_OUT_OFFSET - 0.5).toFixed(1)}
+            ? revealed(a_arc)
+            : (revealed(a_arc - ${ARC_OUT_OFFSET.toFixed(1)}) >= 1.0 ? 0.0 : 1.0);
+    }
     v_uv = a_quad;
-    v_fraction = a_fraction;
+    // Exactly a_fraction whenever w is 1.0, which is every instance outside a reveal.
+    v_fraction = a_fraction * w;
+    if (w <= 0.0) {
+        // Not yet revealed (or already replaced): every corner outside the clip volume, so the
+        // instance produces no fragments at all rather than 4 fragments of zero under MAX.
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
     // Offset in mercator space, then let MapLibre project. A mercator-space disc is still a
     // disc on screen, so no latitude correction is needed for the SHAPE; a_radius carries the
     // ground-size variation (see metresToMercator in instances.ts).
@@ -330,6 +417,12 @@ export type MaskResources = {
    * and correct, and MapLibre only shows the globe at low zoom where the rounding is sub-pixel.
    */
   foldOrigin: boolean
+  /**
+   * `0079`. `revealProgress`, read by the pass as `u_reveal`. **1 whenever no reveal is running**, and
+   * the shader short-circuits on it, so the steady state is the same bytes it always was. Setting it
+   * is a uniform write on the next pass — never a buffer upload, never an FBO allocation.
+   */
+  revealProgress: number
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -373,6 +466,7 @@ const ATTRIBUTES = [
   ["a_center", 2, 0],
   ["a_radius", 1, 8],
   ["a_fraction", 1, 12],
+  ["a_arc", 1, 16],
 ] as const
 
 function buildMaskVAO(
@@ -487,6 +581,7 @@ export function createMaskResources(
     capacity: 0,
     origin: [0, 0],
     foldOrigin: !options.define.includes("GLOBE"),
+    revealProgress: 1,
   }
 }
 
@@ -505,9 +600,11 @@ export function uploadInstances(
   instances: Float32Array,
 ): void {
   const count = Math.floor(instances.length / INSTANCE_FLOATS)
-  // `0200`: centres relative to the first one. A copy, not an in-place edit — the caller keeps its
-  // array to re-upload after a context loss, and this runs once per bucket, never per frame.
-  const origin: [number, number] = count > 0 ? [instances[0]!, instances[1]!] : [0, 0]
+  // `0200`: centres relative to the first one, snapped to `ORIGIN_GRID` (`0079` — see there). A
+  // copy, not an in-place edit — the caller keeps its array to re-upload after a context loss, and
+  // this runs once per bucket, never per frame.
+  const origin: [number, number] =
+    count > 0 ? [snapToGrid(instances[0]!), snapToGrid(instances[1]!)] : [0, 0]
   const relative = instances.slice(0, count * INSTANCE_FLOATS)
   for (let i = 0; i < relative.length; i += INSTANCE_FLOATS) {
     relative[i] = instances[i]! - origin[0]
@@ -523,6 +620,10 @@ export function uploadInstances(
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, null)
   res.instanceCount = count
+}
+
+function snapToGrid(v: number): number {
+  return Math.floor(v / ORIGIN_GRID) * ORIGIN_GRID
 }
 
 /** Reallocate the mask after a resize. Returns whether anything changed. */
@@ -627,6 +728,9 @@ export function runMaskPass(
 
   gl.useProgram(res.maskProgram)
   setProjectionUniforms(gl, res.maskProgram, projection, res.origin, res.foldOrigin)
+  // `0079`. Every pass, because a program's uniforms persist but a rebuilt program's do not.
+  const reveal = gl.getUniformLocation(res.maskProgram, "u_reveal")
+  if (reveal) gl.uniform1f(reveal, res.revealProgress)
   gl.bindVertexArray(res.maskVAO)
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, res.instanceCount)
   gl.bindVertexArray(null)

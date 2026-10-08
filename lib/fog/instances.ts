@@ -3,7 +3,7 @@ import { cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, type H3Index } from "h
 import { bigToCell } from "@/src/domain/explored-blob"
 import { RES } from "@/src/domain/fog"
 
-import { INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
+import { ARC_ALWAYS, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
 
 /**
  * CELLS → INSTANCE ATTRIBUTES. Ticket `0055`. `05-fog-of-war.md` §4.1, §4.2, §6.1.
@@ -294,7 +294,7 @@ export function packBucket(cells: readonly H3Index[], options: PackOptions = {})
   }
 }
 
-/** Discs → the four-float-per-instance layout `mask.ts` draws. */
+/** Discs → the `INSTANCE_FLOATS` layout `mask.ts` draws. Outside a reveal, every arc is `ARC_ALWAYS`. */
 function flattenDiscs(discs: readonly Disc[]): Float32Array {
   const instances = new Float32Array(discs.length * INSTANCE_FLOATS)
   for (let i = 0; i < discs.length; i++) {
@@ -304,6 +304,7 @@ function flattenDiscs(discs: readonly Disc[]): Float32Array {
     instances[at + 1] = d.y
     instances[at + 2] = d.r
     instances[at + 3] = d.fraction
+    instances[at + 4] = ARC_ALWAYS
   }
   return instances
 }

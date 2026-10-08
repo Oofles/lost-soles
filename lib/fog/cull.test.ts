@@ -16,7 +16,7 @@ import {
 } from "./cull"
 import { ExploredSet } from "./explored-set"
 import { mercatorX, mercatorY } from "./instances"
-import { INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, INSTANCE_FLOATS } from "./mask"
 import { resForZoom, ZoomBucketStore } from "./zoom-buckets"
 
 /**
@@ -64,14 +64,22 @@ function solidDisc(centre: { lat: number; lng: number }, k: number): ExploredSet
   return ExploredSet.fromCells(BigUint64Array.from(cells), 1)
 }
 
-/** A `CullableBucket` made of hand-written numbers — no h3, no set, no derivation. */
+/**
+ * A `CullableBucket` made of hand-written numbers — no h3, no set, no derivation. Discs are written
+ * as `x, y, r, fraction` and given `ARC_ALWAYS` here (`0079`'s fifth float), as every producer does.
+ */
 function fakeBucket(groups: Array<{ bounds: [number, number, number, number]; discs: number[] }>): {
   bucket: CullableBucket
   discsFor: ReturnType<typeof vi.fn>
 } {
   const bounds = new Float64Array(groups.length * 4)
   groups.forEach((group, i) => bounds.set(group.bounds, i * 4))
-  const discsFor = vi.fn((g: number) => Float32Array.from(groups[g]!.discs))
+  const withArc = (discs: number[]) => {
+    const out: number[] = []
+    for (let i = 0; i < discs.length; i += 4) out.push(...discs.slice(i, i + 4), ARC_ALWAYS)
+    return out
+  }
+  const discsFor = vi.fn((g: number) => Float32Array.from(withArc(groups[g]!.discs)))
   return {
     bucket: { res: RES, groupCount: groups.length, groupBounds: bounds, discsFor },
     discsFor,
