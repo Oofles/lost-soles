@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-02
+Last updated: 2026-10-08
 
 ---
 
@@ -4511,3 +4511,15 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     is `--gold-700` with extra drawing code), and accepting 2.24:1 as an exception (the bar is the
     tile's only progress signal; nothing else on the tile carries the fraction).
   - **Reach.** `--progress-activity` also fills `/log`'s post-save bar, which inherits the darker leaf.
+- **D-292** **`/run/:id` for a run that is not yours renders the 404 PAGE; the HTTP status may be
+  200.** *(Operator, 2026-10-08, ticket `0078`. Amends its criterion 1.)*
+  - **Why it is 200.** Next 15.5 streams metadata to non-bot user agents by default, which commits
+    the response status before the page calls `notFound()`. The browser gets Next's not-found UI
+    (`NEXT_HTTP_ERROR_FALLBACK;404`, `noindex`) and nothing of the run.
+  - **What holds.** No run data reaches the page, and a nonexistent id looks the same as another
+    account's (`runById` returns one `null` for both). Nobody reads a status code in a single-user
+    app.
+  - **Rejected:** `htmlLimitedBots: /.*/` in `next.config`. It would give a real 404, but it
+    switches off streaming metadata on every route to change a number nobody sees.
+  - **Revisit** if a status-sensitive client (a crawler, a monitor, a non-browser API caller) ever
+    reads `/run/:id`.
