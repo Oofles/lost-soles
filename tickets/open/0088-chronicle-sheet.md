@@ -83,3 +83,5 @@ Chronicle exactly once, with nothing blank in between.
 
 Then scroll the whole list after a full Strava backfill. It must stay smooth to the bottom, and
 nothing in it should make an unremarkable month look like a failure.
+
+- 2026-10-08 (operator, during 0078 validation): **an open question to decide here, not a settled one.** Should back from a run opened from the Chronicle reopen the list instead of going to `/`? §3.3 says it goes to `/`, so today's links use `replace`. The other way costs little: the links push instead of replace. A run opened any other way would still go back to `/`. Ask the operator before building the sheet's dismiss behaviour.
