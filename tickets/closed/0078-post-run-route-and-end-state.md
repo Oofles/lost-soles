@@ -192,3 +192,7 @@ check you land on `/`. Click the same run again and hit `⟲ Relive`; it should 
 page. Narrow the window to ~400 px: is the ledger still legible, and has the map left the text
 alone? *Pending.*
 
+
+**Operator, 2026-10-08, desktop browser.** `/chronicle` looks right. Two findings:
+- *Relive only scrolls to the top.* Expected for now: `RunSequence` is a placeholder until `0079`–`0084`.
+- *Back left the site, and there was no back control.* A real bug. With `/chronicle` opened from the address bar, nothing of the app sat behind it, and the `replace` link removed the only entry. Fixed in `e408eaa`: a cold `/chronicle` now seeds `/` beneath it, the same way a cold `/run/:id` does (`app/chronicle/seed-home.tsx`). `/run/:id` also gains §7's desktop `←` arrow to `/`. The smoke test adds both cases, and 39/39 pass against job 336.
