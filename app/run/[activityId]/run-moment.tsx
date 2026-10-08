@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useReducer, type ReactNode } from "react"
 
 import { MapShell } from "@/components/map/map-shell"
@@ -96,6 +97,16 @@ export function EndState({
 
   return (
     <>
+      {/* §7: back is the browser's, and the arrow is there for desktop — never the only path (§1.5). */}
+      <header style={{ padding: ".5rem 1rem" }}>
+        <Link
+          href="/"
+          aria-label="Back to the map"
+          style={{ color: "var(--text-primary)", textDecoration: "none", fontSize: "1.5rem", padding: ".25rem .5rem" }}
+        >
+          ←
+        </Link>
+      </header>
       <div data-slot="map">{map}</div>
       <div style={column}>
         {summary.name ? <h1 style={{ margin: 0, fontSize: "1.25rem", color: "var(--text-primary)" }}>{summary.name}</h1> : null}

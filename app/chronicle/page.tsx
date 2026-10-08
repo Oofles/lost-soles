@@ -4,6 +4,7 @@ import { defaultRunReadDeps, recentRuns } from "@/lib/runs/server"
 import type { RunListItem } from "@/lib/runs/wire"
 
 import { ChronicleLinks } from "./chronicle-links"
+import { SeedHome } from "./seed-home"
 
 // §1.3 — a SHEET over the map dragged up from the plinth, not a page. The only way
 // back to a past run's /run/:id, and the only place lifetime totals live (there is
@@ -17,6 +18,7 @@ export default async function Chronicle() {
 
   return (
     <>
+      <SeedHome />
       <Stub
         route="/chronicle"
         becomes="Chronicle (run list)"
