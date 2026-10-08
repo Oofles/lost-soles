@@ -101,6 +101,18 @@ export function writeCamera(camera: Camera): void {
  * caller then keeps whatever camera it already has, which is the configured home or the extract.
  */
 export function runCamera(runs: RunFeatureCollection): Camera | null {
+  const box = runBounds(runs)
+  if (!box) return null
+  const [[west, south], [east, north]] = box
+  return { lng: (west + east) / 2, lat: (south + north) / 2, zoom: HOME_ZOOM, bearing: 0 }
+}
+
+/**
+ * THE RUN'S BOUNDING BOX, `[[west, south], [east, north]]` — the shape MapLibre's `fitBounds` takes.
+ * `0078` frames `/run/:id`'s map with it; `runCamera` above takes its centre. Non-finite and
+ * out-of-range positions are skipped, and a run with none left is `null`.
+ */
+export function runBounds(runs: RunFeatureCollection): [[number, number], [number, number]] | null {
   const geometry = runs.features[0]?.geometry
   if (!geometry) return null
 
@@ -118,8 +130,7 @@ export function runCamera(runs: RunFeatureCollection): Camera | null {
     }
   }
   if (west > east) return null
-
-  return { lng: (west + east) / 2, lat: (south + north) / 2, zoom: HOME_ZOOM, bearing: 0 }
+  return [[west, south], [east, north]]
 }
 
 /**

@@ -1897,6 +1897,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-08T15:29:31Z",
     "path": "tickets/open/0078-post-run-route-and-end-state.md",
     "ready": true,
     "acceptance": {
@@ -5731,7 +5732,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 5
     }
   },
   {
@@ -5751,7 +5752,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 4
     }
   }
 ]

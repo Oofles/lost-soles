@@ -62,6 +62,8 @@ describe("criterion 4 — the line does not wait for the cells", () => {
    */
   it("uses the explored generation only to decide when to re-ask", () => {
     expect(hook).toContain("useExplored()")
-    expect(hook).toContain("[generation]")
+    // `0078` adds `fetchLatest` — constant for a mount (`/run/:id` passes its own run and never
+    // fetches) — so the generation is still the only thing that changes and re-asks.
+    expect(hook).toContain("[generation, fetchLatest]")
   })
 })

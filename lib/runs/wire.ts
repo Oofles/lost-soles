@@ -45,3 +45,53 @@ export const EMPTY_COLLECTION: RunFeatureCollection = { type: "FeatureCollection
 
 /** The endpoint `0195` built. Named here so the client and its test cannot disagree on the path. */
 export const RUNS_LATEST_PATH = "/api/runs/latest"
+
+/**
+ * ONE RUN, AS `/run/:activityId` RENDERS IT. Ticket `0078`. `06-ui-ux.md` §3.3.
+ *
+ * The facts the end state's route stats and ledger summary read, plus the run's own geometry for
+ * the map. Read on the server, ownership-checked (`runById`), and handed to the page as props —
+ * nothing here is computed; every field is a column `persist.ts` wrote.
+ */
+export interface RunSummary {
+  activityId: string
+  /** ISO 8601 UTC. */
+  startedAt: string
+  /** Naive wall clock (I-13). The DATE the run happened is read from this, never from UTC. */
+  startedAtLocal: string
+  name: string | null
+  kind: string
+  distanceM: number | null
+  elapsedS: number
+  movingS: number | null
+  /** The adapter id (`AdapterId`) — display only; nothing branches on it (D-100). */
+  source: string
+  newCellCount: number
+  rearmedCellCount: number
+  /** The run's line, or the empty collection for an untraced activity. */
+  route: RunFeatureCollection
+}
+
+/** One row of the Chronicle's run list. Ticket `0078` adds only the link; `0088` builds the sheet. */
+export interface RunListItem {
+  activityId: string
+  startedAtLocal: string
+  name: string | null
+  kind: string
+  distanceM: number | null
+}
+
+/**
+ * THE ONE WRITER OF A `/run/:id` LINK.
+ *
+ * `play` is the entry point's AUTOPLAY INTENT (§3.1): the plinth's new-run line asks for the
+ * sequence, the Chronicle does not. It is the only way the route learns it — not the run's age,
+ * not the `seen` flag (`0084` owns that) — and the page drops it from the address bar once read,
+ * so a reload or a shared link opens the end state rather than replaying.
+ */
+export const PLAY_PARAM = "play"
+
+export function runHref(activityId: string, opts: { play?: boolean } = {}): string {
+  const path = `/run/${encodeURIComponent(activityId)}`
+  return opts.play ? `${path}?${PLAY_PARAM}=1` : path
+}

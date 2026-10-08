@@ -10,9 +10,12 @@ import {
   firstLoadRunCamera,
   parseAt,
   readCamera,
+  runBounds,
+  runCamera,
   writeCamera,
   type Camera,
 } from "@/lib/map-camera"
+import type { RunFeatureCollection } from "@/lib/runs/wire"
 
 import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
@@ -85,7 +88,37 @@ const notice: React.CSSProperties = {
   textAlign: "center",
 }
 
-export function MapShell({ home }: { home: Camera | null }) {
+/**
+ * `0078`. `/run/:id`'s map: a box at the top of a scrolling page rather than the whole screen, and
+ * the same component otherwise — fog, route layers, context-loss rebuild — so the run page's map
+ * cannot drift from home's.
+ */
+const framedShell: React.CSSProperties = {
+  position: "relative",
+  height: "55vh",
+  minHeight: "16rem",
+  width: "100%",
+  background: "var(--bg)",
+}
+
+export function MapShell({
+  home,
+  run,
+}: {
+  home: Camera | null
+  /**
+   * `0078`. ONE RUN'S PAGE. When given, the map is framed on this run, draws this run's line
+   * instead of fetching the latest, and leaves the stored camera alone in both directions: it does
+   * not open where home was left, and panning here does not move where home opens next.
+   *
+   * No animation of any kind on the way in — `fitBounds` with `animate: false`. The camera flight
+   * is beat 1's (`0080`), and the static end state must not borrow it.
+   */
+  run?: RunFeatureCollection
+}) {
+  const framed = run !== undefined
+  const fixedRun = useRef(run)
+  fixedRun.current = run
   const container = useRef<HTMLDivElement | null>(null)
   const map = useRef<MapInstance | null>(null)
   const [unsupported, setUnsupported] = useState(false)
@@ -137,10 +170,14 @@ export function MapShell({ home }: { home: Camera | null }) {
       return
     }
 
-    const stored = readCamera()
+    const stored = framed ? null : readCamera()
     // Stored beats configured home: the ticket wants the FIRST-EVER load centred on home,
     // not every load. After that the operator's own last position is the better answer.
-    camera.current = stored ?? home ?? EXTRACT_FALLBACK
+    // `0078`: a run's page starts on the run. (A context-loss rebuild calls `build` directly, not
+    // this effect, so it keeps wherever the operator had panned to.)
+    camera.current = framed
+      ? (runCamera(fixedRun.current!) ?? home ?? EXTRACT_FALLBACK)
+      : (stored ?? home ?? EXTRACT_FALLBACK)
     storedAtMount.current = stored !== null
 
     let disposed = false
@@ -202,6 +239,14 @@ export function MapShell({ home }: { home: Camera | null }) {
       // instance would remount the fog layer for no reason.
       instance.once("load", () => setLoaded(instance))
 
+      // `0078`. Framed on the whole run, with §3.2's 12% padding, and no flight.
+      const box = framed && !userMoved.current ? runBounds(fixedRun.current!) : null
+      if (box) {
+        const canvasBox = container.current.getBoundingClientRect()
+        const pad = Math.round(Math.min(canvasBox.width, canvasBox.height) * 0.12)
+        instance.fitBounds(box, { padding: pad, animate: false, maxZoom: 17 })
+      }
+
       // `originalEvent` is present only for a gesture — a drag, a wheel, a pinch. The `jumpTo` below
       // fires `movestart` too, without one, and must not count as the operator moving the map.
       instance.on("movestart", (event) => {
@@ -216,7 +261,7 @@ export function MapShell({ home }: { home: Camera | null }) {
           zoom: instance.getZoom(),
           bearing: instance.getBearing(),
         }
-        writeCamera(camera.current)
+        if (!framed) writeCamera(camera.current)
       })
 
       const canvas = instance.getCanvas()
@@ -278,7 +323,7 @@ export function MapShell({ home }: { home: Camera | null }) {
       disposed = true
       teardown()
     }
-  }, [home])
+  }, [home, framed])
 
   /**
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
@@ -295,7 +340,7 @@ export function MapShell({ home }: { home: Camera | null }) {
    * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
    * the same thing at the effect that depends on it.
    */
-  const runs = useLatestRun(loaded, fogLayer)
+  const runs = useLatestRun(loaded, fogLayer, run)
 
   /**
    * Ticket `0186`. THE MOST RECENT RUN'S CENTRE, ON A FIRST-EVER LOAD ONLY.
@@ -320,7 +365,7 @@ export function MapShell({ home }: { home: Camera | null }) {
    * the stored camera — which the flight's `moveend` has just written — rather than flying again.
    */
   useEffect(() => {
-    if (!loaded) return
+    if (!loaded || framed) return
     const at = parseAt(window.location.search)
     if (!at) return
     centredOnRun.current = true
@@ -328,10 +373,10 @@ export function MapShell({ home }: { home: Camera | null }) {
     const url = new URL(window.location.href)
     url.searchParams.delete("at")
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
-  }, [loaded])
+  }, [loaded, framed])
 
   useEffect(() => {
-    if (!loaded) return
+    if (!loaded || framed) return
     const target = firstLoadRunCamera({
       storedAtMount: storedAtMount.current,
       userMoved: userMoved.current,
@@ -341,11 +386,11 @@ export function MapShell({ home }: { home: Camera | null }) {
     if (!target) return
     centredOnRun.current = true
     loaded.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: target.bearing })
-  }, [loaded, runs])
+  }, [loaded, runs, framed])
 
   if (unsupported) {
     return (
-      <div style={shell}>
+      <div style={framed ? framedShell : shell}>
         <p style={notice}>
           This device cannot run the map. Lost Soles needs WebGL2, which this browser does
           not support.
@@ -356,7 +401,7 @@ export function MapShell({ home }: { home: Camera | null }) {
 
   return (
     <>
-      <div ref={container} style={shell} data-testid="map-shell" />
+      <div ref={container} style={framed ? framedShell : shell} data-testid="map-shell" />
       {/*
         Ticket 0055, criterion 10. Renders only under `?fog=mask`, and it is what makes an EMPTY
         mask distinguishable from a broken one — see mask-hud.tsx. It also carries the zoom, which

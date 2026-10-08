@@ -34,11 +34,19 @@ import { useExplored } from "./explored-provider"
 export function useLatestRun(
   map: (LayerHost & { triggerRepaint(): void }) | null,
   layer: FogMaskLayer | null,
+  /**
+   * `0078`. A run the page already holds — `/run/:id` reads its own run on the server, ownership
+   * checked. When given, there is no fetch: the line drawn is that run, not the latest one.
+   */
+  fixed?: RunFeatureCollection,
 ): RunFeatureCollection {
   const { generation } = useExplored()
-  const [runs, setRuns] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
+  const [latest, setRuns] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
+  const runs = fixed ?? latest
+  const fetchLatest = fixed === undefined
 
   useEffect(() => {
+    if (!fetchLatest) return
     let cancelled = false
     void (async () => {
       try {
@@ -55,7 +63,7 @@ export function useLatestRun(
     return () => {
       cancelled = true
     }
-  }, [generation])
+  }, [generation, fetchLatest])
 
   /**
    * THE VISIBLE LINE. Appended, never with a `beforeId` — `lib/map-layers.ts` explains why the

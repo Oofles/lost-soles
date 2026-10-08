@@ -5,7 +5,13 @@ import outputs from "@/amplify_outputs.json"
 import { getObject, defaultFogReadDeps, type FogReadDeps } from "@/lib/fog/server"
 import { routeTraceKey } from "@/src/pipeline/route-trace-store"
 
-import { EMPTY_COLLECTION, type RouteTraceGeometry, type RunFeatureCollection } from "./wire"
+import {
+  EMPTY_COLLECTION,
+  type RouteTraceGeometry,
+  type RunFeatureCollection,
+  type RunListItem,
+  type RunSummary,
+} from "./wire"
 
 /**
  * WHERE `/api/runs/latest` GETS ITS ANSWER. Ticket `0195`. `02-data-model.md` §5.1 (S-7),
@@ -79,7 +85,7 @@ export const defaultRunReadDeps = (): RunReadDeps => ({
  * keep working unchanged.
  */
 export { EMPTY_COLLECTION } from "./wire"
-export type { RunFeature, RunFeatureCollection } from "./wire"
+export type { RunFeature, RunFeatureCollection, RunListItem, RunSummary } from "./wire"
 
 /**
  * HOW FAR BACK THE QUERY WILL LOOK FOR A TRACED ACTIVITY.
@@ -172,4 +178,109 @@ export async function latestRun(
       },
     ],
   }
+}
+
+/** T3's columns `runById` and `recentRuns` read. Optional throughout: rows predate columns. */
+type FullActivityRow = ActivityRow & {
+  userId?: string
+  startedAtLocal?: string
+  kind?: string
+  distanceM?: number | null
+  elapsedS?: number
+  movingS?: number | null
+  source?: { source?: string } | null
+  newCellCount?: number | null
+  rearmedCellCount?: number | null
+}
+
+/**
+ * ONE RUN, IF AND ONLY IF IT IS THE CALLER'S. Ticket `0078`, criterion 1.
+ *
+ * `null` means "render a 404", and it is the same `null` for an id that does not exist and an id
+ * that belongs to someone else — the page must not tell the two apart, or it is an oracle for
+ * which activity ids exist.
+ *
+ * A `Query` on the BASE table by `id`, not a `GetItem`: the SSR compute role holds `dynamodb:Query`
+ * on T3 and nothing else (`amplify/backend.ts`, `QueryActivityForLatestRun`), and this needs no
+ * new grant. The ownership check is in code because the key is the activity id, not the user —
+ * `userId` on the row is compared with the session's `sub`, which is the only identity this module
+ * is ever handed (`08` §5.3).
+ *
+ * The geometry is read through the same rebuilt key as `latestRun`, never off `traceRef`.
+ */
+export async function runById(
+  userId: string,
+  activityId: string,
+  deps: RunReadDeps,
+): Promise<RunSummary | null> {
+  const out = await deps.ddb.send(
+    new QueryCommand({
+      TableName: deps.activityTable,
+      KeyConditionExpression: "#id = :id",
+      ExpressionAttributeNames: { "#id": "id" },
+      ExpressionAttributeValues: { ":id": activityId },
+      Limit: 1,
+    }),
+  )
+  const row = (out.Items ?? [])[0] as FullActivityRow | undefined
+  if (!row?.id || row.userId !== userId || !row.startedAt) return null
+
+  let route: RunFeatureCollection = EMPTY_COLLECTION
+  if (typeof row.traceRef === "string" && row.traceRef.length > 0) {
+    const bytes = await getObject(routeTraceKey(userId, row.id), deps)
+    if (bytes !== undefined) {
+      route = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: JSON.parse(new TextDecoder().decode(bytes)) as RouteTraceGeometry,
+            properties: { activityId: row.id, startedAt: row.startedAt, name: row.name ?? null },
+          },
+        ],
+      }
+    }
+  }
+
+  return {
+    activityId: row.id,
+    startedAt: row.startedAt,
+    startedAtLocal: row.startedAtLocal ?? row.startedAt,
+    name: row.name ?? null,
+    kind: row.kind ?? "other",
+    distanceM: row.distanceM ?? null,
+    elapsedS: row.elapsedS ?? 0,
+    movingS: row.movingS ?? null,
+    source: row.source?.source ?? "unknown",
+    newCellCount: row.newCellCount ?? 0,
+    rearmedCellCount: row.rearmedCellCount ?? 0,
+    route,
+  }
+}
+
+/** How many runs the Chronicle link list shows. `0088` owns paging and the real sheet. */
+export const RECENT_RUNS_LIMIT = 50
+
+/** The caller's newest activities, newest first — the Chronicle's links to `/run/:id`. */
+export async function recentRuns(userId: string, deps: RunReadDeps): Promise<RunListItem[]> {
+  const out = await deps.ddb.send(
+    new QueryCommand({
+      TableName: deps.activityTable,
+      IndexName: "byUserAndStart",
+      KeyConditionExpression: "#u = :u",
+      ExpressionAttributeNames: { "#u": "userId" },
+      ExpressionAttributeValues: { ":u": userId },
+      ScanIndexForward: false,
+      Limit: RECENT_RUNS_LIMIT,
+    }),
+  )
+  return ((out.Items ?? []) as FullActivityRow[])
+    .filter((r): r is FullActivityRow & { id: string } => typeof r.id === "string")
+    .map((r) => ({
+      activityId: r.id,
+      startedAtLocal: r.startedAtLocal ?? r.startedAt ?? "",
+      name: r.name ?? null,
+      kind: r.kind ?? "other",
+      distanceM: r.distanceM ?? null,
+    }))
 }
