@@ -97,6 +97,20 @@ exactly how trust dies").
 
 Nothing in this ticket is user-visible. That is intentional.
 
+**2026-10-09 — state at end of the build session (handoff for the close).** Built and deployed
+(`8ee39bc`, `f54f816`); criteria 1–5 and 8 ticked with evidence. **Open: 6 and 7, both the
+operator's** — 6 is a frame-time reading only a real desktop GPU can give (headless SwiftShader
+read p50 16.70 ms with 45% dropped, which is the software rasteriser, not a verdict); 7 is the
+perceptual check below. Agent smoke against the deployed site (`tmp/0079/smoke.mjs`, throwaway
+Cognito user + synthetic 2.5 km loop at Point Nemo, all deleted after): 10/10 — no control without
+the flag; `?fog=scrub` and `?fog=scrub,mask` mount it; the slider drives progress; the layer logs
+`reveal=195 cells (0 always, 601 in, 0 out)`; ▶ 2.2 s reports through `0059`'s collector; no console
+errors. Screenshots at p = 0 / 0.25 / 0.5 / 1 show the corridor clearing from the start, in route
+order. The smoke also found a real bug — an account with no explored blob installed no reveal —
+fixed in `f54f816`. Decisions: D-293. Filed: `0251` (0080 now depends on it), `0252`.
+To close: record the operator's two readings on criteria 6 and 7, write `## Resolution` from this
+note and the commits, then `tickets.mjs close 79`.
+
 ## Operator validation
 
 In the desktop browser, dev build, on `/run/:id` for a real recent run: drag the scrub control slowly
