@@ -100,7 +100,17 @@ export function useFogMask(
     [],
   )
 
-  const set = explored.set
+  /**
+   * `0079`. An account with no explored blob yet has no set at all — and that is exactly the
+   * account whose first run a reveal must still play over (the "cells not yet persisted" case,
+   * literally). With a reveal requested, an EMPTY set stands in, so the store, the controller and
+   * the reveal's pre/post stores all exist. Without one, `null` keeps a fogless boot fogless.
+   */
+  const hasReveal = !!reveal && reveal.length > 0
+  const set = useMemo(
+    () => explored.set ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null),
+    [explored.set, hasReveal],
+  )
   const generation = explored.generation
   latest.current = generation
 
