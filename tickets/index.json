@@ -5765,17 +5765,20 @@
     "title": "Serve the run's own new and re-armed cell ids to /run/:id, so beat 1 knows what to reveal",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
       78
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      253
+    ],
     "source": "agent",
     "created": "2026-10-08T19:31:14Z",
+    "started": "2026-10-13T12:05:24Z",
     "path": "tickets/open/0251-run-reveal-cell-classes.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 5
@@ -5799,6 +5802,26 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 253,
+    "slug": "persist-each-run-s-new-and-re-armed-cell-ids-at-ingest-and-r",
+    "title": "Persist each run's new and re-armed cell ids at ingest, and rewrite them in the fold",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-13T12:07:12Z",
+    "path": "tickets/open/0253-persist-each-run-s-new-and-re-armed-cell-ids-at-ingest-and-r.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
     }
   }
 ]
