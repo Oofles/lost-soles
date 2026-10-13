@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { BEAT1_MS } from "./beat1"
+import { pullBack, type Box } from "./camera"
 import {
   BEAT2_MS,
   beat2At,
@@ -87,5 +88,21 @@ describe("expansion pauses the clock (criterion 8)", () => {
     expect(c.pausedMs(5100)).toBe(3500)
     c.resume(6000) // idempotent
     expect(c.elapsed(6000)).toBe(1500)
+  })
+})
+
+describe("the pull-back is from the run's own framing (Relive must not compound it)", () => {
+  it("targets fit − 1.5 whatever the current zoom, offset up by half the covered map", () => {
+    const run: Box = [[-123.4, -48.9], [-123.35, -48.87]]
+    const moves: Record<string, unknown>[] = []
+    const map = {
+      getContainer: () => ({ getBoundingClientRect: () => ({ width: 1280, height: 500 }) }),
+      cameraForBounds: () => ({ center: { lng: -123.375, lat: -48.885 }, zoom: 14 }),
+      easeTo: (o: Record<string, unknown>) => void moves.push(o),
+    }
+    for (let i = 0; i < 3; i++) pullBack(map, run, { zoomOut: 1.5, covered: 100, duration: 300, easing: (t) => t })
+    expect(moves.map((m) => m.zoom)).toEqual([12.5, 12.5, 12.5])
+    expect(moves[0]).toMatchObject({ center: { lng: -123.375, lat: -48.885 }, offset: [0, -50], duration: 300 })
+    expect(moves[0]).not.toHaveProperty("padding")
   })
 })

@@ -52,3 +52,36 @@ export function flyToRun(map: CameraMap, run: Box): boolean {
   map.fitBounds(run, { padding: paddingFor(width, height), duration: CAMERA_MS, easing: easeOutCubic, maxZoom: 17 })
   return true
 }
+
+/** The slice of MapLibre's `Map` beat 2's pull-back needs. */
+export interface PullBackMap extends Pick<CameraMap, "getContainer"> {
+  cameraForBounds(box: Box, options: object): { center?: unknown; zoom?: number } | undefined
+  easeTo(options: object): unknown
+}
+
+/**
+ * Beat 2's camera (`0081`, §3.2): *"pulls back 1.5 zoom levels"* — from the run's OWN framing, not
+ * from wherever the camera happens to be. Measured in 0081's smoke: relative to the current zoom,
+ * every ⟲ Relive pulled back another 1.5 levels, because beat 1 does not move a camera that already
+ * holds the run, and the route shrank with each replay.
+ *
+ * `offset`, not `padding`, keeps the run's ground clear of the parchment: padding persists on the
+ * map's transform and would skew every later `fitBounds`; an offset is spent with the move.
+ */
+export function pullBack(
+  map: PullBackMap,
+  run: Box,
+  opts: { zoomOut: number; covered: number; duration: number; easing: (t: number) => number },
+): boolean {
+  const { width, height } = map.getContainer().getBoundingClientRect()
+  const fit = map.cameraForBounds(run, { padding: paddingFor(width, height), maxZoom: 17 })
+  if (!fit || fit.zoom === undefined) return false
+  map.easeTo({
+    center: fit.center,
+    zoom: fit.zoom - opts.zoomOut,
+    offset: [0, -opts.covered / 2],
+    duration: opts.duration,
+    easing: opts.easing,
+  })
+  return true
+}

@@ -12,7 +12,7 @@ import { log } from "@/lib/log"
 import { documentRoutePalette } from "@/lib/map-layers"
 import { BEAT1_MS, beat1At } from "@/lib/run-moment/beat1"
 import { beat2At, BEAT2_MS, easeOutQuint, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
-import { flyToRun } from "@/lib/run-moment/camera"
+import { flyToRun, pullBack } from "@/lib/run-moment/camera"
 import { installInk, type Ink } from "@/lib/run-moment/ink"
 import { lanternPath } from "@/lib/run-moment/lantern-path"
 import { modeCrossFade, savedRenderMode } from "@/lib/run-moment/mode"
@@ -312,19 +312,13 @@ function Beat2({
     seq.beat2Start = start
     setStarted(true)
 
-    // §3.2: pull back 1.5 zoom levels, over the parchment's own 300 ms rise. The bottom padding is the
-    // part of the map the panel will cover, so the run's ground settles in the visible upper part.
-    if (stage?.kind === "ready") {
-      const map = stage.map
-      const rect = map.getContainer().getBoundingClientRect()
-      const panelTop = window.innerHeight * 0.45
-      const covered = Math.max(0, Math.min(rect.bottom, window.innerHeight) - panelTop)
-      map.easeTo({
-        zoom: map.getZoom() - PULL_BACK_ZOOM,
-        padding: { top: 0, left: 0, right: 0, bottom: Math.min(covered, rect.height * 0.8) },
-        duration: RISE_MS,
-        easing: easeOutQuint,
-      })
+    // §3.2: pull back 1.5 zoom levels from the run's own framing, over the parchment's 300 ms rise,
+    // shifted up by half the part of the map the panel covers so the run's ground stays in view.
+    const box = runBounds(summary.route)
+    if (stage?.kind === "ready" && box) {
+      const rect = stage.map.getContainer().getBoundingClientRect()
+      const covered = Math.max(0, Math.min(rect.bottom, window.innerHeight) - window.innerHeight * 0.45)
+      pullBack(stage.map, box, { zoomOut: PULL_BACK_ZOOM, covered, duration: RISE_MS, easing: easeOutQuint })
     }
 
     let raf = 0
