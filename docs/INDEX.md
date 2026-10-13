@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,856 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,882 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 557 sections · regenerated 2026-10-08
+13 documents · 557 sections · regenerated 2026-10-13
 
 
 ## `docs/00-vision.md`
@@ -120,7 +120,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,156 lines
+**02 — Data Model & Persistence** — 2,164 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -153,48 +153,48 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 3.6 The loud part: 04 §1.3's schema, as written, does NOT pass | `902-944` | The YAML in 04-game-design.md §1.3 has no match block. |
 | &nbsp;&nbsp;↳ 3.7 The honest boundary — what stays code, forever | `945-973` | Data cannot be turned all the way down, and pretending otherwise produces a YAML dialect that is |
 | &nbsp;&nbsp;↳ 3.8 Seeding, and the CI checks that keep this true | `974-1020` | The deploy-time seeder reads rules/xp-rules-vN.yaml, validates it, and writes T5 items under |
-| 4. The XP ledger | `1021-1365` | must be a recomputation, not a migration. |
+| 4. The XP ledger | `1021-1373` | must be a recomputation, not a migration. |
 | &nbsp;&nbsp;↳ 4.1 One row per (activity, skill, reason) | `1034-1058` | that table needs to be operable at all: a deterministic id and an explicit seq. |
 | &nbsp;&nbsp;↳ 4.2 The `reason` vocabulary | `1059-1086` | Closed, and versioned with the ruleset. |
 | &nbsp;&nbsp;↳ 4.3 The write path | `1087-1152` | Every ledger row is written inside the single TransactWriteItems described in §2 T8 layer 3, |
-| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1153-1248` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
-| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1249-1277` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
-| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1278-1348` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
-| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1349-1365` | D-135 is about replay, but three non-replay paths could also lower a number. |
-| 5. Access patterns | `1366-1503` | Every query the app makes. |
-| &nbsp;&nbsp;↳ 5.1 The complete list | `1372-1434` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
-| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1435-1448` |  |
-| &nbsp;&nbsp;↳ 5.3 Write patterns | `1449-1462` | thing is the thing the product is about. |
-| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1463-1472` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
-| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1473-1479` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
-| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1480-1503` | build minutes, all of which sit in 01's estimate. |
-| 6. The client payload | `1504-1694` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
-| &nbsp;&nbsp;↳ 6.1 The objects | `1514-1529` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
-| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1530-1574` | Three cell-count scenarios. |
-| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1575-1596` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
-| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1597-1651` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
-| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1652-1694` | The emotional payload of the product (05 §7.4). |
-| 7. Migrations and versioning | `1695-1847` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1697-1720` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1721-1741` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
-| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1742-1757` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
-| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1758-1832` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
-| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1833-1847` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1848-2060` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
-| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1854-1875` |  |
-| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1876-1908` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1909-2023` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2024-2038` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `2039-2060` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `2061-2156` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2077-2087` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2088-2097` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `2098-2105` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2106-2116` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2117-2124` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2125-2133` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2134-2141` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2142-2156` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1153-1256` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
+| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1257-1285` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
+| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1286-1356` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
+| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1357-1373` | D-135 is about replay, but three non-replay paths could also lower a number. |
+| 5. Access patterns | `1374-1511` | Every query the app makes. |
+| &nbsp;&nbsp;↳ 5.1 The complete list | `1380-1442` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
+| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1443-1456` |  |
+| &nbsp;&nbsp;↳ 5.3 Write patterns | `1457-1470` | thing is the thing the product is about. |
+| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1471-1480` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
+| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1481-1487` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
+| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1488-1511` | build minutes, all of which sit in 01's estimate. |
+| 6. The client payload | `1512-1702` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
+| &nbsp;&nbsp;↳ 6.1 The objects | `1522-1537` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
+| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1538-1582` | Three cell-count scenarios. |
+| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1583-1604` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
+| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1605-1659` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
+| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1660-1702` | The emotional payload of the product (05 §7.4). |
+| 7. Migrations and versioning | `1703-1855` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1705-1728` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1729-1749` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
+| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1750-1765` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
+| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1766-1840` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
+| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1841-1855` | depends on it. |
+| 8. Retention, deletion, and the rebuild drill | `1856-2068` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1862-1883` |  |
+| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1884-1916` | D-135 says replay may never lower already-displayed XP. |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1917-2031` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2032-2046` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `2047-2068` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `2069-2164` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2085-2095` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2096-2105` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `2106-2113` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2114-2124` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2125-2132` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2133-2141` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2142-2149` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2150-2164` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 
@@ -310,7 +310,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 1,952 lines
+**05 — Fog of War** — 1,970 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -331,47 +331,47 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `604-642` | Activities do not arrive in chronological order. |
 | &nbsp;&nbsp;↳ 3.5 Idempotency | `643-677` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
 | &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `678-713` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
-| 4. Rendering | `714-1124` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
+| 4. Rendering | `714-1142` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
 | &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `728-784` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
-| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `785-902` | MapLibre calls prerender during its offscreen pass. |
-| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `903-1067` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
-| &nbsp;&nbsp;↳ 4.4 Layer order | `1068-1098` | map.on('style.load', () => { |
-| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1099-1109` | Drifting mist does not benefit from 60 and it halves the battery cost. |
-| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1110-1124` | Recorded so that a future session does not rediscover them the expensive way. |
-| 5. The two map modes | `1125-1196` | run) and adventure (full atmosphere, for admiring the map). |
-| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1134-1151` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
-| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1152-1174` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
-| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1175-1187` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
-| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1188-1196` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `1197-1453` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1209-1296` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1297-1356` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `1357-1372` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1373-1453` | None of the above is true until measured. |
-| 7. Data delivery | `1454-1667` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1476-1519` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1520-1541` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1542-1602` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1603-1667` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1668-1820` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1673-1697` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1698-1728` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1729-1741` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1742-1807` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1808-1820` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1821-1934` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1826-1833` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1834-1838` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1839-1848` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1849-1871` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1872-1879` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1880-1892` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1893-1899` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1900-1905` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1906-1912` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1913-1923` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1924-1934` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `1935-1952` | radius never feeds back into scoring. |
+| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `785-920` | MapLibre calls prerender during its offscreen pass. |
+| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `921-1085` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
+| &nbsp;&nbsp;↳ 4.4 Layer order | `1086-1116` | map.on('style.load', () => { |
+| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1117-1127` | Drifting mist does not benefit from 60 and it halves the battery cost. |
+| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1128-1142` | Recorded so that a future session does not rediscover them the expensive way. |
+| 5. The two map modes | `1143-1214` | run) and adventure (full atmosphere, for admiring the map). |
+| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1152-1169` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
+| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1170-1192` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
+| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1193-1205` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
+| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1206-1214` | and style-layer switch, entirely client-side, with no path back to §3. |
+| 6. Performance | `1215-1471` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1227-1314` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1315-1374` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1375-1390` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1391-1471` | None of the above is true until measured. |
+| 7. Data delivery | `1472-1685` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1494-1537` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1538-1559` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1560-1620` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1621-1685` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1686-1838` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1691-1715` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1716-1746` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1747-1759` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1760-1825` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1826-1838` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1839-1952` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1844-1851` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1852-1856` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1857-1866` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1867-1889` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1890-1897` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1898-1910` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1911-1917` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1918-1923` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `1924-1930` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `1931-1941` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `1942-1952` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `1953-1970` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 

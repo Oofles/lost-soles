@@ -1,7 +1,7 @@
 import type { H3Index } from "h3-js"
 
 import type { Activity, Trace } from "@/src/domain/activity"
-import { NO_CELLS, type ClassifiedCell, type DiscoveryAward } from "@/src/domain/discovery"
+import { NO_CELLS, runClassesOf, type ClassifiedCell, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
 import { traceToSegments } from "@/src/domain/fog"
 import { foldActivities, type FoldedCell } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
@@ -200,6 +200,11 @@ export interface ReplayStore {
   listActivities(userId: string): Promise<ReplayActivity[]>
   /** `users/<uid>/cells/<activityId>.bin`, or `undefined` when the activity never projected. */
   readRunCells(userId: string, activityId: string): Promise<H3Index[] | undefined>
+  /**
+   * Step 3, `0253`. `users/<uid>/cells/<activityId>.classes.json`, rewritten from the fold for
+   * every activity whose award step 3 writes — so the reveal set always matches T3's counts.
+   */
+  writeRunClasses(userId: string, activityId: string, classes: RunClasses): Promise<void>
   /** The trace, from the S3 archive through the shipped normalizer. Throws when it cannot. */
   loadTrace(activity: ReplayActivity): Promise<Trace | undefined>
 
@@ -391,6 +396,10 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
     // After the ledger, so T3 never shows a number the ledger does not hold yet. A crash between
     // the two is healed by the re-run, which writes the same values.
     await store.writeActivityScores(userId, scores, at())
+    // Beside the award it explains, from the same fold — never from ingest's older verdicts.
+    for (const { activityId } of scores.filter((w) => w.award)) {
+      await store.writeRunClasses(userId, activityId, runClassesOf(classifiedBy.get(activityId) ?? []))
+    }
     const recomputedXp = xpBySkill(entries)
     run = {
       ...run,

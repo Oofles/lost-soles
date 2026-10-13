@@ -25,6 +25,8 @@ import {
   backoffDelayMs,
   appendCellsToRun,
   readRunCells,
+  readRunClasses,
+  writeRunClasses,
   IMMUTABLE_CACHE_CONTROL,
   MANIFEST_CACHE_CONTROL,
   expiringDeltaGenerations,
@@ -1123,5 +1125,30 @@ describe("appendCellsToRun — the per-run cell record (0050, 02 §8.3 step 4)",
     ])
     expect(folded.cells.size).toBe(run(3).length)
     expect(folded.awards.get("a-7")!.newCellCount).toBe(run(3).length)
+  })
+})
+
+describe("the run's reveal set (0253)", () => {
+  it("writes users/<uid>/cells/<id>.classes.json, gzipped, uncached, and reads back what it wrote", async () => {
+    const classes = { new: run(2).slice(0, 5).sort(), rearmed: run(2).slice(5, 7).sort() }
+    await writeRunClasses(USER, "a-1", classes, deps)
+
+    const stored = s3.objects.get("users/u-test/cells/a-1.classes.json")!
+    expect(stored).toMatchObject({ contentType: "application/json", contentEncoding: "gzip", cacheControl: "no-store" })
+    expect(JSON.parse(gunzipSync(stored.body).toString())).toEqual(classes)
+    expect(await readRunClasses(USER, "a-1", deps)).toEqual(classes)
+  })
+
+  it("keeps an empty set distinct from no object: classified-and-revealed-nothing is not never-classified", async () => {
+    await writeRunClasses(USER, "a-2", { new: [], rearmed: [] }, deps)
+    expect(await readRunClasses(USER, "a-2", deps)).toEqual({ new: [], rearmed: [] })
+    expect(await readRunClasses(USER, "never", deps)).toBeUndefined()
+  })
+
+  it("refuses a body that is not { new, rearmed } rather than serving it as a reveal", async () => {
+    await s3.send(
+      new PutObjectCommand({ Bucket: deps.bucket, Key: objectKeys.runClasses(USER, "bad"), Body: gzipSync('{"new":[1]}') }),
+    )
+    await expect(readRunClasses(USER, "bad", deps)).rejects.toThrow(/not \{ new, rearmed \}/)
   })
 })

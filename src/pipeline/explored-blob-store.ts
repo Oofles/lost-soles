@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3"
 import type { H3Index } from "h3-js"
 
+import type { RunClasses } from "@/src/domain/discovery"
 import { computeAgg, type ExploredAgg } from "@/src/domain/explored-agg"
 import {
   BlobFormatError,
@@ -130,6 +131,12 @@ export const objectKeys = {
    * top-level `cells/` would need a third grant for no reason. Corrected in §8.3.
    */
   runCells: (userId: string, activityId: string) => `users/${userId}/cells/${activityId}.bin`,
+  /**
+   * WHAT THIS RUN REVEALED, beside what it covered. Ticket `0253`. `{@link writeRunClasses}`.
+   * Same prefix as `runCells` for the same reason: the worker's grant is scoped to `users/`.
+   */
+  runClasses: (userId: string, activityId: string) =>
+    `users/${userId}/cells/${activityId}.classes.json`,
 }
 
 /**
@@ -292,7 +299,7 @@ const sleepBackoff = (attempt: number): Promise<void> =>
 
 async function getBytes(
   key: string,
-  deps: BlobStoreDeps,
+  deps: Pick<BlobStoreDeps, "s3" | "bucket">,
 ): Promise<{ bytes: Uint8Array; etag?: string } | undefined> {
   try {
     const out = await deps.s3.send(new GetObjectCommand({ Bucket: deps.bucket, Key: key }))
@@ -665,6 +672,68 @@ export async function readRunCells(
   const object = await getBytes(objectKeys.runCells(userId, activityId), deps)
   if (object === undefined) return undefined
   return decodeExploredBlob(gunzipIfNeeded(object.bytes)).cells.map(bigToCell)
+}
+
+/**
+ * THE RUN'S OWN VERDICTS, KEPT. Ticket `0253`, for `0251`'s `/run/:id` and `0080`'s beat 1.
+ *
+ * ─── WHY THIS HAS TO BE WRITTEN, NOT READ BACK ──────────────────────────────
+ *
+ * A cell's class is decided against T6 as it stood BEFORE the run (`05` §3.2), and the run's own
+ * write then overwrites `lastRunAt` — the one value a re-armed verdict was computed from. After
+ * ingest, *"did run R re-arm this cell?"* has no answer in T6, and T3 keeps only the counts.
+ * So the verdict is stored where it is made: ingest from the cells it actually WROTE, and every
+ * replay from the fold, which is what keeps it equal to T3's counts after a history changes.
+ *
+ * Only `new` and `rearmed`. Familiar ground — cooled, or deferred — is the rest of `runCells`,
+ * and a third list would be a second copy of it.
+ *
+ * ─── JSON, NOT `LSFG` ───────────────────────────────────────────────────────
+ *
+ * The one reader serialises these ids to the browser as strings anyway, so a binary set would
+ * be decoded and re-encoded as JSON on every page load. Measured on the operator's 18 runs: a
+ * ~120-cell reveal is ~370 B gzipped against ~190 B as a gzipped `LSFG` pair — twice the bytes of
+ * a number too small to matter, for one fewer codec (`0253` Resolution). Sorted, so the object is
+ * a pure function of the verdicts and a replay that changes nothing rewrites identical bytes.
+ * The shape and `runClassesOf` live in `src/domain/discovery.ts`; only the storage is here.
+ */
+/**
+ * Written for every activity that has a `runCells` object — empty lists included, so that an
+ * ABSENT object means "never classified" (a run before `0253`, until the backfill) rather than
+ * "revealed nothing". An activity with no cells has neither object.
+ */
+export async function writeRunClasses(
+  userId: string,
+  activityId: string,
+  classes: RunClasses,
+  deps: Pick<BlobStoreDeps, "s3" | "bucket">,
+): Promise<void> {
+  await deps.s3.send(
+    new PutObjectCommand({
+      Bucket: deps.bucket,
+      Key: objectKeys.runClasses(userId, activityId),
+      Body: gzipSync(JSON.stringify({ new: classes.new, rearmed: classes.rearmed })),
+      ContentType: "application/json",
+      ContentEncoding: "gzip",
+      CacheControl: "no-store",
+    }),
+  )
+}
+
+/** `undefined` when the activity was never classified. Throws on a body that is not the shape. */
+export async function readRunClasses(
+  userId: string,
+  activityId: string,
+  deps: Pick<BlobStoreDeps, "s3" | "bucket">,
+): Promise<RunClasses | undefined> {
+  const object = await getBytes(objectKeys.runClasses(userId, activityId), deps)
+  if (object === undefined) return undefined
+  const body = JSON.parse(new TextDecoder().decode(gunzipIfNeeded(object.bytes))) as Partial<RunClasses>
+  const ids = (v: unknown): v is H3Index[] => Array.isArray(v) && v.every((c) => typeof c === "string")
+  if (!ids(body.new) || !ids(body.rearmed)) {
+    throw new Error(`readRunClasses: ${objectKeys.runClasses(userId, activityId)} is not { new, rearmed }`)
+  }
+  return { new: body.new, rearmed: body.rearmed }
 }
 
 /**

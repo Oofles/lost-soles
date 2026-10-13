@@ -170,6 +170,8 @@ export function rig(options: Options = {}) {
   const cellWrites: UpdateCommand["input"][] = []
   const aggWrites: UpdateCommand["input"][] = []
   const blobPuts: string[] = []
+  /** Bodies by key, for the objects a test reads back (`0253`'s reveal set). */
+  const blobBodies = new Map<string, Uint8Array>()
   /** `0062`. Every transaction sent, and every T4/T2 read, in order. */
   const transacts: TransactWriteCommand["input"][] = []
   const ledgerReads: string[] = []
@@ -348,6 +350,7 @@ export function rig(options: Options = {}) {
           }
           if (!blobPuts.length) calls.push("blobs")
           blobPuts.push(String((command as PutObjectCommand).input.Key))
+          blobBodies.set(String((command as PutObjectCommand).input.Key), (command as PutObjectCommand).input.Body as Uint8Array)
           if (options.blobsFail) throw options.blobsFail
           return { ETag: '"b"' }
         },
@@ -509,6 +512,7 @@ export function rig(options: Options = {}) {
     cellWrites,
     aggWrites,
     blobPuts,
+    blobBodies,
     tracePuts,
     transacts,
     ledgerReads,

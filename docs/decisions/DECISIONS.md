@@ -4550,3 +4550,21 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     an interior three-cell vertex when a run lands beside explored ground (1.0 → 0.58 where H3 cells
     run large; ~0.72 at Orlando, which the composite renders clear). The reveal adds no dip of its
     own — coverage never falls below `min(previous, settled)` — and the renderer property is `0252`.
+- **D-294** **A run's new and re-armed cell ids are persisted per run, where the verdict is made —
+  not read back from T6.** *(2026-10-13, ticket `0253`, operator decision; split from `0251`.)*
+  - **T6 cannot answer "did run R re-arm this cell?" after the fact.** Ingest classifies against
+    `lastRunAt` as it stood before the run and its own write overwrites that value; T3 keeps only the
+    counts. `new` survives as `firstRunId == R` only until a backfill lowers it. 5 of the operator's
+    19 activities carry re-armed cells, so this is the common case, not an edge.
+  - **`users/<uid>/cells/<activityId>.classes.json`**, gzipped `{ new, rearmed }`, sorted. Written
+    by ingest from `classified` (the verdicts the cells were written with), and rewritten by replay
+    step 3e from the fold for every activity whose award it writes — the same rule that keeps T3's
+    counts right keeps this right. Familiar ground (cooled, deferred) is not stored; it is the rest
+    of `cells/<id>.bin`.
+  - **JSON over a second `LSFG` pair.** Its one reader serialises the ids to the browser as JSON;
+    measured ~2× the gzipped bytes of `LSFG` (~370 B vs ~190 B at ~120 cells), which is nothing.
+  - **Rejected:** serving only `new` (from T6) and leaving re-armed for later — re-armed runs would
+    show no reveal; and folding every run's cells on each page load — exact, but one S3 GET per
+    activity in history per view.
+  - **D-284 c's `revealWithoutAward` writes no object.** Cells it opens earn nothing, so they are not
+    the run's reveal; the object stays equal to T3's counts, which is the property the audit checks.

@@ -10,6 +10,7 @@ import {
   NO_CELLS,
   newShare,
   OutOfOrderScoringError,
+  runClassesOf,
   SIX_MONTHS_MS,
   type CellRecord,
 } from "./discovery"
@@ -262,6 +263,26 @@ describe("classifyCells — out-of-order arrival (§3.4, revised by 0050)", () =
 
   it("rejects an unparseable startedAt rather than classifying everything new", () => {
     expect(() => classifyCells([CELLS[0]], store({}), "not-a-date")).toThrow(/unparseable/)
+  })
+})
+
+describe("runClassesOf (0253)", () => {
+  it("lists new and re-armed, sorted, never cooled or deferred, with exactly awardOf's sizes", () => {
+    const known = {
+      [CELLS[4]]: iso(days(400)),
+      [CELLS[5]]: iso(days(400)),
+      [CELLS[6]]: iso(days(10)),
+      [CELLS[7]]: iso(days(10)),
+    }
+    const classified = classifyCells([...CELLS].reverse(), store(known), AT)
+    // A deferred cell (§3.4) earns nothing yet, so it is not this run's reveal either.
+    classified.push({ cell: cellAt(99), discovery: "deferred", record: { lastRunAt: iso(days(-1)) } })
+
+    const classes = runClassesOf(classified)
+    expect(classes.new).toEqual([...CELLS.slice(0, 4)].sort())
+    expect(classes.rearmed).toEqual([CELLS[4], CELLS[5]].sort())
+    const award = awardOf(classified)
+    expect([classes.new.length, classes.rearmed.length]).toEqual([award.newCellCount, award.rearmedCellCount])
   })
 })
 

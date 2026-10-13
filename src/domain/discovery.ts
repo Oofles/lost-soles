@@ -265,6 +265,28 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
 }
 
 /**
+ * A RUN'S OWN NEW AND RE-ARMED CELLS (`0253`): what `/run/:id`'s beat 1 reveals. The two
+ * credit-earning classes, so the list sizes are exactly `awardOf`'s counts. Familiar ground —
+ * cooled or deferred — is the rest of the run's cells and is not listed. Sorted, so equal
+ * verdicts give equal values. Persisted by `writeRunClasses` in `src/pipeline`.
+ */
+export interface RunClasses {
+  new: H3Index[]
+  rearmed: H3Index[]
+}
+
+export function runClassesOf(classified: readonly ClassifiedCell[]): RunClasses {
+  const out: RunClasses = { new: [], rearmed: [] }
+  for (const { cell, discovery } of classified) {
+    if (discovery === "new") out.new.push(cell)
+    else if (discovery === "rearmed") out.rearmed.push(cell)
+  }
+  out.new.sort()
+  out.rearmed.sort()
+  return out
+}
+
+/**
  * The award for an activity that produced no cells. §3.6, and it is NOT an empty object.
  *
  * A treadmill run, a strength session, or a trace whose every sample was filtered out all

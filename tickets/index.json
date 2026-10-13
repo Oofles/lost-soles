@@ -5817,6 +5817,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-13T12:07:12Z",
+    "started": "2026-10-13T13:39:25Z",
     "path": "tickets/open/0253-persist-each-run-s-new-and-re-armed-cell-ids-at-ingest-and-r.md",
     "ready": true,
     "acceptance": {

@@ -1,4 +1,4 @@
-import type { DiscoveryAward } from "@/src/domain/discovery"
+import { runClassesOf, type ClassifiedCell, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
 import { foldActivities } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
@@ -99,7 +99,7 @@ export async function planT3Repair(
     store: Pick<ReplayStore, "listActivities" | "readRunCells" | "listLedger">
     rules(version: number): RuleSet
   },
-): Promise<T3Repair & { activities: ReplayActivity[]; ledger: XpLedgerEntry[] }> {
+): Promise<T3Repair & { activities: ReplayActivity[]; ledger: XpLedgerEntry[]; classes: Map<string, RunClasses> }> {
   const { store } = deps
   const activities = await store.listActivities(userId)
   const ledger = await store.listLedger(userId)
@@ -110,7 +110,14 @@ export async function planT3Repair(
   const cells = new Map(
     await Promise.all(activities.map(async (a) => [a.activityId, (await store.readRunCells(userId, a.activityId)) ?? []] as const)),
   )
-  const fold = foldActivities(activities.map((a) => ({ activityId: a.activityId, startedAt: a.startedAt, cells: cells.get(a.activityId)! })))
+  const classifiedBy = new Map<string, readonly ClassifiedCell[]>()
+  const fold = foldActivities(
+    activities.map((a) => ({ activityId: a.activityId, startedAt: a.startedAt, cells: cells.get(a.activityId)! })),
+    (id, classified) => classifiedBy.set(id, classified),
+  )
+  // `0253`: the reveal set of every activity whose award the fold decides — the same set replay
+  // step 3 rewrites. Planned for all of them, drifted or not: the objects are cheap and idempotent.
+  const classes = new Map<string, RunClasses>()
 
   const byActivity = new Map<string, XpLedgerEntry[]>()
   for (const e of rows) byActivity.set(e.activityId, [...(byActivity.get(e.activityId) ?? []), e])
@@ -127,8 +134,9 @@ export async function planT3Repair(
       ...(groundScored ? { award: fold.awards.get(a.activityId)! } : {}),
     }
     if (drifted(scoresOf(a), w)) writes.push(w)
+    if (groundScored) classes.set(a.activityId, runClassesOf(classifiedBy.get(a.activityId) ?? []))
   }
-  return { writes, rulesVersion, activities, ledger }
+  return { writes, rulesVersion, activities, ledger, classes }
 }
 
 function drifted(t3: StoredScores, w: ActivityScoreWrite): boolean {
@@ -143,4 +151,42 @@ function drifted(t3: StoredScores, w: ActivityScoreWrite): boolean {
     t3.deferredCellCount !== a.deferredCellCount ||
     t3.fogAlgoVersion !== a.algoVersion
   )
+}
+
+export interface RunClassesMismatch {
+  activityId: string
+  startedAt: string
+  /** `missing`: T3 says the activity revealed ground and no classes object exists. */
+  field: "missing" | "newCellCount" | "rearmedCellCount"
+  t3: number
+  stored: number
+}
+
+/**
+ * `0253`: DOES EACH STORED REVEAL SET AGREE WITH T3? Every ACTIVE activity with `cellCount > 0`
+ * must have a classes object whose list sizes are T3's `newCellCount`/`rearmedCellCount`. Pure
+ * over what was read, so the CLI runs it before and after the backfill against the same reads.
+ */
+export function auditRunClasses(
+  activities: readonly ReplayActivity[],
+  stored: ReadonlyMap<string, RunClasses | undefined>,
+): RunClassesMismatch[] {
+  const out: RunClassesMismatch[] = []
+  for (const a of [...activities].sort((x, y) => (x.startedAt < y.startedAt ? -1 : 1))) {
+    const t3 = scoresOf(a)
+    if (a.status !== "ACTIVE" || !((t3.cellCount ?? 0) > 0)) continue
+    const base = { activityId: a.activityId, startedAt: a.startedAt }
+    const got = stored.get(a.activityId)
+    if (got === undefined) {
+      out.push({ ...base, field: "missing", t3: t3.cellCount ?? 0, stored: 0 })
+      continue
+    }
+    if ((t3.newCellCount ?? 0) !== got.new.length) {
+      out.push({ ...base, field: "newCellCount", t3: t3.newCellCount ?? 0, stored: got.new.length })
+    }
+    if ((t3.rearmedCellCount ?? 0) !== got.rearmed.length) {
+      out.push({ ...base, field: "rearmedCellCount", t3: t3.rearmedCellCount ?? 0, stored: got.rearmed.length })
+    }
+  }
+  return out
 }

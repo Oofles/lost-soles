@@ -7,6 +7,7 @@ import {
   classifyCells,
   needsReplay,
   NO_CELLS,
+  runClassesOf,
   type DiscoveryAward,
 } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments, type TraceRejects } from "@/src/domain/fog"
@@ -32,6 +33,7 @@ import {
   appendCellsToRun,
   readManifest,
   regenerateExplored,
+  writeRunClasses,
   type BlobStoreDeps,
   type RegenerateResult,
 } from "./explored-blob-store"
@@ -840,6 +842,12 @@ async function projectCells<TCreds>(
    * geometry under a `fogAlgoVersion` that has since moved.
    */
   await appendCellsToRun(activity.userId, activity.activityId, cells, deps.blobs)
+  /**
+   * 6b. WHAT THE RUN REVEALED (`0253`) — from `classified`, the verdicts the cells were WRITTEN
+   * with, so its sizes are exactly the award's counts. The write is what destroys the record the
+   * verdict was read from, so this is the last moment anything can say which cells were re-armed.
+   */
+  await writeRunClasses(activity.userId, activity.activityId, runClassesOf(classified), deps.blobs)
 
   /**
    * 7. IF ANY CELL COULD NOT BE SCORED, MARK THE USER FOR A REPLAY (§3.4).

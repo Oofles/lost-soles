@@ -2,7 +2,7 @@ import type { H3Index } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import type { Trace } from "@/src/domain/activity"
-import { awardOf, classifyCells, NO_CELLS, type CellRecord, type DiscoveryAward } from "@/src/domain/discovery"
+import { awardOf, classifyCells, NO_CELLS, runClassesOf, type CellRecord, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
 import { traceToCells, traceToSegments } from "@/src/domain/fog"
 import type { FoldedCell } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
@@ -28,7 +28,7 @@ import {
   type StoredSkillState,
 } from "@/src/pipeline/xp-replay"
 import { buildSnapshot, snapshotKey, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
-import { auditT3, planT3Repair } from "@/src/pipeline/t3-repair"
+import { auditRunClasses, auditT3, planT3Repair } from "@/src/pipeline/t3-repair"
 import { ledgerRulesVersion, pickBundledRules } from "@/src/pipeline/worker-rules"
 
 /**
@@ -177,6 +177,8 @@ class MemoryStore implements ReplayStore {
   ledger = new Map<string, XpLedgerEntry>()
   t6 = new Map<H3Index, FoldedCell>()
   runCells = new Map<string, H3Index[]>()
+  /** `users/<uid>/cells/<id>.classes.json` (`0253`). */
+  classes = new Map<string, RunClasses>()
   generation = 0
   publishes = 0
   /** T3's score and award columns (`0224`, `0226`), flat, as ingest writes them. */
@@ -221,6 +223,7 @@ class MemoryStore implements ReplayStore {
         award = awardOf(classified)
         split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
         this.runCells.set(a.activityId, [...cells])
+        this.classes.set(a.activityId, runClassesOf(classified))
         for (const c of cells) {
           const prev = this.t6.get(c)
           const credit = classified.find((x) => x.cell === c)!.discovery !== "cooled" ? 1 : 0
@@ -364,6 +367,10 @@ class MemoryStore implements ReplayStore {
   }
   async readRunCells(_u: string, activityId: string) {
     return this.runCells.get(activityId)
+  }
+  async writeRunClasses(_u: string, activityId: string, classes: RunClasses) {
+    this.op("writeRunClasses")
+    this.classes.set(activityId, classes)
   }
   async loadTrace(a: ReplayActivity) {
     this.op("loadTrace")
@@ -720,6 +727,76 @@ describe("the T3 repair (0226)", () => {
 
     expect(auditT3(await store.listActivities(), await store.listLedger())).toEqual([])
     expect((await planT3Repair(USER, { store, rules: rulesFor(V1) })).writes).toEqual([])
+  })
+})
+
+/**
+ * Ticket `0253`. A run's reveal set is written where its verdict is made, and every replay rewrites
+ * it from the fold — so it always has the sizes T3's award says. `a-late` crosses `a-first`'s line
+ * seven months after `a-again`, so its cells are re-armed: the class T6 cannot reproduce afterwards.
+ */
+describe("the run's reveal set (0253)", () => {
+  function withRearm(): Fixture {
+    const fx = fixture()
+    fx.traces.set("a-late", fx.traces.get("a-first")!)
+    fx.activities.push(activity("a-late", "2026-09-01T07:00:00.000Z", { hasTrace: true }))
+    return fx
+  }
+  const sizes = (c: RunClasses | undefined) => c && { newCellCount: c.new.length, rearmedCellCount: c.rearmed.length }
+
+  it("ingest's sets have exactly the award's sizes, and a re-armed run's cells are its re-armed set", async () => {
+    const store = new MemoryStore(withRearm(), rulesFor(V1)).seedByIngest()
+    const late = store.classes.get("a-late")!
+    expect(late.new).toEqual([])
+    expect(late.rearmed).toEqual([...store.runCells.get("a-late")!].sort())
+    expect(store.classes.get("a-first")!.new).toEqual([...store.runCells.get("a-first")!].sort())
+    expect(auditRunClasses(await store.listActivities(), store.classes)).toEqual([])
+  })
+
+  it("a replay rewrites every ground-scored set from the fold, after T3, and nothing else", async () => {
+    const store = new MemoryStore(withRearm(), rulesFor(V1)).seedByIngest()
+    const truth = new Map(store.classes)
+    // Stale and missing, the two ways a set can be wrong before a replay.
+    store.classes.set("a-late", { new: [...truth.get("a-late")!.rearmed], rearmed: [] })
+    store.classes.delete("b-tie")
+    store.ops = []
+
+    await replayUser(USER, 1, deps(store, V1))
+
+    for (const id of ["a-first", "a-again", "a-late", "a-tie", "b-tie"]) {
+      expect(store.classes.get(id), id).toEqual(truth.get(id))
+      expect(sizes(store.classes.get(id)), id).toEqual({
+        newCellCount: store.t3.get(id)!.newCellCount,
+        rearmedCellCount: store.t3.get(id)!.rearmedCellCount,
+      })
+    }
+    // Tombstoned and pathless activities are not rescored, so their sets are not rewritten.
+    expect(store.ops.filter((o) => o.startsWith("writeRunClasses")).length).toBe(5)
+    expect(store.ops.findIndex((o) => o.startsWith("writeRunClasses"))).toBeGreaterThan(
+      store.ops.findIndex((o) => o.startsWith("writeActivityScores")),
+    )
+    expect(store.classes.has("treadmill")).toBe(false)
+  })
+
+  it("the repair plans every ground-scored set, and the audit names a missing one and a wrong size", async () => {
+    const store = new MemoryStore(withRearm(), rulesFor(V1)).seedByIngest()
+    const truth = new Map(store.classes)
+    store.classes.delete("a-first")
+    store.classes.set("a-late", { new: [], rearmed: truth.get("a-late")!.rearmed.slice(1) })
+
+    const found = auditRunClasses(await store.listActivities(), store.classes)
+    expect(found.map((m) => [m.activityId, m.field])).toEqual([
+      ["a-first", "missing"],
+      ["a-late", "rearmedCellCount"],
+    ])
+    // A tombstoned run keeps its cells but is never audited or planned (D-258).
+    expect(found.some((m) => m.activityId === "z-gone")).toBe(false)
+
+    const plan = await planT3Repair(USER, { store, rules: rulesFor(V1) })
+    expect([...plan.classes.keys()].sort()).toEqual(["a-again", "a-first", "a-late", "a-tie", "b-tie"])
+    for (const [id, c] of plan.classes) await store.writeRunClasses(USER, id, c)
+    expect(auditRunClasses(await store.listActivities(), store.classes)).toEqual([])
+    for (const [id, c] of truth) if (id !== "z-gone") expect(store.classes.get(id), id).toEqual(c)
   })
 })
 

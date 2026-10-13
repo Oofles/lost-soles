@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import type { XpLedgerEntry } from "@/src/scoring"
 
-import { readManifest, regenerateExplored, readRunCells, type BlobStoreDeps } from "./explored-blob-store"
+import { readManifest, regenerateExplored, readRunCells, writeRunClasses, type BlobStoreDeps } from "./explored-blob-store"
 import { mergeFoldedCells } from "./explored-merge"
 import { amplifyMetadata } from "./persist"
 import { latestSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
@@ -422,6 +422,8 @@ export function dynamoReplayStore(deps: ReplayStoreDeps): ReplayStore {
     },
 
     readRunCells: (userId, activityId) => readRunCells(userId, activityId, deps.blobs),
+
+    writeRunClasses: (userId, activityId, classes) => writeRunClasses(userId, activityId, classes, deps.blobs),
 
     loadTrace: (activity) => deps.loadTrace(activity),
 

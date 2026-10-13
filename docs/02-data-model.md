@@ -1234,6 +1234,14 @@ inside D-083.
 their cells stay revealed (D-020); only scoring (3a, 3c–e) skips non-ACTIVE rows
 (`src/pipeline/xp-replay.ts`).
 
+*Amended by D-294 (`0253`, 2026-10-13):* beside each per-run cell record sits
+`users/<uid>/cells/<activityId>.classes.json` — gzipped `{ new, rearmed }`, the run's own
+credit-earning verdicts (`runClassesOf`), so `/run/:id` can reveal what the run discovered. Ingest
+writes it from the cells it wrote; step 3e rewrites it from the fold for every activity whose award
+it writes, so its sizes always equal T3's `newCellCount`/`rearmedCellCount`. No object means
+"never classified"; an empty one means "revealed nothing". `tools/xp-replay/repair-t3.ts` audits
+and backfills it.
+
 *As built (`0224`, `0226`, D-261):* step 3e writes, after the ledger rows, `xpAwarded` (the SUM
 of the activity's rows) and `xpRulesVersion` (`null` when there are none). When the activity was
 scored with cells, it also writes the fold's discovery award, so a §3.4-provisional row stops

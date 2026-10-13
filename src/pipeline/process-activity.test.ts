@@ -1,3 +1,5 @@
+import { gunzipSync } from "node:zlib"
+
 import { GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3"
 import { GetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
@@ -971,6 +973,8 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
     expect(blobPuts).toEqual([
       // `0050`'s per-run cell record is written inside the `cells` phase, before the publish.
       "users/u-1/cells/a-1.bin",
+      // `0253`'s reveal set, beside it.
+      "users/u-1/cells/a-1.classes.json",
       `users/u-1/explored/explored-r${RES}.1.bin`,
       `users/u-1/explored/explored-lastrun-r${RES}.1.bin`,
       "users/u-1/explored/explored-agg.1.json",
@@ -979,6 +983,21 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
     ])
     expect(result.blobs).toMatchObject({ generation: 1, previousGeneration: 0 })
     expect(result.blobs!.cellCount).toBe(result.award.cellCount)
+  })
+
+  it("writes the run's reveal set from the verdicts it wrote, sized exactly as the award (0253)", async () => {
+    const { deps, blobBodies } = rig({ ingest: TRACED_RUN })
+    const result = await processActivity(JOB, deps)
+    if (result.outcome !== "persisted") throw new Error("expected persisted")
+
+    const body = blobBodies.get("users/u-1/cells/a-1.classes.json")!
+    const classes = JSON.parse(gunzipSync(body).toString()) as { new: string[]; rearmed: string[] }
+    expect(result.award.newCellCount).toBeGreaterThan(0)
+    expect([classes.new.length, classes.rearmed.length]).toEqual([
+      result.award.newCellCount,
+      result.award.rearmedCellCount,
+    ])
+    expect(classes.new).toEqual([...classes.new].sort())
   })
 
   it("times the phase separately from the cells and the transaction", async () => {
