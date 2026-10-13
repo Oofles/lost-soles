@@ -141,7 +141,7 @@ export function EndState({
 
         {ledger}
 
-        <ChronicleLine text={chronicle} />
+        <ChronicleLine text={chronicle} air={false} />
 
         {frontier}
 

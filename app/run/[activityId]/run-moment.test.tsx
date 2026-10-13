@@ -11,7 +11,7 @@ import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 
 import { TallyView } from "./run-ledger"
-import { FrontierLine } from "./run-lines"
+import { ChronicleLine, FrontierLine } from "./run-lines"
 import { EndState, initialMoment, momentReducer, RunMoment } from "./run-moment"
 
 /**
@@ -103,14 +103,20 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
 
 describe("beats 4 and 5's lines (0083)", () => {
   it("the chronicle line is italic serif in its own token, centred, with 22px of air", () => {
-    const html = renderToStaticMarkup(
-      <EndState summary={SUMMARY} map={null} ledger={null} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={null} />,
-    )
+    const html = renderToStaticMarkup(<ChronicleLine text={CHRONICLE} />)
     const p = html.match(/<p data-slot="chronicle-line" style="([^"]*)">([^<]*)<\/p>/)
     expect(p?.[2]).toBe(CHRONICLE)
     for (const rule of ["font-style:italic", "font-size:17px", "text-align:center", "color:var(--text-chronicle)", "margin:22px 0"]) {
       expect(p?.[1]).toContain(rule)
     }
+  })
+
+  it("in the end state the column's 1.5rem gap is the air, not a margin stacked on it", () => {
+    const html = renderToStaticMarkup(
+      <EndState summary={SUMMARY} map={null} ledger={null} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={null} />,
+    )
+    expect(html).toMatch(/<p data-slot="chronicle-line" style="[^"]*margin:0[;"]/)
+    expect(html).toContain(CHRONICLE)
   })
 
   it("the frontier line is one muted colour, and an empty slot when there is nothing to name", () => {

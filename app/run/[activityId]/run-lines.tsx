@@ -22,9 +22,22 @@ const chronicle: CSSProperties = {
   color: "var(--text-chronicle)",
 }
 
-export function ChronicleLine({ text, opacity }: { text: string; opacity?: number }) {
+export function ChronicleLine({
+  text,
+  opacity,
+  air = true,
+}: {
+  text: string
+  opacity?: number
+  /**
+   * The 22dp above and below. `false` in the end state's column, whose own `1.5rem` gap already is
+   * that air — a margin there stacks on the gap and doubles it.
+   */
+  air?: boolean
+}) {
+  const style = { ...chronicle, ...(air ? {} : { margin: 0 }), ...(opacity === undefined ? {} : { opacity }) }
   return (
-    <p data-slot="chronicle-line" style={opacity === undefined ? chronicle : { ...chronicle, opacity }}>
+    <p data-slot="chronicle-line" style={style}>
       {text}
     </p>
   )
