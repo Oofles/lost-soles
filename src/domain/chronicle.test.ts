@@ -23,7 +23,7 @@ import {
 const TABLE = assertChronicleTable(JSON.parse(readFileSync(join(process.cwd(), "rules", "chronicle.json"), "utf8")))
 
 const run = (over: Partial<ChronicleRun> = {}): ChronicleRun => ({
-  activityId: "strava#100",
+  activityId: "act-100",
   startedAt: "2026-09-01T07:00:00Z",
   distanceM: 5100,
   newCellCount: 0,
@@ -34,14 +34,14 @@ const run = (over: Partial<ChronicleRun> = {}): ChronicleRun => ({
 })
 
 const prior = (i: number, over: Partial<PriorRun> = {}): PriorRun => ({
-  activityId: `strava#${i}`,
+  activityId: `act-${i}`,
   startedAt: new Date(Date.parse("2026-08-31T07:00:00Z") - i * 86_400_000).toISOString(),
   distanceM: 5000,
   newCellCount: 10,
   ...over,
 })
 
-const ids = (n: number) => Array.from({ length: n }, (_, i) => `strava#${1000 + i}`)
+const ids = (n: number) => Array.from({ length: n }, (_, i) => `act-${1000 + i}`)
 
 describe("the shipped table", () => {
   it("validates, and has a fallback in each set", () => {
@@ -172,7 +172,7 @@ describe("the facts", () => {
   it("are computed AS OF the run: later activities and the run itself do not move them", () => {
     const r = run({ newCellCount: 5 })
     const before = [prior(1), prior(2)]
-    const after = { activityId: "strava#999", startedAt: "2026-10-01T07:00:00Z", distanceM: 40_000, newCellCount: 900 }
+    const after = { activityId: "act-999", startedAt: "2026-10-01T07:00:00Z", distanceM: 40_000, newCellCount: 900 }
     const self = { activityId: r.activityId, startedAt: r.startedAt, distanceM: r.distanceM, newCellCount: r.newCellCount }
     expect(chronicleFacts(r, [...before, after, self])).toEqual(chronicleFacts(r, before))
   })
