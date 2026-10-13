@@ -4,7 +4,7 @@ slug: beat-1-the-map
 title: Beat 1 — the map (0.0 to 2.9 s): camera, lantern, route ink, three kinds of ground
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [78, 79, 57, 251]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-13T15:33:14Z
+closed: 2026-10-13T16:47:52Z
 ---
 
 ## Description

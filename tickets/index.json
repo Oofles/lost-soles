@@ -1937,7 +1937,7 @@
     "title": "Beat 1 — the map (0.0 to 2.9 s): camera, lantern, route ink, three kinds of ground",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -1950,8 +1950,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-13T15:33:14Z",
-    "path": "tickets/open/0080-beat-1-the-map.md",
-    "ready": true,
+    "closed": "2026-10-13T16:47:52Z",
+    "path": "tickets/closed/0080-beat-1-the-map.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9
@@ -5842,7 +5843,7 @@
     "source": "agent",
     "created": "2026-10-13T15:53:19Z",
     "path": "tickets/open/0254-beat-1-mode-crossfade.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5
