@@ -4,7 +4,7 @@ slug: beat-2-the-tally
 title: Beat 2 — the parchment tally (2.9 to 6.0 s), staggered count-ups, and never a zero
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [78, 62, 65]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-13T17:41:00Z
+closed: 2026-10-13T18:32:41Z
 ---
 
 ## Description

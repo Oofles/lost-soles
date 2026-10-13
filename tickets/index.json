@@ -1964,7 +1964,7 @@
     "title": "Beat 2 — the parchment tally (2.9 to 6.0 s), staggered count-ups, and never a zero",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -1976,8 +1976,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-13T17:41:00Z",
-    "path": "tickets/open/0081-beat-2-the-tally.md",
-    "ready": true,
+    "closed": "2026-10-13T18:32:41Z",
+    "path": "tickets/closed/0081-beat-2-the-tally.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -2000,7 +2001,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0082-beat-3-level-up-cards-and-the-d-146-guard.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -2023,7 +2024,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0083-chronicle-and-frontier-lines.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
