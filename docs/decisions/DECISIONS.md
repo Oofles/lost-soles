@@ -4621,5 +4621,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     unit is `km`. No new stored field, no skill id in code (D-031); absent when there is none.
   - **Beat 2 plays even when beat 1 could not** (untraced activity, no WebGL2): the tally is the
     numbers, and §3.4 says they never depend on the graphics. The panel is fixed to the viewport's
-    bottom 55%, opaque (D-148), over the map; the camera's pull-back pads the bottom by the part of
-    the map the panel covers.
+    bottom 55%, opaque (D-148), over the map.
+  - **"Pulls back 1.5 zoom levels" means from the run's own fitted framing**, not from the current
+    camera. Relative to the current zoom, each ⟲ Relive compounded another 1.5 (beat 1 does not move a
+    camera that already holds the run), found in the smoke. The move is shifted up by half the map
+    the panel covers via `offset`, not `padding`, which would persist and skew later `fitBounds`.
+  - **Beat 2's t = 0 is beat 1's nominal end** (`t0 + 2.9 s`), handed over, not the moment beat 2
+    mounted — mounting cost ~100 ms at SwiftShader frame rates and put the beat outside ±0.1 s.

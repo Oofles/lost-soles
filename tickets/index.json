@@ -1979,7 +1979,7 @@
     "path": "tickets/open/0081-beat-2-the-tally.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
