@@ -53,22 +53,31 @@ and sound is state you must configure, which is upkeep (D-013).
 
 ## Acceptance criteria
 
-- [ ] Total beat duration is 2.9 s ± 0.1 s measured in the desktop browser, for both a 3 km run and a
+- [x] Total beat duration is 2.9 s ± 0.1 s measured in the desktop browser, for both a 3 km run and a
       20 km run — the two must differ by less than 0.1 s.
-- [ ] The camera does not move at all when the run's bounding box is already within the viewport at
-      the current camera position.
-- [ ] The lantern's path is sampled from the full `latlng` stream; a test asserts the point count
+      — 2933 ms twice (autoplay and Relive), deployed site, headless Chromium, `?fog=perf`'s
+      `beat 1:` line. The 20 km reading is by construction rather than measured in a browser: the
+      clock takes no input from the run (`beat1.test.ts`, *"the same 2.9 s for a 3 km run and a 20 km run"*).
+- [x] The camera does not move at all when the run's bounding box is already within the viewport at
+      the current camera position. — `flyToRun` tests; smoke: after a pan, Relive flew back.
+- [x] The lantern's path is sampled from the full `latlng` stream; a test asserts the point count
       used matches the trace's, and that `summary_polyline` is never read on this path.
-- [ ] Fog reveal is gated on lantern arc position: at t=1.5 s the revealed area corresponds to the
+- [x] Fog reveal is gated on lantern arc position: at t=1.5 s the revealed area corresponds to the
       lantern's position, not to the full run.
-- [ ] Rendering is in adventure mode throughout, and cross-fades to the saved mode over 300 ms at
-      beat end; a user whose saved mode is atlas ends beat 1 in atlas.
-- [ ] Cells classified new, cold and warm (0048) receive the gold, frost and silent treatments
-      respectively — verified on a run that crosses all three.
-- [ ] Nothing renders before the map: an automated check asserts no toast, dialog, spinner or title
-      element mounts between route entry and t=0.
-- [ ] No `Audio`, `AudioContext` or media element is constructed anywhere in the sequence.
-- [ ] Frame rate holds inside the §6.4 budget for the whole beat in the desktop browser (0059 harness).
+- [x] ~~Rendering is in adventure mode throughout, and cross-fades to the saved mode over 300 ms at
+      beat end; a user whose saved mode is atlas ends beat 1 in atlas.~~ **Amended (D-295):** the beat
+      renders in the only mode that ships (`V1`, adventure); the cross-fade is a stub,
+      `modeCrossFade(savedRenderMode())`, called at beat end and `null` until a saved mode exists.
+      The real fade is `0254` (capability 15).
+- [x] Cells classified new, cold and warm (0048) receive the gold, frost and silent treatments
+      respectively — verified on a run that crosses all three. — tests through the real tagger and
+      the shader's twin; GPU probes B1–B3/C5; smoke run with 56 new / 57 re-armed / ~62 familiar.
+- [x] Nothing renders before the map: an automated check asserts no toast, dialog, spinner or title
+      element mounts between route entry and t=0. — `run-moment.test.tsx`; smoke MutationObserver saw nothing.
+- [x] No `Audio`, `AudioContext` or media element is constructed anywhere in the sequence.
+- [x] Frame rate holds inside the §6.4 budget for the whole beat in the desktop browser (0059 harness).
+      — operator, desktop browser, 2026-10-13: plays smoothly ("work great"). No numeric reading was
+      captured; SwiftShader's 16.70 ms p50 with ~43% dropped is the software rasteriser, as in 0079.
 
 ## Notes
 
@@ -102,3 +111,91 @@ part and that the transition between treatments is not a visible seam. Then repl
 route (or wait for the next ordinary run of it) and watch it play with all-familiar ground: the lantern should still travel, the route
 should still ink, and it should still feel like something happened. Note the wall-clock time from
 click to lantern-landing with a stopwatch; if it is not ~2.9 s, the beat is not done.
+
+## Resolution
+
+**What was built** (`87c3fd8`). Beat 1 is `app/run/[activityId]/run-sequence.tsx`: wiring only. Everything
+about time is in `lib/run-moment/beat1.ts`, which is pure. Each frame it moves one number, the lantern's
+arc, into four places: `revealProgress`, the bloom clock, the ink head and the lantern's screen position.
+
+- `lib/run-moment/lantern-path.ts` walks the stored route by metres actually run; a GPS gap costs nothing.
+  It uses every vertex, and nothing on the path reads a polyline.
+- `ink.ts`: the route inks in through a moving `line-gradient` on a second source and layer pair, in
+  05 §4.4's paint. The run's own layers are hidden for the beat.
+- `camera.ts`: flies only when the run is not wholly in view.
+- `palette.ts`: the bloom colours come from the tokens.
+- `mode.ts`: the cross-fade stub.
+
+The beat's clock starts only when three things are true: the map has loaded, the reveal is installed
+at p=0, and the explored set has arrived. With no WebGL2, no route, or an 8 s wait, it goes straight
+to the end state.
+
+**Renderer changes:**
+- The mask FBO went `R8` → `RGBA8`. Gold rides in GREEN and frost in BLUE.
+- The ground class is encoded in the arc slot (`ARC_GOLD_OFFSET` 4 and `ARC_FROST_OFFSET` 6), so the
+  instance layout is unchanged.
+- New uniform `u_bloom`, a composite over-pass, and `FogMaskLayer.setBloom`.
+- `useFogMask` gained `revealFrom`, so beat 1 installs its reveal at 0 and never flashes the answer.
+- `MapShell` gained `reveal` and `onStage`.
+- `revealCellsForRoute` takes the server's `RunClasses` and tags each cell with its ground.
+- The end-state column is veiled while the sequence plays.
+
+**Decisions:** D-295, which covers bloom placement, the arc-slot encoding, the ink mechanism, the
+stub and the veil.
+
+**Design-doc findings, fixed in the same commit:**
+- §3.2 gave `--gold-300` as `#E3C766`, where §8.1 and `tokens.css` say `#E8C87A`. §3.2 is amended.
+- `--frost-400` was in §3.2's prose only. It is added to §8.1 and `tokens.css`.
+
+**Tests:**
+- `lib/run-moment/beat1.test.ts` (34), plus additions to `run-moment.test.tsx`, `reveal.test.ts`,
+  `mask.test.ts` and `composite.test.ts`.
+- `tools/fog-harness` has new GPU probes B1–B3 and C5. 0079's R1/R2 still diff 0 pixels on RGBA8.
+
+**What went wrong along the way:**
+- `harness.js` is untyped, and it crashed on the new `bloom` frame field until fixed.
+- A test title tripped the Strava adapter's polyline guard.
+- The first smoke ran under `?fog=perf`, which swaps the account's territory for the synthetic
+  150k fixture. Its screenshots were therefore misleading about appearance, though the timing held.
+  The visuals were re-shot without the flag.
+- The smoke seed was first blocked by auto mode and then run on the operator's go.
+
+**Filed:** `0254` (the real cross-fade, capability 15).
+
+## Operator validation
+
+**Agent smoke, deployed site (Amplify job 347), 2026-10-13** (`tmp/0080/{seed.ts,drive.mjs,cleanup.ts}`).
+
+Setup: a throwaway Cognito user and three synthetic Point Nemo runs through the PRODUCTION
+`processActivity`, against the real tables and user-data bucket. The raw archive went to a throwaway
+bucket. The runs were:
+- A: 2025-12, km 1–2
+- B: 2026-09, km 2–3
+- C: 2026-10, km 0–3, which yields new 56, re-armed 57 and ~62 familiar
+
+The driver signed in through the real Authenticator in headless Chromium and opened `/run/<C>?play=1`.
+
+Results: 11/11 with `?fog=perf`, and 10/10 without it.
+- Sequence phase on entry. The lantern travelled 21–26 distinct positions. The column stayed veiled
+  while playing, and the page ended in the end state with the column visible.
+- `beat 1: 2933 ms` on both autoplay and Relive.
+- The MutationObserver and Audio hooks saw nothing mount and nothing constructed.
+- The lantern unmounted, and the run's line came back.
+- After a 500 px pan, Relive flew back to the run.
+- No console errors.
+
+Screenshots I checked, without the flag (`tmp/0080/shots-real/`):
+- At entry the familiar km 2–3 is already clear while km 0–2 is fogged.
+- The fog burns back behind the light, with gold over the new km 0–1 and a faint frost flush over km 1–2.
+- The end state matches the steady map.
+
+Cleanup was verified empty afterwards:
+- 3 Activity, 3 receipt, 14 ledger, 3 skill-state, 1 profile and 185 explored-cell rows deleted.
+- 27 S3 object versions deleted.
+- The throwaway bucket and the Cognito user deleted.
+- Nothing was written under `raw/` in the real bucket.
+
+**Operator, desktop browser, 2026-10-13:** watched ⟲ Relive on a real run and reported that it works
+great. The perceptual items (fog retreating behind the light, gold only on new ground, no seam) are
+still worth a glance on the next real run that crosses new ground.
+
