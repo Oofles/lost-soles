@@ -4,11 +4,11 @@ slug: run-reveal-cell-classes
 title: Serve the run's own new and re-armed cell ids to /run/:id, so beat 1 knows what to reveal
 type: feature
 priority: high
-status: blocked
+status: open
 size: m
 capability: 12-post-run-moment
 depends_on: [78]
-blocked_by: [253]
+blocked_by: []
 source: agent
 created: 2026-10-08T19:31:14Z
 started: 2026-10-13T12:05:24Z
