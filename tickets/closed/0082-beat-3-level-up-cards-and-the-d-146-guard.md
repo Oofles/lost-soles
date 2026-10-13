@@ -162,8 +162,7 @@ All four are recorded as **D-297**.
    its own 1.4 s total. The total wins, so the hold is 800 ms. §3.2 is amended.
 3. **§3.2 named Cinzel**, which §8.4 does not include. Amended to Spectral.
 4. **Neither Spectral nor Inter is self-hosted anywhere yet**, so every page falls back to system
-   fonts, and so does this card (Georgia). It is pre-existing; not filed, because §8.4 already
-   specifies self-hosting and no ticket I checked was asked for it.
+   fonts, and so does this card (Georgia). It is pre-existing; filed as **`0255`**.
 
 **What went wrong:**
 1. **Queued cards drifted.** Each card's clock started when it mounted, so three queued cards ran
