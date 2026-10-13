@@ -159,8 +159,10 @@ export function TallyView({
                       <span style={num}>
                         L{s.levelAfter}
                         {/* D-148 / D-296: a meaning-bearing mark on parchment needs 3:1 — the activity
-                            fill's token, not `--gold-500` (2.24:1). Shown once the bar is full. */}
-                        <span aria-hidden="true" style={{ color: "var(--progress-activity)", visibility: s.levelUp && p >= 1 ? "visible" : "hidden" }}>↑</span>
+                            fill's token, not `--gold-500` (2.24:1). Shown once the bar is full. OPACITY,
+                            not `visibility`: an explicit `visible` overrides the veiled column's
+                            inherited `hidden` and shows through it (0081's smoke caught exactly that). */}
+                        <span aria-hidden="true" style={{ color: "var(--progress-activity)", opacity: s.levelUp && p >= 1 ? 1 : 0 }}>↑</span>
                       </span>
                       <span style={{ ...num, color: "var(--text-secondary)" }}>
                         {s.xpToNext > 0 ? `${xpNumber(s.xpToNext)} →${s.levelAfter + 1}` : ""}

@@ -135,7 +135,12 @@ describe("levels, bars and totals (criteria 5, 10)", () => {
     const h = html([row("constitution", "constitution_share", 500)], { constitution: cumulativeXp(41) - 100, wayfaring: 1_000_000 })
     const before = cumulativeXp(41) - 100 + 1_000_000
     expect(text(h)).toContain(`Total XP ${(before).toLocaleString("en-US")} → ${(before + 500).toLocaleString("en-US")} (+500)`)
-    expect(h).toMatch(/L41<span aria-hidden="true" style="color:var\(--progress-activity\);visibility:visible">↑/)
+    expect(h).toMatch(/L41<span aria-hidden="true" style="color:var\(--progress-activity\);opacity:1">↑/)
+  })
+
+  it("the arrow never forces itself visible through a veiled ancestor", () => {
+    const h = html([row("constitution", "constitution_share", 500)], { constitution: cumulativeXp(41) - 100 })
+    expect(h).not.toMatch(/visibility:\s*visible/)
   })
 
   it("without a `before`, rows still show what the run earned — no bars, no totals", () => {
