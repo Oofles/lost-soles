@@ -228,6 +228,21 @@ describe("ride → walk: the new skill gains in full, the old one keeps what it 
     expect([...w.ledger.values()].some((e) => e.skillId === "cartography")).toBe(false)
   })
 
+  it("writes the cell record but no reveal set: an unawarded reveal is not the run's (D-294, 0253)", async () => {
+    const w = world("ride")
+    const keys: string[] = []
+    const inner = w.deps.blobs.s3.send.bind(w.deps.blobs.s3)
+    w.deps.blobs.s3 = {
+      async send(c: never) {
+        if ((c as unknown) instanceof PutObjectCommand) keys.push(String((c as PutObjectCommand).input.Key))
+        return inner(c)
+      },
+    } as never
+    await rescoreKind({ ...REQ, kind: "walk" }, w.deps)
+    expect(keys.some((k) => k.endsWith(".bin") && k.includes("/cells/"))).toBe(true)
+    expect(keys.some((k) => k.endsWith(".classes.json"))).toBe(false)
+  })
+
   it("the cell writes carry firstRunAt = the activity's startedAt, never the clock", async () => {
     const w = world("ride")
     const updates: UpdateCommand["input"][] = []
