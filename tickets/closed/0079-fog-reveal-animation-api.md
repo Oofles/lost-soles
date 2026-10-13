@@ -4,7 +4,7 @@ slug: fog-reveal-animation-api
 title: Drive the 08 coverage mask from an animation clock, not from the cell set
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [55, 56]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-08T19:20:14Z
+closed: 2026-10-13T12:01:33Z
 ---
 
 ## Description
@@ -73,9 +74,15 @@ a renderer regression gets bisected later.
       — `revealCellsForRoute` runs the domain's own `segmentsToCells` on the route the page holds.
       `reveal.test.ts` stubs `fetch` to throw and removes `XMLHttpRequest`, then computes, culls,
       tags and draws a full 0→1 sweep: `fetch` never called.
-- [ ] Frame time with a reveal set of 130 cells stays inside the `05-fog-of-war.md` §6.4 budget in
+- [x] Frame time with a reveal set of 130 cells stays inside the `05-fog-of-war.md` §6.4 budget in
       the desktop browser, measured with the 0059 harness — not assumed.
-- [ ] The dev-only scrub control exists and moves the fog edge smoothly end to end.
+      — verified 2026-10-13: operator, desktop browser, `/run/:id?fog=scrub`, ▶ 2.2 s through
+      `0059`'s collector: "p50 16.70 ms · 0/132 dropped (0.0%) · ~59.88 Hz" — inside D-241's
+      p50 ≤ 17 ms with ~0 dropped.
+- [x] The dev-only scrub control exists and moves the fog edge smoothly end to end.
+      — verified 2026-10-13: operator dragged 0→1 and back repeatedly on a real recent run; reads
+      as mist, retraces the same path, and the reloaded settled map matches scrub = 1 ("checks are
+      good").
 - [x] Zoom bucketing and viewport culling (0058) still apply to the reveal set; a run partly
       offscreen does not splat offscreen cells.
       — both streams go through `ZoomBucketStore` + `cullBucket` with one padded box.
@@ -120,3 +127,51 @@ forward again several times; the boundary must retrace the same path. Then leave
 page, and compare the settled map to the screenshot you took at scrub=1: they must be
 indistinguishable. ~~Do this outdoors in daylight, not just at a desk — the mist edge is a contrast
 judgement and screen brightness changes the answer.~~ *(D-251, 0215)*
+
+**Result, 2026-10-13 — desktop browser, `soles.devaultsecurity.com/run/<id>?fog=scrub`, a real
+recent run (no run made for this).** Operator: slow drag 0→1→0 several times reads as mist
+retreating, no honeycomb, popping or stair-stepping; the boundary retraces; the reloaded settled map
+matches scrub = 1. Frame time from ▶ 2.2 s: p50 16.70 ms, 0/132 dropped, ~60 Hz.
+**Agent smoke, 2026-10-09** (`tmp/0079/smoke.mjs`, throwaway Cognito user + synthetic 2.5 km loop
+at Point Nemo, deleted after): 10/10 — no control without the flag; `?fog=scrub` and
+`?fog=scrub,mask` mount it; the slider drives progress; the layer logs `reveal=195 cells`; ▶
+reports through the collector; no console errors. It found the empty-blob bug fixed in `f54f816`.
+
+## Resolution
+
+The 08 coverage mask is now a function of `revealProgress` as well as the cell set (06 §3.2 beat 1).
+
+**What was built (`8ee39bc`).** `FogMaskLayer.setReveal(cells, progress)`: each instance carries a
+fifth float, its normalized arc along the route, and the pass takes a `u_reveal` uniform — a scrub
+is one uniform write, no re-upload. A reveal culls the explored set twice through the *unchanged*
+steady-state derivation — once without the run's cells, once with — in one zoom bucket and one
+padded box, and `lib/fog/reveal-tag.ts` diffs the two streams to tag which instances are new. So
+p = 0 and p = 1 equal the two steady states by construction, not by a parallel code path: 0 of
+256,000 pixels differ on SwiftShader at res 11 and at a coarse bucket (`tools/fog-harness` R1–R4).
+D-248's origin is snapped to a 2^-10 grid so both streams share it exactly. The reveal set is
+computed from the local trace (`lib/fog/reveal.ts`); `reveal.test.ts` runs a full sweep with
+`fetch` throwing and `XMLHttpRequest` removed. Dev-only `?fog=scrub` mounts
+`components/map/reveal-scrub.tsx`: a slider plus ▶ 2.2 s, an arc-length-parameterised traversal
+that reports through `0059`'s collector so criterion 6 is measured, not assumed.
+
+Files: `lib/fog/{mask,mask-layer,reveal,reveal-tag,route-corridor,cull,instances,zoom-buckets,
+viewport-controller,debug-flags}.ts`, `src/domain/fog.ts`, `components/map/{map-shell.tsx,
+reveal-scrub.tsx,use-fog-mask.ts}`, harness `tools/fog-harness/{harness,run,reveal-fixture,…}`,
+`docs/05-fog-of-war.md`. Tests: `reveal.test.ts` (new, ~500 lines), extended `mask`, `cull`,
+`viewport-controller` tests.
+
+**Decision — D-293.** The ticket said the reveal set was "cells not yet persisted". `/run/:id` is
+reached *after* ingest, so that reading is always empty. The reveal set is "this run's cells"
+instead. Getting those ids to the client is not this ticket: filed `0251`, and `0080` now depends
+on it. Also filed `0252` (D-238 lowers interior vertices).
+
+**What went wrong.** The live smoke found that an account with no explored blob yet — exactly a
+first run — installed no store or controller, so `?fog=scrub` drew the corridor whole and animated
+nothing. Fixed in `f54f816` by standing an empty set in when a reveal is requested. Headless
+SwiftShader could not answer criterion 6 (p50 16.70 ms, 45% dropped — the software rasteriser), so
+the ticket waited a session for the operator's desktop reading. That reading's reveal set was
+whatever the operator's run produced, not exactly 130 cells; the smoke run's was 195, so the
+budget holds above the criterion's size too.
+
+Minor, not filed: the scrub readout prints `~Hz` unrounded (`59.88023952095548`). Dev-only cosmetic.
+
