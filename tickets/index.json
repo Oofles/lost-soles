@@ -5810,7 +5810,7 @@
     "title": "Persist each run's new and re-armed cell ids at ingest, and rewrite them in the fold",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [],
@@ -5818,10 +5818,11 @@
     "source": "agent",
     "created": "2026-10-13T12:07:12Z",
     "started": "2026-10-13T13:39:25Z",
-    "path": "tickets/open/0253-persist-each-run-s-new-and-re-armed-cell-ids-at-ingest-and-r.md",
-    "ready": true,
+    "closed": "2026-10-13T13:51:24Z",
+    "path": "tickets/closed/0253-persist-each-run-s-new-and-re-armed-cell-ids-at-ingest-and-r.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   }
