@@ -4,7 +4,7 @@ slug: chronicle-and-frontier-lines
 title: Beats 4 and 5 — the chronicle line and the frontier line
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [81, 48]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-13T21:43:32Z
+closed: 2026-10-13T22:21:32Z
 ---
 
 ## Description

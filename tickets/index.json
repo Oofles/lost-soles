@@ -2015,7 +2015,7 @@
     "title": "Beats 4 and 5 — the chronicle line and the frontier line",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -2026,8 +2026,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-13T21:43:32Z",
-    "path": "tickets/open/0083-chronicle-and-frontier-lines.md",
-    "ready": true,
+    "closed": "2026-10-13T22:21:32Z",
+    "path": "tickets/closed/0083-chronicle-and-frontier-lines.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -2053,7 +2054,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0084-skip-interruption-failure-and-the-seen-flag.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 11
@@ -2077,7 +2078,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0085-no-new-territory-fallback-and-the-trace-layer.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
