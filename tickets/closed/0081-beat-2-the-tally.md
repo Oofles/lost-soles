@@ -247,3 +247,9 @@ Headless Chromium at 1280×900 signed in through the real Authenticator.
 - 0061's handover cases on the real account: the archived 2026-09-27 run (re-armed + recent) and
   2026-09-07 (all-recent, which must show no Cartography row).
 
+
+**Operator, desktop browser — verified 2026-10-13: all five perceptual checks good.** The count-up reads as
+eager, not a slot machine, and every row is readable as it lands. Expanding a row mid-count holds the
+sequence and the breakdown reads as an account. The 2026-09-27 run shows half-credit Wayfaring
+(explored + re-armed) with a half-credit Cartography row. 2026-09-07 (all-recent) shows no Cartography
+row. A strength session shows no absence and no `0`.
