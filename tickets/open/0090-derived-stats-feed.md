@@ -79,6 +79,13 @@ these counts come *from* the ledger entry rather than being recalculated beside 
 
 ## Notes
 
+**2026-10-13, operator, after `0083` (for the route planner, D-070 — no ticket exists yet; this is
+its nearest home):** the frontier line points at the same place on every run, because every run
+starts at home and it is measured against today's map. Acceptable for now. Two concerns to settle
+when planning comes up, deliberately not decided yet:
+- ground that looks unclaimed on the map may be unrunnable for reasons the map cannot show;
+- the suggestion should not be the same point every time.
+
 **2026-10-13, from `0083`:** the frontier primitive now exists — `frontier()` and `cellNovelty()` in
 `src/domain/frontier.ts`, with its tests. Consume it; do not write a second one (this ticket's own
 "a grep finds exactly one implementation" criterion). Two departures from §8.4's sketch are recorded in
