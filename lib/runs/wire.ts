@@ -22,6 +22,7 @@
  * would; `import type` is the load-bearing keyword in this file.
  */
 import type { RouteTraceGeometry } from "@/src/pipeline/route-trace-store"
+import type { RunClasses } from "@/src/domain/discovery"
 
 export type { RouteTraceGeometry }
 
@@ -70,6 +71,16 @@ export interface RunSummary {
   rearmedCellCount: number
   /** The run's line, or the empty collection for an untraced activity. */
   route: RunFeatureCollection
+  /**
+   * WHAT THIS RUN REVEALED. Ticket `0251`; D-294. The run's own new and re-armed cell ids, as
+   * classified at ingest (or by the fold) and stored beside its cell record — beat 1's reveal set.
+   * The server's verdict, served as-is: the browser's explored blob cannot tell this run's
+   * discoveries from ground an earlier run cleared, so the client derives no membership.
+   *
+   * Empty lists for an untraced activity, and for a run never classified (before `0253`'s backfill
+   * reached it) — "reveal nothing" is the safe reading of both; familiar ground is never fogged.
+   */
+  reveal: RunClasses
 }
 
 /** One row of the Chronicle's run list. Ticket `0078` adds only the link; `0088` builds the sheet. */

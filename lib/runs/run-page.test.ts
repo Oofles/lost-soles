@@ -100,7 +100,9 @@ describe("runById — criterion 1: resolves for the owner, 404s otherwise", () =
     getObject.mockResolvedValueOnce(bytes(GEOMETRY))
     const { deps } = rig([row({ traceRef: "users/SOMEONE-ELSE/traces/a-9.segments.json.gz" })])
     await runById("u-1", "a-9", deps)
-    expect(getObject.mock.calls.at(-1)![0]).toBe("users/u-1/traces/a-9.segments.json.gz")
+    const keys = getObject.mock.calls.slice(-2).map((c) => c[0])
+    expect(keys).toContain("users/u-1/traces/a-9.segments.json.gz")
+    expect(keys.join()).not.toContain("SOMEONE-ELSE")
   })
 
   it("an untraced activity still resolves, with no line", async () => {
@@ -109,6 +111,58 @@ describe("runById — criterion 1: resolves for the owner, 404s otherwise", () =
     const run = await runById("u-1", "a-9", deps)
     expect(run!.route).toEqual(EMPTY_COLLECTION)
     expect(getObject).not.toHaveBeenCalled()
+  })
+})
+
+describe("runById — the reveal set (0251, D-294)", () => {
+  /** Answers by key, so the two parallel reads cannot be confused by call order. */
+  const byKey = (objects: Record<string, Uint8Array | undefined>) =>
+    getObject.mockImplementation(async (key: string) => objects[key])
+
+  it("serves the stored new and re-armed ids, read under the session's own prefix", async () => {
+    getObject.mockReset()
+    byKey({
+      "users/u-1/traces/a-9.segments.json.gz": bytes(GEOMETRY),
+      // getObject has already gunzipped; runById parses what it is handed.
+      "users/u-1/cells/a-9.classes.json": bytes({ new: ["8a2a1072b59ffff"], rearmed: ["8a2a1072b5bffff"] }),
+    })
+    const run = await runById("u-1", "a-9", rig([row()]).deps)
+    expect(run!.reveal).toEqual({ new: ["8a2a1072b59ffff"], rearmed: ["8a2a1072b5bffff"] })
+    expect(getObject).toHaveBeenCalledWith("users/u-1/cells/a-9.classes.json", expect.anything())
+  })
+
+  it("a run whose cells were all explored before it serves an empty new set", async () => {
+    getObject.mockReset()
+    byKey({ "users/u-1/cells/a-9.classes.json": bytes({ new: [], rearmed: [] }) })
+    const run = await runById("u-1", "a-9", rig([row()]).deps)
+    expect(run!.reveal).toEqual({ new: [], rearmed: [] })
+  })
+
+  it("an untraced activity serves empty sets without reading anything", async () => {
+    getObject.mockReset()
+    const run = await runById("u-1", "a-9", rig([row({ traceRef: null, hasTrace: false })]).deps)
+    expect(run!.reveal).toEqual({ new: [], rearmed: [] })
+    expect(getObject).not.toHaveBeenCalled()
+  })
+
+  it("a traced run never classified (no object) reveals nothing rather than failing", async () => {
+    getObject.mockReset()
+    byKey({ "users/u-1/traces/a-9.segments.json.gz": bytes(GEOMETRY) })
+    const run = await runById("u-1", "a-9", rig([row()]).deps)
+    expect(run!.reveal).toEqual({ new: [], rearmed: [] })
+    expect(run!.route.features).toHaveLength(1)
+  })
+
+  it("another account's run reads no reveal set at all", async () => {
+    getObject.mockReset()
+    expect(await runById("u-someone-else", "a-9", rig([row()]).deps)).toBeNull()
+    expect(getObject).not.toHaveBeenCalled()
+  })
+
+  it("refuses a body that is not { new, rearmed }, as the pipeline's reader does", async () => {
+    getObject.mockReset()
+    byKey({ "users/u-1/cells/a-9.classes.json": bytes({ new: "nope" }) })
+    await expect(runById("u-1", "a-9", rig([row()]).deps)).rejects.toThrow(/not \{ new, rearmed \}/)
   })
 })
 

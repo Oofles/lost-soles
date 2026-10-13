@@ -726,12 +726,22 @@ export async function readRunClasses(
   activityId: string,
   deps: Pick<BlobStoreDeps, "s3" | "bucket">,
 ): Promise<RunClasses | undefined> {
-  const object = await getBytes(objectKeys.runClasses(userId, activityId), deps)
+  const key = objectKeys.runClasses(userId, activityId)
+  const object = await getBytes(key, deps)
   if (object === undefined) return undefined
-  const body = JSON.parse(new TextDecoder().decode(gunzipIfNeeded(object.bytes))) as Partial<RunClasses>
+  return parseRunClasses(gunzipIfNeeded(object.bytes), key)
+}
+
+/**
+ * The shape check, apart from the read, so `/run/:id`'s SSR reader (`0251`, `lib/runs/server.ts`)
+ * — which reads through `lib/fog/server.ts`'s `getObject` — refuses exactly what this module does.
+ * `bytes` are already gunzipped.
+ */
+export function parseRunClasses(bytes: Uint8Array, key: string): RunClasses {
+  const body = JSON.parse(new TextDecoder().decode(bytes)) as Partial<RunClasses>
   const ids = (v: unknown): v is H3Index[] => Array.isArray(v) && v.every((c) => typeof c === "string")
   if (!ids(body.new) || !ids(body.rearmed)) {
-    throw new Error(`readRunClasses: ${objectKeys.runClasses(userId, activityId)} is not { new, rearmed }`)
+    throw new Error(`readRunClasses: ${key} is not { new, rearmed }`)
   }
   return { new: body.new, rearmed: body.rearmed }
 }

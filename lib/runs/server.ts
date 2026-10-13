@@ -3,6 +3,8 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb"
 
 import outputs from "@/amplify_outputs.json"
 import { getObject, defaultFogReadDeps, type FogReadDeps } from "@/lib/fog/server"
+import type { RunClasses } from "@/src/domain/discovery"
+import { objectKeys, parseRunClasses } from "@/src/pipeline/explored-blob-store"
 import { routeTraceKey } from "@/src/pipeline/route-trace-store"
 
 import {
@@ -226,8 +228,21 @@ export async function runById(
   if (!row?.id || row.userId !== userId || !row.startedAt) return null
 
   let route: RunFeatureCollection = EMPTY_COLLECTION
+  let reveal: RunClasses = { new: [], rearmed: [] }
   if (typeof row.traceRef === "string" && row.traceRef.length > 0) {
-    const bytes = await getObject(routeTraceKey(userId, row.id), deps)
+    /**
+     * THE REVEAL SET (`0251`, D-294) — read beside the trace, under the same rebuilt-from-the-
+     * session key discipline. Only for a traced row: an untraced activity has no cells, so no
+     * object, and the GET would be a guaranteed 404. An absent object on a traced row is a run
+     * never classified, and reads as "reveal nothing". The SSR role's `s3:GetObject` on
+     * `users/*` (`ReadExploredDeliveryLayerForTheBrowser`) already reaches it.
+     */
+    const classesKey = objectKeys.runClasses(userId, row.id)
+    const [bytes, classes] = await Promise.all([
+      getObject(routeTraceKey(userId, row.id), deps),
+      getObject(classesKey, deps),
+    ])
+    if (classes !== undefined) reveal = parseRunClasses(classes, classesKey)
     if (bytes !== undefined) {
       route = {
         type: "FeatureCollection",
@@ -255,6 +270,7 @@ export async function runById(
     newCellCount: row.newCellCount ?? 0,
     rearmedCellCount: row.rearmedCellCount ?? 0,
     route,
+    reveal,
   }
 }
 

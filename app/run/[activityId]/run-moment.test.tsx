@@ -28,6 +28,7 @@ const SUMMARY: RunSummary = {
   newCellCount: 21,
   rearmedCellCount: 0,
   route: EMPTY_COLLECTION,
+  reveal: { new: [], rearmed: [] },
 }
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
