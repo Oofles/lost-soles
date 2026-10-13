@@ -11,7 +11,8 @@
  *   - **never a zero** (§3.5): a skill that earned nothing is omitted, not shown at `+0`;
  *   - **ordered by XP gained, descending**, not by registry order.
  *
- * Bars, levels, the reason breakdown and the count-up are `0081`'s.
+ * Bars, levels, the reason breakdown and the count-up are `0081`'s (`lib/run-moment/tally.ts`), and
+ * read the same `scoredRows`.
  */
 
 export interface ActivityLedgerRow {
@@ -20,6 +21,8 @@ export interface ActivityLedgerRow {
   xpAwarded: number
   xpRulesVersion: number
   isFloor: boolean
+  /** Raw measured work in the skill's own unit (`0081`: the `new_ground` row's km is the tally's new-road line). */
+  units?: number
 }
 
 export interface RunLedgerLine {
@@ -38,16 +41,17 @@ export interface RunLedger {
  * present for a moment, and summing them would show the run earning twice: the newest wins.
  * Floor rows are never per-activity (`activityId: "__floor__"`) and are excluded for the same reason.
  */
-export function runLedger(rows: readonly ActivityLedgerRow[]): RunLedger {
+export function scoredRows(rows: readonly ActivityLedgerRow[]): ActivityLedgerRow[] {
   const scored = rows.filter((r) => !r.isFloor)
-  if (scored.length === 0) return { lines: [], totalXp: 0 }
+  if (scored.length === 0) return []
   const version = Math.max(...scored.map((r) => r.xpRulesVersion))
+  return scored.filter((r) => r.xpRulesVersion === version)
+}
 
+/** Per-skill totals over `scoredRows`, zeros omitted, XP descending. */
+export function runLedger(rows: readonly ActivityLedgerRow[]): RunLedger {
   const bySkill = new Map<string, number>()
-  for (const r of scored) {
-    if (r.xpRulesVersion !== version) continue
-    bySkill.set(r.skillId, (bySkill.get(r.skillId) ?? 0) + r.xpAwarded)
-  }
+  for (const r of scoredRows(rows)) bySkill.set(r.skillId, (bySkill.get(r.skillId) ?? 0) + r.xpAwarded)
 
   const lines = [...bySkill]
     .map(([skillId, xp]) => ({ skillId, xp }))

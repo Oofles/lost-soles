@@ -1336,6 +1336,11 @@ backend.addOutput({
      * the `dynamodb:Query` granted a few lines below, which is scoped to this table alone.
      */
     activityTableName: activityTable.tableName,
+    /**
+     * `0081`. The run page's tally reads T4's `byUserAndSeq` on the SSR compute, for "where each
+     * skill stood before this run" (`lib/runs/tally-server.ts`). Same argument as the line above.
+     */
+    xpLedgerTableName: backend.data.resources.tables["XpLedgerEntry"].tableName,
   },
 })
 
@@ -1363,6 +1368,23 @@ computeRole.addToPrincipalPolicy(
     sid: "QueryActivityForLatestRun",
     actions: ["dynamodb:Query"],
     resources: [activityTable.tableArn, `${activityTable.tableArn}/index/*`],
+  }),
+)
+
+/**
+ * `0081`, D-296. THE SSR COMPUTE QUERIES T4's `byUserAndSeq`, AND NOTHING ELSE ON T4.
+ *
+ * Beat 2's tally needs each skill's XP as of the run being shown — the sum of the ledger rows ahead
+ * of it in replay order (`lib/runs/tally-server.ts`). `dynamodb:Query` on that ONE index ARN: not the
+ * base table, not `Scan`, not `GetItem`, for the reasons the T3 grant above gives. The partition key
+ * is the session's `sub`, re-derived on the server, so this reads the caller's own ledger only.
+ * The browser's other T4 reads go through AppSync's owner rule and are unchanged.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "QueryXpLedgerByUserAndSeqForRunTally",
+    actions: ["dynamodb:Query"],
+    resources: [`${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/byUserAndSeq`],
   }),
 )
 

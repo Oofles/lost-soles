@@ -11,7 +11,7 @@ import { browserHistoryHost, seedHomeBehind } from "@/lib/runs/history"
 import { PLAY_PARAM, type RunSummary } from "@/lib/runs/wire"
 
 import { ActivityKind } from "./activity-kind"
-import { RunLedger } from "./run-ledger"
+import { RunLedger, useRunTally } from "./run-ledger"
 import { RunSequence } from "./run-sequence"
 
 /**
@@ -157,8 +157,21 @@ export function EndState({
   )
 }
 
-export function RunMoment({ summary, autoplay, home }: { summary: RunSummary; autoplay: boolean; home: Camera | null }) {
+export function RunMoment({
+  summary,
+  xpBefore,
+  autoplay,
+  home,
+}: {
+  summary: RunSummary
+  /** Each skill's XP before this run (`xpBeforeRun`, D-296); `null` if it could not be read. */
+  xpBefore: Record<string, number> | null
+  autoplay: boolean
+  home: Camera | null
+}) {
   const [state, dispatch] = useReducer(momentReducer, autoplay, initialMoment)
+  // Read once, here, so beat 2 and the end state draw the same tally (`0081`).
+  const tally = useRunTally(summary, xpBefore)
 
   useEffect(() => {
     // The intent is spent once read: a reload or a copied link opens the end state, never a replay.
@@ -203,13 +216,13 @@ export function RunMoment({ summary, autoplay, home }: { summary: RunSummary; au
             onStage={setStage}
           />
         }
-        ledger={<RunLedger summary={summary} />}
+        ledger={<RunLedger summary={summary} data={tally} />}
         kind={<ActivityKind activityId={summary.activityId} />}
         onRelive={onRelive}
         veiled={state.phase === "sequence"}
       />
       {state.phase === "sequence" ? (
-        <RunSequence key={state.play} summary={summary} stage={stage} onDone={onDone} />
+        <RunSequence key={state.play} summary={summary} stage={stage} tally={tally} onDone={onDone} />
       ) : null}
     </main>
   )

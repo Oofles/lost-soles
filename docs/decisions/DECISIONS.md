@@ -4597,3 +4597,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The end-state column is veiled (`visibility: hidden`) while the sequence plays**, so the
     run's title and ledger are not perceivable before the map (§3.2, criterion 7). `visibility`,
     not unmounting, so the page height and the map's width do not change at 2.9 s.
+- **D-296** **Beat 2's tally reads "before" AS OF THE RUN, from the ledger, on the server; the
+  level-gained arrow is `--progress-activity`, not `--gold-500`.** *(2026-10-13, ticket `0081`,
+  operator decision for "as of the run"; refines D-148 the way D-291 did.)*
+  - **"Before" is the ledger's sum over every row ahead of the run in replay order** — T4
+    `byUserAndSeq`, `seq < <startedAt>#<activityId>#00` — **plus every `retained_floor` row**, which
+    sorts last (year 9999) but holds XP the user already had. Relive on a March run therefore shows
+    the levels it was earned at, not today's totals minus one run. Rejected: "after = current
+    `SkillState`, before = after − this run" — cheaper, right for the newest run, and quietly wrong
+    for every older one. All versions are summed, as D-290's sheet does.
+  - **Read on the SSR compute**, beside `runById`, and handed to the page as `xpBefore`. A new
+    `dynamodb:Query` grant on the ONE index ARN (`QueryXpLedgerByUserAndSeqForRunTally`), and a
+    `custom.xpLedgerTableName` output, as `0195` did for T3. A failed read costs the bars and the
+    totals, never the page: the rows still show what the run earned.
+  - **Total Level ignores `levelHighWater`.** It is D-145's Σ `levelForXp` at the run's moment; the
+    ratchet is a property of now, and the panel already shows it.
+  - **The arrow.** §3.2 said `--gold-500`. On `--parch-50` that is 2.24:1, and the arrow is a
+    meaning-bearing mark (WCAG 1.4.11, 3:1) — the same conflict D-291 settled for bars. It takes
+    `--progress-activity` (`--gold-700` light, `--gold-300` dark). It is still the only colour in the
+    row: the tally's bars are ink (`--text-secondary`), not gold, because §3.2 says the arrow is the
+    row's one colour. §3.2 is amended.
+  - **"km never run before" is DATA-found**: the `units` of the `new_ground` row of any skill whose
+    unit is `km`. No new stored field, no skill id in code (D-031); absent when there is none.
+  - **Beat 2 plays even when beat 1 could not** (untraced activity, no WebGL2): the tally is the
+    numbers, and §3.4 says they never depend on the graphics. The panel is fixed to the viewport's
+    bottom 55%, opaque (D-148), over the map; the camera's pull-back pads the bottom by the part of
+    the map the panel covers.

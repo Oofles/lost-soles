@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { useExplored } from "@/components/map/explored-provider"
@@ -11,12 +11,15 @@ import { runBounds } from "@/lib/map-camera"
 import { log } from "@/lib/log"
 import { documentRoutePalette } from "@/lib/map-layers"
 import { beat1At } from "@/lib/run-moment/beat1"
+import { beat2At, BEAT2_MS, easeOutQuint, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
 import { flyToRun } from "@/lib/run-moment/camera"
 import { installInk, type Ink } from "@/lib/run-moment/ink"
 import { lanternPath } from "@/lib/run-moment/lantern-path"
 import { modeCrossFade, savedRenderMode } from "@/lib/run-moment/mode"
 import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
+
+import { tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
 
 /**
  * THE SEQUENCE'S SEAT. Ticket `0078` laid it out; `0080` fills beat 1. `06-ui-ux.md` §3.2.
@@ -47,6 +50,14 @@ import type { RunSummary } from "@/lib/runs/wire"
  * that never starts must not hold the page — the end state is the canonical view (§3.3).
  *
  * Skip, reduced motion and WebGL loss mid-beat are `0084`'s.
+ *
+ * ─── BEAT 2: THE TALLY, LAID ON THE MAP (`0081`) ────────────────────────────
+ *
+ * Beat 1 no longer calls `onDone`; it hands to `Beat2`, which owns its own clock (`beat2.ts`) and
+ * calls `onDone` at 6.0 s. The reveal, the ink and the lit map stay exactly as beat 1 left them — the
+ * effect's cleanup only runs when the whole sequence unmounts. Beat 2 plays even when beat 1 could
+ * not (an untraced activity, no WebGL2): the tally is the numbers, and §3.4 says the numbers never
+ * depend on the graphics.
  */
 
 /** How long to wait for the map before giving up and showing the end state. */
@@ -59,16 +70,43 @@ declare global {
   interface Window {
     /** `?fog=perf` only — beat 1's measured wall-clock length and frame stats, for the harness. */
     __beat1?: { ms: number; frames: FrameStats | null }
+    /**
+     * `0081`. The sequence's beat boundaries, `performance.now()` ms, for the smoke harness: when the
+     * sequence clock started (beat 1's t=0), when beat 2 began and ended, and how long it sat paused.
+     */
+    __sequence?: { t0: number | null; beat2Start?: number; beat2End?: number; pausedMs?: number }
   }
 }
 
 export function RunSequence({
   summary,
   stage = null,
+  tally,
   onDone,
 }: {
   summary: RunSummary
   stage?: MapStage
+  tally: ReturnType<typeof useRunTally>
+  onDone: () => void
+}) {
+  const [beat, setBeat] = useState<1 | 2>(1)
+  const toBeat2 = useCallback(() => setBeat(2), [])
+  const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} />
+  return (
+    <>
+      {beat1}
+      {beat === 2 ? <Beat2 summary={summary} stage={stage} data={tally} onDone={onDone} /> : null}
+    </>
+  )
+}
+
+function Beat1({
+  summary,
+  stage,
+  onDone,
+}: {
+  summary: RunSummary
+  stage: MapStage
   onDone: () => void
 }) {
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
@@ -79,10 +117,15 @@ export function RunSequence({
   exploredReady.current = explored.phase !== "loading"
 
   const lantern = useRef<HTMLDivElement | null>(null)
+  const ended = useRef(false)
   const [host, setHost] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
+    // Beat 1 plays once. It stays mounted through beat 2 (its ink and reveal ARE beat 2's lit map),
+    // so a late stage change must not start it again.
+    if (ended.current) return
     if (stage?.kind === "unsupported" || !path) {
+      ended.current = true
       onDone()
       return
     }
@@ -117,6 +160,7 @@ export function RunSequence({
     const finish = (now: number) => {
       if (finished) return
       finished = true
+      ended.current = true
       if (perf && t0 !== null) {
         const frames = perf.snapshot().frames.find((f) => f.phase === "beat1") ?? null
         window.__beat1 = { ms: now - t0, frames }
@@ -143,6 +187,7 @@ export function RunSequence({
           return
         }
         t0 = now
+        window.__sequence = { t0 }
         perf?.beginPhase("beat1")
         startCamera()
       }
@@ -200,5 +245,145 @@ export function RunSequence({
       }}
     />,
     host,
+  )
+}
+
+/** How long beat 2 waits for the ledger read before giving up and showing the end state. */
+const TALLY_GIVE_UP_MS = 4000
+
+/**
+ * BEAT 2. Ticket `0081`. The camera pulls back, the parchment rises over the bottom ~55% of the
+ * viewport, and the tally counts in (`beat2.ts`). The panel is laid ON the map — fixed to the
+ * viewport, never a full-screen takeover — and opaque (D-148: floating chrome is never translucent).
+ *
+ * Clicking a row expands its reason breakdown and PAUSES the beat's clock; collapsing every row
+ * resumes it where it stopped (criterion 8). The clock is a value read each frame, never React state;
+ * only the frame it produces is.
+ */
+function Beat2({
+  summary,
+  stage,
+  data,
+  onDone,
+}: {
+  summary: RunSummary
+  stage: MapStage
+  data: ReturnType<typeof useRunTally>
+  onDone: () => void
+}) {
+  const count = data.tally ? tallyLineCount(data.tally, summary) : 0
+  const [frame, setFrame] = useState<Beat2Frame>(() => beat2At(0, count))
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [started, setStarted] = useState(false)
+  const clock = useRef<PausableClock | null>(null)
+  const countRef = useRef(count)
+  countRef.current = count
+
+  // Nothing to tally, or the read failed: beat 2 has nothing to show, so the end state comes now.
+  const nothing = data.error !== undefined || (data.tally !== undefined && count === 0)
+  useEffect(() => {
+    if (nothing) onDone()
+  }, [nothing, onDone])
+
+  // The ledger normally arrived during beat 1. If it has not, wait — briefly — rather than count up
+  // an empty panel.
+  useEffect(() => {
+    if (data.tally || nothing) return
+    const id = setTimeout(onDone, TALLY_GIVE_UP_MS)
+    return () => clearTimeout(id)
+  }, [data.tally, nothing, onDone])
+
+  const ready = data.tally !== undefined && count > 0
+  useEffect(() => {
+    if (!ready) return
+    const start = performance.now()
+    const c = new PausableClock(start)
+    clock.current = c
+    const seq = (window.__sequence ??= { t0: null })
+    seq.beat2Start = start
+    setStarted(true)
+
+    // §3.2: pull back 1.5 zoom levels, over the parchment's own 300 ms rise. The bottom padding is the
+    // part of the map the panel will cover, so the run's ground settles in the visible upper part.
+    if (stage?.kind === "ready") {
+      const map = stage.map
+      const rect = map.getContainer().getBoundingClientRect()
+      const panelTop = window.innerHeight * 0.45
+      const covered = Math.max(0, Math.min(rect.bottom, window.innerHeight) - panelTop)
+      map.easeTo({
+        zoom: map.getZoom() - PULL_BACK_ZOOM,
+        padding: { top: 0, left: 0, right: 0, bottom: Math.min(covered, rect.height * 0.8) },
+        duration: RISE_MS,
+        easing: easeOutQuint,
+      })
+    }
+
+    let raf = 0
+    const tick = (now: number) => {
+      if (!c.isPaused) {
+        const t = c.elapsed(now)
+        setFrame(beat2At(t, countRef.current))
+        if (t >= BEAT2_MS) {
+          seq.beat2End = now
+          seq.pausedMs = c.pausedMs(now)
+          if (perfEnabled(window.location.search)) {
+            log.info(`beat 2: ${(now - start).toFixed(0)} ms wall, ${c.pausedMs(now).toFixed(0)} ms paused`)
+          }
+          onDone()
+          return
+        }
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // `stage` is read once, at the beat's start: the camera move is a one-shot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, onDone])
+
+  // Expansion pauses the sequence; collapsing the last open row resumes it.
+  useEffect(() => {
+    const c = clock.current
+    if (!c) return
+    if (expanded.size > 0) c.pause(performance.now())
+    else c.resume(performance.now())
+  }, [expanded])
+
+  const onToggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+
+  if (!started) return null
+  return (
+    <div
+      data-testid="tally-panel"
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        maxHeight: "55vh",
+        overflowY: "auto",
+        background: "var(--surface)",
+        borderTop: "2px solid var(--gold-500)",
+        boxShadow: "0 -8px 24px rgb(0 0 0 / 0.18)",
+        transform: `translateY(${((1 - frame.rise) * 100).toFixed(2)}%)`,
+        zIndex: 10,
+      }}
+    >
+      <div style={{ maxWidth: "40rem", margin: "0 auto", padding: "1rem 1rem 1.5rem" }}>
+        <TallyView
+          summary={summary}
+          tally={data.tally}
+          skillName={data.skillName}
+          frame={frame}
+          expanded={expanded}
+          onToggle={onToggle}
+        />
+      </div>
+    </div>
   )
 }

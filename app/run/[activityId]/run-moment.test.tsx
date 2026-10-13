@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest"
 
 import { EMPTY_COLLECTION, type RunSummary } from "@/lib/runs/wire"
 
-import { LedgerView } from "./run-ledger"
+import { tallyFor } from "@/lib/run-moment/tally"
+import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
+import type { RuleSet } from "@/src/rules/schema"
+
+import { TallyView } from "./run-ledger"
 import { EndState, initialMoment, momentReducer, RunMoment } from "./run-moment"
 
 /**
@@ -35,14 +39,12 @@ const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "
 const noop = () => {}
 const names: Record<string, string> = { wayfaring: "Wayfaring", cartography: "Cartography" }
 
+const RULES = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
+const row = (skillId: string, reason: string, xpAwarded: number) => ({ skillId, reason, xpAwarded, xpRulesVersion: RULES.version, isFloor: false })
+
 function ledgerHtml() {
-  return renderToStaticMarkup(
-    <LedgerView
-      summary={SUMMARY}
-      ledger={{ lines: [{ skillId: "wayfaring", xp: 840 }, { skillId: "cartography", xp: 45 }], totalXp: 885 }}
-      skillName={(id) => names[id] ?? id}
-    />,
-  )
+  const tally = tallyFor([row("wayfaring", "new_ground", 840), row("cartography", "cells_new", 45)], { wayfaring: 1000 }, RULES)
+  return renderToStaticMarkup(<TallyView summary={SUMMARY} tally={tally} skillName={(id: string) => names[id] ?? id} />)
 }
 
 describe("the static end state (criterion 2)", () => {
@@ -84,7 +86,7 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
     expect(t).toContain("+840")
     expect(t).toContain("Cartography")
     expect(t).toContain("21 cells claimed")
-    expect(t).toContain("Total XP +885")
+    expect(t).toContain("Total XP 1,000 → 1,885 (+885)")
     expect(html).toContain('data-slot="chronicle-line"')
     expect(html).toContain('data-slot="frontier-line"')
   })
@@ -96,12 +98,12 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
 
 describe("autoplay is the entry point's intent, and nothing else", () => {
   it("no intent → the end state, with no sequence mounted", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay={false} home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} />)
     expect(html).toContain('data-phase="end"')
   })
 
   it("intent → the sequence, over the end state", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} />)
     expect(html).toContain('data-phase="sequence"')
     expect(html).toContain('data-slot="ledger"')
   })
@@ -112,7 +114,7 @@ describe("autoplay is the entry point's intent, and nothing else", () => {
    * `0078`) but held back, and nothing announces anything: no toast, dialog, spinner or title card.
    */
   it("intent → nothing but the map is perceivable before t = 0: no toast, dialog, spinner or title (0080)", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} />)
     const column = html.slice(html.indexOf('data-slot="column"'))
     expect(html).toMatch(/<div data-slot="column" aria-hidden="true" style="[^"]*visibility:hidden/)
     // The run's title and the ledger are inside the veiled column, not above it.
@@ -124,7 +126,7 @@ describe("autoplay is the entry point's intent, and nothing else", () => {
   })
 
   it("no intent → the end state, nothing veiled", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay={false} home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} />)
     expect(html).not.toContain("visibility:hidden")
     expect(html).not.toContain('aria-hidden="true"')
   })

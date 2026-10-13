@@ -377,7 +377,9 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
   visibly decelerating into the final digit. Tabular numerals, so nothing reflows while counting.
 - The XP bar fills in the same 700 ms window. If the fill crosses 100%, it does **not** wrap —
   it fills to full, holds, and hands off to beat 3.
-- `L41 ↑` marks a level gained; the arrow is `--gold-500` and is the only colour in the row.
+- `L41 ↑` marks a level gained; the arrow is `--progress-activity` (`--gold-700` on parchment —
+  `--gold-500` is 2.24:1 there, and a mark that carries meaning needs 3:1; D-296, after D-291) and
+  is the only colour in the row: the bars are ink.
 - **Tapping a row expands it to the reason breakdown** (04 §4.2): `318 new ground · 62
   remembered · 196 familiar`. This falls out of the `XpLedger` for free and it is the thing that
   makes the numbers feel *accountable* rather than dispensed. Expansion pauses the sequence.

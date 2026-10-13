@@ -36,13 +36,20 @@ export async function fetchActivityLedger(activityId: string): Promise<ActivityL
     const { data, errors, nextToken: more } = await timed(
       c.models.XpLedgerEntry.listXpLedgerEntryByActivityIdAndSkillIdReason(
         { activityId },
-        { limit: 100, nextToken, selectionSet: ["skillId", "reason", "xpAwarded", "xpRulesVersion", "isFloor"] },
+        { limit: 100, nextToken, selectionSet: ["skillId", "reason", "xpAwarded", "xpRulesVersion", "isFloor", "units"] },
       ),
       "XpLedgerEntry.byActivity",
     )
     if (errors?.length) throw errorFrom(errors)
     for (const r of data) {
-      out.push({ skillId: r.skillId, reason: r.reason, xpAwarded: r.xpAwarded, xpRulesVersion: r.xpRulesVersion, isFloor: r.isFloor })
+      out.push({
+        skillId: r.skillId,
+        reason: r.reason,
+        xpAwarded: r.xpAwarded,
+        xpRulesVersion: r.xpRulesVersion,
+        isFloor: r.isFloor,
+        units: r.units,
+      })
     }
     nextToken = more
   } while (nextToken)
