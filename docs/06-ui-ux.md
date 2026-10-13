@@ -400,7 +400,7 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
         ║           │ SIGIL  │             ║   ← skill sigil, ink on gold
         ║           ╰────────╯             ║
         ║                                  ║
-        ║          WAYFARING               ║   ← Cinzel, 22sp, letterspaced
+        ║          WAYFARING               ║   ← Spectral 600, 22sp, uppercase, tracked (D-297)
         ║                                  ║
         ║           46  →  47              ║   ← 46 crossfades out as 47
         ║                                  ║      rises in, 500 ms
@@ -412,7 +412,8 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
 
 - The card takes the screen: map dims to 25% under a `--navy-900` scrim at 0.72.
 - Entry: scale 0.94 → 1.0 with a 220 ms `easeOutBack` (overshoot 1.02), gold border wiping in
-  clockwise over 400 ms. Hold 600 ms. Exit: fade + 4dp rise, 200 ms.
+  clockwise over 400 ms. Hold 800 ms. Exit: fade + 4dp rise, 200 ms. 1.4 s in all (D-297: the parts
+  once summed to 1.2 s against the 1.4 s total; the total wins).
 - One card per level. If a run grants three levels, three cards queue at 1.4 s each. This is the
   only place the sequence is allowed to exceed its budget, and it should — a triple level-up is
   the best thing that can happen and rushing it is a design failure.

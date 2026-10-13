@@ -210,7 +210,7 @@ export function useRunTally(summary: RunSummary, xpBefore: Record<string, number
   const rules = useMemo(() => rulesForSkills(skills), [skills])
   const tally = useMemo(() => (rows ? tallyFor(rows, xpBefore, rules) : undefined), [rows, xpBefore, rules])
   const skillName = useMemo(() => (id: string) => rules.skills.find((s) => s.id === id)?.name ?? id, [rules])
-  return { tally, skillName, error: error || undefined }
+  return { tally, skillName, rules, xpBefore, error: error || undefined }
 }
 
 /** The end state's seat: the settled tally, with its own expand state. */

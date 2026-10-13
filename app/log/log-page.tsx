@@ -3,7 +3,9 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { LevelUpQueue } from "@/components/level-up-card"
 import { LOG_FLUSHED_EVENT } from "@/components/log-queue-runner"
+import { levelUpQueue, type LevelCard } from "@/lib/level-up/cards"
 import { addAwards, awardFor, rowResult, rulesForSkills, type Award, type CachedSkill } from "@/lib/log/optimistic"
 import { lastValueKey, logStore, queuedLog, skillsKey, undoLog } from "@/lib/log/queue"
 import { entryFor, logRows, type LogRow } from "@/lib/log/rows"
@@ -32,6 +34,9 @@ export function LogPage() {
   const [pending, setPending] = useState<Award>({})
   /** Each row's last logged value, by exercise. `undefined` until IndexedDB has answered. */
   const [lastValues, setLastValues] = useState<Record<string, number>>()
+
+  /** `0082`: a log that crossed a level plays beat 3's cards over the page (§6.4, D-288). */
+  const [cards, setCards] = useState<LevelCard[] | null>(null)
 
   const rules = useMemo(() => rulesForSkills(skills), [skills])
   const rows = useMemo(() => logRows(rules), [rules])
@@ -98,6 +103,11 @@ export function LogPage() {
       })
       const award = awardFor(entry, rules)
       const result = rowResult(row.skillId, award, { xp: standing(row.skillId) }, rules)
+      // Every skill's standing before this log — the Total Level milestone reads them all. The row's
+      // own skill first, then whatever it feeds, as the award lists them.
+      const before = Object.fromEntries(rules.skills.map((s) => [s.id, standing(s.id)]))
+      const order = [row.skillId, ...Object.keys(award).filter((id) => id !== row.skillId)]
+      const queue = levelUpQueue(before, award, rules, order)
       const log = queuedLog(uid, entry, award, now)
       // IndexedDB FIRST, then the animation (§6.4). A tab killed after this line still logs.
       await store.put(log)
@@ -105,6 +115,7 @@ export function LogPage() {
       await store.setKv(lastValueKey(uid, row.exerciseId), value)
       setLastValues((v) => ({ ...v, [row.exerciseId]: value }))
       setPending((p) => addAwards(p, award))
+      if (queue.length) setCards(queue)
       return { key: log.idempotencyKey, value, result, holdUntil: log.holdUntil, award, previous }
     },
     [uid, rules, standing, store, lastValues],
@@ -161,6 +172,14 @@ export function LogPage() {
           </li>
         ))}
       </ul>
+
+      {cards ? (
+        <LevelUpQueue
+          cards={cards}
+          skillName={(id) => rules.skills.find((s) => s.id === id)?.name ?? id}
+          onDone={() => setCards(null)}
+        />
+      ) : null}
     </main>
   )
 }

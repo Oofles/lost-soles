@@ -6,7 +6,7 @@ import type { ActivityLedgerRow } from "@/lib/runs/ledger"
 import type { RuleSet } from "@/src/rules/schema"
 import { cumulativeXp, levelForXp, totalLevel } from "@/src/scoring/levels"
 
-import { tallyFor } from "./tally"
+import { cardTriggers, tallyFor } from "./tally"
 
 /**
  * Ticket `0081` — the tally's numbers and its two §3.5 rules. Skill ids are the real ones because
@@ -165,5 +165,23 @@ describe("the reason breakdown (criterion 8)", () => {
 
   it("is closed by default", () => {
     expect(html(RUN)).not.toContain("data-breakdown")
+  })
+})
+
+describe("beat 3 interrupts beat 2 where §3.2 says (0082)", () => {
+  it("a line that crossed a level hands off as its count lands; Total Level after its line fades in", () => {
+    const up = tallyFor([row("constitution", "constitution_share", 500), row("wayfaring", "recent_ground", 100)], { constitution: cumulativeXp(41) - 100, wayfaring: cumulativeXp(20) + 10 }, RULES)
+    const start = (i: number) => 300 + 240 * i
+    const t = cardTriggers(up, { lineStart: start, countMs: 700, fadeMs: 180 }, (l) => [l.skillId], 3, () => ["total"])
+    // Constitution (line 0) crossed 41; Wayfaring (line 1) did not.
+    expect(t).toEqual([
+      { at: 1000, cards: ["constitution"] },
+      { at: start(3) + 180, cards: ["total"] },
+    ])
+  })
+
+  it("no level, no Total Level line, no trigger", () => {
+    const flat = tallyFor([row("wayfaring", "recent_ground", 100)], { wayfaring: cumulativeXp(20) + 10 }, RULES)
+    expect(cardTriggers(flat, { lineStart: () => 0, countMs: 700, fadeMs: 180 }, () => ["x"], null, () => ["total"])).toEqual([])
   })
 })

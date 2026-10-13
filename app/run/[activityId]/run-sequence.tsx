@@ -11,7 +11,10 @@ import { runBounds } from "@/lib/map-camera"
 import { log } from "@/lib/log"
 import { documentRoutePalette } from "@/lib/map-layers"
 import { BEAT1_MS, beat1At } from "@/lib/run-moment/beat1"
-import { beat2At, BEAT2_MS, easeOutQuint, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
+import { LevelUpQueue, type FlyTarget } from "@/components/level-up-card"
+import { skillCards, totalCards, type LevelCard } from "@/lib/level-up/cards"
+import { beat2At, BEAT2_MS, COUNT_MS, easeOutQuint, FADE_MS, lineStart, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
+import { cardTriggers, type CardTrigger } from "@/lib/run-moment/tally"
 import { flyToRun, pullBack } from "@/lib/run-moment/camera"
 import { installInk, type Ink } from "@/lib/run-moment/ink"
 import { lanternPath } from "@/lib/run-moment/lantern-path"
@@ -19,7 +22,7 @@ import { modeCrossFade, savedRenderMode } from "@/lib/run-moment/mode"
 import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
 
-import { tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
+import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
 
 /**
  * THE SEQUENCE'S SEAT. Ticket `0078` laid it out; `0080` fills beat 1. `06-ui-ux.md` §3.2.
@@ -286,6 +289,41 @@ function Beat2({
   const countRef = useRef(count)
   countRef.current = count
 
+  /**
+   * BEAT 3'S INTERRUPTIONS (`0082`). Built once the tally is here: each skill line that crossed a
+   * level hands its cards over when its count lands, and Total Level milestones play after the Total
+   * Level line. While cards play, beat 2's clock is stopped — the tally resumes where it left off.
+   */
+  const triggers = useMemo<CardTrigger<LevelCard>[]>(() => {
+    const t = data.tally
+    if (!t) return []
+    const footers = tallyFooters(t, summary)
+    const n = t.lines.length + footers.length
+    const levelIdx = footers.indexOf("level")
+    const gained = Object.fromEntries(t.lines.map((l) => [l.skillId, l.xp]))
+    return cardTriggers(
+      t,
+      { lineStart: (i) => lineStart(i, n), countMs: COUNT_MS, fadeMs: FADE_MS },
+      (line) => skillCards(line.skillId, line.standing!.xpBefore, line.xp, data.rules.curve),
+      levelIdx >= 0 ? t.lines.length + levelIdx : null,
+      () => (data.xpBefore ? totalCards(data.xpBefore, gained, data.rules) : []),
+    )
+  }, [data.tally, data.rules, data.xpBefore, summary])
+  const triggersRef = useRef(triggers)
+  triggersRef.current = triggers
+  const nextTrigger = useRef(0)
+  const [playing, setPlaying] = useState<LevelCard[] | null>(null)
+  const [pulse, setPulse] = useState<{ x: number; y: number; key: number } | null>(null)
+
+  // Where a place-bound card flies: the route, walked by the card's share of the run's XP (D-297).
+  const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
+  const flyTo: FlyTarget = (card) => {
+    if (stage?.kind !== "ready" || !path) return null
+    const p = stage.map.project(path.at(card.arc))
+    const r = stage.map.getContainer().getBoundingClientRect()
+    return { x: r.left + p.x, y: r.top + p.y }
+  }
+
   // Nothing to tally, or the read failed: beat 2 has nothing to show, so the end state comes now.
   const nothing = data.error !== undefined || (data.tally !== undefined && count === 0)
   useEffect(() => {
@@ -324,7 +362,16 @@ function Beat2({
     let raf = 0
     const tick = (now: number) => {
       if (!c.isPaused) {
-        const t = c.elapsed(now)
+        let t = c.elapsed(now)
+        const due = triggersRef.current[nextTrigger.current]
+        if (due && t >= due.at) {
+          // Hand off at exactly the trigger's instant: the bar is full and holds under the card.
+          t = due.at
+          nextTrigger.current++
+          c.pause(now)
+          c.rewindTo(due.at, now)
+          setPlaying(due.cards)
+        }
         setFrame(beat2At(t, countRef.current))
         if (t >= BEAT2_MS) {
           seq.beat2End = now
@@ -344,13 +391,13 @@ function Beat2({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, onDone])
 
-  // Expansion pauses the sequence; collapsing the last open row resumes it.
+  // Expansion pauses the sequence, and so does a card; the clock runs again only when neither holds it.
   useEffect(() => {
     const c = clock.current
     if (!c) return
-    if (expanded.size > 0) c.pause(performance.now())
+    if (expanded.size > 0 || playing) c.pause(performance.now())
     else c.resume(performance.now())
-  }, [expanded])
+  }, [expanded, playing])
 
   const onToggle = (id: string) =>
     setExpanded((prev) => {
@@ -361,6 +408,17 @@ function Beat2({
 
   if (!started) return null
   return (
+    <>
+    {playing ? (
+      <LevelUpQueue
+        cards={playing}
+        skillName={data.skillName}
+        flyTo={flyTo}
+        onPlaced={(at) => setPulse({ ...at, key: performance.now() })}
+        onDone={() => setPlaying(null)}
+      />
+    ) : null}
+    {pulse ? <CellPulse key={pulse.key} x={pulse.x} y={pulse.y} onEnd={() => setPulse(null)} /> : null}
     <div
       data-testid="tally-panel"
       style={{
@@ -388,5 +446,47 @@ function Beat2({
         />
       </div>
     </div>
+    </>
+  )
+}
+
+/**
+ * THE EARNING CELL PULSES ONCE (§3.2, `0082`) where a place-bound card landed. A ring of the
+ * route's light, 700 ms, then gone — the landmark itself is `0248`'s to keep on the map.
+ */
+const PULSE_MS = 700
+function CellPulse({ x, y, onEnd }: { x: number; y: number; onEnd: () => void }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    const a = el?.animate(
+      [
+        { transform: "translate(-50%, -50%) scale(0.4)", opacity: 0.9 },
+        { transform: "translate(-50%, -50%) scale(1.8)", opacity: 0 },
+      ],
+      { duration: PULSE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    )
+    const id = setTimeout(onEnd, PULSE_MS)
+    return () => (a?.cancel(), clearTimeout(id))
+  }, [onEnd])
+  return (
+    <div
+      ref={ref}
+      data-testid="cell-pulse"
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        left: x,
+        top: y,
+        width: 36,
+        height: 36,
+        borderRadius: "50%",
+        border: "3px solid var(--lantern-500)",
+        boxShadow: "0 0 18px var(--lantern-500)",
+        pointerEvents: "none",
+        zIndex: 25,
+        transform: "translate(-50%, -50%)",
+      }}
+    />
   )
 }

@@ -28,6 +28,8 @@ export interface TallyLine {
   parts: TallyPart[]
   /** `null` when "before" could not be read: the row still shows its `+xp`, without a bar. */
   standing: {
+    /** The skill's XP before the run — the level-up cards' starting point (`0082`). */
+    xpBefore: number
     levelAfter: number
     levelUp: boolean
     /** XP still needed after the run for `levelAfter + 1`. 0 at the cap. */
@@ -98,6 +100,7 @@ function standing(was: number, now: number, curve: RuleSet["curve"]): NonNullabl
   const to = levelProgress(now, curve)
   const levelUp = levelForXp(now, curve) > levelForXp(was, curve)
   return {
+    xpBefore: was,
     levelAfter: to.level,
     levelUp,
     xpToNext: to.xpToNext,
@@ -109,4 +112,35 @@ function standing(was: number, now: number, curve: RuleSet["curve"]): NonNullabl
 /** `3.18 km` — two decimals, as §3.2's line has it. */
 export function kmText(km: number): string {
   return `${km.toFixed(2)} km`
+}
+
+/**
+ * WHEN BEAT 3 INTERRUPTS BEAT 2 (`0082`). Each skill line that crossed a level hands its cards over
+ * the moment its count lands (§3.2: the bar *"fills to full, holds, and hands off to beat 3"*); the
+ * Total Level milestones play once the Total Level line has faded in. `at` is beat 2 clock time,
+ * which stops while cards play, so the tally resumes exactly where it left off.
+ */
+export interface CardTrigger<C> {
+  at: number
+  cards: C[]
+}
+
+export function cardTriggers<C>(
+  tally: Tally,
+  times: { lineStart: (i: number) => number; countMs: number; fadeMs: number },
+  skillCardsFor: (line: TallyLine) => C[],
+  totalLineIndex: number | null,
+  totalCardsNow: () => C[],
+): CardTrigger<C>[] {
+  const out: CardTrigger<C>[] = []
+  tally.lines.forEach((line, i) => {
+    if (!line.standing?.levelUp) return
+    const cards = skillCardsFor(line)
+    if (cards.length) out.push({ at: times.lineStart(i) + times.countMs, cards })
+  })
+  if (totalLineIndex !== null) {
+    const cards = totalCardsNow()
+    if (cards.length) out.push({ at: times.lineStart(totalLineIndex) + times.fadeMs, cards })
+  }
+  return out.sort((a, b) => a.at - b.at)
 }

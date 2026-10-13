@@ -69,6 +69,11 @@ export function staggerFor(count: number): number {
   return Math.min(STAGGER_MS, (BEAT2_MS - RISE_MS - COUNT_MS) / (count - 1))
 }
 
+/** Beat 2 clock time at which line `i` of `count` begins its fade. */
+export function lineStart(i: number, count: number): number {
+  return RISE_MS + i * staggerFor(count)
+}
+
 export function beat2At(t: number, count: number): Beat2Frame {
   const gap = staggerFor(count)
   const lines: Beat2Line[] = []
@@ -118,6 +123,16 @@ export class PausableClock {
 
   elapsed(now: number): number {
     return now - this.start - this.pausedMs(now)
+  }
+
+  /**
+   * Set the clock back to `t` (beat time) as of `now`: whatever ran past it since the last frame is
+   * folded into the paused time. Used at a hand-off (`0082`), so a card that interrupts at 1,240 ms
+   * resumes the tally from 1,240 ms, not from the frame after it.
+   */
+  rewindTo(t: number, now: number): void {
+    const over = this.elapsed(now) - t
+    if (over > 0) this.paused += over
   }
 }
 

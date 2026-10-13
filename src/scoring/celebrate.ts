@@ -49,9 +49,21 @@ export interface LevelUp {
   to: number
 }
 
-/** Did this row arrive after `before` was taken? The guard, in one place. */
+/**
+ * ─── THE D-146 GUARD ────────────────────────────────────────────────────────
+ *
+ * Was this skill's row added to the ruleset after `baselineVersion`? If so, its level 1 is a point
+ * nobody earned. THE ONE PREDICATE: every suppression in this module — and the level-up cards of
+ * `12-post-run-moment` (`0082`) — asks it, and nothing else in the codebase compares `introducedIn`
+ * with a version (`celebrate.test.ts` and `d146-guard.test.ts` grep for a second copy).
+ */
+export function isMinted(skill: Pick<RuleSkill, "introducedIn">, baselineVersion: number): boolean {
+  return skill.introducedIn > baselineVersion
+}
+
+/** Did this row arrive after `before` was taken? */
 function mintedSince(skill: Pick<RuleSkill, "introducedIn">, before: LevelSnapshot): boolean {
-  return skill.introducedIn > before.rulesVersion
+  return isMinted(skill, before.rulesVersion)
 }
 
 /** Enabled skills that existed when `before` was taken — the only ones that can celebrate. */
@@ -109,4 +121,36 @@ export function celebrableMilestones(
   if (totalLevelDelta(before, after, registry) <= 0) return []
   const total = totalLevel(after.xpBySkill, registry.skills, registry.curve)
   return [...ladder].filter((m) => m > lastCelebrated && m <= total).sort((a, b) => a - b)
+}
+
+/**
+ * ─── EARNED TOTAL LEVEL (`0082`, D-297) ─────────────────────────────────────
+ *
+ * The level-up cards judge Total Level milestones on this, not on `totalLevel`: the real Total
+ * Level minus the free level 1 of every enabled skill minted since `baselineVersion` (trained or
+ * not — its first level was free either way). The DISPLAYED Total Level is untouched; this number
+ * is never shown. It needs no memory of what was celebrated: a milestone fires on the activity that
+ * carries the earned total across it, so one crossed only by a minted point does not fire, and fires
+ * later when earned XP gets there (criterion 9) — on every device, and identically on a Relive.
+ */
+export function earnedTotalLevel(
+  xpBySkill: ReadonlyMap<string, number>,
+  registry: CelebrationRegistry,
+  baselineVersion: number,
+): number {
+  const minted = registry.skills.filter((s) => s.enabled && isMinted(s, baselineVersion)).length
+  return totalLevel(xpBySkill, registry.skills, registry.curve) - minted
+}
+
+/** Total Level milestones in `(earned before, earned after]`, ascending. */
+export function earnedMilestonesCrossed(
+  before: ReadonlyMap<string, number>,
+  after: ReadonlyMap<string, number>,
+  registry: CelebrationRegistry,
+  baselineVersion: number,
+  ladder: readonly number[],
+): number[] {
+  const from = earnedTotalLevel(before, registry, baselineVersion)
+  const to = earnedTotalLevel(after, registry, baselineVersion)
+  return [...new Set(ladder)].filter((m) => m > from && m <= to).sort((a, b) => a - b)
 }

@@ -4628,3 +4628,40 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     the panel covers via `offset`, not `padding`, which would persist and skew later `fitBounds`.
   - **Beat 2's t = 0 is beat 1's nominal end** (`t0 + 2.9 s`), handed over, not the moment beat 2
     mounted — mounting cost ~100 ms at SwiftShader frame rates and put the beat outside ±0.1 s.
+- **D-297** **Level-up cards are built from the activity's own XP; Total Level milestones are judged
+  on an EARNED total; the 50/99 flight lands on an estimated cell; the card is set in Spectral.**
+  *(2026-10-13, ticket `0082`, operator decisions for the earned total, the estimated cell, keeping
+  `/log` in scope and the typeface.)*
+  - **A card exists only for a level this activity's XP bought** — `xpBefore` does not reach it,
+    `xpBefore + gained` does (`lib/level-up/cards.ts`). On `/run/:id` "before" is D-296's as-of sum;
+    on `/log` it is the cached standing. A minted skill at level 1 with no XP crosses nothing, so the
+    per-skill half of the D-146 guard falls out of attribution. A minted skill's own EARNED levels
+    (its first 1 → 2) do get cards.
+  - **Total Level milestones fire on `earnedTotalLevel`**: the real Total Level minus the free level
+    of every enabled skill `isMinted` against a baseline. A milestone fires on the activity that
+    carries the earned total across it. So one reached only by a minted point fires nothing, and
+    fires later when earned XP gets there (criterion 9). No memory of what was celebrated is kept:
+    identical on every device and on a Relive. Rejected: persisting a last-celebrated milestone and
+    using 0065's snapshot functions as built — a new write path, and Relive would stop replaying.
+  - **`isMinted(skill, baselineVersion)` is the one guard predicate**, in `src/scoring/celebrate.ts`
+    beside 0065's suppressions, which now call it. `d146-guard.test.ts` greps `src`, `lib`, `app`,
+    `components` and `amplify` for a second definition or another `introducedIn` comparison.
+  - **The baseline is the first ruleset that shipped** (`BASELINE_VERSION`, the lowest bundled
+    version) — "added after you started" for a single user who started at launch. A later user's
+    milestone cards would fire a level late for rows added before they joined; never early.
+  - **The 50/99 flight's cell is an estimate**: the route walked by the threshold's share of the
+    run's XP for that skill, evenly apportioned. Nothing is stored; `0248` records the real place.
+    A run with no route exits ordinarily.
+  - **Timing.** §3.2's parts (400 entry + 600 hold + 200 exit) sum to 1.2 s against its 1.4 s total
+    and the ticket's criterion. The total wins: the hold is 800 ms. The number crossfades over
+    300–800 ms, the old level fully out before the new one appears. `easeOutBack`'s constant is solved
+    so the scale peaks at exactly 1.02.
+  - **Hand-off.** A skill's cards play when its tally line's count lands, and Total Level cards after
+    the Total Level line fades in. Beat 2's clock is stopped and rewound to the trigger's instant, so
+    the tally resumes exactly where it left off. The sequence may run long here, as §3.2 wants.
+  - **Type: Spectral, not Cinzel.** §3.2's mockup named Cinzel, which §8.4 does not have. The name is
+    §8.4's Title role, uppercase and tracked; the number is its Display role. Gold is the border, the
+    tier rules and the sigil's disc, never type (D-148). Neither family is self-hosted yet; the stack
+    falls back to Georgia. §3.2 is amended.
+  - **`/log`** plays the same queue over the page (§6.4, D-288), from `levelUpQueue` with the same
+    guard.

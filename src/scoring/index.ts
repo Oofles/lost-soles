@@ -72,6 +72,9 @@ export { scoreActivity } from "./score-activity"
 export {
   celebrableLevelUps,
   celebrableMilestones,
+  earnedMilestonesCrossed,
+  earnedTotalLevel,
+  isMinted,
   totalLevelDelta,
   type CelebrationRegistry,
   type LevelSnapshot,

@@ -106,3 +106,15 @@ describe("the pull-back is from the run's own framing (Relive must not compound 
     expect(moves[0]).not.toHaveProperty("padding")
   })
 })
+
+describe("a hand-off rewinds the clock to the trigger's instant (0082)", () => {
+  it("whatever ran past the trigger since the last frame is folded into paused time", () => {
+    const c = new PausableClock(0)
+    c.pause(1016) // the frame that noticed a trigger due at 1,000
+    c.rewindTo(1000, 1016)
+    expect(c.elapsed(1016)).toBe(1000)
+    c.resume(2416) // one card later
+    expect(c.elapsed(2416)).toBe(1000)
+    expect(c.elapsed(2516)).toBe(1100)
+  })
+})
