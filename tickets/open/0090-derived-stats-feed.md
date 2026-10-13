@@ -79,6 +79,12 @@ these counts come *from* the ledger entry rather than being recalculated beside 
 
 ## Notes
 
+**2026-10-13, from `0083`:** the frontier primitive now exists — `frontier()` and `cellNovelty()` in
+`src/domain/frontier.ts`, with its tests. Consume it; do not write a second one (this ticket's own
+"a grep finds exactly one implementation" criterion). Two departures from §8.4's sketch are recorded in
+its header: it walks the disk at the explored set's `RES`, and its weights are an argument (the
+Cartography row's `unitMultipliers`, D-272) rather than constants.
+
 Depends on 0049 (`explored-r10.bin` + `manifest.json` generation counter), 0062 (the XP ledger) and
 0086 (the plinth that displays it).
 

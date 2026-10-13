@@ -69,6 +69,8 @@ export interface RunSummary {
   source: string
   newCellCount: number
   rearmedCellCount: number
+  /** Every cell the run touched, all classes (`0083`'s new-ground share). `null` on a row that predates the column. */
+  cellCount: number | null
   /** The run's line, or the empty collection for an untraced activity. */
   route: RunFeatureCollection
   /**

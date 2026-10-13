@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 import { useExplored } from "@/components/map/explored-provider"
@@ -13,6 +13,7 @@ import { documentRoutePalette } from "@/lib/map-layers"
 import { BEAT1_MS, beat1At } from "@/lib/run-moment/beat1"
 import { LevelUpQueue, type FlyTarget } from "@/components/level-up-card"
 import { skillCards, totalCards, type LevelCard } from "@/lib/level-up/cards"
+import { BEAT4_START, BEAT5_START, beat45At, SEQUENCE_END } from "@/lib/run-moment/beat45"
 import { beat2At, BEAT2_MS, COUNT_MS, easeOutQuint, FADE_MS, lineStart, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
 import { cardTriggers, type CardTrigger } from "@/lib/run-moment/tally"
 import { flyToRun, pullBack } from "@/lib/run-moment/camera"
@@ -23,6 +24,7 @@ import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
 
 import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
+import { ChronicleLine } from "./run-lines"
 
 /**
  * THE SEQUENCE'S SEAT. Ticket `0078` laid it out; `0080` fills beat 1. `06-ui-ux.md` §3.2.
@@ -61,6 +63,13 @@ import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run
  * effect's cleanup only runs when the whole sequence unmounts. Beat 2 plays even when beat 1 could
  * not (an untraced activity, no WebGL2): the tally is the numbers, and §3.4 says the numbers never
  * depend on the graphics.
+ *
+ * ─── BEATS 4 AND 5: THE TWO LINES, ON THE SAME PANEL (`0083`) ───────────────
+ *
+ * Beat 2's clock runs on past 6.0 s instead of ending there: the chronicle line fades in under the
+ * settled tally at 6.0 s, the frontier line under it at 7.2 s, and `onDone` comes at 8.4 s
+ * (`beat45.ts`). One clock, so a pause anywhere in beat 2 moves every later boundary with it. While
+ * the chronicle line is fading nothing else moves: the tally's frame is held at its settled value.
  */
 
 /** How long to wait for the map before giving up and showing the end state. */
@@ -77,7 +86,16 @@ declare global {
      * `0081`. The sequence's beat boundaries, `performance.now()` ms, for the smoke harness: when the
      * sequence clock started (beat 1's t=0), when beat 2 began and ended, and how long it sat paused.
      */
-    __sequence?: { t0: number | null; beat2Start?: number; beat2End?: number; pausedMs?: number }
+    __sequence?: {
+      t0: number | null
+      beat2Start?: number
+      beat2End?: number
+      /** `0083`. Beats 4 and 5's starts, and the sequence's end, `performance.now()` ms. */
+      beat4Start?: number
+      beat5Start?: number
+      end?: number
+      pausedMs?: number
+    }
   }
 }
 
@@ -85,11 +103,20 @@ export function RunSequence({
   summary,
   stage = null,
   tally,
+  chronicle,
+  frontier,
+  onLines,
   onDone,
 }: {
   summary: RunSummary
   stage?: MapStage
   tally: ReturnType<typeof useRunTally>
+  /** Beat 4's sentence (`0083`). */
+  chronicle: string
+  /** Beat 5's line at a given opacity (`0083`). */
+  frontier: (opacity: number) => ReactNode
+  /** Called once, when beat 4 begins — the frontier is computed then, off beat 1 and 2's frames. */
+  onLines: () => void
   onDone: () => void
 }) {
   // The `performance.now()` at which beat 2 begins — beat 1's NOMINAL end, not whenever React got
@@ -101,7 +128,18 @@ export function RunSequence({
   return (
     <>
       {beat1}
-      {handoff !== null ? <Beat2 summary={summary} stage={stage} data={tally} handoff={handoff} onDone={onDone} /> : null}
+      {handoff !== null ? (
+        <Beat2
+          summary={summary}
+          stage={stage}
+          data={tally}
+          handoff={handoff}
+          chronicle={chronicle}
+          frontier={frontier}
+          onLines={onLines}
+          onDone={onDone}
+        />
+      ) : null}
     </>
   )
 }
@@ -272,6 +310,9 @@ function Beat2({
   stage,
   data,
   handoff,
+  chronicle,
+  frontier,
+  onLines,
   onDone,
 }: {
   summary: RunSummary
@@ -279,10 +320,14 @@ function Beat2({
   data: ReturnType<typeof useRunTally>
   /** Beat 2's t = 0, when the ledger is already here. */
   handoff: number
+  chronicle: string
+  frontier: (opacity: number) => ReactNode
+  onLines: () => void
   onDone: () => void
 }) {
   const count = data.tally ? tallyLineCount(data.tally, summary) : 0
   const [frame, setFrame] = useState<Beat2Frame>(() => beat2At(0, count))
+  const [lines, setLines] = useState(() => beat45At(0))
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [started, setStarted] = useState(false)
   const clock = useRef<PausableClock | null>(null)
@@ -372,13 +417,20 @@ function Beat2({
           c.rewindTo(due.at, now)
           setPlaying(due.cards)
         }
-        setFrame(beat2At(t, countRef.current))
-        if (t >= BEAT2_MS) {
-          seq.beat2End = now
-          seq.pausedMs = c.pausedMs(now)
+        // Held at the settled tally once beat 2 is over: nothing but the lines moves in beats 4–5.
+        setFrame(beat2At(Math.min(t, BEAT2_MS), countRef.current))
+        setLines(beat45At(t))
+        if (t >= BEAT4_START && seq.beat4Start === undefined) {
+          seq.beat2End = seq.beat4Start = now
+          onLines()
           if (perfEnabled(window.location.search)) {
             log.info(`beat 2: ${(now - start).toFixed(0)} ms wall, ${c.pausedMs(now).toFixed(0)} ms paused`)
           }
+        }
+        if (t >= BEAT5_START && seq.beat5Start === undefined) seq.beat5Start = now
+        if (t >= SEQUENCE_END) {
+          seq.end = now
+          seq.pausedMs = c.pausedMs(now)
           onDone()
           return
         }
@@ -444,6 +496,8 @@ function Beat2({
           expanded={expanded}
           onToggle={onToggle}
         />
+        {lines.phase !== "before" ? <ChronicleLine text={chronicle} opacity={lines.chronicle} /> : null}
+        {lines.phase === "frontier" || lines.phase === "done" ? frontier(lines.frontier) : null}
       </div>
     </div>
     </>

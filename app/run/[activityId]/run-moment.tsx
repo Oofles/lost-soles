@@ -3,15 +3,20 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useReducer, useState, type ReactNode } from "react"
 
+import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
+import { frontierOrigin, frontierText, pickFrontier } from "@/lib/run-moment/frontier-line"
+import { FRONTIER_MODE, requestRenderMode } from "@/lib/run-moment/mode"
 import { runDate, runDistance, runDuration, sourceLabel } from "@/lib/runs/format"
 import { browserHistoryHost, seedHomeBehind } from "@/lib/runs/history"
 import { PLAY_PARAM, type RunSummary } from "@/lib/runs/wire"
+import { frontier, FRONTIER_RADIUS_M, type FrontierCluster } from "@/src/domain/frontier"
 
 import { ActivityKind } from "./activity-kind"
 import { RunLedger, useRunTally } from "./run-ledger"
+import { ChronicleLine, FrontierLine } from "./run-lines"
 import { RunSequence } from "./run-sequence"
 
 /**
@@ -59,6 +64,9 @@ const column: React.CSSProperties = {
   gap: "1.5rem",
 }
 
+/** A res-8 cluster (~0.7 km²) and the streets around it, framed. */
+const FRONTIER_ZOOM = 14.5
+
 const relive: React.CSSProperties = {
   alignSelf: "flex-start",
   padding: ".5rem 1rem",
@@ -79,6 +87,8 @@ export function EndState({
   summary,
   map,
   ledger,
+  chronicle,
+  frontier,
   kind,
   onRelive,
   veiled = false,
@@ -86,6 +96,10 @@ export function EndState({
   summary: RunSummary
   map: ReactNode
   ledger: ReactNode
+  /** Beat 4's sentence (`0083`), chosen on the server. Never empty: the table guarantees a fallback. */
+  chronicle: string
+  /** Beat 5's line (`0083`) — a `FrontierLine`, which draws an empty slot when there is nothing to name. */
+  frontier: ReactNode
   kind: ReactNode
   onRelive: () => void
   /**
@@ -127,15 +141,9 @@ export function EndState({
 
         {ledger}
 
-        {/* Beat 4's line (`0083`). A stub until the template table exists. */}
-        <p data-slot="chronicle-line" style={{ margin: 0, fontStyle: "italic", textAlign: "center", color: "var(--text-secondary)" }}>
-          The chronicle of this run is not yet written.
-        </p>
+        <ChronicleLine text={chronicle} />
 
-        {/* Beat 5's line (`0083`). Quiet by construction; a stub until the frontier is computed. */}
-        <p data-slot="frontier-line" style={{ margin: 0, fontSize: ".875rem", color: "var(--text-muted)" }}>
-          ◇ The frontier is not yet charted.
-        </p>
+        {frontier}
 
         <button type="button" style={relive} onClick={onRelive}>
           ⟲ Relive
@@ -162,12 +170,14 @@ export function RunMoment({
   xpBefore,
   autoplay,
   home,
+  chronicle,
 }: {
   summary: RunSummary
   /** Each skill's XP before this run (`xpBeforeRun`, D-296); `null` if it could not be read. */
   xpBefore: Record<string, number> | null
   autoplay: boolean
   home: Camera | null
+  chronicle: string
 }) {
   const [state, dispatch] = useReducer(momentReducer, autoplay, initialMoment)
   // Read once, here, so beat 2 and the end state draw the same tally (`0081`).
@@ -199,6 +209,39 @@ export function RunMoment({
   )
   const [stage, setStage] = useState<MapStage>(null)
 
+  /**
+   * BEAT 5'S FRONTIER (`0083`). Computed once the explored set is here AND the sequence has reached
+   * beat 4 (or is not playing): the scan is ~15–30 ms of main thread, and beat 1's lantern and beat
+   * 2's count are the frames that cannot spare it. Recomputed from the current explored set every
+   * time — the line remembers nothing, so it has nothing to repeat.
+   */
+  const explored = useExplored()
+  const [linesReached, setLinesReached] = useState(false)
+  const onLines = useCallback(() => setLinesReached(true), [])
+  const weights = tally.rules.skills.find((s) => s.unitMultipliers)?.unitMultipliers ?? null
+  const origin = useMemo(
+    () => frontierOrigin(summary.route.features[0]?.geometry, home && { lat: home.lat, lng: home.lng }),
+    [summary, home],
+  )
+  const due = state.phase === "end" || linesReached
+  const target = useMemo<FrontierCluster | null>(() => {
+    if (!due || !origin || !weights || explored.phase !== "ready" || !explored.set) return null
+    return pickFrontier(frontier({ origin, radiusM: FRONTIER_RADIUS_M, explored: explored.set, weights }))
+  }, [due, origin, weights, explored])
+
+  /** §3.2 beat 5: *"Tapping it recentres the map there in atlas mode."* */
+  const onFrontier = () => {
+    if (!target) return
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    requestRenderMode(FRONTIER_MODE)
+    if (stage?.kind === "ready") {
+      stage.map.flyTo({ center: [target.centre.lng, target.centre.lat], zoom: FRONTIER_ZOOM, duration: 800 })
+    }
+  }
+  const frontierLine = (opacity?: number) => (
+    <FrontierLine text={target ? frontierText(target) : null} onSelect={onFrontier} opacity={opacity} />
+  )
+
   const onRelive = () => {
     window.scrollTo({ top: 0 })
     dispatch({ type: "relive" })
@@ -217,12 +260,23 @@ export function RunMoment({
           />
         }
         ledger={<RunLedger summary={summary} data={tally} />}
+        chronicle={chronicle}
+        frontier={frontierLine()}
         kind={<ActivityKind activityId={summary.activityId} />}
         onRelive={onRelive}
         veiled={state.phase === "sequence"}
       />
       {state.phase === "sequence" ? (
-        <RunSequence key={state.play} summary={summary} stage={stage} tally={tally} onDone={onDone} />
+        <RunSequence
+          key={state.play}
+          summary={summary}
+          stage={stage}
+          tally={tally}
+          chronicle={chronicle}
+          frontier={frontierLine}
+          onLines={onLines}
+          onDone={onDone}
+        />
       ) : null}
     </main>
   )

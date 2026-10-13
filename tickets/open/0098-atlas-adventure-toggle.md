@@ -70,6 +70,11 @@ definition-of-done box, checked again in 0112.
 
 ## Notes
 
+**2026-10-13, from `0083`:** the frontier line's click asks for atlas mode through
+`requestRenderMode(FRONTIER_MODE)` in `lib/run-moment/mode.ts` — a no-op today, because there is one
+rendering. Honour that request when the toggle lands: §3.2 beat 5 says the click recentres "in atlas
+mode", and `0083` could only do the recentre.
+
 ~~There is no toggle button in the chrome in v1: the long-press is the affordance, and it is
 discoverable because the app suggests it once. Adding a floating toggle button means adding
 floating chrome, which D-148 requires to be opaque and which competes with the plinth.~~

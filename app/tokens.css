@@ -84,6 +84,9 @@
   --text-primary: var(--ink-900);
   --text-secondary: var(--ink-600);
   --text-muted: var(--ink-500);
+  /* §3.2 beat 4: the chronicle line is --ink-700 on the ledger (0083). Its own token, because no
+     other text sits between primary and secondary; dark takes primary's parchment. */
+  --text-chronicle: var(--ink-700);
   --line: rgb(133 146 166 / 0.35);        /* --ink-400 @ 0.35 */
   --accent: var(--gold-500);
   --accent-text: var(--gold-700);
@@ -125,6 +128,7 @@
     --text-primary: var(--parch-100);
     --text-secondary: var(--ink-300);
     --text-muted: var(--ink-400);        /* §8.3 lists #8592A6, which IS --ink-400 */
+    --text-chronicle: var(--parch-100);
     --line: rgb(245 237 217 / 0.18);     /* --parch-100 @ 0.18 */
     --accent: var(--gold-300);
     --accent-text: var(--gold-300);
@@ -142,6 +146,7 @@
   --text-primary: var(--parch-100);
   --text-secondary: var(--ink-300);
   --text-muted: var(--ink-400);
+  --text-chronicle: var(--parch-100);
   --line: rgb(245 237 217 / 0.18);
   --accent: var(--gold-300);
   --accent-text: var(--gold-300);

@@ -4,6 +4,7 @@ import { ExploredProvider } from "@/components/map/explored-provider"
 import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
 import { log } from "@/lib/log"
+import { chronicleFor, historyUpTo } from "@/lib/runs/chronicle-server"
 import { defaultRunReadDeps, runById } from "@/lib/runs/server"
 import { ledgerTableName, xpBeforeRun } from "@/lib/runs/tally-server"
 import { PLAY_PARAM } from "@/lib/runs/wire"
@@ -45,13 +46,21 @@ export default async function RunMomentPage({
       return null
     })
 
+  // Beat 4's facts (`0083`): every earlier activity's distance and new cells. A failed read costs the
+  // lifetime lines, never the line — the run's own facts still choose one.
+  const history = historyUpTo(uid, summary.startedAt, deps).catch((e: unknown) => {
+    log.warn(`run ${activityId}: history read failed: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  })
+
   // The entry point's autoplay intent (§3.1): the plinth's new-run line asks, the Chronicle does not.
   const autoplay = query[PLAY_PARAM] === "1"
-  const [xpBefore, home] = await Promise.all([before, homeCameraForSession()])
+  const [xpBefore, home, prior] = await Promise.all([before, homeCameraForSession(), history])
+  const chronicle = chronicleFor(summary, prior).text
 
   return (
     <ExploredProvider uid={uid}>
-      <RunMoment summary={summary} xpBefore={xpBefore} autoplay={autoplay} home={home} />
+      <RunMoment summary={summary} xpBefore={xpBefore} autoplay={autoplay} home={home} chronicle={chronicle} />
     </ExploredProvider>
   )
 }

@@ -2025,6 +2025,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-13T21:43:32Z",
     "path": "tickets/open/0083-chronicle-and-frontier-lines.md",
     "ready": true,
     "acceptance": {
@@ -5867,6 +5868,26 @@
     "source": "agent",
     "created": "2026-10-13T21:04:35Z",
     "path": "tickets/open/0255-self-host-spectral-and-inter-so-8-4-s-type-actually-renders.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 256,
+    "slug": "place-and-street-names-for-the-frontier-and-chronicle-lines",
+    "title": "Place and street names for the frontier and chronicle lines",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-13T21:54:04Z",
+    "path": "tickets/open/0256-place-and-street-names-for-the-frontier-and-chronicle-lines.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

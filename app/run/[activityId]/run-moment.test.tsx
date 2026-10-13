@@ -11,6 +11,7 @@ import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 
 import { TallyView } from "./run-ledger"
+import { FrontierLine } from "./run-lines"
 import { EndState, initialMoment, momentReducer, RunMoment } from "./run-moment"
 
 /**
@@ -31,10 +32,12 @@ const SUMMARY: RunSummary = {
   source: "manual",
   newCellCount: 21,
   rearmedCellCount: 0,
+  cellCount: 0,
   route: EMPTY_COLLECTION,
   reveal: { new: [], rearmed: [] },
 }
 
+const CHRONICLE = "Old roads, run well. The map holds them still."
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ")
 const noop = () => {}
 const names: Record<string, string> = { wayfaring: "Wayfaring", cartography: "Cartography" }
@@ -49,7 +52,7 @@ function ledgerHtml() {
 
 describe("the static end state (criterion 2)", () => {
   const html = renderToStaticMarkup(
-    <EndState summary={SUMMARY} map={<div data-testid="map-shell" />} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} />,
+    <EndState summary={SUMMARY} map={<div data-testid="map-shell" />} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
   )
 
   it("has the map, the ledger, both lines, ⟲ Relive and the route stats", () => {
@@ -79,7 +82,7 @@ describe("the static end state (criterion 2)", () => {
 describe("the ledger never depends on the graphics (criterion 8)", () => {
   it("renders every row and both lines with the map absent entirely", () => {
     const html = renderToStaticMarkup(
-      <EndState summary={SUMMARY} map={null} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} />,
+      <EndState summary={SUMMARY} map={null} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
     )
     const t = text(html)
     expect(t).toContain("Wayfaring")
@@ -89,6 +92,8 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
     expect(t).toContain("Total XP 1,000 → 1,885 (+885)")
     expect(html).toContain('data-slot="chronicle-line"')
     expect(html).toContain('data-slot="frontier-line"')
+    expect(t).toContain(CHRONICLE)
+    expect(t).toContain("◇ Unclaimed ground 1.2 km north")
   })
 
   it("never renders a zero: an absent rearmed count leaves no '0 remembered'", () => {
@@ -96,14 +101,47 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
   })
 })
 
+describe("beats 4 and 5's lines (0083)", () => {
+  it("the chronicle line is italic serif in its own token, centred, with 22px of air", () => {
+    const html = renderToStaticMarkup(
+      <EndState summary={SUMMARY} map={null} ledger={null} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={null} />,
+    )
+    const p = html.match(/<p data-slot="chronicle-line" style="([^"]*)">([^<]*)<\/p>/)
+    expect(p?.[2]).toBe(CHRONICLE)
+    for (const rule of ["font-style:italic", "font-size:17px", "text-align:center", "color:var(--text-chronicle)", "margin:22px 0"]) {
+      expect(p?.[1]).toContain(rule)
+    }
+  })
+
+  it("the frontier line is one muted colour, and an empty slot when there is nothing to name", () => {
+    const named = renderToStaticMarkup(<FrontierLine text="Unclaimed ground 1.2 km north" />)
+    expect(named).toContain("color:var(--text-muted)")
+    expect(named.match(/color:/g)).toHaveLength(1)
+    expect(renderToStaticMarkup(<FrontierLine text={null} />)).toBe('<p data-slot="frontier-line" style="margin:0"></p>')
+  })
+
+  /**
+   * Criterion 10. D-013: the line is a signpost, not a task. Its whole code path — the primitive, the
+   * picker, the component — holds no notification, badge, countdown, timer, persistence or alarm colour.
+   */
+  it("has no notification, badge, countdown, timer, memory or alarm colour anywhere in its code path", () => {
+    const ROOT = join(import.meta.dirname, "..", "..", "..")
+    const path = ["src/domain/frontier.ts", "lib/run-moment/frontier-line.ts", "app/run/[activityId]/run-lines.tsx"]
+    for (const f of path) {
+      const src = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")
+      expect(src, f).not.toMatch(/Notification|badge|countdown|setInterval|setTimeout|localStorage|sessionStorage|indexedDB|oxblood|\bred\b|#[fF]{2}0{4}/)
+    }
+  })
+})
+
 describe("autoplay is the entry point's intent, and nothing else", () => {
   it("no intent → the end state, with no sequence mounted", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} chronicle={CHRONICLE} />)
     expect(html).toContain('data-phase="end"')
   })
 
   it("intent → the sequence, over the end state", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} chronicle={CHRONICLE} />)
     expect(html).toContain('data-phase="sequence"')
     expect(html).toContain('data-slot="ledger"')
   })
@@ -114,7 +152,7 @@ describe("autoplay is the entry point's intent, and nothing else", () => {
    * `0078`) but held back, and nothing announces anything: no toast, dialog, spinner or title card.
    */
   it("intent → nothing but the map is perceivable before t = 0: no toast, dialog, spinner or title (0080)", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay home={null} chronicle={CHRONICLE} />)
     const column = html.slice(html.indexOf('data-slot="column"'))
     expect(html).toMatch(/<div data-slot="column" aria-hidden="true" style="[^"]*visibility:hidden/)
     // The run's title and the ledger are inside the veiled column, not above it.
@@ -126,7 +164,7 @@ describe("autoplay is the entry point's intent, and nothing else", () => {
   })
 
   it("no intent → the end state, nothing veiled", () => {
-    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} />)
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} xpBefore={null} autoplay={false} home={null} chronicle={CHRONICLE} />)
     expect(html).not.toContain("visibility:hidden")
     expect(html).not.toContain('aria-hidden="true"')
   })

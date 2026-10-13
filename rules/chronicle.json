@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "rows": [
+    {
+      "id": "new-every-step",
+      "set": "new-ground",
+      "rank": 60,
+      "when": { "newPerHundred": { "eq": 100 }, "cellCount": { "gte": 20 } },
+      "text": "Every step of it fell on ground the map had never held."
+    },
+    {
+      "id": "new-paces-in-a-hundred",
+      "set": "new-ground",
+      "rank": 40,
+      "when": { "newPerHundred": { "gte": 2, "lte": 99 }, "cellCount": { "gte": 20 } },
+      "text": "{newPerHundred:Words} paces in a hundred fell on roads that had never felt your step."
+    },
+    {
+      "id": "new-a-sliver",
+      "set": "new-ground",
+      "rank": 30,
+      "when": { "newPerHundred": { "lt": 2 } },
+      "text": "A sliver of fresh ground at the edge of the old, and the map took it gladly."
+    },
+    {
+      "id": "new-fallback-wider",
+      "set": "new-ground",
+      "rank": 0,
+      "text": "Fresh ground, and the map is wider for it."
+    },
+    {
+      "id": "new-fallback-kept",
+      "set": "new-ground",
+      "rank": 0,
+      "text": "The fog gave a little more back today, and it keeps nothing it has given."
+    },
+
+    { "id": "cells-1000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 1000 }, "lifetimeCells": { "gte": 1000 } }, "text": "A thousand cells of the map are yours now, and not one of them will fog again." },
+    { "id": "cells-5000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 5000 }, "lifetimeCells": { "gte": 5000 } }, "text": "Five thousand cells of the map are yours now, and not one of them will fog again." },
+    { "id": "cells-10000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 10000 }, "lifetimeCells": { "gte": 10000 } }, "text": "Ten thousand cells of the map are yours now, and not one of them will fog again." },
+    { "id": "cells-25000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 25000 }, "lifetimeCells": { "gte": 25000 } }, "text": "Twenty-five thousand cells of the map are yours now, and not one of them will fog again." },
+    { "id": "cells-50000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 50000 }, "lifetimeCells": { "gte": 50000 } }, "text": "Fifty thousand cells of the map are yours now, and not one of them will fog again." },
+    { "id": "cells-100000", "set": "new-ground", "rank": 85, "when": { "lifetimeCellsBefore": { "lt": 100000 }, "lifetimeCells": { "gte": 100000 } }, "text": "A hundred thousand cells of the map are yours now, and not one of them will fog again." },
+
+    {
+      "id": "rearmed-woke",
+      "set": ["new-ground", "no-new-ground"],
+      "rank": 45,
+      "when": { "rearmedCells": { "gte": 10 } },
+      "text": "Ground you had let rest for half a year woke under your feet."
+    },
+    {
+      "id": "rearmed-returned-named",
+      "set": ["new-ground", "no-new-ground"],
+      "rank": 70,
+      "when": { "rearmGapDays": { "gte": 183 } },
+      "text": "You returned to {street} after {rearmGapDays:words} days. It remembered you.",
+      "note": "Waits for street names and each re-armed cell's previous lastRunAt; neither is computed yet. Selectable the day both are."
+    },
+    {
+      "id": "rearm-soon-named",
+      "set": "no-new-ground",
+      "rank": 50,
+      "when": { "rearmInDays": { "gte": 1, "lte": 30 } },
+      "text": "{street} comes back into season in {rearmInDays:words} days.",
+      "note": "THE ONLY FORWARD-LOOKING LINE (§3.5 rule 4). An invitation, never a deadline; a second forward-looking row needs a decision record. Waits for street names."
+    },
+
+    { "id": "longest-ever", "set": ["new-ground", "no-new-ground"], "rank": 75, "when": { "longestEver": { "eq": 1 } }, "text": "The longest road in all the record." },
+    { "id": "longest-in-year", "set": ["new-ground", "no-new-ground"], "rank": 65, "when": { "longestInYear": { "eq": 1 } }, "text": "The longest road you have walked in a year." },
+
+    {
+      "id": "road-milestone",
+      "set": ["new-ground", "no-new-ground"],
+      "rank": 80,
+      "when": { "roadCount": { "in": [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000] } },
+      "text": "The {roadCount:ordinal} road in the record, and every one of them still on the map."
+    },
+
+    { "id": "leagues-50", "set": ["new-ground", "no-new-ground"], "rank": 90, "when": { "lifetimeLeaguesBefore": { "lt": 50 }, "lifetimeLeagues": { "gte": 50 } }, "text": "You have now walked fifty leagues. The record holds every one." },
+    { "id": "leagues-100", "set": ["new-ground", "no-new-ground"], "rank": 90, "when": { "lifetimeLeaguesBefore": { "lt": 100 }, "lifetimeLeagues": { "gte": 100 } }, "text": "You have now walked a hundred leagues. The record holds every one." },
+    { "id": "leagues-250", "set": ["new-ground", "no-new-ground"], "rank": 90, "when": { "lifetimeLeaguesBefore": { "lt": 250 }, "lifetimeLeagues": { "gte": 250 } }, "text": "You have now walked two hundred and fifty leagues. The record holds every one." },
+    { "id": "leagues-500", "set": ["new-ground", "no-new-ground"], "rank": 90, "when": { "lifetimeLeaguesBefore": { "lt": 500 }, "lifetimeLeagues": { "gte": 500 } }, "text": "You have now walked five hundred leagues. The record holds every one." },
+    { "id": "leagues-1000", "set": ["new-ground", "no-new-ground"], "rank": 90, "when": { "lifetimeLeaguesBefore": { "lt": 1000 }, "lifetimeLeagues": { "gte": 1000 } }, "text": "You have now walked a thousand leagues. The record holds every one." },
+
+    {
+      "id": "old-roads-run-well",
+      "set": "no-new-ground",
+      "rank": 1,
+      "when": { "traced": { "eq": 1 } },
+      "text": "Old roads, run well. The map holds them still."
+    },
+    {
+      "id": "old-roads-know-you",
+      "set": "no-new-ground",
+      "rank": 1,
+      "when": { "traced": { "eq": 1 } },
+      "text": "These roads know your weight by now, and they were glad of it."
+    },
+    {
+      "id": "old-roads-worn",
+      "set": "no-new-ground",
+      "rank": 1,
+      "when": { "traced": { "eq": 1 } },
+      "text": "Another line laid down in the web of your roads. It darkens where you return."
+    },
+    {
+      "id": "untraced-kept",
+      "set": "no-new-ground",
+      "rank": 1,
+      "when": { "traced": { "eq": 0 } },
+      "text": "Work the map cannot see, and the record keeps it all the same."
+    },
+    {
+      "id": "no-new-fallback",
+      "set": "no-new-ground",
+      "rank": 0,
+      "text": "Set down in the record, where nothing is ever lost."
+    }
+  ]
+}

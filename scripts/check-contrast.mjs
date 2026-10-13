@@ -51,6 +51,8 @@ export const PAIRS = [
   ),
   // The crest beside TOTAL LEVEL: a stroked mark in --accent-text, a graphic (D-148 rule 1).
   { fg: "--accent-text", bg: "--surface", kind: "graphic", where: "surface" },
+  // The chronicle line (`0083`), on the ledger's parchment.
+  { fg: "--text-chronicle", bg: "--surface", kind: "text", where: "surface" },
 ]
 
 /** `{ light, dark }` maps of custom property → raw value, parsed from the token file. */

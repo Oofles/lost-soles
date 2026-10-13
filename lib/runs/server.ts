@@ -193,6 +193,7 @@ type FullActivityRow = ActivityRow & {
   source?: { source?: string } | null
   newCellCount?: number | null
   rearmedCellCount?: number | null
+  cellCount?: number | null
 }
 
 /**
@@ -269,6 +270,7 @@ export async function runById(
     source: row.source?.source ?? "unknown",
     newCellCount: row.newCellCount ?? 0,
     rearmedCellCount: row.rearmedCellCount ?? 0,
+    cellCount: row.cellCount ?? null,
     route,
     reveal,
   }

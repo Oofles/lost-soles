@@ -32,3 +32,15 @@ export interface ModeCrossFade {
 export function modeCrossFade(saved: RenderMode): ModeCrossFade | null {
   return saved === SEQUENCE_MODE ? null : { from: SEQUENCE_MODE, to: saved, ms: MODE_CROSSFADE_MS }
 }
+
+/**
+ * `0083`. §3.2 beat 5: the frontier line *"recentres the map there in atlas mode"*. Named here, and
+ * requested through `requestRenderMode`, so capability 15 (`0098`) has one place to honour it. Until
+ * then there is one rendering and the request changes nothing — the recentre is the whole effect.
+ */
+export const FRONTIER_MODE: RenderMode = "atlas"
+
+/** A surface asking for a mode. A no-op until capability 15 gives the map a second one (D-295). */
+export function requestRenderMode(mode: RenderMode): void {
+  void mode
+}
