@@ -57,6 +57,12 @@ export function LevelUpQueue({
   placed.current = onPlaced
 
   const card = cards[index]
+  /**
+   * The previous card's nominal end. A queued card starts THERE, not when React mounted it — at
+   * SwiftShader frame rates the mount cost ~45 ms a card, and three queued cards ran 4.32 s, not 4.2
+   * (0082's smoke). Same fix, same reason, as beat 2's hand-off.
+   */
+  const nextStart = useRef<number | null>(null)
 
   useEffect(() => {
     if (!card) {
@@ -64,7 +70,7 @@ export function LevelUpQueue({
       return
     }
     target.current = card.kind === "skill" && card.place && flyTo ? flyTo(card) : null
-    const start = performance.now()
+    const start = nextStart.current ?? performance.now()
     const log = (window.__cards ??= [])
     let raf = 0
     const tick = (now: number) => {
@@ -73,6 +79,7 @@ export function LevelUpQueue({
       if (t >= CARD_MS) {
         log.push({ start, end: now, kind: card.kind, to: card.kind === "skill" ? card.to : card.milestone })
         if (target.current) placed.current?.(target.current)
+        nextStart.current = start + CARD_MS
         setIndex((i) => i + 1)
         return
       }

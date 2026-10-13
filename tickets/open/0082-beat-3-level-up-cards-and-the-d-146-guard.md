@@ -63,7 +63,9 @@ Implement it as a rule on the card queue, not as a filter buried in a component:
 - [ ] The map dims to a `--navy-900` scrim at 0.72 for the card's duration and restores after.
 - [ ] Milestone levels 10/25/50/75/90/99 render the tier name; non-milestone levels do not.
 - [ ] At level 50 and 99 the card exits into the map and the earning cell pulses once.
-- [ ] Total Level milestone cards use the crest and fire at 100/150/…/up to the D-145 ceiling of 693.
+- [ ] Total Level milestone cards use the crest and fire at 100/150/…/up to the ~~D-145 ceiling of 693~~
+      computed ceiling — **891** today, nine enabled skills × 99 (amended at close: D-145's 693 is struck
+      in `DECISIONS.md`; the ladder appends `totalLevelCeiling`, never a typed number).
 - [ ] **Adding a new skill row to `xp-rules-v1.yaml` and reprocessing produces zero level-up cards**
       — asserted by a test that adds a skill, runs the notification layer, and expects an empty queue.
 - [ ] In that same test, Total Level **does** increase and the new skill **does** appear in the
