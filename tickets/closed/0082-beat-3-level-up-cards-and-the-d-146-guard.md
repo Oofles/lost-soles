@@ -4,7 +4,7 @@ slug: beat-3-level-up-cards-and-the-d-146-guard
 title: Beat 3 — queued level-up cards, and the D-146 guard that must never let one fire
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [81, 65]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-13T20:31:58Z
+closed: 2026-10-13T21:04:15Z
 ---
 
 ## Description

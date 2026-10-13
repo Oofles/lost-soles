@@ -1990,7 +1990,7 @@
     "title": "Beat 3 — queued level-up cards, and the D-146 guard that must never let one fire",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -2001,8 +2001,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-13T20:31:58Z",
-    "path": "tickets/open/0082-beat-3-level-up-cards-and-the-d-146-guard.md",
-    "ready": true,
+    "closed": "2026-10-13T21:04:15Z",
+    "path": "tickets/closed/0082-beat-3-level-up-cards-and-the-d-146-guard.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -3775,7 +3776,7 @@
     "source": "agent",
     "created": "2026-09-04T15:06:10Z",
     "path": "tickets/open/0159-vigil-test-end-to-end.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
