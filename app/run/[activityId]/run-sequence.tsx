@@ -10,7 +10,7 @@ import { FogPerf, type FrameStats } from "@/lib/fog/perf/collector"
 import { runBounds } from "@/lib/map-camera"
 import { log } from "@/lib/log"
 import { documentRoutePalette } from "@/lib/map-layers"
-import { beat1At } from "@/lib/run-moment/beat1"
+import { BEAT1_MS, beat1At } from "@/lib/run-moment/beat1"
 import { beat2At, BEAT2_MS, easeOutQuint, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
 import { flyToRun } from "@/lib/run-moment/camera"
 import { installInk, type Ink } from "@/lib/run-moment/ink"
@@ -89,13 +89,16 @@ export function RunSequence({
   tally: ReturnType<typeof useRunTally>
   onDone: () => void
 }) {
-  const [beat, setBeat] = useState<1 | 2>(1)
-  const toBeat2 = useCallback(() => setBeat(2), [])
+  // The `performance.now()` at which beat 2 begins — beat 1's NOMINAL end, not whenever React got
+  // round to mounting beat 2. Measured in 0081's smoke: starting the clock at mount put beat 2 ~100 ms
+  // late (a state update, a render and an effect, at SwiftShader frame rates).
+  const [handoff, setHandoff] = useState<number | null>(null)
+  const toBeat2 = useCallback((at: number) => setHandoff((h) => h ?? at), [])
   const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} />
   return (
     <>
       {beat1}
-      {beat === 2 ? <Beat2 summary={summary} stage={stage} data={tally} onDone={onDone} /> : null}
+      {handoff !== null ? <Beat2 summary={summary} stage={stage} data={tally} handoff={handoff} onDone={onDone} /> : null}
     </>
   )
 }
@@ -107,7 +110,8 @@ function Beat1({
 }: {
   summary: RunSummary
   stage: MapStage
-  onDone: () => void
+  /** Called once, with the `performance.now()` at which beat 1 ended (or was skipped). */
+  onDone: (at: number) => void
 }) {
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
   const expectReveal = summary.reveal.new.length + summary.reveal.rearmed.length > 0
@@ -126,7 +130,7 @@ function Beat1({
     if (ended.current) return
     if (stage?.kind === "unsupported" || !path) {
       ended.current = true
-      onDone()
+      onDone(performance.now())
       return
     }
     if (stage?.kind !== "ready") return
@@ -175,7 +179,7 @@ function Beat1({
       // §3.2's cross-fade back to the saved mode. Always `null` until capability 15 adds the setting
       // (`lib/run-moment/mode.ts`, D-295): the beat already renders in the only mode there is.
       void modeCrossFade(savedRenderMode())
-      onDone()
+      onDone(t0 !== null && now - t0 >= BEAT1_MS ? t0 + BEAT1_MS : now)
     }
 
     const tick = (now: number) => {
@@ -264,11 +268,14 @@ function Beat2({
   summary,
   stage,
   data,
+  handoff,
   onDone,
 }: {
   summary: RunSummary
   stage: MapStage
   data: ReturnType<typeof useRunTally>
+  /** Beat 2's t = 0, when the ledger is already here. */
+  handoff: number
   onDone: () => void
 }) {
   const count = data.tally ? tallyLineCount(data.tally, summary) : 0
@@ -294,9 +301,11 @@ function Beat2({
   }, [data.tally, nothing, onDone])
 
   const ready = data.tally !== undefined && count > 0
+  const readyAtHandoff = useRef(ready)
   useEffect(() => {
     if (!ready) return
-    const start = performance.now()
+    // A tally that was waited for starts when it arrived, not back-dated into the wait.
+    const start = readyAtHandoff.current ? handoff : performance.now()
     const c = new PausableClock(start)
     clock.current = c
     const seq = (window.__sequence ??= { t0: null })
