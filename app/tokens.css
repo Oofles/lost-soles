@@ -71,9 +71,10 @@
   --verdigris-500: #3e7c72;
   --verdigris-300: #6fa79c;
 
-  /* Two one-offs, each with exactly one job. */
+  /* Three one-offs, each with exactly one job. */
   --cold-wash: #7e93ad;   /* §4.6, atlas only, multiply blend */
   --oxblood: #8c2f27;     /* the destructive confirm in /settings. Only. */
+  --frost-400: #7fa8c9;   /* §3.2 beat 1: re-armed ground's flush as it clears (0080). Only. */
 
   /* ─── Semantic layer (§8.3) — light, the default ───────────────────────────
      Components reference THESE, never a primitive and never a raw hex. */

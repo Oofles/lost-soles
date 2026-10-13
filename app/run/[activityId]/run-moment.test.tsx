@@ -106,6 +106,29 @@ describe("autoplay is the entry point's intent, and nothing else", () => {
     expect(html).toContain('data-slot="ledger"')
   })
 
+  /**
+   * `0080` criterion 7: NOTHING BEFORE THE MAP. What exists at route entry, before beat 1's t = 0, is
+   * the map and the way back — every part below the map is in the tree (the end state is underneath,
+   * `0078`) but held back, and nothing announces anything: no toast, dialog, spinner or title card.
+   */
+  it("intent → nothing but the map is perceivable before t = 0: no toast, dialog, spinner or title (0080)", () => {
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay home={null} />)
+    const column = html.slice(html.indexOf('data-slot="column"'))
+    expect(html).toMatch(/<div data-slot="column" aria-hidden="true" style="[^"]*visibility:hidden/)
+    // The run's title and the ledger are inside the veiled column, not above it.
+    expect(column).toContain("<h1")
+    expect(column).toContain('data-slot="ledger"')
+    expect(html.slice(0, html.indexOf('data-slot="column"'))).not.toContain("<h1")
+    expect(html).not.toMatch(/role="(dialog|alertdialog|alert|status|progressbar)"|<dialog|aria-busy="true"/)
+    expect(text(html)).not.toMatch(/imported|loading/i)
+  })
+
+  it("no intent → the end state, nothing veiled", () => {
+    const html = renderToStaticMarkup(<RunMoment summary={SUMMARY} autoplay={false} home={null} />)
+    expect(html).not.toContain("visibility:hidden")
+    expect(html).not.toContain('aria-hidden="true"')
+  })
+
   it("⟲ Relive restarts from beat 1 and finishing returns to the same end state (criterion 3)", () => {
     const start = initialMoment(false)
     const playing = momentReducer(start, { type: "relive" })

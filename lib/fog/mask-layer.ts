@@ -9,6 +9,8 @@ import { log } from "@/lib/log"
 import {
   createCompositeResources,
   disposeCompositeResources,
+  NO_BLOOM_PALETTE,
+  type BloomPalette,
   noiseFrame,
   runCompositePass,
   type CompositeResources,
@@ -24,6 +26,8 @@ import {
   runMaskPass,
   uploadInstances,
   INSTANCE_FLOATS,
+  NO_BLOOM,
+  type BloomUniform,
   type MaskResources,
   type ProjectionLike,
   type RestoreCheck,
@@ -38,7 +42,7 @@ import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
  * THE CUSTOM LAYER. Tickets `0055` and `0056`. `05-fog-of-war.md` §4.2, §4.3, §6.4.
  *
  * A MapLibre `CustomLayerInterface` with both passes: `prerender` runs §4.2's coverage mask into a
- * half-resolution `R8` framebuffer, and `render` runs §4.3's noisy composite over MapLibre's own.
+ * half-resolution `RGBA8` framebuffer, and `render` runs §4.3's noisy composite over MapLibre's own.
  * `0055` shipped the first with an empty `render`; `0056` filled it in.
  *
  * `?fog=mask` still swaps the composite for `0055`'s greyscale blit of the raw mask. It is not
@@ -171,6 +175,8 @@ export class FogMaskLayer implements CustomLayerInterface {
   /** `0079`. The reveal set, by identity — a new array is a new reveal, the same one is a scrub. */
   #revealCells: readonly RevealPoint[] | null = null
   #revealProgress = 1
+  #bloom: BloomUniform = NO_BLOOM
+  #bloomPalette: BloomPalette = NO_BLOOM_PALETTE
   #tagStats: TagStats = { inBoth: 0, postOnly: 0, preOnly: 0, corridor: 0 }
   /**
    * `0058`, §6.2's other flag. The mask is screen-space, so it must be redrawn when the camera moves
@@ -320,6 +326,8 @@ export class FogMaskLayer implements CustomLayerInterface {
     if (next !== this.#revealCells) {
       this.#revealCells = next
       this.#uploadDirty = true
+      // `0080`. A bloom belongs to the reveal it was set for; the next one starts dark.
+      if (!next) this.#bloom = NO_BLOOM
     }
     const clamped = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 1
     if (clamped !== this.#revealProgress) {
@@ -331,6 +339,28 @@ export class FogMaskLayer implements CustomLayerInterface {
   /** `0079`. `setReveal` with the current cells — the scrub control's and `0080`'s clock's call. */
   setRevealProgress(progress: number): void {
     this.setReveal(this.#revealCells, progress)
+  }
+
+  /**
+   * `0080`. BEAT 1'S BLOOM — gold over new ground, frost over re-armed, as it clears. A uniform
+   * write on the next `prerender`, exactly as progress is, so it is drivable from the same rAF loop.
+   * It only reaches the pass while a reveal is drawing; `null` (or ending the reveal) turns it off.
+   * `palette` is the two colours, resolved from the tokens by the caller once per sequence.
+   */
+  setBloom(bloom: BloomUniform | null, palette?: BloomPalette): void {
+    if (palette) this.#bloomPalette = palette
+    const next = bloom ?? NO_BLOOM
+    const was = this.#bloom
+    if (
+      next.clock === was.clock &&
+      next.fade === was.fade &&
+      next.goldSpan === was.goldSpan &&
+      next.frostSpan === was.frostSpan
+    ) {
+      return
+    }
+    this.#bloom = next
+    this.#maskDirty = true
   }
 
   /** `0079`. Whether a reveal is drawing — cells set AND the pre-run stream in hand. */
@@ -497,6 +527,7 @@ export class FogMaskLayer implements CustomLayerInterface {
     this.#maskDirty = false
     // `0079`. Exactly 1 outside a reveal, and the shader short-circuits on exactly 1.
     this.#resources.revealProgress = this.#revealing() ? this.#revealProgress : 1
+    this.#resources.bloom = this.#revealing() ? this.#bloom : NO_BLOOM
     /**
      * TIMED AROUND THE PASS, NOT AROUND `prerender`. Everything above this line is the `maskDirty`
      * short-circuit, the resize check and the buffer upload — CPU work that §6.3 budgets on a
@@ -573,6 +604,7 @@ export class FogMaskLayer implements CustomLayerInterface {
       noise: this.#noise,
       time: this.#fogTime,
       palette: this.options.palette ?? V1,
+      bloom: this.#bloomPalette,
     })
     this.options.timer?.end()
     this.#composites++

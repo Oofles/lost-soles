@@ -1,4 +1,4 @@
-import { ARC_ALWAYS, ARC_OUT_OFFSET, INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, ARC_FROST_OFFSET, ARC_GOLD_OFFSET, ARC_OUT_OFFSET, INSTANCE_FLOATS } from "./mask"
 
 /**
  * THE REVEAL, AS ONE INSTANCE STREAM. Ticket `0079`. `06-ui-ux.md` §3.2 beat 1.
@@ -25,6 +25,8 @@ import { ARC_ALWAYS, ARC_OUT_OFFSET, INSTANCE_FLOATS } from "./mask"
  *
  *   in both       `ARC_ALWAYS`                      drawn at every progress
  *   post only     its reveal arc                   fades in as the lantern passes
+ *                 (+ `ARC_GOLD_OFFSET` / `ARC_FROST_OFFSET` when its nearest reveal cell is new /
+ *                 re-armed — `0080`'s bloom; the fade-in itself is identical)
  *   pre only      `ARC_OUT_OFFSET` + a reveal arc   drawn until its replacement is at full weight
  *
  * and the ticket's safety property then holds BY CONSTRUCTION rather than by tuning:
@@ -55,6 +57,23 @@ export interface RevealPoint {
   x: number
   y: number
   arc: number
+  /**
+   * `0080`. The server's verdict on this cell (`0048`, served by `0251`), which decides how it
+   * blooms as it clears: `new` gold, `rearmed` frost. Absent means silent — the scrub's whole-route
+   * set, and any run classified before the verdicts were stored. *"A missing bloom is a smaller lie
+   * than a wrong one."* Never derived here.
+   */
+  ground?: "new" | "rearmed"
+}
+
+/**
+ * `0080`. The arc slot for a fading-in instance: its arc, plus the offset that says how it blooms.
+ * The offsets are whole numbers and the arc is quantised, so the sum is exact in float32.
+ */
+function fadeInArc(point: RevealPoint): number {
+  if (point.ground === "new") return ARC_GOLD_OFFSET + point.arc
+  if (point.ground === "rearmed") return ARC_FROST_OFFSET + point.arc
+  return point.arc
 }
 
 /**
@@ -129,7 +148,7 @@ export function tagReveal(
     unmatched.set(k, (unmatched.get(k) ?? 0) + 1)
   }
 
-  const quantised = points.map((p) => ({ x: p.x, y: p.y, arc: quantiseArc(p.arc) }))
+  const quantised = points.map((p) => ({ x: p.x, y: p.y, arc: quantiseArc(p.arc), ground: p.ground }))
   const out = new Float32Array((postCount + preCount + corridorCount) * F)
   let n = 0
   let inBoth = 0
@@ -145,7 +164,8 @@ export function tagReveal(
       out[n * F + F - 1] = ARC_ALWAYS
       inBoth++
     } else {
-      out[n * F + F - 1] = nearestArc(quantised, post[at]!, post[at + 1]!)
+      // `0080`: a bridge or a coarse parent blooms as the reveal cell it is nearest to does.
+      out[n * F + F - 1] = fadeInArc(nearest(quantised, post[at]!, post[at + 1]!))
       postOnly++
     }
     n++
@@ -165,6 +185,7 @@ export function tagReveal(
     preOnly++
   }
 
+  // Corridor discs never bloom: they are `0057`'s optimistic guess, not a cell anyone classified.
   for (let i = 0; i < corridorCount; i++) {
     const at = i * F
     out.set(corridor!.instances.subarray(at, at + F - 1), n * F)
@@ -177,24 +198,24 @@ export function tagReveal(
 }
 
 /**
- * The arc of the reveal cell nearest a post-only instance. For a reveal cell's own disc that is the
+ * The reveal cell nearest a post-only instance. For a reveal cell's own disc that is the
  * cell itself, at distance 0; for a bridge, one of its endpoints; for a coarse parent, the nearest
  * child. Brute force, because the post-only set is the DIFFERENCE between the two streams — a run's
  * worth, not a viewport's — and the reveal set is ~130 cells (R3 §2).
  */
-function nearestArc(points: readonly RevealPoint[], x: number, y: number): number {
+function nearest(points: readonly RevealPoint[], x: number, y: number): RevealPoint {
   let best = Infinity
-  let arc = 0
+  let at = points[0]!
   for (const p of points) {
     const dx = p.x - x
     const dy = p.y - y
     const d = dx * dx + dy * dy
     if (d < best) {
       best = d
-      arc = p.arc
+      at = p
     }
   }
-  return arc
+  return at
 }
 
 /** The latest arc among reveal cells within `reach`; the nearest one's if none is that close. */
@@ -206,5 +227,5 @@ function latestArcNear(points: readonly RevealPoint[], x: number, y: number, rea
     const dy = p.y - y
     if (dx * dx + dy * dy <= reach2 && p.arc > latest) latest = p.arc
   }
-  return latest >= 0 ? latest : nearestArc(points, x, y)
+  return latest >= 0 ? latest : nearest(points, x, y).arc
 }

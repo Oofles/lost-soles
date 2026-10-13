@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
 import { perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
+import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import { revealCellsForRoute, type RevealCell } from "@/lib/fog/reveal"
 import {
@@ -47,6 +48,14 @@ import "maplibre-gl/dist/maplibre-gl.css"
  */
 type MapLibre = typeof import("maplibre-gl")
 type MapInstance = import("maplibre-gl").Map
+
+/**
+ * `0080`. WHAT THE SHELL TELLS WHOEVER IS PLAYING OVER IT — beat 1, which lives outside the shell
+ * (`RunSequence`) and drives the map imperatively. `null` while the map is loading; `unsupported`
+ * when there will never be one, so the sequence can give up at once rather than wait forever.
+ * `layer` is `null` under `?fog=off`.
+ */
+export type MapStage = { kind: "ready"; map: MapInstance; layer: FogMaskLayer | null } | { kind: "unsupported" } | null
 
 /**
  * WebGL2 is checked BEFORE the map is constructed, because `05-fog-of-war.md` §9.6 is
@@ -106,6 +115,8 @@ const framedShell: React.CSSProperties = {
 export function MapShell({
   home,
   run,
+  reveal: sequenceReveal = null,
+  onStage,
 }: {
   home: Camera | null
   /**
@@ -117,6 +128,15 @@ export function MapShell({
    * is beat 1's (`0080`), and the static end state must not borrow it.
    */
   run?: RunFeatureCollection
+  /**
+   * `0080`. Beat 1's reveal set — this run's new and re-armed cells, from the server (`0251`) — while
+   * the sequence plays, `null` otherwise. Installed at progress 0 and driven by the sequence through
+   * `onStage`'s layer. `?fog=scrub` outranks it: a debug view replaces the sequence's set, it never
+   * mixes with it.
+   */
+  reveal?: readonly RevealCell[] | null
+  /** `0080`. The map and its fog layer, as they become available. See `MapStage`. */
+  onStage?: (stage: MapStage) => void
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -330,8 +350,8 @@ export function MapShell({
   /**
    * `0079`. `?fog=scrub` on a run's page: this run's reveal set, computed from the route the page
    * already holds — no fetch. Every cell the run touched, including ground earlier runs cleared:
-   * which of them are THIS run's discoveries is the server's to say (`0251`), and `0080` will pass
-   * exactly those. For judging how the edge reads, the whole route is the better test anyway.
+   * which of them are THIS run's discoveries is the server's to say (`0251`), and beat 1 (`0080`)
+   * passes exactly those, through `reveal`. For judging how the edge reads, the whole route is the better test anyway.
    *
    * Read once, for `use-fog-mask.ts`'s reason: a debug flag is not watched.
    */
@@ -348,7 +368,12 @@ export function MapShell({
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
    * Called unconditionally and before the early return below, because hooks are.
    */
-  const fogLayer = useFogMask(loaded, harness, reveal)
+  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0)
+
+  /** `0080`. Reported after commit, so the layer handed over has had its reveal installed. */
+  useEffect(() => {
+    onStage?.(unsupported ? { kind: "unsupported" } : loaded ? { kind: "ready", map: loaded, layer: fogLayer } : null)
+  }, [onStage, unsupported, loaded, fogLayer])
 
   /**
    * Ticket `0057`. The route above the fog, and the optimistic corridor inside the mask.

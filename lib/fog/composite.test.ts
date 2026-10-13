@@ -9,6 +9,7 @@ import {
   disposeCompositeResources,
   groundNoiseCoord,
   noiseFrame,
+  NO_BLOOM_PALETTE,
   runCompositePass,
   TIME_WRAP_S,
   type NoiseFrame,
@@ -400,7 +401,17 @@ describe("the composite shader source", () => {
   })
 
   it("emits PREMULTIPLIED alpha, which MapLibre's translucent blend requires", () => {
-    expect(compositeFragmentSource()).toContain("fragColor = vec4(col * alpha, alpha)")
+    expect(compositeFragmentSource()).toContain("vec4 outColor = vec4(col * alpha, alpha)")
+  })
+
+  /** `0080`. The bloom composites OVER the fog, premultiplied, from the mask's GREEN and BLUE. */
+  it("lays beat 1's gold and frost over the fog, premultiplied, keyed on the mask's G and B", () => {
+    const src = compositeFragmentSource()
+    expect(src).toContain("float ga = mask.g *")
+    expect(src).toContain("float fa = mask.b *")
+    expect(src).toContain("outColor = vec4(gc * ga, ga) + outColor * (1.0 - ga)")
+    expect(src).toContain("outColor = vec4(u_bloomFrost * fa, fa) + outColor * (1.0 - fa)")
+    expect(src).toContain("fragColor = outColor")
   })
 
   /** Criterion 2 — lever (c) is one edit, and the `#define` is what makes it one. */
@@ -442,6 +453,7 @@ describe("runCompositePass — the GL call sequence (criterion 1)", () => {
     ),
     time,
     palette: V1,
+    bloom: NO_BLOOM_PALETTE,
   })
 
   it("draws ONE full-screen triangle — three vertices, not a quad's six", () => {
@@ -473,12 +485,24 @@ describe("runCompositePass — the GL call sequence (criterion 1)", () => {
     runCompositePass(f.gl, res, frame())
 
     const vec3s = f.of("uniform3f").map((c) => c.args.slice(1))
-    expect(vec3s).toEqual([[...V1.fogDeep], [...V1.fogEdge], [...V1.rimGlow]])
+    // The palette's three, then `0080`'s two bloom colours from the frame.
+    expect(vec3s).toEqual([[...V1.fogDeep], [...V1.fogEdge], [...V1.rimGlow], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
 
     const floats = f.of("uniform1f").map((c) => c.args[1])
     expect(floats).toContain(V1.maxOpacity)
     expect(floats).toContain(V1.noiseAmp)
     expect(floats).toContain(V1.rimAmt)
+  })
+
+  /** `0080`. The bloom colours come from the frame — the tokens, resolved by the caller. */
+  it("sets the two bloom colours from the frame's bloom palette", () => {
+    const f = fakeGl()
+    const gold = [0.9, 0.78, 0.48] as const
+    const frost = [0.5, 0.66, 0.79] as const
+    const glint = [1, 0.95, 0.82] as const
+    runCompositePass(f.gl, createCompositeResources(f.gl), { ...frame(), bloom: { gold, frost, glint } })
+    const vec3s = f.of("uniform3f").map((c) => c.args.slice(1))
+    expect(vec3s.slice(3)).toEqual([[...gold], [...frost], [...glint]])
   })
 
   /** Criterion 4 restated for pass 2: `u_maxOpacity` is 0.90 (`0119`) and it reaches the GPU unchanged. */

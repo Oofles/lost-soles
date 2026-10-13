@@ -50,6 +50,7 @@ import {
   REVEAL_HI,
   REVEAL_LO,
   type FogPalette,
+  type Rgb,
 } from "./fog-uniforms"
 
 /* ─── Shaders ───────────────────────────────────────────────────────────────── */
@@ -131,6 +132,9 @@ uniform vec3  u_rimGlow;
 uniform float u_maxOpacity;
 uniform float u_noiseAmp;
 uniform float u_rimAmt;
+uniform vec3  u_bloomGold;     // 0080: --gold-300, linear 0..1. Read only where the mask's GREEN is lit.
+uniform vec3  u_bloomFrost;    // 0080: --frost-400. Read only where the mask's BLUE is lit.
+uniform vec3  u_bloomGlint;    // 0080: --route-core, the warm near-white gold leans to at its peak.
 
 in  vec2 v_uv;
 in  vec3 v_noiseH;
@@ -167,7 +171,8 @@ float fbm(vec2 p, vec2 o) {
 }
 
 void main() {
-    float coverage = texture(u_mask, v_uv).r;
+    vec3  mask = texture(u_mask, v_uv).rgb;
+    float coverage = mask.r;
 
     // The projective divide. Ground coordinates in noise cells, local to this frame's origin.
     vec2 q = v_noiseH.xy / v_noiseH.z;
@@ -194,7 +199,18 @@ void main() {
     col += u_rimGlow * rim * u_rimAmt;
     alpha = max(alpha, rim * 0.10);   // a faint glow bleeding into cleared ground
 
-    fragColor = vec4(col * alpha, alpha);   // premultiplied — MapLibre's default blend
+    vec4 outColor = vec4(col * alpha, alpha);   // premultiplied — MapLibre's default blend
+
+    // 0080. BEAT 1'S BLOOM, laid OVER the fog, premultiplied. GREEN and BLUE are 0 outside a reveal,
+    // so both alphas are 0 and outColor passes through bit for bit: x * 1.0 + 0.0 is exact.
+    // Gold leans white at its peak (06 §3.2: "gold-white bloom"); frost is the dimmer of the two.
+    float ga = mask.g * ${BLOOM_GOLD_PEAK.toFixed(2)};
+    vec3  gc = mix(u_bloomGold, u_bloomGlint, mask.g * ${BLOOM_GOLD_WHITE.toFixed(2)});
+    outColor = vec4(gc * ga, ga) + outColor * (1.0 - ga);
+    float fa = mask.b * ${BLOOM_FROST_PEAK.toFixed(2)};
+    outColor = vec4(u_bloomFrost * fa, fa) + outColor * (1.0 - fa);
+
+    fragColor = outColor;
 }`
 }
 
@@ -434,6 +450,9 @@ const UNIFORM_NAMES = [
   "u_maxOpacity",
   "u_noiseAmp",
   "u_rimAmt",
+  "u_bloomGold",
+  "u_bloomFrost",
+  "u_bloomGlint",
 ] as const
 
 export function createCompositeResources(
@@ -498,7 +517,34 @@ export interface CompositeFrame {
   /** Seconds since the layer started animating; 0 under reduced motion (§4.5). */
   time: number
   palette: FogPalette
+  /** `0080`. The bloom's two colours. Irrelevant outside a reveal — the mask carries no bloom then. */
+  bloom: BloomPalette
 }
+
+/**
+ * `0080`. BEAT 1'S GROUND COLOURS, from `app/tokens.css` (`--gold-300`, `--frost-400`, and
+ * `--route-core` as the glint gold leans to — §8.2 forbids pure white, and the route's cream is the
+ * lantern's own near-white), resolved
+ * by the caller — a paint value in a shader cannot be a CSS variable, and a literal here would be a
+ * second copy of a palette colour (`lib/map-layers.ts` makes the same argument for the route).
+ */
+export interface BloomPalette {
+  gold: Rgb
+  frost: Rgb
+  glint: Rgb
+}
+
+/** Black, and never visible: it is only ever multiplied by a bloom of 0. */
+export const NO_BLOOM_PALETTE: BloomPalette = { gold: [0, 0, 0], frost: [0, 0, 0], glint: [0, 0, 0] }
+
+/**
+ * `0080`. How much of the ground a full bloom tints. A look, tuned by eye on the run page: gold is
+ * *"the loud one"*, frost *"dimmer and slower"* (06 §3.2). The white mix is what makes gold read as
+ * gold-WHITE light rather than paint at its peak, and it falls away with the bloom.
+ */
+export const BLOOM_GOLD_PEAK = 0.55
+export const BLOOM_GOLD_WHITE = 0.4
+export const BLOOM_FROST_PEAK = 0.32
 
 /**
  * §4.3's pass, inside MapLibre's `render`.
@@ -535,6 +581,10 @@ export function runCompositePass(
   if (u.u_maxOpacity) gl.uniform1f(u.u_maxOpacity, p.maxOpacity)
   if (u.u_noiseAmp) gl.uniform1f(u.u_noiseAmp, p.noiseAmp)
   if (u.u_rimAmt) gl.uniform1f(u.u_rimAmt, p.rimAmt)
+  const b = frame.bloom
+  if (u.u_bloomGold) gl.uniform3f(u.u_bloomGold, b.gold[0], b.gold[1], b.gold[2])
+  if (u.u_bloomFrost) gl.uniform3f(u.u_bloomFrost, b.frost[0], b.frost[1], b.frost[2])
+  if (u.u_bloomGlint) gl.uniform3f(u.u_bloomGlint, b.glint[0], b.glint[1], b.glint[2])
 
   gl.disable(gl.DEPTH_TEST)
   gl.enable(gl.BLEND)

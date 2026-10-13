@@ -484,6 +484,10 @@ describe("render — 0056's composite and 0055's debug blit", () => {
       [...V1.fogDeep],
       [...V1.fogEdge],
       [...V1.rimGlow],
+      // `0080`'s bloom colours: unset, so black — and never visible, the mask carrying no bloom.
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
     ])
   })
 

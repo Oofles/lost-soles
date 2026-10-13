@@ -333,7 +333,7 @@ toast.
 
   | Ground | Visual | Duration |
   |---|---|---|
-  | **New** (never run) | Gold-white bloom at the reveal edge, `--gold-300 #E3C766` → fades to bare parchment over 600 ms | The loud one |
+  | **New** (never run) | Gold-white bloom at the reveal edge, `--gold-300 #E8C87A` (§8.1's value; this row said `#E3C766` until D-295) → fades to bare parchment over 600 ms | The loud one |
   | **Remembered** (>6mo, re-armed, 50% credit — D-120) | Cool flush, `--frost-400 #7FA8C9`, dimmer and slower, 900 ms, like breath clearing off glass | The quiet, nostalgic one |
   | **Familiar** (<6mo) | No bloom. The route ink simply lays down over already-clear ground | Silent |
 
@@ -1321,9 +1321,10 @@ Six ramps. Nothing outside them ships.
 /* Verdigris — meta skills only (§5.3 rule 5). Aged copper on an old map. */
 --verdigris-500 #3E7C72 --verdigris-300 #6FA79C
 
-/* Two one-offs, each with exactly one job. */
+/* Three one-offs, each with exactly one job. */
 --cold-wash #7E93AD     /* §4.6, atlas only, multiply blend        */
 --oxblood   #8C2F27     /* destructive confirm in /settings. Only. */
+--frost-400 #7FA8C9     /* §3.2 beat 1, re-armed ground. Only (D-295) */
 ```
 
 **Never `#000000`, never `#FFFFFF`.** Pure black on parchment reads as a printing error; pure

@@ -30,6 +30,7 @@ const ENUM = {
   FLOAT: 0x1406,
   TEXTURE_2D: 0x0de1,
   R8: 0x8229,
+  RGBA8: 0x8058,
   RED: 0x1903,
   RGBA: 0x1908,
   UNSIGNED_BYTE: 0x1401,
@@ -83,6 +84,9 @@ const COMPOSITE_UNIFORMS = new Set([
   "u_maxOpacity",
   "u_noiseAmp",
   "u_rimAmt",
+  "u_bloomGold",
+  "u_bloomFrost",
+  "u_bloomGlint",
 ])
 
 export interface GlCall {
@@ -226,16 +230,18 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
       // the globe uniforms are unused and stripped, so their locations come back null. That is what
       // makes the null-guards in `setProjectionUniforms` load-bearing rather than decorative.
       // `u_origin` (`0200`) is the mask shader's own and always used, so it always resolves.
-      // `u_reveal` (`0079`) likewise — the mask shader reads it on every vertex.
+      // `u_reveal` (`0079`) and `u_bloom` (`0080`) likewise — the mask shader reads both on every vertex.
       name === "u_projection_matrix" ||
       name === "u_origin" ||
       name === "u_reveal" ||
+      name === "u_bloom" ||
       COMPOSITE_UNIFORMS.has(name)
         ? handle(name)
         : null,
     uniformMatrix4fv: (...args: unknown[]) => record("uniformMatrix4fv", ...args),
     uniformMatrix3fv: (...args: unknown[]) => record("uniformMatrix3fv", ...args),
     uniform4fv: (...args: unknown[]) => record("uniform4fv", ...args),
+    uniform4f: (...args: unknown[]) => record("uniform4f", ...args),
     uniform3f: (...args: unknown[]) => record("uniform3f", ...args),
     uniform2f: (...args: unknown[]) => record("uniform2f", ...args),
     uniform1f: (...args: unknown[]) => record("uniform1f", ...args),

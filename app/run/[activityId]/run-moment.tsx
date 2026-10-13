@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useReducer, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useState, type ReactNode } from "react"
 
-import { MapShell } from "@/components/map/map-shell"
+import { MapShell, type MapStage } from "@/components/map/map-shell"
+import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
 import { runDate, runDistance, runDuration, sourceLabel } from "@/lib/runs/format"
 import { browserHistoryHost, seedHomeBehind } from "@/lib/runs/history"
@@ -80,12 +81,21 @@ export function EndState({
   ledger,
   kind,
   onRelive,
+  veiled = false,
 }: {
   summary: RunSummary
   map: ReactNode
   ledger: ReactNode
   kind: ReactNode
   onRelive: () => void
+  /**
+   * `0080`. WHILE THE SEQUENCE PLAYS, EVERYTHING BELOW THE MAP IS HELD BACK. §3.2: beat 1 *"must
+   * never be preceded by a numbers panel, a title card, a loading spinner"* — and on a desktop the
+   * ledger and the run's title sit in plain view under a 55vh map. `visibility`, not unmounting or
+   * `display: none`: the page keeps its height, so no scrollbar appears or vanishes at 2.9 s and the
+   * map does not resize under the lantern. Later beats (`0081`–`0083`) bring their parts in.
+   */
+  veiled?: boolean
 }) {
   const distance = runDistance(summary.distanceM)
   const stats: [string, string][] = [
@@ -108,7 +118,11 @@ export function EndState({
         </Link>
       </header>
       <div data-slot="map">{map}</div>
-      <div style={column}>
+      <div
+        data-slot="column"
+        aria-hidden={veiled || undefined}
+        style={veiled ? { ...column, visibility: "hidden" } : column}
+      >
         {summary.name ? <h1 style={{ margin: 0, fontSize: "1.25rem", color: "var(--text-primary)" }}>{summary.name}</h1> : null}
 
         {ledger}
@@ -160,6 +174,18 @@ export function RunMoment({ summary, autoplay, home }: { summary: RunSummary; au
 
   const onDone = useCallback(() => dispatch({ type: "done" }), [])
 
+  /**
+   * `0080`. BEAT 1'S REVEAL SET: this run's new and re-armed cells as the server classified them
+   * (`0251`), each placed along the route — never every cell the route touches, which would fog
+   * familiar ground at `p = 0`. Handed to the map only while the sequence plays; at its end the
+   * reveal is uninstalled and the steady state, identical to `p = 1`, is what remains.
+   */
+  const reveal = useMemo(
+    () => revealCellsForRoute(summary.route.features[0]?.geometry, summary.reveal),
+    [summary],
+  )
+  const [stage, setStage] = useState<MapStage>(null)
+
   const onRelive = () => {
     window.scrollTo({ top: 0 })
     dispatch({ type: "relive" })
@@ -169,12 +195,22 @@ export function RunMoment({ summary, autoplay, home }: { summary: RunSummary; au
     <main data-phase={state.phase}>
       <EndState
         summary={summary}
-        map={<MapShell home={home} run={summary.route} />}
+        map={
+          <MapShell
+            home={home}
+            run={summary.route}
+            reveal={state.phase === "sequence" ? reveal : null}
+            onStage={setStage}
+          />
+        }
         ledger={<RunLedger summary={summary} />}
         kind={<ActivityKind activityId={summary.activityId} />}
         onRelive={onRelive}
+        veiled={state.phase === "sequence"}
       />
-      {state.phase === "sequence" ? <RunSequence key={state.play} summary={summary} onDone={onDone} /> : null}
+      {state.phase === "sequence" ? (
+        <RunSequence key={state.play} summary={summary} stage={stage} onDone={onDone} />
+      ) : null}
     </main>
   )
 }

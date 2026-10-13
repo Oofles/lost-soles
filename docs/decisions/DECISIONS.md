@@ -4568,3 +4568,32 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     activity in history per view.
   - **D-284 c's `revealWithoutAward` writes no object.** Cells it opens earn nothing, so they are not
     the run's reveal; the object stays equal to T3's counts, which is the property the audit checks.
+- **D-295** **Beat 1's three kinds of ground bloom inside the fog shader, the ink is a moving
+  `line-gradient`, and the mode cross-fade is a stub until capability 15.** *(2026-10-13, ticket
+  `0080`, operator decision for the bloom placement and the stub.)*
+  - **The bloom rides the mask, not a second layer.** The mask FBO goes `R8` → `RGBA8`: RED is
+    coverage exactly as before, GREEN is gold (new ground), BLUE is frost (re-armed). The composite
+    lays them over the fog, premultiplied, and with both 0 its output is bit-identical — proved on
+    SwiftShader (`tools/fog-harness` C5, and 0079's R1/R2 still diff 0 pixels). One reveal path, as
+    0080's notes require. Cost: a half-res mask at 4 B/px, ~2 MB on a 1080p canvas.
+  - **The class is encoded in the arc slot**, as `ARC_OUT_OFFSET` already was: `+4` gold, `+6`
+    frost, fade-in unchanged. The instance layout and every producer outside `reveal-tag.ts` stay as
+    they were; a sixth float would have touched the cull, the buckets and the corridor for one
+    reveal-only bit. A bridge or coarse parent blooms as its nearest reveal cell does; the `0057`
+    corridor never blooms.
+  - **The bloom clock is uniform `u_bloom`**, the traversal fraction unclamped, with §3.2's 600 ms
+    and 900 ms as spans; the settle fades it out so a beat that ends at 2.9 s does not cut a flush.
+  - **Colours come from tokens.** §3.2 gave `--gold-300` as `#E3C766`; §8.1 and `tokens.css` say
+    `#E8C87A`. The palette wins (§8.3 names it the home of every colour); §3.2 is amended.
+    `--frost-400 #7FA8C9` existed only in §3.2's prose and is added to §8.1 and `tokens.css` as a
+    third one-off. Gold leans to `--route-core`, not white (§8.2).
+  - **The route inks with `line-gradient` over `line-progress`**, on a second source and layer pair
+    in 05 §4.4's paint, not by re-uploading a truncated line per frame. MapLibre restarts
+    `line-progress` on each part of a `MultiLineString`, so the parts are joined and the joins inked
+    transparent; the run's own layers are hidden for the beat and shown again at its end.
+  - **The adventure → saved-mode cross-fade is stubbed** (`lib/run-moment/mode.ts`). The milestone
+    ships one rendering, `V1`, adventure's darkness and animation; there is no saved mode to fade
+    to. Criterion 5 is amended to the stub and the real fade is filed for capability 15.
+  - **The end-state column is veiled (`visibility: hidden`) while the sequence plays**, so the
+    run's title and ledger are not perceivable before the map (§3.2, criterion 7). `visibility`,
+    not unmounting, so the page height and the map's width do not change at 2.9 s.

@@ -474,6 +474,40 @@ describe("the layer — criterion 1", () => {
     expect(Array.from(last.filter((_, i) => i % F === 4)).every((a) => a === ARC_ALWAYS)).toBe(true)
     expect(layer.stats().reveal).toBeNull()
   })
+
+  /** `0080`. Beat 1's bloom rides the same pass as a uniform, and only while a reveal is drawing. */
+  it("drives u_bloom per frame with no upload, and sends NO_BLOOM outside a reveal", () => {
+    const fake = fakeGl()
+    const layer = new FogMaskLayer({ onRebuild: () => {} })
+    const blooms = () =>
+      fake.of("uniform4f").filter((c) => (c.args[0] as { tag?: string })?.tag === "u_bloom").map((c) => c.args.slice(1))
+    layer.setInstances(post, RES, { pre })
+    layer.setReveal(reveal, 0)
+    layer.prerender(fake.gl, renderInput())
+    const uploads = fake.uploads.length
+    expect(blooms().at(-1)).toEqual([-1, 0, 1, 1])
+
+    const palette = { gold: [0.9, 0.8, 0.5], frost: [0.5, 0.65, 0.8], glint: [1, 0.95, 0.8] } as const
+    layer.setBloom({ clock: 0.4, fade: 1, goldSpan: 0.27, frostSpan: 0.41 }, palette)
+    layer.prerender(fake.gl, renderInput())
+    expect(blooms().at(-1)).toEqual([0.4, 1, 0.27, 0.41])
+    expect(fake.uploads).toHaveLength(uploads)
+
+    // The composite gets the palette with the frame.
+    layer.render(fake.gl, renderInput())
+    const vec3s = fake.of("uniform3f").map((c) => c.args.slice(1))
+    expect(vec3s.slice(-3)).toEqual([[...palette.gold], [...palette.frost], [...palette.glint]])
+
+    // Ending the reveal ends the bloom, and a later reveal starts dark.
+    layer.setReveal(null)
+    layer.setInstances(post, RES)
+    layer.prerender(fake.gl, renderInput())
+    expect(blooms().at(-1)).toEqual([-1, 0, 1, 1])
+    layer.setInstances(post, RES, { pre })
+    layer.setReveal(reveal, 0)
+    layer.prerender(fake.gl, renderInput())
+    expect(blooms().at(-1)).toEqual([-1, 0, 1, 1])
+  })
 })
 
 describe("no network — criterion 5", () => {

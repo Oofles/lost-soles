@@ -66,6 +66,12 @@ export function useFogMask(
    * state that re-renders the map shell.
    */
   reveal: readonly RevealCell[] | null = null,
+  /**
+   * `0080`. The progress a reveal is INSTALLED at. 1 for the scrub, which opens on the settled map.
+   * 0 for beat 1, which must never show the answer before the lantern has walked to it: installed at
+   * 1, the first frame would draw the run's new ground clear and the next would fog it again.
+   */
+  revealFrom: 0 | 1 = 1,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -276,21 +282,21 @@ export function useFogMask(
    * reveal once it holds one, so this order means there is never a frame with the run's cells
    * missing and nothing to bring them back.
    *
-   * Progress starts at 1 — the settled map, which is what the page showed a moment ago — and
+   * Progress starts at `revealFrom` — 1, the settled map, for the scrub; 0 for beat 1 — and
    * whoever drives the reveal moves it from there.
    */
   useEffect(() => {
     const active = controller.current
     if (!layer || !active || !revealStores || !reveal) return
     active.setReveal(revealStores)
-    layer.setReveal(reveal, 1)
+    layer.setReveal(reveal, revealFrom)
     map?.triggerRepaint()
     return () => {
       layer.setReveal(null)
       active.setReveal(null)
       map?.triggerRepaint()
     }
-  }, [map, layer, store, revealStores, reveal])
+  }, [map, layer, store, revealStores, reveal, revealFrom])
 
   return layer
 }

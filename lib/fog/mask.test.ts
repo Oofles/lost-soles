@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import { fakeGl, GL } from "./__fixtures__/fake-gl"
 import {
+  ARC_FROST_OFFSET,
+  ARC_GOLD_OFFSET,
+  ARC_OUT_OFFSET,
   INSTANCE_FLOATS,
   ORIGIN_GRID,
   MASK_FRAGMENT_SOURCE,
@@ -151,6 +154,17 @@ describe("the shaders", () => {
     expect(MASK_FRAGMENT_SOURCE).toContain("* v_fraction")
     // The disc is round even though the quad is square.
     expect(MASK_FRAGMENT_SOURCE).toContain("discard")
+  })
+
+  /** `0080`. The bloom's decode is built from the same constants `reveal-tag.ts` encodes with. */
+  it("decodes 0080's gold and frost offsets from the arc slot, and writes the bloom to G and B", () => {
+    const source = maskVertexSource(STUB_PRELUDE, "")
+    expect([ARC_OUT_OFFSET, ARC_GOLD_OFFSET, ARC_FROST_OFFSET]).toEqual([2, 4, 6])
+    expect(source).toContain(`a_arc < ${(ARC_GOLD_OFFSET - 0.5).toFixed(1)}`)
+    expect(source).toContain(`a_arc < ${(ARC_FROST_OFFSET - 0.5).toFixed(1)}`)
+    expect(source).toContain(`v_bloom.x = bloomed(a_arc - ${ARC_GOLD_OFFSET.toFixed(1)}, u_bloom.z)`)
+    expect(source).toContain(`v_bloom.y = bloomed(a_arc - ${ARC_FROST_OFFSET.toFixed(1)}, u_bloom.w)`)
+    expect(MASK_FRAGMENT_SOURCE).toContain("fragColor = vec4(c, c * v_bloom, 1.0)")
   })
 })
 
@@ -307,17 +321,17 @@ describe("ground-relative instances — 0200", () => {
 })
 
 describe("the mask framebuffer", () => {
-  it("is half the drawing buffer, single-channel R8, LINEAR and CLAMP_TO_EDGE", () => {
+  it("is half the drawing buffer, RGBA8 (coverage in RED, 0080's blooms in GREEN and BLUE), LINEAR and CLAMP_TO_EDGE", () => {
     const { fake, res } = resourcesOn(fakeGl({ width: 801, height: 601 }))
     expect(MASK_SCALE).toBe(0.5)
     expect(res.maskW).toBe(400)
     expect(res.maskH).toBe(300)
 
     const alloc = fake.of("texImage2D")[0]!
-    expect(alloc.args[2]).toBe(GL.R8)
+    expect(alloc.args[2]).toBe(GL.RGBA8)
     expect(alloc.args[3]).toBe(400)
     expect(alloc.args[4]).toBe(300)
-    expect(alloc.args[6]).toBe(GL.RED)
+    expect(alloc.args[6]).toBe(GL.RGBA)
 
     const params = fake.of("texParameteri").map((c) => c.args.slice(1))
     expect(params).toEqual([

@@ -2,6 +2,7 @@ import { cellToLatLng, type H3Index } from "h3-js"
 
 import { cellToBig } from "@/src/domain/explored-blob"
 import { REVEAL_R_M, segmentsToCells } from "@/src/domain/fog"
+import type { RunClasses } from "@/src/domain/discovery"
 import type { RouteTraceGeometry } from "@/lib/runs/wire"
 
 import { mercatorX, mercatorY } from "./instances"
@@ -51,14 +52,28 @@ const SAMPLE_STEP_M = 5
  * cosine) — the same simplification `distancePointToSegments` makes, at the same scale, and cheap
  * enough that a marathon's ~1,000 cells against ~8,000 samples is a few milliseconds.
  */
-export function revealCellsForRoute(geometry: RouteTraceGeometry | null | undefined): RevealCell[] {
+export function revealCellsForRoute(
+  geometry: RouteTraceGeometry | null | undefined,
+  /**
+   * `0080`. THE SERVER'S VERDICT (`0251`, D-294): this run's new and re-armed cells. When given, they
+   * ARE the reveal set — each tagged with its ground, for beat 1's bloom — and nothing is derived:
+   * familiar ground must never be fogged at `p = 0`. Absent (`?fog=scrub`), every cell the route
+   * touches, untagged.
+   */
+  classes?: RunClasses,
+): RevealCell[] {
   if (!geometry || geometry.type !== "MultiLineString") return []
   const parts = geometry.coordinates
     .filter((part) => part && part.length >= 2)
     .map((part) => part.map(([lng, lat]) => ({ lat: lat!, lng: lng! })))
   if (parts.length === 0) return []
 
-  const cells = segmentsToCells(parts)
+  const ground = new Map<H3Index, "new" | "rearmed">()
+  if (classes) {
+    for (const cell of classes.new) ground.set(cell, "new")
+    for (const cell of classes.rearmed) ground.set(cell, "rearmed")
+  }
+  const cells: Iterable<H3Index> & { size: number } = classes ? new Set(ground.keys()) : segmentsToCells(parts)
   if (cells.size === 0) return []
 
   const lat0 = parts[0]![0]!.lat
@@ -131,11 +146,13 @@ export function revealCellsForRoute(geometry: RouteTraceGeometry | null | undefi
     // A cell `segmentsToCells` accepted is within 65 m of a segment, so a pass always exists bar
     // sampling at the very boundary; then the closest approach anywhere is the honest fallback.
     const at = bestPassAt >= 0 ? bestPassAt : bestAnyAt
+    const kind = ground.get(cell)
     out.push({
       cell,
       x: mercatorX(lng),
       y: mercatorY(lat),
       arc: quantiseArc(walked > 0 ? along[at]! / walked : 0),
+      ...(kind ? { ground: kind } : {}),
     })
   }
   out.sort((a, b) => a.arc - b.arc || (a.cell < b.cell ? -1 : a.cell > b.cell ? 1 : 0))

@@ -450,6 +450,15 @@ function main() {
   // the SAME two camera positions with §4.3's original screen-space noise, which must move.
   compositeProbes(gl, res)
 
+  /* ══ 0080 — BEAT 1'S BLOOM, IN THE MASK'S GREEN AND BLUE ════════════════ */
+  //
+  // B1  a gold-tagged disc at its bloom's peak writes GREEN, not BLUE        criterion 6
+  // B2  a frost-tagged disc writes BLUE, not GREEN                          criterion 6
+  // B3  SABOTAGE: an untagged arc, ARC_ALWAYS, and a gold tag with the clock off — no bloom at all,
+  //     and RED is still the full coverage. Without this B1/B2 could pass on a shader that wrote G
+  //     for everything.
+  bloomProbes(gl, res)
+
   disposeMaskResources(gl, res)
   results.unshift({ id: "renderer", pass: true, detail: renderer })
 }
@@ -482,6 +491,36 @@ function screenIndex(cx, cy, mx, my) {
   return (rowFromBottom * CANVAS_W + col) * 4
 }
 
+function bloomProbes(gl, res) {
+  const peak = { clock: REVEAL_RAMP, fade: 1, goldSpan: 0.27, frostSpan: 0.41 }
+  const centre = (Math.floor(res.maskH / 2) * res.maskW + Math.floor(res.maskW / 2)) * 4
+  const px = new Uint8Array(res.maskW * res.maskH * 4)
+  const read = (arc, bloom) => {
+    const disc = pack([{ x: CX, y: CY, r: RADIUS, fraction: 1 }])
+    disc[4] = arc
+    uploadInstances(gl, res, disc)
+    res.revealProgress = 0.5
+    res.bloom = bloom
+    runMaskPass(gl, res, PROJECTION)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, res.fbo)
+    gl.readPixels(0, 0, res.maskW, res.maskH, gl.RGBA, gl.UNSIGNED_BYTE, px)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    res.revealProgress = 1
+    res.bloom = NO_BLOOM
+    return [px[centre], px[centre + 1], px[centre + 2]]
+  }
+  const gold = read(ARC_GOLD_OFFSET, peak)
+  const frost = read(ARC_FROST_OFFSET, peak)
+  const plain = read(0, peak)
+  const always = read(ARC_ALWAYS, peak)
+  const off = read(ARC_GOLD_OFFSET, NO_BLOOM)
+  const rgb = (c) => `(${c.join(",")})`
+  record("B1 gold → GREEN only", gold[0] === 255 && gold[1] >= 250 && gold[2] === 0, `centre ${rgb(gold)} (want 255, >=250, 0)`)
+  record("B2 frost → BLUE only", frost[0] === 255 && frost[1] === 0 && frost[2] >= 250, `centre ${rgb(frost)} (want 255, 0, >=250)`)
+  const silent = [plain, always, off].every((c) => c[0] === 255 && c[1] === 0 && c[2] === 0)
+  record("B3 sabotage: no tag / no clock", silent, `untagged ${rgb(plain)}, always ${rgb(always)}, clock off ${rgb(off)} (want 255,0,0 each)`)
+}
+
 function compositeProbes(gl, res) {
   let compositeRes
   try {
@@ -490,7 +529,8 @@ function compositeProbes(gl, res) {
     record("C0 composite compiles", false, String((error && error.message) || error))
     return
   }
-  record("C0 composite compiles", true, `#define FBM_OCTAVES ${compositeRes.octaves}, ${Object.values(compositeRes.uniforms).filter(Boolean).length}/10 uniforms live`)
+  const uniformCount = Object.keys(compositeRes.uniforms).length
+  record("C0 composite compiles", true, `#define FBM_OCTAVES ${compositeRes.octaves}, ${Object.values(compositeRes.uniforms).filter(Boolean).length}/${uniformCount} uniforms live`)
 
   const pixels = new Uint8Array(CANVAS_W * CANVAS_H * 4)
 
@@ -513,9 +553,37 @@ function compositeProbes(gl, res) {
       noise: options.noise || noiseFrame(projection.mainMatrix, CANVAS_W, CANVAS_H),
       time: options.time || 0,
       palette: options.palette || V1,
+      bloom: options.bloom || NO_BLOOM_PALETTE,
     })
     gl.readPixels(0, 0, CANVAS_W, CANVAS_H, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
     return pixels.slice()
+  }
+
+  /* ── C5 — 0080: a gold bloom warms the cleared ground; with the clock off it is not there at all ─ */
+  //
+  // The no-bloom frame must equal an UNTAGGED frame byte for byte — that is the composite's half of
+  // "the steady state is unchanged" — and the lit frame must differ at the disc, warmer than it is
+  // blue. The equality is the sabotage: a composite that tinted regardless would fail it.
+  {
+    const disc = pack([{ x: CX, y: CY, r: RADIUS * 3, fraction: 1 }])
+    const tagged = disc.slice()
+    tagged[4] = ARC_GOLD_OFFSET
+    const bloom = { gold: [0.91, 0.78, 0.48], frost: [0.5, 0.66, 0.79], glint: [1, 0.95, 0.82] }
+    const plain = frame({ instances: disc, bloom })
+    const unlit = frame({ instances: tagged, bloom })
+    res.bloom = { clock: REVEAL_RAMP, fade: 1, goldSpan: 0.27, frostSpan: 0.41 }
+    const lit = frame({ instances: tagged, bloom })
+    res.bloom = NO_BLOOM
+    let differ = 0
+    for (let i = 0; i < plain.length; i++) if (plain[i] !== unlit[i]) differ++
+    const at = screenIndex(CX, CY, CX, CY)
+    const dR = lit[at] - plain[at]
+    const dB = lit[at + 2] - plain[at + 2]
+    record(
+      "C5 gold bloom composites",
+      differ === 0 && dR > 20 && dR > dB,
+      `clock off vs untagged: ${differ} bytes differ (want 0); centre lit-plain R ${dR} B ${dB} (want R > 20, R > B)`,
+    )
   }
 
   /* ── C1 — the rim glow is a BAND, not a wash. Criterion 3. ─────────────── */
@@ -688,7 +756,7 @@ function compositeProbes(gl, res) {
 
     const run = (n) => {
       for (let i = 0; i < n; i++) {
-        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1 })
+        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1, bloom: NO_BLOOM_PALETTE })
       }
       gl.finish()
     }

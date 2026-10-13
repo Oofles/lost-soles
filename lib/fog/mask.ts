@@ -2,8 +2,9 @@
  * PASS 1 — THE COVERAGE MASK. Ticket `0055`. `05-fog-of-war.md` §4.1, §4.2, §6.1.
  *
  * MapLibre calls `prerender` during its offscreen pass. We bind our own half-resolution
- * single-channel `R8` framebuffer, clear it to 0, and splat every visible explored cell as
- * a soft radial disc in **one** `drawArraysInstanced`, unioned with `gl.blendEquation(gl.MAX)`.
+ * `RGBA8` framebuffer, clear it to 0, and splat every visible explored cell as a soft radial disc
+ * in **one** `drawArraysInstanced`, unioned with `gl.blendEquation(gl.MAX)`. Coverage is the RED
+ * channel; GREEN and BLUE carry beat 1's gold and frost blooms (`0080`) and are 0 outside a reveal.
  * `0056` reads the resulting texture and composites the actual fog; until then the only way
  * to see this pass is the debug blit at the bottom of this file.
  *
@@ -123,6 +124,38 @@ export const ARC_ALWAYS = -1
 export const ARC_OUT_OFFSET = 2
 
 /**
+ * `0080`. Added to `arc` for a fading-in instance whose ground is NEW — it fades in exactly as a bare
+ * arc does, and blooms gold as it clears (`06-ui-ux.md` §3.2, *"three kinds of ground"*). Read as
+ * one when `arc >= ARC_GOLD_OFFSET - 0.5`. The same sum type `ARC_OUT_OFFSET` already is: one float,
+ * so the instance layout and every producer outside `reveal-tag.ts` are untouched.
+ */
+export const ARC_GOLD_OFFSET = 4
+
+/** `0080`. As `ARC_GOLD_OFFSET`, for RE-ARMED ground (D-120): the frost flush. `arc >= 5.5`. */
+export const ARC_FROST_OFFSET = 6
+
+/**
+ * `0080`. `u_bloom`'s clock when no bloom is running. Any negative clock is before every cell's
+ * start, so every bloom is exactly 0 and the GREEN and BLUE channels stay clear.
+ */
+export const BLOOM_OFF = -1
+
+/**
+ * `0080`. THE BLOOM, as the pass reads it. `clock` is in the same units as `revealProgress` — the
+ * fraction of the traversal — but is NOT clamped to 1, because a cell revealed at the end of the
+ * route keeps blooming after the lantern has landed. `goldSpan` and `frostSpan` are §3.2's 600 ms
+ * and 900 ms in those units; `fade` scales both, so a beat that must end can close them out.
+ */
+export interface BloomUniform {
+  clock: number
+  fade: number
+  goldSpan: number
+  frostSpan: number
+}
+
+export const NO_BLOOM: BloomUniform = { clock: BLOOM_OFF, fade: 0, goldSpan: 1, frostSpan: 1 }
+
+/**
  * THE RAMP, as a fraction of the whole route. `0079`: *"a short ramp so the edge softens in rather
  * than popping"*.
  *
@@ -151,7 +184,26 @@ export function revealWeight(arc: number, progress: number): number {
     return Math.min(1, Math.max(0, (progress - start) / REVEAL_RAMP))
   }
   if (arc < ARC_OUT_OFFSET - 0.5) return ramp(arc)
-  return ramp(arc - ARC_OUT_OFFSET) >= 1 ? 0 : 1
+  if (arc < ARC_GOLD_OFFSET - 0.5) return ramp(arc - ARC_OUT_OFFSET) >= 1 ? 0 : 1
+  if (arc < ARC_FROST_OFFSET - 0.5) return ramp(arc - ARC_GOLD_OFFSET)
+  return ramp(arc - ARC_FROST_OFFSET)
+}
+
+/**
+ * `0080`. THE SHADER'S BLOOM, IN JAVASCRIPT — `[gold, frost]` for one instance, before the disc
+ * falloff multiplies it. Rises over the same `REVEAL_RAMP` the fade-in does, so the bloom arrives
+ * WITH the clearing rather than ahead of it, then falls to 0 over its class's span.
+ */
+export function bloomWeight(arc: number, bloom: BloomUniform): [number, number] {
+  const env = (a: number, span: number) => {
+    const s = bloom.clock - a * (1 - REVEAL_RAMP)
+    const rise = Math.min(1, Math.max(0, s / REVEAL_RAMP))
+    const x = Math.min(1, Math.max(0, (s - REVEAL_RAMP) / span))
+    return rise * (1 - x * x * (3 - 2 * x)) * bloom.fade
+  }
+  if (arc < ARC_GOLD_OFFSET - 0.5) return [0, 0]
+  if (arc < ARC_FROST_OFFSET - 0.5) return [env(arc - ARC_GOLD_OFFSET, bloom.goldSpan), 0]
+  return [0, env(arc - ARC_FROST_OFFSET, bloom.frostSpan)]
 }
 
 /**
@@ -198,22 +250,39 @@ in float a_fraction;  // 0..1 coverage weight              (per-instance)
 in float a_arc;       // 0079: reveal position, ARC_ALWAYS outside a reveal (per-instance)
 
 uniform float u_reveal; // 0079: revealProgress, 0..1. Exactly 1.0 whenever no reveal is running.
+uniform vec4  u_bloom;  // 0080: (clock, fade, goldSpan, frostSpan). A negative clock is no bloom.
 
 out vec2  v_uv;
 out float v_fraction;
+out vec2  v_bloom;     // 0080: (gold, frost), before the disc falloff. 0 outside a reveal.
 // 0079. The reveal weight for a cell at route position arc. See REVEAL_RAMP for why both ends are exact.
 float revealed(float arc) {
     if (u_reveal >= 1.0) return 1.0;
     float start = arc * ${(1 - REVEAL_RAMP).toFixed(6)};
     return clamp((u_reveal - start) / ${REVEAL_RAMP.toFixed(6)}, 0.0, 1.0);
 }
+// 0080. See bloomWeight — the same envelope, which mask.test.ts holds to the same constants.
+float bloomed(float arc, float span) {
+    float s = u_bloom.x - arc * ${(1 - REVEAL_RAMP).toFixed(6)};
+    float rise = clamp(s / ${REVEAL_RAMP.toFixed(6)}, 0.0, 1.0);
+    return rise * (1.0 - smoothstep(0.0, span, s - ${REVEAL_RAMP.toFixed(6)})) * u_bloom.y;
+}
 
 void main() {
     float w = 1.0;
+    v_bloom = vec2(0.0);
     if (a_arc >= 0.0) {
-        w = a_arc < ${(ARC_OUT_OFFSET - 0.5).toFixed(1)}
-            ? revealed(a_arc)
-            : (revealed(a_arc - ${ARC_OUT_OFFSET.toFixed(1)}) >= 1.0 ? 0.0 : 1.0);
+        if (a_arc < ${(ARC_OUT_OFFSET - 0.5).toFixed(1)}) {
+            w = revealed(a_arc);
+        } else if (a_arc < ${(ARC_GOLD_OFFSET - 0.5).toFixed(1)}) {
+            w = revealed(a_arc - ${ARC_OUT_OFFSET.toFixed(1)}) >= 1.0 ? 0.0 : 1.0;
+        } else if (a_arc < ${(ARC_FROST_OFFSET - 0.5).toFixed(1)}) {
+            w = revealed(a_arc - ${ARC_GOLD_OFFSET.toFixed(1)});
+            v_bloom.x = bloomed(a_arc - ${ARC_GOLD_OFFSET.toFixed(1)}, u_bloom.z);
+        } else {
+            w = revealed(a_arc - ${ARC_FROST_OFFSET.toFixed(1)});
+            v_bloom.y = bloomed(a_arc - ${ARC_FROST_OFFSET.toFixed(1)}, u_bloom.w);
+        }
     }
     v_uv = a_quad;
     // Exactly a_fraction whenever w is 1.0, which is every instance outside a reveal.
@@ -256,13 +325,15 @@ precision mediump float;
 
 in  vec2  v_uv;
 in  float v_fraction;
+in  vec2  v_bloom;
 out vec4  fragColor;
 
 void main() {
     float d = length(v_uv);
     if (d > 1.0) discard;                        // square quad, round disc
     float c = (1.0 - smoothstep(${FALLOFF_INNER.toFixed(2)}, 1.0, d)) * v_fraction;
-    fragColor = vec4(c, 0.0, 0.0, 1.0);
+    // 0080: the bloom takes the disc's own falloff, so it is as soft-edged as the clearing it marks.
+    fragColor = vec4(c, c * v_bloom, 1.0);
 }`
 
 /** A full-screen triangle from `gl_VertexID` alone — no buffer, no attributes. */
@@ -423,6 +494,8 @@ export type MaskResources = {
    * is a uniform write on the next pass — never a buffer upload, never an FBO allocation.
    */
   revealProgress: number
+  /** `0080`. Beat 1's bloom, read as `u_bloom`. `NO_BLOOM` whenever none is running. */
+  bloom: BloomUniform
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -502,7 +575,12 @@ function buildMaskVAO(
 }
 
 /**
- * Allocate (or reallocate) the half-resolution `R8` mask: `LINEAR`, `CLAMP_TO_EDGE` (§4.2).
+ * Allocate (or reallocate) the half-resolution mask: `LINEAR`, `CLAMP_TO_EDGE` (§4.2).
+ *
+ * `RGBA8`, not `R8`, since `0080`: beat 1's gold and frost blooms ride in GREEN and BLUE so the
+ * composite can colour the ground as it clears without a second pass or a second FBO. RED is the
+ * coverage, written exactly as before. `RGBA8` is the one colour format GLES3 guarantees renderable
+ * AND readable, and at half resolution the four bytes cost ~2 MB on a 1080p canvas.
  *
  * `LINEAR` matters even though nothing in pass 1 samples the mask at a scale other than the one it
  * was written at: §4.2's reason is that the bilinear upsample in `0056`'s composite is a free extra
@@ -523,7 +601,7 @@ function allocateMask(
   if (!texture || !fbo) throw new Error("createTexture/createFramebuffer returned null")
 
   gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, null)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -582,6 +660,7 @@ export function createMaskResources(
     origin: [0, 0],
     foldOrigin: !options.define.includes("GLOBE"),
     revealProgress: 1,
+    bloom: NO_BLOOM,
   }
 }
 
@@ -731,6 +810,8 @@ export function runMaskPass(
   // `0079`. Every pass, because a program's uniforms persist but a rebuilt program's do not.
   const reveal = gl.getUniformLocation(res.maskProgram, "u_reveal")
   if (reveal) gl.uniform1f(reveal, res.revealProgress)
+  const bloom = gl.getUniformLocation(res.maskProgram, "u_bloom")
+  if (bloom) gl.uniform4f(bloom, res.bloom.clock, res.bloom.fade, res.bloom.goldSpan, res.bloom.frostSpan)
   gl.bindVertexArray(res.maskVAO)
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, res.instanceCount)
   gl.bindVertexArray(null)
@@ -777,7 +858,7 @@ export function runDebugBlit(gl: WebGL2RenderingContext, res: MaskResources): vo
 /* ─── Readback, for the harness ─────────────────────────────────────────────── */
 
 /**
- * `R8` readback with the fallback the spec does not require but some drivers want — carried over
+ * Coverage (RED) readback with the fallback the spec does not require but some drivers want — carried over
  * from `0118`, where the retry path was the difference between "MAX is broken" and "the readback
  * is". GLES3 guarantees `RGBA`/`UNSIGNED_BYTE` for any normalised fixed-point colour buffer, so
  * that is tried first and is what desktop and SwiftShader take.

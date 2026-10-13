@@ -1949,6 +1949,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-13T15:33:14Z",
     "path": "tickets/open/0080-beat-1-the-map.md",
     "ready": true,
     "acceptance": {
@@ -5823,6 +5824,28 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "id": 254,
+    "slug": "beat-1-mode-crossfade",
+    "title": "Beat 1 cross-fades from adventure to the saved map mode over 300 ms",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      80
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-13T15:53:19Z",
+    "path": "tickets/open/0254-beat-1-mode-crossfade.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
     }
   }
 ]
