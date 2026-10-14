@@ -4,7 +4,7 @@ slug: d238-elision-lowers-interior-vertices
 title: D-238's bridge elision lowers the steady mask at interior vertices where H3 cells run large
 type: bug
 priority: low
-status: open
+status: closed
 size: m
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-08T19:51:17Z
 started: 2026-10-14T19:29:18Z
+closed: 2026-10-14T19:35:04Z
 ---
 
 ## Description

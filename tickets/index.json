@@ -5811,7 +5811,7 @@
     "title": "D-238's bridge elision lowers the steady mask at interior vertices where H3 cells run large",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "08-map-and-fog-renderer",
     "depends_on": [],
@@ -5819,8 +5819,9 @@
     "source": "agent",
     "created": "2026-10-08T19:51:17Z",
     "started": "2026-10-14T19:29:18Z",
-    "path": "tickets/open/0252-d238-elision-lowers-interior-vertices.md",
-    "ready": true,
+    "closed": "2026-10-14T19:35:04Z",
+    "path": "tickets/closed/0252-d238-elision-lowers-interior-vertices.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
