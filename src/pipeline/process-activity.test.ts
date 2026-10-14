@@ -415,6 +415,7 @@ describe("cells are written BEFORE the transaction (I-10, D-144)", () => {
       backfilled: 0,
       unchanged: 0,
       contested: 0,
+      overtaken: 0,
     })
     expect(result.cells!.advanced).toBeGreaterThan(0)
     expect(result.timings.cellsMs).toBeGreaterThanOrEqual(0)

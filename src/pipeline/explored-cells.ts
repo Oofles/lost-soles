@@ -356,6 +356,10 @@ export function cellUpdate(
  * from scratch (§2.9, ticket `0103`). The cheap alternative — an unconditional `ADD` —
  * would trade a cosmetic undercount for a double-count on every redelivery, which is the
  * failure this whole file is shaped to avoid.
+ *
+ * Under concurrent ingest the hole is routine rather than rare: a run reads a cell `cooled`
+ * and a later run moves `lastRunAt` past it before its write lands. `writeCells` re-judges
+ * such a cell to `deferred` (`0229`), so the replay is marked and the visit is not lost.
  */
 export function firstRunBackfill(
   cell: H3Index,
@@ -391,6 +395,12 @@ export interface CellWriteResult {
    * Zero outside a concurrent backfill or replay; anything else in the log is worth a look.
    */
   contested: number
+  /**
+   * Non-crediting cells whose writes both failed because a LATER activity moved `lastRunAt`
+   * between this run's read and its write (`0229`). Re-read and re-judged, normally to
+   * `deferred`, so §3.4's replay recounts the visit. Zero outside concurrent ingest.
+   */
+  overtaken: number
 }
 
 /**
@@ -479,7 +489,13 @@ export async function writeCells(
   const maxRetries = deps.maxRetries ?? 3
   const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
-  const written: CellWriteResult = { advanced: 0, backfilled: 0, unchanged: 0, contested: 0 }
+  const written: CellWriteResult = {
+    advanced: 0,
+    backfilled: 0,
+    unchanged: 0,
+    contested: 0,
+    overtaken: 0,
+  }
   const settled: ClassifiedCell[] = []
 
   async function send(input: UpdateCommandInput): Promise<"applied" | "condition-failed"> {
@@ -498,33 +514,51 @@ export async function writeCells(
     }
   }
 
-  /** @returns `false` when a claim was lost and the cell must be re-judged. */
-  async function one(c: ClassifiedCell): Promise<boolean> {
+  /**
+   * @returns `"contested"` when a claim was lost, `"overtaken"` when a non-deferred cell's
+   * writes both failed under it (`0229`). Either way the cell is re-read and re-judged.
+   */
+  async function one(c: ClassifiedCell): Promise<"settled" | "contested" | "overtaken"> {
     if (awardsDiscovery(c.discovery)) {
       // A `rearmed` verdict with no record has nothing to compare-and-set against, so it is
       // treated as lost and re-read rather than trusted. Production never builds one.
-      if (c.discovery === "rearmed" && c.record === undefined) return false
+      if (c.discovery === "rearmed" && c.record === undefined) return "contested"
       const claim = { seen: c.discovery === "rearmed" ? c.record!.lastRunAt : undefined }
       if ((await send(cellUpdate(c.cell, activity, 1, table, claim))) === "condition-failed") {
-        return false
+        return "contested"
       }
       written.advanced++
       settled.push(c)
-      return true
+      return "settled"
     }
 
     // The credit is decided by the CLASSIFIER and merely carried here; on this path it is 0.
-    settled.push(c)
     if ((await send(cellUpdate(c.cell, activity, 0, table))) === "applied") {
       written.advanced++
-      return true
+      settled.push(c)
+      return "settled"
     }
     if ((await send(firstRunBackfill(c.cell, activity, 0, table))) === "applied") {
       written.backfilled++
-      return true
+      settled.push(c)
+      return "settled"
+    }
+    /**
+     * BOTH FAILED. For a `deferred` verdict that is the documented middle arrival, and §3.4's
+     * replay is already marked. For a `cooled` one it is only honest if the cell read was THIS
+     * activity's own earlier write (a redelivery: `lastRunAt` equal, both conditions false at
+     * equality). Anything else means a later activity moved `lastRunAt` past this one between
+     * the read and the write (`0229`), so the `cooled` verdict is stale and this visit would
+     * land nowhere with no replay to recount it. Re-judging it makes it `deferred`, which marks
+     * the replay, and the fold's `max` merge restores the visit. Credit is unaffected: cooled
+     * and deferred both award zero and both read as `"recent"` ground.
+     */
+    if (c.discovery !== "deferred" && c.record?.lastRunAt !== activity.startedAt) {
+      return "overtaken"
     }
     written.unchanged++
-    return true
+    settled.push(c)
+    return "settled"
   }
 
   let queue = [...classified]
@@ -537,6 +571,7 @@ export async function writeCells(
     }
 
     const lost: ClassifiedCell[] = []
+    let overtaken = 0
     const pending = [...queue]
     /**
      * A fixed pool of workers pulling from one queue, rather than chunking into slices of
@@ -546,13 +581,17 @@ export async function writeCells(
      */
     const workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
       for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-        if (!(await one(next))) lost.push(next)
+        const outcome = await one(next)
+        if (outcome === "settled") continue
+        lost.push(next)
+        if (outcome === "overtaken") overtaken++
       }
     })
     await Promise.all(workers)
 
     if (lost.length === 0) break
-    written.contested += lost.length
+    written.contested += lost.length - overtaken
+    written.overtaken += overtaken
     const cells = lost.map((c) => c.cell)
     queue = classifyCells(cells, await readCells(cells, activity.userId, deps), activity.startedAt)
   }

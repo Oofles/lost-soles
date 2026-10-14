@@ -832,7 +832,7 @@ async function projectCells<TCreds>(
     // A trace with points but nothing that survived §2.2 is no-GPS (§3.6). Distinguished
     // from "no trace" only in the log; both award nothing and write nothing.
     return {
-      cells: { advanced: 0, backfilled: 0, unchanged: 0, contested: 0 },
+      cells: { advanced: 0, backfilled: 0, unchanged: 0, contested: 0, overtaken: 0 },
       award: NO_CELLS,
       touched: null,
       // The case §3.6's last bullet is about: points went in, nothing came out. The counts

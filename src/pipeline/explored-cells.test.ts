@@ -2,7 +2,14 @@ import { BatchGetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { cellToParent, gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
-import { classifyCells, type ClassifiedCell, type Discovery } from "@/src/domain/discovery"
+import {
+  awardOf,
+  classifyCells,
+  needsReplay,
+  type ClassifiedCell,
+  type Discovery,
+} from "@/src/domain/discovery"
+import { foldActivities } from "@/src/domain/fold"
 import { RES, RES_PARENT } from "@/src/domain/fog"
 
 import {
@@ -16,6 +23,7 @@ import {
   writeCells,
   type CellWriteActivity,
 } from "./explored-cells"
+import { mergeFolded } from "./explored-merge"
 import { assertNoCellWrites } from "./persist"
 
 /**
@@ -306,7 +314,7 @@ describe("writeCells — a first run", () => {
     const t = fakeTable()
     const result = await write([NEMO_CELL], RUN_2026, t)
 
-    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 0, contested: 0 })
+    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 0, contested: 0, overtaken: 0 })
     expect(t.at(NEMO_CELL)).toEqual({
       firstRunAt: RUN_2026.startedAt,
       firstRunId: "a-2026",
@@ -333,7 +341,7 @@ describe("writeCells — out-of-order arrival (I-8, criterion 4)", () => {
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL], RUN_2024, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 1, unchanged: 0, contested: 1 })
+    expect(result).toEqual({ advanced: 0, backfilled: 1, unchanged: 0, contested: 1, overtaken: 0 })
     const item = t.at(NEMO_CELL)
     expect(item.firstRunAt).toBe(RUN_2024.startedAt)
     expect(item.lastRunAt).toBe(RUN_2026.startedAt)
@@ -379,7 +387,7 @@ describe("writeCells — out-of-order arrival (I-8, criterion 4)", () => {
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL], RUN_2025, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 1, contested: 1 })
+    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 1, contested: 1, overtaken: 0 })
     expect(t.at(NEMO_CELL).firstRunAt).toBe(RUN_2024.startedAt)
     expect(t.at(NEMO_CELL).lastRunAt).toBe(RUN_2026.startedAt)
     expect(t.at(NEMO_CELL).visitCount).toBe(2)
@@ -410,7 +418,7 @@ describe("writeCells — idempotency (criterion 9)", () => {
 
     const result = await write([NEMO_CELL, NEMO_CELL_2], RUN_2026, t)
 
-    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 2, contested: 2 })
+    expect(result).toEqual({ advanced: 0, backfilled: 0, unchanged: 2, contested: 2, overtaken: 0 })
     expect(t.store).toEqual(before)
   })
 
@@ -428,7 +436,7 @@ describe("writeCells — idempotency (criterion 9)", () => {
     const t = fakeTable()
     await write([NEMO_CELL], RUN_2026, t)
     const result = await write([NEMO_CELL, NEMO_CELL_2], RUN_2026, t)
-    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 1, contested: 1 })
+    expect(result).toEqual({ advanced: 1, backfilled: 0, unchanged: 1, contested: 1, overtaken: 0 })
   })
 })
 
@@ -508,6 +516,7 @@ describe("writeCells — throughput and failure", () => {
       backfilled: 0,
       unchanged: 0,
       contested: 0,
+      overtaken: 0,
     })
     expect(t.sent).toHaveLength(0)
   })
@@ -957,6 +966,66 @@ describe("writeCells — concurrent claims (0228, D-268)", () => {
 
     expect(settled[0]!.discovery).toBe("rearmed")
     expect(t.at(NEMO_CELL).discoveryCount).toBe(2)
+  })
+
+  /**
+   * Ticket `0229`. A third, EARLIER run R0 owns the ground, so A and B both read it `cooled`.
+   * B (later) lands first and moves `lastRunAt` past A; A's `cooled` writes then satisfy
+   * neither condition. Before `0229` A settled `unchanged` with no replay, and its visit was
+   * gone for good — `0228`'s smoke test measured 164 visits against 340.
+   */
+  describe("an overtaken cooled write (0229)", () => {
+    const R0 = { userId: "u-1", activityId: "a-first", startedAt: "2026-09-01T03:00:00.000Z" }
+
+    async function overtake() {
+      const t = fakeTable()
+      await land(await ingest(shared, R0, t), R0, t)
+      const a = await ingest(shared, A, t)
+      const b = await ingest(shared, B, t)
+      expect(count(a, "cooled")).toBe(shared.length)
+      await land(b, B, t)
+      const outcome = await writeCells(a, A, deps(t))
+      return { t, outcome }
+    }
+
+    it("is re-judged deferred, so the activity marks §3.4's replay", async () => {
+      const { outcome } = await overtake()
+      expect(outcome.written).toEqual({
+        advanced: 0,
+        backfilled: 0,
+        unchanged: shared.length,
+        contested: 0,
+        overtaken: shared.length,
+      })
+      expect(count(outcome.classified, "deferred")).toBe(shared.length)
+      expect(needsReplay(awardOf(outcome.classified))).toBe(true)
+    })
+
+    it("and the replay's fold, merged by max, counts the visit exactly once", async () => {
+      const { t } = await overtake()
+      // The table is short A's visit until the replay runs — that is what the marker is for.
+      for (const cell of shared) expect(t.at(cell).visitCount).toBe(2)
+
+      const folded = foldActivities([R0, A, B].map((r) => ({ ...r, cells: shared })))
+      for (const cell of shared) {
+        const merged = mergeFolded(t.at(cell), folded.cells.get(cell)!)
+        expect(merged?.visitCount).toBe(3)
+        expect(merged?.discoveryCount).toBe(1)
+      }
+    })
+
+    it("a redelivery of the latest run is NOT overtaken: no re-read, no replay", async () => {
+      const t = fakeTable()
+      await land(await ingest(shared, R0, t), R0, t)
+      await land(await ingest(shared, B, t), B, t)
+      const before = structuredClone(t.store)
+
+      const outcome = await writeCells(await ingest(shared, B, t), B, deps(t))
+
+      expect(outcome.written.overtaken).toBe(0)
+      expect(needsReplay(awardOf(outcome.classified))).toBe(false)
+      expect(t.store).toEqual(before)
+    })
   })
 
   it("refuses rather than guesses when a cell stays contested past the budget", async () => {
