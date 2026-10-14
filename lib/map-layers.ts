@@ -13,6 +13,10 @@ import type { RunFeatureCollection } from "@/lib/runs/wire"
  *   2. **The route sits above the fog.** Your own trace is always visible, including over ground
  *      whose cells have not been written: a run that is still syncing must still draw its line.
  *
+ * And one ticket `0260` adds: **recorded landmarks sit between the fog and the route.** Above the
+ * fog because a cairn is *"visible forever"* (`04` §4.3) and is a placed object, never ground the
+ * mist may cover; below the route because the route stays the topmost thing on the map.
+ *
  * ─── WHY THIS IS A MODULE AND NOT TWO `addLayer` CALLS IN AN EFFECT ─────────
  *
  * Order here is decided by CALL ORDER, and the two things being ordered are added from two
@@ -29,6 +33,9 @@ export const FOG_LAYER_ID = "fog-mask"
 export const RUN_SOURCE_ID = "runs"
 export const RUN_GLOW_ID = "run-glow"
 export const RUN_CORE_ID = "run-core"
+
+/** `0260`. The recorded landmarks' symbol layer (`lib/landmarks/markers.ts`). Above fog, below route. */
+export const LANDMARK_LAYER_ID = "landmarks"
 
 /** Bottom to top. The route's own two layers, in the order they must be added. */
 export const RUN_LAYER_IDS = [RUN_GLOW_ID, RUN_CORE_ID] as const
@@ -163,6 +170,13 @@ export interface LayerHost {
  * supposed to be drawn on top of, intermittently, which is the worst kind of ordering bug.
  */
 export function fogBeforeId(host: Pick<LayerHost, "getLayer">): string | undefined {
+  // `0260`: the landmarks sit under the route, so when they exist they are the lower insertion point.
+  if (host.getLayer(LANDMARK_LAYER_ID)) return LANDMARK_LAYER_ID
+  return host.getLayer(RUN_GLOW_ID) ? RUN_GLOW_ID : undefined
+}
+
+/** `0260`. Where the landmarks go in: under the route when it is there, otherwise on top. */
+export function landmarkBeforeId(host: Pick<LayerHost, "getLayer">): string | undefined {
   return host.getLayer(RUN_GLOW_ID) ? RUN_GLOW_ID : undefined
 }
 
@@ -215,4 +229,14 @@ export function routeIsAboveFog(layers: ReadonlyArray<{ id: string }>): boolean 
   const core = index(RUN_CORE_ID)
   if (fog === -1 || glow === -1 || core === -1) return false
   return glow > fog && core > glow
+}
+
+/** `0260`, as a predicate: the landmarks are above the fog and, when the route is drawn, below it. */
+export function landmarksBetweenFogAndRoute(layers: ReadonlyArray<{ id: string }>): boolean {
+  const index = (id: string) => layers.findIndex((l) => l.id === id)
+  const fog = index(FOG_LAYER_ID)
+  const mark = index(LANDMARK_LAYER_ID)
+  const glow = index(RUN_GLOW_ID)
+  if (fog === -1 || mark === -1) return false
+  return mark > fog && (glow === -1 || mark < glow)
 }

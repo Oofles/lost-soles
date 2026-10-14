@@ -141,3 +141,24 @@ export async function fetchLandmarks(uid: string, skillId: string): Promise<Land
   if (errors?.length) throw errorFrom(errors)
   return data.map((r) => ({ level: r.level, place: r.place, lng: r.lng ?? null, lat: r.lat ?? null }))
 }
+
+/**
+ * EVERY `Landmark` the user has, for the home map (`0260`). Two per skill at most, so this is a
+ * handful of rows; paged anyway, because a list that silently stops at one page is a cairn that
+ * silently is not there.
+ */
+export async function fetchAllLandmarks(uid: string): Promise<LandmarkRow[]> {
+  const c = await dataClient()
+  const out: LandmarkRow[] = []
+  let nextToken: string | null | undefined
+  do {
+    const { data, errors, nextToken: more } = await timed(
+      c.models.Landmark.list({ userId: uid, nextToken, selectionSet: ["level", "place", "lng", "lat"] }),
+      "Landmark.list",
+    )
+    if (errors?.length) throw errorFrom(errors)
+    for (const r of data) out.push({ level: r.level, place: r.place, lng: r.lng ?? null, lat: r.lat ?? null })
+    nextToken = more
+  } while (nextToken)
+  return out
+}

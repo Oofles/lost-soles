@@ -1107,6 +1107,11 @@ map.on('style.load', () => {
 });
 ```
 
+**Recorded landmarks sit between the two** (ticket `0260`): above the fog, below the route. A cairn
+or shrine (`04` §4.3) is a placed object, *"visible forever"*, so no mist may cover it, and that also
+makes it the same in both modes. The route stays topmost. So the fog goes in under the landmark
+layer when it exists, and under `run-glow` otherwise (`lib/map-layers.ts` `fogBeforeId`).
+
 Route colour must survive both backgrounds: warm cream core `#fff2d0` with an amber glow reads on
 parchment *and* against dark fog. Pure white blows out on parchment; pure red vanishes into it.
 

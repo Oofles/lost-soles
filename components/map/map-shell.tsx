@@ -23,6 +23,7 @@ import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
 import { RevealScrub } from "./reveal-scrub"
 import { useFogMask } from "./use-fog-mask"
+import { useLandmarks } from "./use-landmarks"
 import { useLatestRun } from "./use-latest-run"
 import { useTraceWeb } from "./use-trace-web"
 
@@ -408,6 +409,12 @@ export function MapShell({
 
   /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
   useTraceWeb(loaded)
+
+  /**
+   * Ticket `0260`. Every recorded cairn and shrine, above the fog and under the route. Home only: a
+   * run's page is about that run, and its sequence drives the map imperatively.
+   */
+  useLandmarks(framed ? null : loaded)
 
   /**
    * Ticket `0186`. THE MOST RECENT RUN'S CENTRE, ON A FIRST-EVER LOAD ONLY.

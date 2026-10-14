@@ -115,6 +115,14 @@
      blocks for the route's reason: it sits on the map, and the dark theme does not darken it. */
   --trace-line: var(--ink-300);
 
+  /* Recorded landmarks on the map (ticket 0260): a cairn at level 50, a shrine at 99. Pale stone
+     and gold leaf, each inked round, because the marker sits on pale parchment AND on dark fog in
+     the same frame — the ink edge carries it on parchment, the fill carries it in fog. Absent from
+     the dark blocks for the route's reason. */
+  --landmark-stone: var(--parch-200);
+  --landmark-shrine: var(--gold-500);
+  --landmark-ink: var(--ink-900);
+
   /* Type — 06-ui-ux.md §8.4. Two families, both self-hosted (ticket 0255): app/layout.tsx loads
      the files from app/fonts/ through next/font/local, which sets --font-spectral and --font-inter
      on <html>. Nothing is fetched from a font CDN (§4.8). The fallbacks only show if the variable
