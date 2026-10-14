@@ -376,6 +376,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
         skillStateTable: required("SKILL_STATE_TABLE"),
         /** `0219`. T1, for the `Update Profile` totals in the same transaction. */
         profileTable: required("PROFILE_TABLE"),
+        /** `0248`. Landmarks, in the same transaction (D-301). */
+        landmarkTable: required("LANDMARK_TABLE"),
       },
       onPhase: (entered) => {
         phase = entered

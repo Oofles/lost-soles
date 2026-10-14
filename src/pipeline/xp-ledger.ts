@@ -8,7 +8,9 @@ import { sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring/ledger"
 import { ledgerAward } from "@/src/scoring/propagate"
 import { levelForXp } from "@/src/scoring/levels"
 
+import { landmarksCrossed, landmarkUpdateItem } from "./landmarks"
 import { amplifyMetadata, persistActivity, readStoredAward, type PersistDeps } from "./persist"
+import type { RouteTraceGeometry } from "./route-trace-store"
 
 /**
  * THE LEDGER'S WRITE PATH. Ticket 0062. `02-data-model.md` §4.3, T2, T4; I-15, D-142.
@@ -45,6 +47,8 @@ export interface LedgerDeps {
   skillStateTable: string
   /** T1's physical name. `0219`: the `Update Profile` line of §4.3's transaction. */
   profileTable: string
+  /** `Landmark`'s physical name. `0248`: a crossed 50 or 99 joins the same transaction (D-301). */
+  landmarkTable: string
 }
 
 export const LEDGER_TYPENAME = "XpLedgerEntry"
@@ -359,8 +363,9 @@ function introducedInOf(map: ReadonlyMap<string, number>, skillId: string): numb
 }
 
 /**
- * Every item this activity's XP adds to the transaction: the rows, one ADD per skill, then the
- * Profile totals.
+ * Every item this activity's XP adds to the transaction: the rows, one ADD per skill, the
+ * landmarks it crossed (`0248`, already built — they need the route), then the Profile totals.
+ * The totals stay LAST: `isReplayRefusal` finds them by that index.
  */
 export function ledgerTransactItems(
   entries: readonly XpLedgerEntry[],
@@ -370,6 +375,7 @@ export function ledgerTransactItems(
   skills: readonly Pick<RuleSkill, "id" | "introducedIn" | "enabled">[],
   curve: RuleCurve,
   deps: Pick<LedgerDeps, "ledgerTable" | "skillStateTable" | "profileTable">,
+  landmarks: TransactItems = [],
 ): TransactItems {
   const introducedIn = new Map(skills.map((s) => [s.id, s.introducedIn]))
   const added = xpBySkill(entries)
@@ -394,7 +400,7 @@ export function ledgerTransactItems(
     { userId: activity.userId, states, xpBySkill: added, skills, curve, ingestedAt: activity.ingestedAt, rulesVersion },
     deps.profileTable,
   )
-  return [...puts, ...adds, profile]
+  return [...puts, ...adds, ...landmarks, profile]
 }
 
 /**
@@ -479,10 +485,12 @@ export async function persistWithLedger(
     curve: RuleCurve
     award: DiscoveryAward
     rejects: TraceRejects | undefined
+    /** `0248`. The stored route (`0195`), where a crossed 50 or 99 is placed. `null`: no route. */
+    route: RouteTraceGeometry | null
   },
   deps: { persist: PersistDeps; ledger: LedgerDeps },
 ): Promise<LedgerCommit> {
-  const { activity, ingestKey, entries, rulesVersion, skills, curve, award, rejects } = args
+  const { activity, ingestKey, entries, rulesVersion, skills, curve, award, rejects, route } = args
   const FIRST_XP_ITEM = 2
 
   for (let attempt = 1; ; attempt += 1) {
@@ -516,17 +524,32 @@ export async function persistWithLedger(
           awardKept: stored !== null,
         }
 
+    const states = alreadyScored || entries.length === 0 ? null : await readSkillStates(activity.userId, deps.ledger)
     const items =
-      alreadyScored || entries.length === 0
+      states === null
         ? []
         : ledgerTransactItems(
             entries,
-            await readSkillStates(activity.userId, deps.ledger),
+            states,
             activity,
             rulesVersion,
             skills,
             curve,
             deps.ledger,
+            /**
+             * `0248`. Judged on the SAME pre-read the level SETs are, so a landmark is placed on
+             * exactly the commit that moves `level` past it — and a lost race re-reads and re-judges.
+             */
+            (
+              await landmarksCrossed({
+                userId: activity.userId,
+                activity,
+                before: new Map([...states].map(([id, row]) => [id, row.displayedXp])),
+                gained: xpBySkill(entries),
+                curve,
+                route,
+              })
+            ).map((l) => landmarkUpdateItem(l, activity.ingestedAt, deps.ledger.landmarkTable)),
           )
 
     try {

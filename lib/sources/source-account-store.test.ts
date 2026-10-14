@@ -255,9 +255,13 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
      * id and a kind in; it reads the archive and re-scores one activity under the caller's own
      * `sub`. No credential, no source call. Pinned by `amplify/set-activity-kind-mutation.test.ts`.
      *
+     * `Landmark` was added by ticket 0248: where a skill's level 50 or 99 was earned — a skill id,
+     * a level, an activity id and a coordinate. `allow.owner().to(['read'])`, mutations and
+     * subscriptions disabled; the pipeline is its only writer. No credential material of any kind.
+     *
      * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
      */
-    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "logWorkout", "setActivityKind", "DeploySmokeTest"])
+    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "Landmark", "logWorkout", "setActivityKind", "DeploySmokeTest"])
   })
 })
 

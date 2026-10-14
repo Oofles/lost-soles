@@ -5728,6 +5728,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-07T20:57:39Z",
+    "started": "2026-10-14T14:15:13Z",
     "path": "tickets/open/0248-record-place-bound-milestones-landmarks-where-they-were-earn.md",
     "ready": true,
     "acceptance": {
@@ -5968,6 +5969,28 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 260,
+    "slug": "draw-recorded-landmarks-on-the-map",
+    "title": "Draw recorded landmarks and shrines on the map",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      248
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-14T14:26:28Z",
+    "path": "tickets/open/0260-draw-recorded-landmarks-on-the-map.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
     }
   }
 ]

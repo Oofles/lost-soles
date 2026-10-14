@@ -18,10 +18,11 @@ import {
   skillStateUpdateItem,
   type LedgerDeps,
 } from "@/src/pipeline/xp-ledger"
+import type { RouteTraceGeometry } from "@/src/pipeline/route-trace-store"
 import { rulesForUser } from "@/src/pipeline/worker-rules"
 import { dynamoReplayStore, type ReplayStoreDeps } from "@/src/pipeline/xp-replay-store"
 import { loadRuleSet } from "@/src/rules/load"
-import { cumulativeXp, discoveryRows, ledgerEntries, levelForXp, scoreGround, scoreUnits, type UnratedRow } from "@/src/scoring"
+import { cumulativeXp, discoveryRows, ledgerEntries, levelForXp, scoreGround, scoreUnits, stepCoefficient, type UnratedRow } from "@/src/scoring"
 
 /**
  * Ticket 0062. `02-data-model.md` §4.3, I-15.
@@ -39,7 +40,7 @@ const ACTIVITY_TABLE = "Activity-t"
 const LEDGER_TABLE = "XpLedgerEntry-t"
 const STATE_TABLE = "SkillState-t"
 const PROFILE_TABLE = "Profile-t"
-const TABLES = { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE, profileTable: PROFILE_TABLE }
+const TABLES = { ledgerTable: LEDGER_TABLE, skillStateTable: STATE_TABLE, profileTable: PROFILE_TABLE, landmarkTable: "Landmark-test" }
 
 type Item = Record<string, unknown>
 type TransactItem = NonNullable<TransactWriteCommand["input"]["TransactItems"]>[number]
@@ -50,6 +51,7 @@ const KEY_OF: Record<string, (i: Item) => string> = {
   [STATE_TABLE]: (i) => `${i.userId}#${i.skillId}`,
   [PROFILE_TABLE]: (i) => String(i.id),
   [INGEST_RECEIPT_TABLE]: (i) => String(i.ingestKey),
+  [TABLES.landmarkTable]: (i) => `${i.userId}#${i.skillLevel}`,
 }
 
 /** Split on top-level commas, leaving `if_not_exists(a, :b)` whole. */
@@ -251,7 +253,7 @@ const RUN_ROWS: UnratedRow[] = [
 
 const commit = (a: Activity, rows: UnratedRow[], deps: ReturnType<typeof world>["deps"], ingestKey = "k-1") =>
   persistWithLedger(
-    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: NO_CELLS, rejects: undefined },
+    { activity: a, ingestKey, entries: entriesFor(a, rows), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: NO_CELLS, rejects: undefined, route: null },
     deps,
   )
 
@@ -506,7 +508,7 @@ describe("persistWithLedger — the commit", () => {
       persistWithLedger(
         {
           activity: a, ingestKey: "k-1", entries: ledgerEntries(RUN_ROWS, { activity: a, rules, awardedAt: a.ingestedAt }),
-          rulesVersion: rules.version, skills: rules.skills, curve: rules.curve, award: NO_CELLS, rejects: undefined,
+          rulesVersion: rules.version, skills: rules.skills, curve: rules.curve, award: NO_CELLS, rejects: undefined, route: null,
         },
         deps,
       )
@@ -586,7 +588,7 @@ describe("persistWithLedger — the commit", () => {
     const cooled = { ...NO_CELLS, cellCount: 40, cooledCellCount: 40 }
     const run = (award: typeof NO_CELLS, key: string) =>
       persistWithLedger(
-        { activity: activity(), ingestKey: key, entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award, rejects: undefined },
+        { activity: activity(), ingestKey: key, entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award, rejects: undefined, route: null },
         deps,
       )
     claim("k-1")
@@ -620,7 +622,7 @@ describe("persistWithLedger — the commit", () => {
     claim("k-2")
     const fresh = { ...NO_CELLS, cellCount: 179, newCellCount: 2, deferredCellCount: 177 }
     const again = await persistWithLedger(
-      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: fresh, rejects: undefined },
+      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: fresh, rejects: undefined, route: null },
       deps,
     )
 
@@ -647,7 +649,7 @@ describe("persistWithLedger — the commit", () => {
     // `0220`'s reingest: the run's own cells are on the map, so every one comes back cooled.
     const cooled = { ...NO_CELLS, cellCount: 50, cooledCellCount: 50 }
     await persistWithLedger(
-      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), credited), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: cooled, rejects: undefined },
+      { activity: activity(), ingestKey: "k-2", entries: entriesFor(activity(), credited), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: cooled, rejects: undefined, route: null },
       deps,
     )
 
@@ -804,6 +806,105 @@ describe("persistWithLedger — the commit", () => {
     const result = await commit(activity({ distanceM: 0 }), [], deps)
     expect(result).toEqual({ xpAwarded: 0, rowsWritten: 0, alreadyScored: false, xpRulesVersion: null, awardKept: false })
     expect(t.table(ACTIVITY_TABLE).get("a-1")).toMatchObject({ xpAwarded: 0, xpRulesVersion: null })
+  })
+})
+
+describe("landmarks (0248, D-301) — written in the crossing commit, once", () => {
+  /** Synthetic: a 0.01° line along the equator. Never a real coordinate (`08` §7.2). */
+  const ROUTE: RouteTraceGeometry = { type: "MultiLineString", coordinates: [[[0, 0], [0.01, 0]]] }
+  const K = stepCoefficient(RULES.curve)
+  /** RUN_ROWS earn wayfaring 400. Seeded 100 short of 50, so the threshold sits at a quarter of the run. */
+  const seed = (t: Tables, xp = cumulativeXp(50, K) - 100) =>
+    t.table(STATE_TABLE).set("u-1#wayfaring", {
+      userId: "u-1", skillId: "wayfaring", xpLedgerSum: xp, displayedXp: xp, rulesVersionLastComputed: 1,
+    })
+  const commitOn = (a: Activity, deps: ReturnType<typeof world>["deps"], route: RouteTraceGeometry | null, key = "k-1") =>
+    persistWithLedger(
+      { activity: a, ingestKey: key, entries: entriesFor(a, RUN_ROWS), rulesVersion: 1, skills: RULES.skills, curve: RULES.curve, award: NO_CELLS, rejects: undefined, route },
+      deps,
+    )
+  const landmarks = (t: Tables) => [...t.table(TABLES.landmarkTable).values()]
+
+  it("crossing 50 writes one owner-scoped Landmark, in the same transaction, where the threshold fell on the route", async () => {
+    const { t, deps, claim } = world()
+    seed(t)
+    claim("k-1")
+    await commitOn(activity(), deps, ROUTE)
+    expect(t.transacts).toBe(1)
+    expect(landmarks(t)).toHaveLength(1)
+    const [l] = landmarks(t)
+    expect(l).toMatchObject({
+      __typename: "Landmark",
+      owner: "u-1::u-1",
+      userId: "u-1",
+      skillLevel: "wayfaring#50",
+      skillId: "wayfaring",
+      level: 50,
+      place: "landmark",
+      activityId: "a-1",
+      earnedAt: "2026-09-06T03:00:00.000Z", // startedAt, never the clock (I-12)
+      lat: 0,
+    })
+    expect(l!.lng as number).toBeCloseTo(0.0025, 9) // a quarter of the way along
+  })
+
+  it("no route: the milestone is still recorded, with no location", async () => {
+    const { t, deps, claim } = world()
+    seed(t)
+    claim("k-1")
+    await commitOn(activity({ hasTrace: false }), deps, null)
+    expect(landmarks(t)).toEqual([expect.objectContaining({ level: 50, lng: null, lat: null })])
+  })
+
+  it("an activity that does not cross a place-bound level writes none", async () => {
+    const { t, deps, claim } = world()
+    seed(t, cumulativeXp(50, K) + 1)
+    claim("k-1")
+    await commitOn(activity(), deps, ROUTE)
+    expect(landmarks(t)).toEqual([])
+  })
+
+  it("a redelivery of the crossing activity does not duplicate or move it", async () => {
+    const { t, deps, claim } = world()
+    seed(t)
+    claim("k-1")
+    await commitOn(activity(), deps, ROUTE)
+    const first = JSON.stringify(landmarks(t))
+    t.table(INGEST_RECEIPT_TABLE).set("k-1", { ingestKey: "k-1", status: "PROCESSING" })
+    await commitOn(activity(), deps, { type: "MultiLineString", coordinates: [[[1, 1], [2, 2]]] })
+    expect(JSON.stringify(landmarks(t))).toBe(first)
+  })
+
+  it("first write wins: a later crossing of the same level (a replay moved it) changes nothing", async () => {
+    const { t, deps, claim } = world()
+    seed(t)
+    claim("k-1")
+    await commitOn(activity(), deps, ROUTE)
+    const first = JSON.stringify(landmarks(t))
+    // The replay lowered displayed XP below 50 again; another run re-crosses it somewhere else.
+    seed(t)
+    claim("k-2")
+    await commitOn(activity({ activityId: "a-2", startedAt: "2026-09-09T03:00:00.000Z" }), deps, { type: "MultiLineString", coordinates: [[[1, 1], [2, 2]]] }, "k-2")
+    expect(JSON.stringify(landmarks(t))).toBe(first)
+  })
+
+  it("the item is if_not_exists on every attribute and carries no condition — it can never cancel the XP", async () => {
+    const { t, deps, claim } = world()
+    seed(t)
+    claim("k-1")
+    const sent: TransactItem[][] = []
+    const send = t.ddb.send
+    t.ddb.send = async (c) => {
+      if (c instanceof TransactWriteCommand) sent.push(c.input.TransactItems!)
+      return send(c)
+    }
+    await commitOn(activity(), deps, ROUTE)
+    const items = sent[0]!
+    const landmark = items.find((i) => i.Update?.TableName === TABLES.landmarkTable)!.Update!
+    expect(landmark.ConditionExpression).toBeUndefined()
+    for (const c of clauses(landmark.UpdateExpression!.replace(/^SET /, ""))) expect(c).toMatch(/^#f\d+ = if_not_exists\(#f\d+, :v\d+\)$/)
+    // The Profile totals stay last: `isReplayRefusal` finds them by that index.
+    expect(items[items.length - 1]!.Update?.TableName).toBe(PROFILE_TABLE)
   })
 })
 

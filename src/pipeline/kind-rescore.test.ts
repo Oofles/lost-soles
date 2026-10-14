@@ -10,7 +10,7 @@ import { planRescore, rescoreKind, type KindRescoreDeps } from "@/src/pipeline/k
 import { activityItem } from "@/src/pipeline/persist"
 import { ReplayInProgressError } from "@/src/pipeline/xp-ledger"
 import { loadRuleSet } from "@/src/rules/load"
-import { scoreActivity, xpBySkill, type XpLedgerEntry } from "@/src/scoring"
+import { cumulativeXp, scoreActivity, stepCoefficient, xpBySkill, type XpLedgerEntry } from "@/src/scoring"
 
 /**
  * Ticket `0243`, D-284, D-285. The re-score entry point, against an in-memory T1–T4 that APPLIES
@@ -103,7 +103,7 @@ function world(kind: Activity["kind"], opts: { replayInProgress?: boolean } = {}
   const deps: KindRescoreDeps = {
     ddb,
     activityTable: T3,
-    ledger: { ledgerTable: T4, skillStateTable: T2, profileTable: T1 },
+    ledger: { ledgerTable: T4, skillStateTable: T2, profileTable: T1, landmarkTable: "Landmark-test" },
     overrides: {
       bucket: "b",
       s3: { send: async (c: PutObjectCommand) => void overridePuts.push(c.input) } as never,
@@ -324,5 +324,29 @@ describe("planRescore", () => {
     const old = scoreActivity(activity("walk"), V2, null, NO_CELLS, "t")
     const fresh = scoreActivity(activity("run"), V2, null, NO_CELLS, "t")
     expect(planRescore({ old, fresh, userId: USER, version: 2, runKey: "k", setAt: "t" })).toBeNull()
+  })
+})
+
+describe("a correction that crosses 50 places its landmark (0248, D-301)", () => {
+  const landmarkItems = (w: ReturnType<typeof world>) =>
+    w.transacts.flatMap((t) => t.TransactItems!).filter((i) => i.Update?.TableName === "Landmark-test")
+
+  it("in the same transaction, on the route, before the Profile totals", async () => {
+    const w = world("ride")
+    w.skills.set("wayfaring", cumulativeXp(50, stepCoefficient(V2.curve)) - 1)
+    await rescoreKind({ ...REQ, kind: "walk" }, w.deps)
+    const [item] = landmarkItems(w)
+    expect(item?.Update?.Key).toEqual({ userId: USER, skillLevel: "wayfaring#50" })
+    const values = Object.values(item!.Update!.ExpressionAttributeValues!)
+    expect(values).toContain("act-1")
+    expect(values.filter((v) => typeof v === "number" && !Number.isInteger(v))).toHaveLength(2) // a real lng and lat
+    const items = w.transacts[0]!.TransactItems!
+    expect(items[items.length - 1]!.Update?.TableName).toBe(T1)
+  })
+
+  it("and writes none when nothing is crossed", async () => {
+    const w = world("ride")
+    await rescoreKind({ ...REQ, kind: "walk" }, w.deps)
+    expect(landmarkItems(w)).toEqual([])
   })
 })

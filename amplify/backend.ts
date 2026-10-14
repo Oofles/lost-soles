@@ -1052,6 +1052,15 @@ const profileTable = backend.data.resources.tables["Profile"]
 profileTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
 
 /**
+ * `Landmark`, ticket `0248` (D-301). `UpdateItem` ALONE: the row joins the ledger transaction as a
+ * write-once `if_not_exists` update. No `PutItem`, which could overwrite a landmark, and no
+ * `DeleteItem` anywhere — a landmark never un-happens. The same grant goes to `log-workout` and
+ * `set-activity-kind`, the other two paths that add XP.
+ */
+const landmarkTable = backend.data.resources.tables["Landmark"]
+landmarkTable.grant(processActivityLambda, "dynamodb:UpdateItem")
+
+/**
  * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a
  * `HeadObject` on the already-archived path — S3 authorises a HEAD with `s3:GetObject`,
  * so a grant of PutObject alone would fail on exactly the re-delivery path the archive
@@ -1300,6 +1309,8 @@ backend.processActivity.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableNam
 backend.processActivity.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 /** `0219`. T1, for the Profile totals in the ledger transaction. */
 backend.processActivity.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+/** `0248`. Landmarks, in the same transaction. */
+backend.processActivity.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
 backend.processActivity.addEnvironment(
   "RAW_ARCHIVE_BUCKET",
   backend.storage.resources.bucket.bucketName,
@@ -1705,6 +1716,7 @@ logWorkoutLambda.addToRolePolicy(
 xpLedgerTable.grant(logWorkoutLambda, "dynamodb:PutItem")
 skillStateTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:Query")
 profileTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
+landmarkTable.grant(logWorkoutLambda, "dynamodb:UpdateItem")
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "WriteAndReadRawArchive",
@@ -1746,6 +1758,7 @@ backend.logWorkoutFunction.addEnvironment("ACTIVITY_TABLE", activityTable.tableN
 backend.logWorkoutFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
 backend.logWorkoutFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 backend.logWorkoutFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.logWorkoutFunction.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
 backend.logWorkoutFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)
 
 /*
@@ -1783,6 +1796,7 @@ setActivityKindLambda.addToRolePolicy(
 )
 skillStateTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:Query")
 profileTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:ConditionCheckItem")
+landmarkTable.grant(setActivityKindLambda, "dynamodb:UpdateItem")
 exploredCellTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
 /** The override's PUT (`raw/<uid>/<source>/<externalId>.kind-override/<id>.json`) and the archive's GET. Never delete (I-3). */
 setActivityKindLambda.addToRolePolicy(
@@ -1820,4 +1834,5 @@ backend.setActivityKindFunction.addEnvironment("ACTIVITY_TABLE", activityTable.t
 backend.setActivityKindFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
 backend.setActivityKindFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 backend.setActivityKindFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.setActivityKindFunction.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
 backend.setActivityKindFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)

@@ -81,6 +81,7 @@ export const handler = async (event: AppSyncEvent): Promise<LogWorkoutResult> =>
         ledgerTable: required("XP_LEDGER_TABLE"),
         skillStateTable: required("SKILL_STATE_TABLE"),
         profileTable: required("PROFILE_TABLE"),
+        landmarkTable: required("LANDMARK_TABLE"),
       },
       snapshots: { s3, bucket },
     })

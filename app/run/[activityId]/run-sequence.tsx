@@ -583,7 +583,8 @@ function Beat2({
 
 /**
  * THE EARNING CELL PULSES ONCE (§3.2, `0082`) where a place-bound card landed. A ring of the
- * route's light, 700 ms, then gone — the landmark itself is `0248`'s to keep on the map.
+ * route's light, 700 ms, then gone. `0248` records the landmark at this same arc (D-301); drawing
+ * it on the map for good is `0260`.
  */
 const PULSE_MS = 700
 function CellPulse({ x, y, onEnd }: { x: number; y: number; onEnd: () => void }) {

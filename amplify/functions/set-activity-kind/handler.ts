@@ -105,6 +105,7 @@ export const handler = async (event: AppSyncEvent): Promise<SetActivityKindResul
           ledgerTable: required("XP_LEDGER_TABLE"),
           skillStateTable: required("SKILL_STATE_TABLE"),
           profileTable: required("PROFILE_TABLE"),
+          landmarkTable: required("LANDMARK_TABLE"),
         },
         overrides: { s3: s3 as never, bucket },
         registry: (uid) =>

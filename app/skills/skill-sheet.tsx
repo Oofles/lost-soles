@@ -72,6 +72,9 @@ function dayLabel(iso: string): string {
   }).format(d)
 }
 
+/** Only ever called with a located place: an unlocated one has no `→ fly to` (`0248`). */
+type FlyTo = (place: PlaceMilestone & { lng: number; lat: number }) => void
+
 export function SkillSheet({
   skillId,
   detail,
@@ -81,7 +84,7 @@ export function SkillSheet({
   skillId: string
   detail: SkillDetail | null
   onDismiss(): void
-  onFly(place: PlaceMilestone): void
+  onFly: FlyTo
 }) {
   const dialog = useRef<HTMLDivElement | null>(null)
   // The caller's `onDismiss` is a new function each render; the listener below is installed once.
@@ -169,7 +172,7 @@ function NotFound({ skillId }: { skillId: string }) {
   )
 }
 
-function Body({ detail, onFly }: { detail: SkillDetail; onFly(place: PlaceMilestone): void }) {
+function Body({ detail, onFly }: { detail: SkillDetail; onFly: FlyTo }) {
   return (
     <>
       <header style={{ display: "flex", gap: "1rem", alignItems: "flex-start", marginRight: "2rem" }}>
@@ -265,28 +268,34 @@ function Body({ detail, onFly }: { detail: SkillDetail; onFly(place: PlaceMilest
       {/* Omitted, not empty, when nothing this skill earned is on the map (§5.5). */}
       {detail.places.length > 0 ? (
         <Section label="ON THE MAP">
-          {detail.places.map((p) => (
-            <div key={`${p.level}:${p.label}`} data-place="" style={{ display: "flex", gap: ".5rem", alignItems: "baseline", padding: ".25rem 0" }}>
-              {/* Ink, not gold: a typed glyph and a 15sp label are text, and gold text is ≥24sp only (D-148). */}
-              <span aria-hidden="true" style={{ color: "var(--text-secondary)" }}>◈</span>
-              <span style={{ flex: 1 }}>{p.label}</span>
-              <button
-                type="button"
-                onClick={() => onFly(p)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--text-primary)",
-                  textDecoration: "underline",
-                  cursor: "pointer",
-                  padding: ".25rem",
-                  font: "inherit",
-                }}
-              >
-                → fly to
-              </button>
-            </div>
-          ))}
+          {detail.places.map((p) => {
+            const { lng, lat } = p
+            return (
+              <div key={`${p.level}:${p.label}`} data-place="" style={{ display: "flex", gap: ".5rem", alignItems: "baseline", padding: ".25rem 0" }}>
+                {/* Ink, not gold: a typed glyph and a 15sp label are text, and gold text is ≥24sp only (D-148). */}
+                <span aria-hidden="true" style={{ color: "var(--text-secondary)" }}>◈</span>
+                <span style={{ flex: 1 }}>{p.label}</span>
+                {/* Earned on an activity with no route (`0248`): the milestone is real, it is just nowhere. */}
+                {lng === null || lat === null ? null : (
+                  <button
+                    type="button"
+                    onClick={() => onFly({ ...p, lng, lat })}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-primary)",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      padding: ".25rem",
+                      font: "inherit",
+                    }}
+                  >
+                    → fly to
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </Section>
       ) : null}
     </>

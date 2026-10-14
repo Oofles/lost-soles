@@ -2,7 +2,8 @@ import { SKILL_MILESTONES } from "@/lib/skills/detail"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 import { baselineOf, earnedMilestonesCrossed, type Baseline } from "@/src/scoring/celebrate"
-import { cumulativeXp, levelForXp, stepCoefficient, totalLevelCeiling, TOTAL_LEVEL_MILESTONES } from "@/src/scoring/levels"
+import { levelForXp, stepCoefficient, totalLevelCeiling, TOTAL_LEVEL_MILESTONES } from "@/src/scoring/levels"
+import { PLACE_LEVELS, thresholdArc, type PlaceKind } from "@/src/scoring/places"
 
 /**
  * THE LEVEL-UP CARD QUEUE. Ticket `0082`. `06-ui-ux.md` §3.2 beat 3, §6.4; `04` §4.2–4.3; D-146, D-297.
@@ -22,7 +23,7 @@ import { cumulativeXp, levelForXp, stepCoefficient, totalLevelCeiling, TOTAL_LEV
  * No skill id is named here (D-031).
  */
 
-export type PlaceKind = "landmark" | "shrine"
+export type { PlaceKind }
 
 export type LevelCard =
   | {
@@ -37,14 +38,11 @@ export type LevelCard =
       /**
        * WHERE IT WAS EARNED, as a fraction of this activity's XP for the skill: the threshold's
        * share of the gain. Beat 3 walks the route by this arc to find the cell (D-297: an estimate,
-       * apportioned evenly along the run, until `0248` records the real one).
+       * apportioned evenly along the run). `0248` records the landmark at this same arc (D-301).
        */
       arc: number
     }
   | { kind: "total"; milestone: number }
-
-/** §4.3: the milestones that put something on the map. A row in the ladder, not a branch per skill. */
-const PLACES: Readonly<Record<number, PlaceKind>> = { 50: "landmark", 99: "shrine" }
 
 /**
  * THE BASELINE (D-297). "Minted" means added to the ruleset after the user started — which, for this
@@ -72,8 +70,8 @@ export function skillCards(
       from: l - 1,
       to: l,
       tier: SKILL_MILESTONES.find((m) => m.level === l)?.name ?? null,
-      place: PLACES[l] ?? null,
-      arc: Math.min(1, Math.max(0, (cumulativeXp(l, k) - xpBefore) / xpGained)),
+      place: PLACE_LEVELS[l] ?? null,
+      arc: thresholdArc(l, xpBefore, xpGained, k),
     })
   }
   return cards

@@ -71,6 +71,7 @@ process.env.ACTIVITY_TABLE = "Activity-test"
 process.env.XP_LEDGER_TABLE = "XpLedgerEntry-test"
 process.env.SKILL_STATE_TABLE = "SkillState-test"
 process.env.PROFILE_TABLE = "Profile-test"
+process.env.LANDMARK_TABLE = "Landmark-test"
 process.env.RAW_ARCHIVE_BUCKET = "bucket-test"
 /** `0049`. The same physical bucket, under the name the delivery layer reads. */
 process.env.USER_DATA_BUCKET = "bucket-test"

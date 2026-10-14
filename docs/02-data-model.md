@@ -194,7 +194,8 @@ the atomic ingest commit in 01 §4 step 15 works unchanged. Nothing is lost.
 | T8 | `IngestReceipt` | **CDK** | **no** | ~250 live (TTL 90 d) | idempotency ledger |
 
 `Ticket` and `Region` from 01 §2 resource #5 are covered in §2.11 — both are small and neither
-participates in ingest.
+participates in ingest. So is `Landmark` (`0248`), which does: one write-once row joins the ledger
+transaction when a skill crosses 50 or 99.
 
 ---
 
@@ -666,7 +667,7 @@ Under 100 ms even at the five-year worst case (R3 §6). The full-table `Query` p
 codebase as **AP-17, the repair path**, invoked by the rebuild drill (§8.3) and by a
 consistency check — never on the ingest hot path.
 
-### 2.11 The two remaining Amplify models
+### 2.11 The remaining Amplify models
 
 **`Region`** (01 resource #5) — named regions for the "% territory" stat (05 §8.1).
 `PK id`, attrs `{name, boundaryS3Key, totalCellsRes10, cellsRes10Key, res}`. The cell list and
@@ -678,6 +679,12 @@ in the repo the single source of truth; the phone UI only ever *creates*, the ag
 edits/numbers/moves. So: `PK id (ULID)`, attrs `{userId, title, body, createdAt, drainedAt}`.
 A `/tickets` run drains undrained rows into `tickets/inbox/` and stamps `drainedAt`. Disjoint
 write sets ⇒ no merge conflicts, no sync engine. ~50 items/year; a 180-day TTL on drained rows.
+
+**`Landmark`** (ticket `0248`, D-301) — where a skill's level 50 or 99 was earned (04 §4.3).
+`PK userId`, `SK skillLevel = <skillId>#<level>`, attrs `{skillId, level, place, activityId,
+earnedAt, lng?, lat?}`. Written by the pipeline inside the crossing's ledger transaction as an
+`if_not_exists` update — write-once, never deleted; `lng`/`lat` null when the activity had no
+route. Owner-read only, no mutations. ≤ 2 per skill, ever.
 
 **Manual workout logging** does not get its own model. `(app)/log/page.tsx` (D-061) calls a
 custom mutation `logWorkout(exerciseId, sets: [{reps|durationS}], occurredAt?, idempotencyKey,

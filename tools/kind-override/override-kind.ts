@@ -86,7 +86,7 @@ const result = await rescoreKind(
   {
     ddb: ddb as never,
     activityTable: tables.Activity,
-    ledger: { ledgerTable: tables.XpLedgerEntry, skillStateTable: tables.SkillState, profileTable: tables.Profile },
+    ledger: { ledgerTable: tables.XpLedgerEntry, skillStateTable: tables.SkillState, profileTable: tables.Profile, landmarkTable: tables.Landmark },
     overrides: { s3: s3 as never, bucket },
     registry,
     cells: { ddb: ddb as never, table: EXPLORED_CELL_TABLE },

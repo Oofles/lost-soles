@@ -693,6 +693,12 @@ export async function processActivity<TCreds>(
       curve: scored.registry.curve,
       award,
       rejects: rejects ?? undefined,
+      /**
+       * `0248`. The geometry `traces` just stored — the very line `/run/:id`'s card flies along — so
+       * a landmark stands where the card landed (D-301). From the segments whether or not the PUT
+       * ran: the rebuild drill passes no `traces`, and a crossing it re-derives still has a place.
+       */
+      route: ingest.trace ? segmentsToGeometry(segments ?? traceToSegments(ingest.trace).segments) : null,
     },
     { persist: deps.persist, ledger: deps.ledger },
   )

@@ -82,3 +82,4 @@ export {
   type LevelSnapshot,
   type LevelUp,
 } from "./celebrate"
+export { PLACE_LEVELS, placesCrossed, thresholdArc, type PlaceCrossing, type PlaceKind } from "./places"

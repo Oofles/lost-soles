@@ -994,8 +994,10 @@ Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep l
 - **`ON THE MAP` is the payoff of place-bound milestones** (04 §4.3): the ones that put something
   on the map get a row here and a `→ fly to` that closes the sheet and flies the map there. This
   is the only navigation out of the sheet, and it points at the map, which is correct (P4).
-  Until landmarks are recorded (ticket `0248`, D-290) every skill has none, and the heading is
-  omitted rather than shown empty.
+  The rows are the `Landmark` records the pipeline writes as 50 and 99 are crossed (ticket `0248`,
+  D-301), labelled `Cairn at Level 50` / `Shrine at Level 99` — the street name in the mockup needs
+  a reverse geocoder nothing has. One earned on an activity with no route is listed without
+  `→ fly to`. A skill with none omits the heading rather than showing it empty.
 - **`RECENT` is ten rows, not a history.** It is there to answer "is this thing moving," not to
   be browsed. Full history is the Chronicle's job.
 - No charts. A line going up over time is a stats page (§1.4) and it invites comparison with your

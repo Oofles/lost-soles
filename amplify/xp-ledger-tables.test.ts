@@ -55,14 +55,14 @@ const keys = (ks: TableShape["keySchema"]) =>
   Object.fromEntries(ks.map((k) => [k.keyType, k.attributeName]))
 
 describe("I-18 / I-20 — no client can write XP", () => {
-  it.each(["XpLedgerEntry", "SkillState"])("the API serves no mutation and no subscription for %s", (model) => {
+  it.each(["XpLedgerEntry", "SkillState", "Landmark"])("the API serves no mutation and no subscription for %s", (model) => {
     const reaching = resolvers.filter(
       (r) => (r.startsWith("Mutation.") || r.startsWith("Subscription.")) && r.includes(model),
     )
     expect(reaching).toEqual([])
   })
 
-  it.each(["XpLedgerEntry", "SkillState"])("%s is still readable: get and list resolvers exist", (model) => {
+  it.each(["XpLedgerEntry", "SkillState", "Landmark"])("%s is still readable: get and list resolvers exist", (model) => {
     expect(resolvers.some((r) => r.startsWith("Query.get") && r.endsWith(model))).toBe(true)
     expect(resolvers.some((r) => r.startsWith("Query.list") && r.includes(model))).toBe(true)
   })
@@ -72,7 +72,7 @@ describe("I-18 / I-20 — no client can write XP", () => {
    * compiles to. `@model(mutations:null,subscriptions:null)` is what removes the operations, and
    * the `@auth` rule is exactly owner-scoped read. Anything else in either fails here.
    */
-  it.each(["XpLedgerEntry", "SkillState"])("%s compiles to a read-only, mutation-free @model", async (model) => {
+  it.each(["XpLedgerEntry", "SkillState", "Landmark"])("%s compiles to a read-only, mutation-free @model", async (model) => {
     const { data } = await import("./data/resource")
     const sdl = (data as unknown as { props: { schema: { transform(): { schema: string } } } }).props.schema.transform().schema
     const line = sdl.split("\n").find((l) => l.startsWith(`type ${model} `))
@@ -169,6 +169,14 @@ describe("the worker's grants on T1/T2/T3/T4", () => {
     expect(list(query[0]!.Action)).toEqual(["dynamodb:Query"])
   })
 
+  /**
+   * `0248`, D-301. A landmark is write-once by `if_not_exists`, which needs only `UpdateItem`. No
+   * `PutItem` (which could overwrite one) and no `DeleteItem` (a landmark never un-happens).
+   */
+  it("Landmark: UpdateItem only", () => {
+    expect(actionsOn("Landmark")).toEqual(["dynamodb:UpdateItem"])
+  })
+
   it("the worker is told all three table names", () => {
     const fn = Object.values(WORKER.findResources("AWS::Lambda::Function")).find((f) =>
       JSON.stringify(f).includes("ACTIVITY_TABLE"),
@@ -177,5 +185,6 @@ describe("the worker's grants on T1/T2/T3/T4", () => {
     expect(env).toHaveProperty("XP_LEDGER_TABLE")
     expect(env).toHaveProperty("SKILL_STATE_TABLE")
     expect(env).toHaveProperty("PROFILE_TABLE")
+    expect(env).toHaveProperty("LANDMARK_TABLE")
   })
 })

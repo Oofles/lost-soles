@@ -430,6 +430,7 @@ export function rig(options: Options = {}) {
       ledgerTable: LEDGER_TABLE,
       skillStateTable: SKILL_STATE_TABLE,
       profileTable: PROFILE_TABLE,
+      landmarkTable: "Landmark-test",
       ddb: {
         async send(command: QueryCommand) {
           expect(command).toBeInstanceOf(QueryCommand)

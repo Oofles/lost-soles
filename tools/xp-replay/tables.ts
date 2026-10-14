@@ -1,6 +1,6 @@
 import { ListTablesCommand, type DynamoDBClient } from "@aws-sdk/client-dynamodb"
 
-export type ModelTables = Record<"Profile" | "SkillState" | "XpLedgerEntry" | "Activity", string>
+export type ModelTables = Record<"Profile" | "SkillState" | "XpLedgerEntry" | "Activity" | "Landmark", string>
 
 /** `defineData` names each table `<Model>-<apiId>-NONE`. Exactly one of each, or stop. */
 export async function modelTables(raw: DynamoDBClient): Promise<ModelTables> {
@@ -21,5 +21,7 @@ export async function modelTables(raw: DynamoDBClient): Promise<ModelTables> {
     SkillState: one("SkillState"),
     XpLedgerEntry: one("XpLedgerEntry"),
     Activity: one("Activity"),
+    /** `0248`. */
+    Landmark: one("Landmark"),
   }
 }

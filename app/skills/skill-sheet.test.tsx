@@ -86,6 +86,17 @@ describe("the skill sheet (0074)", () => {
     expect(text(html)).toContain("→ fly to")
   })
 
+  it("a landmark earned with no route is listed, with nowhere to fly to (0248)", () => {
+    const html = render("wayfaring", [
+      { level: 50, label: "Cairn at Level 50", lng: null, lat: null },
+      { level: 99, label: "Shrine at Level 99", lng: -83.1, lat: 27.5 },
+    ])
+    const t = text(html)
+    expect(t).toContain("Cairn at Level 50")
+    expect(t).toContain("Shrine at Level 99")
+    expect(t.match(/→ fly to/g)).toHaveLength(1)
+  })
+
   it("AHEAD shows tier names and no calendar date", () => {
     const t = text(render("wayfaring"))
     expect(t).toContain("Adept")

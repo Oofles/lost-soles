@@ -55,12 +55,36 @@ export interface DetailLedgerRow extends SkillLedgerRow {
   units: number
 }
 
-/** A milestone that put something on the map (04 §4.3). Nothing records these yet. */
+/**
+ * A milestone that put something on the map (04 §4.3), as `0248` records it. `lng`/`lat` are null
+ * when the crossing activity had no route: the row is listed, with nowhere to fly to.
+ */
 export interface PlaceMilestone {
   level: number
   label: string
-  lng: number
-  lat: number
+  lng: number | null
+  lat: number | null
+}
+
+/** A stored `Landmark` row, as much of it as the sheet reads. */
+export interface LandmarkRow {
+  level: number
+  place: string
+  lng: number | null
+  lat: number | null
+}
+
+/** §5.5's words for `PLACE_LEVELS`' kinds. An unknown kind is named by its level alone. */
+const PLACE_WORDS: Record<string, string> = { landmark: "Cairn", shrine: "Shrine" }
+
+/** Stored landmarks → the sheet's rows (`Cairn at Level 50`). */
+export function placeMilestones(rows: readonly LandmarkRow[]): PlaceMilestone[] {
+  return rows.map((r) => ({
+    level: r.level,
+    label: `${PLACE_WORDS[r.place] ?? "Landmark"} at Level ${r.level}`,
+    lng: r.lng ?? null,
+    lat: r.lat ?? null,
+  }))
 }
 
 export interface RecentPart {

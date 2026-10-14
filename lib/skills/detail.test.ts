@@ -7,6 +7,7 @@ import { cumulativeXp } from "@/src/scoring/levels"
 
 import {
   lowPrecision,
+  placeMilestones,
   RECENT_ROWS,
   rulesSentence,
   skillDetail,
@@ -245,6 +246,18 @@ describe("AHEAD — the ladder, estimated low", () => {
 })
 
 describe("ON THE MAP, and the unknown", () => {
+  it("names stored landmarks in §5.5's words, keeping a missing location missing (0248)", () => {
+    expect(
+      placeMilestones([
+        { level: 50, place: "landmark", lng: 1.5, lat: 2.5 },
+        { level: 99, place: "shrine", lng: null, lat: null },
+      ]),
+    ).toEqual([
+      { level: 50, label: "Cairn at Level 50", lng: 1.5, lat: 2.5 },
+      { level: 99, label: "Shrine at Level 99", lng: null, lat: null },
+    ])
+  })
+
   it("passes place-bound milestones through, lowest level first", () => {
     const places: PlaceMilestone[] = [
       { level: 50, label: "Cairn at Level 50", lng: 1, lat: 2 },

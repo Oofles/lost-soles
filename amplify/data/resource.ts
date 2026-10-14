@@ -403,6 +403,41 @@ const schema = a.schema({
     .authorization((allow) => [allow.owner().to(["read"])]),
 
   /**
+   * `Landmark` — WHERE A PLACE-BOUND MILESTONE WAS EARNED. Ticket `0248`, `04` §4.3, D-301.
+   *
+   * WRITE-ONCE. The pipeline writes a row inside the transaction that commits the crossing XP,
+   * every attribute `if_not_exists`, so the first crossing of (skill, level) is the one kept: a
+   * redelivery, a re-ingest or a ruleset replay that moves the crossing to another run changes
+   * nothing (D-020, D-135 — a landmark, like the map, never un-happens). Nothing deletes a row,
+   * and no IAM grant could.
+   *
+   * `lng`/`lat` are null when the crossing activity had no route (a manual or strength log): the
+   * milestone happened, it just happened nowhere. They are a real coordinate near home otherwise
+   * (`08` §7.2, D-199), served to the owner only.
+   */
+  Landmark: a
+    .model({
+      userId: a.string().required(),
+      /** `${skillId}#${level}` — the key that makes the write once-only. */
+      skillLevel: a.string().required(),
+      /** Opaque. NEVER an enum (D-031). */
+      skillId: a.string().required(),
+      level: a.integer().required(),
+      /** `PLACE_LEVELS`' kind at the time of the crossing — `landmark` or `shrine`. */
+      place: a.string().required(),
+      /** The activity whose XP crossed the threshold. */
+      activityId: a.string().required(),
+      /** That activity's `startedAt` — never the clock (I-12). */
+      earnedAt: a.datetime().required(),
+      lng: a.float(),
+      lat: a.float(),
+    })
+    .identifier(["userId", "skillLevel"])
+    /** See `SkillState`: no mutation exists, rather than one that is refused. */
+    .disableOperations(["mutations", "subscriptions"])
+    .authorization((allow) => [allow.owner().to(["read"])]),
+
+  /**
    * 0012's placeholder. Kept until a second real model lands — see the header.
    */
   /**

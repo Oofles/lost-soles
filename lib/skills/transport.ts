@@ -20,7 +20,7 @@
 import type { Schema } from "@/amplify/data/resource"
 import { API_TIMEOUT_MS, errorFrom } from "@/lib/log/transport"
 
-import type { DetailLedgerRow } from "./detail"
+import type { DetailLedgerRow, LandmarkRow } from "./detail"
 import type { SkillLedgerRow } from "./next"
 
 /**
@@ -121,4 +121,23 @@ export async function fetchSkillLedger(uid: string, skillId: string): Promise<De
     nextToken = more
   } while (nextToken)
   return out
+}
+
+/**
+ * ONE SKILL'S LANDMARKS (`0248`, D-301) — the base table, `userId` and a `skillLevel` prefix. Two
+ * rows at most, ever. Owner-scoped by the model's auth rule: a landmark is a coordinate near home
+ * (`08` §7.2) and no one else's session can list it.
+ */
+export async function fetchLandmarks(uid: string, skillId: string): Promise<LandmarkRow[]> {
+  const c = await dataClient()
+  const { data, errors } = await timed(
+    c.models.Landmark.list({
+      userId: uid,
+      skillLevel: { beginsWith: `${skillId}#` },
+      selectionSet: ["level", "place", "lng", "lat"],
+    }),
+    "Landmark.list",
+  )
+  if (errors?.length) throw errorFrom(errors)
+  return data.map((r) => ({ level: r.level, place: r.place, lng: r.lng ?? null, lat: r.lat ?? null }))
 }

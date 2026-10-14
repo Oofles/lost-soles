@@ -108,7 +108,7 @@
  "docs/02-data-model.md#T8 — `IngestReceipt` — idempotency": "pk = ingestKey (no sort key)",
  "docs/02-data-model.md#2.9 Two things this design deliberately does not store": "{userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls",
  "docs/02-data-model.md#2.10 Blob regeneration does not re-read the table": "Naïvely, regenerating explored-r10.bin means Querying every res-6 partition — ~24 MB of",
- "docs/02-data-model.md#2.11 The two remaining Amplify models": "denominator are precomputed once and shipped from regions/ in S3, because they never change.",
+ "docs/02-data-model.md#2.11 The remaining Amplify models": "denominator are precomputed once and shipped from regions/ in S3, because they never change.",
  "docs/02-data-model.md#3. The skill schema — skills are data, not code": "requires a code change, the design has failed.\" D-031 makes modularity a product decision,",
  "docs/02-data-model.md#3.1 The five jobs a skill row has to do": "A skill definition is not just a name and an XP rate.",
  "docs/02-data-model.md#3.2 `RuleSkill` — the item shape (T5)": "The YAML in rules/xp-rules-vN.yaml is authored in git and is the human-editable authority.",

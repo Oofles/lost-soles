@@ -4745,3 +4745,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     fixture) is all-minted against the default and must pass its own baseline.
   - **Rejected: an `enabledIn` version on each row.** A schema and data change to answer a question
     that belongs to the celebration layer, and one more field every future row must get right.
+- **D-301** **A place-bound milestone is recorded as a write-once `Landmark` row, in the
+  transaction that commits the crossing XP, at the point on the stored route where the card flew.**
+  *(Agent, 2026-10-14, ticket `0248`; operator calls at the start of the ticket: a crossing with no
+  location is still recorded, without one; first write wins; drawing landmarks on the map is a
+  separate ticket.)* Completes D-290's empty `ON THE MAP` and D-297's "nothing is stored".
+  - **Which levels: `PLACE_LEVELS`** (`src/scoring/places.ts`), `{50: landmark, 99: shrine}` — `04`
+    §4.3 as a data table. The level-up card and the pipeline both read it (D-031).
+  - **The location rule.** The route is walked by the threshold's share of the activity's XP for
+    that skill (`placesCrossed`' `arc`, D-297's evenly-apportioned estimate), through the same
+    `lanternPath` over the same stored geometry (`0195`) the `/run/:id` card flies along. So the
+    cairn stands exactly where the card landed. The ticket's alternative, the activity's end cell,
+    was rejected: it would put the landmark somewhere the card never went. **No route** (a manual or
+    strength log, or a trace §2.2 kept nothing of): `lng`/`lat` are null; the sheet lists the
+    milestone without `→ fly to`.
+  - **Judged on the transaction's own pre-read** (`displayedXp` → `displayedXp + gained`), the same
+    numbers that move `level`, in `persistWithLedger` (ingest and `logWorkout`) and in `rescoreKind`.
+  - **Write-once, without a condition.** Key `(userId, skillId#level)`; every attribute
+    `if_not_exists`. A `ConditionExpression` would cancel the XP with it on a re-cross. The writers
+    hold `UpdateItem` only — no `PutItem`, no `DeleteItem`, and the model has no mutations. A
+    redelivery, a kind correction or a replay that moves the crossing changes nothing (D-020, D-135).
+  - **The replay writes no landmarks.** `tools/landmarks/backfill-landmarks.ts` walks the ledger in
+    `seq` order (`landmarksFromLedger`) and is the backfill, and the repair after a replay that
+    newly crosses a level. A crossing made by a floor row names no activity and is not placed.
+  - **Owner-read only, never logged.** A landmark is a coordinate near home (`08` §7.2, D-199); the
+    backfill prints whether a route was found, never the point.

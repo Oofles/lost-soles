@@ -3,7 +3,7 @@ import type { H3Index } from "h3-js"
 
 import type { Activity, Trace } from "@/src/domain/activity"
 import { classifyCells } from "@/src/domain/discovery"
-import { traceToCells } from "@/src/domain/fog"
+import { traceToCells, traceToSegments } from "@/src/domain/fog"
 import { revealsGround } from "@/src/rules/reveals-ground"
 import { reconcile, scoreActivity, sumXp, xpBySkill, type XpLedgerEntry } from "@/src/scoring"
 
@@ -24,7 +24,9 @@ import {
   type KindOverrideDeps,
   type KindOverrideMirror,
 } from "./kind-override"
+import { landmarksCrossed, landmarkUpdateItem } from "./landmarks"
 import { assertNoCellWrites } from "./persist"
+import { segmentsToGeometry } from "./route-trace-store"
 import type { Registry } from "./worker-rules"
 import {
   BY_ACTIVITY_INDEX,
@@ -34,6 +36,7 @@ import {
   readSkillStates,
   skillStateUpdateItem,
   type LedgerDeps,
+  type SkillStateRow,
 } from "./xp-ledger"
 
 /**
@@ -211,7 +214,28 @@ export async function rescoreKind(req: KindRescoreRequest, deps: KindRescoreDeps
         )
       : replayGuard(activity.userId, registry.version, deps.ledger.profileTable)
 
-    const items: TransactItems = [t3, ...ledgerOps, ...skillOps, profile]
+    /**
+     * `0248`. A correction that carries a skill past 50 or 99 places its landmark here, on the same
+     * pre-read the level SETs use, before the totals (which must stay last). The route is fetched
+     * only when something was crossed. Write-once: a landmark the original kind placed stays put.
+     */
+    const landmarks = plan
+      ? (
+          await landmarksCrossed({
+            userId: activity.userId,
+            activity,
+            before: new Map([...states].map(([id, r]) => [id, (r as SkillStateRow).displayedXp])),
+            gained: plan.gained,
+            curve: registry.curve,
+            route: async () => {
+              const trace = await deps.loadTrace(activity)
+              return trace ? segmentsToGeometry(traceToSegments(trace).segments) : null
+            },
+          })
+        ).map((l) => landmarkUpdateItem(l, setAt, deps.ledger.landmarkTable))
+      : []
+
+    const items: TransactItems = [t3, ...ledgerOps, ...skillOps, ...landmarks, profile]
     assertNoCellWrites(items)
     const firstSkillItem = 1 + ledgerOps.length
     try {
