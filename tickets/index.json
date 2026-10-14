@@ -5984,7 +5984,7 @@
     "title": "Draw recorded landmarks and shrines on the map",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -5994,10 +5994,11 @@
     "source": "agent",
     "created": "2026-10-14T14:26:28Z",
     "started": "2026-10-14T17:13:17Z",
-    "path": "tickets/open/0260-draw-recorded-landmarks-on-the-map.md",
-    "ready": true,
+    "closed": "2026-10-14T17:59:28Z",
+    "path": "tickets/closed/0260-draw-recorded-landmarks-on-the-map.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
