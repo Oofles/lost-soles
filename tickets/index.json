@@ -5938,7 +5938,7 @@
     "title": "Level-up cards on /log honour prefers-reduced-motion",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -5948,10 +5948,11 @@
     "source": "agent",
     "created": "2026-10-14T02:28:49Z",
     "started": "2026-10-14T16:43:36Z",
-    "path": "tickets/open/0258-log-level-up-reduced-motion.md",
-    "ready": true,
+    "closed": "2026-10-14T16:57:33Z",
+    "path": "tickets/closed/0258-log-level-up-reduced-motion.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -6078,7 +6079,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 3
     }
   }
 ]

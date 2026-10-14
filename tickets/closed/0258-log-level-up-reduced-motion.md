@@ -4,7 +4,7 @@ slug: log-level-up-reduced-motion
 title: Level-up cards on /log honour prefers-reduced-motion
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: [84]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T02:28:49Z
 started: 2026-10-14T16:43:36Z
+closed: 2026-10-14T16:57:33Z
 ---
 
 ## Description
