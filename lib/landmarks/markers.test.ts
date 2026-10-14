@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { basemapStyle } from "@/lib/basemap"
-import { HOME_ZOOM } from "@/lib/map-camera"
+import { AT_ZOOM, HOME_ZOOM } from "@/lib/map-camera"
 import {
   FOG_LAYER_ID,
   LANDMARK_LAYER_ID,
@@ -143,7 +143,8 @@ describe("criterion 2 — the form is a data row (D-031)", () => {
     const [, , , ...stops] = LANDMARK_ICON_SIZE
     const at = new Map<number, number>()
     for (let i = 0; i < stops.length; i += 2) at.set(stops[i] as number, stops[i + 1] as number)
-    expect(at.get(HOME_ZOOM)).toBe(1)
+    expect(at.get(AT_ZOOM)).toBe(1)
+    expect(at.get(HOME_ZOOM)).toBeLessThan(1)
     for (const f of Object.values(MARKER_FORMS)) expect(Math.min(f.width, f.height)).toBeGreaterThanOrEqual(24)
   })
 })
@@ -228,6 +229,7 @@ describe("the glyphs draw inside their own box", () => {
       lineTo: (x, y) => pt(x, y),
       rect: (x, y, w, h) => (pt(x, y), pt(x + w, y + h)),
       arc: (x, y, r) => pt(x, y, r),
+      quadraticCurveTo: (cx, cy, x, y) => (pt(cx, cy), pt(x, y)),
       ellipse: (x, y, rx, ry) => (xs.push(x - rx, x + rx), ys.push(y - ry, y + ry)),
       fillStyle: "",
       strokeStyle: "",

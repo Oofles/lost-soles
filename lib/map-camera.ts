@@ -39,6 +39,13 @@ export const EXTRACT_FALLBACK: Camera = { lng: -83.8, lat: 27.75, zoom: 6, beari
 /** Neighbourhood zoom. The floor D-051 is judged at is z14-17. */
 export const HOME_ZOOM = 14
 
+/**
+ * Where `→ fly to` lands (`parseAt`). Closer than `HOME_ZOOM`: the link names one spot — a cairn or
+ * a shrine (`0260`) — not a neighbourhood, and at 14 the operator found it too far out. Still inside
+ * D-051's z14-17.
+ */
+export const AT_ZOOM = 16
+
 function isFiniteIn(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max
 }
@@ -163,7 +170,7 @@ export function firstLoadRunCamera(state: {
  * `→ fly to` (`06` §5.5), the only navigation out of the sheet, and it points at the map.
  *
  * Validated like a stored camera: the query string is user-writable, and a bad coordinate must
- * leave the map where it was rather than throw inside MapLibre. Neighbourhood zoom, north up.
+ * leave the map where it was rather than throw inside MapLibre. `AT_ZOOM`, north up.
  */
 export function parseAt(search: string): Camera | null {
   const raw = new URLSearchParams(search).get("at")
@@ -172,7 +179,7 @@ export function parseAt(search: string): Camera | null {
   if (parts.length !== 2 || parts.some((p) => p.trim() === "")) return null
   const [lng, lat] = parts.map(Number)
   if (!isFiniteIn(lng, -180, 180) || !isFiniteIn(lat, -90, 90)) return null
-  return { lng, lat, zoom: HOME_ZOOM, bearing: 0 }
+  return { lng, lat, zoom: AT_ZOOM, bearing: 0 }
 }
 
 /** The `?at=` link to `place` — the one writer of the parameter `parseAt` reads. */

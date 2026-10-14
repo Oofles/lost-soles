@@ -1010,7 +1010,8 @@ Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep l
   a reverse geocoder nothing has. One earned on an activity with no route is listed without
   `→ fly to`. A skill with none omits the heading rather than showing it empty.
   The place `→ fly to` lands on is marked: every located `Landmark` is drawn on the home map as a
-  cairn or a shrine, above the fog (ticket `0260`, `05` §4.4).
+  cairn or a shrine (a torii), above the fog (ticket `0260`, `05` §4.4). The flight lands at z16
+  (`AT_ZOOM`), closer than home's z14, because it names one spot rather than a neighbourhood.
 - **`RECENT` is ten rows, not a history.** It is there to answer "is this thing moving," not to
   be browsed. Full history is the Chronicle's job.
 - No charts. A line going up over time is a stats page (§1.4) and it invites comparison with your

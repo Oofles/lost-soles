@@ -63,6 +63,7 @@ export type GlyphPen = Pick<
   | "closePath"
   | "rect"
   | "arc"
+  | "quadraticCurveTo"
   | "fill"
   | "stroke"
   | "save"
@@ -79,7 +80,7 @@ export type GlyphPen = Pick<
 export interface MarkerForm {
   /** The image id registered on the map. */
   image: string
-  /** CSS pixels at icon-size 1, the zoom `→ fly to` lands on (`HOME_ZOOM`). Padding included. */
+  /** CSS pixels at icon-size 1, the zoom `→ fly to` lands on (`AT_ZOOM`). Padding included. */
   width: number
   height: number
   /** Drawn above lower-ranked forms where two overlap: a shrine is never hidden by a cairn. */
@@ -101,7 +102,7 @@ function inked(pen: GlyphPen, fill: string, palette: MarkerPalette) {
  * THE TABLE. Every `PlaceKind` has a row — `markers.test.ts` asserts it against `PLACE_LEVELS`, so
  * a new place-bound level cannot ship without a form.
  *
- * The two differ in silhouette (a rounded stack against a gabled roof), in fill (pale stone against
+ * The two differ in silhouette (a rounded stack against a torii's beams), in fill (pale stone against
  * gold leaf) and in size, so either cue alone tells them apart.
  */
 export const MARKER_FORMS: Readonly<Record<PlaceKind, MarkerForm>> = {
@@ -136,56 +137,46 @@ export const MARKER_FORMS: Readonly<Record<PlaceKind, MarkerForm>> = {
       }
     },
   },
-  // A small gabled shrine in gold leaf: plinth, cella with a dark doorway, roof, finial.
+  // A torii in gold leaf: the gate that marks a shrine. Upswept top lintel (kasagi) over a second
+  // beam (shimaki), a centre strut, a tie beam (nuki) through two splayed pillars on plinths.
   shrine: {
     image: "landmark-shrine",
-    width: 32,
-    height: 36,
+    width: 34,
+    height: 38,
     rank: 2,
     draw(pen, palette) {
-      const outline = () => {
-        pen.beginPath()
-        pen.rect(4, 29, 24, 4) // plinth
-        pen.rect(8.5, 17, 15, 12) // cella
-        pen.moveTo(3.5, 18) // roof
-        pen.lineTo(16, 6.5)
-        pen.lineTo(28.5, 18)
-        pen.closePath()
-        pen.arc(16, 4.5, 2, 0, Math.PI * 2) // finial
-      }
+      const parts: Array<() => void> = [
+        () => { pen.moveTo(9, 12); pen.lineTo(12.5, 12); pen.lineTo(11.8, 35); pen.lineTo(7.8, 35); pen.closePath() }, // left pillar
+        () => { pen.moveTo(21.5, 12); pen.lineTo(25, 12); pen.lineTo(26.2, 35); pen.lineTo(22.2, 35); pen.closePath() }, // right pillar
+        () => pen.rect(6.8, 34.5, 6, 2), // left plinth
+        () => pen.rect(21.2, 34.5, 6, 2), // right plinth
+        () => pen.rect(4, 19, 26, 3), // nuki
+        () => pen.rect(15.5, 13.5, 3, 5.5), // centre strut
+        () => pen.rect(6, 11, 22, 2.5), // shimaki
+        () => {
+          // kasagi: a beam whose ends sweep up
+          pen.moveTo(1.5, 4.5)
+          pen.quadraticCurveTo(17, 9.5, 32.5, 4.5)
+          pen.lineTo(31, 9)
+          pen.quadraticCurveTo(17, 13, 3, 9)
+          pen.closePath()
+        },
+      ]
       // A gold glow first: the shrine is mastery, and it is the one marker allowed to shine.
       pen.save()
       pen.shadowColor = palette.shrine
       pen.shadowBlur = 7
-      outline()
+      pen.beginPath()
+      for (const part of parts) part()
       pen.fillStyle = palette.shrine
       pen.fill()
       pen.restore()
-      // Each part inked on its own, so the seams between them read.
-      pen.beginPath()
-      pen.rect(4, 29, 24, 4)
-      inked(pen, palette.shrine, palette)
-      pen.beginPath()
-      pen.rect(8.5, 17, 15, 12)
-      inked(pen, palette.shrine, palette)
-      pen.beginPath()
-      pen.moveTo(3.5, 18)
-      pen.lineTo(16, 6.5)
-      pen.lineTo(28.5, 18)
-      pen.closePath()
-      inked(pen, palette.shrine, palette)
-      pen.beginPath()
-      pen.arc(16, 4.5, 2, 0, Math.PI * 2)
-      inked(pen, palette.shrine, palette)
-      // The doorway: an arch of ink.
-      pen.beginPath()
-      pen.moveTo(13.5, 29)
-      pen.lineTo(13.5, 23)
-      pen.arc(16, 23, 2.5, Math.PI, 0)
-      pen.lineTo(18.5, 29)
-      pen.closePath()
-      pen.fillStyle = palette.ink
-      pen.fill()
+      // Each part inked on its own, bottom to top, so the beams read as crossing the pillars.
+      for (const part of parts) {
+        pen.beginPath()
+        part()
+        inked(pen, palette.shrine, palette)
+      }
     },
   },
 }
@@ -222,10 +213,10 @@ export function landmarkFeatures(rows: readonly LandmarkRow[]): LandmarkFeatureC
 }
 
 /**
- * Full size at the zoom `→ fly to` lands on (`HOME_ZOOM`, 14) and closer; smaller when zoomed out,
- * never gone — a landmark is forever, and the overview is where you look for them.
+ * Full size at the zoom `→ fly to` lands on (`AT_ZOOM`, 16); a little smaller at home's 14, smaller
+ * still zoomed out, never gone — a landmark is forever, and the overview is where you look for them.
  */
-export const LANDMARK_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 8, 0.55, 14, 1, 18, 1.25] as const
+export const LANDMARK_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 8, 0.55, 14, 0.85, 16, 1, 18, 1.2] as const
 
 export function landmarkLayerSpec() {
   return {
