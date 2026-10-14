@@ -10,11 +10,11 @@ import { FogPerf, type FrameStats } from "@/lib/fog/perf/collector"
 import { runBounds } from "@/lib/map-camera"
 import { log } from "@/lib/log"
 import { documentRoutePalette } from "@/lib/map-layers"
-import { BEAT1_MS, beat1At } from "@/lib/run-moment/beat1"
+import { BEAT1_MS, beat1At, beat1ReducedAt } from "@/lib/run-moment/beat1"
 import { LevelUpQueue, type FlyTarget } from "@/components/level-up-card"
 import { skillCards, totalCards, type LevelCard } from "@/lib/level-up/cards"
 import { BEAT4_START, BEAT5_START, beat45At, SEQUENCE_END } from "@/lib/run-moment/beat45"
-import { beat2At, BEAT2_MS, COUNT_MS, easeOutQuint, FADE_MS, lineStart, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
+import { beat2At, beat2ReducedAt, BEAT2_MS, COUNT_MS, easeOutQuint, FADE_MS, lineStart, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
 import { cardTriggers, type CardTrigger } from "@/lib/run-moment/tally"
 import { flyToRun, pullBack } from "@/lib/run-moment/camera"
 import { installInk, type Ink } from "@/lib/run-moment/ink"
@@ -54,7 +54,15 @@ import { ChronicleLine } from "./run-lines"
  * and no route to walk (an untraced activity). And a `GIVE_UP_MS` ceiling on the wait, because a beat
  * that never starts must not hold the page — the end state is the canonical view (§3.3).
  *
- * Skip, reduced motion and WebGL loss mid-beat are `0084`'s.
+ * ─── SKIP, REDUCED MOTION, WEBGL LOSS (`0084`) ──────────────────────────────
+ *
+ * Skip is NOT here, by design: one set of listeners in `RunMoment` (`lib/run-moment/exit.ts`) ends the
+ * sequence by unmounting this whole tree, which cancels every beat's clock in its cleanup. No beat
+ * knows it can be skipped, so no beat can skip to the next one. WebGL loss is `RunMoment`'s too.
+ *
+ * `reduced` (`prefers-reduced-motion`, read once per play) swaps each beat's frame function for its
+ * motionless twin — `beat1ReducedAt`, `beat2ReducedAt`, `cardReducedAt` — and drops the camera moves.
+ * Same clocks, same boundaries, same content: §3.4 removes only the motion, never the order.
  *
  * ─── BEAT 2: THE TALLY, LAID ON THE MAP (`0081`) ────────────────────────────
  *
@@ -107,6 +115,7 @@ export function RunSequence({
   frontier,
   onLines,
   onDone,
+  reduced = false,
 }: {
   summary: RunSummary
   stage?: MapStage
@@ -118,13 +127,15 @@ export function RunSequence({
   /** Called once, when beat 4 begins — the frontier is computed then, off beat 1 and 2's frames. */
   onLines: () => void
   onDone: () => void
+  /** `0084`. `prefers-reduced-motion`, read once when the sequence began. */
+  reduced?: boolean
 }) {
   // The `performance.now()` at which beat 2 begins — beat 1's NOMINAL end, not whenever React got
   // round to mounting beat 2. Measured in 0081's smoke: starting the clock at mount put beat 2 ~100 ms
   // late (a state update, a render and an effect, at SwiftShader frame rates).
   const [handoff, setHandoff] = useState<number | null>(null)
   const toBeat2 = useCallback((at: number) => setHandoff((h) => h ?? at), [])
-  const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} />
+  const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} reduced={reduced} />
   return (
     <>
       {beat1}
@@ -138,6 +149,7 @@ export function RunSequence({
           frontier={frontier}
           onLines={onLines}
           onDone={onDone}
+          reduced={reduced}
         />
       ) : null}
     </>
@@ -148,11 +160,13 @@ function Beat1({
   summary,
   stage,
   onDone,
+  reduced,
 }: {
   summary: RunSummary
   stage: MapStage
-  /** Called once, with the `performance.now()` at which beat 1 ended (or was skipped). */
+  /** Called once, with the `performance.now()` at which beat 1 ended. */
   onDone: (at: number) => void
+  reduced: boolean
 }) {
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
   const expectReveal = summary.reveal.new.length + summary.reveal.rearmed.length > 0
@@ -234,14 +248,16 @@ function Beat1({
         t0 = now
         window.__sequence = { t0 }
         perf?.beginPhase("beat1")
-        startCamera()
+        // Reduced motion: no flight. The map was framed on the run at mount (`MapShell`).
+        if (!reduced) startCamera()
       }
       perf?.frame(now)
 
-      const f = beat1At(now - t0)
+      const f = reduced ? beat1ReducedAt(now - t0) : beat1At(now - t0)
       layer?.setRevealProgress(f.progress)
-      layer?.setBloom(bloomPalette ? f.bloom : null, bloomPalette ?? undefined)
-      ink?.update(f.progress)
+      layer?.setBloom(bloomPalette && !reduced ? f.bloom : null, bloomPalette ?? undefined)
+      // Reduced: the whole line at once — its head travelling IS the lantern traversal.
+      ink?.update(reduced ? 1 : f.progress)
 
       const el = lantern.current
       if (el) {
@@ -263,7 +279,7 @@ function Beat1({
       layer?.setBloom(null)
       setHost(null)
     }
-  }, [stage, path, expectReveal, summary, onDone])
+  }, [stage, path, expectReveal, summary, onDone, reduced])
 
   if (!host) return null
   // The lantern: a point of warm light, additive (`plus-lighter`), riding the map's own container so
@@ -314,6 +330,7 @@ function Beat2({
   frontier,
   onLines,
   onDone,
+  reduced,
 }: {
   summary: RunSummary
   stage: MapStage
@@ -324,9 +341,11 @@ function Beat2({
   frontier: (opacity: number) => ReactNode
   onLines: () => void
   onDone: () => void
+  reduced: boolean
 }) {
   const count = data.tally ? tallyLineCount(data.tally, summary) : 0
-  const [frame, setFrame] = useState<Beat2Frame>(() => beat2At(0, count))
+  const frameAt = reduced ? beat2ReducedAt : beat2At
+  const [frame, setFrame] = useState<Beat2Frame>(() => frameAt(0, count))
   const [lines, setLines] = useState(() => beat45At(0))
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [started, setStarted] = useState(false)
@@ -401,7 +420,8 @@ function Beat2({
     if (stage?.kind === "ready" && box) {
       const rect = stage.map.getContainer().getBoundingClientRect()
       const covered = Math.max(0, Math.min(rect.bottom, window.innerHeight) - window.innerHeight * 0.45)
-      pullBack(stage.map, box, { zoomOut: PULL_BACK_ZOOM, covered, duration: RISE_MS, easing: easeOutQuint })
+      // Reduced motion: the same framing, arrived at in one frame.
+      pullBack(stage.map, box, { zoomOut: PULL_BACK_ZOOM, covered, duration: reduced ? 0 : RISE_MS, easing: easeOutQuint })
     }
 
     let raf = 0
@@ -418,7 +438,7 @@ function Beat2({
           setPlaying(due.cards)
         }
         // Held at the settled tally once beat 2 is over: nothing but the lines moves in beats 4–5.
-        setFrame(beat2At(Math.min(t, BEAT2_MS), countRef.current))
+        setFrame(frameAt(Math.min(t, BEAT2_MS), countRef.current))
         setLines(beat45At(t))
         if (t >= BEAT4_START && seq.beat4Start === undefined) {
           seq.beat2End = seq.beat4Start = now
@@ -468,6 +488,7 @@ function Beat2({
         flyTo={flyTo}
         onPlaced={(at) => setPulse({ ...at, key: performance.now() })}
         onDone={() => setPlaying(null)}
+        reduced={reduced}
       />
     ) : null}
     {pulse ? <CellPulse key={pulse.key} x={pulse.x} y={pulse.y} onEnd={() => setPulse(null)} /> : null}
@@ -483,7 +504,8 @@ function Beat2({
         background: "var(--surface)",
         borderTop: "2px solid var(--gold-500)",
         boxShadow: "0 -8px 24px rgb(0 0 0 / 0.18)",
-        transform: `translateY(${((1 - frame.rise) * 100).toFixed(2)}%)`,
+        // Reduced motion: `rise` is the panel's fade, not its travel (`beat2ReducedAt`).
+        ...(reduced ? { opacity: frame.rise } : { transform: `translateY(${((1 - frame.rise) * 100).toFixed(2)}%)` }),
         zIndex: 10,
       }}
     >

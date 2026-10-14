@@ -1,4 +1,4 @@
-import type { BloomUniform } from "@/lib/fog/mask"
+import { REVEAL_RAMP, type BloomUniform } from "@/lib/fog/mask"
 
 /**
  * BEAT 1'S CLOCK. Ticket `0080`. `06-ui-ux.md` §3.2, to the frame:
@@ -78,4 +78,30 @@ export function beat1At(t: number): Beat1Frame {
 
 function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x
+}
+
+/**
+ * `0084`. BEAT 1 UNDER `prefers-reduced-motion` (§3.4, `05` §4.5): no camera flight, no lantern, no
+ * bloom — *"the reveal becomes a single 400 ms cross-fade from pre-run to post-run territory"*.
+ *
+ * The cross-fade is the same reveal seam, not a second renderer: `RunMoment` hands the layer the
+ * run's cells with every arc at 0, and a cell at arc 0 is drawn at weight `progress / REVEAL_RAMP`
+ * (`mask.ts`'s `revealed`). So driving progress linearly from 0 to `REVEAL_RAMP` fades every new cell
+ * in together, and the pre-run discs they replace go with them.
+ *
+ * The beat keeps its full 2.9 s: only the motion is removed, never the order (§3.4). The map holds,
+ * lit and still, until beat 2 — so the map is seen before the numbers, for as long as it ever was.
+ */
+export const REDUCED_FADE_MS = 400
+
+export function beat1ReducedAt(t: number): Beat1Frame {
+  const phase: Beat1Phase = t >= BEAT1_MS ? "done" : t >= REDUCED_FADE_MS ? "settle" : "traversal"
+  const fade = clamp01(t / REDUCED_FADE_MS)
+  return {
+    phase,
+    progress: fade >= 1 ? 1 : REVEAL_RAMP * fade,
+    bloom: { clock: -1, fade: 0, goldSpan: GOLD_MS / TRAVERSAL_MS, frostSpan: FROST_MS / TRAVERSAL_MS },
+    pulse: 0,
+    lantern: 0,
+  }
 }

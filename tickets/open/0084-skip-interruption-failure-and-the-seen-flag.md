@@ -11,6 +11,7 @@ depends_on: [78, 80, 81, 82, 83]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-10-13T22:36:39Z
 ---
 
 ## Description
@@ -56,9 +57,13 @@ is not truth. Store it client-side (IndexedDB alongside `explored-r10.bin`); cle
       sequence, asserted by comparing rendered text between the two modes.
 - [ ] A forced WebGL context loss mid-sequence (via `WEBGL_lose_context`) aborts to the end state
       with a static map; the ledger, chronicle line and frontier line are all still correct.
-- [ ] A backfill import of ≥50 activities produces exactly **one** sequence, a 4 s aggregate reveal,
-      a lifetime-totals ledger, and one Total Level card — not one sequence per activity.
-- [ ] After backfill, every backfilled activity is `seen` and the plinth shows no new-run line.
+- [x] ~~A backfill import of ≥50 activities produces exactly **one** sequence, a 4 s aggregate reveal,
+      a lifetime-totals ledger, and one Total Level card — not one sequence per activity.~~
+      **Moved to `0257`** (2026-10-13, operator, D-298): there is no backfill import to reveal until
+      `0177` builds one, and its paced, hours-long import changes when the reveal should play.
+- [x] ~~After backfill, every backfilled activity is `seen` and the plinth shows no new-run line.~~
+      **Moved to `0257`** with the reveal it depends on (D-298). The plinth is capability 13's; this
+      ticket ships `isSeen()` (`lib/run-moment/seen.ts`) as the hook it will read.
 - [ ] `seen` is written on both completion and skip; a test asserts skipping marks it.
 - [ ] `seen` lives only on the device: clearing IndexedDB restores the replay offer and changes no
       XP, no ledger row and no `SkillState` value.

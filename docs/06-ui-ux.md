@@ -465,6 +465,8 @@ The end state is the *canonical* view of a run. The sequence is a decorated way 
 ### 3.4 Skip, interruption and failure
 
 - **Tap anywhere** → jump to end state, instantly, no fade. Not "next beat." One tap ends it.
+  *(D-298: "anywhere" excludes the sequence's two controls — a tally row's expander, which pauses
+  the sequence (§3.2), and the frontier line. Esc and Back always end it.)*
 - **Back** during the sequence → end state, then a second back → `/`.
 - **`prefers-reduced-motion`** (05 §4.5) → no lantern traversal, no counting numbers, no card
   overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory;
@@ -474,8 +476,10 @@ The end state is the *canonical* view of a run. The sequence is a decorated way 
   sequences. Backfill produces **one** aggregate reveal: the whole archive burns back at once
   over 4 s, with a ledger showing lifetime totals and starting levels, and a single card:
   `Total Level 214`. Individual runs are then just rows in the Chronicle, unseen-flagged off.
+  *(D-298: built in `0257`, capability 14, with the paced historical import `0177`.)*
 - **Failure mid-sequence.** If WebGL context is lost (05 §4.5 says this genuinely happens on
-  phones under memory pressure), abort to the end state with a static map image. The ledger is
+  phones under memory pressure), abort to the end state with a static map image (D-298: the route drawn from its geometry, until
+  the rebuilt map is ready). The ledger is
   plain DOM and always survives. **The numbers must never depend on the graphics.**
 
 ### 3.5 The fallback: a run with no new territory

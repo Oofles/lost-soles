@@ -1,14 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useReducer, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react"
 
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
+import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
 import { frontierOrigin, frontierText, pickFrontier } from "@/lib/run-moment/frontier-line"
+import { browserSequenceHistory, wireSequenceExit, type SequenceExit } from "@/lib/run-moment/exit"
 import { FRONTIER_MODE, requestRenderMode } from "@/lib/run-moment/mode"
+import { routeStill } from "@/lib/run-moment/route-still"
+import { markSeen } from "@/lib/run-moment/seen"
 import { runDate, runDistance, runDuration, sourceLabel } from "@/lib/runs/format"
 import { browserHistoryHost, seedHomeBehind } from "@/lib/runs/history"
 import { PLAY_PARAM, type RunSummary } from "@/lib/runs/wire"
@@ -30,6 +34,11 @@ import { RunSequence } from "./run-sequence"
  *
  * WHETHER IT PLAYS is the entry point's `autoplay` intent and nothing else: not the run's age,
  * not the `seen` flag (`0084`). `⟲ Relive` is the only other way in.
+ *
+ * `0084`. EVERY WAY OUT is one exit (`lib/run-moment/exit.ts`), installed here for the sequence's
+ * lifetime: a click (bar the two sequence controls, D-298), Esc, Back, the sequence finishing, or the
+ * GL context being lost. Each lands on the end state underneath, and each marks the run `seen` on this
+ * device. A lost context also swaps the map for a drawn still until the browser restores it.
  */
 
 export type Phase = "sequence" | "end"
@@ -165,6 +174,33 @@ export function EndState({
   )
 }
 
+/**
+ * `0084`. THE STILL, over the map's box while the GL context is gone (§3.4). The route drawn with
+ * the map's own route tokens on the page's ground, and one plain sentence — legibility first (D-051):
+ * a blank box would read as a broken page, and the numbers below are complete either way.
+ */
+function RouteStill({ summary }: { summary: RunSummary }) {
+  const still = routeStill(summary.route.features[0]?.geometry)
+  return (
+    <div
+      data-testid="route-still"
+      style={{ position: "absolute", inset: 0, background: "var(--bg)", display: "grid", gridTemplateRows: "1fr auto" }}
+    >
+      {still ? (
+        <svg viewBox={still.viewBox} preserveAspectRatio="xMidYMid meet" role="img" aria-label="The run's route" style={{ width: "100%", height: "100%" }}>
+          <path d={still.d} fill="none" stroke="var(--route-glow)" strokeWidth={still.stroke * 3} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.6} />
+          <path d={still.d} fill="none" stroke="var(--route-line)" strokeWidth={still.stroke} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <span />
+      )}
+      <p style={{ margin: 0, padding: ".5rem 1rem", color: "var(--text-secondary)", textAlign: "center" }}>
+        {"The map's graphics reset. Everything below is complete."}
+      </p>
+    </div>
+  )
+}
+
 export function RunMoment({
   summary,
   xpBefore,
@@ -195,7 +231,48 @@ export function RunMoment({
     seedHomeBehind(browserHistoryHost())
   }, [])
 
-  const onDone = useCallback(() => dispatch({ type: "done" }), [])
+  /**
+   * `0084`. ONE EXIT PER PLAY. Declared after the seed effect above, and the order is load-bearing:
+   * the exit pushes its sentinel history entry, and the seed must already be underneath it.
+   */
+  const exit = useRef<SequenceExit | null>(null)
+  const activityId = summary.activityId
+  useEffect(() => {
+    if (state.phase !== "sequence") return
+    const x = wireSequenceExit({
+      host: window,
+      history: browserSequenceHistory(),
+      onExit: () => {
+        dispatch({ type: "done" })
+        markSeen(activityId)
+      },
+    })
+    exit.current = x
+    return () => {
+      x.teardown()
+      exit.current = null
+    }
+  }, [state.phase, state.play, activityId])
+
+  const phase = useRef(state.phase)
+  phase.current = state.phase
+  /** The sequence ended on its own — finished, or aborted. Before the exit is wired, the same thing. */
+  const onDone = useCallback(() => {
+    if (phase.current !== "sequence") return
+    if (exit.current) return exit.current.complete()
+    dispatch({ type: "done" })
+    markSeen(activityId)
+  }, [activityId])
+
+  /**
+   * `0084`. `prefers-reduced-motion`, read as each play starts. Not a render-time value on the server:
+   * nothing it changes is in the markup (the reveal set goes to the GL layer; the beats render after
+   * mount), so it cannot cause a hydration mismatch.
+   */
+  const reduced = useMemo(
+    () => state.play > 0 && typeof window !== "undefined" && window.matchMedia?.(REDUCED_MOTION_QUERY).matches === true,
+    [state.play],
+  )
 
   /**
    * `0080`. BEAT 1'S REVEAL SET: this run's new and re-armed cells as the server classified them
@@ -203,11 +280,27 @@ export function RunMoment({
    * familiar ground at `p = 0`. Handed to the map only while the sequence plays; at its end the
    * reveal is uninstalled and the steady state, identical to `p = 1`, is what remains.
    */
-  const reveal = useMemo(
-    () => revealCellsForRoute(summary.route.features[0]?.geometry, summary.reveal),
-    [summary],
-  )
+  const reveal = useMemo(() => {
+    const cells = revealCellsForRoute(summary.route.features[0]?.geometry, summary.reveal)
+    // `0084`. Reduced motion: every arc at 0, so the reveal is one cross-fade (`beat1ReducedAt`).
+    return reduced ? cells.map((c) => ({ ...c, arc: 0 })) : cells
+  }, [summary, reduced])
   const [stage, setStage] = useState<MapStage>(null)
+
+  /**
+   * `0084`. WEBGL LOST: abort to the end state, and hold the still until a rebuilt map is ready. The
+   * ledger and both lines are plain DOM and never noticed (§3.4: the numbers never depend on the
+   * graphics).
+   */
+  const [still, setStill] = useState(false)
+  useEffect(() => {
+    if (stage?.kind === "lost") {
+      setStill(true)
+      onDone()
+    } else if (stage?.kind === "ready") {
+      setStill(false)
+    }
+  }, [stage, onDone])
 
   /**
    * BEAT 5'S FRONTIER (`0083`). Computed once the explored set is here AND the sequence has reached
@@ -252,12 +345,15 @@ export function RunMoment({
       <EndState
         summary={summary}
         map={
-          <MapShell
-            home={home}
-            run={summary.route}
-            reveal={state.phase === "sequence" ? reveal : null}
-            onStage={setStage}
-          />
+          <div style={{ position: "relative" }}>
+            <MapShell
+              home={home}
+              run={summary.route}
+              reveal={state.phase === "sequence" ? reveal : null}
+              onStage={setStage}
+            />
+            {still ? <RouteStill summary={summary} /> : null}
+          </div>
         }
         ledger={<RunLedger summary={summary} data={tally} />}
         chronicle={chronicle}
@@ -276,6 +372,7 @@ export function RunMoment({
           frontier={frontierLine}
           onLines={onLines}
           onDone={onDone}
+          reduced={reduced}
         />
       ) : null}
     </main>

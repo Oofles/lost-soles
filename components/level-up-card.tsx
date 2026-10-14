@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { CREST, Mark, sigilPaths } from "@/components/sigil"
-import { cardAt, CARD_MS, EXIT_RISE_PX, type CardFrame } from "@/lib/level-up/beat3"
+import { cardAt, CARD_MS, cardReducedAt, EXIT_RISE_PX, type CardFrame } from "@/lib/level-up/beat3"
 import type { LevelCard } from "@/lib/level-up/cards"
 
 /**
@@ -40,6 +40,7 @@ export function LevelUpQueue({
   onDone,
   flyTo,
   onPlaced,
+  reduced = false,
 }: {
   cards: readonly LevelCard[]
   skillName: (id: string) => string
@@ -47,9 +48,12 @@ export function LevelUpQueue({
   flyTo?: FlyTarget
   /** Called as a flown card lands, with where it landed — the run page pulses that cell. */
   onPlaced?: (at: { x: number; y: number }) => void
+  /** `0084`. `prefers-reduced-motion`: no scale, no rise, no flight. Same cards, same timing. */
+  reduced?: boolean
 }) {
+  const at = reduced ? cardReducedAt : cardAt
   const [index, setIndex] = useState(0)
-  const [frame, setFrame] = useState<CardFrame>(() => cardAt(0))
+  const [frame, setFrame] = useState<CardFrame>(() => at(0))
   const target = useRef<{ x: number; y: number } | null>(null)
   const done = useRef(onDone)
   done.current = onDone
@@ -69,13 +73,13 @@ export function LevelUpQueue({
       done.current()
       return
     }
-    target.current = card.kind === "skill" && card.place && flyTo ? flyTo(card) : null
+    target.current = !reduced && card.kind === "skill" && card.place && flyTo ? flyTo(card) : null
     const start = nextStart.current ?? performance.now()
     const log = (window.__cards ??= [])
     let raf = 0
     const tick = (now: number) => {
       const t = now - start
-      setFrame(cardAt(t))
+      setFrame(at(t))
       if (t >= CARD_MS) {
         log.push({ start, end: now, kind: card.kind, to: card.kind === "skill" ? card.to : card.milestone })
         if (target.current) placed.current?.(target.current)
@@ -92,7 +96,7 @@ export function LevelUpQueue({
   }, [card])
 
   if (!card) return null
-  return <LevelUpCard card={card} frame={frame} skillName={skillName} fly={target.current} />
+  return <LevelUpCard card={card} frame={frame} skillName={skillName} fly={target.current} reduced={reduced} />
 }
 
 export function LevelUpCard({
@@ -100,11 +104,13 @@ export function LevelUpCard({
   frame,
   skillName,
   fly = null,
+  reduced = false,
 }: {
   card: LevelCard
   frame: CardFrame
   skillName: (id: string) => string
   fly?: { x: number; y: number } | null
+  reduced?: boolean
 }) {
   const name = card.kind === "skill" ? skillName(card.skillId) : "Total Level"
   const from = card.kind === "skill" ? card.from : null
@@ -118,8 +124,8 @@ export function LevelUpCard({
    * shrinking toward the cell where the level was earned, so the placement is seen as it happens.
    */
   const e = frame.exit
-  let transform = `translateY(${-EXIT_RISE_PX * e}px) scale(${frame.scale})`
-  if (fly && e > 0 && typeof window !== "undefined") {
+  let transform = reduced ? "none" : `translateY(${-EXIT_RISE_PX * e}px) scale(${frame.scale})`
+  if (!reduced && fly && e > 0 && typeof window !== "undefined") {
     const dx = (fly.x - window.innerWidth / 2) * e
     const dy = (fly.y - window.innerHeight / 2) * e
     transform = `translate(${dx}px, ${dy}px) scale(${frame.scale * (1 - 0.9 * e)})`

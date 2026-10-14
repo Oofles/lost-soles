@@ -139,3 +139,14 @@ export class PausableClock {
 function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x
 }
+
+/**
+ * `0084`. BEAT 2 UNDER `prefers-reduced-motion` (§3.4): *"the ledger fades in complete"*. The panel
+ * fades in over the rise's 300 ms instead of rising — `rise` is then an OPACITY, and the caller draws
+ * it so — with every line in place and every number already final. No slide, no count, no fill.
+ * Phases and timing are the full beat's, so card triggers and beats 4–5 land where they always do.
+ */
+export function beat2ReducedAt(t: number, count: number): Beat2Frame {
+  const full = beat2At(t, count)
+  return { phase: full.phase, rise: clamp01(t / RISE_MS), lines: full.lines.map(() => ({ opacity: 1, dy: 0, count: 1 })) }
+}

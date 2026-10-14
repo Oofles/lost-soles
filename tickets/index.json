@@ -2053,10 +2053,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-13T22:36:39Z",
     "path": "tickets/open/0084-skip-interruption-failure-and-the-seen-flag.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 11
     }
   },
@@ -5893,6 +5894,51 @@
     "acceptance": {
       "checked": 0,
       "total": 4
+    }
+  },
+  {
+    "id": 257,
+    "slug": "backfill-aggregate-reveal",
+    "title": "Backfill aggregate reveal — one 4 s reveal, lifetime ledger, one Total Level card, backfilled runs seen",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [
+      177,
+      84
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-13T22:36:47Z",
+    "path": "tickets/open/0257-backfill-aggregate-reveal.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 258,
+    "slug": "log-level-up-reduced-motion",
+    "title": "Level-up cards on /log honour prefers-reduced-motion",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      84
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-14T02:28:49Z",
+    "path": "tickets/open/0258-log-level-up-reduced-motion.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]

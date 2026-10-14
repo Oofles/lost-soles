@@ -54,8 +54,15 @@ type MapInstance = import("maplibre-gl").Map
  * (`RunSequence`) and drives the map imperatively. `null` while the map is loading; `unsupported`
  * when there will never be one, so the sequence can give up at once rather than wait forever.
  * `layer` is `null` under `?fog=off`.
+ *
+ * `0084`. `lost` from `webglcontextlost` until `webglcontextrestored`: the canvas is blank and every
+ * GL call a no-op, so the sequence aborts to the end state and the run page shows a still in its place.
  */
-export type MapStage = { kind: "ready"; map: MapInstance; layer: FogMaskLayer | null } | { kind: "unsupported" } | null
+export type MapStage =
+  | { kind: "ready"; map: MapInstance; layer: FogMaskLayer | null }
+  | { kind: "unsupported" }
+  | { kind: "lost" }
+  | null
 
 /**
  * WebGL2 is checked BEFORE the map is constructed, because `05-fog-of-war.md` §9.6 is
@@ -144,6 +151,8 @@ export function MapShell({
   const container = useRef<HTMLDivElement | null>(null)
   const map = useRef<MapInstance | null>(null)
   const [unsupported, setUnsupported] = useState(false)
+  /** `0084`. The GL context is gone and not yet back. Reported as `MapStage` `lost`. */
+  const [lost, setLost] = useState(false)
   /**
    * THE LOADED MAP, IN STATE AND NOT ONLY IN THE REF ABOVE. Ticket 0055.
    *
@@ -308,10 +317,12 @@ export function MapShell({
 
     function onLost(event: Event) {
       event.preventDefault()
+      setLost(true)
     }
 
     function onRestored() {
       if (disposed || !maplibre) return
+      setLost(false)
       teardown()
       build(maplibre)
     }
@@ -372,8 +383,16 @@ export function MapShell({
 
   /** `0080`. Reported after commit, so the layer handed over has had its reveal installed. */
   useEffect(() => {
-    onStage?.(unsupported ? { kind: "unsupported" } : loaded ? { kind: "ready", map: loaded, layer: fogLayer } : null)
-  }, [onStage, unsupported, loaded, fogLayer])
+    onStage?.(
+      unsupported
+        ? { kind: "unsupported" }
+        : lost
+          ? { kind: "lost" }
+          : loaded
+            ? { kind: "ready", map: loaded, layer: fogLayer }
+            : null,
+    )
+  }, [onStage, unsupported, lost, loaded, fogLayer])
 
   /**
    * Ticket `0057`. The route above the fog, and the optimistic corridor inside the mask.

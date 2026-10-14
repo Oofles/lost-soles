@@ -74,7 +74,7 @@ export function FrontierLine({
   return (
     <p data-slot="frontier-line" style={{ margin: 0, ...(opacity === undefined ? {} : { opacity }) }}>
       {text ? (
-        <button type="button" style={frontierButton} onClick={onSelect}>
+        <button type="button" data-sequence-control="" style={frontierButton} onClick={onSelect}>
           <span aria-hidden="true">◇</span>
           {text}
         </button>

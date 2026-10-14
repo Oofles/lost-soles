@@ -144,6 +144,7 @@ export function TallyView({
               <div key={l.skillId} data-skill={l.skillId} style={line(i)}>
                 <button
                   type="button"
+                  data-sequence-control=""
                   style={rowGrid}
                   aria-expanded={open}
                   aria-label={`${skillName(l.skillId)}, +${xpNumber(l.xp)} XP${s ? `, level ${s.levelAfter}${s.levelUp ? ", level gained" : ""}` : ""}. Show the reasons.`}

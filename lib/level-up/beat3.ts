@@ -79,3 +79,13 @@ export function cardAt(t: number): CardFrame {
 function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x
 }
+
+/**
+ * `0084`. A CARD UNDER `prefers-reduced-motion` (§3.4): *"level-up cards appear and hold without
+ * scaling"*. No scale (so no overshoot), the border already drawn, the new number swapped in by
+ * opacity without its rise. The exit is a fade with no rise and no flight (`LevelUpCard`'s `reduced`).
+ * Same 1.4 s, same content: only the motion goes.
+ */
+export function cardReducedAt(t: number): CardFrame {
+  return { ...cardAt(t), scale: 1, border: 1, newDy: 0 }
+}

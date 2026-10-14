@@ -4665,3 +4665,33 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     falls back to Georgia. §3.2 is amended.
   - **`/log`** plays the same queue over the page (§6.4, D-288), from `levelUpQueue` with the same
     guard.
+- **D-298** **The sequence's exits are one listener set that a tap on a SEQUENCE CONTROL does not
+  trip; WebGL loss shows a route drawn from geometry; reduced motion keeps every beat's length;
+  backfill's aggregate reveal moves to capability 14.** *(2026-10-13, ticket `0084`, operator
+  decisions for the control carve-out, the still and the backfill split.)*
+  - **§3.4's "tap anywhere" is narrowed by §3.2's "tap a row"**, which `0081` built and which
+    pauses the sequence. Both cannot hold. A click inside `[data-sequence-control]` — a tally row's
+    expander, the frontier line — keeps its own meaning. Any other click, Esc, or Back ends the
+    sequence, so the user is still never trapped: Esc always works. §3.4 is amended.
+  - **One exit, not per-beat skip** (`lib/run-moment/exit.ts`), wired once by `RunMoment` for the
+    sequence's lifetime. The click is taken in the capture phase and swallowed, so the header's `←`
+    skips rather than leaving. Back works through a sentinel history entry pushed at the start
+    (carrying the run entry's own router state, through the unpatched `pushState`); every other
+    exit takes it back off, so one Back from the end state is `/`. Every exit marks the run `seen`.
+  - **"A static map image" is a still of the route drawn as SVG from the route's geometry**, over
+    the page's ground, with one sentence saying the map's graphics reset. A lost context cannot be
+    read, and snapshotting the canvas while the sequence runs costs a PNG encode per capture on the
+    lantern's frames. The still shows from `webglcontextlost` until the rebuilt map is ready
+    (`MapStage` gained `lost`).
+  - **Reduced motion keeps the full timing.** Beat 1's reveal is a 400 ms cross-fade (every reveal
+    cell given arc 0, so `progress` 0 → `REVEAL_RAMP` fades them together through the existing
+    seam), then the lit map holds to 2.9 s. Beat 2's panel fades in over 300 ms with every number
+    final. Cards hold for 1.4 s without scale, border wipe, rise or flight. The boundaries do not
+    move, so the map is seen before the numbers for exactly as long as in full motion. `/log`'s
+    card queue is not changed by this ticket.
+  - **`seen` lives in its own IndexedDB database, `lost-soles-seen`**, not in `lost-soles-fog`:
+    adding a store there means a version bump that another open tab blocks, which would cost the
+    fog cache a cold start for a display flag. Only `RunMoment` imports it, and a test holds that.
+  - **Backfill's aggregate reveal is `0257`, in capability 14**, depending on `0177` (the paced
+    historical import). There is no backfill to reveal until `0177` exists, and an 8-hour paced
+    import changes *when* the reveal should play, which has to be decided with the importer.
