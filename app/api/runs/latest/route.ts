@@ -13,11 +13,8 @@ import { defaultRunReadDeps, latestRun } from "@/lib/runs/server"
  *
  * ─── THE LATEST RUN ONLY, AND THAT IS THE WHOLE ENDPOINT ────────────────────
  *
- * `0057`'s criteria name *"the latest run"* twice and never ask for more. `0085` owns the
- * permanent web of every past route, in capability 12, and it will need paging, a bounding-box
- * filter and a client that can ask for both — none of which exist. A list endpoint built now
- * would be a list endpoint built against no caller, guessed at, and rewritten when the caller
- * finally arrives.
+ * `0057`'s criteria name *"the latest run"* twice and never ask for more. The permanent web of
+ * every past route is `0085`'s, and it has its own endpoint, `/api/runs/web` (D-299).
  *
  * ─── AUTHENTICATED, SCOPED BY THE SESSION, THE SAME SHAPE AS `/api/fog` ─────
  *

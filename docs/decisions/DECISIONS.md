@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-08
+Last updated: 2026-10-14
 
 ---
 
@@ -4696,3 +4696,37 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Backfill's aggregate reveal is `0257`, in capability 14**, depending on `0177` (the paced
     historical import). There is no backfill to reveal until `0177` exists, and an 8-hour paced
     import changes *when* the reveal should play, which has to be decided with the importer.
+- **D-299** **The permanent trace layer is one derived object of every route's simplified geometry,
+  built into the drawn web on the client; overlap darkens in bounded steps instead of compounding;
+  a no-new-ground run's beat 1 inks the route in the trace layer's paint.** *(2026-10-14, ticket
+  `0085`, operator choice between storing inputs vs. reading every per-run object (1a), and bounded
+  per-ground darkening vs. plain alpha stacking (2a).)*
+  - **Storage: `users/<uid>/traces/web.json.gz`**, `{ v: 1, runs: { <activityId>: { startedAt,
+    lines } } }`, each run's `traceToSegments` geometry Douglas-Peucker simplified at 2 m and rounded
+    to 5 dp. Written by the ingest worker's `traces` phase, above the transaction, as an upsert keyed
+    by activity id and serialised by `IfMatch` exactly like the explored manifest (D-219) — the worker
+    runs five at once (D-266). Derived and rebuildable from the per-run S-7 objects plus T3's
+    `startedAt` (`tools/trace-web/rebuild-trace-web.ts`). Served by `GET /api/runs/web`, session-gated,
+    `no-store, private`, the same posture as `/api/runs/latest`. The INPUTS are stored, not the drawn
+    web, because beat 1 needs the web *without* this run as well as with it.
+  - **The drawn web draws each stretch of ground once** (`lib/trace-web/web.ts`). MapLibre
+    alpha-blends overlapping features in one line layer, so N runs of one street at 0.28 approach
+    black (criterion 2 forbids it). Runs are walked oldest first on a ~10 m metric grid with
+    neighbours; ground an earlier run drew is not drawn again but is drawn darker. Darkness is
+    `wear` = 0.28 / 0.36 / 0.44 / 0.52 / 0.60 for 1 / 2 / 3–4 / 5–8 / 9+ runs, capped at 0.60. The
+    feature carries `wear` and nothing else — no count reaches the map, so none can reach the screen.
+  - **Place in the stack: above the basemap's roads, below its labels** (so below the fog and the
+    route). §3.5 says "above the basemap"; under the labels is the D-051 reading, because the web
+    runs along the very streets whose names it would strike through.
+  - **Beat 1 on a run with no new ground** (no new and no re-armed cells) inks the route in
+    `--trace-line` at the web's darkest weight behind the lantern, with the amber route held hidden
+    for the sequence; over the settle the ink fades out while the web cross-fades from *without this
+    run* to *with it*. Every traced run gets the cross-fade. The beat's clock is unchanged: 2.9 s.
+  - **§3.5's "sepia" is amended to the token it names.** `--ink-300` is `#A9B3C2`, the blue-shifted
+    ink ramp, not a sepia; the token wins (a literal sepia would be a seventh ramp, against §8.2). It
+    gets its own semantic token, `--trace-line`, so capability 15's parchment pass can retune it.
+  - **The tally's distance line uses the screen's existing two-decimal format**: `5.10 km added to
+    the record`, matching the header's `5.10 km`, not §3.5's illustrative `5.1 km`.
+  - **Scale is a known limit, not a solved one.** The client builds 19 real runs in ~17 ms; a
+    synthetic five years (1,000 runs × 8 km) is ~1.7 s on the main thread and ~15 MB of input. Filed
+    as its own ticket rather than solved speculatively now.

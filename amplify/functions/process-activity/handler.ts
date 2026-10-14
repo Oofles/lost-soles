@@ -352,6 +352,8 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
        * a future split a search-and-replace across unrelated concerns.
        */
       traces: { s3, bucket: required("USER_DATA_BUCKET") },
+      /** `0085`, D-299. The permanent web, beside the per-run objects under the same grant. */
+      traceWeb: { s3, bucket: required("USER_DATA_BUCKET") },
       registry: (userId) =>
         rulesForUser(userId, {
           ddb,

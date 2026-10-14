@@ -17,11 +17,14 @@ import { BEAT4_START, BEAT5_START, beat45At, SEQUENCE_END } from "@/lib/run-mome
 import { beat2At, beat2ReducedAt, BEAT2_MS, COUNT_MS, easeOutQuint, FADE_MS, lineStart, PausableClock, PULL_BACK_ZOOM, RISE_MS, type Beat2Frame } from "@/lib/run-moment/beat2"
 import { cardTriggers, type CardTrigger } from "@/lib/run-moment/tally"
 import { flyToRun, pullBack } from "@/lib/run-moment/camera"
-import { installInk, type Ink } from "@/lib/run-moment/ink"
+import { installInk, installTraceInk, type Ink, type TraceInk } from "@/lib/run-moment/ink"
 import { lanternPath } from "@/lib/run-moment/lantern-path"
 import { modeCrossFade, savedRenderMode } from "@/lib/run-moment/mode"
 import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
+import { documentTraceColor, installWebBeat, type WebBeat } from "@/lib/trace-web/layer"
+import { webRuns } from "@/lib/trace-web/runs"
+import { buildWeb, type WebRunInput } from "@/lib/trace-web/web"
 
 import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
 import { ChronicleLine } from "./run-lines"
@@ -53,6 +56,14 @@ import { ChronicleLine } from "./run-lines"
  * Two ways out without playing, both to the end state: no WebGL2 (`MapShell` reports `unsupported`)
  * and no route to walk (an untraced activity). And a `GIVE_UP_MS` ceiling on the wait, because a beat
  * that never starts must not hold the page — the end state is the canonical view (§3.3).
+ *
+ * ─── NO NEW GROUND: THE LINE JOINS THE WEB (`0085`) ─────────────────────────
+ *
+ * §3.5 rule 2. A run that reveals nothing keeps all 2.9 s — the clock below does not know what the
+ * run revealed — and changes subject: the ink is the permanent trace layer's (`installTraceInk`),
+ * not the route's amber, so what draws behind the lantern is the record of the passage. On every
+ * traced run the web is shown as it was WITHOUT this run until the lantern lands, then cross-fades
+ * to the web with it over the settle (`installWebBeat`), so the segments run most visibly darken.
  *
  * ─── SKIP, REDUCED MOTION, WEBGL LOSS (`0084`) ──────────────────────────────
  *
@@ -171,9 +182,29 @@ function Beat1({
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
   const expectReveal = summary.reveal.new.length + summary.reveal.rearmed.length > 0
 
+  // `0085`. The web's inputs: the array, `"none"` when the fetch failed (the beat plays without
+  // the web), or `null` while it is in flight.
+  const web = useRef<WebRunInput[] | "none" | null>(null)
+
   const explored = useExplored()
   const exploredReady = useRef(false)
   exploredReady.current = explored.phase !== "loading"
+
+  const generation = explored.generation
+  useEffect(() => {
+    let cancelled = false
+    webRuns(generation).then(
+      (runs) => {
+        if (!cancelled && web.current === null) web.current = runs
+      },
+      () => {
+        if (!cancelled && web.current === null) web.current = "none"
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [generation])
 
   const lantern = useRef<HTMLDivElement | null>(null)
   const ended = useRef(false)
@@ -194,17 +225,34 @@ function Beat1({
     setHost(map.getContainer())
 
     let ink: Ink | null = null
+    let traceInk: TraceInk | null = null
+    let traceColor: string | null = null
     try {
-      ink = installInk(map, path, documentRoutePalette())
+      traceColor = documentTraceColor()
+    } catch {
+      // No trace token: the beat plays with no web, and with the route's ink on every run.
+    }
+    try {
+      if (!expectReveal && traceColor) ink = traceInk = installTraceInk(map, path, traceColor)
+      else ink = installInk(map, path, documentRoutePalette())
     } catch {
       // No route palette (the stylesheet did not load): the beat plays with no ink rather than not
       // at all. `use-latest-run` makes the same trade for the steady-state line.
+    }
+    let webBeat: WebBeat | null = null
+    const installWeb = () => {
+      const runs = web.current
+      if (webBeat || !traceColor || runs === null || runs === "none") return
+      webBeat = installWebBeat(map, buildWeb(runs, { exclude: summary.activityId }), traceColor)
+      webBeat.crossfade(0)
     }
     const bloomPalette = documentBloomPalette()
     const perf = perfEnabled(window.location.search) ? new FogPerf() : null
 
     const ready = () =>
-      exploredReady.current && (fogOff || (layer !== null && (!expectReveal || layer.stats().reveal !== null)))
+      exploredReady.current &&
+      web.current !== null &&
+      (fogOff || (layer !== null && (!expectReveal || layer.stats().reveal !== null)))
 
     let raf = 0
     const mounted = performance.now()
@@ -238,8 +286,11 @@ function Beat1({
     }
 
     const tick = (now: number) => {
+      // As soon as the web is here — before t0 too, so the map never shows this run in it early.
+      installWeb()
       if (t0 === null) {
         ink?.hold()
+        webBeat?.crossfade(0)
         if (!ready()) {
           if (now - mounted > GIVE_UP_MS) return finish(now)
           raf = requestAnimationFrame(tick)
@@ -258,6 +309,9 @@ function Beat1({
       layer?.setBloom(bloomPalette && !reduced ? f.bloom : null, bloomPalette ?? undefined)
       // Reduced: the whole line at once — its head travelling IS the lantern traversal.
       ink?.update(reduced ? 1 : f.progress)
+      // The line settles into the web as the lantern goes out.
+      traceInk?.fade(1 - f.web)
+      webBeat?.crossfade(f.web)
 
       const el = lantern.current
       if (el) {
@@ -276,6 +330,7 @@ function Beat1({
     return () => {
       cancelAnimationFrame(raf)
       ink?.remove()
+      webBeat?.remove()
       layer?.setBloom(null)
       setHost(null)
     }

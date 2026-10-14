@@ -50,11 +50,20 @@ const rowGrid: React.CSSProperties = {
 const num: React.CSSProperties = { textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }
 
 /** The lines below the skill rows, in order. Each is present only when it has something to say. */
-type Footer = "cells" | "km" | "total" | "level"
+type Footer = "cells" | "record" | "km" | "total" | "level"
 
-export function tallyFooters(tally: Tally, summary: Pick<RunSummary, "newCellCount" | "rearmedCellCount">): Footer[] {
+type FooterSummary = Pick<RunSummary, "newCellCount" | "rearmedCellCount"> & Partial<Pick<RunSummary, "distanceM">>
+
+/**
+ * `0085`. A RUN WITH NO NEW GROUND SAYS WHAT IT ADDED, IN DISTANCE (§3.5): *"5.1 km added to the
+ * record"* stands where the cells line would, so the summary is never a cell count and never a zero.
+ * Absent when there is no distance either — then Total XP carries the bottom alone (§3.5's *"there
+ * is always something"*).
+ */
+export function tallyFooters(tally: Tally, summary: FooterSummary): Footer[] {
   const out: Footer[] = []
   if (summary.newCellCount > 0 || summary.rearmedCellCount > 0) out.push("cells")
+  else if (runDistance(summary.distanceM ?? null)) out.push("record")
   if (tally.newKm !== null) out.push("km")
   if (tally.total) out.push("total")
   if (tally.totalLevel !== null) out.push("level")
@@ -62,7 +71,7 @@ export function tallyFooters(tally: Tally, summary: Pick<RunSummary, "newCellCou
 }
 
 /** How many lines beat 2 staggers: the skill rows, then the footers. */
-export function tallyLineCount(tally: Tally, summary: Pick<RunSummary, "newCellCount" | "rearmedCellCount">): number {
+export function tallyLineCount(tally: Tally, summary: FooterSummary): number {
   return tally.lines.length + tallyFooters(tally, summary).length
 }
 
@@ -104,6 +113,8 @@ export function TallyView({
     switch (kind) {
       case "cells":
         return <p key={kind} data-line="cells" style={{ ...style, color: "var(--text-secondary)" }}>{cells.join(" · ")}</p>
+      case "record":
+        return <p key={kind} data-line="record" style={{ ...style, color: "var(--text-secondary)" }}>{distance} added to the record</p>
       case "km":
         return <p key={kind} data-line="km" style={{ ...style, margin: ".25rem 0 0", color: "var(--text-secondary)" }}>{kmText(tally!.newKm!)} never run before</p>
       case "total": {

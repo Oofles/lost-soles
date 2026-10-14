@@ -1,4 +1,6 @@
-import { EMPTY_COLLECTION, RUNS_LATEST_PATH, type RunFeatureCollection } from "./wire"
+import type { WebRunInput } from "@/lib/trace-web/web"
+
+import { EMPTY_COLLECTION, RUNS_LATEST_PATH, RUNS_WEB_PATH, type RunFeatureCollection } from "./wire"
 
 /**
  * THE BROWSER HALF OF `/api/runs/latest`. Ticket `0057`. `05-fog-of-war.md` §4.4.
@@ -60,4 +62,18 @@ export async function fetchLatestRun(
     return EMPTY_COLLECTION
   }
   return body
+}
+
+/**
+ * `0085`, D-299. The permanent web's inputs, for `lib/trace-web/web.ts`. Same contract as
+ * `fetchLatestRun`: a 404 is a signed-out map and reads as "no routes"; any other failure throws.
+ */
+export async function fetchTraceWebRuns(fetchImpl: Fetch = globalThis.fetch): Promise<WebRunInput[]> {
+  const response = await fetchImpl(RUNS_WEB_PATH, { credentials: "same-origin", cache: "no-store" })
+  if (response.status === 404) return []
+  if (!response.ok) {
+    throw new RunFetchError(response.status, `GET ${RUNS_WEB_PATH} returned ${response.status}`)
+  }
+  const body = (await response.json()) as { runs?: unknown }
+  return Array.isArray(body?.runs) ? (body.runs as WebRunInput[]) : []
 }

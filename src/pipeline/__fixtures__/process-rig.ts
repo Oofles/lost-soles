@@ -113,6 +113,11 @@ export interface Options {
   /** `0195`. A failed geometry PUT, to prove it happens above the transaction. */
   tracesFail?: Error
   /**
+   * `0085`. The permanent web (D-299), as an in-memory object with ETags — pass the same `Map` to
+   * two rigs to replay a second run onto the web the first one wrote. Requires `traces`.
+   */
+  traceWeb?: Map<string, { body: Uint8Array; etag: string }>
+  /**
    * Ticket `0048`. What T6 already holds, as `cell -> lastRunAt`. A cell absent from this
    * map classifies `new`. Given as a function of the run's cells so a test can seed "every
    * cell is already known" without knowing which cells the fixture trace produces.
@@ -167,6 +172,7 @@ export const TRACE: Trace = {
 export function rig(options: Options = {}) {
   const calls: string[] = []
   const tracePuts: PutObjectCommand["input"][] = []
+  const traceWebPuts: PutObjectCommand["input"][] = []
   const cellWrites: UpdateCommand["input"][] = []
   const aggWrites: UpdateCommand["input"][] = []
   const blobPuts: string[] = []
@@ -373,6 +379,27 @@ export function rig(options: Options = {}) {
           } as never,
         }
       : undefined,
+    traceWeb: options.traceWeb
+      ? {
+          bucket: BUCKET,
+          backoff: async () => {},
+          s3: {
+            async send(command: GetObjectCommand | PutObjectCommand) {
+              const store = options.traceWeb!
+              if (command instanceof GetObjectCommand) {
+                const hit = store.get(command.input.Key!)
+                if (!hit) throw Object.assign(new Error("missing"), { name: "NoSuchKey" })
+                return { Body: { transformToByteArray: async () => hit.body }, ETag: hit.etag }
+              }
+              calls.push("traceWeb")
+              traceWebPuts.push(command.input)
+              const etag = `"w${store.size}-${traceWebPuts.length}"`
+              store.set(command.input.Key!, { body: command.input.Body as Uint8Array, etag })
+              return { ETag: etag }
+            },
+          } as never,
+        }
+      : undefined,
     registry: REGISTRY,
     persist: {
       activityTable: ACTIVITY_TABLE,
@@ -514,6 +541,7 @@ export function rig(options: Options = {}) {
     blobPuts,
     blobBodies,
     tracePuts,
+    traceWebPuts,
     transacts,
     ledgerReads,
     activityReads,

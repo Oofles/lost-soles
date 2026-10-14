@@ -502,9 +502,10 @@ anyone who wants it.)
 **2. Beat 1 changes subject, and keeps its 2.9 seconds.** It is never shortened, never skipped.
 Instead of fog burning back, the lantern traverses the route over already-clear ground and the
 route **inks into the permanent trace layer** — every route you have ever run, drawn faintly in
-sepia (`--ink-300` at 0.28), accumulating into a visible web of worn paths across your
+ink (`--ink-300` at 0.28, via `--trace-line`; *not* sepia — `--ink-300` is the blue-shifted ink ramp, D-299), accumulating into a visible web of worn paths across your
 territory. On a no-new-ground run, the beat is *this line joining the web*, and the segments you
-have run most darken perceptibly. The subject shifts from *territory* to *the record of your
+have run most darken perceptibly — in bounded steps, each stretch of ground drawn once, so a daily
+commute stops at 0.60 instead of compounding to black (D-299). The subject shifts from *territory* to *the record of your
 passage*, which is still cumulative, still permanent, and still yours.
 
 > This layer is worth building for its own sake: it is the second permanent artifact in the

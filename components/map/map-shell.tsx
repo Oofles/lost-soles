@@ -24,6 +24,7 @@ import { PerfOverlay } from "./perf-overlay"
 import { RevealScrub } from "./reveal-scrub"
 import { useFogMask } from "./use-fog-mask"
 import { useLatestRun } from "./use-latest-run"
+import { useTraceWeb } from "./use-trace-web"
 
 import "maplibre-gl/dist/maplibre-gl.css"
 
@@ -404,6 +405,9 @@ export function MapShell({
    * the same thing at the effect that depends on it.
    */
   const runs = useLatestRun(loaded, fogLayer, run)
+
+  /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
+  useTraceWeb(loaded)
 
   /**
    * Ticket `0186`. THE MOST RECENT RUN'S CENTRE, ON A FIRST-EVER LOAD ONLY.

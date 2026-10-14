@@ -185,3 +185,26 @@ describe("beat 3 interrupts beat 2 where §3.2 says (0082)", () => {
     expect(cardTriggers(flat, { lineStart: () => 0, countMs: 700, fadeMs: 180 }, () => ["x"], null, () => ["total"])).toEqual([])
   })
 })
+
+describe("a run with no new ground says what it added, in distance (0085)", () => {
+  const NONE = { ...SUMMARY, distanceM: 5100, newCellCount: 0, rearmedCellCount: 0 }
+  const rows = [row("wayfaring", "recent_ground", 255, { units: 5.1 }), row("constitution", "constitution_share", 85)]
+  const view = (summary: typeof SUMMARY) =>
+    text(renderToStaticMarkup(<TallyView summary={summary} tally={tallyFor(rows, {}, RULES)} skillName={(id) => names[id] ?? id} />))
+
+  it("stands the distance where the cells line would be", () => {
+    expect(view(NONE)).toContain("5.10 km added to the record")
+    expect(view(NONE)).not.toMatch(/cells|never run before/)
+  })
+
+  it("is absent on a run that claimed ground — the cells line says it there", () => {
+    expect(view(SUMMARY)).not.toContain("added to the record")
+  })
+
+  it("is absent without a distance, and Total XP still carries the bottom", () => {
+    const t = view({ ...NONE, distanceM: null as unknown as number })
+    expect(t).not.toContain("added to the record")
+    expect(t).toMatch(/Total XP/)
+  })
+})
+

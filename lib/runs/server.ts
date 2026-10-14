@@ -5,7 +5,9 @@ import outputs from "@/amplify_outputs.json"
 import { getObject, defaultFogReadDeps, type FogReadDeps } from "@/lib/fog/server"
 import type { RunClasses } from "@/src/domain/discovery"
 import { objectKeys, parseRunClasses } from "@/src/pipeline/explored-blob-store"
+import type { WebRunInput } from "@/lib/trace-web/web"
 import { routeTraceKey } from "@/src/pipeline/route-trace-store"
+import { traceWebKey, type TraceWeb } from "@/src/pipeline/trace-web-store"
 
 import {
   EMPTY_COLLECTION,
@@ -301,4 +303,23 @@ export async function recentRuns(userId: string, deps: RunReadDeps): Promise<Run
       kind: r.kind ?? "other",
       distanceM: r.distanceM ?? null,
     }))
+}
+
+/**
+ * EVERY PAST ROUTE — the permanent web's inputs. Ticket `0085`, D-299. `06-ui-ux.md` §3.5 rule 2.
+ *
+ * One `GetObject` of the object the ingest worker maintains, under the key rebuilt from the session's
+ * uid like every read here. No object is an empty web: a new account, or one whose runs predate the
+ * object and have not been rebuilt into it (`tools/trace-web/rebuild-trace-web.ts`).
+ */
+export async function traceWebRuns(userId: string, deps: FogReadDeps): Promise<WebRunInput[]> {
+  const bytes = await getObject(traceWebKey(userId), deps)
+  if (bytes === undefined) return []
+  const web = JSON.parse(new TextDecoder().decode(bytes)) as Partial<TraceWeb>
+  if (web.v !== 1 || typeof web.runs !== "object" || web.runs === null) return []
+  return Object.entries(web.runs).map(([activityId, run]) => ({
+    activityId,
+    startedAt: run.startedAt,
+    lines: run.lines,
+  }))
 }

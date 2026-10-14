@@ -109,6 +109,11 @@
      background it never actually sits on. */
   --route-glow: var(--lantern-500);
   --route-line: var(--route-core);
+
+  /* The permanent trace layer (ticket 0085). 06-ui-ux.md §3.5 rule 2: --ink-300, drawn at 0.28
+     and darker where run most (lib/trace-web/web.ts holds the opacities). Absent from the dark
+     blocks for the route's reason: it sits on the map, and the dark theme does not darken it. */
+  --trace-line: var(--ink-300);
 }
 
 /*

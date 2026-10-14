@@ -47,6 +47,9 @@ export const EMPTY_COLLECTION: RunFeatureCollection = { type: "FeatureCollection
 /** The endpoint `0195` built. Named here so the client and its test cannot disagree on the path. */
 export const RUNS_LATEST_PATH = "/api/runs/latest"
 
+/** `0085`, D-299. Every past route, as the inputs `lib/trace-web/web.ts` builds the web from. */
+export const RUNS_WEB_PATH = "/api/runs/web"
+
 /**
  * ONE RUN, AS `/run/:activityId` RENDERS IT. Ticket `0078`. `06-ui-ux.md` §3.3.
  *

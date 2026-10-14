@@ -6,6 +6,9 @@ import {
   type RoutePalette,
 } from "@/lib/map-layers"
 
+import { TRACE_INK_LAYER_ID, TRACE_INK_SOURCE_ID, TRACE_LAYOUT, TRACE_WIDTH, traceBeforeId } from "@/lib/trace-web/layer"
+import { WEAR_MAX } from "@/lib/trace-web/web"
+
 import { clearOf } from "./palette"
 import { inkGradient, type LanternPath } from "./lantern-path"
 
@@ -101,6 +104,89 @@ export function installInk(map: InkMap, path: LanternPath, palette: RoutePalette
         }
       } catch {
         // The map may already be gone — the page navigated, or the context was lost. Nothing left.
+      }
+    },
+  }
+}
+
+/**
+ * `0085`. THE RUN JOINS THE WEB — beat 1's subject on a run with no new ground (`06-ui-ux.md` §3.5
+ * rule 2): *"the lantern traverses the route over already-clear ground and the route inks into the
+ * permanent trace layer"*.
+ *
+ * The same lantern, the same arc, the same `inkGradient` — in the trace layer's paint instead of the
+ * route's, so what draws behind the light is the record and not the run. It inks at the web's
+ * darkest weight, `WEAR_MAX`, so it can be watched; over the settle it fades out while the web
+ * cross-fades to the web WITH this run (`installWebBeat`), so what it leaves behind is exactly the
+ * line the web now holds — darker where it was run before.
+ *
+ * The run's own amber layers are held hidden for the whole sequence, as `installInk` holds them:
+ * on this run the amber line would cover the very thing the beat is about. They come back with the
+ * end state, when the sequence unmounts.
+ */
+export interface TraceInkMap extends InkMap {
+  addLayer(layer: object, beforeId?: string): unknown
+  getStyle(): { layers?: ReadonlyArray<{ id: string; type: string }> } | undefined
+}
+
+export interface TraceInk extends Ink {
+  /** The ink's opacity factor, `0..1`, applied to `WEAR_MAX`. */
+  fade(k: number): void
+}
+
+export function installTraceInk(map: TraceInkMap, path: LanternPath, color: string): TraceInk {
+  const clear = clearOf(color)
+  const hold = () => {
+    for (const id of RUN_LAYER_IDS) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none")
+    }
+  }
+  hold()
+  map.addSource(TRACE_INK_SOURCE_ID, { type: "geojson", data: path.ink, lineMetrics: true })
+  map.addLayer(
+    {
+      id: TRACE_INK_LAYER_ID,
+      type: "line",
+      source: TRACE_INK_SOURCE_ID,
+      layout: { ...TRACE_LAYOUT },
+      paint: {
+        "line-width": TRACE_WIDTH,
+        "line-opacity": WEAR_MAX,
+        "line-gradient": inkGradient(path, 0, color, clear),
+      },
+    },
+    traceBeforeId(map),
+  )
+  let last = 0
+  let lastFade = 1
+  let removed = false
+  return {
+    hold() {
+      if (!removed) hold()
+    },
+    update(arc) {
+      if (removed) return
+      hold()
+      if (arc === last) return
+      last = arc
+      map.setPaintProperty(TRACE_INK_LAYER_ID, "line-gradient", inkGradient(path, arc, color, clear))
+    },
+    fade(k) {
+      if (removed || k === lastFade) return
+      lastFade = k
+      map.setPaintProperty(TRACE_INK_LAYER_ID, "line-opacity", WEAR_MAX * k)
+    },
+    remove() {
+      if (removed) return
+      removed = true
+      try {
+        if (map.getLayer(TRACE_INK_LAYER_ID)) map.removeLayer(TRACE_INK_LAYER_ID)
+        if (map.getSource(TRACE_INK_SOURCE_ID)) map.removeSource(TRACE_INK_SOURCE_ID)
+        for (const id of RUN_LAYER_IDS) {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "visible")
+        }
+      } catch {
+        // The map is already gone.
       }
     },
   }

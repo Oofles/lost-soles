@@ -50,7 +50,8 @@ import {
 import { findDuplicate, recordDuplicatePointer, type DedupeDeps } from "./dedupe"
 import { applyKindOverride, readKindOverride, type KindOverrideDeps } from "./kind-override"
 import type { PersistDeps } from "./persist"
-import { writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
+import { segmentsToGeometry, writeRouteTrace, type RouteTraceDeps } from "./route-trace-store"
+import { upsertTraceWeb, type TraceWebDeps } from "./trace-web-store"
 import { buildSnapshot, readShownRows, writeSnapshot, type SnapshotDeps } from "./skillstate-snapshot"
 import type { Registry } from "./worker-rules"
 import { persistWithLedger, type LedgerCommit, type LedgerDeps } from "./xp-ledger"
@@ -315,6 +316,11 @@ export interface ProcessDeps<TCreds> {
    * that did not touch the object should do.
    */
   traces?: RouteTraceDeps
+  /**
+   * `0085`. The one object every past route is drawn from (D-299). Optional for `traces`' reason —
+   * the rebuild drill has no reason to touch it — and only written when `traces` wrote a route.
+   */
+  traceWeb?: TraceWebDeps
   persist: PersistDeps
   /**
    * `0179`. GSI2 `byUserAndDedupe` and the per-candidate `GetItem` — T3, the same table
@@ -622,17 +628,34 @@ export async function processActivity<TCreds>(
    */
   phase("traces")
   const t3t = clock()
+  const segments = ingest.trace && deps.traces ? traceToSegments(ingest.trace).segments : null
   const traceRef =
-    ingest.trace && deps.traces
+    segments && deps.traces
       ? await writeRouteTrace(
           {
             userId: ingest.activity.userId,
             activityId: ingest.activity.activityId,
-            segments: traceToSegments(ingest.trace).segments,
+            segments,
           },
           deps.traces,
         )
       : null
+  /**
+   * `0085` — THE PERMANENT WEB (D-299). The same geometry, folded into the one object the map draws
+   * every past route from. Here, above the transaction, for the per-run object's reason: a failure
+   * leaves the receipt `PROCESSING`, and the redelivery's upsert replaces its own entry.
+   */
+  if (segments && traceRef !== null && deps.traceWeb) {
+    await upsertTraceWeb(
+      {
+        userId: ingest.activity.userId,
+        activityId: ingest.activity.activityId,
+        startedAt: ingest.activity.startedAt,
+        geometry: segmentsToGeometry(segments),
+      },
+      deps.traceWeb,
+    )
+  }
   const tracesMs = clock() - t3t
 
   phase("persist")

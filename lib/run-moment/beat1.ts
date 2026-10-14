@@ -36,6 +36,11 @@ export interface Beat1Frame {
   pulse: number
   /** The lantern's opacity: lit for the traversal, out by the end of the settle. */
   lantern: number
+  /**
+   * `0085`. The trace web's cross-fade, `0..1`: the web without this run at 0, with it at 1. Held at
+   * 0 until the lantern lands, then over the settle — the line joins the web as the light goes out.
+   */
+  web: number
 }
 
 export function easeOutCubic(x: number): number {
@@ -74,7 +79,7 @@ export function beat1At(t: number): Beat1Frame {
   const pulse = phase === "settle" ? Math.sin(Math.PI * settle) : 0
   const lantern = phase === "traversal" ? 1 : phase === "settle" ? 1 - settle : 0
 
-  return { phase, progress, bloom, pulse, lantern }
+  return { phase, progress, bloom, pulse, lantern, web: phase === "done" ? 1 : settle }
 }
 
 function clamp01(x: number): number {
@@ -116,5 +121,7 @@ export function beat1ReducedAt(t: number): Beat1Frame {
     bloom: { clock: -1, fade: 0, goldSpan: GOLD_MS / TRAVERSAL_MS, frostSpan: FROST_MS / TRAVERSAL_MS },
     pulse: 0,
     lantern: 0,
+    // Reduced: the web joins in the same 400 ms cross-fade as the fog.
+    web: fade,
   }
 }

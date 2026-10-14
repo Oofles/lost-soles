@@ -1419,6 +1419,7 @@ them entirely:
 | **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r11.<gen>.bin` | one GET, on demand only |
 | **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<toGen>.bin` GET | ~1 KB (05 §7.4) |
 | **S-7** | Route geometry on activity detail | `users/<uid>/traces/<activityId>.segments.json.gz` | one GET, `no-cache` |
+| **S-8** | The permanent trace layer (06 §3.5 rule 2) | `GET /api/runs/web` → `users/<uid>/traces/web.json.gz`, every traced run's simplified geometry keyed by activity id, upserted by the worker under `IfMatch` (**D-299**, ticket `0085`) | one GET per explored generation, `no-store, private` |
 
 **S-7 was renamed by D-235 (ticket `0195`), and the name is load-bearing.** This row originally
 read `traces/<activityId>.polyline.gz`. Three corrections, all recorded there:
@@ -1866,6 +1867,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `raw/<uid>/<source>/<externalId>/<sha256>.<ext>` | **forever** | D-101/D-121.2. Bedrock. The only thing on this list that cannot be regenerated. |
 | `rules/xp-rules-vN.yaml` (git + S3 mirror) | **forever** | 04 §7.6. A `v1` ledger row is meaningless without `v1`. |
 | `users/<uid>/traces/<activityId>.segments.json.gz` | forever in practice, **purgeable** | derived from raw; kept because regenerating it costs a `normalize()` and it is served on every activity detail (S-7) |
+| `users/<uid>/traces/web.json.gz` | current only, **purgeable** | derived from the S-7 objects plus T3's `startedAt`; `tools/trace-web/rebuild-trace-web.ts` rebuilds it (S-8, D-299) |
 | `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
 | T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny; PITR on |
