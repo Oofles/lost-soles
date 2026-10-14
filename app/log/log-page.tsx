@@ -153,7 +153,7 @@ export function LogPage() {
         >
           ←
         </Link>
-        <h1 style={{ color: "var(--text-primary)", margin: 0, fontSize: "1.125rem", letterSpacing: ".08em" }}>
+        <h1 style={{ color: "var(--text-primary)", margin: 0, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.125rem", letterSpacing: ".08em" }}>
           ADD WORKOUT
         </h1>
       </header>

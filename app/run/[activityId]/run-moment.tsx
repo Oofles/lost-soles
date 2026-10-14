@@ -146,7 +146,7 @@ export function EndState({
         aria-hidden={veiled || undefined}
         style={veiled ? { ...column, visibility: "hidden" } : column}
       >
-        {summary.name ? <h1 style={{ margin: 0, fontSize: "1.25rem", color: "var(--text-primary)" }}>{summary.name}</h1> : null}
+        {summary.name ? <h1 style={{ margin: 0, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.25rem", color: "var(--text-primary)" }}>{summary.name}</h1> : null}
 
         {ledger}
 

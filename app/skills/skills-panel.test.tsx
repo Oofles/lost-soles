@@ -78,9 +78,9 @@ describe("/skills markup (0073)", () => {
     expect(html).toContain(`next: ${model.rung.to}`)
   })
 
-  it("draws levels in tabular figures", () => {
+  it("draws levels in tabular figures, in §8.4's serif (0255)", () => {
     for (const t of [...model.activity, ...model.meta]) {
-      expect(html).toContain(`font-variant-numeric:tabular-nums;font-size:1.5rem;line-height:1.1;color:var(--text-primary)">${t.level}<`)
+      expect(html).toContain(`font-variant-numeric:tabular-nums;font-family:var(--font-serif);font-weight:600;font-size:1.5rem;line-height:1.1;color:var(--text-primary)">${t.level}<`)
     }
   })
 

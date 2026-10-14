@@ -114,6 +114,16 @@
      and darker where run most (lib/trace-web/web.ts holds the opacities). Absent from the dark
      blocks for the route's reason: it sits on the map, and the dark theme does not darken it. */
   --trace-line: var(--ink-300);
+
+  /* Type — 06-ui-ux.md §8.4. Two families, both self-hosted (ticket 0255): app/layout.tsx loads
+     the files from app/fonts/ through next/font/local, which sets --font-spectral and --font-inter
+     on <html>. Nothing is fetched from a font CDN (§4.8). The fallbacks only show if the variable
+     is missing, e.g. in a component test with no layout around it.
+     --font-serif is Spectral: display numerals, Total Level, titles, skill levels on tiles, tier
+     names, the chronicle line. Never letterspace it in lowercase (§8.4).
+     --font-sans is Inter: everything you read to operate rather than to enjoy. */
+  --font-serif: var(--font-spectral, Spectral), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter, Inter), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /*
@@ -166,4 +176,5 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text-primary);
+  font-family: var(--font-sans);
 }

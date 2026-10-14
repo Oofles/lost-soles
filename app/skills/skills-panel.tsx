@@ -59,7 +59,7 @@ function Tile({ tile }: { tile: SkillTile }) {
         <Sigil skillId={tile.skillId} />
       </span>
       <span style={{ fontSize: ".75rem", color: "var(--text-secondary)" }}>{tile.name}</span>
-      <span style={{ ...tabular, fontSize: "1.5rem", lineHeight: 1.1, color: "var(--text-primary)" }}>{tile.level}</span>
+      <span style={{ ...tabular, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.5rem", lineHeight: 1.1, color: "var(--text-primary)" }}>{tile.level}</span>
       <span style={{ display: "block", marginTop: "auto", width: "100%" }}>
         <Bar fraction={tile.fraction} tint={tile.kind} />
       </span>
@@ -126,7 +126,7 @@ export function SkillsPanel({ model, next }: { model: SkillsPanelModel; next: st
           >
             ←
           </Link>
-          <h1 style={{ color: "var(--text-primary)", margin: 0, fontSize: "1.125rem", letterSpacing: ".08em" }}>SKILLS</h1>
+          <h1 style={{ color: "var(--text-primary)", margin: 0, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.125rem", letterSpacing: ".08em" }}>SKILLS</h1>
         </header>
         <div
           data-total=""
@@ -137,7 +137,7 @@ export function SkillsPanel({ model, next }: { model: SkillsPanelModel; next: st
               <Mark paths={CREST} size={20} />
             </span>
             <span style={{ fontSize: ".875rem", color: "var(--text-secondary)" }}>TOTAL LEVEL</span>
-            <span style={{ ...tabular, fontSize: "1.75rem", fontWeight: 600, color: "var(--text-primary)" }}>{model.totalLevel}</span>
+            <span style={{ ...tabular, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.75rem", lineHeight: 1.2, color: "var(--text-primary)" }}>{model.totalLevel}</span>
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: ".75rem", margin: ".5rem 0" }}>
             <div style={{ flex: 1 }}>

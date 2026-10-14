@@ -135,7 +135,7 @@ export function TallyView({
   return (
     <section aria-label="Ledger" data-slot="ledger">
       <header style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: ".5rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1rem", letterSpacing: ".08em", color: "var(--text-primary)" }}>RETURN FROM THE FOG</h2>
+        <h2 style={{ margin: 0, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1rem", letterSpacing: ".08em", color: "var(--text-primary)" }}>RETURN FROM THE FOG</h2>
         <span style={{ color: "var(--text-secondary)" }}>
           {runDate(summary.startedAtLocal, { year: false })}
           {distance ? ` · ${distance}` : null}

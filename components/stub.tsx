@@ -23,7 +23,7 @@ export function Stub({
   return (
     <main style={{ padding: "1.5rem", maxWidth: "40rem" }}>
       <p style={{ color: "var(--text-muted)", fontFamily: "monospace", margin: 0 }}>{route}</p>
-      <h1 style={{ color: "var(--text-primary)", marginTop: ".25rem" }}>{becomes}</h1>
+      <h1 style={{ color: "var(--text-primary)", marginTop: ".25rem", fontFamily: "var(--font-serif)", fontWeight: 600 }}>{becomes}</h1>
       {note ? <p style={{ color: "var(--text-secondary)" }}>{note}</p> : null}
       <p style={{ color: "var(--text-muted)", fontSize: ".875rem" }}>
         Stub — this route exists so navigation, deep links and the Android back

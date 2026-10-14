@@ -56,7 +56,7 @@ export default async function Settings({
     // check, for the signed-in non-owner case (§6.5).
     return (
       <main style={{ padding: "1.5rem", maxWidth: "40rem" }}>
-        <h1 style={{ color: "var(--text-primary)" }}>Settings</h1>
+        <h1 style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)", fontWeight: 600 }}>Settings</h1>
       </main>
     )
   }
@@ -70,7 +70,7 @@ export default async function Settings({
 
   return (
     <main style={{ padding: "1.5rem", maxWidth: "40rem" }}>
-      <h1 style={{ color: "var(--text-primary)", marginTop: 0 }}>Settings</h1>
+      <h1 style={{ color: "var(--text-primary)", marginTop: 0, fontFamily: "var(--font-serif)", fontWeight: 600 }}>Settings</h1>
 
       {sources.map(({ connector, account }) => {
         const connected = account !== null && account.status === "ACTIVE"

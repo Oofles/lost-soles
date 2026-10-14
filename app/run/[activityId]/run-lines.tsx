@@ -8,8 +8,8 @@ import type { CSSProperties } from "react"
  * line the panel faded in is the line the end state keeps.
  */
 
-/** §8.4: Spectral, with `0082`'s Georgia fallback until `0255` self-hosts the face. */
-const SERIF = "Spectral, Georgia, 'Times New Roman', serif"
+/** §8.4: Spectral, self-hosted since `0255` — the token, never a stack of its own. */
+const SERIF = "var(--font-serif)"
 
 /** Spectral Italic 17sp, `--ink-700`, centred, 22dp of air above and below. */
 const chronicle: CSSProperties = {

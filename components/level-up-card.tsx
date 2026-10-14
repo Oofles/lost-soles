@@ -22,7 +22,8 @@ import type { LevelCard } from "@/lib/level-up/cards"
  * card's `--surface`; gold is the border, the rules and the sigil's disc, never the type (D-148).
  */
 
-const SERIF = "Spectral, Georgia, 'Times New Roman', serif"
+/** §8.4's serif, self-hosted since `0255` — the token, never a stack of its own. */
+const SERIF = "var(--font-serif)"
 
 declare global {
   interface Window {

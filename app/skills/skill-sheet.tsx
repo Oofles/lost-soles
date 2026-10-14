@@ -162,7 +162,7 @@ export function SkillSheet({
 function NotFound({ skillId }: { skillId: string }) {
   return (
     <div data-not-found="">
-      <h2 id="skill-sheet-title" style={{ margin: "0 2rem .5rem 0", fontSize: "1.125rem", letterSpacing: ".08em" }}>
+      <h2 id="skill-sheet-title" style={{ margin: "0 2rem .5rem 0", fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.125rem", letterSpacing: ".08em" }}>
         NO SUCH SKILL
       </h2>
       <p style={{ margin: 0, color: "var(--text-secondary)" }}>
@@ -180,7 +180,7 @@ function Body({ detail, onFly }: { detail: SkillDetail; onFly: FlyTo }) {
           <Sigil skillId={detail.skillId} size={36} />
         </span>
         <div style={{ flex: 1 }}>
-          <h2 id="skill-sheet-title" style={{ margin: 0, fontSize: "1.125rem", letterSpacing: ".08em" }}>
+          <h2 id="skill-sheet-title" style={{ margin: 0, fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: "1.125rem", letterSpacing: ".08em" }}>
             {detail.name.toUpperCase()}
           </h2>
           <p style={{ margin: ".125rem 0 .5rem", color: "var(--text-secondary)" }}>
