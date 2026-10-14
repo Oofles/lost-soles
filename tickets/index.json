@@ -6021,10 +6021,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-14T14:41:02Z",
+    "started": "2026-10-14T19:39:01Z",
     "path": "tickets/open/0261-override-kind-hard-codes-bundled-rulesets.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },

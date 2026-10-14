@@ -11,7 +11,8 @@ import { EXPLORED_CELL_TABLE } from "../../src/pipeline/explored-cells"
 import { assertKnownKind, readKindOverride } from "../../src/pipeline/kind-override"
 import { rescoreKind } from "../../src/pipeline/kind-rescore"
 import { rulesForUser } from "../../src/pipeline/worker-rules"
-import { loadRuleSet } from "../../src/rules/load"
+import { BUNDLED_RULES } from "../../rules/xp-rules.bundled"
+import type { RuleSet } from "../../src/rules/schema"
 import { modelTables } from "../xp-replay/tables"
 
 /**
@@ -59,7 +60,8 @@ const ddb = DynamoDBDocumentClient.from(raw, { marshallOptions: { removeUndefine
 const s3 = new S3Client({ region })
 const tables = await modelTables(raw)
 
-const bundled = new Map([1, 2].map((v) => [v, loadRuleSet(v)] as const))
+/** Every bundled version, as the worker carries them (`0234`) — never a hard-coded list. */
+const bundled = new Map(Object.entries(BUNDLED_RULES).map(([v, r]) => [Number(v), r as RuleSet] as const))
 const registry = await rulesForUser(userId, { ddb, table: tables.SkillState, profileTable: tables.Profile, bundled })
 assertKnownKind(kind, registry)
 

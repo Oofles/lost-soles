@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-14T14:41:02Z
+started: 2026-10-14T19:39:01Z
 ---
 
 ## Description
@@ -23,9 +24,9 @@ whose backfill tool copied the same line and hit it against prod. That copy was 
 
 ## Acceptance criteria
 
-- [ ] `override-kind.ts` builds `bundled` from `rules/xp-rules.bundled.ts` (every version), as the
+- [x] `override-kind.ts` builds `bundled` from `rules/xp-rules.bundled.ts` (every version), as the
       worker and `tools/landmarks/backfill-landmarks.ts` do.
-- [ ] No other tool under `tools/` hard-codes a version list (grep for `loadRuleSet(v)` over a literal array).
+- [x] No other tool under `tools/` hard-codes a version list (grep for `loadRuleSet(v)` over a literal array).
 
 ## Steps to reproduce
 
@@ -42,7 +43,37 @@ whose backfill tool copied the same line and hit it against prod. That copy was 
 
 - Filed from `0248`, 2026-10-14.
 
+## Resolution
+
+**Files touched:** `tools/kind-override/override-kind.ts`. That's the only one.
+
+- `bundled` is now `Object.entries(BUNDLED_RULES)`, mapped to `[Number(v), r as RuleSet]`.
+  This is the line `tools/landmarks/backfill-landmarks.ts:66` uses, comment included. The
+  `loadRuleSet` import is gone, replaced by `BUNDLED_RULES` and `type RuleSet`. The tool now
+  carries the same versions as the worker, so it picks up v4 when v4 ships. No code change needed.
+- **Second criterion: nothing else to fix.** `grep` for `loadRuleSet` across `tools/` turns up
+  only `xp-replay/replay-xp.ts` and `xp-replay/repair-t3.ts`. Both pass `loadRuleSet` itself as a
+  per-version loader (`rules: loadRuleSet`), and `replay-xp.ts` calls `loadRuleSet(to)` on the
+  version it was asked for. Neither enumerates versions, so neither can fall behind the way this did.
+  `src/pipeline/__fixtures__/process-rig.ts` pins `loadRuleSet(1)` on purpose. That's a test fixture
+  outside `tools/`, so it's out of scope.
+- No tests added. This is a CLI's composition root, and `rulesForUser`'s behaviour with a full
+  bundle is already covered by `0234`. The smoke test below is the proof.
+- `tsc --noEmit` is clean on tracked code. The only errors come from untracked leftovers in `tmp/0248/`.
+  `eslint` is clean on the file.
+
 ## Operator validation
 
-Dry run of `override-kind.ts` against the operator's account prints the report, with no error.
+**Agent smoke test, 2026-10-14, against prod (`AWS_PROFILE=devault`), dry run with no `--confirm`:**
+`--user 5488e4b8-… --activity 5b6273e9… --kind walk`. That's the operator's account, a 2026-08-30
+Strava run.
+- **Before the fix** (original file stashed), it fails as reported:
+  `RulesVersionNotBundledError: …'s ledger is on xp-rules v3, and this worker bundles only v1, v2.`
+- **After the fix**, it prints the report:
+  `kind run, derived run, 1534 XP under v3` · `override on file: none` · `→ walk under ruleset v3`
+  · `dry run — nothing written.`
+
+Nothing for the operator to look at.
+
+Planned at ticket-write: Dry run of `override-kind.ts` against the operator's account prints the report, with no error.
 Agent-run; nothing for the operator to look at.
