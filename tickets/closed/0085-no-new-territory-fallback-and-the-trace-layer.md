@@ -4,7 +4,7 @@ slug: no-new-territory-fallback-and-the-trace-layer
 title: The no-new-territory fallback — the permanent trace layer and a run that still counts
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [80, 81, 83]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-14T04:30:50Z
+closed: 2026-10-14T05:05:12Z
 ---
 
 ## Description

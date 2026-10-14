@@ -2068,7 +2068,7 @@
     "title": "The no-new-territory fallback — the permanent trace layer and a run that still counts",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -2080,8 +2080,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-14T04:30:50Z",
-    "path": "tickets/open/0085-no-new-territory-fallback-and-the-trace-layer.md",
-    "ready": true,
+    "closed": "2026-10-14T05:05:12Z",
+    "path": "tickets/closed/0085-no-new-territory-fallback-and-the-trace-layer.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -5959,7 +5960,7 @@
     "source": "agent",
     "created": "2026-10-14T04:48:33Z",
     "path": "tickets/open/0259-the-trace-web-stays-cheap-at-five-years-build-off-the-main-t.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 3
