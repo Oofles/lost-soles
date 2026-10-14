@@ -5155,10 +5155,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-29T03:36:58Z",
+    "started": "2026-10-14T13:11:22Z",
     "path": "tickets/open/0222-enabling-a-skill-mints-an-uncaught-point.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

@@ -945,7 +945,8 @@ Two consequences worth writing down before someone hits them:
   ledger. If it happens to cross a Total Level milestone, suppress the milestone until the next
   genuinely-earned point crosses it. A celebration you did not earn devalues every one you did.
   **Amended by D-276 (09 audit, 2026-10-02), per D-257:** a skill minted since the `before`
-  snapshot (`introducedIn > before.rulesVersion`) yields **no level-up card at any level** in that
+  snapshot (`introducedIn > before.rulesVersion`, or — **D-300** — a row that existed but was not
+  enabled, so did not count, when the snapshot was taken) yields **no level-up card at any level** in that
   first diff — including a level genuinely earned in that same activity. Deliberate; the next diff
   treats it normally. The guard is a pure function in `src/scoring/celebrate.ts`, consumed at the
   notification layer.

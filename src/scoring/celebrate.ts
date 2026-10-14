@@ -18,6 +18,11 @@
  * real. And `>`, not "equals the version being applied": if two versions ship between runs, a
  * row from the first is as unearned as a row from the second.
  *
+ * A row that EXISTED at the baseline but did not COUNT — shipped `enabled: false`, switched on
+ * later — mints the same free point (`0222`, D-300): `totalLevel` counts enabled rows only, so the
+ * flip alone raises it by one. So the baseline also carries the skill ids that counted when it was
+ * taken, and "minted" is "introduced after it, or not counted in it".
+ *
  * A minted skill yields no level-up event at ANY level, and none of its levels count toward the
  * celebrable delta — including XP it earned in the very activity that first scored it. The next
  * diff, computed from a `before` under the new ruleset, treats it like any other skill.
@@ -30,9 +35,20 @@ import type { RuleCurve, RuleSkill } from "@/src/rules/schema"
 
 import { levelForXp, totalLevel } from "./levels"
 
-/** What the user last saw: every skill's XP, and the ruleset it was computed under. */
-export interface LevelSnapshot {
+/** What a "minted" judgement is made against: a ruleset version, and the skills that counted under it. */
+export interface Baseline {
   rulesVersion: number
+  /** Ids of the skills enabled when the baseline was taken — the ones Total Level counted. */
+  countedSkills: ReadonlySet<string>
+}
+
+/** The baseline a ruleset defines: its version, and its enabled rows. */
+export function baselineOf(rules: { version: number; skills: readonly Pick<RuleSkill, "id" | "enabled">[] }): Baseline {
+  return { rulesVersion: rules.version, countedSkills: new Set(rules.skills.filter((s) => s.enabled).map((s) => s.id)) }
+}
+
+/** What the user last saw: every skill's XP, and the ruleset — and counted skills — it was computed under. */
+export interface LevelSnapshot extends Baseline {
   /** Absent means zero XP — level 1 if the skill is enabled. */
   xpBySkill: ReadonlyMap<string, number>
 }
@@ -52,23 +68,18 @@ export interface LevelUp {
 /**
  * ─── THE D-146 GUARD ────────────────────────────────────────────────────────
  *
- * Was this skill's row added to the ruleset after `baselineVersion`? If so, its level 1 is a point
- * nobody earned. THE ONE PREDICATE: every suppression in this module — and the level-up cards of
+ * Was this skill's row added to the ruleset after `baseline`, or did it not count in it (enabled
+ * since, D-300)? Either way its level 1 is a point nobody earned. THE ONE PREDICATE: every suppression in this module — and the level-up cards of
  * `12-post-run-moment` (`0082`) — asks it, and nothing else in the codebase compares `introducedIn`
  * with a version (`celebrate.test.ts` and `d146-guard.test.ts` grep for a second copy).
  */
-export function isMinted(skill: Pick<RuleSkill, "introducedIn">, baselineVersion: number): boolean {
-  return skill.introducedIn > baselineVersion
+export function isMinted(skill: Pick<RuleSkill, "id" | "introducedIn">, baseline: Baseline): boolean {
+  return skill.introducedIn > baseline.rulesVersion || !baseline.countedSkills.has(skill.id)
 }
 
-/** Did this row arrive after `before` was taken? */
-function mintedSince(skill: Pick<RuleSkill, "introducedIn">, before: LevelSnapshot): boolean {
-  return isMinted(skill, before.rulesVersion)
-}
-
-/** Enabled skills that existed when `before` was taken — the only ones that can celebrate. */
+/** Enabled skills that counted when `before` was taken — the only ones that can celebrate. */
 function earnedSkills(before: LevelSnapshot, registry: CelebrationRegistry) {
-  return registry.skills.filter((s) => s.enabled && !mintedSince(s, before))
+  return registry.skills.filter((s) => s.enabled && !isMinted(s, before))
 }
 
 /**
@@ -127,7 +138,7 @@ export function celebrableMilestones(
  * ─── EARNED TOTAL LEVEL (`0082`, D-297) ─────────────────────────────────────
  *
  * The level-up cards judge Total Level milestones on this, not on `totalLevel`: the real Total
- * Level minus the free level 1 of every enabled skill minted since `baselineVersion` (trained or
+ * Level minus the free level 1 of every enabled skill minted since `baseline` (trained or
  * not — its first level was free either way). The DISPLAYED Total Level is untouched; this number
  * is never shown. It needs no memory of what was celebrated: a milestone fires on the activity that
  * carries the earned total across it, so one crossed only by a minted point does not fire, and fires
@@ -136,9 +147,9 @@ export function celebrableMilestones(
 export function earnedTotalLevel(
   xpBySkill: ReadonlyMap<string, number>,
   registry: CelebrationRegistry,
-  baselineVersion: number,
+  baseline: Baseline,
 ): number {
-  const minted = registry.skills.filter((s) => s.enabled && isMinted(s, baselineVersion)).length
+  const minted = registry.skills.filter((s) => s.enabled && isMinted(s, baseline)).length
   return totalLevel(xpBySkill, registry.skills, registry.curve) - minted
 }
 
@@ -147,10 +158,10 @@ export function earnedMilestonesCrossed(
   before: ReadonlyMap<string, number>,
   after: ReadonlyMap<string, number>,
   registry: CelebrationRegistry,
-  baselineVersion: number,
+  baseline: Baseline,
   ladder: readonly number[],
 ): number[] {
-  const from = earnedTotalLevel(before, registry, baselineVersion)
-  const to = earnedTotalLevel(after, registry, baselineVersion)
+  const from = earnedTotalLevel(before, registry, baseline)
+  const to = earnedTotalLevel(after, registry, baseline)
   return [...new Set(ladder)].filter((m) => m > from && m <= to).sort((a, b) => a - b)
 }

@@ -3,7 +3,7 @@ import { join, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { BASELINE_VERSION, levelUpQueue, skillCards, totalCards } from "@/lib/level-up/cards"
+import { BASELINE, BASELINE_VERSION, levelUpQueue, skillCards, totalCards } from "@/lib/level-up/cards"
 import { skillsPanel } from "@/lib/skills/panel"
 import { NEW_SKILL_ID, withNewWorkoutType } from "@/src/rules/__fixtures__/new-workout-type"
 import { loadRuleSet } from "@/src/rules/load"
@@ -45,8 +45,10 @@ describe("adding a skill row and reprocessing produces zero level-up cards (crit
 
   it("the new row really is minted, against the baseline", () => {
     expect(BASELINE_VERSION).toBe(1)
-    expect(isMinted(NEXT.skills.find((s) => s.id === NEW_SKILL_ID)!, BASELINE_VERSION)).toBe(true)
-    for (const s of V.skills) expect(isMinted(s, BASELINE_VERSION), s.id).toBe(s.introducedIn > 1)
+    expect(isMinted(NEXT.skills.find((s) => s.id === NEW_SKILL_ID)!, BASELINE)).toBe(true)
+    // Minted = added after v1, or present in v1 but not counted by it (enabled since, D-300).
+    const countedInV1 = new Set(loadRuleSet(1).skills.filter((s) => s.enabled).map((s) => s.id))
+    for (const s of V.skills) expect(isMinted(s, BASELINE), s.id).toBe(s.introducedIn > 1 || !countedInV1.has(s.id))
   })
 
   it("the notification layer, run over the reprocessed diff, yields an empty queue", () => {
@@ -77,8 +79,8 @@ describe("a Total Level milestone crossed only by a minted point fires no card; 
 
   it("the earned total is the displayed one less the minted row", () => {
     const m = new Map(Object.entries(xp))
-    expect(earnedTotalLevel(m, V, BASELINE_VERSION)).toBe(99)
-    expect(earnedTotalLevel(m, NEXT, BASELINE_VERSION)).toBe(99)
+    expect(earnedTotalLevel(m, V, BASELINE)).toBe(99)
+    expect(earnedTotalLevel(m, NEXT, BASELINE)).toBe(99)
     expect(totalLevel(m, NEXT.skills, NEXT.curve)).toBe(100)
   })
 
@@ -99,7 +101,7 @@ describe("a Total Level milestone crossed only by a minted point fires no card; 
     const after = new Map([[lead, xp[lead]! + toNext]])
     const displayed = [totalLevel(m, NEXT.skills, NEXT.curve), totalLevel(after, NEXT.skills, NEXT.curve)]
     expect(displayed).toEqual([100, 101])
-    expect(earnedMilestonesCrossed(m, after, NEXT, BASELINE_VERSION, [100])).toEqual([100])
+    expect(earnedMilestonesCrossed(m, after, NEXT, BASELINE, [100])).toEqual([100])
   })
 })
 

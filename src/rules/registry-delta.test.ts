@@ -13,6 +13,7 @@ import {
 import { processActivity } from "@/src/pipeline/process-activity"
 import { LEDGER_REASONS } from "@/src/scoring/ledger"
 import { cumulativeXp, levelForXp, totalLevel } from "@/src/scoring/levels"
+import { baselineOf } from "@/src/scoring/celebrate"
 
 import { loadRuleSet } from "./load"
 import type { RuleSet, RuleSkill } from "./schema"
@@ -431,7 +432,7 @@ describe.each(DELTAS)("$name, end to end — real XP, real writes, real notifica
       // The non-vacuity arm. Treat the delta's own version as the baseline, so nothing in it is
       // minted, and the identical diff produces the card the guard exists to suppress.
       const xp = standingAt(98)
-      expect(totalCards(xp, { [lead]: toNextLevel(xp) }, delta, NEXT), "the scenario must be one that can fire").toEqual([
+      expect(totalCards(xp, { [lead]: toNextLevel(xp) }, delta, baselineOf(delta)), "the scenario must be one that can fire").toEqual([
         { kind: "total", milestone: 100 },
       ])
     })

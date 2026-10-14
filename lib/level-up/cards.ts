@@ -1,7 +1,7 @@
 import { SKILL_MILESTONES } from "@/lib/skills/detail"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
-import { earnedMilestonesCrossed } from "@/src/scoring/celebrate"
+import { baselineOf, earnedMilestonesCrossed, type Baseline } from "@/src/scoring/celebrate"
 import { cumulativeXp, levelForXp, stepCoefficient, totalLevelCeiling, TOTAL_LEVEL_MILESTONES } from "@/src/scoring/levels"
 
 /**
@@ -49,8 +49,10 @@ const PLACES: Readonly<Record<number, PlaceKind>> = { 50: "landmark", 99: "shrin
 /**
  * THE BASELINE (D-297). "Minted" means added to the ruleset after the user started — which, for this
  * single-user app, is the first ruleset that ever shipped. One rule, on every page, with no read.
+ * It carries that ruleset's enabled rows too, so a row switched on later is minted as well (D-300).
  */
 export const BASELINE_VERSION = Math.min(...Object.keys(BUNDLED_RULES).map(Number))
+export const BASELINE: Baseline = baselineOf(BUNDLED_RULES[BASELINE_VERSION] as RuleSet)
 
 export function skillCards(
   skillId: string,
@@ -87,12 +89,12 @@ export function totalCards(
   before: Readonly<Record<string, number>>,
   gained: Readonly<Record<string, number>>,
   rules: Pick<RuleSet, "curve" | "skills">,
-  baselineVersion = BASELINE_VERSION,
+  baseline: Baseline = BASELINE,
 ): LevelCard[] {
   const b = new Map(Object.entries(before))
   const a = new Map(b)
   for (const [id, xp] of Object.entries(gained)) if (xp > 0) a.set(id, (a.get(id) ?? 0) + xp)
-  return earnedMilestonesCrossed(b, a, rules, baselineVersion, totalLadder(rules)).map((milestone) => ({ kind: "total", milestone }))
+  return earnedMilestonesCrossed(b, a, rules, baseline, totalLadder(rules)).map((milestone) => ({ kind: "total", milestone }))
 }
 
 /**
@@ -105,10 +107,10 @@ export function levelUpQueue(
   gained: Readonly<Record<string, number>>,
   rules: Pick<RuleSet, "curve" | "skills">,
   order: readonly string[] = Object.keys(gained),
-  baselineVersion = BASELINE_VERSION,
+  baseline: Baseline = BASELINE,
 ): LevelCard[] {
   return [
     ...order.flatMap((id) => skillCards(id, before[id] ?? 0, gained[id] ?? 0, rules.curve)),
-    ...totalCards(before, gained, rules, baselineVersion),
+    ...totalCards(before, gained, rules, baseline),
   ]
 }

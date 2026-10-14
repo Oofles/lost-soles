@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,893 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,895 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -375,7 +375,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,713 lines
+**06 — UI / UX** — 1,714 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -406,48 +406,48 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `711-768` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
 | &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `769-799` | ATLAS ADVENTURE |
 | &nbsp;&nbsp;↳ 4.8 Loading, offline, and the desktop case | `800-819` | IndexedDB render before any network call. |
-| 5. The skills panel | `820-1004` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| 5. The skills panel | `820-1005` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
 | &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `822-846` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
 | &nbsp;&nbsp;↳ 5.2 Wireframe | `847-893` | ┌──────────────────────────────────────────────┐ |
 | &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `894-923` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
-| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `924-952` | which makes it the first live test of D-031's promise that a new skill is a data row. |
-| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `953-1004` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
-| 6. Add workout (D-061) | `1005-1153` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1007-1024` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1025-1041` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
-| &nbsp;&nbsp;↳ 6.3 Wireframe | `1042-1086` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1087-1112` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
-| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1113-1137` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
-| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1138-1153` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
-| 7. Ticket capture UI (D-092) | `1154-1279` | wireframes, and the reasons the constraints are what they are. |
-| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1164-1178` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
-| &nbsp;&nbsp;↳ 7.2 Placement and access | `1179-1187` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
-| &nbsp;&nbsp;↳ 7.3 Capture | `1188-1225` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1226-1237` | browse list with a pending marker. |
-| &nbsp;&nbsp;↳ 7.5 Browse | `1238-1266` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1267-1279` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
-| 8. Visual system | `1280-1471` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1282-1305` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1306-1340` | Six ramps. Nothing outside them ships. |
-| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1341-1380` |  |
-| &nbsp;&nbsp;↳ 8.4 Typography | `1381-1411` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
-| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1412-1423` | the map's floating controls 8dp. |
-| &nbsp;&nbsp;↳ 8.6 Iconography | `1424-1437` | an 8dp construction grid, no fills, no gradients, no two-tone. |
-| &nbsp;&nbsp;↳ 8.7 Motion | `1438-1471` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1472-1611` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
-| &nbsp;&nbsp;↳ 9.1 Sunlight | `1478-1499` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
-| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1500-1530` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
-| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1531-1550` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1551-1571` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1572-1594` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1595-1611` |  |
-| 10. What we are deliberately NOT building | `1612-1713` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1621-1634` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1635-1641` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1642-1667` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1668-1683` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1684-1699` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1700-1713` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `924-953` | which makes it the first live test of D-031's promise that a new skill is a data row. |
+| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `954-1005` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
+| 6. Add workout (D-061) | `1006-1154` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1008-1025` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1026-1042` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
+| &nbsp;&nbsp;↳ 6.3 Wireframe | `1043-1087` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1088-1113` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
+| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1114-1138` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
+| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1139-1154` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
+| 7. Ticket capture UI (D-092) | `1155-1280` | wireframes, and the reasons the constraints are what they are. |
+| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1165-1179` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
+| &nbsp;&nbsp;↳ 7.2 Placement and access | `1180-1188` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
+| &nbsp;&nbsp;↳ 7.3 Capture | `1189-1226` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1227-1238` | browse list with a pending marker. |
+| &nbsp;&nbsp;↳ 7.5 Browse | `1239-1267` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1268-1280` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
+| 8. Visual system | `1281-1472` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1283-1306` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1307-1341` | Six ramps. Nothing outside them ships. |
+| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1342-1381` |  |
+| &nbsp;&nbsp;↳ 8.4 Typography | `1382-1412` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
+| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1413-1424` | the map's floating controls 8dp. |
+| &nbsp;&nbsp;↳ 8.6 Iconography | `1425-1438` | an 8dp construction grid, no fills, no gradients, no two-tone. |
+| &nbsp;&nbsp;↳ 8.7 Motion | `1439-1472` | Five durations. Nothing else is invented at the component level. |
+| 9. Accessibility and reality checks | `1473-1612` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| &nbsp;&nbsp;↳ 9.1 Sunlight | `1479-1500` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
+| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1501-1531` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
+| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1532-1551` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1552-1572` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1573-1595` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1596-1612` |  |
+| 10. What we are deliberately NOT building | `1613-1714` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1622-1635` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1636-1642` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1643-1668` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1669-1684` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1685-1700` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1701-1714` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 
@@ -558,7 +558,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/09-roadmap.md`
 
-**09 — Roadmap: The Build Order** — 1,141 lines
+**09 — Roadmap: The Build Order** — 1,142 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -580,35 +580,35 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 4.4 Pre-flight: audit CloudFront before the subdomain exists | `625-647` | The devaultsecurity repo history shows an abandoned S3 + CloudFront + ACM architecture, retired |
 | &nbsp;&nbsp;↳ 4.5 Manual Sync before the webhook — a deliberate inversion | `648-665` | D-013 forbids upkeep, so a Sync button looks like a violation. |
 | &nbsp;&nbsp;↳ 4.6 Why the XP engine is in Phase 2 and not Phase 1 | `666-677` | The fog reveal is the product (P4, D-051). |
-| 5. Carry-forward corrections | `678-761` | Defects found during design. |
+| 5. Carry-forward corrections | `678-762` | Defects found during design. |
 | &nbsp;&nbsp;↳ 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated | `683-704` | Adding Vigil as a fifth activity skill moved the ceiling. |
-| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `705-722` | Total Level = Σ level(skill). |
-| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `723-748` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
-| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `749-761` | Not defects, but they expire silently if nobody holds them. |
-| 6. Post-MVP phases | `762-844` | Everything here is OUT of MVP by D-122 and stays out. |
-| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `773-795` | and its absence is visible on the skills panel from day one. |
-| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `796-816` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
-| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `817-826` | Last of the game systems, for two reasons. |
-| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `827-844` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
-| 7. Honest sizing | `845-934` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `847-870` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.2 Per phase | `871-890` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
-| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `891-934` | This is the single most technically uncertain piece in the project. |
-| 8. Risks to the schedule | `935-1041` | Ordered by expected damage, not by probability. |
-| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `939-967` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
-| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `968-992` | first-usable milestone. |
-| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `993-1002` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
-| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `1003-1008` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
-| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `1009-1018` | Target is a few dollars a month; the estimate is $1–5 all-in. |
-| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1019-1033` | The most likely way this project fails is not technical. |
-| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1034-1041` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
-| 9. Definition of done for MVP | `1042-1141` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
-| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1048-1059` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
-| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1060-1080` | decrease (D-135). |
-| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1081-1094` | <sha256>.<ext>, written before normalize. |
-| &nbsp;&nbsp;↳ 9.4 Operational | `1095-1107` | button may remain as a manual fallback; it must not be the only path. |
-| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1108-1134` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
-| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1135-1141` | That is settled six months later, by whether the user is still opening it. |
+| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `705-723` | Total Level = Σ level(skill). |
+| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `724-749` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
+| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `750-762` | Not defects, but they expire silently if nobody holds them. |
+| 6. Post-MVP phases | `763-845` | Everything here is OUT of MVP by D-122 and stays out. |
+| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `774-796` | and its absence is visible on the skills panel from day one. |
+| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `797-817` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
+| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `818-827` | Last of the game systems, for two reasons. |
+| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `828-845` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
+| 7. Honest sizing | `846-935` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `848-871` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.2 Per phase | `872-891` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
+| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `892-935` | This is the single most technically uncertain piece in the project. |
+| 8. Risks to the schedule | `936-1042` | Ordered by expected damage, not by probability. |
+| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `940-968` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
+| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `969-993` | first-usable milestone. |
+| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `994-1003` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
+| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `1004-1009` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
+| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `1010-1019` | Target is a few dollars a month; the estimate is $1–5 all-in. |
+| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1020-1034` | The most likely way this project fails is not technical. |
+| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1035-1042` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
+| 9. Definition of done for MVP | `1043-1142` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
+| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1049-1060` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
+| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1061-1081` | decrease (D-135). |
+| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1082-1095` | <sha256>.<ext>, written before normalize. |
+| &nbsp;&nbsp;↳ 9.4 Operational | `1096-1108` | button may remain as a manual fallback; it must not be the only path. |
+| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1109-1135` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
+| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1136-1142` | That is settled six months later, by whether the user is still opening it. |
 
 ## `docs/BUILD-ORDER.md`
 

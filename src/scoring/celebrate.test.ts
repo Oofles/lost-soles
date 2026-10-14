@@ -8,8 +8,12 @@ import { loadRuleSet } from "@/src/rules/load"
 import type { RuleSet, RuleSkill } from "@/src/rules/schema"
 import { validateRuleSet } from "@/src/rules/validate"
 import {
+  baselineOf,
   celebrableLevelUps,
   celebrableMilestones,
+  cumulativeXp,
+  earnedMilestonesCrossed,
+  earnedTotalLevel,
   levelForXp,
   scoreGround,
   scoreUnits,
@@ -103,7 +107,7 @@ function replay(rules: RuleSet, sessions: readonly Session[]): XpLedgerEntry[] {
 }
 
 const snapshot = (rules: RuleSet, entries: readonly XpLedgerEntry[]): LevelSnapshot => ({
-  rulesVersion: rules.version,
+  ...baselineOf(rules),
   xpBySkill: xpBySkill(entries),
 })
 
@@ -213,6 +217,67 @@ describe("Total Level milestones", () => {
   it("never re-fires one already celebrated", () => {
     const after = snapshot(V2, replay(V2, [...HISTORY, run(20000)]))
     expect(celebrableMilestones(minted, after, V2, LADDER, M)).toEqual([])
+  })
+})
+
+describe("a shipped row switched ON is minted too (0222, D-300)", () => {
+  /** The first row v1 ships disabled — found by its data, not its name. */
+  const DORMANT = V1.skills.find((s) => !s.enabled)!
+  /** The next version, identical except that row's `enabled: false → true`. */
+  const FLIPPED: RuleSet = {
+    ...structuredClone(V1),
+    version: V1.version + 1,
+    skills: V1.skills.map((s) => (s.id === DORMANT.id ? { ...structuredClone(s), enabled: true } : structuredClone(s))),
+  }
+  const before = snapshot(V1, replay(V1, HISTORY))
+  const flipped = snapshot(FLIPPED, replay(FLIPPED, HISTORY))
+  const withXp = (snap: LevelSnapshot, skillId: string, xp: number): LevelSnapshot => ({
+    ...snap,
+    xpBySkill: new Map([...snap.xpBySkill, [skillId, (snap.xpBySkill.get(skillId) ?? 0) + xp]]),
+  })
+
+  it("the scenario is real: v1 has a disabled row, it predates v2, and the flip alone raises Total Level by 1", () => {
+    expect(DORMANT, "v1 must ship a disabled row for this to test anything").toBeDefined()
+    expect(validateRuleSet(FLIPPED)).toEqual([])
+    expect(DORMANT.introducedIn).toBeLessThanOrEqual(before.rulesVersion) // so `introducedIn` alone misses it
+    expect(total(FLIPPED, flipped) - total(V1, before)).toBe(1)
+  })
+
+  it("the flip alone: zero celebrable level-ups, a delta of 0, and no milestone on the point it mints", () => {
+    const M = total(V1, before) + 1
+    expect(celebrableLevelUps(before, flipped, FLIPPED)).toEqual([])
+    expect(totalLevelDelta(before, flipped, FLIPPED)).toBe(0)
+    expect(celebrableMilestones(before, flipped, FLIPPED, [M - 50, M, M + 50], M - 50)).toEqual([])
+  })
+
+  it("the flipped row trained in the SAME diff still celebrates nothing", () => {
+    const after = withXp(flipped, DORMANT.id, cumulativeXp(3))
+    expect(levelForXp(after.xpBySkill.get(DORMANT.id)!, FLIPPED.curve)).toBe(3)
+    expect(celebrableLevelUps(before, after, FLIPPED)).toEqual([])
+    expect(totalLevelDelta(before, after, FLIPPED)).toBe(0)
+  })
+
+  it("enabled, then trained in a LATER diff, it celebrates normally", () => {
+    const settled = flipped // taken under FLIPPED, where the row counted
+    expect(settled.countedSkills.has(DORMANT.id)).toBe(true)
+    const after = withXp(settled, DORMANT.id, cumulativeXp(2))
+    expect(celebrableLevelUps(settled, after, FLIPPED)).toEqual([{ skillId: DORMANT.id, from: 1, to: 2 }])
+    expect(totalLevelDelta(settled, after, FLIPPED)).toBe(1)
+  })
+
+  it("the card path's earned total does not count the flipped point, so a milestone waits for a real one", () => {
+    const xp = before.xpBySkill
+    const baseline = baselineOf(V1)
+    const earned = earnedTotalLevel(xp, V1, baseline)
+    expect(earnedTotalLevel(xp, FLIPPED, baseline)).toBe(earned) // displayed is earned + 1
+    expect(totalLevel(xp, FLIPPED.skills, FLIPPED.curve)).toBe(earned + 1)
+    // One earned level under FLIPPED: displayed reaches earned + 2, the earned total only earned + 1.
+    const lead = [...xp.keys()].find((id) => V1.skills.some((s) => s.id === id && s.enabled))!
+    const toNext = cumulativeXp(levelForXp(xp.get(lead)!, FLIPPED.curve) + 1) - xp.get(lead)!
+    const after = new Map([...xp, [lead, xp.get(lead)! + toNext]])
+    expect(earnedMilestonesCrossed(xp, after, FLIPPED, baseline, [earned + 1, earned + 2])).toEqual([earned + 1])
+    // Non-vacuity: judged against FLIPPED itself, where the row counted, the early rung WOULD fire.
+    expect(earnedMilestonesCrossed(xp, after, FLIPPED, baselineOf(FLIPPED), [earned + 1, earned + 2])).toEqual([earned + 2])
   })
 })
 

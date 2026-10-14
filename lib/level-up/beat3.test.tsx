@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { LevelUpCard } from "@/components/level-up-card"
 import type { RuleSet } from "@/src/rules/schema"
+import { baselineOf } from "@/src/scoring/celebrate"
 import { cumulativeXp, totalLevelCeiling } from "@/src/scoring/levels"
 
 import { BORDER_MS, CARD_MS, cardAt, easeOutBack, EXIT_FROM, SCALE_MS, SCALE_PEAK } from "./beat3"
@@ -87,7 +88,8 @@ describe("milestones (criteria 4, 5, 6)", () => {
 
   it("a gain that carries Total Level across 100 adds a crest card after the skill's own", () => {
     const before = { s0: cumulativeXp(93) } // 93 + 6 = 99
-    const q = levelUpQueue(before, { s0: cumulativeXp(94) - cumulativeXp(93) }, RULES)
+    // The fixture's skills are not the bundled v1's, so it is its own baseline (D-300).
+    const q = levelUpQueue(before, { s0: cumulativeXp(94) - cumulativeXp(93) }, RULES, ["s0"], baselineOf({ version: 1, skills: SKILLS }))
     expect(q.map((c) => c.kind)).toEqual(["skill", "total"])
     expect(q[1]).toEqual({ kind: "total", milestone: 100 })
   })

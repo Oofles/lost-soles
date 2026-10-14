@@ -4730,3 +4730,18 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Scale is a known limit, not a solved one.** The client builds 19 real runs in ~17 ms; a
     synthetic five years (1,000 runs × 8 km) is ~1.7 s on the main thread and ~15 MB of input. Filed
     as its own ticket rather than solved speculatively now.
+- **D-300** **A skill is also *minted* when its row existed at the baseline but did not count
+  there — shipped `enabled: false`, switched on later.** *(Agent, 2026-10-14, ticket `0222`;
+  operator approved the approach at the start of the ticket.)* Refines D-257; does not supersede it.
+  - **The hole.** `totalLevel` sums enabled rows only, so flipping a row on raises Total Level by one
+    with no work done — D-146's free point. D-257's predicate, `introducedIn > baseline version`,
+    cannot see it: Slayer (D-122) is `introducedIn: 1` and ships disabled.
+  - **The baseline is now a value, not a version**: `Baseline = { rulesVersion, countedSkills }`,
+    the ids enabled when it was taken. `isMinted(skill, baseline)` is
+    `introducedIn > rulesVersion || !countedSkills.has(id)`, still the one predicate, still only in
+    `src/scoring/celebrate.ts`. `LevelSnapshot` extends `Baseline`; `baselineOf(ruleset)` builds one.
+  - **The card path** (`lib/level-up/cards.ts`, D-297) takes `BASELINE = baselineOf(bundled v1)`
+    in place of `BASELINE_VERSION`. Consequence: a ruleset whose skill ids are not v1's (a test
+    fixture) is all-minted against the default and must pass its own baseline.
+  - **Rejected: an `enabledIn` version on each row.** A schema and data change to answer a question
+    that belongs to the celebration layer, and one more field every future row must get right.

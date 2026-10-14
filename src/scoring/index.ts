@@ -70,12 +70,14 @@ export {
 } from "./reconcile"
 export { scoreActivity } from "./score-activity"
 export {
+  baselineOf,
   celebrableLevelUps,
   celebrableMilestones,
   earnedMilestonesCrossed,
   earnedTotalLevel,
   isMinted,
   totalLevelDelta,
+  type Baseline,
   type CelebrationRegistry,
   type LevelSnapshot,
   type LevelUp,
