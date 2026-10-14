@@ -4,7 +4,7 @@ slug: skip-interruption-failure-and-the-seen-flag
 title: Skip, interruption, reduced motion, WebGL loss, backfill, and the per-device seen flag
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [78, 80, 81, 82, 83]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-13T22:36:39Z
+closed: 2026-10-14T03:07:51Z
 ---
 
 ## Description
