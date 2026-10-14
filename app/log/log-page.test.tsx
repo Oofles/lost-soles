@@ -109,6 +109,14 @@ describe("app/log/ source (0068, 0071)", () => {
     expect(row.match(/<RowName row=\{row\} \/>/g)).toHaveLength(2)
   })
 
+  it("the level-up queue is given prefers-reduced-motion, read as the queue starts (0258, 06 §3.4)", () => {
+    const page = sources.find(([f]) => f === "log-page.tsx")![1]
+    // The query is read where a queue is created, not at render — so it is the current setting.
+    expect(page).toMatch(/setReduced\(window\.matchMedia\?\.\(REDUCED_MOTION_QUERY\)\.matches === true\)\s*\n\s*setCards\(queue\)/)
+    const queue = page.match(/<LevelUpQueue[\s\S]*?\/>/)![0]
+    expect(queue).toMatch(/\breduced=\{reduced\}/)
+  })
+
   it("the server component reads no session, so the route stays static (D-282)", () => {
     const page = sources.find(([f]) => f === "page.tsx")![1]
     expect(page).not.toMatch(/currentUserId|cookies|headers|fetchAuthSession/)

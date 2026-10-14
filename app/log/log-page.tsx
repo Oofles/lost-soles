@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { LevelUpQueue } from "@/components/level-up-card"
 import { LOG_FLUSHED_EVENT } from "@/components/log-queue-runner"
+import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { levelUpQueue, type LevelCard } from "@/lib/level-up/cards"
 import { addAwards, awardFor, rowResult, rulesForSkills, type Award, type CachedSkill } from "@/lib/log/optimistic"
 import { lastValueKey, logStore, queuedLog, skillsKey, undoLog } from "@/lib/log/queue"
@@ -37,6 +38,8 @@ export function LogPage() {
 
   /** `0082`: a log that crossed a level plays beat 3's cards over the page (§6.4, D-288). */
   const [cards, setCards] = useState<LevelCard[] | null>(null)
+  /** `0258`. `prefers-reduced-motion`, read as each queue starts — as the run sequence does (§3.4). */
+  const [reduced, setReduced] = useState(false)
 
   const rules = useMemo(() => rulesForSkills(skills), [skills])
   const rows = useMemo(() => logRows(rules), [rules])
@@ -115,7 +118,10 @@ export function LogPage() {
       await store.setKv(lastValueKey(uid, row.exerciseId), value)
       setLastValues((v) => ({ ...v, [row.exerciseId]: value }))
       setPending((p) => addAwards(p, award))
-      if (queue.length) setCards(queue)
+      if (queue.length) {
+        setReduced(window.matchMedia?.(REDUCED_MOTION_QUERY).matches === true)
+        setCards(queue)
+      }
       return { key: log.idempotencyKey, value, result, holdUntil: log.holdUntil, award, previous }
     },
     [uid, rules, standing, store, lastValues],
@@ -178,6 +184,7 @@ export function LogPage() {
           cards={cards}
           skillName={(id) => rules.skills.find((s) => s.id === id)?.name ?? id}
           onDone={() => setCards(null)}
+          reduced={reduced}
         />
       ) : null}
     </main>
