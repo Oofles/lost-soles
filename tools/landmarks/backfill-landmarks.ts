@@ -9,7 +9,8 @@ import { lanternPath } from "../../lib/run-moment/lantern-path"
 import { landmarksFromLedger, landmarkUpdateItem, type WalkRow } from "../../src/pipeline/landmarks"
 import { routeTraceKey, type RouteTraceGeometry } from "../../src/pipeline/route-trace-store"
 import { rulesForUser } from "../../src/pipeline/worker-rules"
-import { loadRuleSet } from "../../src/rules/load"
+import { BUNDLED_RULES } from "../../rules/xp-rules.bundled"
+import type { RuleSet } from "../../src/rules/schema"
 import { modelTables } from "../xp-replay/tables"
 
 /**
@@ -61,7 +62,8 @@ const raw = new DynamoDBClient({ region })
 const ddb = DynamoDBDocumentClient.from(raw, { marshallOptions: { removeUndefinedValues: true } })
 const s3 = new S3Client({ region })
 const tables = await modelTables(raw)
-const bundled = new Map([1, 2].map((v) => [v, loadRuleSet(v)] as const))
+/** Every bundled version, as the worker carries them (`0234`) — never a hard-coded list. */
+const bundled = new Map(Object.entries(BUNDLED_RULES).map(([v, r]) => [Number(v), r as RuleSet] as const))
 const registry = await rulesForUser(userId, { ddb, table: tables.SkillState, profileTable: tables.Profile, bundled })
 
 const rows: WalkRow[] = []
