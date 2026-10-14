@@ -106,6 +106,8 @@ export interface FakeGl {
   sources: { vertex: string[]; fragment: string[] }
   /** Fail the next `compileShader`, to exercise the layer's error path. */
   failCompile: boolean
+  /** `0084`. What `isContextLost()` answers — set it to stand in for `webglcontextlost`. */
+  contextLost: boolean
 }
 
 /**
@@ -137,6 +139,7 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
     uploads,
     sources,
     failCompile: false,
+    contextLost: false,
     of: (name) => calls.filter((c) => c.name === name),
     gl: null as unknown as WebGL2RenderingContext,
   }
@@ -269,6 +272,7 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
     drawArrays: (...args: unknown[]) => record("drawArrays", ...args),
     readPixels: (...args: unknown[]) => record("readPixels", ...args),
     getError: () => ENUM.NO_ERROR,
+    isContextLost: () => fake.contextLost,
 
     getParameter(name: number) {
       switch (name) {

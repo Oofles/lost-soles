@@ -447,6 +447,9 @@ export class FogMaskLayer implements CustomLayerInterface {
 
   prerender(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
     if (this.#hidden) return
+    // `0084`. Between `webglcontextlost` and the rebuild, MapLibre may still paint a frame; every GL
+    // query then answers `null` (`getParameter(VIEWPORT)` threw here). Nothing drawn could be seen.
+    if (gl.isContextLost()) return
     const { vertexShaderPrelude, define, variantName } = options.shaderData
 
     if (this.#variant !== variantName) {
@@ -570,6 +573,7 @@ export class FogMaskLayer implements CustomLayerInterface {
    */
   render(gl: WebGL2RenderingContext, options: CustomRenderMethodInput): void {
     if (this.#hidden) return
+    if (gl.isContextLost()) return
     if (!this.#resources) return
     if (this.options.debug) {
       runDebugBlit(gl, this.#resources)

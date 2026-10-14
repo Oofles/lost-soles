@@ -115,6 +115,21 @@ describe("the custom layer interface — criterion 1", () => {
     expect(layer.maskTexture()).not.toBeNull()
   })
 
+  /**
+   * `0084`. Between `webglcontextlost` and the rebuild MapLibre can still paint a frame, and every GL
+   * query then answers `null` — `getParameter(VIEWPORT)` threw `object null is not iterable` in the
+   * smoke. A lost context draws nothing, so both hooks touch nothing.
+   */
+  it("a lost context: prerender and render make no GL call and do not throw", () => {
+    const { layer, fake } = layerOn()
+    layer.prerender(fake.gl, renderInput())
+    fake.calls.length = 0
+    fake.contextLost = true
+    expect(() => layer.prerender(fake.gl, renderInput())).not.toThrow()
+    expect(() => layer.render(fake.gl, renderInput())).not.toThrow()
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it("rebuilds the program when the projection variant changes, and not otherwise", () => {
     const { layer, fake } = layerOn()
     layer.prerender(fake.gl, renderInput("mercator"))
