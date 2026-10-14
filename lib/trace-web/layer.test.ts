@@ -48,12 +48,16 @@ function fakeMap(initial: Array<{ id: string; type: string }>) {
   return { host: host as TraceHost & typeof host, stack, paint, layout }
 }
 
+/** `--ink-300`, read from the real `app/tokens.css` so no colour literal lives here (§8.3). */
+const TOKENS = readFileSync(join(__dirname, "../../app/tokens.css"), "utf8")
+const COLOR = /--ink-300:\s*([^;]+);/.exec(TOKENS)![1]!.trim()
+
 const BASEMAP = basemapLayers("protomaps", namedFlavor("light"), { lang: "en" }).map((l) => ({ id: l.id, type: l.type }))
 
 describe("where the web sits (criterion 1)", () => {
   it("above the basemap's ground and roads, under every label, the fog and the route", () => {
     const { host, stack } = fakeMap(BASEMAP)
-    setTraceWeb(host, EMPTY_WEB, "#a9b3c2")
+    setTraceWeb(host, EMPTY_WEB, COLOR)
     // The fog and the route arrive later, appended on top as `lib/map-layers.ts` adds them.
     stack.push({ id: "fog-mask", type: "custom" }, { id: "run-glow", type: "line" }, { id: "run-core", type: "line" })
     expect(traceIsBetweenBasemapAndRoute(stack)).toBe(true)
@@ -64,8 +68,8 @@ describe("where the web sits (criterion 1)", () => {
 
   it("is one source, added once and then only re-fed", () => {
     const { host, stack } = fakeMap(BASEMAP)
-    setTraceWeb(host, EMPTY_WEB, "#a9b3c2")
-    setTraceWeb(host, EMPTY_WEB, "#a9b3c2")
+    setTraceWeb(host, EMPTY_WEB, COLOR)
+    setTraceWeb(host, EMPTY_WEB, COLOR)
     expect(stack.filter((l) => l.id === TRACE_LAYER_ID)).toHaveLength(1)
   })
 
@@ -74,8 +78,7 @@ describe("where the web sits (criterion 1)", () => {
   })
 
   it("is --ink-300, through its own semantic token", () => {
-    const css = readFileSync(join(__dirname, "../../app/tokens.css"), "utf8")
-    expect(css).toMatch(/--trace-line:\s*var\(--ink-300\);/)
+    expect(TOKENS).toMatch(/--trace-line:\s*var\(--ink-300\);/)
     expect(() => traceColorFrom(() => "")).toThrow(/--trace-line/)
   })
 })
@@ -83,8 +86,8 @@ describe("where the web sits (criterion 1)", () => {
 describe("beat 1's web, before and after this run", () => {
   it("holds the steady web out and shows the web without this run, then cross-fades", () => {
     const { host, stack, paint } = fakeMap(BASEMAP)
-    setTraceWeb(host, EMPTY_WEB, "#a9b3c2")
-    const beat = installWebBeat(host, EMPTY_WEB, "#a9b3c2")
+    setTraceWeb(host, EMPTY_WEB, COLOR)
+    const beat = installWebBeat(host, EMPTY_WEB, COLOR)
     beat.crossfade(0)
     expect(stack.findIndex((l) => l.id === TRACE_BEFORE_LAYER_ID)).toBeLessThan(stack.findIndex((l) => l.type === "symbol"))
     expect(paint.at(-2)).toEqual([TRACE_LAYER_ID, "line-opacity", traceOpacity(0)])
@@ -102,7 +105,7 @@ describe("the line joining the web (criterion 5)", () => {
 
   it("inks in the trace layer's paint, under the labels, with the run's amber held hidden", () => {
     const { host, stack, layout } = fakeMap([...BASEMAP, { id: "run-glow", type: "line" }, { id: "run-core", type: "line" }])
-    installTraceInk(host, lanternPath(ROUTE)!, "#a9b3c2")
+    installTraceInk(host, lanternPath(ROUTE)!, COLOR)
     const ink = stack.find((l) => l.id === TRACE_INK_LAYER_ID) as unknown as { paint: Record<string, unknown> }
     expect(ink.paint["line-opacity"]).toBe(WEAR_MAX)
     expect(stack.findIndex((l) => l.id === TRACE_INK_LAYER_ID)).toBeLessThan(stack.findIndex((l) => l.type === "symbol"))
@@ -112,7 +115,7 @@ describe("the line joining the web (criterion 5)", () => {
 
   it("fades into the web and gives the run's line back on remove", () => {
     const { host, stack, paint, layout } = fakeMap([...BASEMAP, { id: "run-glow", type: "line" }, { id: "run-core", type: "line" }])
-    const ink = installTraceInk(host, lanternPath(ROUTE)!, "#a9b3c2")
+    const ink = installTraceInk(host, lanternPath(ROUTE)!, COLOR)
     ink.update(0.5)
     expect(paint.at(-1)![1]).toBe("line-gradient")
     ink.fade(0.25)
