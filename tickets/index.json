@@ -2057,7 +2057,7 @@
     "path": "tickets/open/0084-skip-interruption-failure-and-the-seen-flag.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 11,
       "total": 11
     }
   },
