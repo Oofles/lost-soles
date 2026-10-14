@@ -4,7 +4,7 @@ slug: concurrent-ingest-undercounts-visitcount-an-overtaken-write
 title: Concurrent ingest undercounts visitCount: an overtaken write lands nowhere
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 07-fog-projection-and-cells
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T19:11:58Z
 started: 2026-10-14T18:15:37Z
+closed: 2026-10-14T18:22:34Z
 ---
 
 ## Description
