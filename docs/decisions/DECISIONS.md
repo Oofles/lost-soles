@@ -4770,3 +4770,36 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     newly crosses a level. A crossing made by a floor row names no activity and is not placed.
   - **Owner-read only, never logged.** A landmark is a coordinate near home (`08` §7.2, D-199); the
     backfill prints whether a route was found, never the point.
+- **D-302** **Place and street names come from the basemap's own pmtiles archive — its `places` and
+  `roads` layers — read at view time through one shared lookup (`lib/place-names.ts`); the facts a
+  name needs but the archive cannot supply are stored at ingest.** *(Agent, 2026-10-14, ticket
+  `0256`; operator approved the recommendation, including naming unexplored ground.)*
+  - **Source, and cost.** The archive D-226 already hosts and CloudFront already serves to the map.
+    A lookup is a 2×2 block of tiles around the point — z12 `places` (localities, neighbourhoods,
+    within 3 km), z15 `roads` (named roads and paths, within 60 m, never `highway` or `rail`) — a
+    few range requests, then cached per instance. Measured cold: four lookups in 440 ms; warm, ~1 ms.
+    **No new service, no cost line.** Rejected: Amazon Location Service and Nominatim — each a new
+    external call, a bill, and the operator's coordinates leaving the account (`08` §2.1) for names
+    the tiles already hold.
+  - **Read at view time, not stored.** A name is a pure function of a coordinate and
+    `BASEMAP_ARCHIVE`, whose filename is never rewritten (D-226), so the same activity names the
+    same street on every Relive without storing it — and an ingest-side lookup would put a tile
+    decoder and an HTTP dependency in the ingest Lambda, and need a backfill, for no determinism
+    gained. **Consequence:** a new archive build (capability 15, or a refreshed extract) may rename
+    a street on an old run's line. Accepted: it is the map being more right, not the record changing.
+  - **What IS stored: each re-armed cell's previous `lastRunAt`** (`RunClasses.rearmedSince`), the
+    chronicle's "after two hundred and eleven days". Only the classifier sees it — the re-arming
+    write destroys it — so it is written beside the run's classes, by ingest and by the fold alike.
+    Objects written before `0256` lack it and name no gap; `repair-t3.ts` audits for that and its
+    `--confirm` rewrite supplies it.
+  - **`{street}`** is the named road the most re-armed cells lie on (ties by name); its gap is the
+    shortest among that street's cells — the time since you were last anywhere on it, the only gap
+    the sentence can claim. **`{place}`** is the town or neighbourhood at the run's first fix.
+    Both are ordinary chronicle facts (D-031): a new row naming them is a row, not code.
+  - **The frontier names unexplored ground.** Beat 5's name is the place nearest the frontier
+    cluster's centre, read in the browser. The labels sit under the fog in adventure mode (`05`
+    §5.2), and the line names one anyway: a name says a destination exists; the fog keeps what it
+    looks like. The design's own `— Millbrook` example already made this call; ticket `0256`'s
+    operator check is the perceptual test of it.
+  - **Bounded.** The SSR page waits at most 1.5 s for the chronicle's names, then renders without;
+    the browser's frontier reads unnamed until its lookup lands. No name is always a valid reading.

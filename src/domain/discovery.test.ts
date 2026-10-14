@@ -284,6 +284,14 @@ describe("runClassesOf (0253)", () => {
     const award = awardOf(classified)
     expect([classes.new.length, classes.rearmed.length]).toEqual([award.newCellCount, award.rearmedCellCount])
   })
+
+  it("carries each re-armed cell's previous lastRunAt, which the write is about to destroy (0256)", () => {
+    const known = { [CELLS[4]]: iso(days(400)), [CELLS[5]]: iso(days(250)), [CELLS[6]]: iso(days(10)) }
+    const classes = runClassesOf(classifyCells(CELLS, store(known), AT))
+    expect(classes.rearmedSince).toEqual({ [CELLS[4]]: iso(days(400)), [CELLS[5]]: iso(days(250)) })
+    expect(Object.keys(classes.rearmedSince!)).toEqual(classes.rearmed)
+    expect(runClassesOf(classifyCells(CELLS.slice(0, 2), store({}), AT))).not.toHaveProperty("rearmedSince")
+  })
 })
 
 describe("awardOf", () => {

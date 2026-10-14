@@ -440,6 +440,13 @@ This line is cheap (a template table over facts the ledger already computed) and
 emotional work per byte than anything else in the app. It is what makes the app feel like it is
 paying attention.
 
+**Where a name comes from** (D-302). `{street}` and `{place}` are facts like any other, read off the
+basemap's own pmtiles archive (its `roads` and `places` layers) — no reverse geocoder, no third
+party. `{street}` is the named road most of the run's re-armed cells lie on; its gap is the shortest
+gap among those cells, from each cell's previous `lastRunAt`, which ingest stores beside the run's
+classes because the re-arming write destroys it. `{place}` is the town or neighbourhood at the run's
+first fix. Motorways and rail never name a street. No name known, the row waits.
+
 #### Beat 5 — the frontier line (7.2 → 8.4 s)
 
 One line at the very bottom: the nearest unexplored frontier and its distance.
@@ -449,6 +456,10 @@ One line at the very bottom: the nearest unexplored frontier and its distance.
 ```
 
 - `--ink-500`, 14sp, with a small hollow diamond glyph. It is **quiet by construction**.
+- **The name** is the town or neighbourhood nearest the frontier's centre, within 3 km, from the
+  basemap's `places` layer (D-302). None within reach, the line ends at the bearing. Naming ground
+  still under the fog is deliberate: a name says a destination exists; the fog keeps what it looks
+  like.
 - Tapping it recentres the map there in atlas mode. (Post-MVP it seeds the route planner, D-070.)
 - **Ignoring it costs nothing.** It never repeats, never turns red, never counts down, never
   appears as a notification. D-013 and 04 §4.2 both spell this out. It is a signpost, not a task.

@@ -210,6 +210,12 @@ export interface ChronicleRun {
   /** Cells the run touched, all classes. `null` where the row predates the column. */
   cellCount: number | null
   traced: boolean
+  /** The street this run came back to, and after how long (`returnedTo`). Absent: no such fact. */
+  returned?: ReturnedTo | null
+  /** Each re-armed cell's gap in days, named or not — what `returnedTo` falls back to. */
+  rearmGapsDays?: readonly number[]
+  /** The town or neighbourhood the run started in (`0256`). */
+  place?: string | null
 }
 
 /** One earlier activity, as the history read returns it. */
@@ -231,11 +237,20 @@ export const isBefore = (a: Pick<PriorRun, "startedAt" | "activityId">, b: Pick<
  * and `history: null` (the read failed) knows nothing lifetime-shaped, rather than mistaking the run
  * for a first one and announcing milestones it did not reach.
  */
-export function chronicleFacts(run: ChronicleRun, history: readonly PriorRun[] | null): Record<string, number> {
-  const facts: Record<string, number> = {
+export function chronicleFacts(run: ChronicleRun, history: readonly PriorRun[] | null): Record<string, number | string> {
+  const facts: Record<string, number | string> = {
     newCells: run.newCellCount,
     rearmedCells: run.rearmedCellCount,
     traced: run.traced ? 1 : 0,
+  }
+  // Names are facts like any other (`0256`): a row naming `{street}` or `{place}` is eligible the
+  // moment one is known, with no change here or in the selector.
+  if (run.place) facts.place = run.place
+  if (run.returned) {
+    facts.street = run.returned.street
+    facts.rearmGapDays = run.returned.gapDays
+  } else if (run.rearmGapsDays?.length) {
+    facts.rearmGapDays = Math.min(...run.rearmGapsDays)
   }
   if (run.cellCount !== null && run.cellCount > 0) {
     facts.cellCount = run.cellCount
@@ -265,6 +280,48 @@ export function chronicleFacts(run: ChronicleRun, history: readonly PriorRun[] |
       roads.length >= LONGEST_EVER_MIN_PRIOR && roads.every((h) => (h.distanceM ?? 0) < d) ? 1 : 0
   }
   return facts
+}
+
+// ─── THE STREET A RUN CAME BACK TO ────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Whole days from `since` to `at`, both ISO. Floored: "211 days" is never more than happened. */
+export const daysBetween = (since: string, at: string): number => Math.floor((Date.parse(at) - Date.parse(since)) / DAY_MS)
+
+export interface ReturnedTo {
+  street: string
+  gapDays: number
+}
+
+/** One re-armed cell: its previous `lastRunAt` and the street it lies on, if any. */
+export interface RearmedCell {
+  since: string
+  street: string | null
+}
+
+/**
+ * *"You returned to Ashgrove Lane after two hundred and eleven days."* The street the most re-armed
+ * cells lie on — the one the run actually spent its returning on, not a corner it clipped — ties
+ * broken by name. The gap is that street's SHORTEST: the time since you were last anywhere on it,
+ * which is the only gap the sentence can claim truthfully. `null` when no re-armed cell is named.
+ */
+export function returnedTo(cells: readonly RearmedCell[], startedAt: string): ReturnedTo | null {
+  const by = new Map<string, { n: number; gap: number }>()
+  for (const c of cells) {
+    if (!c.street) continue
+    const gap = daysBetween(c.since, startedAt)
+    const hit = by.get(c.street)
+    if (hit) {
+      hit.n++
+      hit.gap = Math.min(hit.gap, gap)
+    } else by.set(c.street, { n: 1, gap })
+  }
+  let best: (ReturnedTo & { n: number }) | null = null
+  for (const [street, { n, gap }] of by) {
+    if (!best || n > best.n || (n === best.n && street < best.street)) best = { street, gapDays: gap, n }
+  }
+  return best && { street: best.street, gapDays: best.gapDays }
 }
 
 // ─── NUMBERS IN WORDS ─────────────────────────────────────────────────────────

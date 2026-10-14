@@ -55,7 +55,7 @@
       "rank": 70,
       "when": { "rearmGapDays": { "gte": 183 } },
       "text": "You returned to {street} after {rearmGapDays:words} days. It remembered you.",
-      "note": "Waits for street names and each re-armed cell's previous lastRunAt; neither is computed yet. Selectable the day both are."
+      "note": "Street from the basemap's roads layer, gap from each re-armed cell's stored previous lastRunAt (0256, D-302). Runs classified before 0256 wait until their reveal set is rewritten."
     },
     {
       "id": "rearm-soon-named",
@@ -63,7 +63,7 @@
       "rank": 50,
       "when": { "rearmInDays": { "gte": 1, "lte": 30 } },
       "text": "{street} comes back into season in {rearmInDays:words} days.",
-      "note": "THE ONLY FORWARD-LOOKING LINE (§3.5 rule 4). An invitation, never a deadline; a second forward-looking row needs a decision record. Waits for street names."
+      "note": "THE ONLY FORWARD-LOOKING LINE (§3.5 rule 4). An invitation, never a deadline; a second forward-looking row needs a decision record. Street names exist (D-302); still waits on rearmInDays, which needs lastRunAt of cells near the run — ticket 0262."
     },
 
     { "id": "longest-ever", "set": ["new-ground", "no-new-ground"], "rank": 75, "when": { "longestEver": { "eq": 1 } }, "text": "The longest road in all the record." },

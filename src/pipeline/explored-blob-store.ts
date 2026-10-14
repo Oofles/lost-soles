@@ -712,7 +712,7 @@ export async function writeRunClasses(
     new PutObjectCommand({
       Bucket: deps.bucket,
       Key: objectKeys.runClasses(userId, activityId),
-      Body: gzipSync(JSON.stringify({ new: classes.new, rearmed: classes.rearmed })),
+      Body: gzipSync(JSON.stringify({ new: classes.new, rearmed: classes.rearmed, rearmedSince: classes.rearmedSince })),
       ContentType: "application/json",
       ContentEncoding: "gzip",
       CacheControl: "no-store",
@@ -743,7 +743,12 @@ export function parseRunClasses(bytes: Uint8Array, key: string): RunClasses {
   if (!ids(body.new) || !ids(body.rearmed)) {
     throw new Error(`readRunClasses: ${key} is not { new, rearmed }`)
   }
-  return { new: body.new, rearmed: body.rearmed }
+  const since = body.rearmedSince
+  if (since === undefined) return { new: body.new, rearmed: body.rearmed }
+  if (typeof since !== "object" || since === null || Object.values(since).some((v) => typeof v !== "string")) {
+    throw new Error(`readRunClasses: ${key} has a rearmedSince that is not { cell: ISO }`)
+  }
+  return { new: body.new, rearmed: body.rearmed, rearmedSince: since }
 }
 
 /**

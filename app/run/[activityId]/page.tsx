@@ -4,7 +4,8 @@ import { ExploredProvider } from "@/components/map/explored-provider"
 import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
 import { log } from "@/lib/log"
-import { chronicleFor, historyUpTo } from "@/lib/runs/chronicle-server"
+import { basemapPlaceNames } from "@/lib/place-names"
+import { chronicleFor, historyUpTo, namesFor, type RunNames } from "@/lib/runs/chronicle-server"
 import { defaultRunReadDeps, runById } from "@/lib/runs/server"
 import { ledgerTableName, xpBeforeRun } from "@/lib/runs/tally-server"
 import { PLAY_PARAM } from "@/lib/runs/wire"
@@ -21,6 +22,9 @@ import { RunMoment } from "./run-moment"
 //
 // 404 for an id the session does not own, and the same 404 for one that does not exist:
 // `runById` cannot tell them apart and neither can a caller.
+/** How long the page waits for the names lookup before rendering without them. */
+const NAMES_TIMEOUT_MS = 1500
+
 export default async function RunMomentPage({
   params,
   searchParams,
@@ -53,10 +57,21 @@ export default async function RunMomentPage({
     return null
   })
 
+  // Beat 4's names (`0256`, D-302): the street the run came back to, the place it started in, read off
+  // the basemap's own tiles. Bounded, because it is a handful of range requests to CloudFront and the
+  // page must not wait on them: a slow or failed lookup costs the named rows, never the line.
+  const names = Promise.race([
+    namesFor(summary, basemapPlaceNames()),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`timed out after ${NAMES_TIMEOUT_MS} ms`)), NAMES_TIMEOUT_MS)),
+  ]).catch((e: unknown): RunNames | null => {
+    log.warn(`run ${activityId}: names lookup failed: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  })
+
   // The entry point's autoplay intent (§3.1): the plinth's new-run line asks, the Chronicle does not.
   const autoplay = query[PLAY_PARAM] === "1"
-  const [xpBefore, home, prior] = await Promise.all([before, homeCameraForSession(), history])
-  const chronicle = chronicleFor(summary, prior).text
+  const [xpBefore, home, prior, named] = await Promise.all([before, homeCameraForSession(), history, names])
+  const chronicle = chronicleFor(summary, prior, named).text
 
   return (
     <ExploredProvider uid={uid}>

@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 15,904 lines; three of
+**Read by section, never whole** (D-151). These documents total 15,915 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -375,7 +375,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,716 lines
+**06 — UI / UX** — 1,727 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -391,63 +391,63 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.2 Wireframe | `165-197` | ┌──────────────────────────────────────────────┐ |
 | &nbsp;&nbsp;↳ 2.3 What earns its space, and what does not | `198-239` | run, not on your home, and not on your whole territory — because the interesting thing is |
 | &nbsp;&nbsp;↳ 2.4 States | `240-256` | The empty state deserves a note: with no territory, the map is all fog and reads as broken. |
-| 3. The post-run moment — "Return from the Fog" | `257-558` | This is the most important screen in the app and it is not really a screen. |
+| 3. The post-run moment — "Return from the Fog" | `257-569` | This is the most important screen in the app and it is not really a screen. |
 | &nbsp;&nbsp;↳ 3.1 Entry points | `267-278` | A run is marked seen the first time the sequence completes or is skipped. |
-| &nbsp;&nbsp;↳ 3.2 The sequence | `279-455` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
-| &nbsp;&nbsp;↳ 3.3 The end state | `456-464` | When the sequence finishes it does not navigate anywhere. |
-| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `465-484` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
-| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `485-558` | This is the case that decides whether the app survives month four. |
-| 4. The map screen | `559-819` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.1 There is no map screen | `561-575` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `576-606` | permanently visible — never an icon, never a single button whose label is the state you are not |
-| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `607-635` |  |
-| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `636-665` |  |
-| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `666-710` | On / the trace web is always drawn and the last run is the selected run. |
-| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `711-768` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
-| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `769-799` | ATLAS ADVENTURE |
-| &nbsp;&nbsp;↳ 4.8 Loading, offline, and the desktop case | `800-819` | IndexedDB render before any network call. |
-| 5. The skills panel | `820-1007` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `822-846` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.2 Wireframe | `847-893` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `894-923` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
-| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `924-953` | which makes it the first live test of D-031's promise that a new skill is a data row. |
-| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `954-1007` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
-| 6. Add workout (D-061) | `1008-1156` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1010-1027` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1028-1044` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
-| &nbsp;&nbsp;↳ 6.3 Wireframe | `1045-1089` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1090-1115` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
-| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1116-1140` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
-| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1141-1156` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
-| 7. Ticket capture UI (D-092) | `1157-1282` | wireframes, and the reasons the constraints are what they are. |
-| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1167-1181` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
-| &nbsp;&nbsp;↳ 7.2 Placement and access | `1182-1190` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
-| &nbsp;&nbsp;↳ 7.3 Capture | `1191-1228` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1229-1240` | browse list with a pending marker. |
-| &nbsp;&nbsp;↳ 7.5 Browse | `1241-1269` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1270-1282` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
-| 8. Visual system | `1283-1474` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1285-1308` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1309-1343` | Six ramps. Nothing outside them ships. |
-| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1344-1383` |  |
-| &nbsp;&nbsp;↳ 8.4 Typography | `1384-1414` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
-| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1415-1426` | the map's floating controls 8dp. |
-| &nbsp;&nbsp;↳ 8.6 Iconography | `1427-1440` | an 8dp construction grid, no fills, no gradients, no two-tone. |
-| &nbsp;&nbsp;↳ 8.7 Motion | `1441-1474` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1475-1614` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
-| &nbsp;&nbsp;↳ 9.1 Sunlight | `1481-1502` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
-| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1503-1533` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
-| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1534-1553` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1554-1574` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1575-1597` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1598-1614` |  |
-| 10. What we are deliberately NOT building | `1615-1716` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1624-1637` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1638-1644` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1645-1670` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1671-1686` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1687-1702` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1703-1716` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ 3.2 The sequence | `279-466` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
+| &nbsp;&nbsp;↳ 3.3 The end state | `467-475` | When the sequence finishes it does not navigate anywhere. |
+| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `476-495` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
+| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `496-569` | This is the case that decides whether the app survives month four. |
+| 4. The map screen | `570-830` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.1 There is no map screen | `572-586` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `587-617` | permanently visible — never an icon, never a single button whose label is the state you are not |
+| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `618-646` |  |
+| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `647-676` |  |
+| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `677-721` | On / the trace web is always drawn and the last run is the selected run. |
+| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `722-779` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
+| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `780-810` | ATLAS ADVENTURE |
+| &nbsp;&nbsp;↳ 4.8 Loading, offline, and the desktop case | `811-830` | IndexedDB render before any network call. |
+| 5. The skills panel | `831-1018` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `833-857` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.2 Wireframe | `858-904` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `905-934` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
+| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `935-964` | which makes it the first live test of D-031's promise that a new skill is a data row. |
+| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `965-1018` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
+| 6. Add workout (D-061) | `1019-1167` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1021-1038` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1039-1055` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
+| &nbsp;&nbsp;↳ 6.3 Wireframe | `1056-1100` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1101-1126` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
+| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1127-1151` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
+| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1152-1167` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
+| 7. Ticket capture UI (D-092) | `1168-1293` | wireframes, and the reasons the constraints are what they are. |
+| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1178-1192` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
+| &nbsp;&nbsp;↳ 7.2 Placement and access | `1193-1201` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
+| &nbsp;&nbsp;↳ 7.3 Capture | `1202-1239` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1240-1251` | browse list with a pending marker. |
+| &nbsp;&nbsp;↳ 7.5 Browse | `1252-1280` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1281-1293` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
+| 8. Visual system | `1294-1485` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1296-1319` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1320-1354` | Six ramps. Nothing outside them ships. |
+| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1355-1394` |  |
+| &nbsp;&nbsp;↳ 8.4 Typography | `1395-1425` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
+| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1426-1437` | the map's floating controls 8dp. |
+| &nbsp;&nbsp;↳ 8.6 Iconography | `1438-1451` | an 8dp construction grid, no fills, no gradients, no two-tone. |
+| &nbsp;&nbsp;↳ 8.7 Motion | `1452-1485` | Five durations. Nothing else is invented at the component level. |
+| 9. Accessibility and reality checks | `1486-1625` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| &nbsp;&nbsp;↳ 9.1 Sunlight | `1492-1513` | Bright ambient light is the app's real display environment, and it is harsher than any simulator. |
+| &nbsp;&nbsp;↳ 9.2 One-handed reach on a large Android phone (D-124) | `1514-1544` | Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking. |
+| &nbsp;&nbsp;↳ 9.3 Sweaty thumbs, cold hands, gloves | `1545-1564` | Moisture on a capacitive screen produces both missed taps and phantom taps. |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1565-1585` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1586-1608` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1609-1625` |  |
+| 10. What we are deliberately NOT building | `1626-1727` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1635-1648` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1649-1655` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1656-1681` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1682-1697` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1698-1713` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1714-1727` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 

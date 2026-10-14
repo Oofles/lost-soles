@@ -1,7 +1,9 @@
 import type { QueryCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
-import { chronicleFor, historyUpTo } from "./chronicle-server"
+import { latLngToCell } from "h3-js"
+
+import { chronicleFor, historyUpTo, namesFor } from "./chronicle-server"
 import { EMPTY_COLLECTION, type RunSummary } from "./wire"
 
 /** Ticket `0083` — beat 4's server half: the history read and the line it feeds. */
@@ -50,5 +52,56 @@ describe("chronicleFor", () => {
 
   it("is the same line on every read of the same run — a Relive does not rewrite it", () => {
     expect(chronicleFor(SUMMARY, [])).toEqual(chronicleFor(SUMMARY, []))
+  })
+})
+
+describe("namesFor (0256)", () => {
+  // Point Nemo (D-199): synthetic geography only.
+  const A = latLngToCell(-48.876, -123.393, 10)
+  const B = latLngToCell(-48.87, -123.393, 10)
+  const C = latLngToCell(-48.88, -123.393, 10)
+  const run: RunSummary = {
+    ...SUMMARY,
+    rearmedCellCount: 3,
+    route: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "MultiLineString", coordinates: [[[-123.39, -48.87], [-123.391, -48.871]]] },
+          properties: { activityId: "a-9", startedAt: SUMMARY.startedAt, name: null },
+        },
+      ],
+    },
+    reveal: {
+      new: [],
+      rearmed: [A, B, C],
+      rearmedSince: { [A]: "2026-01-29T11:00:00.000Z", [B]: "2025-08-28T11:00:00.000Z" },
+    },
+  }
+  const streets = new Map([[A, "Ashgrove Lane"], [B, "Ashgrove Lane"], [C, "Mill Road"]])
+  const names = {
+    place: async (p: { lat: number; lng: number }) => (p.lng === -123.39 ? "Millbrook" : null),
+    street: async (p: { lat: number; lng: number }) => streets.get(latLngToCell(p.lat, p.lng, 10)) ?? null,
+  }
+
+  it("names the street from stored facts: the re-armed cells and their previous lastRunAt", async () => {
+    const n = await namesFor(run, names)
+    // C has no stored lastRunAt (a pre-0256 object would have none at all), so it is not counted.
+    expect(n).toEqual({ place: "Millbrook", returned: { street: "Ashgrove Lane", gapDays: 211 }, rearmGapsDays: [211, 365] })
+    const line = chronicleFor(run, [], n)
+    expect(line.rowId).toBe("rearmed-returned-named")
+    expect(line.text).toBe("You returned to Ashgrove Lane after two hundred and eleven days. It remembered you.")
+  })
+
+  it("selects the same line on every read of the same activity", async () => {
+    expect(chronicleFor(run, [], await namesFor(run, names))).toEqual(chronicleFor(run, [], await namesFor(run, names)))
+  })
+
+  it("an object from before 0256 names nothing, and the line falls back as it did", async () => {
+    const old = { ...run, reveal: { new: [], rearmed: [A, B, C] } }
+    const n = await namesFor(old, names)
+    expect(n.returned).toBeNull()
+    expect(chronicleFor(old, [], n).rowId).not.toBe("rearmed-returned-named")
   })
 })

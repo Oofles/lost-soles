@@ -156,8 +156,12 @@ function drifted(t3: StoredScores, w: ActivityScoreWrite): boolean {
 export interface RunClassesMismatch {
   activityId: string
   startedAt: string
-  /** `missing`: T3 says the activity revealed ground and no classes object exists. */
-  field: "missing" | "newCellCount" | "rearmedCellCount"
+  /**
+   * `missing`: T3 says the activity revealed ground and no classes object exists.
+   * `rearmedSince`: re-armed cells with no previous `lastRunAt` stored (`0256`) — an object written
+   * before the chronicle could name a street; `stored` is how many cells carry one.
+   */
+  field: "missing" | "newCellCount" | "rearmedCellCount" | "rearmedSince"
   t3: number
   stored: number
 }
@@ -186,6 +190,10 @@ export function auditRunClasses(
     }
     if ((t3.rearmedCellCount ?? 0) !== got.rearmed.length) {
       out.push({ ...base, field: "rearmedCellCount", t3: t3.rearmedCellCount ?? 0, stored: got.rearmed.length })
+    }
+    const since = got.rearmed.filter((c) => got.rearmedSince?.[c] !== undefined).length
+    if (since !== got.rearmed.length) {
+      out.push({ ...base, field: "rearmedSince", t3: got.rearmed.length, stored: since })
     }
   }
   return out

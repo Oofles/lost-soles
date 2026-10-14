@@ -34,7 +34,12 @@ export function compassWord(bearing: number): string {
   return COMPASS[Math.round((((bearing % 360) + 360) % 360) / 45) % 8]
 }
 
-/** `Unclaimed ground 1.2 km north`. The place name waits on a names source (`0256`). */
-export function frontierText(c: Pick<FrontierCluster, "distanceM" | "bearing">): string {
-  return `Unclaimed ground ${(c.distanceM / 1000).toFixed(1)} km ${compassWord(c.bearing)}`
+/**
+ * `Unclaimed ground 1.2 km north — Millbrook`, or without the name when none is known (`0256`).
+ * Naming unexplored ground is deliberate (D-302): a name says a destination exists; the fog still
+ * keeps what it looks like.
+ */
+export function frontierText(c: Pick<FrontierCluster, "distanceM" | "bearing">, place?: string | null): string {
+  const line = `Unclaimed ground ${(c.distanceM / 1000).toFixed(1)} km ${compassWord(c.bearing)}`
+  return place ? `${line} — ${place}` : line
 }

@@ -1145,6 +1145,22 @@ describe("the run's reveal set (0253)", () => {
     expect(await readRunClasses(USER, "never", deps)).toBeUndefined()
   })
 
+  it("round-trips each re-armed cell's previous lastRunAt, and refuses one that is not a string (0256)", async () => {
+    const [a, b] = run(2).slice(0, 2).sort()
+    const classes = { new: [], rearmed: [a, b], rearmedSince: { [a]: "2025-01-02T00:00:00Z", [b]: "2025-03-04T00:00:00Z" } }
+    await writeRunClasses(USER, "a-3", classes, deps)
+    expect(await readRunClasses(USER, "a-3", deps)).toEqual(classes)
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: deps.bucket,
+        Key: objectKeys.runClasses(USER, "bad-since"),
+        Body: gzipSync(JSON.stringify({ new: [], rearmed: [a], rearmedSince: { [a]: 5 } })),
+      }),
+    )
+    await expect(readRunClasses(USER, "bad-since", deps)).rejects.toThrow(/rearmedSince/)
+  })
+
   it("refuses a body that is not { new, rearmed } rather than serving it as a reveal", async () => {
     await s3.send(
       new PutObjectCommand({ Bucket: deps.bucket, Key: objectKeys.runClasses(USER, "bad"), Body: gzipSync('{"new":[1]}') }),

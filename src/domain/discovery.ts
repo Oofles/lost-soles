@@ -273,16 +273,34 @@ export function awardOf(classified: readonly ClassifiedCell[]): DiscoveryAward {
 export interface RunClasses {
   new: H3Index[]
   rearmed: H3Index[]
+  /**
+   * Each re-armed cell's `lastRunAt` BEFORE this run (`0256`) — the chronicle's "after two hundred
+   * and eleven days". Only the classifier ever sees it: the write that re-arms a cell overwrites
+   * it. Absent on objects written before `0256`, which then name no gap rather than a wrong one.
+   */
+  rearmedSince?: Record<H3Index, string>
 }
 
 export function runClassesOf(classified: readonly ClassifiedCell[]): RunClasses {
   const out: RunClasses = { new: [], rearmed: [] }
-  for (const { cell, discovery } of classified) {
+  const since = new Map<H3Index, string>()
+  for (const { cell, discovery, record } of classified) {
     if (discovery === "new") out.new.push(cell)
-    else if (discovery === "rearmed") out.rearmed.push(cell)
+    else if (discovery === "rearmed") {
+      out.rearmed.push(cell)
+      if (record) since.set(cell, record.lastRunAt)
+    }
   }
   out.new.sort()
   out.rearmed.sort()
+  // Keyed in `rearmed`'s sorted order, so the serialised object is a pure function of the verdicts.
+  if (out.rearmed.length) {
+    out.rearmedSince = {}
+    for (const cell of out.rearmed) {
+      const at = since.get(cell)
+      if (at !== undefined) out.rearmedSince[cell] = at
+    }
+  }
   return out
 }
 

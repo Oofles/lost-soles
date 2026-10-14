@@ -5900,6 +5900,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-13T21:54:04Z",
+    "started": "2026-10-14T15:38:10Z",
     "path": "tickets/open/0256-place-and-street-names-for-the-frontier-and-chronicle-lines.md",
     "ready": true,
     "acceptance": {
@@ -6010,6 +6011,46 @@
     "source": "agent",
     "created": "2026-10-14T14:41:02Z",
     "path": "tickets/open/0261-override-kind-hard-codes-bundled-rulesets.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 262,
+    "slug": "rearmindays-when-ground-near-a-run-comes-back-into-season",
+    "title": "rearmInDays: when ground near a run comes back into season",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-14T15:47:35Z",
+    "path": "tickets/open/0262-rearmindays-when-ground-near-a-run-comes-back-into-season.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 263,
+    "slug": "street-names-on-place-bound-milestones-in-the-skill-sheet",
+    "title": "Street names on place-bound milestones in the skill sheet",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-14T15:47:35Z",
+    "path": "tickets/open/0263-street-names-on-place-bound-milestones-in-the-skill-sheet.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

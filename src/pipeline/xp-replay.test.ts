@@ -782,7 +782,8 @@ describe("the run's reveal set (0253)", () => {
     const store = new MemoryStore(withRearm(), rulesFor(V1)).seedByIngest()
     const truth = new Map(store.classes)
     store.classes.delete("a-first")
-    store.classes.set("a-late", { new: [], rearmed: truth.get("a-late")!.rearmed.slice(1) })
+    const late = truth.get("a-late")!
+    store.classes.set("a-late", { new: [], rearmed: late.rearmed.slice(1), rearmedSince: late.rearmedSince })
 
     const found = auditRunClasses(await store.listActivities(), store.classes)
     expect(found.map((m) => [m.activityId, m.field])).toEqual([
@@ -797,6 +798,20 @@ describe("the run's reveal set (0253)", () => {
     for (const [id, c] of plan.classes) await store.writeRunClasses(USER, id, c)
     expect(auditRunClasses(await store.listActivities(), store.classes)).toEqual([])
     for (const [id, c] of truth) if (id !== "z-gone") expect(store.classes.get(id), id).toEqual(c)
+  })
+
+  it("a set written before 0256 has no rearmedSince: the audit names it and the fold's rewrite supplies it", async () => {
+    const store = new MemoryStore(withRearm(), rulesFor(V1)).seedByIngest()
+    const truth = store.classes.get("a-late")!
+    expect(Object.keys(truth.rearmedSince ?? {})).toEqual(truth.rearmed)
+    store.classes.set("a-late", { new: truth.new, rearmed: truth.rearmed })
+
+    const found = auditRunClasses(await store.listActivities(), store.classes)
+    expect(found).toEqual([
+      { activityId: "a-late", startedAt: "2026-09-01T07:00:00.000Z", field: "rearmedSince", t3: truth.rearmed.length, stored: 0 },
+    ])
+    const plan = await planT3Repair(USER, { store, rules: rulesFor(V1) })
+    expect(plan.classes.get("a-late")).toEqual(truth)
   })
 })
 

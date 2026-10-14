@@ -1,7 +1,19 @@
 import { QueryCommand } from "@aws-sdk/lib-dynamodb"
+import { cellToLatLng } from "h3-js"
 
+import type { PlaceNames } from "@/lib/place-names"
+import { frontierOrigin } from "@/lib/run-moment/frontier-line"
 import table from "@/rules/chronicle.json"
-import { assertChronicleTable, chronicleFacts, chronicleLine, type ChronicleChoice, type PriorRun } from "@/src/domain/chronicle"
+import {
+  assertChronicleTable,
+  chronicleFacts,
+  chronicleLine,
+  daysBetween,
+  returnedTo,
+  type ChronicleChoice,
+  type PriorRun,
+  type ReturnedTo,
+} from "@/src/domain/chronicle"
 
 import type { RunQueryDdb } from "./server"
 import type { RunSummary } from "./wire"
@@ -61,8 +73,51 @@ export async function historyUpTo(userId: string, startedAt: string, deps: Histo
   return out
 }
 
-/** The run's line. `history` is `null` when the read failed: the line then rests on the run alone. */
-export function chronicleFor(summary: RunSummary, history: readonly PriorRun[] | null): ChronicleChoice {
+/** The facts that need the map's names (`0256`, D-302). */
+export interface RunNames {
+  /** The town or neighbourhood at the run's first fix. */
+  place: string | null
+  returned: ReturnedTo | null
+  /** Every re-armed cell's gap, named or not. */
+  rearmGapsDays: number[]
+}
+
+/**
+ * THE RUN'S NAMES, from its own stored facts and the basemap's labels. The re-armed cells and their
+ * previous `lastRunAt` come off the classes object ingest wrote (`rearmedSince`); the names come
+ * from `names`, which reads a pinned, immutable archive — so a Relive names the same street.
+ * An object written before `0256` has no `rearmedSince`, and names no street rather than guess.
+ */
+export async function namesFor(summary: RunSummary, names: Pick<PlaceNames, "place" | "street">): Promise<RunNames> {
+  const since = summary.reveal.rearmedSince ?? {}
+  const rearmed = summary.reveal.rearmed.filter((c) => since[c] !== undefined)
+  const origin = frontierOrigin(summary.route.features[0]?.geometry, null)
+  const [place, streets] = await Promise.all([
+    origin ? names.place(origin) : Promise.resolve(null),
+    Promise.all(
+      rearmed.map((c) => {
+        const [lat, lng] = cellToLatLng(c)
+        return names.street({ lat, lng })
+      }),
+    ),
+  ])
+  const cells = rearmed.map((c, i) => ({ since: since[c], street: streets[i] }))
+  return {
+    place,
+    returned: returnedTo(cells, summary.startedAt),
+    rearmGapsDays: cells.map((c) => daysBetween(c.since, summary.startedAt)),
+  }
+}
+
+/**
+ * The run's line. `history` is `null` when the read failed: the line then rests on the run alone.
+ * `names` is `null` when the lookup failed or timed out: rows that name a place wait, as before `0256`.
+ */
+export function chronicleFor(
+  summary: RunSummary,
+  history: readonly PriorRun[] | null,
+  names: RunNames | null = null,
+): ChronicleChoice {
   const facts = chronicleFacts(
     {
       activityId: summary.activityId,
@@ -72,6 +127,9 @@ export function chronicleFor(summary: RunSummary, history: readonly PriorRun[] |
       rearmedCellCount: summary.rearmedCellCount,
       cellCount: summary.cellCount,
       traced: summary.route.features.length > 0,
+      place: names?.place,
+      returned: names?.returned,
+      rearmGapsDays: names?.rearmGapsDays,
     },
     history,
   )

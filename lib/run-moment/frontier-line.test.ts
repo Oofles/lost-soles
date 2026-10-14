@@ -19,6 +19,12 @@ describe("the frontier line", () => {
     expect(frontierText({ distanceM: 2060, bearing: 130 })).toBe("Unclaimed ground 2.1 km south-east")
   })
 
+  it("names the place when one is known, and reads exactly as before when none is (0256)", () => {
+    expect(frontierText({ distanceM: 1234, bearing: 2 }, "Millbrook")).toBe("Unclaimed ground 1.2 km north — Millbrook")
+    expect(frontierText({ distanceM: 1234, bearing: 2 }, null)).toBe("Unclaimed ground 1.2 km north")
+    expect(frontierText({ distanceM: 1234, bearing: 2 }, "")).toBe("Unclaimed ground 1.2 km north")
+  })
+
   it.each([
     [0, "north"], [22, "north"], [23, "north-east"], [90, "east"], [180, "south"], [270, "west"], [337, "north-west"], [338, "north"], [359.9, "north"],
   ])("compass %d° → %s", (deg, word) => expect(compassWord(deg)).toBe(word))

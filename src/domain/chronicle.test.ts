@@ -13,6 +13,7 @@ import {
   numberWords,
   ordinalWords,
   renderRow,
+  returnedTo,
   type ChronicleRun,
   type ChronicleTable,
   type PriorRun,
@@ -200,6 +201,56 @@ describe("the facts", () => {
   it("counts roads, not gym sessions", () => {
     const h = [prior(1), prior(2, { distanceM: null }), prior(3, { distanceM: 0 })]
     expect(chronicleFacts(run(), h).roadCount).toBe(2)
+  })
+})
+
+describe("names (0256)", () => {
+  const AT = "2026-09-01T07:00:00Z"
+  const ago = (d: number) => new Date(Date.parse(AT) - d * 86_400_000).toISOString()
+
+  it("returns to the street the most re-armed cells lie on, with that street's shortest gap", () => {
+    const cells = [
+      { since: ago(300), street: "Ashgrove Lane" },
+      { since: ago(211), street: "Ashgrove Lane" },
+      { since: ago(400), street: "Mill Road" },
+      { since: ago(250), street: null },
+    ]
+    expect(returnedTo(cells, AT)).toEqual({ street: "Ashgrove Lane", gapDays: 211 })
+    expect(returnedTo([...cells].reverse(), AT)).toEqual({ street: "Ashgrove Lane", gapDays: 211 })
+  })
+
+  it("breaks a tie on cell count by name, and is null when nothing re-armed is named", () => {
+    expect(returnedTo([{ since: ago(200), street: "Mill Road" }, { since: ago(190), street: "Ash Way" }], AT)?.street).toBe("Ash Way")
+    expect(returnedTo([{ since: ago(200), street: null }], AT)).toBeNull()
+    expect(returnedTo([], AT)).toBeNull()
+  })
+
+  it("selects the shipped `rearmed-returned-named` row once a street and its gap are facts", () => {
+    const r = run({ rearmedCellCount: 4, returned: { street: "Ashgrove Lane", gapDays: 211 }, rearmGapsDays: [211, 300] })
+    const line = chronicleLine(chronicleFacts(r, []), TABLE, r.activityId)
+    expect(line.rowId).toBe("rearmed-returned-named")
+    expect(line.text).toBe("You returned to Ashgrove Lane after two hundred and eleven days. It remembered you.")
+    expect(chronicleLine(chronicleFacts(r, []), TABLE, r.activityId)).toEqual(line)
+  })
+
+  it("without a street the row waits; the gap alone is still a fact", () => {
+    const f = chronicleFacts(run({ rearmedCellCount: 4, returned: null, rearmGapsDays: [300, 211] }), [])
+    expect(f.rearmGapDays).toBe(211)
+    expect(f).not.toHaveProperty("street")
+    expect(chronicleLine(f, TABLE, "act-100").rowId).not.toBe("rearmed-returned-named")
+  })
+
+  it("a name is a fact like any other: a new row naming {place} needs no code", () => {
+    const table = assertChronicleTable({
+      version: 1,
+      rows: [
+        { id: "fallback", set: ["new-ground", "no-new-ground"], rank: 0, text: "The road went on." },
+        { id: "named", set: ["new-ground", "no-new-ground"], rank: 1, text: "Through {place}, on {street}." },
+      ],
+    })
+    const named = run({ place: "Millbrook", returned: { street: "Kelp Street", gapDays: 200 } })
+    expect(chronicleLine(chronicleFacts(named, []), table, "x").text).toBe("Through Millbrook, on Kelp Street.")
+    expect(chronicleLine(chronicleFacts(run(), []), table, "x").rowId).toBe("fallback")
   })
 })
 

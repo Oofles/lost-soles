@@ -8,6 +8,7 @@ import { MapShell, type MapStage } from "@/components/map/map-shell"
 import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
+import { basemapPlaceNames } from "@/lib/place-names"
 import { frontierOrigin, frontierText, pickFrontier } from "@/lib/run-moment/frontier-line"
 import { browserSequenceHistory, wireSequenceExit, type SequenceExit } from "@/lib/run-moment/exit"
 import { FRONTIER_MODE, requestRenderMode } from "@/lib/run-moment/mode"
@@ -322,6 +323,25 @@ export function RunMoment({
     return pickFrontier(frontier({ origin, radiusM: FRONTIER_RADIUS_M, explored: explored.set, weights }))
   }, [due, origin, weights, explored])
 
+  /**
+   * The frontier's place name (`0256`, D-302), from the basemap's own tiles — the same archive the
+   * map is drawing, so no request leaves our CloudFront. Keyed by the cluster, so a recomputed
+   * frontier never wears the previous one's name; until the lookup lands, the line reads unnamed.
+   */
+  const [frontierPlace, setFrontierPlace] = useState<{ parent: string; name: string | null } | null>(null)
+  useEffect(() => {
+    if (!target) return
+    let live = true
+    basemapPlaceNames()
+      .place(target.centre)
+      .catch(() => null)
+      .then((name) => live && setFrontierPlace({ parent: target.parent, name }))
+    return () => {
+      live = false
+    }
+  }, [target])
+  const place = target && frontierPlace?.parent === target.parent ? frontierPlace.name : null
+
   /** §3.2 beat 5: *"Tapping it recentres the map there in atlas mode."* */
   const onFrontier = () => {
     if (!target) return
@@ -332,7 +352,7 @@ export function RunMoment({
     }
   }
   const frontierLine = (opacity?: number) => (
-    <FrontierLine text={target ? frontierText(target) : null} onSelect={onFrontier} opacity={opacity} />
+    <FrontierLine text={target ? frontierText(target, place) : null} onSelect={onFrontier} opacity={opacity} />
   )
 
   const onRelive = () => {
