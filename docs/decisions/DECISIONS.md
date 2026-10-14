@@ -4803,3 +4803,15 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     operator check is the perceptual test of it.
   - **Bounded.** The SSR page waits at most 1.5 s for the chronicle's names, then renders without;
     the browser's frontier reads unnamed until its lookup lands. No name is always a valid reading.
+- **D-303** **Recorded landmarks draw above the fog and below the route; `→ fly to` lands at z16.**
+  Ticket `0260`, operator review 2026-10-14.
+  - **A third layer rule** (`05` §4.4, `lib/map-layers.ts`): the landmark layer sits between the
+    fog and `run-glow`. A cairn is a placed object *"visible forever"* (`04` §4.3), so no mist may
+    cover it, and above the fog it reads the same in atlas and adventure. The route stays topmost.
+    `fogBeforeId` inserts the fog under the landmarks when they exist, so a re-added fog cannot
+    bury them. Rejected: below the fog (a cairn lost in mist is not visible forever); above the
+    route (the route is topmost by design, D-051's legibility case).
+  - **The marker's form is a row** in `MARKER_FORMS`, keyed by `Landmark.place` (D-031): a cairn for
+    `landmark`, a torii for `shrine`. A place the table does not know draws nothing.
+  - **`AT_ZOOM = 16`**, not `HOME_ZOOM` 14, for `?at=`. The link names one spot, not a
+    neighbourhood, and the operator found 14 too far out. Still inside D-051's z14–17.
