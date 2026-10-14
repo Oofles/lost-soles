@@ -4,7 +4,7 @@ slug: enabling-a-skill-mints-an-uncaught-point
 title: Enabling a disabled skill row mints a Total Level point that celebrate.ts cannot see
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: [65]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-29T03:36:58Z
 started: 2026-10-14T13:11:22Z
+closed: 2026-10-14T13:17:27Z
 ---
 
 ## Description
