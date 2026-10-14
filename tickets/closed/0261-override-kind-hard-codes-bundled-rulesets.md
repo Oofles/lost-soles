@@ -4,7 +4,7 @@ slug: override-kind-hard-codes-bundled-rulesets
 title: override-kind.ts hard-codes rulesets v1-v2 and refuses a ledger on v3
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 09-xp-engine-and-ledger
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T14:41:02Z
 started: 2026-10-14T19:39:01Z
+closed: 2026-10-14T19:40:05Z
 ---
 
 ## Description
