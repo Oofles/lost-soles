@@ -353,6 +353,40 @@ describe("structural rules the schema depends on", () => {
   })
 })
 
+/** `0238` — the scorer follows the measure (D-276), so a disagreeing `logMode` was silent. */
+describe("logMode agrees with the measure's kernel (02 §3.7)", () => {
+  it("refuses logMode reps over a distanceKm measure, naming the row, both fields and the pairings", () => {
+    const errs = broken((r) => {
+      ;(find(r, "might").match as Record<string, unknown>).measure = "distanceKm"
+    })
+    const err = errs.find((e) => e.path === `skills[${at("might")}].logMode`)
+    expect(err?.message).toContain('"might"')
+    expect(err?.message).toContain('logMode "reps"')
+    expect(err?.message).toContain('match.measure "distanceKm"')
+    expect(err?.message).toContain("reps ⇔ reps:<exerciseId>")
+    expect(err?.message).toContain("duration ⇔ seconds:<exerciseId>")
+    expect(err?.message).toContain("trace ⇔ distanceKm")
+  })
+
+  it.each([
+    ["wayfaring", "duration"],
+    ["might", "trace"],
+    ["endurance", "reps"],
+  ])("refuses %s with logMode %s", (id, logMode) => {
+    const errs = broken((r) => (find(r, id).logMode = logMode))
+    expect(paths(errs)).toEqual([`skills[${at(id)}].logMode`])
+  })
+
+  it("reports an unknown logMode once, not also as a disagreement", () => {
+    const errs = broken((r) => (find(r, "might").logMode = "vibes"))
+    expect(paths(errs)).toEqual([`skills[${at("might")}].logMode`])
+  })
+
+  it.each([1, 2, 3] as const)("every row of the bundled v%i still validates", (v) => {
+    expect(validateRuleSet(parseRuleSetFile(v))).toEqual([])
+  })
+})
+
 describe("02 §3.8 checks 3 and 4 — ambiguity and zero-match fail the BUILD (ticket 0029)", () => {
   // These fire at SEED time, not run time (invariant I-26). An ambiguous ruleset must never
   // reach the table: by the time it does, the only symptom is XP quietly landing in the wrong

@@ -965,7 +965,8 @@ a programming language with no debugger. The line is drawn here:
 
 *Amended by D-276 (09 audit, 2026-10-02):* the kernel is selected by the **`measure` prefix**
 (`distanceKm`, `reps:`, `seconds:` — `src/scoring/units.ts` `KERNELS`); `logMode` is display/log-form
-metadata the scorer does not read. A validator check that the two agree is ticket `0238`. Reps and
+metadata the scorer does not read, so the validator refuses a row where the two disagree
+(`LOG_MODE_OF_MEASURE` in `src/rules/schema.ts` — this table as data; ticket `0238`). Reps and
 duration sum only the one exercise the measure's suffix names, not every `exercises[].id`.
 
 **Data (everything else):** which skills exist, their names, ids, order, units, rates, caps,

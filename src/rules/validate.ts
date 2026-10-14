@@ -27,6 +27,7 @@ import {
   ACTIVITY_KINDS,
   DERIVED_MEASURES,
   FIXED_MEASURES,
+  LOG_MODE_OF_MEASURE,
   LOG_MODES,
   MEASURE_PREFIXES,
   type RuleSet,
@@ -71,6 +72,30 @@ function isMeasure(v: unknown): boolean {
   if (typeof v !== "string") return false
   if ((FIXED_MEASURES as readonly string[]).includes(v)) return true
   return MEASURE_PREFIXES.some((p) => v.startsWith(p) && v.length > p.length)
+}
+
+/**
+ * 0238 — `logMode` must be the one `LOG_MODE_OF_MEASURE` gives the row's measure. Only called
+ * once both fields are individually sound, so one typo reports one error, not two.
+ */
+function validateLogModeAgrees(skill: RuleSkill, i: number, measure: string, errs: RuleError[]): void {
+  if (!(LOG_MODES as readonly string[]).includes(skill.logMode)) return
+  const key = (Object.keys(LOG_MODE_OF_MEASURE) as (keyof typeof LOG_MODE_OF_MEASURE)[]).find(
+    (k) => (k.endsWith(":") ? measure.startsWith(k) : measure === k),
+  )
+  const expected = key === undefined ? undefined : LOG_MODE_OF_MEASURE[key]
+  if (expected === undefined || skill.logMode === expected) return
+  const pairings = Object.entries(LOG_MODE_OF_MEASURE)
+    .map(([k, mode]) => `${mode} ⇔ ${k.endsWith(":") ? `${k}<exerciseId>` : k}`)
+    .join(", ")
+  errs.push({
+    path: `skills[${i}].logMode`,
+    message:
+      `${JSON.stringify(skill.id)}: logMode ${JSON.stringify(skill.logMode)} disagrees with ` +
+      `match.measure ${JSON.stringify(measure)}, which is a ${JSON.stringify(expected)} measure — ` +
+      `the scorer follows the measure, so the row would score as ${expected}. ` +
+      `Allowed pairings (02 §3.7): ${pairings}.`,
+  })
 }
 
 function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
@@ -149,6 +174,8 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
         "come from another subsystem (the fog, `feeds`), never off an Activity, so a " +
         "`kind: activity` row cannot use it (0217).",
     })
+  } else {
+    validateLogModeAgrees(skill, i, m.measure as string, errs)
   }
 
   if (typeof skill.matchPriority !== "number") {

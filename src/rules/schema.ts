@@ -153,6 +153,23 @@ export const DERIVED_MEASURES = ["cells", "share"] as const satisfies readonly (
   typeof FIXED_MEASURES
 )[number][]
 export const MEASURE_PREFIXES = ["reps:", "seconds:"] as const
+/**
+ * The `logMode` each measure belongs to, keyed by its fixed value or its `<kernel>:` prefix —
+ * `02` §3.7's kernel table, as data (0238). The scorer picks its kernel from the measure
+ * (D-276) and never reads `logMode`, so this is what stops the two from disagreeing silently:
+ * `logMode: reps` over `measure: distanceKm` would otherwise validate and score as distance.
+ * `satisfies` makes it total — a new fixed measure or prefix will not compile without a row.
+ */
+export const LOG_MODE_OF_MEASURE = {
+  distanceKm: "trace",
+  "reps:": "reps",
+  "seconds:": "duration",
+  cells: "derived",
+  share: "derived",
+} as const satisfies Record<
+  (typeof FIXED_MEASURES)[number] | (typeof MEASURE_PREFIXES)[number],
+  LogMode
+>
 
 // These four are bound to the domain's unions by compile-time assertions in
 // `schema.types.test.ts` — kept there, not here, because such an assertion's only consumer
