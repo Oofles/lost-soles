@@ -42,6 +42,11 @@ Draw every located `Landmark` the owner has as a persistent marker on the home m
   in `app/run/[activityId]/run-sequence.tsx` points here.
 - The glyph/art question (what a cairn looks like at map scale) is perceptual: expect it to need the
   operator's eye.
+- 2026-10-14: built and deployed in `f6928bf`, awaiting the operator's look. Two THROWAWAY rows are in
+  the prod `Landmark` table for that check (operator-approved): `constitution#50` (cairn) and
+  `cartography#99` (shrine), `activityId: smoke-0260`, placed by `lanternPath` on real stored routes.
+  **Delete them before closing:** `npx tsx tmp/0260/operator-seed.ts --clean` (keys in
+  `tmp/0260/operator-state.json`; the delete is conditional on `activityId = smoke-0260`).
 
 ## Operator validation
 
