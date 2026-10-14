@@ -5,8 +5,10 @@ import type { Activity, Trace } from "@/src/domain/activity"
 import {
   awardOf,
   classifyCells,
+  nearCells,
   needsReplay,
   NO_CELLS,
+  rearmSoonOf,
   runClassesOf,
   type DiscoveryAward,
 } from "@/src/domain/discovery"
@@ -842,9 +844,12 @@ async function projectCells<TCreds>(
     }
   }
 
-  // 2. CLASSIFY, against pre-run state, in one read.
-  const records = await readCells(cells, activity.userId, deps.cells)
+  // 2. CLASSIFY, against pre-run state, in one read — which also reads the ground NEAR the run
+  // (`0262`), for the chronicle's one forward-looking line. Read now, before step 4 writes.
+  const near = nearCells(cells)
+  const records = await readCells([...cells, ...near], activity.userId, deps.cells)
   const candidates = classifyCells(cells, records, activity.startedAt)
+  const rearmSoon = rearmSoonOf(near, (c) => records.get(c), activity.startedAt)
 
   /**
    * 4. WRITE, carrying each cell's verdict. A verdict that awards credit is a CLAIM the write
@@ -876,7 +881,7 @@ async function projectCells<TCreds>(
    * with, so its sizes are exactly the award's counts. The write is what destroys the record the
    * verdict was read from, so this is the last moment anything can say which cells were re-armed.
    */
-  await writeRunClasses(activity.userId, activity.activityId, runClassesOf(classified), deps.blobs)
+  await writeRunClasses(activity.userId, activity.activityId, runClassesOf(classified, rearmSoon), deps.blobs)
 
   /**
    * 7. IF ANY CELL COULD NOT BE SCORED, MARK THE USER FOR A REPLAY (§3.4).

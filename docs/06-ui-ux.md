@@ -552,7 +552,8 @@ no "you could have earned 510." The number is the number.
 - *"The eleventh league along the river. It knows your weight by now."*
 - *"You have now walked further than the road from here to Carlisle."* (lifetime threshold)
 - *"Ashgrove Lane comes back into season in nineteen days."* (a cell approaching the 6-month
-  re-arm — the *only* forward-looking line, and it is an invitation, not a deadline)
+  re-arm — the *only* forward-looking line, and it is an invitation, not a deadline. The cell is
+  the soonest to re-arm within ~170 m of the run, as of the run: D-305)
 
 Never: *"No new territory today"*, *"0 cells discovered"*, *"Try somewhere new!"* The first
 states a lack, the second quantifies it, the third gives an instruction — and instructions are

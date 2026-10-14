@@ -216,6 +216,11 @@ export interface ChronicleRun {
   rearmGapsDays?: readonly number[]
   /** The town or neighbourhood the run started in (`0256`). */
   place?: string | null
+  /**
+   * The nearby ground that comes back into season soonest, as of the run (`0262`), and its street
+   * if it lies on one. Absent: none near, or the run was classified before `0262`.
+   */
+  rearmSoon?: { inDays: number; street: string | null } | null
 }
 
 /** One earlier activity, as the history read returns it. */
@@ -251,6 +256,11 @@ export function chronicleFacts(run: ChronicleRun, history: readonly PriorRun[] |
     facts.rearmGapDays = run.returned.gapDays
   } else if (run.rearmGapsDays?.length) {
     facts.rearmGapDays = Math.min(...run.rearmGapsDays)
+  }
+  // Its own fact name, not `street`: a run can come back to one street and pass near another.
+  if (run.rearmSoon) {
+    facts.rearmInDays = run.rearmSoon.inDays
+    if (run.rearmSoon.street) facts.soonStreet = run.rearmSoon.street
   }
   if (run.cellCount !== null && run.cellCount > 0) {
     facts.cellCount = run.cellCount

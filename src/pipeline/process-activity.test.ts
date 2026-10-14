@@ -2,11 +2,13 @@ import { gunzipSync } from "node:zlib"
 
 import { GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3"
 import { GetCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import { gridDistance } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import { SourceRateLimitedError } from "@/src/adapters/errors"
 import type { IngestJob } from "@/src/adapters/types"
 import type { Trace } from "@/src/domain/activity"
+import { NEAR_RING_K } from "@/src/domain/discovery"
 import { RES } from "@/src/domain/fog"
 import { RawArchiveError } from "@/src/pipeline/archive"
 import {
@@ -720,8 +722,11 @@ describe("discovery classification, end to end", () => {
 
     if (result.outcome !== "persisted") throw new Error("expected persisted")
     expect(result.award.cooledCellCount).toBe(0)
-    // Exactly one read, up front — not one per cell.
-    expect(calls.filter((c) => c === "cellsRead")).toHaveLength(1)
+    // One read, up front — every batch of it before the first write, and batched, not one per
+    // cell. Batches, not one call: since `0262` it also reads the ground near the run.
+    const reads = calls.filter((c) => c === "cellsRead").length
+    expect(calls.lastIndexOf("cellsRead")).toBeLessThan(calls.indexOf("cells"))
+    expect(reads).toBeLessThan(result.award.cellCount)
   })
 
   /**
@@ -999,6 +1004,32 @@ describe("the publish phase (0049, 02 §2.10 and §6.4)", () => {
       result.award.rearmedCellCount,
     ])
     expect(classes.new).toEqual([...classes.new].sort())
+  })
+
+  it("stores the nearby ground that comes back into season soonest, read before its own write (0262)", async () => {
+    // First pass: every cell is new, so the reveal set IS the run's cell set.
+    const first = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, first.deps)
+    const own = new Set(
+      (JSON.parse(gunzipSync(first.blobBodies.get("users/u-1/cells/a-1.classes.json")!).toString()) as { new: string[] }).new,
+    )
+    // Second pass: everything T6 is asked for was run 170 days before this run — own cells and near.
+    const cooled = "2026-03-20T03:00:00.000Z"
+    const { deps, blobBodies } = rig({ ingest: TRACED_RUN, known: (cells) => Object.fromEntries(cells.map((c) => [c, cooled])) })
+    await processActivity(JOB, deps)
+    const classes = JSON.parse(gunzipSync(blobBodies.get("users/u-1/cells/a-1.classes.json")!).toString()) as {
+      rearmSoon?: { cell: string; lastRunAt: string }
+    }
+    expect(classes.rearmSoon?.lastRunAt).toBe(cooled)
+    // NEAR, never its own: the run just re-ran those, and they are 183 days out.
+    expect(own.has(classes.rearmSoon!.cell)).toBe(false)
+    expect([...own].some((c) => gridDistance(c, classes.rearmSoon!.cell) <= NEAR_RING_K)).toBe(true)
+  })
+
+  it("stores no rearmSoon when nothing near has been run", async () => {
+    const { deps, blobBodies } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+    expect(JSON.parse(gunzipSync(blobBodies.get("users/u-1/cells/a-1.classes.json")!).toString())).not.toHaveProperty("rearmSoon")
   })
 
   it("times the phase separately from the cells and the transaction", async () => {

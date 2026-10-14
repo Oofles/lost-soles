@@ -88,7 +88,7 @@ describe("namesFor (0256)", () => {
   it("names the street from stored facts: the re-armed cells and their previous lastRunAt", async () => {
     const n = await namesFor(run, names)
     // C has no stored lastRunAt (a pre-0256 object would have none at all), so it is not counted.
-    expect(n).toEqual({ place: "Millbrook", returned: { street: "Ashgrove Lane", gapDays: 211 }, rearmGapsDays: [211, 365] })
+    expect(n).toEqual({ place: "Millbrook", returned: { street: "Ashgrove Lane", gapDays: 211 }, rearmGapsDays: [211, 365], rearmSoon: null })
     const line = chronicleFor(run, [], n)
     expect(line.rowId).toBe("rearmed-returned-named")
     expect(line.text).toBe("You returned to Ashgrove Lane after two hundred and eleven days. It remembered you.")
@@ -103,5 +103,42 @@ describe("namesFor (0256)", () => {
     const n = await namesFor(old, names)
     expect(n.returned).toBeNull()
     expect(chronicleFor(old, [], n).rowId).not.toBe("rearmed-returned-named")
+  })
+})
+
+describe("namesFor — ground coming back into season (0262)", () => {
+  // Point Nemo (D-199). SUMMARY started 2026-08-28T11:00Z; 170 days before is 2026-03-11T11:00Z,
+  // which re-arms 183 days on — thirteen days after the run.
+  const D = latLngToCell(-48.876, -123.393, 11)
+  const soon = (lastRunAt: string, cell = D): RunSummary => ({
+    ...SUMMARY,
+    reveal: { new: [], rearmed: [], rearmSoon: { cell, lastRunAt } },
+  })
+  const names = {
+    place: async () => null,
+    street: async (p: { lat: number; lng: number }) => (latLngToCell(p.lat, p.lng, 11) === D ? "Kelp Street" : null),
+  }
+
+  it("names the street and counts days from the run's start to the day it re-arms", async () => {
+    const run = soon("2026-03-11T11:00:00.000Z")
+    const n = await namesFor(run, names)
+    expect(n.rearmSoon).toEqual({ inDays: 13, street: "Kelp Street" })
+    const line = chronicleFor(run, [], n)
+    expect(line.rowId).toBe("rearm-soon-named")
+    expect(line.text).toBe("Kelp Street comes back into season in thirteen days.")
+    // Stored facts only: a Relive reads the same line.
+    expect(chronicleFor(run, [], await namesFor(run, names))).toEqual(line)
+  })
+
+  it("waits without a street, and past thirty days", async () => {
+    const unnamed = soon("2026-03-11T11:00:00.000Z", latLngToCell(-48.88, -123.393, 11))
+    expect(chronicleFor(unnamed, [], await namesFor(unnamed, names)).rowId).not.toBe("rearm-soon-named")
+    const far = soon("2026-04-18T11:00:00.000Z")
+    expect((await namesFor(far, names)).rearmSoon?.inDays).toBe(51)
+    expect(chronicleFor(far, [], await namesFor(far, names)).rowId).not.toBe("rearm-soon-named")
+  })
+
+  it("an object from before 0262 has no such fact", async () => {
+    expect((await namesFor({ ...SUMMARY, reveal: { new: [], rearmed: [] } }, names)).rearmSoon).toBeNull()
   })
 })

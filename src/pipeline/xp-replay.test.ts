@@ -2,7 +2,17 @@ import type { H3Index } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import type { Trace } from "@/src/domain/activity"
-import { awardOf, classifyCells, NO_CELLS, runClassesOf, type CellRecord, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
+import {
+  awardOf,
+  classifyCells,
+  nearCells,
+  NO_CELLS,
+  rearmSoonOf,
+  runClassesOf,
+  type CellRecord,
+  type DiscoveryAward,
+  type RunClasses,
+} from "@/src/domain/discovery"
 import { traceToCells, traceToSegments } from "@/src/domain/fog"
 import type { FoldedCell } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
@@ -223,7 +233,8 @@ class MemoryStore implements ReplayStore {
         award = awardOf(classified)
         split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
         this.runCells.set(a.activityId, [...cells])
-        this.classes.set(a.activityId, runClassesOf(classified))
+        // As ingest does (`0262`): the ground near the run, read before the run's own write.
+        this.classes.set(a.activityId, runClassesOf(classified, rearmSoonOf(nearCells(cells), (c) => records.get(c), a.startedAt)))
         for (const c of cells) {
           const prev = this.t6.get(c)
           const credit = classified.find((x) => x.cell === c)!.discovery !== "cooled" ? 1 : 0
@@ -798,6 +809,23 @@ describe("the run's reveal set (0253)", () => {
     for (const [id, c] of plan.classes) await store.writeRunClasses(USER, id, c)
     expect(auditRunClasses(await store.listActivities(), store.classes)).toEqual([])
     for (const [id, c] of truth) if (id !== "z-gone") expect(store.classes.get(id), id).toEqual(c)
+  })
+
+  it("the fold computes rearmSoon as of each run, exactly as ingest stored it (0262)", async () => {
+    // `a-near` runs ~110 m east of `a-first`'s line six weeks later: near, not on, cooled ground.
+    const fx = withRearm()
+    fx.traces.set("a-near", line(0.0015))
+    fx.activities.push(activity("a-near", "2026-02-15T07:00:00.000Z", { hasTrace: true }))
+    const store = new MemoryStore(fx, rulesFor(V1)).seedByIngest()
+    const truth = new Map(store.classes)
+    expect(truth.get("a-near")!.new.length).toBeGreaterThan(0)
+    expect(truth.get("a-near")!.rearmSoon?.lastRunAt).toBe("2026-02-01T07:00:00.000Z")
+    for (const [id, c] of truth) store.classes.set(id, { new: c.new, rearmed: c.rearmed, rearmedSince: c.rearmedSince })
+
+    await replayUser(USER, 1, deps(store, V1))
+    for (const [id, c] of truth) if (id !== "z-gone") expect(store.classes.get(id)?.rearmSoon, id).toEqual(c.rearmSoon)
+    const plan = await planT3Repair(USER, { store, rules: rulesFor(V1) })
+    for (const [id, c] of plan.classes) expect(c.rearmSoon, id).toEqual(truth.get(id)!.rearmSoon)
   })
 
   it("a set written before 0256 has no rearmedSince: the audit names it and the fold's rewrite supplies it", async () => {

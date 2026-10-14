@@ -4835,3 +4835,25 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     from 1.0); eliding only where vertices stay above `REVEAL_HI` (keeps nearly every bridge, breaks
     the ceiling). Neither reaches plain monotonicity, which `reveal.test.ts`, `instances.test.ts`
     and the harness's R3 now assert.
+- **D-305** **"Comes back into season" reads the ground within four rings of the run, as of the run.**
+  *(2026-10-14, ticket `0262`. `06` §3.5 rule 4; `rules/chronicle.json` `rearm-soon-named`.)*
+  - **Near is `gridDisk` k = 4 at res 11, ~170 m**, minus the run's own cells: those were just
+    re-run and are 183 days out. It means a street you would plausibly have run alongside, not the
+    next neighbourhood. Of the cooled cells there, the one that re-arms soonest (oldest `lastRunAt`,
+    ties broken on cell id) is stored on the run's classes object as `rearmSoon: { cell, lastRunAt }`.
+    The days and the street are derived when the page is read, from stored facts and the pinned
+    basemap (D-302), so a Relive reads the same line.
+  - **As of the run, from two sources that agree.** Ingest reads the nearby cells in the same T6
+    read that classifies the run, before its own write. Replay and `repair-t3` read them off the
+    fold's map as it stood before each activity, through a third argument to `foldActivities`'
+    `onActivity`. The fold is exact for any history, so a replay also supplies the fact for runs
+    ingested before `0262`, and corrects it if an out-of-order import changed what was true.
+  - **Skipped, not guessed:** a nearby cell whose `lastRunAt` is after the run (on an out-of-order
+    ingest T6 keeps only first and last, so its state at the run is unknown), and a cell re-arming
+    in under a whole day ("in zero days" is not a line). If the soonest cell lies on no named
+    street, the row waits. No fallback to the next cell.
+  - **The fact is `soonStreet`, not `street`.** A run can come back to one street (`returnedTo`)
+    and pass near another, and one fact name would let the forward-looking line name the wrong one.
+  - **Rejected:** keeping the stored value when replay rewrites the object (an S3 read per activity
+    to keep a value the fold computes exactly); reading today's T6 at page time (moves under a
+    Relive); a wider ring (a "nearby" street you would not recognise as nearby).

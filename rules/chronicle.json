@@ -62,8 +62,8 @@
       "set": "no-new-ground",
       "rank": 50,
       "when": { "rearmInDays": { "gte": 1, "lte": 30 } },
-      "text": "{street} comes back into season in {rearmInDays:words} days.",
-      "note": "THE ONLY FORWARD-LOOKING LINE (§3.5 rule 4). An invitation, never a deadline; a second forward-looking row needs a decision record. Street names exist (D-302); still waits on rearmInDays, which needs lastRunAt of cells near the run — ticket 0262."
+      "text": "{soonStreet} comes back into season in {rearmInDays:words} days.",
+      "note": "THE ONLY FORWARD-LOOKING LINE (§3.5 rule 4). An invitation, never a deadline; a second forward-looking row needs a decision record. The nearby cell (within 4 rings, ~170 m) that re-arms soonest as of the run, from the classes object (0262); soonStreet, not street, because a run can return to one street and pass near another."
     },
 
     { "id": "longest-ever", "set": ["new-ground", "no-new-ground"], "rank": 75, "when": { "longestEver": { "eq": 1 } }, "text": "The longest road in all the record." },

@@ -1,4 +1,12 @@
-import { runClassesOf, type ClassifiedCell, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
+import {
+  nearCells,
+  rearmSoonOf,
+  runClassesOf,
+  type ClassifiedCell,
+  type DiscoveryAward,
+  type RearmSoon,
+  type RunClasses,
+} from "@/src/domain/discovery"
 import { foldActivities } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
@@ -111,9 +119,15 @@ export async function planT3Repair(
     await Promise.all(activities.map(async (a) => [a.activityId, (await store.readRunCells(userId, a.activityId)) ?? []] as const)),
   )
   const classifiedBy = new Map<string, readonly ClassifiedCell[]>()
+  const rearmSoonBy = new Map<string, RearmSoon | undefined>()
+  const startedAt = new Map(activities.map((a) => [a.activityId, a.startedAt] as const))
   const fold = foldActivities(
     activities.map((a) => ({ activityId: a.activityId, startedAt: a.startedAt, cells: cells.get(a.activityId)! })),
-    (id, classified) => classifiedBy.set(id, classified),
+    (id, classified, prior) => {
+      classifiedBy.set(id, classified)
+      // `0262`, as replay step 3 does: as of the run, from the fold's before-map.
+      rearmSoonBy.set(id, rearmSoonOf(nearCells(classified.map((c) => c.cell)), prior, startedAt.get(id)!))
+    },
   )
   // `0253`: the reveal set of every activity whose award the fold decides — the same set replay
   // step 3 rewrites. Planned for all of them, drifted or not: the objects are cheap and idempotent.
@@ -134,7 +148,7 @@ export async function planT3Repair(
       ...(groundScored ? { award: fold.awards.get(a.activityId)! } : {}),
     }
     if (drifted(scoresOf(a), w)) writes.push(w)
-    if (groundScored) classes.set(a.activityId, runClassesOf(classifiedBy.get(a.activityId) ?? []))
+    if (groundScored) classes.set(a.activityId, runClassesOf(classifiedBy.get(a.activityId) ?? [], rearmSoonBy.get(a.activityId)))
   }
   return { writes, rulesVersion, activities, ledger, classes }
 }

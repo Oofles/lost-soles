@@ -1,4 +1,4 @@
-import type { H3Index } from "h3-js"
+import { gridDisk, type H3Index } from "h3-js"
 
 import { RES } from "./fog"
 
@@ -279,9 +279,14 @@ export interface RunClasses {
    * it. Absent on objects written before `0256`, which then name no gap rather than a wrong one.
    */
   rearmedSince?: Record<H3Index, string>
+  /**
+   * The nearby cell that comes back into season soonest, as of the run (`0262`) — the chronicle's
+   * one forward-looking line. Absent when there is none, and on objects written before `0262`.
+   */
+  rearmSoon?: RearmSoon
 }
 
-export function runClassesOf(classified: readonly ClassifiedCell[]): RunClasses {
+export function runClassesOf(classified: readonly ClassifiedCell[], rearmSoon?: RearmSoon): RunClasses {
   const out: RunClasses = { new: [], rearmed: [] }
   const since = new Map<H3Index, string>()
   for (const { cell, discovery, record } of classified) {
@@ -301,7 +306,66 @@ export function runClassesOf(classified: readonly ClassifiedCell[]): RunClasses 
       if (at !== undefined) out.rearmedSince[cell] = at
     }
   }
+  if (rearmSoon) out.rearmSoon = rearmSoon
   return out
+}
+
+// ─── GROUND NEAR THE RUN THAT COMES BACK INTO SEASON ─────────────────────────
+
+/**
+ * HOW FAR "NEAR" REACHES (`0262`): four rings at res 11, about 170 m — a street you would
+ * plausibly have run alongside, not the next neighbourhood. Cells are ~43 m apart.
+ */
+export const NEAR_RING_K = 4
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** A cooled cell near a run, and its `lastRunAt` as of the run. Season returns at `rearmsAt`. */
+export interface RearmSoon {
+  cell: H3Index
+  lastRunAt: string
+}
+
+/** When a cell last run at `lastRunAt` re-arms: 183 days on, the same boundary `classifyCells` uses. */
+export const rearmsAt = (lastRunAt: string): string => new Date(Date.parse(lastRunAt) + SIX_MONTHS_MS).toISOString()
+
+/** The cells within `k` rings of the run that the run did not touch. Sorted, so the read is stable. */
+export function nearCells(cells: Iterable<H3Index>, k: number = NEAR_RING_K): H3Index[] {
+  const own = new Set(cells)
+  const near = new Set<H3Index>()
+  for (const cell of own) for (const n of gridDisk(cell, k)) if (!own.has(n)) near.add(n)
+  return [...near].sort()
+}
+
+/**
+ * THE NEARBY CELL THAT COMES BACK INTO SEASON SOONEST, as of `at` (`0262`, `06` §3.5 rule 4).
+ *
+ * @param near   from `nearCells` — the run's own cells were just re-run and are 183 days out.
+ * @param before each cell's record as of the run: T6 before this run's write (ingest), or the
+ *               fold's map before it applies the run (replay). Never today's state.
+ * @param at     `activity.startedAt`, never `now()` (I-12).
+ *
+ * A cell whose `lastRunAt` is AFTER the run is skipped, not guessed at: on an out-of-order ingest
+ * T6 keeps only first and last, so its state at the run is unknown. A cell re-arming in under a
+ * whole day is skipped too — "in zero days" is not a line. Ties break on cell id.
+ */
+export function rearmSoonOf(
+  near: Iterable<H3Index>,
+  before: (cell: H3Index) => CellRecord | undefined,
+  at: string,
+): RearmSoon | undefined {
+  const atMs = Date.parse(at)
+  if (Number.isNaN(atMs)) throw new Error(`rearmSoonOf: unparseable startedAt "${at}"`)
+  let best: (RearmSoon & { ms: number }) | undefined
+  for (const cell of near) {
+    const record = before(cell)
+    if (!record) continue
+    // Compared as instants: stored ISO strings do not all carry milliseconds.
+    const ms = Date.parse(record.lastRunAt)
+    if (ms > atMs || ms + SIX_MONTHS_MS - atMs < DAY_MS) continue
+    if (!best || ms < best.ms || (ms === best.ms && cell < best.cell)) best = { cell, lastRunAt: record.lastRunAt, ms }
+  }
+  return best && { cell: best.cell, lastRunAt: best.lastRunAt }
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   awardOf,
   OutOfOrderScoringError,
   SIX_MONTHS_MS,
+  type CellRecord,
   type ClassifiedCell,
   type Discovery,
   type DiscoveryAward,
@@ -103,11 +104,16 @@ export function foldOrder(a: FoldActivity, b: FoldActivity): number {
  * @param onActivity called once per activity, in fold order, with its cells classified against
  *                   the map as it stood BEFORE it — the input `0066`'s replay needs to split an
  *                   activity's metres by ground (`groundSplit`). An observer: it cannot change
- *                   the fold.
+ *                   the fold. Its third argument reads ANY cell of that same before-map — the
+ *                   neighbours `rearmSoonOf` needs (`0262`) — and is valid only during the call.
  */
 export function foldActivities(
   activities: Iterable<FoldActivity>,
-  onActivity?: (activityId: string, classified: readonly ClassifiedCell[]) => void,
+  onActivity?: (
+    activityId: string,
+    classified: readonly ClassifiedCell[],
+    before: (cell: H3Index) => CellRecord | undefined,
+  ) => void,
 ): FoldResult {
   const sorted = [...activities].sort(foldOrder)
 
@@ -159,7 +165,10 @@ export function foldActivities(
 
     awards.set(activity.activityId, awardOf(classified))
     order.push(activity.activityId)
-    onActivity?.(activity.activityId, classified)
+    onActivity?.(activity.activityId, classified, (c) => {
+      const prev = cells.get(c)
+      return prev && { lastRunAt: prev.lastRunAt }
+    })
 
     // Phase 4: apply. Every attribute `02` T6 lists, written the way T6's expressions write it.
     for (const { cell, discovery } of classified) {

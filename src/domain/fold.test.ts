@@ -152,6 +152,19 @@ describe("foldActivities — the canonical score", () => {
     expect(result.cells.get(ORIGIN)!.visitCount).toBe(1)
   })
 
+  it("lets the observer read any cell of the map as it stood BEFORE the activity (0262)", () => {
+    // `b` covers only ORIGIN; its neighbours were last run by `a`.
+    const seen = new Map<string, (string | undefined)[]>()
+    const ring = gridDisk(ORIGIN, 1).filter((c) => c !== ORIGIN)
+    foldActivities(
+      [activity("a", iso(2024), gridDisk(ORIGIN, 1)), activity("b", iso(2025), [ORIGIN])],
+      (id, _classified, before) => seen.set(id, [before(ORIGIN)?.lastRunAt, ...ring.map((c) => before(c)?.lastRunAt)]),
+    )
+    expect(seen.get("a")!.every((v) => v === undefined)).toBe(true)
+    // Before `b` applies: ORIGIN and its untouched neighbours both read `a`'s time, not `b`'s.
+    expect(seen.get("b")).toEqual(Array(ring.length + 1).fill(iso(2024)))
+  })
+
   it("handles an activity with no cells — §3.6's treadmill run", () => {
     const result = foldActivities([activity("t", iso(2025), [])])
     expect(result.awards.get("t")!.cellCount).toBe(0)

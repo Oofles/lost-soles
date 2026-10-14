@@ -14,6 +14,7 @@ import {
   type PriorRun,
   type ReturnedTo,
 } from "@/src/domain/chronicle"
+import { rearmsAt } from "@/src/domain/discovery"
 
 import type { RunQueryDdb } from "./server"
 import type { RunSummary } from "./wire"
@@ -80,6 +81,8 @@ export interface RunNames {
   returned: ReturnedTo | null
   /** Every re-armed cell's gap, named or not. */
   rearmGapsDays: number[]
+  /** The nearby ground coming back into season soonest (`0262`): days from the run, and its street. */
+  rearmSoon: { inDays: number; street: string | null } | null
 }
 
 /**
@@ -92,20 +95,23 @@ export async function namesFor(summary: RunSummary, names: Pick<PlaceNames, "pla
   const since = summary.reveal.rearmedSince ?? {}
   const rearmed = summary.reveal.rearmed.filter((c) => since[c] !== undefined)
   const origin = frontierOrigin(summary.route.features[0]?.geometry, null)
-  const [place, streets] = await Promise.all([
+  const soon = summary.reveal.rearmSoon
+  const streetOf = (c: string) => {
+    const [lat, lng] = cellToLatLng(c)
+    return names.street({ lat, lng })
+  }
+  const [place, streets, soonStreet] = await Promise.all([
     origin ? names.place(origin) : Promise.resolve(null),
-    Promise.all(
-      rearmed.map((c) => {
-        const [lat, lng] = cellToLatLng(c)
-        return names.street({ lat, lng })
-      }),
-    ),
+    Promise.all(rearmed.map(streetOf)),
+    soon ? streetOf(soon.cell) : Promise.resolve(null),
   ])
   const cells = rearmed.map((c, i) => ({ since: since[c], street: streets[i] }))
   return {
     place,
     returned: returnedTo(cells, summary.startedAt),
     rearmGapsDays: cells.map((c) => daysBetween(c.since, summary.startedAt)),
+    // From the run's start to the day that ground re-arms — both stored, so a Relive reads the same.
+    rearmSoon: soon ? { inDays: daysBetween(summary.startedAt, rearmsAt(soon.lastRunAt)), street: soonStreet } : null,
   }
 }
 
@@ -130,6 +136,7 @@ export function chronicleFor(
       place: names?.place,
       returned: names?.returned,
       rearmGapsDays: names?.rearmGapsDays,
+      rearmSoon: names?.rearmSoon,
     },
     history,
   )

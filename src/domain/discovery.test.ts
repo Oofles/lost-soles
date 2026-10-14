@@ -1,15 +1,19 @@
-import { latLngToCell } from "h3-js"
+import { gridDisk, gridDistance, latLngToCell } from "h3-js"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import {
   awardOf,
   awardsDiscovery,
   classifyCells,
+  nearCells,
+  NEAR_RING_K,
   needsReplay,
   FOG_ALGO_VERSION,
   NO_CELLS,
   newShare,
   OutOfOrderScoringError,
+  rearmsAt,
+  rearmSoonOf,
   runClassesOf,
   SIX_MONTHS_MS,
   type CellRecord,
@@ -291,6 +295,56 @@ describe("runClassesOf (0253)", () => {
     expect(classes.rearmedSince).toEqual({ [CELLS[4]]: iso(days(400)), [CELLS[5]]: iso(days(250)) })
     expect(Object.keys(classes.rearmedSince!)).toEqual(classes.rearmed)
     expect(runClassesOf(classifyCells(CELLS.slice(0, 2), store({}), AT))).not.toHaveProperty("rearmedSince")
+  })
+})
+
+describe("ground near the run coming back into season (0262)", () => {
+  const RUN = [CELLS[0]]
+  const NEAR = nearCells(RUN)
+  const lookup = (entries: Record<string, string>) => (c: string) => store(entries).get(c)
+
+  it("nearCells is every cell within four rings, minus the run's own, sorted", () => {
+    expect(NEAR).toHaveLength(gridDisk(CELLS[0], NEAR_RING_K).length - 1)
+    expect(NEAR).not.toContain(CELLS[0])
+    expect(NEAR.every((c) => gridDistance(c, CELLS[0]) <= NEAR_RING_K)).toBe(true)
+    expect(NEAR).toEqual([...NEAR].sort())
+    // Two adjacent run cells: their rings overlap and each excludes the other.
+    const pair = nearCells([CELLS[0], NEAR[0]])
+    expect(new Set(pair).size).toBe(pair.length)
+    expect(pair).not.toContain(NEAR[0])
+  })
+
+  it("picks the cooled cell that re-arms soonest — the one run longest ago — as of the run", () => {
+    const [a, b, c] = NEAR
+    const got = rearmSoonOf(NEAR, lookup({ [a]: iso(days(100)), [b]: iso(days(170)), [c]: iso(days(20)) }), AT)
+    expect(got).toEqual({ cell: b, lastRunAt: iso(days(170)) })
+    expect(rearmsAt(got!.lastRunAt)).toBe(new RealDate(AT_MS + days(13)).toISOString())
+  })
+
+  it("skips ground already in season, ground never run, and ground run AFTER the run", () => {
+    const [a, b, c] = NEAR
+    // a re-armed already (≥ 183 days); b is in this run's future (an out-of-order ingest); c unknown.
+    expect(rearmSoonOf(NEAR, lookup({ [a]: iso(days(183)), [b]: iso(days(-3)) }), AT)).toBeUndefined()
+    expect(rearmSoonOf([c], lookup({}), AT)).toBeUndefined()
+  })
+
+  it("skips a cell re-arming in under a day: \"in zero days\" is not a line", () => {
+    const [a, b] = NEAR
+    const got = rearmSoonOf(NEAR, lookup({ [a]: iso(days(182.5)), [b]: iso(days(150)) }), AT)
+    expect(got?.cell).toBe(b)
+  })
+
+  it("compares instants, not strings, and breaks ties on cell id", () => {
+    const [a, b] = NEAR
+    // The same instant, one with milliseconds and one without.
+    const at = iso(days(160))
+    expect(rearmSoonOf([b, a], lookup({ [a]: at, [b]: at.replace(".000Z", "Z") }), AT)?.cell).toBe(a)
+  })
+
+  it("runClassesOf carries it, and omits the key when there is none", () => {
+    const soon = { cell: NEAR[0], lastRunAt: iso(days(170)) }
+    expect(runClassesOf([], soon).rearmSoon).toEqual(soon)
+    expect(runClassesOf([])).not.toHaveProperty("rearmSoon")
   })
 })
 

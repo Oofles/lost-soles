@@ -1,7 +1,16 @@
 import type { H3Index } from "h3-js"
 
 import type { Activity, Trace } from "@/src/domain/activity"
-import { NO_CELLS, runClassesOf, type ClassifiedCell, type DiscoveryAward, type RunClasses } from "@/src/domain/discovery"
+import {
+  nearCells,
+  NO_CELLS,
+  rearmSoonOf,
+  runClassesOf,
+  type ClassifiedCell,
+  type DiscoveryAward,
+  type RearmSoon,
+  type RunClasses,
+} from "@/src/domain/discovery"
 import { traceToSegments } from "@/src/domain/fog"
 import { foldActivities, type FoldedCell } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
@@ -358,9 +367,15 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
     )
     const byId = new Map(activities.map((a) => [a.activityId, a] as const))
     const classifiedBy = new Map<string, readonly ClassifiedCell[]>()
+    // `0262`: the nearby ground coming back into season, read off the fold's map as it stood before
+    // each run — exact as of the run, which today's T6 no longer is.
+    const rearmSoonBy = new Map<string, RearmSoon | undefined>()
     const fold = foldActivities(
       folded.map(({ a, cells }) => ({ activityId: a.activityId, startedAt: a.startedAt, cells })),
-      (id, classified) => classifiedBy.set(id, classified),
+      (id, classified, prior) => {
+        classifiedBy.set(id, classified)
+        rearmSoonBy.set(id, rearmSoonOf(nearCells(classified.map((c) => c.cell)), prior, byId.get(id)!.startedAt))
+      },
     )
 
     const entries: XpLedgerEntry[] = []
@@ -398,7 +413,7 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
     await store.writeActivityScores(userId, scores, at())
     // Beside the award it explains, from the same fold — never from ingest's older verdicts.
     for (const { activityId } of scores.filter((w) => w.award)) {
-      await store.writeRunClasses(userId, activityId, runClassesOf(classifiedBy.get(activityId) ?? []))
+      await store.writeRunClasses(userId, activityId, runClassesOf(classifiedBy.get(activityId) ?? [], rearmSoonBy.get(activityId)))
     }
     const recomputedXp = xpBySkill(entries)
     run = {
