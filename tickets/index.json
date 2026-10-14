@@ -3769,7 +3769,7 @@
     "title": "The Vigil test, end to end — real XP, no ExploredCell, and no level-up card for a free skill",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -3782,8 +3782,9 @@
     "source": "agent",
     "created": "2026-09-04T15:06:10Z",
     "started": "2026-10-14T12:37:57Z",
-    "path": "tickets/open/0159-vigil-test-end-to-end.md",
-    "ready": true,
+    "closed": "2026-10-14T12:44:12Z",
+    "path": "tickets/closed/0159-vigil-test-end-to-end.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9

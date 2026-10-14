@@ -4,7 +4,7 @@ slug: vigil-test-end-to-end
 title: The Vigil test, end to end — real XP, no ExploredCell, and no level-up card for a free skill
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: [47, 60, 62, 82]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T15:06:10Z
 started: 2026-10-14T12:37:57Z
+closed: 2026-10-14T12:44:12Z
 ---
 
 ## Description
