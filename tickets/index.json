@@ -6058,5 +6058,27 @@
       "checked": 0,
       "total": 2
     }
+  },
+  {
+    "id": 264,
+    "slug": "runs-web-500-before-first-trace",
+    "title": "/api/runs/web returns 500 for a user with no trace web yet",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [
+      85
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-14T16:56:37Z",
+    "path": "tickets/open/0264-runs-web-500-before-first-trace.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
