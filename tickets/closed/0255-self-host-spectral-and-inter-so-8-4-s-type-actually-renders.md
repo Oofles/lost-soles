@@ -4,7 +4,7 @@ slug: self-host-spectral-and-inter-so-8-4-s-type-actually-renders
 title: Self-host Spectral and Inter, so §8.4's type actually renders
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-13T21:04:35Z
 started: 2026-10-14T15:09:07Z
+closed: 2026-10-14T15:13:58Z
 ---
 
 ## Description
