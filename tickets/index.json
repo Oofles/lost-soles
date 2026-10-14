@@ -5818,10 +5818,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-08T19:51:17Z",
+    "started": "2026-10-14T19:29:18Z",
     "path": "tickets/open/0252-d238-elision-lowers-interior-vertices.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },

@@ -4815,3 +4815,23 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `landmark`, a torii for `shrine`. A place the table does not know draws nothing.
   - **`AT_ZOOM = 16`**, not `HOME_ZOOM` 14, for `?at=`. The link names one spot, not a
     neighbourhood, and the operator found 14 too far out. Still inside D-051's z14–17.
+- **D-304** **An interior cell takes a saturating disc in place of the bridges D-238 elides.**
+  *(2026-10-14, ticket `0252`. Amends D-238's elision rule; `05` §4.1, §6.4.)*
+  - **D-238's premise used the average.** *"The worst-covered interior point is 28.6 m from the
+    nearest centre against a 38.7 m disc"* puts a cell's own vertex at d = 0.74 — in the feather
+    (`FALLOFF_INNER` = 0.6), reading ~0.72; where H3 cells run ~8% large (Point Nemo) ~0.58. A cell
+    on the edge of explored ground still has its bridges and reads 1.0 there, so a run landing beside
+    it LOWERED the steady mask: honeycomb mist on ground that was clear. Found by `0079`'s test.
+  - **The fix.** A cell with six revealed neighbours, none with a lower fraction, draws its disc at
+    `farthest vertex ÷ FALLOFF_INNER × 1.02`, measured on its own boundary in mercator. The whole cell
+    is then at full weight — the most a bridge could give it — so eliding lowers nothing. The disc
+    reaches ~1.7 circumradii; the revealed neighbours' outer edge is ≥ 2, so nothing leaks. Bridges
+    are elided only between two saturating cells. Same instance count on solid ground; §6.4 still
+    holds (5,350 at z14, 400×800).
+  - **Why the fraction gate (operator's option (a)).** At a coarse bucket a wider disc would paint a
+    dimmer neighbour up to this cell's weight — the coverage a bridge's `min` exists to refuse. Such
+    a cell keeps its nominal disc and its bridges instead.
+  - **Rejected:** sizing discs from each cell's actual circumradius (vertex still 0.72, still a drop
+    from 1.0); eliding only where vertices stay above `REVEAL_HI` (keeps nearly every bridge, breaks
+    the ceiling). Neither reaches plain monotonicity, which `reveal.test.ts`, `instances.test.ts`
+    and the harness's R3 now assert.

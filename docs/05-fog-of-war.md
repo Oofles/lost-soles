@@ -773,7 +773,13 @@ So the renderer draws **one extra disc at the midpoint of every adjacent reveale
 where both endpoints have all six neighbours revealed** (amended by D-238, `0058`, 08 audit
 2026-09-28; `lib/fog/instances.ts`). An interior pair has no silhouette near it to pinch, and
 without the elision res 11 puts a fully-revealed reference viewport near 14,700 instances. The
-one-cell-wide chain this paragraph is about is untouched by it. The bridge halves the effective spacing and takes the silhouette to 0.95 (1.00 measured on a GPU for a straight
+one-cell-wide chain this paragraph is about is untouched by it. **An interior cell that loses its
+bridges gets a saturating disc in their place** (D-304, `0252`): radius = its own farthest vertex,
+measured on the cell's actual boundary, ÷ `FALLOFF_INNER`, so the whole cell reads 1.0. At
+`revealScale × average circumradius` a vertex sits in the feather, reads ~0.72 — ~0.58 where H3
+cells run large — and eliding would *lower* ground that a bridge had covered at 1.0. A cell saturates
+only if no neighbour's fraction is below its own; otherwise it keeps both its nominal disc and its
+bridges. The bridge halves the effective spacing and takes the silhouette to 0.95 (1.00 measured on a GPU for a straight
 chain). A bridge disc is a LOOK: it has no cell id, is never written anywhere, and takes the `min` of
 its two endpoints' fractions so it can fill a waist without inventing coverage. See D-232 for the
 alternatives that were rejected — `revealScale ≈ 2.05`, relying on §4.3's noise, and res 11.
@@ -1413,14 +1419,15 @@ not after.
    defending is that the number is bounded by *screen area* and not by database size.
 
    Measured on solid ground at 30°N, 400×800 CSS px, at 50k / 150k / 500k stored cells: the peak is
-   **5,271 at z14** and it is **identical at all three dataset sizes** from z13 up. That second fact is
+   **5,271 at z14** (5,350 since D-304) and it is **identical at all three dataset sizes** from z13 up. That second fact is
    the canary, not the first — an absolute ceiling can pass by luck, while a count that is the same at
    50k and 500k cannot.
 
    **It only holds because of D-238's bridge elision.** Solid ground at res 11 has 3 adjacent pairs per
    cell; bridging all of them multiplies instances by ~4 and puts a fully-revealed phone viewport at
    ~14,700 — unreachable. Eliding the interior ones, where the union has no silhouette to fix, takes a
-   solid field to 1.15× while a corridor keeps 91% of its bridges.
+   solid field to 1.15× while a corridor keeps 91% of its bridges. (D-304 elides only between
+   *saturating* cells, which keeps a few more bridges at coarse buckets: 5,350 at z14 since `0252`.)
 2. **GPU pass timings** via `EXT_disjoint_timer_query_webgl2`, mask and composite separately.
    *Budget: mask < 1 ms, composite < 2 ms.* (The extension is not universally available; guard
    it, and fall back to frame time.)

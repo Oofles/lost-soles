@@ -1,9 +1,9 @@
-import { cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, type H3Index } from "h3-js"
+import { cellToBoundary, cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, type H3Index } from "h3-js"
 
 import { bigToCell } from "@/src/domain/explored-blob"
 import { RES } from "@/src/domain/fog"
 
-import { ARC_ALWAYS, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
+import { ARC_ALWAYS, FALLOFF_INNER, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
 
 /**
  * CELLS → INSTANCE ATTRIBUTES. Ticket `0055`. `05-fog-of-war.md` §4.1, §4.2, §6.1.
@@ -57,6 +57,26 @@ import { ARC_ALWAYS, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
  * The corridor — the case D-232 was built for — keeps 91% of its bridges, and so does the boundary
  * of any solid patch. What goes away is the part that was never doing anything.
  *
+ * ─── …SO LONG AS THE CELL'S OWN DISC SATURATES IT — `0252`, D-304 ───────────
+ *
+ * The 28.6 m figure above is the AVERAGE circumradius, and the claim did not survive it. With the
+ * disc at `1.35 x average` a cell's own vertex sits at d = 0.74 of the radius — inside the feather,
+ * not the flat top (`FALLOFF_INNER` = 0.6) — so it reads ~0.72 without its bridges, and where H3
+ * cells run large (Point Nemo, 31 m) ~0.58. Before a run lands beside it that vertex was a bridge's
+ * and read 1.0: eliding then LOWERED the mask on ground that was already clear.
+ *
+ * So a cell that is interior gets a **saturating disc** instead of its bridges: the radius that puts
+ * its own farthest vertex exactly at `FALLOFF_INNER`, measured on the cell's actual boundary in
+ * mercator — the unit the shader divides by — rather than derived from the average. Every point of
+ * the cell is then at full coverage, which is the most any bridge could have given it, so dropping
+ * the bridges can lower nothing. Same instance count; §6.4's ceiling is untouched.
+ *
+ * It cannot leak: the disc reaches ~1.7 circumradii and the six revealed neighbours' outer boundary
+ * is >= 2 away. And it cannot invent coverage at a coarse bucket: a cell saturates only if **no
+ * neighbour's fraction is below its own** — otherwise the wider disc would paint that neighbour up
+ * to this cell's weight, which is the same lie a bridge brighter than its dimmer endpoint would
+ * tell. A cell that is interior but not saturating keeps its bridges.
+ *
  * **This is what makes §6.4's 6,000-instance ceiling survive D-237.** Res 11 multiplied cells by 7
  * and a 4x bridge multiplier on top of that put a fully-revealed 400x800 viewport at ~14,700
  * instances; at 1.15x it is ~4,200. Without elision the ceiling is unreachable at the canonical
@@ -104,6 +124,27 @@ export const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6_371_008.8
  */
 export function discRadiusM(res: number): number {
   return REVEAL_SCALE * getHexagonEdgeLengthAvg(res, "m")
+}
+
+/**
+ * Headroom on the saturating disc, so the cell's farthest vertex lands just INSIDE the flat top
+ * rather than on its float32 edge. 2% is 0.6 m at res 11 and invisible; without it the vertex reads
+ * `1 - smoothstep(0.6, 1, 0.6 + ε)`, a hair under 1.0, and the monotonicity test is right to fail it.
+ */
+const SATURATE_MARGIN = 1.02
+
+/**
+ * The radius, in mercator, at which `cell`'s own disc covers every point of the cell at full weight
+ * (`0252`, D-304). Measured on the boundary rather than taken from the average edge length: the
+ * whole bug was the ±8% between the two.
+ */
+function saturatingRadius(cell: H3Index, x: number, y: number): number {
+  let far = 0
+  for (const [lat, lng] of cellToBoundary(cell)) {
+    const d = Math.hypot(mercatorX(lng) - x, mercatorY(lat) - y)
+    if (d > far) far = d
+  }
+  return (far * SATURATE_MARGIN) / FALLOFF_INNER
 }
 
 /* ─── Web mercator 0..1, the space MapLibre's `projectTile` takes ────────────── */
@@ -245,6 +286,36 @@ export function packBucket(cells: readonly H3Index[], options: PackOptions = {})
       return out
     }
 
+    /**
+     * Does this cell take a saturating disc in place of its bridges? Interior (six revealed
+     * neighbours — see below for why six) and **no neighbour dimmer than it**, so the wider disc
+     * never paints a neighbour above what that neighbour earned. At the canonical resolution every
+     * fraction is 1.0 and this is just "interior". Memoised for the same reason as `neighboursOf`.
+     */
+    const saturated = new Map<H3Index, boolean>()
+    const saturates = (cell: H3Index): boolean => {
+      const cached = saturated.get(cell)
+      if (cached !== undefined) return cached
+      const mine = neighboursOf(cell)
+      const own = project(cell).fraction
+      const yes = mine.length === 6 && mine.every((n) => project(n).fraction >= own)
+      saturated.set(cell, yes)
+      return yes
+    }
+
+    /**
+     * Grow the saturating cells' discs. A COPY, not a mutation of `byCell`'s entry: a border
+     * neighbour's projection is shared with the bridge pass below, and a bridge's radius is the
+     * average of its endpoints' NOMINAL radii — the bridge exists for the silhouette, which a
+     * saturating cell does not have.
+     */
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i]!
+      if (!saturates(cell)) continue
+      const here = discs[i]!
+      discs[i] = { ...here, r: Math.max(here.r, saturatingRadius(cell, here.x, here.y)) }
+    }
+
     for (const cell of cells) {
       const here = byCell.get(cell)!
       const mine = neighboursOf(cell)
@@ -257,11 +328,13 @@ export function packBucket(cells: readonly H3Index[], options: PackOptions = {})
        * negligible, but the consequence of being wrong here is an extra bridge rather than a missing
        * one, so `=== 6` is also the safe side to be on.
        */
-      const interiorHere = mine.length === 6
+      const interiorHere = mine.length === 6 && saturates(cell)
       for (const neighbour of mine) {
         // Each edge once. A string compare is enough and needs no second set.
         if (neighbour <= cell) continue
-        if (interiorHere && neighboursOf(neighbour).length === 6) continue
+        // Elided only between two SATURATING cells (`0252`): each covers its own ground at full
+        // weight, so the bridge between them has nothing left to add.
+        if (interiorHere && saturates(neighbour)) continue
         /**
          * `project`, not `byCell.get` — at a group's border the far endpoint belongs to the next
          * group and has not been projected here. It costs one `cellToLatLng` per border edge, which

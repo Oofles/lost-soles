@@ -286,30 +286,26 @@ describe.each([
      * and across it. Stronger than "no cell is unrevealed" — it also catches a pre-only instance (a
      * coarse fraction, an elided bridge) switching off before its replacement has fully arrived.
      *
-     * NOT STRICTLY MONOTONE, AND THAT IS THE STEADY-STATE RENDERER'S, NOT THE REVEAL'S. D-238 elides
-     * a bridge once both endpoints have six revealed neighbours, and a run landing beside explored
-     * ground does exactly that to the cells along its edge. Where H3 cells are larger than average —
-     * Point Nemo's res-11 cells reach 31.1 m circumradius against the 28.7 m average — the three-cell
-     * vertex then falls from 1.0 to ~0.58 in the steady state itself. `p = 1` must equal the steady
-     * state (criterion 2), so the reveal cannot avoid that drop; it can only refuse to add one of its
-     * own. So the assertion is: coverage never falls below `min(previous, steady post-run)`. Filed
-     * against `08` as its own ticket (`0252`).
+     * PLAIN MONOTONICITY. Until `0252` this allowed `min(previous, steady post-run)`: D-238's bridge
+     * elision dropped a three-cell vertex at Point Nemo from 1.0 to ~0.58 in the steady state itself
+     * once a run made its cells interior, and `p = 1` must equal the steady state. D-304 gives an
+     * interior cell a disc that saturates its own ground instead, so the steady state no longer
+     * drops and neither may the reveal.
      */
-    it("never lowers coverage as progress rises, beyond the steady state's own post-run value", () => {
+    it("never lowers coverage as progress rises", () => {
       const samples: Array<[number, number]> = []
       for (const [lng, lat] of line(-0.1, 2.1, 0, 0.01)) {
         for (const north of [-60, -30, 0, 30, 60]) {
           samples.push([xOf(lng!), yOf(lat! + north / 110_540)])
         }
       }
-      const settled = samples.map(([x, y]) => coverageAt(steadyPost, x, y))
       let previous = samples.map(() => 0)
       let drops = 0
       for (let step = 0; step <= 64; step++) {
         const rows = drawn(tagged, step / 64)
         const now = samples.map(([x, y]) => coverageAt(rows, x, y))
         for (let i = 0; i < now.length; i++) {
-          if (now[i]! < Math.min(previous[i]!, settled[i]!) - 1e-9) drops++
+          if (now[i]! < previous[i]! - 1e-9) drops++
         }
         previous = now
       }

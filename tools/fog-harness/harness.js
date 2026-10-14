@@ -387,7 +387,8 @@ function main() {
       for (let step = 1; step <= 64; step++) {
         const now = drawAt(tagged, step / 64)
         for (let i = 0; i < now.length; i++) {
-          const floor = Math.min(previous[i], steadyPost[i])
+          // Plain monotonicity since `0252` (D-304): the steady state no longer drops on its own.
+          const floor = previous[i]
           if (now[i] < floor) {
             drops++
             worst = Math.max(worst, floor - now[i])
@@ -398,7 +399,7 @@ function main() {
       record(
         `R3 sweep monotone (${c.label})`,
         drops === 0,
-        `${drops} pixel-steps fell below min(previous, settled) (want 0)` +
+        `${drops} pixel-steps fell below the previous step (want 0)` +
           (drops ? `, worst by ${worst}` : ""),
       )
 

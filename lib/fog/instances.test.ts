@@ -1,4 +1,4 @@
-import { cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, latLngToCell } from "h3-js"
+import { cellToBoundary, cellToLatLng, getHexagonEdgeLengthAvg, greatCircleDistance, gridDisk, latLngToCell } from "h3-js"
 import { describe, expect, it } from "vitest"
 
 import { cellToBig } from "@/src/domain/explored-blob"
@@ -14,7 +14,7 @@ import {
   metresToMercator,
   packBucket,
 } from "./instances"
-import { INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
+import { FALLOFF_INNER, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
 
 /**
  * Ticket `0055`, criteria 5 and 8. `05-fog-of-war.md` §2.1, §4.1, §6.1.
@@ -318,6 +318,89 @@ describe("bridge discs", () => {
     const isPair = (c: string) => c === origin || c === lower
     expect(packBucket([origin], { member: isPair }).bridges).toBe(0)
     expect(packBucket([lower], { member: isPair }).bridges).toBe(1)
+  })
+})
+
+/**
+ * `0252`, D-304. Adding cells next to explored ground must never lower the steady-state mask
+ * anywhere — *"the map visibly never re-fogs"*. D-238 used to break this: a cell on the edge of
+ * explored ground has bridges, a run landing beside it makes it interior, the bridges are elided,
+ * and its vertices fell from 1.0 to ~0.58. Nemo is where that was measured, because its res-11
+ * cells are among the largest — asserted below, so the fixture cannot drift somewhere it would pass
+ * trivially.
+ */
+describe("the steady-state mask is monotone in the cell set", () => {
+  const origin = latLngToCell(NEMO.lat, NEMO.lng, RES)
+
+  /** §4.2's falloff, unioned by `MAX` — the CPU twin of the mask shader. */
+  const coverageAt = (packed: { instances: Float32Array; count: number }, x: number, y: number) => {
+    let best = 0
+    for (let i = 0; i < packed.count; i++) {
+      const at = i * INSTANCE_FLOATS
+      const d = Math.hypot(x - packed.instances[at]!, y - packed.instances[at + 1]!) / packed.instances[at + 2]!
+      if (d > 1) continue
+      const t = Math.min(1, Math.max(0, (d - FALLOFF_INNER) / (1 - FALLOFF_INNER)))
+      const c = (1 - t * t * (3 - 2 * t)) * packed.instances[at + 3]!
+      if (c > best) best = c
+    }
+    return best
+  }
+
+  it("is measured where H3 cells run large", () => {
+    const [lat, lng] = cellToLatLng(origin)
+    const far = Math.max(...cellToBoundary(origin).map((v) => greatCircleDistance([lat, lng], v, "m")))
+    expect(far).toBeGreaterThan(CANONICAL_CIRCUMRADIUS_M * 1.05)
+  })
+
+  it.each([
+    ["a ring all round", 7],
+    ["a strip along one side", -1],
+  ])("never lowers any point of earlier ground when %s is added", (_label, ring) => {
+    const before = gridDisk(origin, 5)
+    // A strip: the earlier patch shifted three cells east, so the cells along its east edge become
+    // interior while those on the far side stay edge — the asymmetric case a ring does not reach.
+    const east = gridDisk(latLngToCell(NEMO.lat, NEMO.lng + metresToMercator(150, NEMO.lat) * 360, RES), 5)
+    const after = [...new Set([...before, ...(ring > 0 ? gridDisk(origin, ring) : east)])]
+    const pre = packBucket(before)
+    const post = packBucket(after)
+    expect(post.count).toBeGreaterThan(pre.count)
+
+    // Every ~2 m across the earlier patch and its feathered rim.
+    const cx = mercatorX(NEMO.lng)
+    const cy = mercatorY(NEMO.lat)
+    const span = metresToMercator(350, NEMO.lat)
+    const step = metresToMercator(2, NEMO.lat)
+    let drops = 0
+    let worst = 0
+    for (let x = cx - span; x <= cx + span; x += step) {
+      for (let y = cy - span; y <= cy + span; y += step) {
+        const was = coverageAt(pre, x, y)
+        if (was === 0) continue
+        const now = coverageAt(post, x, y)
+        if (now < was - 1e-6) {
+          drops++
+          worst = Math.max(worst, was - now)
+        }
+      }
+    }
+    expect({ drops, worst }).toEqual({ drops: 0, worst: 0 })
+  }, 60_000)
+
+  /**
+   * Option (a) of `0252`: a saturating disc must not paint a DIMMER neighbour up to its own weight,
+   * so an interior cell next to a dimmer one keeps its nominal radius — and therefore its bridges.
+   */
+  it("does not saturate a cell with a dimmer neighbour, and keeps that cell's bridges", () => {
+    const field = gridDisk(origin, 3)
+    const dimNeighbour = gridDisk(origin, 1).find((c) => c !== origin)!
+    const nominal = packBucket(field, { densify: false }).instances[2]!
+    const uniform = packBucket(field)
+    const dimmed = packBucket(field, { fractionOf: (c) => (c === dimNeighbour ? 0.4 : 0.8) })
+
+    const radiusOf = (p: { instances: Float32Array }, cell: string) => p.instances[field.indexOf(cell) * INSTANCE_FLOATS + 2]!
+    expect(radiusOf(uniform, origin)).toBeGreaterThan(nominal * 1.2)
+    expect(radiusOf(dimmed, origin)).toBeCloseTo(nominal, 9)
+    expect(dimmed.bridges).toBeGreaterThan(uniform.bridges)
   })
 })
 
