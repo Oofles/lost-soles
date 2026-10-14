@@ -2083,7 +2083,7 @@
     "path": "tickets/open/0085-no-new-territory-fallback-and-the-trace-layer.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
