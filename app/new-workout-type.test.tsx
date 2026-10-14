@@ -248,6 +248,10 @@ describe("selectActivitySkills (0072)", () => {
 /**
  * D-132's Vigil clauses (I-24 (b)–(d)), run under the AFTER ruleset: adding a type must not
  * disturb the traced/traceless split. Through the real `processActivity` on the rig.
+ *
+ * Deliberately shallow: the full clauses — both arms of (d), the reason vocabulary, the
+ * two-direction independence and D-146 — live in `src/rules/registry-delta.test.ts` (`0159`).
+ * Extend that file, not this block; two harnesses for one property drift.
  */
 describe("the D-132 Vigil clauses still hold with the new row present (0072)", () => {
   const traceless = AFTER_RULES.skills.find((s) => s.match?.measure === "distanceKm" && s.match.requiresTrace === false && s.match.kinds?.includes("run"))!

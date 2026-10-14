@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest"
 
+import { levelUpQueue, totalCards } from "@/lib/level-up/cards"
+import {
+  ACTIVITY_TABLE,
+  JOB,
+  LEDGER_TABLE,
+  rig,
+  SKILL_STATE_TABLE,
+  TRACE,
+  type Options,
+} from "@/src/pipeline/__fixtures__/process-rig"
+import { processActivity } from "@/src/pipeline/process-activity"
+import { LEDGER_REASONS } from "@/src/scoring/ledger"
+import { cumulativeXp, levelForXp, totalLevel } from "@/src/scoring/levels"
+
 import { loadRuleSet } from "./load"
-import type { RuleSkill } from "./schema"
+import type { RuleSet, RuleSkill } from "./schema"
 import { selectActivitySkills, type MatchableActivity } from "./select-activity-skills"
 import { validateRuleSet } from "./validate"
 
@@ -17,10 +31,13 @@ import { validateRuleSet } from "./validate"
  * identically to a skill that was always there. Nothing under `src/` is touched, and that is
  * the claim: adding a workout type is a row.
  *
- * **Scope, honestly.** `0030` was written across four capabilities that do not exist yet. This
- * file proves the property as far as the code reaches today — registry → validator → matcher →
- * rate and feeds. Real XP amounts, `ExploredCell` writes, the ledger's `reason` and the D-146
- * level-up clause are `0159`, which extends this harness rather than duplicating it.
+ * **Scope.** `0030` proved the property as far as the code then reached — registry → validator
+ * → matcher → rate and feeds. `0159` takes the SAME delta the rest of the way: through the real
+ * `processActivity` on the shared pipeline rig (real XP, `ExploredCell` writes, the generation
+ * bump, the ledger's `reason`, `SkillState`), and to the notification layer for D-146. It
+ * extends this harness rather than adding a third: `app/new-workout-type.test.tsx` (`0072`) owns
+ * "new data changes no screen and no code"; this file owns "a row added as data behaves as one
+ * that was always there".
  *
  * **The pool-swim case is not decoration.** If this file only ever proved Vigil works, it would
  * prove a special case rather than the property. `02` §3.7 says pool swimming is "another
@@ -33,18 +50,34 @@ const WHY_IT_MATTERS =
   "workout type added afterwards compounds it. Do not fix this by editing the test: the " +
   "schema is wrong, and 0028's Notes say to escalate it as a new ticket."
 
+const WHY_D146 =
+  "D-146 (with D-031 / D-132 / D-141) — a skill added as a row mints a free Total Level point, " +
+  "and the notification layer must never celebrate it. Every future row pays this cost, so " +
+  "this is not a Vigil quirk. The guard is `isMinted` in src/scoring/celebrate.ts; fix it " +
+  "there, never in the scorer (06-ui-ux §5.4, §10.5)."
+
 const v1 = loadRuleSet(1)
 
+/** The version a delta ships in. A real row arrives in a NEW ruleset, stamped with it (D-146). */
+const NEXT = v1.version + 1
+
 /** The shipped ruleset with one row removed — the "before" a delta is applied to. */
-function without(id: string): { skills: RuleSkill[]; curve: unknown } {
+function without(id: string): RuleSet {
   const skills = v1.skills.filter((s) => s.id !== id)
   expect(skills.length, `${id} must exist in v1 to be removed`).toBe(v1.skills.length - 1)
-  return { skills, curve: v1.curve }
+  return { ...v1, skills }
 }
 
-const withRow = (base: { skills: RuleSkill[]; curve: unknown }, row: RuleSkill) => ({
+/**
+ * The delta as it would really ship: the next ruleset version, with the row's `introducedIn`
+ * stamped to it. `0030` appended the row under v1 unchanged, which the matcher cannot tell
+ * apart — but the D-146 guard keys on `introducedIn`, so a delta that kept the row's original
+ * stamp would test a row that was never new.
+ */
+const withRow = (base: RuleSet, row: RuleSkill): RuleSet => ({
   ...base,
-  skills: [...base.skills, row],
+  version: NEXT,
+  skills: [...base.skills, { ...row, introducedIn: NEXT }],
 })
 
 /**
@@ -57,10 +90,10 @@ const withRow = (base: { skills: RuleSkill[]; curve: unknown }, row: RuleSkill) 
  *
  * Removing by MATCH rather than by id, because a clashing row need not share an id to clash.
  */
-function withoutSameSelection(row: RuleSkill): { skills: RuleSkill[]; curve: unknown } {
+function withoutSameSelection(row: RuleSkill): RuleSet {
   const m = row.match!
   return {
-    curve: v1.curve,
+    ...v1,
     skills: v1.skills.filter((s) => {
       if (s.kind !== "activity" || !s.match) return true
       const o = s.match
@@ -175,8 +208,7 @@ describe("the Vigil delta — a skill added as DATA behaves as one that was alwa
 
   it("raises the skill count by exactly one, which is D-146's free Total Level point", () => {
     // The point itself is legitimate; what must never happen is a level-up CELEBRATION for it,
-    // guarded at the notification layer (06-ui-ux §5.4, §10.5). That assertion is 0159's —
-    // there is no notification layer yet to assert against.
+    // asserted at the notification layer in the end-to-end block below (0159).
     expect(delta.skills.length).toBe(baseline.skills.length + 1)
   })
 })
@@ -222,6 +254,192 @@ describe("...and the property GENERALISES — the same delta with a row nobody h
         expect(after.filter((id) => id !== UNHEARD_OF_ID), `${kind}/${hasTrace}`).toEqual(before)
       }
     }
+  })
+})
+
+/* ── 0159: the same delta, all the way down ───────────────────────────────────────────────
+ *
+ * Everything below runs the REAL `processActivity` on the shared pipeline rig
+ * (`src/pipeline/__fixtures__/process-rig.ts`) with the delta as its registry. Every assertion is
+ * an equality or an invariance between the added row and a row that was always there — never a
+ * comparison against a constant. A test that proved "Vigil scores 1000 XP" would prove the
+ * scorer, not the property (0159's Notes).
+ */
+
+/** One pipeline run, reduced to what this file asserts on. */
+async function pipeline(registry: RuleSet, ingest: Options["ingest"]) {
+  const r = rig({ ingest })
+  await processActivity(JOB, { ...r.deps, registry })
+  const items = r.transacts.flatMap((t) => t.TransactItems ?? [])
+  const ledger = items
+    .filter((i) => i.Put?.TableName === LEDGER_TABLE)
+    .map((i) => i.Put!.Item! as { skillId: string; reason: string; xpAwarded: number })
+  return {
+    ledger,
+    xpInto: (id: string) => ledger.filter((e) => e.skillId === id).reduce((s, e) => s + Number(e.xpAwarded), 0),
+    reasonsOf: (id: string) => ledger.filter((e) => e.skillId === id).map((e) => e.reason),
+    skillStates: items
+      .filter((i) => i.Update?.TableName === SKILL_STATE_TABLE)
+      .map((i) => String(i.Update!.Key!.skillId)),
+    activity: items.find((i) => i.Put?.TableName === ACTIVITY_TABLE)!.Put!.Item!,
+    cellWrites: r.cellWrites.length,
+    aggWrites: r.aggWrites.length,
+    generationBumped: r.calls.includes("generation"),
+  }
+}
+
+const TEN_KM = 10_000
+
+/** The kind an activity must have for `row` to select it, and the trace that row requires. */
+const ingestFor = (row: RuleSkill, trace: boolean): Options["ingest"] => ({
+  kind: row.match!.kinds![0]!,
+  hasTrace: trace,
+  ...(trace ? { trace: TRACE } : {}),
+  distanceM: TEN_KM,
+})
+
+const DELTAS = [
+  { name: "Vigil", row: v1.skills.find((s) => s.id === "vigil")!, baseline: without("vigil") },
+  { name: "the pool-swim row", row: POOL_SWIM, baseline: withoutSameSelection(POOL_SWIM) },
+]
+
+describe.each(DELTAS)("$name, end to end — real XP, real writes, real notifications (0159)", ({ row, baseline }) => {
+  const delta = withRow(baseline, row)
+  // The always-there comparators, found by DATA so nothing here hardcodes which row they are.
+  // D-189: exactly one row reveals ground — the traced outdoor distance skill.
+  const traced = delta.skills.find((s) => s.revealsGround)!
+  // An always-there ungrounded distance row: whatever reason the scorer gives IT is the one the
+  // added row must get. Its own `requiresTrace: false` so the comparison is like for like.
+  const peer = baseline.skills.find(
+    (s) =>
+      s.kind === "activity" &&
+      s.match?.measure === row.match!.measure &&
+      s.match.requiresTrace === false &&
+      s.groundMultipliers === null,
+  )!
+
+  const runs = (async () => ({
+    traceless: await pipeline(delta, ingestFor(row, false)),
+    tracelessBefore: await pipeline(baseline, ingestFor(row, false)),
+    traced: await pipeline(delta, ingestFor(traced, true)),
+    peer: await pipeline(baseline, ingestFor(peer, false)),
+    tracedBefore: await pipeline(baseline, ingestFor(traced, true)),
+  }))()
+
+  it("the comparators exist, and the baseline genuinely pays the row nothing", async () => {
+    const { tracelessBefore, traceless } = await runs
+    expect(traced, "no ground-revealing row to compare against").toBeDefined()
+    expect(peer, `no always-there ungrounded ${row.match!.measure} row to compare against`).toBeDefined()
+    expect(row.id).not.toBe(traced.id)
+    expect(tracelessBefore.xpInto(row.id), "the baseline must lack the row, or nothing is proven").toBe(0)
+    expect(traceless.xpInto(row.id), WHY_IT_MATTERS).toBeGreaterThan(0)
+  })
+
+  it("(b) pays the added row at FULL rate: XP per unit of rate equals the traced skill's on all-new ground", async () => {
+    const { traceless, traced: t } = await runs
+    // "Fully new ground" is the comparator's precondition, so it is asserted, not assumed.
+    expect(new Set(t.reasonsOf(traced.id)), "the traced run must be all new ground").toEqual(new Set(["new_ground"]))
+    // Normalised by each row's own declared rate, so it holds for a row priced differently
+    // (pool swim) and catches any hidden discount for having no trace (the D-132 half-rate trap).
+    expect(traceless.xpInto(row.id) / row.xpPerUnit, WHY_IT_MATTERS).toBe(t.xpInto(traced.id) / traced.xpPerUnit)
+  })
+
+  it("(b) …and where the registry prices them alike, the XP itself is equal", async () => {
+    const { traceless, traced: t } = await runs
+    const sameRate = { ...row, xpPerUnit: traced.xpPerUnit }
+    const alike = await pipeline(withRow(baseline, sameRate), ingestFor(row, false))
+    expect(alike.xpInto(row.id), WHY_IT_MATTERS).toBe(t.xpInto(traced.id))
+    // For Vigil this is the shipped row unchanged — the exact clause (b) of 02 §3.8 check 5.
+    expect(row.xpPerUnit === traced.xpPerUnit ? traceless.xpInto(row.id) : alike.xpInto(row.id)).toBe(
+      t.xpInto(traced.id),
+    )
+  })
+
+  it("(d) the traceless run writes no ExploredCell, bumps no generation, awards no discovery — and the traced one does all three", async () => {
+    const { traceless, traced: t } = await runs
+    // The skills that pay for cells, found from the traced arm's ledger rather than by name.
+    const discovery = [...new Set(t.ledger.filter((e) => e.reason.startsWith("cells_")).map((e) => e.skillId))]
+
+    // The traced arm FIRST: without it, "zero writes" passes vacuously (0159's Notes).
+    expect(t.cellWrites, "the traced arm must write cells, or (d) proves nothing").toBeGreaterThan(0)
+    expect(t.generationBumped, "the traced arm must bump the generation").toBe(true)
+    expect(discovery.length, "the traced arm must award discovery XP").toBeGreaterThan(0)
+    expect(Number(t.activity.cellCount)).toBeGreaterThan(0)
+
+    expect(traceless.cellWrites, WHY_IT_MATTERS).toBe(0)
+    expect(traceless.aggWrites, WHY_IT_MATTERS).toBe(0)
+    expect(traceless.generationBumped, WHY_IT_MATTERS).toBe(false)
+    for (const id of discovery) expect(traceless.xpInto(id), `${WHY_IT_MATTERS} (${id})`).toBe(0)
+    // The row shape never varies: T3 still carries the field, at zero.
+    expect(traceless.activity, WHY_IT_MATTERS).toHaveProperty("cellCount", 0)
+  })
+
+  it("records the award under the reason an always-there ungrounded row gets — no new reason is minted", async () => {
+    const r = await runs
+    const peerReasons = r.peer.reasonsOf(peer.id)
+    expect(peerReasons.length).toBeGreaterThan(0)
+    expect(r.traceless.reasonsOf(row.id), WHY_IT_MATTERS).toEqual(peerReasons)
+    // The vocabulary the delta world writes is a subset of the baseline world's.
+    const before = new Set([...r.peer.ledger, ...r.tracedBefore.ledger].map((e) => e.reason))
+    for (const e of [...r.traceless.ledger, ...r.traced.ledger]) {
+      expect(before.has(e.reason), `${WHY_IT_MATTERS} (new reason "${e.reason}")`).toBe(true)
+      expect(LEDGER_REASONS as readonly string[], WHY_IT_MATTERS).toContain(e.reason)
+    }
+  })
+
+  it("keeps the added row's total independent of the traced skill's, in both directions", async () => {
+    const { traceless, traced: t } = await runs
+    // Each arm writes its own skill's SkillState — so its absence from the other is meaningful.
+    expect(traceless.skillStates).toContain(row.id)
+    expect(t.skillStates).toContain(traced.id)
+    expect(traceless.skillStates, `${WHY_IT_MATTERS} (traceless XP touched ${traced.id})`).not.toContain(traced.id)
+    expect(t.skillStates, `${WHY_IT_MATTERS} (traced XP touched ${row.id})`).not.toContain(row.id)
+    expect(traceless.xpInto(traced.id)).toBe(0)
+    expect(t.xpInto(row.id)).toBe(0)
+  })
+
+  describe("D-146 — the free Total Level point, at the notification layer", () => {
+    // Every consumer (`/log`, the run sequence) diffs one activity's gain under ONE registry, so
+    // the free point cannot fire on an empty diff. Where it bites is the run that carries the
+    // EARNED total to 99 while the minted point makes the displayed one read 100: judged on the
+    // displayed total, that run would be congratulated for the operator's config change.
+    const enabled = baseline.skills.filter((s) => s.enabled)
+    const lead = enabled[0]!.id
+    /** Every enabled skill at level 1 except `lead`: an earned Total Level of our choosing. */
+    const standingAt = (earned: number) => ({ [lead]: cumulativeXp(earned - (enabled.length - 1)) })
+    const toNextLevel = (xp: Record<string, number>) => cumulativeXp(levelForXp(xp[lead]!, delta.curve) + 1) - xp[lead]!
+    const total = (xp: Record<string, number>, r: RuleSet) => totalLevel(new Map(Object.entries(xp)), r.skills, r.curve)
+
+    it("raises Total Level by exactly 1", () => {
+      const xp = standingAt(99)
+      expect(total(xp, baseline)).toBe(99)
+      expect(total(xp, delta) - total(xp, baseline), WHY_D146).toBe(1)
+    })
+
+    it("emits zero level-up notifications for it — not on its own, and not on the run it pushes past a milestone", () => {
+      expect(levelUpQueue(standingAt(99), {}, delta), WHY_D146).toEqual([])
+      const xp = standingAt(98)
+      const gained = { [lead]: toNextLevel(xp) }
+      // The displayed total really does cross 100 on this run…
+      expect(total(xp, delta)).toBe(99)
+      expect(total({ [lead]: xp[lead]! + gained[lead]! }, delta)).toBe(100)
+      // …and only the earned skill level is celebrated, never the Total Level milestone.
+      expect(levelUpQueue(xp, gained, delta).filter((c) => c.kind === "total"), WHY_D146).toEqual([])
+    })
+
+    it("…and the guard is what stops it: judged as if the row were not new, that run WOULD fire 100", () => {
+      // The non-vacuity arm. Treat the delta's own version as the baseline, so nothing in it is
+      // minted, and the identical diff produces the card the guard exists to suppress.
+      const xp = standingAt(98)
+      expect(totalCards(xp, { [lead]: toNextLevel(xp) }, delta, NEXT), "the scenario must be one that can fire").toEqual([
+        { kind: "total", milestone: 100 },
+      ])
+    })
+
+    it("the milestone is late, never lost: the run that EARNS the 100th level fires it", () => {
+      const xp = standingAt(99)
+      expect(totalCards(xp, { [lead]: toNextLevel(xp) }, delta), WHY_D146).toEqual([{ kind: "total", milestone: 100 }])
+    })
   })
 })
 

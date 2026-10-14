@@ -3781,10 +3781,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-04T15:06:10Z",
+    "started": "2026-10-14T12:37:57Z",
     "path": "tickets/open/0159-vigil-test-end-to-end.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
