@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { tallyLineCount, TallyView } from "@/app/run/[activityId]/run-ledger"
 import { LevelUpCard } from "@/components/level-up-card"
+import { REVEAL_HI, REVEAL_LO, V1_NOISE_AMP } from "@/lib/fog/fog-uniforms"
 import { REVEAL_RAMP } from "@/lib/fog/mask"
 import { cardAt, cardReducedAt, CARD_MS } from "@/lib/level-up/beat3"
 import type { LevelCard } from "@/lib/level-up/cards"
@@ -57,18 +58,33 @@ describe("beat 1, reduced: a single 400 ms cross-fade (criterion 5)", () => {
     }
   })
 
-  it("every reveal cell (arc 0) fades in together, linearly, over exactly 400 ms", () => {
-    // The mask's weight for a cell at arc 0 is `progress / REVEAL_RAMP` (mask.ts `revealed`).
-    const weight = (t: number) => {
+  /**
+   * What the eye sees, not the weight: a cell at arc 0 has coverage `progress / REVEAL_RAMP`, and the
+   * composite clears fog by `smoothstep(REVEAL_LO, REVEAL_HI, coverage + noise)`. At the noise field's
+   * mean the visible reveal must run the WHOLE 400 ms — the first smoke ramped the weight 0 → 1 and the
+   * fade was a 170 ms snap in the middle.
+   */
+  it("every reveal cell (arc 0) fades in together, and the VISIBLE fade spans the full 400 ms", () => {
+    const smooth = (a: number, b: number, x: number) => {
+      const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+      return t * t * (3 - 2 * t)
+    }
+    const coverage = (t: number) => {
       const p = beat1ReducedAt(t).progress
       return p >= 1 ? 1 : Math.min(1, p / REVEAL_RAMP)
     }
+    const seen = (t: number, noise = 0) => smooth(REVEAL_LO, REVEAL_HI, coverage(t) + noise)
     expect(REDUCED_FADE_MS).toBe(400)
-    expect(weight(0)).toBe(0)
-    expect(weight(100)).toBeCloseTo(0.25, 9)
-    expect(weight(200)).toBeCloseTo(0.5, 9)
-    expect(weight(399)).toBeLessThan(1)
-    expect(weight(400)).toBe(1)
+    expect(coverage(0)).toBe(0) // the first frame is the pre-run map
+    expect(seen(200)).toBeCloseTo(0.5, 6) // half-way on screen at half-time
+    // A pixel at the noise field's mean fades over the middle ~250 ms…
+    expect(seen(100)).toBeGreaterThan(0)
+    expect(seen(300)).toBeLessThan(1)
+    // …and across the field the fog is moving from the first frames to the last: the most-lifted
+    // pixels start at once, the most-held finish at 400 ms. Not a snap in the middle.
+    expect(seen(10, +V1_NOISE_AMP / 2)).toBeGreaterThan(0)
+    expect(seen(390, -V1_NOISE_AMP / 2)).toBeLessThan(1)
+    for (let t = 0; t < 400; t += 10) expect(seen(t + 10)).toBeGreaterThanOrEqual(seen(t))
     expect(beat1ReducedAt(400).progress).toBe(1)
   })
 

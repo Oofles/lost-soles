@@ -1,3 +1,4 @@
+import { REVEAL_HI, REVEAL_LO, V1_NOISE_AMP } from "@/lib/fog/fog-uniforms"
 import { REVEAL_RAMP, type BloomUniform } from "@/lib/fog/mask"
 
 /**
@@ -86,9 +87,19 @@ function clamp01(x: number): number {
  *
  * The cross-fade is the same reveal seam, not a second renderer: `RunMoment` hands the layer the
  * run's cells with every arc at 0, and a cell at arc 0 is drawn at weight `progress / REVEAL_RAMP`
- * (`mask.ts`'s `revealed`). So driving progress linearly from 0 to `REVEAL_RAMP` fades every new cell
- * in together, and the pre-run discs they replace go with them.
+ * (`mask.ts`'s `revealed`), so every new cell fades in together.
  *
+ * THE WEIGHT RAMPS ACROSS THE COMPOSITE'S THRESHOLD, NOT FROM 0 TO 1. Fog clears where coverage
+ * crosses `smoothstep(REVEAL_LO, REVEAL_HI, coverage ± noise/2)` (`composite.ts`), so a weight ramped
+ * linearly 0 → 1 changes nothing on screen for its first ~120 ms and is done by ~300 ms — a 170 ms
+ * snap, seen in `0084`'s smoke. The ramp instead spans exactly the band the eye can see, noise
+ * included, so the fog is visibly moving for the whole 400 ms (one pixel at the noise mean takes the
+ * middle ~250 ms; the field's extremes take the ends). The first frame is the pre-run map (weight
+ * 0), and at 400 ms the reveal is complete (progress 1, the steady state).
+ */
+export const REDUCED_BAND: readonly [number, number] = [REVEAL_LO - V1_NOISE_AMP / 2, REVEAL_HI + V1_NOISE_AMP / 2]
+
+/*
  * The beat keeps its full 2.9 s: only the motion is removed, never the order (§3.4). The map holds,
  * lit and still, until beat 2 — so the map is seen before the numbers, for as long as it ever was.
  */
@@ -97,9 +108,11 @@ export const REDUCED_FADE_MS = 400
 export function beat1ReducedAt(t: number): Beat1Frame {
   const phase: Beat1Phase = t >= BEAT1_MS ? "done" : t >= REDUCED_FADE_MS ? "settle" : "traversal"
   const fade = clamp01(t / REDUCED_FADE_MS)
+  const [lo, hi] = REDUCED_BAND
+  const weight = t <= 0 ? 0 : lo + (hi - lo) * fade
   return {
     phase,
-    progress: fade >= 1 ? 1 : REVEAL_RAMP * fade,
+    progress: fade >= 1 ? 1 : REVEAL_RAMP * weight,
     bloom: { clock: -1, fade: 0, goldSpan: GOLD_MS / TRAVERSAL_MS, frostSpan: FROST_MS / TRAVERSAL_MS },
     pulse: 0,
     lantern: 0,

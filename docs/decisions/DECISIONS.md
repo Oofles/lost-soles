@@ -4684,8 +4684,9 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     lantern's frames. The still shows from `webglcontextlost` until the rebuilt map is ready
     (`MapStage` gained `lost`).
   - **Reduced motion keeps the full timing.** Beat 1's reveal is a 400 ms cross-fade (every reveal
-    cell given arc 0, so `progress` 0 → `REVEAL_RAMP` fades them together through the existing
-    seam), then the lit map holds to 2.9 s. Beat 2's panel fades in over 300 ms with every number
+    cell given arc 0, so they fade together through the existing seam), then the lit map holds to
+    2.9 s. The weight ramps across the composite's visible threshold band (`REVEAL_LO`/`REVEAL_HI` ±
+    half the noise), not 0 → 1: a linear 0 → 1 weight showed in the smoke as a ~170 ms snap. Beat 2's panel fades in over 300 ms with every number
     final. Cards hold for 1.4 s without scale, border wipe, rise or flight. The boundaries do not
     move, so the map is seen before the numbers for exactly as long as in full motion. `/log`'s
     card queue is not changed by this ticket.
