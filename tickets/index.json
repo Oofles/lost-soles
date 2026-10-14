@@ -5721,7 +5721,7 @@
     "title": "Record place-bound milestones (landmarks) where they were earned",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "12-post-run-moment",
     "depends_on": [],
@@ -5729,10 +5729,11 @@
     "source": "agent",
     "created": "2026-10-07T20:57:39Z",
     "started": "2026-10-14T14:15:13Z",
-    "path": "tickets/open/0248-record-place-bound-milestones-landmarks-where-they-were-earn.md",
-    "ready": true,
+    "closed": "2026-10-14T14:41:52Z",
+    "path": "tickets/closed/0248-record-place-bound-milestones-landmarks-where-they-were-earn.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -5987,7 +5988,7 @@
     "source": "agent",
     "created": "2026-10-14T14:26:28Z",
     "path": "tickets/open/0260-draw-recorded-landmarks-on-the-map.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5
