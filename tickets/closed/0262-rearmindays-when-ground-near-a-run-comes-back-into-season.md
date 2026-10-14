@@ -4,7 +4,7 @@ slug: rearmindays-when-ground-near-a-run-comes-back-into-season
 title: rearmInDays: when ground near a run comes back into season
 type: feature
 priority: low
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T15:47:35Z
 started: 2026-10-14T19:47:30Z
+closed: 2026-10-14T20:13:40Z
 ---
 
 ## Description
