@@ -4,7 +4,7 @@ slug: place-and-street-names-for-the-frontier-and-chronicle-lines
 title: Place and street names for the frontier and chronicle lines
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-13T21:54:04Z
 started: 2026-10-14T15:38:10Z
+closed: 2026-10-14T15:51:21Z
 ---
 
 ## Description
