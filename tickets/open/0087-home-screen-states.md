@@ -11,6 +11,7 @@ depends_on: [86, 43]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-10-15T18:28:53Z
 ---
 
 ## Description
@@ -78,6 +79,7 @@ layer with opacity 0 and call it done, because a zero-cell mask is also the stat
 clear, and the two must behave the same way.
 
 - **From 0086 (2026-10-15).** Total Level and cells paint from IndexedDB on a cold start, but the plinth's last-run line waits for `/api/runs/latest`. §2.4's "cached totals immediately" may want the line cached too; decide it here rather than in a ticket of its own.
+- **Operator, 2026-10-15 (wave 1 of `13`): cache the last-run line.** Store the last `/api/runs/latest` response in IndexedDB so the plinth's last-run line paints on cold start and offline with Total Level and cells, then reconciles. Keep D-316's single source: the line, the first camera and `⌖` still read the same value. Also note D-313: with nothing imported the map centres on the **configured home**, not device location — that supersedes this ticket's "centred on device location" (amend the criterion with the reason). D-313 also places the interim manual Sync as a small text line in the rail below the three buttons; the in-flight indication belongs there.
 
 ## Operator validation
 

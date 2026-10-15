@@ -2130,6 +2130,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-15T18:28:53Z",
     "path": "tickets/open/0087-home-screen-states.md",
     "ready": true,
     "acceptance": {
@@ -2153,6 +2154,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-15T18:28:53Z",
     "path": "tickets/open/0088-chronicle-sheet.md",
     "ready": true,
     "acceptance": {
@@ -2176,6 +2178,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-15T18:28:53Z",
     "path": "tickets/open/0089-settings-small-and-boring.md",
     "ready": true,
     "acceptance": {
@@ -2200,6 +2203,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-15T18:28:53Z",
     "path": "tickets/open/0090-derived-stats-feed.md",
     "ready": true,
     "acceptance": {

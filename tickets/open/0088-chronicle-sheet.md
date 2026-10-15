@@ -11,6 +11,7 @@ depends_on: [86, 78]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+started: 2026-10-15T18:28:53Z
 ---
 
 ## Description
@@ -73,6 +74,7 @@ Post-run sequences are never launched from here without an explicit `⟲ Relive`
 opt-in (§3.1). Getting this wrong turns browsing your history into being ambushed by animations.
 
 - **Amended by D-313 (0187, 2026-10-15).** The Chronicle opens from the plinth's `RUNS` button only (no handle to click or drag), in the rail's column with no scrim and the map usable beside it — the §2.5 panel, not a sheet over the map. Below 1024px it takes the bottom card's place. It uses `lib/sheet/swipe-dismiss.ts` (D-314) where it is a bottom sheet.
+- **Operator, 2026-10-15 (wave 1 of `13`), settling the open question above: back from a run opened out of the Chronicle returns to the Chronicle**, at the same scroll position, and a second back goes to `/`. Chronicle row links push rather than replace. A run opened any other way still goes back to `/`. This amends `06` §3.3's "Back returns to `/`": amend the doc and propose the decision as D-NEW-a.
 
 ## Operator validation
 
