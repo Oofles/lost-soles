@@ -35,13 +35,13 @@ atmosphere).
 
 ## Acceptance criteria
 
-- [ ] The tally panel shows a quiet hint, right-aligned below the footer, reading `click a row for ⌄`
+- [x] The tally panel shows a quiet hint, right-aligned below the footer, reading `click a row for ⌄`
       on a pointer device (desktop, D-227) — `tap` only under `(pointer: coarse)`.
-- [ ] It uses an existing muted text token, ≥ 12sp (§8.4), and does not shift layout while counts
+- [x] It uses an existing muted text token, ≥ 12sp (§8.4), and does not shift layout while counts
       animate (no reflow, as `0081` measured).
-- [ ] It is present in the static end state too, and is `aria-hidden` (the buttons already carry
+- [x] It is present in the static end state too, and is `aria-hidden` (the buttons already carry
       the semantics).
-- [ ] It does not appear for an activity with no expandable rows.
+- [x] It does not appear for an activity with no expandable rows.
 
 ## Notes
 
@@ -52,6 +52,13 @@ Filed by the capability-12 drift audit, 2026-10-15. Wording on desktop deviates 
 
 Desktop browser, `/run/:id`: does the hint read as a quiet affordance, or as clutter competing with
 the totals? (Perceptual — two people could disagree.)
+
+**Operator, desktop browser — verified 2026-10-15:** *"the hint reads fine"* — a quiet affordance,
+not clutter.
+
+**Agent:** Amplify job 395 (`a2e815b`) SUCCEED. A local build of that commit ships `a row for`,
+`data-hint` and `pointer: coarse` in the run page's chunk. The unit tests cover the text, the
+attributes, the 12px muted token, and absence with no rows. The full gate is green (3,419 passed).
 
 ## Resolution
 
