@@ -1007,8 +1007,10 @@ Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep l
   on the map get a row here and a `→ fly to` that closes the sheet and flies the map there. This
   is the only navigation out of the sheet, and it points at the map, which is correct (P4).
   The rows are the `Landmark` records the pipeline writes as 50 and 99 are crossed (ticket `0248`,
-  D-301), labelled `Cairn at Level 50` / `Shrine at Level 99` — the street name in the mockup needs
-  a reverse geocoder nothing has. One earned on an activity with no route is listed without
+  D-301), labelled `Cairn at Level 50` / `Shrine at Level 99`, followed by the street at it (or,
+  failing that, the place) from the basemap's own archive (D-302, ticket `0263`) — `Cairn at Level
+  50 — Kelp Street`. The name is read on every open, never stored, and the row draws without it
+  until the archive answers. One earned on an activity with no route is listed without
   `→ fly to`. A skill with none omits the heading rather than showing it empty.
   The place `→ fly to` lands on is marked: every located `Landmark` is drawn on the home map as a
   cairn or a shrine (a torii), above the fog (ticket `0260`, `05` §4.4). The flight lands at z16

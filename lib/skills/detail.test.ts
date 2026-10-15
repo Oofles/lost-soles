@@ -7,6 +7,7 @@ import { cumulativeXp } from "@/src/scoring/levels"
 
 import {
   lowPrecision,
+  nameMilestones,
   placeMilestones,
   RECENT_ROWS,
   rulesSentence,
@@ -256,6 +257,32 @@ describe("ON THE MAP, and the unknown", () => {
       { level: 50, label: "Cairn at Level 50", lng: 1.5, lat: 2.5 },
       { level: 99, label: "Shrine at Level 99", lng: null, lat: null },
     ])
+  })
+
+  it("names the street at a located milestone, the place failing that (0263)", async () => {
+    const at = (p: { lng: number }) => p.lng
+    const names = {
+      street: async (p: { lng: number }) => (at(p) === 1 ? "Kelp Street" : null),
+      place: async (p: { lng: number }) => (at(p) === 2 ? "Ballard" : null),
+    }
+    const rows: PlaceMilestone[] = [
+      { level: 50, label: "Cairn at Level 50", lng: 1, lat: 0 },
+      { level: 50, label: "Cairn at Level 50", lng: 2, lat: 0 },
+      { level: 99, label: "Shrine at Level 99", lng: 3, lat: 0 },
+      { level: 99, label: "Shrine at Level 99", lng: null, lat: null },
+    ]
+    expect((await nameMilestones(rows, names)).map((p) => p.label)).toEqual([
+      "Cairn at Level 50 — Kelp Street",
+      "Cairn at Level 50 — Ballard",
+      "Shrine at Level 99",
+      "Shrine at Level 99",
+    ])
+  })
+
+  it("a failed name lookup keeps the label rather than losing the row (0263)", async () => {
+    const names = { street: () => Promise.reject(new Error("tile")), place: async () => "Ballard" }
+    const rows: PlaceMilestone[] = [{ level: 50, label: "Cairn at Level 50", lng: 1, lat: 2 }]
+    expect(await nameMilestones(rows, names)).toEqual(rows)
   })
 
   it("passes place-bound milestones through, lowest level first", () => {

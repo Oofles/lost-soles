@@ -24,6 +24,7 @@
  */
 
 import type { CachedSkill } from "@/lib/log/optimistic"
+import type { PlaceNames } from "@/lib/place-names"
 import type { Multipliers, RuleSet, RuleSkill } from "@/src/rules/schema"
 import { SIX_MONTHS_MS } from "@/src/domain/discovery"
 import { cumulativeXp, levelProgress, stepCoefficient } from "@/src/scoring/levels"
@@ -85,6 +86,28 @@ export function placeMilestones(rows: readonly LandmarkRow[]): PlaceMilestone[] 
     lng: r.lng ?? null,
     lat: r.lat ?? null,
   }))
+}
+
+/**
+ * The rows with the street at each landmark, or failing that the place (`0263`, D-302):
+ * `Cairn at Level 50 — Kelp Street`. Read from the immutable archive on every open, never stored.
+ * A row with no location, no name in reach or a failed lookup keeps its label.
+ */
+export async function nameMilestones(
+  places: readonly PlaceMilestone[],
+  names: Pick<PlaceNames, "place" | "street">,
+): Promise<PlaceMilestone[]> {
+  return Promise.all(
+    places.map(async (p) => {
+      if (p.lng === null || p.lat === null) return p
+      const at = { lng: p.lng, lat: p.lat }
+      const name = await names
+        .street(at)
+        .then((street) => street ?? names.place(at))
+        .catch(() => null)
+      return name ? { ...p, label: `${p.label} — ${name}` } : p
+    }),
+  )
 }
 
 export interface RecentPart {
