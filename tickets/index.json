@@ -6126,7 +6126,7 @@
     "title": "Say remembered, never re-armed, on screen",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "12-post-run-moment",
     "depends_on": [],
@@ -6134,8 +6134,9 @@
     "source": "agent",
     "created": "2026-10-15T13:20:51Z",
     "started": "2026-10-15T13:31:03Z",
-    "path": "tickets/open/0266-say-remembered-not-re-armed.md",
-    "ready": true,
+    "closed": "2026-10-15T13:52:49Z",
+    "path": "tickets/closed/0266-say-remembered-not-re-armed.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
