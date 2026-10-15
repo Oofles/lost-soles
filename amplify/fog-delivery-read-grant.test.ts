@@ -1,5 +1,5 @@
-import type { Stack } from "aws-cdk-lib"
-import { describe, expect, it } from "vitest"
+import type { Stack } from "aws-cdk-lib";
+import { describe, expect, it } from "vitest";
 
 /**
  * THE SSR COMPUTE ROLE'S READ ON THE DELIVERY LAYER. Ticket `0054`, D-228.
@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
  *
  * The browser reads its map through `/api/fog`, which reads S3 as this role. The grant is
  * therefore the whole of the browser's reach into the delivery layer, and this file
- * asserts what that reach is — READ, on `users/*`, and nothing else.
+ * asserts what that reach is — READ on `users/*`, and a listing of that prefix only (D-306).
  *
  * SYNTHESIZED, NOT CHECKED LIVE. A live check only runs against a deploy that already
  * happened; this fails in CI, before a widened grant reaches the bucket that also holds
@@ -22,59 +22,74 @@ process.env.CDK_CONTEXT_JSON = JSON.stringify({
   "amplify-backend-namespace": "lost-soles-test",
   "amplify-backend-name": "test",
   "amplify-backend-type": "branch",
-})
+});
 
-const { Template } = await import("aws-cdk-lib/assertions")
-const { backend } = await import("./backend")
+const { Template } = await import("aws-cdk-lib/assertions");
+const { backend } = await import("./backend");
 
 /**
  * `computeRole` is imported by ARN into the `CaptureGuard` stack, so every policy CDK
  * attaches to it is synthesized there. One synth at module scope: `Template.fromStack`
  * takes seconds, and ticket `0041` failed a deploy on vitest's 5 s per-test default.
  */
-const template = Template.fromStack(backend.stack.node.findChild("CaptureGuard") as Stack)
+const template = Template.fromStack(
+  backend.stack.node.findChild("CaptureGuard") as Stack,
+);
 
-type Statement = { Sid?: string; Effect?: string; Action?: unknown; Resource?: unknown }
+type Statement = {
+  Sid?: string;
+  Effect?: string;
+  Action?: unknown;
+  Resource?: unknown;
+};
 
 function statements(): Statement[] {
   return Object.values(template.findResources("AWS::IAM::Policy")).flatMap(
     (policy) =>
-      ((policy.Properties as { PolicyDocument: { Statement: Statement[] } }).PolicyDocument
-        .Statement ?? []) as Statement[],
-  )
+      ((policy.Properties as { PolicyDocument: { Statement: Statement[] } })
+        .PolicyDocument.Statement ?? []) as Statement[],
+  );
 }
 
-const list = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : [v as string])
+const list = (v: unknown): string[] =>
+  Array.isArray(v) ? (v as string[]) : [v as string];
 
 const grant = (): Statement => {
-  const found = statements().find((s) => s.Sid === "ReadExploredDeliveryLayerForTheBrowser")
-  expect(found, "the SSR compute role has no delivery-layer read grant").toBeDefined()
-  return found!
-}
+  const found = statements().find(
+    (s) => s.Sid === "ReadExploredDeliveryLayerForTheBrowser",
+  );
+  expect(
+    found,
+    "the SSR compute role has no delivery-layer read grant",
+  ).toBeDefined();
+  return found!;
+};
 
 /** `Fn::Join` parts, flattened to the literal fragments, so a prefix is assertable. */
 function resourceText(resource: unknown): string {
-  const one = Array.isArray(resource) ? resource[0] : resource
-  if (typeof one === "string") return one
-  const join = (one as { "Fn::Join"?: [string, unknown[]] })["Fn::Join"]
-  if (!join) return JSON.stringify(one)
-  return join[1].map((part) => (typeof part === "string" ? part : "*")).join("")
+  const one = Array.isArray(resource) ? resource[0] : resource;
+  if (typeof one === "string") return one;
+  const join = (one as { "Fn::Join"?: [string, unknown[]] })["Fn::Join"];
+  if (!join) return JSON.stringify(one);
+  return join[1]
+    .map((part) => (typeof part === "string" ? part : "*"))
+    .join("");
 }
 
 describe("the browser's read path into the delivery layer", () => {
   it("grants s3:GetObject, and only that", async () => {
-    const statement = grant()
+    const statement = grant();
 
-    expect(statement.Effect).toBe("Allow")
-    expect(list(statement.Action)).toEqual(["s3:GetObject"])
-  })
+    expect(statement.Effect).toBe("Allow");
+    expect(list(statement.Action)).toEqual(["s3:GetObject"]);
+  });
 
   it("is scoped to users/*, so raw/ has no read path through the app at all", async () => {
-    const text = resourceText(grant().Resource)
+    const text = resourceText(grant().Resource);
 
-    expect(text).toMatch(/\/users\/\*$/)
-    expect(text).not.toMatch(/\/raw\//)
-  })
+    expect(text).toMatch(/\/users\/\*$/);
+    expect(text).not.toMatch(/\/raw\//);
+  });
 
   /**
    * The asymmetry is the point. Every write to `users/*` belongs to the ingest worker; a
@@ -82,19 +97,44 @@ describe("the browser's read path into the delivery layer", () => {
    * map it serves can never re-fog (D-020).
    */
   it("gives the SSR compute no write or delete anywhere in the bucket", async () => {
-    const forbidden = /^s3:(Put|Delete|Restore|Abort)/
+    const forbidden = /^s3:(Put|Delete|Restore|Abort)/;
     for (const statement of statements()) {
-      const actions = list(statement.Action).filter((a) => typeof a === "string")
-      const s3Writes = actions.filter((a) => forbidden.test(a))
-      expect(s3Writes, `statement ${statement.Sid ?? "(unnamed)"} grants ${s3Writes}`).toEqual([])
+      const actions = list(statement.Action).filter(
+        (a) => typeof a === "string",
+      );
+      const s3Writes = actions.filter((a) => forbidden.test(a));
+      expect(
+        s3Writes,
+        `statement ${statement.Sid ?? "(unnamed)"} grants ${s3Writes}`,
+      ).toEqual([]);
     }
-  })
+  });
 
-  it("gives it no bucket-level listing, which a prefix scope cannot constrain", async () => {
+  /**
+   * D-306 supersedes D-228's "no bucket-level List": without it an absent key reads as 403, not
+   * 404 (`0264`). The listing is one statement, `s3:ListBucket` alone, held to `users/*` by
+   * `s3:prefix` — so `raw/` is still not even nameable through the app.
+   */
+  it("lists users/* only, so an absent key reads as 404 (0264, D-306)", async () => {
+    const lists = statements().filter((s) =>
+      list(s.Action).some(
+        (a) => typeof a === "string" && a.startsWith("s3:List"),
+      ),
+    ) as Array<
+      Statement & { Condition?: { StringLike?: { "s3:prefix"?: string[] } } }
+    >;
+    expect(lists).toHaveLength(1);
+    expect(lists[0]!.Sid).toBe("ListDeliveryLayerSoAbsentReadsAs404");
+    expect(list(lists[0]!.Action)).toEqual(["s3:ListBucket"]);
+    expect(lists[0]!.Condition?.StringLike?.["s3:prefix"]).toEqual(["users/*"]);
+  });
+
+  it("gives it no bucket configuration reads", async () => {
     for (const statement of statements()) {
-      const actions = list(statement.Action).filter((a) => typeof a === "string")
-      expect(actions.filter((a) => a.startsWith("s3:List"))).toEqual([])
-      expect(actions.filter((a) => a.startsWith("s3:GetBucket"))).toEqual([])
+      const actions = list(statement.Action).filter(
+        (a) => typeof a === "string",
+      );
+      expect(actions.filter((a) => a.startsWith("s3:GetBucket"))).toEqual([]);
     }
-  })
-})
+  });
+});

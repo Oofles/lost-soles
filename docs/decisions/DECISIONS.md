@@ -4857,3 +4857,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Rejected:** keeping the stored value when replay rewrites the object (an S3 read per activity
     to keep a value the fold computes exactly); reading today's T6 at page time (moves under a
     Relive); a wider ring (a "nearby" street you would not recognise as nearby).
+
+- **D-306** **The SSR compute role may list `users/*`, so an absent delivery-layer key reads as 404.**
+  Supersedes the "no bucket-level `List`" clause of **D-228**, and corrects D-219's premise that a
+  bucket-level grant cannot be held to a prefix. *(Operator, 2026-10-15, ticket `0264`.)*
+  - **The fault.** Without `s3:ListBucket`, S3 answers a GET on a missing key with **403
+    AccessDenied**, so it cannot say "no such key" to a caller that could not list it.
+    `/api/runs/web` therefore returned 500 for every account whose trace web did not exist yet,
+    instead of `{ runs: [] }`. Every optional-key read through `lib/fog/server.ts` `getObject` had
+    the same shape.
+  - **The premise was wrong.** `s3:ListBucket` takes an `s3:prefix` condition. `0192`
+    (`ListOwnPrefixes`) and `0243` (`ListRawArchive`) already grant it that way. The statement is
+    `ListDeliveryLayerSoAbsentReadsAs404`: `s3:ListBucket` on the bucket ARN, `StringLike`
+    `s3:prefix` `users/*`. `raw/` stays unlistable as well as unreadable (I-3).
+  - **What it adds.** The role can name keys it could already read: `GetObject` on `users/*` is one
+    role for every user, with per-user scoping done by the route from a verified session. It adds
+    no write verb, so D-228's asymmetry, which was the point of that clause, stands.
+  - **Rejected: treating 403 as missing in `isMissing`.** That would turn a lost or broken grant
+    into an empty map that shows no error, on a map that cannot re-fog. A 403 stays an error, and
+    `lib/fog/server.test.ts` asserts it.

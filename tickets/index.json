@@ -6089,6 +6089,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-14T16:56:37Z",
+    "started": "2026-10-15T12:10:40Z",
     "path": "tickets/open/0264-runs-web-500-before-first-trace.md",
     "ready": true,
     "acceptance": {
