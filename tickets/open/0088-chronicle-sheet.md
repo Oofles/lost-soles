@@ -192,3 +192,15 @@ the target regardless of registration order. The fake history now honours captur
 new test registers a "router" listener first that mounts inside the event; it is red without the fix.
 Two unrelated findings from the same smoke test were filed as `0276` (sign-in without reload leaves
 the plinth without fog data) and `0277` (the run breakdown labels XP as cells).
+
+**That fix did not work (Amplify job 403, same smoke).** Next's popstate listener still ran first:
+capture-phase registration on `window` did not reorder it in Chromium, and the fake history had
+encoded the assumption that it would, which is why the new test went green. Second fix: the Chronicle
+no longer infers a traversal from listener order at all. It records the Navigation API's
+`currentEntry.key` of the entry it sits on (read in the mount effect, after the cold-link seed
+re-keys it), and `take()` restores only when the current entry is that same key. A push to
+`/chronicle` is always a new key, so RUNS still starts at the top. The `popstate` record survives only
+as a fallback for a browser without the Navigation API. The fake history now fires listeners in
+registration order and gives entries keys (a push is a new key, a replace keeps it). Tests added for
+the cold deep link's re-keyed entry and for the fallback path. Verified in headless Chromium against a
+local production build before pushing, rather than trusting the fake a second time.

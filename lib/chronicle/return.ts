@@ -24,42 +24,52 @@ export interface ChronicleSnapshot {
 
 /** `window`, narrowed to what this reads — so a test hands in a plain object. */
 export interface TraversalHost {
-  addEventListener(type: "popstate", listener: () => void, capture?: boolean): void
+  addEventListener(type: "popstate", listener: () => void): void
   location: { pathname: string }
+  /** The Navigation API, where the browser has it: which session-history entry is current. */
+  navigation?: { currentEntry: { key: string } | null }
 }
 
 export interface ChronicleReturn {
-  /** The Chronicle is going away (a row was opened, or it was dismissed): remember where it was. */
-  leave(snapshot: ChronicleSnapshot): void
+  /** The current session-history entry's key, or null where the Navigation API is absent. */
+  here(): string | null
   /**
-   * A Chronicle is mounting at `pathname`: the snapshot, if this arrival is a history traversal to
-   * it. Not consumed — React's development double-mount reads it twice, and the next `leave`
-   * replaces it anyway. A push to `/chronicle` fires no `popstate`, so it can never match: the last
-   * traversal before one is always somewhere else (the dismissal back to `/`, at the latest).
+   * The Chronicle is going away (a row was opened, or it was dismissed): remember where it was,
+   * and the history entry it was on (`here()` while it was mounted).
+   */
+  leave(snapshot: ChronicleSnapshot, entry: string | null): void
+  /**
+   * A Chronicle is mounting at `pathname`: the snapshot, if this arrival is a history traversal
+   * BACK TO THE ENTRY it left. A push to `/chronicle` is a new entry with a new key, so it never
+   * matches. Not consumed — React's development double-mount reads it twice, and the next `leave`
+   * replaces it anyway.
+   *
+   * The entry key is the primary test. A `popstate` listener cannot be: Next's router registers its
+   * own at boot and renders the restored route synchronously inside it, so the Chronicle mounts
+   * before any listener of ours runs, in either phase (the wave 1 smoke, Amplify jobs 402 and 403).
+   * The listener remains only as a fallback for a browser without the Navigation API.
    */
   take(pathname: string): ChronicleSnapshot | null
 }
 
 export function chronicleReturn(host: TraversalHost | null): ChronicleReturn {
   let snapshot: ChronicleSnapshot | null = null
-  /** Where the last history traversal landed. */
+  let leftFrom: string | null = null
+  /** Where the last history traversal landed (fallback only). */
   let traversedTo: string | null = null
-  // Capture phase: Next's router also listens for `popstate` on `window`, registered earlier, and
-  // renders the restored route synchronously inside its handler — so a bubble-phase listener here
-  // ran after the Chronicle had already mounted and asked `take`. At the target, capture listeners
-  // fire before bubble ones regardless of registration order.
-  host?.addEventListener(
-    "popstate",
-    () => {
-      traversedTo = host.location.pathname
-    },
-    true,
-  )
+  host?.addEventListener("popstate", () => {
+    traversedTo = host.location.pathname
+  })
+  const here = () => host?.navigation?.currentEntry?.key ?? null
   return {
-    leave(s) {
+    here,
+    leave(s, entry) {
       snapshot = s
+      leftFrom = entry
     },
     take(pathname) {
+      if (!snapshot) return null
+      if (leftFrom !== null && host?.navigation) return here() === leftFrom ? snapshot : null
       return traversedTo === pathname ? snapshot : null
     },
   }

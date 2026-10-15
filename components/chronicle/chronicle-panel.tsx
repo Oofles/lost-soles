@@ -77,7 +77,7 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
 
   const panel = useRef<HTMLElement | null>(null)
   const list = useRef<HTMLDivElement | null>(null)
-  const latest = useRef({ items, next, scrollTop: restored?.scrollTop ?? 0 })
+  const latest = useRef({ items, next, scrollTop: restored?.scrollTop ?? 0, entry: null as string | null })
   latest.current.items = items
   latest.current.next = next
 
@@ -85,8 +85,11 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
   useSwipeDismiss(panel, dismiss)
 
   // A cold deep link has nothing of the app behind it: slip `/` underneath, so back lands there.
+  // Then note which history entry this Chronicle is on — after the seed, which re-keys it, and after
+  // the router's push has committed — so a back to this same entry is recognised (D-321).
   useEffect(() => {
     seedHomeBehind(browserHistoryHost())
+    latest.current.entry = browserChronicleReturn().here()
   }, [])
 
   // Esc dismisses. Focus moves into the panel, so the keyboard is where the eye is.
@@ -113,7 +116,10 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
     const state = latest.current
     return () => {
       window.removeEventListener("resize", measure)
-      browserChronicleReturn().leave({ items: state.items, next: state.next, scrollTop: state.scrollTop })
+      browserChronicleReturn().leave(
+        { items: state.items, next: state.next, scrollTop: state.scrollTop },
+        state.entry,
+      )
     }
   }, [restored])
 

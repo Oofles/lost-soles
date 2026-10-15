@@ -16,11 +16,12 @@ import { chronicleReturn, type ChronicleSnapshot } from "./return"
  */
 
 class FakeHistory {
-  entries: { url: string; state: unknown }[]
+  entries: { url: string; state: unknown; key: string }[]
   index = 0
-  private listeners: { fn: () => void; capture: boolean }[] = []
+  private keys = 0
+  private listeners: (() => void)[] = []
   constructor(first: string) {
-    this.entries = [{ url: first, state: null }]
+    this.entries = [{ url: first, state: null, key: "k0" }]
   }
   get here() {
     return this.entries[this.index]!
@@ -28,23 +29,27 @@ class FakeHistory {
   get location() {
     return { pathname: this.here.url, href: `https://x.test${this.here.url}`, search: "", hash: "" }
   }
-  addEventListener(_type: "popstate", fn: () => void, capture = false) {
-    this.listeners.push({ fn, capture })
+  addEventListener(_type: "popstate", fn: () => void) {
+    this.listeners.push(fn)
+  }
+  /** The Navigation API's view: a push is a new key, a replace keeps the entry's key. */
+  get navigation() {
+    return { currentEntry: { key: this.here.key } }
   }
   push(url: string, state: unknown = null) {
     this.entries = this.entries.slice(0, this.index + 1)
-    this.entries.push({ url, state })
+    this.entries.push({ url, state, key: `k${++this.keys}` })
     this.index++
   }
   replace(url: string, state: unknown) {
-    this.entries[this.index] = { url, state }
+    this.entries[this.index] = { url, state, key: this.here.key }
   }
   back() {
     if (this.index === 0) return "LEFT THE APP"
     this.index--
-    // As at a real event target: capture listeners first, then bubble, each in registration order.
-    for (const l of this.listeners) if (l.capture) l.fn()
-    for (const l of this.listeners) if (!l.capture) l.fn()
+    // In registration order — Next's router, registered at boot, always runs first (the wave 1
+    // smoke showed capture-phase registration does not change that on `window`).
+    for (const fn of this.listeners) fn()
     return this.here.url
   }
   host(navigation: { type: string; name: string } | undefined): HistoryHost {
@@ -66,7 +71,7 @@ describe("the Chronicle's back stack (0088)", () => {
     const ret = chronicleReturn(h)
     h.push("/chronicle") // the plinth's RUNS
     expect(ret.take("/chronicle")).toBeNull() // a push starts at the top
-    ret.leave(snap(4321)) // a row is opened; the Chronicle unmounts
+    ret.leave(snap(4321), ret.here()) // a row is opened; the Chronicle unmounts
     h.push("/run/a-9") // the row's link PUSHES
     expect(h.back()).toBe("/chronicle")
     expect(ret.take("/chronicle")).toEqual(snap(4321)) // the same scroll position
@@ -78,7 +83,7 @@ describe("the Chronicle's back stack (0088)", () => {
     const h = new FakeHistory("/")
     const ret = chronicleReturn(h)
     h.push("/chronicle")
-    ret.leave(snap(900))
+    ret.leave(snap(900), ret.here())
     h.push("/run/a-9")
     h.push("/run/a-9", { lostSolesSequence: true }) // ⟲ Relive pushes its sentinel (`0084`)
     expect(h.back()).toBe("/run/a-9") // a skip takes it back off
@@ -104,7 +109,7 @@ describe("the Chronicle's back stack (0088)", () => {
     const h = new FakeHistory("/")
     const ret = chronicleReturn(h)
     h.push("/chronicle")
-    ret.leave(snap(700)) // dismissed (Esc / close / back are all a back)
+    ret.leave(snap(700), ret.here()) // dismissed (Esc / close / back are all a back)
     expect(h.back()).toBe("/")
     h.push("/chronicle") // RUNS again
     expect(ret.take("/chronicle")).toBeNull()
@@ -114,7 +119,7 @@ describe("the Chronicle's back stack (0088)", () => {
     const h = new FakeHistory("/")
     const ret = chronicleReturn(h)
     h.push("/chronicle")
-    ret.leave(snap(10))
+    ret.leave(snap(10), ret.here())
     h.push("/run/a-9")
     h.back()
     expect(ret.take("/chronicle")).toEqual(snap(10))
@@ -131,9 +136,34 @@ describe("the Chronicle's back stack (0088)", () => {
     })
     const ret = chronicleReturn(h)
     h.push("/chronicle")
-    ret.leave(snap(265))
+    ret.leave(snap(265), ret.here())
     h.push("/run/a-1")
     expect(h.back()).toBe("/chronicle")
     expect(mountedWith).toEqual(snap(265))
+  })
+
+  it("a cold deep link, seeded, then a run and back: the offset comes back on the re-keyed entry", () => {
+    const h = new FakeHistory("/chronicle")
+    const ret = chronicleReturn(h)
+    seedHomeBehind(h.host({ type: "navigate", name: "https://x.test/chronicle" }))
+    ret.leave(snap(40), ret.here()) // `here()` read after the seed, as the panel does
+    h.push("/run/a-9")
+    expect(h.back()).toBe("/chronicle")
+    expect(ret.take("/chronicle")).toEqual(snap(40))
+  })
+
+  it("without the Navigation API, the popstate fallback still restores a plain back", () => {
+    const h = new FakeHistory("/")
+    const bare = { addEventListener: h.addEventListener.bind(h), get location() { return h.location } }
+    const ret = chronicleReturn(bare)
+    h.push("/chronicle")
+    expect(ret.here()).toBeNull()
+    ret.leave(snap(77), ret.here())
+    h.push("/run/a-9")
+    h.back()
+    expect(ret.take("/chronicle")).toEqual(snap(77))
+    h.back()
+    h.push("/chronicle")
+    expect(ret.take("/chronicle")).toBeNull()
   })
 })
