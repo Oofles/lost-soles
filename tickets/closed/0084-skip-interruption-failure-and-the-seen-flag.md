@@ -239,3 +239,5 @@ explored-cell rows; 27 S3 object versions; the archive bucket; and the Cognito u
 > Then the real test: in a fresh browser profile signed in to Strava for the first time, watch the backfill. It
 > must be one four-second reveal of your whole history and one card, not a queue. If it queues, close
 > the tab — and then confirm nothing was double-scored when you reopen it.
+
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**

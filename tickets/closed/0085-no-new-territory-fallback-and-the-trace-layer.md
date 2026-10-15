@@ -221,3 +221,4 @@ covered known ground, or ask for a replayed one):
    and it becomes a tuning ticket.
 4. Open `/` at home zoom: is the accumulated web of your 19 routes worth looking at?
 
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**

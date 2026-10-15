@@ -240,3 +240,4 @@ under a reused profile).
    - open the latest `/run/:id` — **no card may appear**;
    - on `/skills`, the new skill must be at level 1 and Total Level up by one.
 
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**

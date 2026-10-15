@@ -99,3 +99,4 @@ card's name and number set in Spectral, and does it read well on the scrim? Does
 read as Spectral italic? Do `/skills` (serif tile numbers and Total Level, serif `SKILLS` title) and
 `/log` still read cleanly with Inter for everything else?
 
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**

@@ -239,3 +239,5 @@ the uid. Deleted:
 3. Click the frontier line. Is the place it recentres on real and reachable? It will not change
    rendering mode until `0098`.
 4. The type is the Georgia fallback until `0255`. Judge the voice, not the face.
+
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**

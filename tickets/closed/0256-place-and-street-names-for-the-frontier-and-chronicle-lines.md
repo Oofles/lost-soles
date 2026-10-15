@@ -161,3 +161,5 @@ street on an old run's line.
 - After the backfill (`npx vite-node --config vitest.config.ts tools/xp-replay/repair-t3.ts -- --user
   <sub>`, then the same with `--confirm`), open one of the 5 re-armed runs. Does *"You returned to
   <street> after <n> days"* name a street you recognise?
+
+**Operator, desktop browser — verified 2026-10-15 (at the `12` audit): all perceptual checks above good.**
