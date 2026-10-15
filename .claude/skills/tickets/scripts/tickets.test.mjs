@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp, ENUMS } = await import("./tickets.mjs");
+const { planWaves, parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp, ENUMS } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -2530,5 +2530,70 @@ describe("0141 — writers refuse an out-of-enum value before writing anything",
       assert.deepEqual(readdirSync(join(d, "tickets/closed")), [], cmd);
       rmSync(d, { recursive: true, force: true });
     }
+  });
+});
+
+describe("0269 — waves: a capability's open tickets layered for parallel agents (D-312)", () => {
+  // In-memory tickets. One capability per case, so auditBlockers has no lower
+  // capability to look up and the plan is a pure function of the list.
+  const T = (o) => ({ fm: FM({ capability: "13-x", ...o }), path: `tickets/open/${o.id}.md` });
+  const ids = (plan) => plan.waves.map((w) => w.map((t) => t.fm.id));
+  const heldIds = (plan) => plan.held.map((h) => h.ticket.fm.id);
+
+  test("layers by in-capability depends_on; closed dependencies anywhere count as met", () => {
+    const ts = [T({ id: 1, status: "closed", capability: "05-y" }), T({ id: 86, depends_on: [1] }),
+      T({ id: 87, depends_on: [86] }), T({ id: 88, depends_on: [86] }), T({ id: 249 }), T({ id: 91, depends_on: [87, 88] })];
+    assert.deepEqual(ids(planWaves("13-x", ts)), [[86, 249], [87, 88], [91]]);
+  });
+
+  test("a wave wider than --max splits in priority order, then id", () => {
+    const ts = [T({ id: 5, priority: "low" }), T({ id: 3, priority: "med" }), T({ id: 4, priority: "high" }), T({ id: 2, priority: "med" })];
+    assert.deepEqual(ids(planWaves("13-x", ts, { max: 2 })), [[4, 2], [3, 5]]);
+  });
+
+  test("D-151's overrun-risk capabilities stay one ticket at a time, whatever --max says", () => {
+    for (const cap of ["08-map", "09-xp", "12-post"]) {
+      const ts = [T({ id: 1, capability: cap }), T({ id: 2, capability: cap })];
+      const plan = planWaves(cap, ts, { max: 4 });
+      assert.equal(plan.width, 1);
+      assert.deepEqual(ids(plan), [[1], [2]]);
+    }
+  });
+
+  test("holds blocked_by, an unclosed dependency outside the capability, size l — and what depends on them", () => {
+    const ts = [T({ id: 50, capability: "14-z" }), T({ id: 1, blocked_by: [50], status: "blocked" }),
+      T({ id: 2, depends_on: [50] }), T({ id: 3, size: "l" }), T({ id: 4, depends_on: [3] }), T({ id: 6 })];
+    const plan = planWaves("13-x", ts);
+    assert.deepEqual(ids(plan), [[6]]);
+    assert.deepEqual(heldIds(plan).sort(), [1, 2, 3, 4]);
+    const reason = (id) => plan.held.find((h) => h.ticket.fm.id === id).reason;
+    assert.match(reason(1), /blocked by 0050/);
+    assert.match(reason(2), /waits on 0050 \(14-z\), outside this capability/);
+    assert.match(reason(3), /size l/);
+    assert.match(reason(4), /waits on 0003, which is held/);
+  });
+
+  test("closed and deferred tickets are not planned; a cycle is held, not looped on", () => {
+    const ts = [T({ id: 1, status: "closed" }), T({ id: 2, status: "deferred" }),
+      T({ id: 3, depends_on: [4] }), T({ id: 4, depends_on: [3] }), T({ id: 5 })];
+    const plan = planWaves("13-x", ts);
+    assert.deepEqual(ids(plan), [[5]]);
+    assert.deepEqual(heldIds(plan).sort(), [3, 4]);
+    assert.match(plan.held[0].reason, /cycle/);
+  });
+
+  test("CLI: plans the capability next would hand out, --json, and refuses a bad --max", () => {
+    const d = repo();
+    try {
+      ticket(d, "open", FM({ id: 1, slug: "a" }));
+      ticket(d, "open", FM({ id: 2, slug: "b", depends_on: [1] }));
+      const r = run(d, "waves", "--json");
+      assert.equal(r.code, 0, r.out);
+      const j = JSON.parse(r.out);
+      assert.equal(j.capability, "00-x");
+      assert.deepEqual(j.waves.map((w) => w.map((t) => t.id)), [[1], [2]]);
+      assert.notEqual(run(d, "waves", "00-x", "--max", "0").code, 0);
+      assert.notEqual(run(d, "waves", "99-nope").code, 0);
+    } finally { rmSync(d, { recursive: true, force: true }); }
   });
 });

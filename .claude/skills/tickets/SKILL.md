@@ -34,6 +34,7 @@ subcommand dispatch, so this table is the dispatch.
 | `list` | `SCRIPT list $ARGUMENTS` | Print the table. Nothing else. |
 | `show` | `SCRIPT show $2` | Add the capability doc link; read the body only if asked to explain it |
 | `next` | `SCRIPT next --json` | Summarize, propose an approach, **wait for a go** |
+| `waves` | `SCRIPT waves [$2] [--max N]` | Propose wave 1, **wait for a go**, then follow `docs/capabilities/WAVES.md` (D-312) |
 | `triage` | `SCRIPT list --status inbox --json` | The triage procedure, below |
 | `create` | `SCRIPT create --title "…" --type … --priority …` | Confirm the path it printed |
 | `start` | `SCRIPT start $2` | Then work it |

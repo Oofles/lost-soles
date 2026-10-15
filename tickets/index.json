@@ -6187,5 +6187,27 @@
       "checked": 0,
       "total": 2
     }
+  },
+  {
+    "id": 269,
+    "slug": "wave-workflow",
+    "title": "Wave workflow: tickets.mjs waves, worktree-prepare, and the parallel-agent protocol",
+    "type": "chore",
+    "priority": "high",
+    "status": "closed",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-10-15T15:45:03Z",
+    "started": "2026-10-15T15:45:15Z",
+    "closed": "2026-10-15T15:47:35Z",
+    "path": "tickets/closed/0269-wave-workflow.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 4,
+      "total": 4
+    }
   }
 ]

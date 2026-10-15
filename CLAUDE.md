@@ -23,6 +23,7 @@ Check `tickets/closed/` to see what has actually been built.
      ```
      node .claude/skills/tickets/scripts/tickets.mjs next        # what to pick up
      node .claude/skills/tickets/scripts/tickets.mjs next --all   # the whole ready set
+     node .claude/skills/tickets/scripts/tickets.mjs waves        # the capability, as parallel waves (D-312)
      node .claude/skills/tickets/scripts/tickets.mjs show <id>    # why something is not ready
      node .claude/skills/tickets/scripts/tickets.mjs validate     # must be 0 errors
      ```
@@ -32,7 +33,13 @@ Check `tickets/closed/` to see what has actually been built.
 2. **Propose the session's batch and confirm it before starting.** Do not silently start work.
 3. Read each ticket in full, plus **only the design sections it cites**.
 
-## Session protocol (D-151)
+## Session protocol (D-151, amended by D-312)
+
+**Default: waves.** `tickets.mjs waves` layers the capability's open tickets. Build each wave with
+one agent per ticket, each in its own worktree. Merge, push once, validate once.
+**`docs/capabilities/WAVES.md` is the procedure. Read it before the first wave of a session.**
+The bullets below still govern the orchestrator's context and the serial (width-1) capabilities.
+
 
 - **2–3 tickets per session** within a capability. They touch the same files and cite the same
   design sections; re-orienting per ticket re-reads the same pages three times.
@@ -159,6 +166,7 @@ to run checks on pushes, not to gate a review that has no second reviewer.
 | Ticket format (short reference) | `docs/TICKET_FORMAT.md` — `07-ticketsmith.md` §3 is normative |
 | Capability lifecycle | `docs/capabilities/WORKFLOW.md` *(lands in ticket `0005`)* |
 | Capability close audit | `docs/capabilities/AUDIT.md` |
+| Parallel waves: agents, worktrees, merge | `docs/capabilities/WAVES.md` |
 | **Canonical** `Activity`/`Trace`/`SourceAdapter` | `docs/contracts/ingestion-contract.md` |
 | Architecture · data · integrations | `docs/01`, `docs/02`, `docs/03` |
 | Game design · fog · UI | `docs/04`, `docs/05`, `docs/06` |

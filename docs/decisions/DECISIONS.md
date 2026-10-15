@@ -4931,3 +4931,26 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     and Amplify started no job. So the hook also **defuses** a hand-typed token (strips the
     brackets) on any commit it would not tag itself. Never write the bracketed token in a
     message by hand; say "the skip token".
+- **D-312** **A capability's tickets are built in waves of parallel agents, one worktree each.**
+  *(Operator, 2026-10-15, ticket `0269`.)* Amends **D-150** and **D-151**. The protocol is
+  `docs/capabilities/WAVES.md`.
+  - **Why:** a code push costs a ~9-minute Amplify build, and serial tickets paid it once each.
+    `tickets.mjs waves` layers a capability's open tickets by `depends_on`. One agent per ticket
+    builds in its own git worktree, with a fresh context holding only its ticket and cited
+    sections. The orchestrator merges the wave, pushes once, and validates once.
+  - **D-150 as amended:** each ticket still lands on `main` as its own `NNNN: <title>` commit, but
+    the push happens **once per wave**, after every commit is cherry-picked and the full local gate
+    is green. Short-lived local `worktree-agent-*` branches are allowed. They are never pushed, so
+    the remote stays trunk-only.
+  - **D-151 as amended:** per-ticket context is now structural (one agent per ticket). The
+    orchestrator clears between waves past ~50%. D-151's overrun-risk capabilities (`08`, `09`,
+    `12`) run at width 1, which is the old serial protocol.
+  - **Shared files belong to the orchestrator:** `DECISIONS.md`, id allocation, `tickets/index.json`
+    and `docs/INDEX.md`. Agents propose `D-NEW-x` decisions and new tickets in their reports.
+    Parallel appends to a shared file are guaranteed conflicts.
+  - **D-152 is unchanged and binds agents.** An agent that meets an unsettled question stops and
+    returns it, and is resumed with the operator's answer.
+  - **Worktrees** (`.claude/worktrees/`, gitignored) are made runnable by
+    `scripts/worktree-prepare.mjs`: a hard-linked `node_modules` (a symlink breaks the CDK bundler's
+    project-root check), plus `amplify_outputs.json` and the maplibre prebuild. Proven in a real
+    worktree: typecheck, lint, the full suite, the guards and `next build` all pass.

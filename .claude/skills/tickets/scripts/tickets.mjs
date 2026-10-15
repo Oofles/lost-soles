@@ -1747,6 +1747,104 @@ function cmdNext(flags) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────── waves ────
+
+/**
+ * D-312. A capability's open tickets, layered by depends_on into waves that can be
+ * built in parallel, one agent and one worktree per ticket. Wave 1 is ready now;
+ * wave k is ready once waves 1..k-1 have merged. A wave wider than `max` is split
+ * in priority order, because merging is the cost that grows with width: tickets in
+ * one capability touch the same files (D-151).
+ *
+ * The capabilities D-151 marks as overrun risks keep their one-ticket-at-a-time
+ * rule, as waves of width 1.
+ *
+ * `held` lists what cannot be scheduled and why: blocked_by, a dependency outside
+ * the capability that is not closed, size l, or a dependency on a held ticket.
+ */
+const SERIAL_CAPABILITIES = [8, 9, 12];   // D-151's overrun-risk capabilities
+const WAVE_MAX = 4;
+
+function planWaves(capability, tickets, { max = WAVE_MAX } = {}) {
+  const index = byId(tickets);
+  const members = openInCapability(capability, tickets);
+  const width = SERIAL_CAPABILITIES.includes(capNumber(capability)) ? 1 : Math.max(1, max);
+  const inCap = new Set(members.map((t) => t.fm.id));
+  const held = new Map();
+  for (const t of members) {
+    const blockers = t.fm.blocked_by ?? [];
+    const outside = (t.fm.depends_on ?? []).filter((d) => !inCap.has(d) && index.get(d)?.fm?.status !== "closed");
+    if (blockers.length) held.set(t.fm.id, `blocked by ${blockers.map(pad).join(", ")}`);
+    else if (outside.length) held.set(t.fm.id, `waits on ${outside.map((d) => `${pad(d)} (${index.get(d)?.fm?.capability ?? "unknown"})`).join(", ")}, outside this capability`);
+    else if (t.fm.size === "l") held.set(t.fm.id, "size l — split it first");
+  }
+  const layers = [];
+  const placed = new Set();
+  let rest = members.filter((t) => !held.has(t.fm.id));
+  while (rest.length) {
+    const inCapDeps = (t) => (t.fm.depends_on ?? []).filter((d) => inCap.has(d));
+    const layer = rest.filter((t) => inCapDeps(t).every((d) => placed.has(d)));
+    const stuck = rest.filter((t) => !layer.includes(t));
+    // A dependency on a held ticket holds this one too; anything else left is a cycle.
+    for (const t of stuck) {
+      const h = inCapDeps(t).find((d) => held.has(d));
+      if (h !== undefined) held.set(t.fm.id, `waits on ${pad(h)}, which is held`);
+    }
+    if (!layer.length) {
+      for (const t of stuck) if (!held.has(t.fm.id)) held.set(t.fm.id, "in a depends_on cycle — run validate");
+      break;
+    }
+    layer.sort((a, b) => (PRIO_RANK[a.fm.priority] ?? 9) - (PRIO_RANK[b.fm.priority] ?? 9) || a.fm.id - b.fm.id);
+    for (let i = 0; i < layer.length; i += width) layers.push(layer.slice(i, i + width));
+    for (const t of layer) placed.add(t.fm.id);
+    rest = stuck.filter((t) => !held.has(t.fm.id));
+  }
+  return {
+    capability,
+    width,
+    gatedOn: auditBlockers(capability, tickets),
+    waves: layers,
+    held: members.filter((t) => held.has(t.fm.id)).map((t) => ({ ticket: t, reason: held.get(t.fm.id) })),
+  };
+}
+
+function cmdWaves(capability, flags) {
+  const ts = load();
+  if (!capability) {
+    // Default: the capability `next` would hand out work from.
+    const first = readySet(ts).find((t) => !auditBlockers(t.fm.capability, ts).length);
+    if (!first) die("nothing is ready and ungated, so there is no capability to plan. Run 'tickets.mjs next'.");
+    capability = first.fm.capability;
+  }
+  if (!ts.some((t) => t.fm?.capability === capability)) die(`no ticket has capability '${capability}'.`);
+  const max = flags.max === undefined ? WAVE_MAX : Number(flags.max);
+  if (!Number.isInteger(max) || max < 1) die(`--max must be a positive integer, got '${flags.max}'.`);
+  const plan = planWaves(capability, ts, { max });
+  const row = (t) => ({ id: t.fm.id, title: t.fm.title, priority: t.fm.priority, size: t.fm.size, path: t.path, depends_on: t.fm.depends_on ?? [] });
+  if (flags.json) {
+    return console.log(JSON.stringify({
+      capability, width: plan.width, gatedOn: plan.gatedOn,
+      waves: plan.waves.map((w) => w.map(row)),
+      held: plan.held.map((h) => ({ ...row(h.ticket), reason: h.reason })),
+    }, null, 2));
+  }
+  const open = plan.waves.flat().length + plan.held.length;
+  console.log(`  ${capability} — ${open} open, ${plan.waves.length} wave(s), at most ${plan.width} per wave` +
+              `${plan.width === 1 && SERIAL_CAPABILITIES.includes(capNumber(capability)) ? " (D-151: one ticket at a time here)" : ""}`);
+  if (plan.gatedOn.length) {
+    console.log(`\n  GATED: capability '${plan.gatedOn[0]}' has not passed its audit (D-153). No wave here is workable yet.`);
+  }
+  plan.waves.forEach((w, i) => {
+    console.log(`\n  wave ${i + 1}  ${i === 0 ? "(ready now)" : `(after wave ${i} merges)`}`);
+    for (const t of w) console.log(`    ${pad(t.fm.id)}  ${t.fm.priority.padEnd(5)}${t.fm.size}  ${t.fm.title}`);
+  });
+  if (plan.held.length) {
+    console.log(`\n  held`);
+    for (const h of plan.held) console.log(`    ${pad(h.ticket.fm.id)}  ${h.reason}`);
+  }
+  if (!open) console.log(`\n  Nothing open. 'tickets.mjs audit ${capability}' is next.`);
+}
+
 function rewrite(t, fm, body = t.body) {
   writeFileSync(join(ROOT, t.path), serialize(fm, body));
 }
@@ -2301,6 +2399,7 @@ if (isMain) try {
     case "validate": cmdValidate(flags); break;
     case "allocate": cmdAllocate(); break;
     case "next": cmdNext(flags); break;
+    case "waves": cmdWaves(positional[0], flags); break;
     case "create": cmdCreate(flags); break;
     case "start": cmdStart(positional[0]); break;
     case "block": cmdBlock(positional[0], flags); break;
@@ -2322,6 +2421,7 @@ if (isMain) try {
   show <id>                   raw markdown + dependency status
   validate                    exit 1 on errors, 0 on warnings only
   next [--all]                highest-priority ready ticket; refuses size:l
+  waves [<capability>] [--max N]  open tickets layered into parallel waves (D-312)
   allocate                    next free id
   create --title --type --priority [--size --capability --slug --depends --source --body]
   start <id>
@@ -2337,11 +2437,11 @@ if (isMain) try {
   triage-defer <path> --reason "..."                     stays in the inbox, dated
   audit <capability>          AUDIT.md mechanical checks; exit 1 on any failure
 
-  --json works on index, list, show, validate, next, create, audit, recheck.`);
+  --json works on index, list, show, validate, next, waves, create, audit, recheck.`);
       process.exit(cmd ? 1 : 0);
   }
 } catch (err) {
   die(err.message);
 }
 
-export { compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER, ENUMS };
+export { planWaves, compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER, ENUMS };
