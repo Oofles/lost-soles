@@ -6216,5 +6216,27 @@
       "checked": 4,
       "total": 4
     }
+  },
+  {
+    "id": 270,
+    "slug": "skills-quick-view-in-the-plinth-rail",
+    "title": "Skills quick-view in the plinth rail — trained skills as thin level bars",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [
+      86
+    ],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-10-15T17:42:12Z",
+    "path": "tickets/open/0270-skills-quick-view-in-the-plinth-rail.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 10
+    }
   }
 ]
