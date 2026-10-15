@@ -2099,13 +2099,14 @@
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [
       53,
-      65
+      65,
+      187
     ],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0086-the-plinth-over-the-map.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -4387,6 +4388,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-09T16:54:51Z",
+    "started": "2026-10-15T15:50:47Z",
     "path": "tickets/open/0187-design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s.md",
     "ready": true,
     "acceptance": {
@@ -5756,6 +5758,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-08T15:18:40Z",
+    "started": "2026-10-15T15:50:47Z",
     "path": "tickets/open/0249-skill-and-chronicle-sheets-dismiss-on-swipe-down.md",
     "ready": true,
     "acceptance": {
