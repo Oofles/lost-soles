@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { rulesForSkills } from "@/lib/log/optimistic"
 import { browserChronicleReturn } from "@/lib/chronicle/return"
-import { chronicleRow, exerciseLabels, isUnseen } from "@/lib/chronicle/rows"
+import { chronicleRow, exerciseLabels, latestTraced, unseenIds } from "@/lib/chronicle/rows"
 import { fetchChroniclePage } from "@/lib/chronicle/transport"
 import { rowWindow, shouldLoadMore } from "@/lib/chronicle/window"
 import { isSeen } from "@/lib/run-moment/seen"
@@ -158,7 +158,8 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
 
   // `0084`'s per-device flag, asked once per loaded traced row.
   useEffect(() => {
-    const ask = items.filter((r) => r.traced && !seen.has(r.activityId))
+    const latest = latestTraced(items)
+    const ask = latest && !seen.has(latest.activityId) ? [latest] : []
     if (ask.length === 0) return
     let live = true
     void Promise.all(ask.map(async (r) => [r.activityId, await isSeen(r.activityId)] as const)).then((answers) => {
@@ -176,7 +177,7 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
 
   const label = useMemo(() => exerciseLabels(rulesForSkills([])), [])
   const rows = useMemo(() => items.slice(start, end).map((r) => chronicleRow(r, label)), [items, start, end, label])
-  const unseen = useMemo(() => new Set(items.filter((r) => isUnseen(r, seen.get(r.activityId))).map((r) => r.activityId)), [items, seen])
+  const unseen = useMemo(() => unseenIds(items, seen), [items, seen])
 
   return (
     <section

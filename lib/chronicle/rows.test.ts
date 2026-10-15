@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { rulesForSkills } from "@/lib/log/optimistic"
 import type { RunListItem } from "@/lib/runs/wire"
 
-import { chronicleRow, exerciseLabels, isUnseen, workoutSummary } from "./rows"
+import { chronicleRow, exerciseLabels, unseenIds, workoutSummary } from "./rows"
 
 /** Ticket `0088` — a Chronicle row, as words. */
 
@@ -74,11 +74,24 @@ describe("workoutSummary", () => {
   })
 })
 
-describe("isUnseen — 0084's per-device flag", () => {
-  it("marks a traced run this device has not seen, and nothing else", () => {
-    expect(isUnseen({ traced: true }, false)).toBe(true)
-    expect(isUnseen({ traced: true }, true)).toBe(false)
-    expect(isUnseen({ traced: true }, undefined)).toBe(false) // not yet asked: no flash of gold
-    expect(isUnseen({ traced: false }, false)).toBe(false) // a logged workout: you entered it
+describe("unseenIds — at most the latest traced run, like the plinth's line", () => {
+  const run = (id: string) => ({ activityId: id, traced: true })
+  const logged = (id: string) => ({ activityId: id, traced: false })
+
+  it("marks the latest traced run when this device has not seen it", () => {
+    expect(unseenIds([run("a"), run("b")], new Map([["a", false]]))).toEqual(new Set(["a"]))
+  })
+
+  it("never marks an older run, so a backfill is not a gold wall", () => {
+    const seen = new Map([["a", true], ["b", false], ["c", false]])
+    expect(unseenIds([run("a"), run("b"), run("c")], seen)).toEqual(new Set())
+  })
+
+  it("skips a newer logged workout to find the latest run; the workout is never marked", () => {
+    expect(unseenIds([logged("w"), run("a")], new Map([["w", false], ["a", false]]))).toEqual(new Set(["a"]))
+  })
+
+  it("marks nothing until the flag has been read — no flash of gold", () => {
+    expect(unseenIds([run("a")], new Map())).toEqual(new Set())
   })
 })

@@ -68,10 +68,21 @@ export function chronicleRow(item: RunListItem, label: ExerciseLabel): Chronicle
 }
 
 /**
- * WHICH ROWS CARRY THE GOLD MARK. `0084`'s per-device `seen` flag, read as the ticket states it:
- * a traced run this device has not seen. A logged workout is never "unseen" — the user entered it —
- * and an untraced activity has no reveal to offer. One predicate, so the rule has one home.
+ * WHICH ROW CARRIES THE GOLD MARK. At most one: the latest traced run, when `0084`'s per-device
+ * `seen` flag says this device has not seen it — the same run, by the same rule, as the plinth's
+ * `1 new run` line (`0087`). Operator, wave 1 of `13`: marking every unseen run turned the whole
+ * list gold after a backfill, which §3.3 rules out ("unseen-flagged off"). A logged workout is
+ * never "unseen" — the user entered it — and an untraced activity has no reveal to offer.
+ * `items` are newest first, as every Chronicle page is. One function, so the rule has one home.
  */
-export function isUnseen(item: Pick<RunListItem, "traced">, seen: boolean | undefined): boolean {
-  return item.traced && seen === false
+export function latestTraced<T extends Pick<RunListItem, "traced">>(items: readonly T[]): T | undefined {
+  return items.find((r) => r.traced)
+}
+
+export function unseenIds(
+  items: readonly Pick<RunListItem, "traced" | "activityId">[],
+  seen: ReadonlyMap<string, boolean>,
+): Set<string> {
+  const latest = latestTraced(items)
+  return latest && seen.get(latest.activityId) === false ? new Set([latest.activityId]) : new Set()
 }
