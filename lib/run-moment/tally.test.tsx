@@ -143,12 +143,26 @@ describe("levels, bars and totals (criteria 5, 10)", () => {
     expect(h).not.toMatch(/visibility:\s*visible/)
   })
 
-  it("without a `before`, rows still show what the run earned — no bars, no totals", () => {
+  it("without a `before`, rows still show what the run earned — no bars, no transition, no Total Level", () => {
     const t = tallyFor(RUN, null, RULES)
     expect(t.lines.every((l) => l.standing === null)).toBe(true)
     expect(t.total).toBeNull()
     expect(text(html(RUN, null))).toContain("+576")
-    expect(text(html(RUN, null))).not.toContain("Total XP")
+    expect(text(html(RUN, null))).not.toContain("→")
+    expect(text(html(RUN, null))).not.toContain("Total Level")
+  })
+
+  it("0265: without a `before`, Total XP is still on screen as the run's own gain (§3.5, D-310)", () => {
+    const t = tallyFor(RUN, null, RULES)
+    const h = text(html(RUN, null))
+    expect(h).toContain(`Total XP +${t.runXp.toLocaleString("en-US")}`)
+    expect(h.match(/Total XP/g)).toHaveLength(1)
+    expect(h).not.toMatch(/(^|[^\d,.])0([^\d,.]|$)/)
+  })
+
+  it("0265: with a `before`, the transition line is unchanged", () => {
+    const h = text(html([row("constitution", "constitution_share", 500)], { constitution: 1000 }))
+    expect(h).toContain("Total XP 1,000 → 1,500 (+500)")
   })
 })
 
@@ -158,7 +172,7 @@ describe("the reason breakdown (criterion 8)", () => {
     const h = renderToStaticMarkup(
       <TallyView summary={SUMMARY} tally={tally} skillName={(id) => names[id] ?? id} expanded={new Set(["wayfaring"])} />,
     )
-    expect(text(h)).toContain("318 new ground · 196 familiar ground · 62 re-armed ground")
+    expect(text(h)).toContain("318 new ground · 196 familiar ground · 62 remembered ground")
     expect(h).toContain('aria-expanded="true"')
     expect(h.match(/data-breakdown/g)).toHaveLength(1)
   })
@@ -208,3 +222,15 @@ describe("a run with no new ground says what it added, in distance (0085)", () =
   })
 })
 
+
+describe("the expand hint (0267, 06 §3.2)", () => {
+  it("says a row expands — click, on the desktop — muted, 12px, aria-hidden", () => {
+    const h = html(RUN, {})
+    expect(text(h)).toContain("click a row for ⌄")
+    expect(h).toMatch(/<p aria-hidden="true" data-hint="expand" style="[^"]*font-size:\.75rem[^"]*color:var\(--text-muted\)/)
+  })
+
+  it("is absent when there is no row to expand", () => {
+    expect(html([], {})).not.toContain("data-hint")
+  })
+})

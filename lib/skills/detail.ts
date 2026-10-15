@@ -381,13 +381,14 @@ export function skillDetail(
   }
 }
 
-/** Ledger reasons in words, for a `RECENT` row's breakdown. The closed vocabulary of `02` §4.2. */
+/** Ledger reasons in words, for a `RECENT` row's breakdown. The closed vocabulary of `02` §4.2.
+ * Re-armed ground is "remembered" on screen (D-309, `0266`); `rearmed_*` stays the reason id. */
 const REASON_WORDS: Record<string, string> = {
   new_ground: "new ground",
-  rearmed_ground: "re-armed ground",
+  rearmed_ground: "remembered ground",
   recent_ground: "familiar ground",
   cells_new: "new cells",
-  cells_rearmed: "re-armed cells",
+  cells_rearmed: "remembered cells",
   constitution_share: "share",
 }
 

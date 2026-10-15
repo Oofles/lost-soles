@@ -1,14 +1,19 @@
+import { readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
+import { LEDGER_REASONS } from "@/src/scoring/ledger"
 import { cumulativeXp } from "@/src/scoring/levels"
 
 import {
   lowPrecision,
   nameMilestones,
   placeMilestones,
+  reasonWords,
   RECENT_ROWS,
   rulesSentence,
   skillDetail,
@@ -306,5 +311,35 @@ describe("ON THE MAP, and the unknown", () => {
       expect(d, s.id).not.toBeNull()
       expect(d!.name).toBe(s.name)
     }
+  })
+})
+
+describe("D-309 — re-armed ground is \"remembered\" on screen (0266)", () => {
+  it("every ledger reason's words avoid the mechanism's name", () => {
+    for (const reason of LEDGER_REASONS) expect(reasonWords(reason)).not.toMatch(/re-?armed/i)
+    expect(reasonWords("rearmed_ground")).toBe("remembered ground")
+    expect(reasonWords("cells_rearmed")).toBe("remembered cells")
+  })
+
+  it("no string literal or JSX text in app/, components/ or lib/ says \"re-armed\"", () => {
+    const root = join(__dirname, "../..")
+    const offenders: string[] = []
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) {
+          readFileSync(p, "utf8")
+            .split("\n")
+            .forEach((line, i) => {
+              if (/^\s*(\/\/|\*|\/\*)/.test(line)) return
+              // A quoted literal, a template, or JSX text between tags.
+              if (/(["'`][^"'`]*re-armed[^"'`]*["'`])|(>[^<{]*re-armed[^<{]*<)/i.test(line)) offenders.push(`${p}:${i + 1}`)
+            })
+        }
+      }
+    }
+    for (const d of ["app", "components", "lib"]) walk(join(root, d))
+    expect(offenders).toEqual([])
   })
 })

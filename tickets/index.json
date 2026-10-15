@@ -6111,6 +6111,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-15T13:20:51Z",
+    "started": "2026-10-15T13:31:03Z",
     "path": "tickets/open/0265-run-ledger-xp-floor-line.md",
     "ready": true,
     "acceptance": {
@@ -6131,6 +6132,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-15T13:20:51Z",
+    "started": "2026-10-15T13:31:03Z",
     "path": "tickets/open/0266-say-remembered-not-re-armed.md",
     "ready": true,
     "acceptance": {
@@ -6151,6 +6153,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-15T13:20:51Z",
+    "started": "2026-10-15T13:31:03Z",
     "path": "tickets/open/0267-tally-tap-a-row-hint.md",
     "ready": true,
     "acceptance": {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 
 import { rulesForSkills, type CachedSkill } from "@/lib/log/optimistic"
 import { fetchSkills } from "@/lib/log/transport"
@@ -65,7 +65,9 @@ export function tallyFooters(tally: Tally, summary: FooterSummary): Footer[] {
   if (summary.newCellCount > 0 || summary.rearmedCellCount > 0) out.push("cells")
   else if (runDistance(summary.distanceM ?? null)) out.push("record")
   if (tally.newKm !== null) out.push("km")
-  if (tally.total) out.push("total")
+  // §3.5: Total XP is always on screen. Without a `before` (D-296's read failed) it is the run's
+  // own gain alone — `Total XP +442` — never dropped (`0265`, D-310).
+  if (tally.total || tally.runXp > 0) out.push("total")
   if (tally.totalLevel !== null) out.push("level")
   return out
 }
@@ -118,6 +120,13 @@ export function TallyView({
       case "km":
         return <p key={kind} data-line="km" style={{ ...style, margin: ".25rem 0 0", color: "var(--text-secondary)" }}>{kmText(tally!.newKm!)} never run before</p>
       case "total": {
+        if (!tally!.total) {
+          return (
+            <p key={kind} data-line="total" style={{ ...style, margin: "1rem 0 0", color: "var(--text-primary)" }}>
+              Total XP <strong style={num}>+{xpNumber(countAt(tally!.runXp, progress(i)))}</strong>
+            </p>
+          )
+        }
         const { before, after } = tally!.total!
         const shown = before + countAt(after - before, progress(i))
         return (
@@ -191,9 +200,32 @@ export function TallyView({
             )
           })}
           {footers.map((k, j) => footer(k, tally.lines.length + j))}
+          {tally.lines.some((l) => l.parts.length > 0) ? <ExpandHint /> : null}
         </>
       ) : null}
     </section>
+  )
+}
+
+const COARSE = "(pointer: coarse)"
+const subscribeCoarse = (cb: () => void) => {
+  const mq = window.matchMedia?.(COARSE)
+  mq?.addEventListener("change", cb)
+  return () => mq?.removeEventListener("change", cb)
+}
+
+/**
+ * `0267`. §3.2's mockup ends the tally with `[ tap a row for ⌄ ]`: without it the reason breakdown —
+ * what makes the numbers accountable — is undiscoverable (D-051). "click" on the desktop, the
+ * viewing surface (D-227); "tap" only on a coarse pointer. Static, so nothing reflows while the
+ * counts run, and `aria-hidden`: the row buttons already say they expand.
+ */
+function ExpandHint() {
+  const coarse = useSyncExternalStore(subscribeCoarse, () => window.matchMedia?.(COARSE).matches ?? false, () => false)
+  return (
+    <p aria-hidden="true" data-hint="expand" style={{ margin: ".75rem 0 0", textAlign: "right", fontSize: ".75rem", color: "var(--text-muted)" }}>
+      {coarse ? "tap" : "click"} a row for ⌄
+    </p>
   )
 }
 

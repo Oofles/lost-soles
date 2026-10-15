@@ -4907,3 +4907,9 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   say "remembered" throughout. The design's word wins, because it is the player's word: re-arming
   is mechanism, being remembered is what it means (D-051). `re-armed`/`rearmed_ground`/
   `cells_rearmed` stay as ledger reason ids and in code. The copy change is ticket `0266`.
+- **D-310** **A failed "before" read still shows Total XP, as the run's own gain.** *(Operator,
+  2026-10-15, at the `12` audit; ticket `0265`.)* Narrows **D-296**'s "a failed read costs the bars
+  and the totals" to the bars, the transition and Total Level. `06` §3.5 says Total XP is always on
+  screen, and the run's own `runXp` comes from its ledger rows, not from "before". So the footer
+  reads `Total XP +442`, in the transition line's slot and style, with no arrow and no error
+  wording. Total Level stays omitted: without "before" it has nothing honest to show.
