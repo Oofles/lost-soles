@@ -6357,7 +6357,7 @@
     "title": "Signing in on / leaves the plinth without fog data until a reload",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [],
@@ -6365,8 +6365,9 @@
     "source": "agent",
     "created": "2026-10-15T19:20:57Z",
     "started": "2026-10-15T20:13:38Z",
-    "path": "tickets/open/0276-sign-in-without-reload-leaves-plinth-empty.md",
-    "ready": true,
+    "closed": "2026-10-15T20:34:25Z",
+    "path": "tickets/closed/0276-sign-in-without-reload-leaves-plinth-empty.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

@@ -4,7 +4,7 @@ slug: sign-in-without-reload-leaves-plinth-empty
 title: Signing in on / leaves the plinth without fog data until a reload
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T19:20:57Z
 started: 2026-10-15T20:13:38Z
+closed: 2026-10-15T20:34:25Z
 ---
 
 ## Description
@@ -53,8 +54,18 @@ not re-mount the map.
 
 ## Operator validation
 
-None expected: the deployed smoke harness (`tmp/wave13-1/harness.ts` pattern) can sign in without a
-reload and read the plinth.
+**Agent smoke test, deployed `2ba691a` (Amplify job 405), 2026-10-15.** Headless Chromium at
+1280×800 against `soles.devaultsecurity.com`, two throwaway Cognito users (created with
+`AdminCreateUser`, deleted afterwards). User A: load `/` signed out, sign in through the
+Authenticator, no reload. Within 6.4 s, including the SRP sign-in, the plinth read `0 cells` and
+`Connect Strava to begin`. Zero document loads, five RSC requests after `signedIn` (the refresh). The
+screenshot shows the rail and the map with no fog layer (D-319), as expected for a user with nothing
+imported. Then sign out through `/settings` (a full navigation, by design) and sign in as user B with
+no reload: `0 cells`, the connect line, zero document loads. The single-MapLibre-build check in the
+harness matched no requests and proves nothing, so it is not claimed here. That property rests on
+D-331's hold and the unit tests. Sign-out *without* a navigation is not reachable from the UI and is
+covered by `components/auth-refresh.test.ts`. No perceptual check: nothing here is a judgement of
+look.
 
 ## Resolution
 
