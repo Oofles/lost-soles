@@ -85,3 +85,45 @@ describe("the last-run line", () => {
     expect(lastRunLine(run())!.text).not.toMatch(/ago|since|days?\b/i)
   })
 })
+
+describe("the home screen's states (0087, `06` §2.4)", () => {
+  const SOURCES = (state: "connected" | "not-connected" | "reconnect") => [{ sourceId: "src", name: "Example", state }]
+
+  it("an unseen run reads `1 new run — open it`, opens the sequence with autoplay, and pulses as told", () => {
+    const model = plinthModel({ skills: [], cells: 10, latest: run(), seen: false, pulse: true })
+    expect(model.lastRun).toEqual({ href: "/run/a-9?play=1", text: "1 new run — open it", fresh: true, pulse: true })
+  })
+
+  it("while the seen flag is being read the row is empty, never one line swapped for the other", () => {
+    expect(plinthModel({ skills: [], cells: 10, latest: run(), seen: null }).lastRun).toBeNull()
+  })
+
+  it("a seen run is the ordinary last-run line, which opens the end state (no autoplay)", () => {
+    expect(plinthModel({ skills: [], cells: 10, latest: run(), seen: true }).lastRun).toEqual(lastRunLine(run()))
+  })
+
+  it("nothing ever imported and nothing connected: `Connect <source> to begin` → /settings", () => {
+    const model = plinthModel({ skills: [], cells: 0, latest: EMPTY_COLLECTION, sources: SOURCES("not-connected") })
+    expect(model.connect).toEqual({ href: "/settings", text: "Connect Example to begin" })
+    expect(model.lastRun).toBeNull()
+  })
+
+  it("never invites a connection that exists, nor one while territory is unknown or present", () => {
+    expect(plinthModel({ skills: [], cells: 0, latest: EMPTY_COLLECTION, sources: SOURCES("connected") }).connect).toBeNull()
+    expect(plinthModel({ skills: [], cells: null, latest: EMPTY_COLLECTION, sources: SOURCES("not-connected") }).connect).toBeNull()
+    expect(plinthModel({ skills: [], cells: 40, latest: EMPTY_COLLECTION, sources: SOURCES("not-connected") }).connect).toBeNull()
+    expect(plinthModel({ skills: [], cells: 0, latest: run(), sources: SOURCES("not-connected") }).connect).toBeNull()
+  })
+
+  it("a broken token — and only that — is the one reconnect line, from the server or from a Sync press", () => {
+    expect(plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("reconnect") }).reconnect).toEqual({
+      href: "/settings",
+      text: "Example needs reconnecting",
+    })
+    expect(
+      plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("connected"), reconnectIds: ["src"] }).reconnect,
+    ).toEqual({ href: "/settings", text: "Example needs reconnecting" })
+    expect(plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("connected") }).reconnect).toBeNull()
+    expect(plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("not-connected") }).reconnect).toBeNull()
+  })
+})

@@ -168,8 +168,26 @@ export async function latestRun(
    * object this account's session reads. `routeTraceKey(userId, row.id)` can only ever address
    * the caller's own prefix, which is the property `08` §5.3 is actually asking for.
    */
-  const bytes = await getObject(routeTraceKey(userId, row.id), deps)
+  /**
+   * `0087`. THE RUN'S NEW CELLS, read beside the trace exactly as `runById` reads them (`0251`,
+   * D-294), so home can hold an UNSEEN run's discoveries back: `/` shows territory as of before the
+   * run, and the reveal belongs to `/run/:id` (`06` §2.4). One more GET on the same rebuilt key
+   * discipline. An absent or unreadable object is "hide nothing" — never a reason to lose the line.
+   */
+  const classesKey = objectKeys.runClasses(userId, row.id)
+  const [bytes, classes] = await Promise.all([
+    getObject(routeTraceKey(userId, row.id), deps),
+    Promise.resolve()
+      .then(() => getObject(classesKey, deps))
+      .catch(() => undefined),
+  ])
   if (bytes === undefined) return EMPTY_COLLECTION
+  let newCells: string[] | null = null
+  try {
+    if (classes !== undefined) newCells = parseRunClasses(classes, classesKey).new
+  } catch {
+    newCells = null
+  }
 
   return {
     type: "FeatureCollection",
@@ -185,6 +203,7 @@ export async function latestRun(
           startedAtLocal: typeof row.startedAtLocal === "string" ? row.startedAtLocal : null,
           distanceM: typeof row.distanceM === "number" ? row.distanceM : null,
           newCellCount: typeof row.newCellCount === "number" ? row.newCellCount : null,
+          newCells,
         },
       },
     ],

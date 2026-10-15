@@ -43,6 +43,12 @@ export interface RunFeature {
     startedAtLocal?: string | null
     distanceM?: number | null
     newCellCount?: number | null
+    /**
+     * `0087`. This run's NEW cell ids (`0251`'s server verdict, D-294), so `/` can hold an unseen
+     * run's discoveries back until its sequence plays (`06` §2.4, "territory as of before the
+     * run"). `null` for a run never classified: hide nothing.
+     */
+    newCells?: string[] | null
   }
 }
 

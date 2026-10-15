@@ -14,6 +14,7 @@
  */
 
 import { rulesForSkills, type CachedSkill } from "@/lib/log/optimistic"
+import type { SourceConnection } from "@/lib/plinth/connections"
 import { runDate, runDistance } from "@/lib/runs/format"
 import { runHref, type RunFeatureCollection } from "@/lib/runs/wire"
 import { skillsPanel } from "@/lib/skills/panel"
@@ -23,6 +24,20 @@ const fmt = new Intl.NumberFormat("en-US")
 
 export interface LastRunLine {
   href: string
+  text: string
+  /**
+   * `0087`. The run has not been seen on this device (`lib/run-moment/seen.ts`): the line is
+   * `1 new run — open it`, with the gold treatment (a rule, never gold text — D-148), and its link
+   * asks `/run/:id` to auto-play (§3.1).
+   */
+  fresh?: true
+  /** `0087`. Pulse ONCE. Decided by the caller, once per run per page load, never per render. */
+  pulse?: boolean
+}
+
+/** `0087`. A quiet one-line link to `/settings`: the connect invitation, or the reconnect line. */
+export interface SettingsLine {
+  href: "/settings"
   text: string
 }
 
@@ -35,6 +50,46 @@ export interface PlinthModel {
   /** Lifetime cells revealed, already formatted (`12,480`); `null` until the explored set loads. */
   cells: string | null
   lastRun: LastRunLine | null
+  /**
+   * `0087`. `Connect <source> to begin` — the only call to action in the app (§2.4) — when nothing
+   * has ever been imported and no source is connected. Takes the last-run row's place; never both.
+   */
+  connect: SettingsLine | null
+  /**
+   * `0087`. `<source> needs reconnecting` — a genuinely broken token, the ONLY failure `/` ever
+   * shows (§2.3). One ink line, never red, never a badge, never a modal.
+   */
+  reconnect: SettingsLine | null
+}
+
+/** `0087`. §2.4's wording on the desktop (D-227: there is nothing to tap). */
+export const FRESH_RUN_TEXT = "1 new run — open it"
+
+/** `0087`. The unseen latest run's line: it opens `/run/:id` and asks the sequence to play (§3.1). */
+export function freshRunLine(latest: RunFeatureCollection, pulse: boolean): LastRunLine | null {
+  const run = latest.features[0]?.properties
+  if (!run) return null
+  return { href: runHref(run.activityId, { play: true }), text: FRESH_RUN_TEXT, fresh: true, pulse }
+}
+
+/**
+ * `0087`. The source lines. `reconnectIds` are sources a Sync press just found broken — the server
+ * has already marked them `NEEDS_REAUTH`, so the next load reads the same answer from `sources`.
+ */
+function sourceLines(
+  sources: readonly SourceConnection[],
+  reconnectIds: readonly string[],
+  nothingImported: boolean,
+): { connect: SettingsLine | null; reconnect: SettingsLine | null } {
+  const broken = sources.find((s) => s.state === "reconnect" || reconnectIds.includes(s.sourceId))
+  const connect =
+    nothingImported && sources.length > 0 && sources.every((s) => s.state === "not-connected")
+      ? { href: "/settings" as const, text: `Connect ${sources[0]!.name} to begin` }
+      : null
+  return {
+    connect,
+    reconnect: broken ? { href: "/settings", text: `${broken.name} needs reconnecting` } : null,
+  }
 }
 
 /** `next: 300`, or `of <ceiling>` once the ceiling is reached — the `/skills` header's wording. */
@@ -63,13 +118,30 @@ export function plinthModel(input: {
   skills: readonly CachedSkill[] | undefined
   cells: number | null
   latest: RunFeatureCollection
+  /**
+   * `0087`. Whether the latest run has been seen on this device. `null` while the flag is being
+   * read — the row stays empty (it keeps its height) rather than showing one line and swapping to
+   * the other. Omitted: treated as seen (`0086`'s callers).
+   */
+  seen?: boolean | null
+  /** `0087`. Whether a fresh line pulses. See `LastRunLine.pulse`. */
+  pulse?: boolean
+  /** `0087`. From the server (`lib/plinth/connections.ts`); absent for a signed-out page. */
+  sources?: readonly SourceConnection[]
+  /** `0087`. Sources the last Sync press found broken. */
+  reconnectIds?: readonly string[]
 }): PlinthModel {
   const panel = input.skills ? skillsPanel(rulesForSkills(input.skills), input.skills) : null
+  const seen = input.seen === undefined ? true : input.seen
+  const lastRun =
+    seen === null ? null : seen ? lastRunLine(input.latest) : freshRunLine(input.latest, input.pulse ?? false)
+  const nothingImported = input.latest.features.length === 0 && input.cells === 0
   return {
     totalLevel: panel?.totalLevel ?? null,
     rung: panel?.rung ?? null,
     target: panel ? milestoneTarget(panel.rung, panel.ceiling) : null,
     cells: input.cells === null ? null : fmt.format(input.cells),
-    lastRun: lastRunLine(input.latest),
+    lastRun,
+    ...sourceLines(input.sources ?? [], input.reconnectIds ?? [], nothingImported),
   }
 }

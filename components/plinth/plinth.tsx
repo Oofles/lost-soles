@@ -53,6 +53,18 @@ export const PLINTH_CSS =
   " display: flex; align-items: center; justify-content: center; box-sizing: border-box;" +
   " background: var(--surface-raised); border: 1px solid var(--line); border-radius: 4px;" +
   " color: var(--text-primary); text-decoration: none; font-size: 20px; line-height: 1; }" +
+  // `0087`. An unseen run: a gold RULE down the line's left edge (never gold text, D-148) and one
+  // pulse of a gold ring that closes in and is gone — `1` iteration, and the class is set once per
+  // run per page load (`home-screen.tsx`), so a re-render can never restart it. Reduced motion: none.
+  " .plinth-fresh { box-shadow: inset 3px 0 0 var(--accent); }" +
+  " .plinth-pulse { animation: plinth-pulse 1200ms ease-out 1; }" +
+  " @keyframes plinth-pulse { from { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 4px var(--accent); }" +
+  " to { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 var(--accent); } }" +
+  " @media (prefers-reduced-motion: reduce) { .plinth-pulse { animation: none; } }" +
+  // `0087`. The settings lines — connect, reconnect — are ink, quiet, and underlined in the rule
+  // colour. Nothing about them is red, and nothing about them moves.
+  " .plinth-quiet { color: var(--text-secondary); text-decoration-line: underline;" +
+  " text-decoration-color: var(--line); text-underline-offset: 3px; }" +
   " @media (min-width: 1024px) {" +
   " .home-pane { left: 24rem; }" +
   " .plinth { top: 0; bottom: 0; left: 0; right: auto; width: 24rem; max-height: none;" +
@@ -73,7 +85,14 @@ const label: CSSProperties = {
   color: "var(--text-secondary)",
 }
 
-export function Plinth({ model }: { model: PlinthModel }) {
+export function Plinth({
+  model,
+  onReconnect,
+}: {
+  model: PlinthModel
+  /** `0087`. A Sync press that found a broken token; `HomeScreen` turns it into `model.reconnect`. */
+  onReconnect?: (sourceIds: string[]) => void
+}) {
   return (
     <aside className="plinth" aria-label="Plinth" data-plinth="">
       {/* Row 4 — the two glance numbers, on one baseline. Not links. */}
@@ -101,15 +120,20 @@ export function Plinth({ model }: { model: PlinthModel }) {
       </div>
 
       {/*
-        Row 7 — the last run. The whole line is the hit area. Its other states (a new run waiting,
-        reconnect, nothing ever imported) are `0087`'s; the row keeps its height when it is empty so
-        the buttons below never move.
+        Row 7 — the last run. The whole line is the hit area. `0087`: an unseen run reads
+        `1 new run — open it` with a gold rule and opens the sequence; with nothing ever imported
+        and nothing connected the row is the one invitation to connect. The row keeps its height
+        when it is empty so the buttons below never move.
       */}
       <div style={{ minHeight: 32, marginTop: 12 }}>
         {model.lastRun ? (
           <Link
             href={model.lastRun.href}
-            className="plinth-last"
+            className={
+              "plinth-last" +
+              (model.lastRun.fresh ? " plinth-fresh" : "") +
+              (model.lastRun.fresh && model.lastRun.pulse ? " plinth-pulse" : "")
+            }
             style={{
               display: "flex",
               alignItems: "center",
@@ -122,12 +146,30 @@ export function Plinth({ model }: { model: PlinthModel }) {
               textDecoration: "none",
               font: "600 17px/1.35 var(--font-sans)",
             }}
-            data-last-run=""
+            data-last-run={model.lastRun.fresh ? "fresh" : ""}
           >
-            <span style={tabular}>{model.lastRun.text}</span>
+            <span style={{ ...tabular, paddingLeft: model.lastRun.fresh ? 8 : 0 }}>{model.lastRun.text}</span>
             <span aria-hidden="true" style={{ color: "var(--text-secondary)" }}>
               ›
             </span>
+          </Link>
+        ) : model.connect ? (
+          <Link
+            href={model.connect.href}
+            className="plinth-last"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              minHeight: 32,
+              padding: "0 4px",
+              borderRadius: 4,
+              color: "var(--text-primary)",
+              textDecoration: "none",
+              font: "500 15px/1.35 var(--font-sans)",
+            }}
+            data-connect=""
+          >
+            {model.connect.text}
           </Link>
         ) : null}
       </div>
@@ -146,7 +188,19 @@ export function Plinth({ model }: { model: PlinthModel }) {
       </nav>
 
       {/* Interim (D-313): manual ingest until capability 14. A caption line, never a fourth button. */}
-      <SyncButton />
+      <SyncButton onReconnect={onReconnect} />
+
+      {/*
+        `0087`, §2.3: THE ONLY FAILURE `/` EVER SURFACES — a genuinely broken token. One ink caption
+        line under the Sync line, linking to `/settings`. You should have to look for it.
+      */}
+      {model.reconnect ? (
+        <p style={{ margin: "4px 0 0", font: "400 12px/1.35 var(--font-sans)" }}>
+          <Link href={model.reconnect.href} className="plinth-quiet" data-reconnect="">
+            {model.reconnect.text}
+          </Link>
+        </p>
+      ) : null}
     </aside>
   )
 }

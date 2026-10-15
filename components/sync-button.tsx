@@ -1,8 +1,9 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
 
 import { syncNowAction, type SyncSummary } from "@/app/sync-action"
+import { plinthSyncResult } from "@/lib/plinth/sync-result"
 
 /**
  * THE ONE TAP. Ticket 0043 criterion 6, `09-roadmap.md` §4.5.
@@ -14,7 +15,14 @@ import { syncNowAction, type SyncSummary } from "@/app/sync-action"
  *
  * DELIBERATELY QUIET. No toast, no progress bar, no choreography — the post-run moment is
  * capability 12's, and since `0086` this is a caption line in the plinth (D-313) that capability
- * 14 deletes. The in-flight indication is `0087`'s.
+ * 14 deletes.
+ *
+ * `0087`, `06` §2.3–§2.4: THE IN-FLIGHT INDICATION IS THIS LINE AND NOTHING ELSE — the label reads
+ * `Syncing…` beside one caption; no overlay, nothing over the map, no input blocked but this button.
+ * AFTERWARDS IT SAYS ONLY GOOD NEWS. Activities queued is a line; "nothing new", a provider that did
+ * not answer, an old failed import — none of them is an event (D-013), so none of them is text
+ * (`lib/plinth/sync-result.ts`). A broken token is handed up through `onReconnect` and becomes the
+ * plinth's one ink reconnect line, never a sentence here.
  *
  * NO VENDOR NAME IN THIS FILE. The sentence is composed on the server from the registry's
  * `displayName`, so this component renders a string it does not interpret.
@@ -41,11 +49,28 @@ const button: React.CSSProperties = {
   cursor: "pointer",
 }
 
-export function SyncButton() {
-  const [summary, formAction, pending] = useActionState<SyncSummary | null>(
-    syncNowAction,
-    null,
-  )
+/**
+ * `0087`. A THROWN ACTION IS A FAILED SYNC, AND A FAILED SYNC SHOWS NOTHING. Uncaught, a server action
+ * that throws (the network gone mid-press, a deploy missing its queue URL) reaches the nearest error
+ * boundary — an error screen over the map for a state D-013 says is not an event. The server logs its
+ * own failures; here it is simply "nothing to say".
+ */
+async function quietSync(previous: SyncSummary | null): Promise<SyncSummary | null> {
+  try {
+    return await syncNowAction(previous)
+  } catch {
+    return null
+  }
+}
+
+export function SyncButton({ onReconnect }: { onReconnect?: (sourceIds: string[]) => void } = {}) {
+  const [summary, formAction, pending] = useActionState<SyncSummary | null>(quietSync, null)
+  const result = plinthSyncResult(summary)
+  const reconnect = result.reconnect.join("\n")
+
+  useEffect(() => {
+    if (reconnect) onReconnect?.(reconnect.split("\n"))
+  }, [reconnect, onReconnect])
 
   return (
     <form action={formAction} style={{ marginTop: 8 }}>
@@ -69,7 +94,7 @@ export function SyncButton() {
         aria-live="polite"
         style={{ color: "var(--text-secondary)", font: "400 12px/1.35 var(--font-sans)", margin: 0, minHeight: "1rem" }}
       >
-        {pending ? "Checking for new activities…" : (summary?.line ?? "")}
+        {pending ? "Checking for new activities…" : (result.line ?? "")}
       </p>
     </form>
   )

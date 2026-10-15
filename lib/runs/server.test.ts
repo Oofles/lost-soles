@@ -119,7 +119,31 @@ describe("latestRun — choosing the row", () => {
       startedAtLocal: "2026-09-09T07:00:00",
       distanceM: null,
       newCellCount: 0,
+      // `0087`: no classes object for this run, so nothing is held back on `/`.
+      newCells: null,
     })
+  })
+
+  it("carries the run's NEW cells, read beside the trace, so / can hold an unseen run back (0087)", async () => {
+    getObject.mockImplementation(async (key: string) =>
+      key.endsWith(".segments.json.gz") ? bytes(GEOMETRY) : bytes({ new: ["8b1"], rearmed: ["8b2"] }),
+    )
+    const { deps } = rig([row()])
+    const out = await latestRun("u-1", deps)
+    getObject.mockReset()
+    expect(out.features[0]!.properties.newCells).toEqual(["8b1"])
+  })
+
+  it("an unreadable classes object costs the hold, never the line (0087)", async () => {
+    getObject.mockImplementation(async (key: string) => {
+      if (key.endsWith(".segments.json.gz")) return bytes(GEOMETRY)
+      throw new Error("s3 down")
+    })
+    const { deps } = rig([row()])
+    const out = await latestRun("u-1", deps)
+    getObject.mockReset()
+    expect(out.features).toHaveLength(1)
+    expect(out.features[0]!.properties.newCells).toBeNull()
   })
 
   it("carries the plinth's last-run facts off the same row (0086)", async () => {

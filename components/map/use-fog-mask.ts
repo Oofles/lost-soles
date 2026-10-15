@@ -16,6 +16,7 @@ import { ZoomBucketStore } from "@/lib/fog/zoom-buckets"
 import { fogBeforeId } from "@/lib/map-layers"
 
 import { ExploredSet } from "@/lib/fog/explored-set"
+import { homeTerritory } from "@/lib/fog/home-territory"
 
 import { useExplored } from "./explored-provider"
 
@@ -72,6 +73,12 @@ export function useFogMask(
    * 1, the first frame would draw the run's new ground clear and the next would fog it again.
    */
   revealFrom: 0 | 1 = 1,
+  /**
+   * `0087`. HOME ONLY (`null` on `/run/:id`): the new cells of an unseen run to hold back, and the
+   * rule that a home map with no territory gets NO fog layer at all (`lib/fog/home-territory.ts`,
+   * `06` §2.4). Pass a stable identity — it is a memo dependency.
+   */
+  home: { hold: readonly string[] } | null = null,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -113,11 +120,22 @@ export function useFogMask(
    * the reveal's pre/post stores all exist. Without one, `null` keeps a fogless boot fogless.
    */
   const hasReveal = !!reveal && reveal.length > 0
-  const set = useMemo(
-    () => explored.set ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null),
-    [explored.set, hasReveal],
-  )
   const generation = explored.generation
+  /**
+   * `0087`. On home, `homeTerritory` decides: the set with an unseen run's new cells held back, or
+   * `null` — and `null` means no layer below, not an empty one. `generation` is a dependency because
+   * a held set is a COPY, and an in-place `applyDelta` must reach it; with nothing held the answer
+   * is `explored.set` itself and keeps its identity.
+   */
+  const set = useMemo(() => {
+    // Read only as a dependency — it is what notices an in-place delta; see above.
+    void generation
+    return home
+      ? homeTerritory(explored.set, home.hold)
+      : (explored.set ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null))
+  }, [explored.set, hasReveal, home, generation])
+  /** `0087`. Home with no territory draws no fog: the layer is never created (§2.4). */
+  const fogless = home !== null && set === null
   latest.current = generation
 
   /**
@@ -162,7 +180,7 @@ export function useFogMask(
   // is the two render hooks. An animator owns a rAF loop and two `window` listeners, which is a
   // React effect's job. The seam between them is one function: `timeSource`.
   useEffect(() => {
-    if (!map || disabled) {
+    if (!map || disabled || fogless) {
       setLayer(null)
       return
     }
@@ -206,7 +224,7 @@ export function useFogMask(
         // nothing left to free.
       }
     }
-  }, [map, debug, disabled, harness])
+  }, [map, debug, disabled, fogless, harness])
 
   /**
    * THE CULL, attached to the camera. One controller per (map, layer, store) triple.

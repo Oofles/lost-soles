@@ -27,6 +27,9 @@ vi.mock("@/components/map/explored-provider", () => ({
   ExploredProvider: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock("@/components/map/fog-status", () => ({ FogStatus: () => null }))
+// `0087`: the connection read is DynamoDB; stubbed so the payload test stays about the payload.
+const sourceConnections = vi.fn(async () => [{ sourceId: "src", name: "Example", state: "connected" }])
+vi.mock("@/lib/plinth/connections", () => ({ sourceConnections: () => sourceConnections() }))
 vi.mock("@/lib/runs/server", () => {
   throw new Error("/ must not read activity data on the server (0186)")
 })
@@ -66,6 +69,8 @@ describe("the signed-out payload of / (0186)", () => {
     const tree = await Home()
 
     expect(propsOf(tree, HomeScreen)).toStrictEqual({ home: null })
+    // `0087`: nothing about the account's connections is read, or sent, for a signed-out visitor.
+    expect(sourceConnections).not.toHaveBeenCalled()
     const body = payload(tree)
     expect(body).not.toContain("27.1234")
     expect(body).not.toContain("-82.5678")

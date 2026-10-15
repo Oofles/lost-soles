@@ -1,10 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { packCorridorForCollection } from "@/lib/fog/route-corridor"
 import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 import { log } from "@/lib/log"
+import { logStore } from "@/lib/log/queue"
+import { currentUid } from "@/lib/log/transport"
+import { loadLatestRun } from "@/lib/plinth/latest-run"
 import { documentRoutePalette, setRunGeometry, type LayerHost } from "@/lib/map-layers"
 import { fetchLatestRun } from "@/lib/runs/client"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
@@ -39,30 +42,44 @@ export function useLatestRun(
    * checked. When given, there is no fetch: the line drawn is that run, not the latest one.
    */
   fixed?: RunFeatureCollection,
+  /**
+   * `0087`. `false` while home holds an UNSEEN run back (`06` §2.4): the corridor would clear the
+   * run's ground on `/` ahead of its sequence, which is exactly what the hold forbids. The line
+   * itself is still drawn — it is a route, not territory.
+   */
+  corridor = true,
 ): RunFeatureCollection {
   const { generation } = useExplored()
   const [latest, setRuns] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
   const runs = fixed ?? latest
   const fetchLatest = fixed === undefined
+  /** `0087`. The cache is read on the FIRST ask only; a refetch already has something newer on screen. */
+  const askedOnce = useRef(false)
 
   useEffect(() => {
     if (!fetchLatest) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const collection = await fetchLatestRun()
-        if (!cancelled) setRuns(collection)
-      } catch (error) {
+    const fromCache = !askedOnce.current
+    askedOnce.current = true
+    /**
+     * `0087`: CACHE FIRST, then `fetchLatestRun` (`lib/plinth/latest-run.ts`), so a cold start or
+     * an offline open has the line, the first camera and `⌖` before any request — and they still
+     * read one value (D-316).
+     */
+    return loadLatestRun(
+      {
+        currentUid,
+        store: logStore(),
+        fetchLatest: () => fetchLatestRun(),
         // A missing line is a degraded map, not a broken one, so this never throws upward. It is
         // logged rather than swallowed because "the route stopped appearing" is otherwise a
         // symptom with no message anywhere — the exact shape of failure `0195`'s empty-collection
-        // path was written to stay distinguishable from.
-        log.error("latest run: fetch failed", error)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+        // path was written to stay distinguishable from. Offline lands here too: the console, never
+        // the screen (`06` §2.4, "no error chrome").
+        onError: (error) => log.error("latest run: fetch failed", error),
+      },
+      setRuns,
+      fromCache,
+    )
   }, [generation, fetchLatest])
 
   /**
@@ -113,13 +130,18 @@ export function useLatestRun(
    */
   useEffect(() => {
     if (!layer) return
-    const corridor = packCorridorForCollection(runs.features)
-    layer.setOptimisticRoute(corridor.count === 0 ? null : corridor)
-    if (corridor.truncated) {
-      log.info(`latest run: corridor truncated at ${corridor.count} discs`)
+    if (!corridor) {
+      layer.setOptimisticRoute(null)
+      map?.triggerRepaint()
+      return
+    }
+    const packed = packCorridorForCollection(runs.features)
+    layer.setOptimisticRoute(packed.count === 0 ? null : packed)
+    if (packed.truncated) {
+      log.info(`latest run: corridor truncated at ${packed.count} discs`)
     }
     map?.triggerRepaint()
-  }, [layer, map, runs])
+  }, [layer, map, runs, corridor])
 
   return runs
 }

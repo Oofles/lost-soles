@@ -9,8 +9,11 @@ import type { CachedSkill } from "@/lib/log/optimistic"
 import { logStore } from "@/lib/log/queue"
 import { currentUid, fetchSkills } from "@/lib/log/transport"
 import type { Camera } from "@/lib/map-camera"
+import type { SourceConnection } from "@/lib/plinth/connections"
 import { loadStanding } from "@/lib/plinth/load"
 import { plinthModel } from "@/lib/plinth/model"
+import { firstPulse, heldCells } from "@/lib/plinth/states"
+import { isSeen } from "@/lib/run-moment/seen"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
 import { fetchReplayInProgress } from "@/lib/skills/transport"
 
@@ -29,13 +32,51 @@ import { Plinth, PLINTH_CSS } from "./plinth"
  * - **The last run** — handed up by `MapShell` from the one `/api/runs/latest` fetch the first
  *   camera already uses (`0186`), so the line and the camera always name the same run.
  *
+ * `0087` adds the states (§2.4): the unseen run (its line, its pulse, and its new ground held back on
+ * the map), the connect invitation, and the one reconnect line. Every one of them is DATA into
+ * `plinthModel`, never a branch that draws chrome of its own.
+ *
  * DOM order is §2.2's focus order: the plinth's rows, then `⚙`, then the map.
  */
-export function HomeScreen({ home }: { home: Camera | null }) {
+export function HomeScreen({
+  home,
+  sources,
+}: {
+  home: Camera | null
+  /** `0087`. From the server; absent for a signed-out visitor. */
+  sources?: SourceConnection[]
+}) {
   const explored = useExplored()
   const [skills, setSkills] = useState<CachedSkill[]>()
   const [latest, setLatest] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
   const onLatestRun = useCallback((runs: RunFeatureCollection) => setLatest(runs), [])
+  const [reconnectIds, setReconnectIds] = useState<string[]>([])
+  const onReconnect = useCallback((ids: string[]) => setReconnectIds(ids), [])
+
+  /**
+   * `0087`. THE `seen` FLAG FOR THE LATEST RUN (`0084`, local and per device). `null` while it is
+   * read: the row stays empty for those few milliseconds rather than showing one line and swapping
+   * to the other. Keyed by id, so a newer run arriving mid-session is asked about afresh.
+   */
+  const latestId = latest.features[0]?.properties.activityId ?? null
+  const [seenOf, setSeenOf] = useState<{ id: string; seen: boolean } | null>(null)
+  useEffect(() => {
+    if (!latestId) return
+    let live = true
+    void isSeen(latestId).then((seen) => {
+      if (live) setSeenOf({ id: latestId, seen })
+    })
+    return () => {
+      live = false
+    }
+  }, [latestId])
+  const seen = latestId === null ? true : seenOf?.id === latestId ? seenOf.seen : null
+
+  /** `0087`. Decided once per run, so no later render can restart the pulse (`firstPulse`). */
+  const pulse = useMemo(() => (latestId && seen === false ? firstPulse(latestId) : false), [latestId, seen])
+
+  /** `0087`. The unseen run's new cells, held off the map until its sequence plays. Stable identity. */
+  const held = useMemo(() => heldCells(latest, seen), [latest, seen])
 
   useEffect(
     () =>
@@ -55,19 +96,20 @@ export function HomeScreen({ home }: { home: Camera | null }) {
     [explored.generation],
   )
 
+  const cells = explored.set ? explored.set.size : null
   const model = useMemo(
-    () => plinthModel({ skills, cells: explored.set ? explored.set.size : null, latest }),
-    [skills, explored.set, latest],
+    () => plinthModel({ skills, cells, latest, seen, pulse, sources, reconnectIds }),
+    [skills, cells, latest, seen, pulse, sources, reconnectIds],
   )
 
   return (
     <>
       <style>{PLINTH_CSS}</style>
-      <Plinth model={model} />
+      <Plinth model={model} onReconnect={onReconnect} />
       <Link href="/settings" className="home-gear" aria-label="Settings">
         <span aria-hidden="true">⚙</span>
       </Link>
-      <MapShell home={home} paneClassName="home-pane" onLatestRun={onLatestRun} />
+      <MapShell home={home} paneClassName="home-pane" onLatestRun={onLatestRun} held={held} />
     </>
   )
 }

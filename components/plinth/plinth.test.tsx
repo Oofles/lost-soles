@@ -28,6 +28,10 @@ const FULL: PlinthModel = {
   target: "next: 300",
   cells: "12,480",
   lastRun: { href: "/run/a-9", text: "Last: Thu 27 Aug · 8.40 km · 21 new" },
+  // `0087`: connect and the last run share one row, so a full model has the run; the reconnect
+  // line is filled, so every refusal below is also tested against it.
+  connect: null,
+  reconnect: { href: "/settings", text: "Example needs reconnecting" },
 }
 
 const plinth = () => renderToStaticMarkup(<Plinth model={FULL} />)
@@ -126,5 +130,69 @@ describe("chrome is opaque and gold is never text (D-148)", () => {
     // Where gold IS used: Add workout's border and the bar's fill.
     expect(PLINTH_CSS).toContain(".plinth-dest-primary { border-color: var(--accent); }")
     expect(plinth()).toContain("background:var(--progress-activity)")
+  })
+})
+
+describe("the home screen's states (0087)", () => {
+  const base: PlinthModel = { ...FULL, reconnect: null }
+  const render = (model: PlinthModel) => renderToStaticMarkup(<Plinth model={model} />)
+  const freshCss = () => PLINTH_CSS.slice(PLINTH_CSS.indexOf(".plinth-fresh"), PLINTH_CSS.indexOf(".plinth-quiet"))
+
+  it("the fresh line is a gold RULE and one pulse: class-gated, never gold text, never red", () => {
+    const html = render({ ...base, lastRun: { href: "/run/a-9?play=1", text: "1 new run — open it", fresh: true, pulse: true } })
+    const link = html.match(/<a [^>]*href="\/run\/a-9\?play=1"[^>]*>/)![0]
+    expect(link).toContain('class="plinth-last plinth-fresh plinth-pulse"')
+    expect(text(html)).toContain("1 new run — open it")
+    const fresh = freshCss()
+    // Once: one iteration, and none at all under reduced motion.
+    expect(fresh).toMatch(/\.plinth-pulse \{ animation: plinth-pulse \d+ms ease-out 1; \}/)
+    expect(fresh).not.toMatch(/infinite|alternate/)
+    expect(fresh).toMatch(/prefers-reduced-motion: reduce\) \{ \.plinth-pulse \{ animation: none; \}/)
+    // The only colour the fresh treatment uses is gold, and only as box-shadow (a rule and a ring).
+    expect(fresh.match(/var\(--[\w-]+\)/g)!.every((v) => v === "var(--accent)")).toBe(true)
+    expect(fresh).not.toMatch(/(?<![-\w])color:/)
+  })
+
+  it("never re-pulses: once pulsed the line keeps the rule and loses only the animation class", () => {
+    const html = render({ ...base, lastRun: { href: "/run/a-9?play=1", text: "1 new run — open it", fresh: true, pulse: false } })
+    expect(html).toContain("plinth-fresh")
+    expect(html).not.toContain("plinth-pulse")
+  })
+
+  it("nothing imported: the connect invitation takes the last-run row, and is the plinth's only call to action", () => {
+    const html = render({ ...base, lastRun: null, connect: { href: "/settings", text: "Connect Example to begin" } })
+    expect(html).toMatch(/<a [^>]*href="\/settings"[^>]*>Connect Example to begin<\/a>/)
+    expect(text(html)).not.toMatch(/step|checklist|get started|welcome|first run|\d+%/i)
+  })
+
+  it("the reconnect line is one quiet ink link to /settings — no red token, badge, dot or modal", () => {
+    const html = render({ ...base, reconnect: { href: "/settings", text: "Example needs reconnecting" } })
+    expect(html).toMatch(/<a [^>]*href="\/settings"[^>]*>Example needs reconnecting<\/a>/)
+    expect(html.match(/needs reconnecting/g)).toHaveLength(1)
+    const quiet = PLINTH_CSS.slice(PLINTH_CSS.indexOf(".plinth-quiet"), PLINTH_CSS.indexOf("@media (min-width"))
+    expect(quiet).toContain("color: var(--text-secondary)")
+    for (const css of [quiet, html]) {
+      expect(css).not.toMatch(/oxblood|--danger|--error|\bred\b|#[0-9a-f]{3,6}\b/i)
+      expect(css).not.toMatch(/badge|\bdot\b|toast|role="dialog"|role="alertdialog"|<dialog/i)
+    }
+  })
+
+  it("three weeks idle is identical to yesterday, apart from the last-run line's own text (criterion 11)", async () => {
+    const { plinthModel } = await import("@/lib/plinth/model")
+    const at = (local: string) => ({
+      type: "FeatureCollection" as const,
+      features: [
+        {
+          type: "Feature" as const,
+          geometry: { type: "MultiLineString", coordinates: [] } as never,
+          properties: { activityId: "a-9", startedAt: `${local}Z`, name: null, startedAtLocal: local, distanceM: 8400, newCellCount: 21 },
+        },
+      ],
+    })
+    const skills = [{ skillId: "x", xp: 50_000 }]
+    const yesterday = render(plinthModel({ skills, cells: 12480, latest: at("2026-10-14T07:00:00"), seen: true, sources: [] }))
+    const idle = render(plinthModel({ skills, cells: 12480, latest: at("2026-09-24T07:00:00"), seen: true, sources: [] }))
+    expect(yesterday).not.toBe(idle)
+    expect(idle.replace("Last: Thu 24 Sep", "<LINE>")).toBe(yesterday.replace("Last: Wed 14 Oct", "<LINE>"))
   })
 })

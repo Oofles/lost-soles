@@ -3,6 +3,7 @@ import { FogStatus } from "@/components/map/fog-status"
 import { HomeScreen } from "@/components/plinth/home-screen"
 import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
+import { sourceConnections } from "@/lib/plinth/connections"
 
 // §2.1 — the plinth, a fixed opaque rail down the left edge at ≥1024px, and the map, full bleed
 // across the pane beside it (D-313). That is the whole home screen. §4.1 is emphatic that there is
@@ -39,9 +40,16 @@ export default async function Home() {
    */
   const uid = (await currentUserId()) ?? null
 
+  /**
+   * `0087`. Connected, not connected, or broken — the plinth's connect line and its one
+   * reconnect line (`lib/plinth/connections.ts`). Signed in only: a signed-out payload carries
+   * nothing about the account, so the prop is absent rather than empty.
+   */
+  const sources = uid ? await sourceConnections(uid) : undefined
+
   return (
     <ExploredProvider uid={uid}>
-      <HomeScreen home={home} />
+      <HomeScreen home={home} {...(sources ? { sources } : {})} />
       <FogStatus />
     </ExploredProvider>
   )

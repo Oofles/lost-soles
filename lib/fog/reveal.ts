@@ -165,6 +165,20 @@ export function revealCellsForRoute(
  */
 export function preRunCells(persisted: BigUint64Array, reveal: readonly RevealCell[]): BigUint64Array {
   const drop = new Set<bigint>(reveal.map((r) => cellToBig(r.cell)))
+  return without(persisted, drop)
+}
+
+/**
+ * `persisted` without `cells` — ascending, unique; `persisted` itself when there is nothing to drop.
+ * `0087`: home's hold on an unseen run's new ground, from the server's cell ids alone (no route).
+ */
+export function withoutCells(persisted: BigUint64Array, cells: readonly H3Index[]): BigUint64Array {
+  if (cells.length === 0) return persisted
+  const out = without(persisted, new Set<bigint>(cells.map((c) => cellToBig(c))))
+  return out.length === persisted.length ? persisted : out
+}
+
+function without(persisted: BigUint64Array, drop: ReadonlySet<bigint>): BigUint64Array {
   let kept = 0
   for (let i = 0; i < persisted.length; i++) if (!drop.has(persisted[i]!)) kept++
   const out = new BigUint64Array(kept)

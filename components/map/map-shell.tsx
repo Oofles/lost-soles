@@ -121,6 +121,8 @@ const framedShell: React.CSSProperties = {
   background: "var(--bg)",
 }
 
+const NO_CELLS: readonly string[] = []
+
 export function MapShell({
   home,
   run,
@@ -128,6 +130,7 @@ export function MapShell({
   onStage,
   paneClassName,
   onLatestRun,
+  held = null,
 }: {
   home: Camera | null
   /**
@@ -161,6 +164,12 @@ export function MapShell({
    * request for it, not two. Home only; a run's page never calls it.
    */
   onLatestRun?: (runs: RunFeatureCollection) => void
+  /**
+   * `0087`. HOME ONLY. While the latest run is UNSEEN, its new cells — held back so `/` shows
+   * territory as of before the run (`06` §2.4) — and, by being non-null at all, the corridor off
+   * too. `null`: nothing held. Pass a stable identity.
+   */
+  held?: readonly string[] | null
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -396,7 +405,12 @@ export function MapShell({
    * Ticket 0055 — pass 1. The hook owns the layer's lifetime and its data; the shell owns the map.
    * Called unconditionally and before the early return below, because hooks are.
    */
-  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0)
+  /**
+   * `0087`. Home's fog rules — hold an unseen run back, and no territory means no fog layer at all
+   * (`lib/fog/home-territory.ts`). `null` on a run's page, which plays its reveal over any set.
+   */
+  const homeFog = useMemo(() => (framed ? null : { hold: held ?? NO_CELLS }), [framed, held])
+  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog)
 
   /** `0080`. Reported after commit, so the layer handed over has had its reveal installed. */
   useEffect(() => {
@@ -420,7 +434,7 @@ export function MapShell({
    * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
    * the same thing at the effect that depends on it.
    */
-  const runs = useLatestRun(loaded, fogLayer, run)
+  const runs = useLatestRun(loaded, fogLayer, run, held === null)
 
   /** `0086`. Handed up after commit; a run's page (`framed`) has nothing to report. */
   useEffect(() => {
