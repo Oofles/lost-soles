@@ -6245,7 +6245,7 @@
     "title": "/tickets wave <cap> — run a capability's next wave end to end",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "null",
     "depends_on": [],
@@ -6253,8 +6253,9 @@
     "source": "operator",
     "created": "2026-10-15T17:55:59Z",
     "started": "2026-10-15T17:57:46Z",
-    "path": "tickets/open/0271-tickets-wave-runs-the-next-wave.md",
-    "ready": true,
+    "closed": "2026-10-15T17:57:56Z",
+    "path": "tickets/closed/0271-tickets-wave-runs-the-next-wave.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
