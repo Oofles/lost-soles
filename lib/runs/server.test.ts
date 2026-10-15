@@ -115,7 +115,18 @@ describe("latestRun — choosing the row", () => {
       activityId: "a-9",
       startedAt: "2026-09-09T11:00:00.000Z",
       name: "Morning Run",
+      // `0086`: the plinth's last-run line, as the shipped writer leaves an unscored row.
+      startedAtLocal: "2026-09-09T07:00:00",
+      distanceM: null,
+      newCellCount: 0,
     })
+  })
+
+  it("carries the plinth's last-run facts off the same row (0086)", async () => {
+    getObject.mockResolvedValueOnce(bytes(GEOMETRY))
+    const { deps } = rig([row({ distanceM: 8400, newCellCount: 21 })])
+    const out = await latestRun("u-1", deps)
+    expect(out.features[0]!.properties).toMatchObject({ startedAtLocal: "2026-09-09T07:00:00", distanceM: 8400, newCellCount: 21 })
   })
 
   /**

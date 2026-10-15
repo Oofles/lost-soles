@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
  * reaches the browser only through the session-gated `/api/runs/latest` — and this test is what
  * keeps it absent if someone later moves the read server-side "to avoid the jump".
  *
- * The client components are stubbed: they are not what is under test, and `MapShell` imports
- * MapLibre's CSS. The stubs keep their props, which is exactly the payload.
+ * The client components are stubbed: they are not what is under test, and `HomeScreen` reaches
+ * MapLibre's CSS through `MapShell`. The stubs keep their props, which is exactly the payload.
  */
 vi.mock("next/headers", () => ({ cookies: () => ({}), headers: async () => new Headers() }))
 
@@ -22,18 +22,18 @@ vi.mock("@/lib/amplify-server", () => ({
 vi.mock("@/lib/auth/owner", () => ({
   currentUserId: async () => (authenticated() ? "sub-1" : undefined),
 }))
-vi.mock("@/components/map/map-shell", () => ({ MapShell: () => null }))
+vi.mock("@/components/plinth/home-screen", () => ({ HomeScreen: () => null }))
 vi.mock("@/components/map/explored-provider", () => ({
   ExploredProvider: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock("@/components/map/fog-status", () => ({ FogStatus: () => null }))
-vi.mock("@/components/sync-button", () => ({ SyncButton: () => null }))
 vi.mock("@/lib/runs/server", () => {
   throw new Error("/ must not read activity data on the server (0186)")
 })
 
 const { default: Home } = await import("./page")
-const { MapShell } = await import("@/components/map/map-shell")
+// `0086`: the map and the plinth are one client component now; its props are the payload.
+const { HomeScreen } = await import("@/components/plinth/home-screen")
 
 const ENV = { ...process.env }
 afterEach(() => {
@@ -65,7 +65,7 @@ describe("the signed-out payload of / (0186)", () => {
 
     const tree = await Home()
 
-    expect(propsOf(tree, MapShell)).toStrictEqual({ home: null })
+    expect(propsOf(tree, HomeScreen)).toStrictEqual({ home: null })
     const body = payload(tree)
     expect(body).not.toContain("27.1234")
     expect(body).not.toContain("-82.5678")

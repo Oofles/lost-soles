@@ -12,7 +12,8 @@ import { AddWorkoutLink } from "./add-workout-link"
  * mechanical: the home screen reads nothing from the registry, so it cannot grow with it.
  */
 const ROOT = join(import.meta.dirname, "..")
-const home = readFileSync(join(ROOT, "app/page.tsx"), "utf8")
+// `0086`: the affordance lives in the plinth now, which is the whole of `/`'s chrome.
+const home = readFileSync(join(ROOT, "components/plinth/plinth.tsx"), "utf8")
 const link = readFileSync(join(ROOT, "components/add-workout-link.tsx"), "utf8")
 
 describe("the home screen's Add workout affordance (0068, D-061)", () => {
@@ -20,7 +21,7 @@ describe("the home screen's Add workout affordance (0068, D-061)", () => {
     const html = renderToStaticMarkup(<AddWorkoutLink />)
     expect(html.match(/<a /g)).toHaveLength(1)
     expect(html).toContain('href="/log"')
-    expect(html).toContain(">Add workout<")
+    expect(html).toContain("Add workout</a>")
   })
 
   it("appears on / exactly once", () => {

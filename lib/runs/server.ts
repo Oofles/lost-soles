@@ -120,6 +120,9 @@ type ActivityRow = {
   startedAt?: string
   traceRef?: string | null
   name?: string | null
+  startedAtLocal?: string
+  distanceM?: number | null
+  newCellCount?: number | null
 }
 
 /**
@@ -178,6 +181,10 @@ export async function latestRun(
           activityId: row.id,
           startedAt: row.startedAt,
           name: row.name ?? null,
+          // `0086`: the plinth's last-run line. The index projects ALL, so these cost no extra read.
+          startedAtLocal: typeof row.startedAtLocal === "string" ? row.startedAtLocal : null,
+          distanceM: typeof row.distanceM === "number" ? row.distanceM : null,
+          newCellCount: typeof row.newCellCount === "number" ? row.newCellCount : null,
         },
       },
     ],

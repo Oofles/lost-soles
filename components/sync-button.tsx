@@ -12,27 +12,32 @@ import { syncNowAction, type SyncSummary } from "@/app/sync-action"
  * nothing" and "the button is working". A sweep takes a second or two of provider
  * round-trips, which is long enough to press twice.
  *
- * DELIBERATELY UGLY, and that is `09-roadmap.md` §2.3's instruction rather than a
- * shortcut: "the token system is DEFINED but applied only to the map and one button". No
- * toast, no progress bar, no choreography — the post-run moment is capability 12, and
- * building a version of it here would be something capability 12 has to delete.
+ * DELIBERATELY QUIET. No toast, no progress bar, no choreography — the post-run moment is
+ * capability 12's, and since `0086` this is a caption line in the plinth (D-313) that capability
+ * 14 deletes. The in-flight indication is `0087`'s.
  *
  * NO VENDOR NAME IN THIS FILE. The sentence is composed on the server from the registry's
  * `displayName`, so this component renders a string it does not interpret.
  */
 
 /**
- * Tokens only — `scripts/check-design-tokens.mjs` fails the build on a raw colour
- * anywhere outside `app/tokens.css`. Matched to `/settings`'s button, because two
- * buttons that are almost the same is worse than one that is plain.
+ * Tokens only — `scripts/check-design-tokens.mjs` fails the build on a raw colour anywhere outside
+ * `app/tokens.css`.
+ *
+ * `0086`, D-313: A QUIET CAPTION-SIZE TEXT BUTTON on its own line in the plinth, below the three
+ * destinations — never a fourth destination button (`06` §2.2). Ink text with a gold underline: gold
+ * is a rule here, never the text (D-148). Capability `14` deletes this line and nothing else moves.
  */
 const button: React.CSSProperties = {
-  padding: ".6rem 1rem",
-  borderRadius: ".375rem",
-  border: "1px solid var(--accent)",
+  padding: "6px 0",
+  minHeight: 24,
+  border: 0,
   background: "transparent",
-  color: "var(--accent-text)",
-  font: "inherit",
+  color: "var(--text-secondary)",
+  font: "400 12px/1.35 var(--font-sans)",
+  textDecorationLine: "underline",
+  textDecorationColor: "var(--accent)",
+  textUnderlineOffset: 3,
   cursor: "pointer",
 }
 
@@ -43,7 +48,7 @@ export function SyncButton() {
   )
 
   return (
-    <form action={formAction} style={{ marginTop: "1.5rem" }}>
+    <form action={formAction} style={{ marginTop: 8 }}>
       {/*
         `disabled` while pending is the half that matters. Without it a second press
         starts a second sweep against the same watermark, and while that is SAFE — the
@@ -52,7 +57,7 @@ export function SyncButton() {
         watermark.
       */}
       <button type="submit" disabled={pending} style={{ ...button, opacity: pending ? 0.6 : 1 }}>
-        {pending ? "Syncing…" : "Sync"}
+        {pending ? "Syncing…" : "Sync now"}
       </button>
 
       {/*
@@ -62,7 +67,7 @@ export function SyncButton() {
       */}
       <p
         aria-live="polite"
-        style={{ color: "var(--text-secondary)", marginTop: ".75rem", minHeight: "1.25rem" }}
+        style={{ color: "var(--text-secondary)", font: "400 12px/1.35 var(--font-sans)", margin: 0, minHeight: "1rem" }}
       >
         {pending ? "Checking for new activities…" : (summary?.line ?? "")}
       </p>

@@ -126,6 +126,8 @@ export function MapShell({
   run,
   reveal: sequenceReveal = null,
   onStage,
+  paneClassName,
+  onLatestRun,
 }: {
   home: Camera | null
   /**
@@ -146,6 +148,19 @@ export function MapShell({
   reveal?: readonly RevealCell[] | null
   /** `0080`. The map and its fog layer, as they become available. See `MapStage`. */
   onStage?: (stage: MapStage) => void
+  /**
+   * `0086`. HOME'S PANE. A class that positions the map container instead of the full-window
+   * `shell` style: at ≥1024px the map is a pane beside the plinth's rail (`06` §2.1, D-313), and
+   * inline styles cannot hold a media query. MapLibre's container IS the pane, so the camera needs
+   * no offset for the rail — D-249's framing centres in what is visible.
+   */
+  paneClassName?: string
+  /**
+   * `0086`. The latest traced run, each time `useLatestRun` has one — the plinth's last-run line
+   * reads it, so the line and the first camera can never name different runs, and `/` makes one
+   * request for it, not two. Home only; a run's page never calls it.
+   */
+  onLatestRun?: (runs: RunFeatureCollection) => void
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -407,6 +422,11 @@ export function MapShell({
    */
   const runs = useLatestRun(loaded, fogLayer, run)
 
+  /** `0086`. Handed up after commit; a run's page (`framed`) has nothing to report. */
+  useEffect(() => {
+    if (!framed) onLatestRun?.(runs)
+  }, [framed, onLatestRun, runs])
+
   /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
   useTraceWeb(loaded)
 
@@ -464,7 +484,7 @@ export function MapShell({
 
   if (unsupported) {
     return (
-      <div style={framed ? framedShell : shell}>
+      <div style={framed ? framedShell : paneClassName ? undefined : shell} className={framed ? undefined : paneClassName}>
         <p style={notice}>
           This device cannot run the map. Lost Soles needs WebGL2, which this browser does
           not support.
@@ -475,7 +495,12 @@ export function MapShell({
 
   return (
     <>
-      <div ref={container} style={framed ? framedShell : shell} data-testid="map-shell" />
+      <div
+        ref={container}
+        style={framed ? framedShell : paneClassName ? undefined : shell}
+        className={framed ? undefined : paneClassName}
+        data-testid="map-shell"
+      />
       {/*
         Ticket 0055, criterion 10. Renders only under `?fog=mask`, and it is what makes an EMPTY
         mask distinguishable from a broken one — see mask-hud.tsx. It also carries the zoom, which

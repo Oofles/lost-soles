@@ -30,7 +30,20 @@ export type { RouteTraceGeometry }
 export interface RunFeature {
   type: "Feature"
   geometry: RouteTraceGeometry
-  properties: { activityId: string; startedAt: string; name: string | null }
+  properties: {
+    activityId: string
+    startedAt: string
+    name: string | null
+    /**
+     * `0086`. What the plinth's last-run line reads (`06` §2.2 row 7), carried on the same feature
+     * the map already fetches so the line and the camera can never name different runs — and so
+     * `/` gains no second query path for activity data (`0186`). Optional: a body from before
+     * `0086` lacks them, and a row that predates a column has none to give.
+     */
+    startedAtLocal?: string | null
+    distanceM?: number | null
+    newCellCount?: number | null
+  }
 }
 
 export interface RunFeatureCollection {

@@ -66,24 +66,24 @@ thumb arc;~~ *(D-251, 0215)* per D-148 all floating chrome is opaque.
 
 ## Acceptance criteria
 
-- [ ] `/` renders a full-bleed map with the plinth over it and no other UI.
-- [ ] Total Level and lifetime cells are both fully visible with **zero** scrolling and zero clicks in
+- [x] `/` renders a full-bleed map with the plinth over it and no other UI.
+- [x] Total Level and lifetime cells are both fully visible with **zero** scrolling and zero clicks in
       the desktop browser at a typical window size, and still not broken at a narrow window.
-- [ ] On a first-ever load (no stored camera) the map opens on the bounding-box centre of the
+- [x] On a first-ever load (no stored camera) the map opens on the bounding-box centre of the
       most recent traced run at z14 (D-249; precedence stored camera → latest run → configured
       home → extract bounds, as `0186` shipped it), not on device location and not fitted to the
       whole territory. A stored camera always wins on reload.
-- [ ] The milestone bar shows a named numeric target (`next: 300`), never a bare percentage.
-- [ ] Clicking the last-run line navigates to `/run/:activityId` for that run.
-- [ ] ~~The three destination buttons are ≥56dp tall and all three centres fall inside the §9.2
+- [x] The milestone bar shows a named numeric target (`next: 300`), never a bare percentage.
+- [x] Clicking the last-run line navigates to `/run/:activityId` for that run.
+- [x] ~~The three destination buttons are ≥56dp tall and all three centres fall inside the §9.2
       one-handed thumb arc;~~ *(D-251, 0215)* Add workout is the widest and is centred (subject to
       `0187`'s desktop layout).
-- [ ] A repository test asserts the home route renders **no** element whose content matches
+- [x] A repository test asserts the home route renders **no** element whose content matches
       streak / today / this week / days since / goal / check-in, and no badge or dot component.
-- [ ] There is no "log a run" or per-exercise control anywhere on `/`.
-- [ ] With no interaction for ten minutes the screen is byte-identical to how it started: no
+- [x] There is no "log a run" or per-exercise control anywhere on `/`.
+- [x] With no interaction for ten minutes the screen is byte-identical to how it started: no
       polling-driven prompt, no modal, no toast.
-- [ ] Floating chrome is opaque and gold appears only as fill or rule, never as body text (D-148).
+- [x] Floating chrome is opaque and gold appears only as fill or rule, never as body text (D-148).
 
 ## Notes
 
@@ -121,3 +121,84 @@ Finally, the D-013 test, which takes patience: leave the app alone for two weeks
 must greet you with exactly what it greeted you with before — no catch-up prompt, no "welcome back",
 no gap in the bar, nothing that implies you owe it anything. If anything on the screen makes you feel
 behind, the ticket is not done.
+
+## Resolution
+
+**What shipped.** `/` is now `HomeScreen`: the plinth, the `⚙` link and the map pane, and nothing
+else. At ≥1024px the plinth is D-313's fixed, opaque, 24rem rail down the left edge with a 1px
+`--line` rule on its right, and the map's container starts where the rail ends. Below 1024px the
+same content stacks as an opaque bottom card, capped at 55% of the height (D-251: it must not
+break; nothing more). The rows run top-down in §2.2's order: Total Level (Spectral 600 28px, the
+largest type on `/`) with lifetime cells on the same baseline; the milestone bar with a named
+target; the last-run line (one link); then SKILLS · + ADD WORKOUT · RUNS (`1fr 1.5fr 1fr`, 40px,
+RUNS → `/chronicle`); then the interim `Sync now` caption line.
+
+**Files.**
+- `components/plinth/home-screen.tsx` (new, client): reads the three inputs and renders the
+  plinth, the gear and `MapShell`. DOM order is §2.2's focus order.
+- `components/plinth/plinth.tsx` (new): pure presentation of the model, plus `PLINTH_CSS`, the
+  one stylesheet (an inline style cannot hold the 1024px media query). It positions the rail,
+  the card, the destinations, the gear and the map pane (`.home-pane`).
+- `lib/plinth/model.ts` (new): `plinthModel`, `milestoneTarget` and `lastRunLine`. These are
+  pure functions, so no component decides a number or a sentence.
+- `lib/plinth/load.ts` (new): `loadStanding`. It is `/skills`' loader without the ledger read:
+  cache first (the same `skills:<uid>` key `/skills` and `/log` use), then the replay gate, then
+  `SkillState.list`, written back to the cache. A fresh browser with no cache waits for the
+  network instead of drawing every skill at level 1. Nothing runs on a timer except the replay
+  gate's existing poll, which fires only while a replay is running.
+- `components/map/map-shell.tsx`: two optional home-only props. `paneClassName` replaces the
+  full-window inline `shell` style with the pane class. `onLatestRun` hands `useLatestRun`'s
+  collection up to the plinth.
+- `lib/runs/wire.ts`, `lib/runs/server.ts`: `/api/runs/latest`'s feature properties also carry
+  `startedAtLocal`, `distanceM` and `newCellCount`. The `byUserAndStart` index projects ALL, so
+  this costs no extra read.
+- `components/add-workout-link.tsx`: now the plinth's centre destination (`.plinth-dest
+  plinth-dest-primary`). The `+` is `aria-hidden`.
+- `components/sync-button.tsx`: restyled as a caption-size text button labelled `Sync now`: ink
+  text with a gold underline, so gold is a rule here (D-148). The pending state and the
+  `aria-live` result line are unchanged; the in-flight indication is still `0087`'s.
+- `app/page.tsx`: renders `<HomeScreen home={home} />` inside the provider. The bare Add workout
+  and Sync pair that sat over the map is gone.
+- Tests: `components/plinth/plinth.test.tsx` (new; criteria 1, 5–8 and 10, plus the
+  ten-minute/no-clock half of 9), `lib/plinth/model.test.ts` and `lib/plinth/load.test.ts` (new),
+  and an added case in `lib/runs/server.test.ts`. `app/page.test.tsx` now inspects
+  `HomeScreen`'s props as the signed-out payload. It still asserts `{ home: null }` and no
+  coordinate, so 0186's privacy check is unchanged. `components/add-workout-link.test.tsx` now
+  reads the plinth instead of `app/page.tsx`.
+
+**Decisions made, and why.**
+- **The last-run line comes from the fetch the first camera already makes.** `/api/runs/latest`
+  is the latest *traced* activity. Reading the line from the same feature means the line, the
+  D-249 first camera and `⌖` (`0101`) always name the same run. `/` also gains no second query
+  path for activity data, and `app/page.test.tsx` still forbids any server-side read (0186). The
+  catch: a strength log newer than the last run does not take over the line. That fits "Last
+  *run*" and §4.5's "the last run is the selected run".
+- **Total Level is `skillsPanel()`'s sum over the same cache key**, not `Profile.totalLevel`.
+  The plinth and the `/skills` header therefore cannot disagree (`lib/skills/panel.ts` already
+  promises that). `0090` changes the source, not the shape.
+- **Lifetime cells is the explored set's size** (r11, the same cells `newCellCount` counts). It
+  is cached in IndexedDB, so it is there before any network call.
+- **Line wording: `Last: Fri 28 Aug · 8.40 km · 21 new`.** This follows §2.2's `21 new`. I added
+  the day of the month to the weekday because "Thu" alone is ambiguous after a week away, and a
+  relative age ("3 weeks ago") would be a "days since" (H2). The distance uses `runDistance`, the
+  run page's own format. Parts the run lacks are left out, and a run with no new cells says
+  nothing about it.
+- **Below 1024px the card sits 36px off the bottom, not 16px.** §2.2 says 16px insets, and it
+  also says nothing may cover MapLibre's attribution (row 10, `0052`). At the window's bottom
+  edge the two collide, and the attribution is the licence requirement.
+- **The `⚙` link is built here** (top-right of the map pane, 40 × 40px, opaque). The ticket's
+  chrome paragraph lists it, `0089` assumes it exists ("reachable from the home gear"), and no
+  other ticket builds it. The mode toggle (`0098`) and `⌖`/fit (`0101`) are not built here.
+- **The first camera is untouched.** `firstLoadRunCamera`/`runCamera` (`0186`, D-249) is
+  unchanged and covered by `lib/map-camera.test.ts`. The pane takes no `padding`, because
+  MapLibre's container *is* the pane (§2.2).
+- **Last-run states are not built here.** The new-run line, "Connect Strava to begin" and
+  reconnect are `0087`'s. When there is no traced run, row 7 keeps its height and stays empty,
+  so the buttons never move. The Chronicle panel is `0088`'s; RUNS only links to `/chronicle`.
+
+**Checked by rendering.** I rendered the plinth with a populated model, `tokens.css` and a
+stand-in map pane to static HTML. Headless Chromium screenshots at 1440 × 900 (the rail) and
+800 × 900 (the card) show both glance numbers, the bar and its target, the line and all three
+buttons with no scrolling. The fonts were system fallbacks, not Inter and Spectral, which is the
+wider case.
+
