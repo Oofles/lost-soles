@@ -6058,7 +6058,7 @@
     "title": "Street names on place-bound milestones in the skill sheet",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "12-post-run-moment",
     "depends_on": [],
@@ -6066,8 +6066,9 @@
     "source": "agent",
     "created": "2026-10-14T15:47:35Z",
     "started": "2026-10-15T01:38:30Z",
-    "path": "tickets/open/0263-street-names-on-place-bound-milestones-in-the-skill-sheet.md",
-    "ready": true,
+    "closed": "2026-10-15T01:42:03Z",
+    "path": "tickets/closed/0263-street-names-on-place-bound-milestones-in-the-skill-sheet.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2

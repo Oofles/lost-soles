@@ -4,7 +4,7 @@ slug: street-names-on-place-bound-milestones-in-the-skill-sheet
 title: Street names on place-bound milestones in the skill sheet
 type: feature
 priority: low
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T15:47:35Z
 started: 2026-10-15T01:38:30Z
+closed: 2026-10-15T01:42:03Z
 ---
 
 ## Description
