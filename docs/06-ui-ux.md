@@ -486,8 +486,8 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
 - `L41 ↑` marks a level gained; the arrow is `--progress-activity` (`--gold-700` on parchment —
   `--gold-500` is 2.24:1 there, and a mark that carries meaning needs 3:1; D-296, after D-291) and
   is the only colour in the row: the bars are ink.
-- **Tapping a row expands it to the reason breakdown** (04 §4.2): `318 new ground · 62
-  remembered · 196 familiar`. *D-309 (`12` audit, 2026-10-15):* **"remembered" is the only word
+- **Tapping a row expands it to the reason breakdown** (04 §4.2): `318 XP new ground · 196 XP familiar ground · 62 XP
+  remembered ground` — every amount says XP, never a cell noun (`0277`). *D-309 (`12` audit, 2026-10-15):* **"remembered" is the only word
   the player sees for re-armed ground** — in this breakdown, the cells line above it and the skill
   sheet alike. `re-armed`/`rearmed_ground` is the ledger's reason id, never on-screen copy. This falls out of the `XpLedger` for free and it is the thing that
   makes the numbers feel *accountable* rather than dispensed. Expansion pauses the sequence.

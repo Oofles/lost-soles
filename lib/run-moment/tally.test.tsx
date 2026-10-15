@@ -2,11 +2,17 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { TallyView } from "@/app/run/[activityId]/run-ledger"
+import { chronicleRow } from "@/lib/chronicle/rows"
 import type { ActivityLedgerRow } from "@/lib/runs/ledger"
+import type { RunListItem } from "@/lib/runs/wire"
+import { discoveryRow, runTerritory } from "@/lib/stats/derived"
+import { loadRuleSet } from "@/src/rules/load"
+import { ledgerEntries } from "@/src/scoring/ledger"
+import { discoveryRows } from "@/src/scoring/propagate"
 import type { RuleSet } from "@/src/rules/schema"
 import { cumulativeXp, levelForXp, totalLevel } from "@/src/scoring/levels"
 
-import { cardTriggers, tallyFor } from "./tally"
+import { breakdownText, cardTriggers, tallyFor } from "./tally"
 
 /**
  * Ticket `0081` — the tally's numbers and its two §3.5 rules. Skill ids are the real ones because
@@ -172,13 +178,67 @@ describe("the reason breakdown (criterion 8)", () => {
     const h = renderToStaticMarkup(
       <TallyView summary={SUMMARY} tally={tally} skillName={(id) => names[id] ?? id} expanded={new Set(["wayfaring"])} />,
     )
-    expect(text(h)).toContain("318 new ground · 196 familiar ground · 62 remembered ground")
+    expect(text(h)).toContain("318 XP new ground · 196 XP familiar ground · 62 XP remembered ground")
     expect(h).toContain('aria-expanded="true"')
     expect(h.match(/data-breakdown/g)).toHaveLength(1)
   })
 
   it("is closed by default", () => {
     expect(html(RUN)).not.toContain("data-breakdown")
+  })
+})
+
+describe("the breakdown labels XP as XP, never as cells (0277)", () => {
+  // Wave 1's smoke: `58 cells claimed · 2 remembered` expanded to `125 new cells · 2 remembered
+  // cells`. Real ruleset, the ledger's own derivation, the stored counts — the run as it was.
+  const V2 = loadRuleSet(2)
+  const cartography = discoveryRow(V2)!
+  const stored = { newCellCount: 58, rearmedCellCount: 2 }
+  const feed = runTerritory(stored, V2)
+  const ledger: ActivityLedgerRow[] = ledgerEntries(discoveryRows(stored, [cartography]), {
+    activity: { activityId: "a-277", userId: "u", startedAt: "2026-10-14T11:00:00Z" },
+    rules: V2,
+    awardedAt: "2026-10-14T12:00:00Z",
+  }).map((e) => ({ skillId: e.skillId, reason: e.reason, xpAwarded: e.xpAwarded, units: e.units, xpRulesVersion: 2, isFloor: false }))
+  const summary = { startedAtLocal: "2026-10-14T07:00:00", distanceM: 5000, ...stored }
+  const item: RunListItem = {
+    activityId: "a-277",
+    startedAt: "2026-10-14T11:00:00Z",
+    startedAtLocal: summary.startedAtLocal,
+    name: null,
+    kind: "run",
+    distanceM: 5000,
+    durationS: 1800,
+    newCellCount: stored.newCellCount,
+    traced: true,
+    sets: [],
+  }
+  const h = renderToStaticMarkup(
+    <TallyView summary={summary} tally={tallyFor(ledger, {}, V2)} skillName={(id) => id} expanded={new Set([cartography.id])} />,
+  )
+  const page = text(h)
+  const breakdown = text(h.match(/<p data-breakdown[^>]*>(.*?)<\/p>/)![1])
+
+  it("tally, Chronicle row and the 0090 feed name the same cells", () => {
+    expect(feed.newCellCount).toBe(58)
+    expect(feed.rearmedCellCount).toBe(2)
+    expect(page).toContain(`${feed.newCellCount} cells claimed · ${feed.rearmedCellCount} remembered`)
+    expect(chronicleRow(item, (id) => id).newCells).toBe(`${feed.newCellCount} new`)
+  })
+
+  it("the breakdown is XP, sums to the feed's cartographyXp, and carries no cell-count noun", () => {
+    expect(breakdown).toBe("125 XP new ground · 2 XP remembered ground")
+    expect(breakdown).not.toMatch(/cells/)
+    const xp = [...breakdown.matchAll(/([\d,]+) XP/g)].map((m) => Number(m[1].replace(/,/g, "")))
+    expect(xp.reduce((a, b) => a + b, 0)).toBe(feed.cartographyXp)
+  })
+
+  it("every reason a run can carry is worded without a cell noun, and says XP", () => {
+    const parts = ["new_ground", "rearmed_ground", "recent_ground", "cells_new", "cells_rearmed", "constitution_share"].map(
+      (reason) => ({ reason, xp: 10 }),
+    )
+    expect(breakdownText(parts)).not.toMatch(/cells/)
+    expect(breakdownText(parts).split(" · ").every((p) => /^10 XP \S/.test(p))).toBe(true)
   })
 })
 

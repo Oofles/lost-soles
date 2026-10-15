@@ -1,4 +1,6 @@
+import { xpNumber } from "@/lib/runs/format"
 import { scoredRows, type ActivityLedgerRow } from "@/lib/runs/ledger"
+import { reasonWords } from "@/lib/skills/detail"
 import type { RuleSet } from "@/src/rules/schema"
 import { levelForXp, levelProgress, totalLevel, totalXp } from "@/src/scoring/levels"
 
@@ -107,6 +109,25 @@ function standing(was: number, now: number, curve: RuleSet["curve"]): NonNullabl
     barFrom: from.fraction,
     barTo: levelUp ? 1 : to.fraction,
   }
+}
+
+/**
+ * The ledger's cell reasons, in the ground words `06` §3.2's breakdown uses (`318 new ground · 62
+ * remembered`). `reasonWords` says "new cells" because the skill sheet prints the cell count beside
+ * it (`new cells · 58 cells`); here the number is XP, so a cell noun would read as a count (`0277`).
+ */
+const BREAKDOWN_WORDS: Record<string, string> = {
+  cells_new: "new ground",
+  cells_rearmed: "remembered ground",
+}
+
+/**
+ * THE CLICK-BREAKDOWN, AS WORDS (`0277`). Every amount is XP and says so — `125 XP new ground · 2 XP
+ * remembered ground` — so nothing in it reads as a cell count beside the tally's `58 cells claimed`
+ * (D-051). Cell counts live on the cells line alone.
+ */
+export function breakdownText(parts: readonly TallyPart[]): string {
+  return parts.map((p) => `${xpNumber(p.xp)} XP ${BREAKDOWN_WORDS[p.reason] ?? reasonWords(p.reason)}`).join(" · ")
 }
 
 /** `3.18 km` — two decimals, as §3.2's line has it. */

@@ -25,12 +25,12 @@ not to. Found by the wave 1 smoke test of capability `13` (Amplify job 402).
 
 ## Acceptance criteria
 
-- [ ] No breakdown line presents an XP amount with a cell-count noun. Each line either says XP
+- [x] No breakdown line presents an XP amount with a cell-count noun. Each line either says XP
       (`125 XP · new ground`) or shows the cell count with its XP (`58 new cells → 125 XP`); the
       choice follows `06`'s run-page copy, or is asked (D-152) if `06` does not settle it.
-- [ ] The breakdown's cell counts, where shown, come from the same `0090` derived feed as the tally
+- [x] The breakdown's cell counts, where shown, come from the same `0090` derived feed as the tally
       and the Chronicle row.
-- [ ] A test renders a run with new and remembered cells and asserts the tally, the Chronicle row and
+- [x] A test renders a run with new and remembered cells and asserts the tally, the Chronicle row and
       the breakdown show the same cell counts.
 
 ## Steps to reproduce
@@ -52,3 +52,52 @@ Legibility beats atmosphere (D-051): a figure that reads as a contradiction is t
 
 Perceptual: on the desktop browser, expand a real run's breakdown and say whether it reads as XP for
 the cells the tally names, without having to do arithmetic.
+
+## Resolution
+
+**The breakdown now says XP, in `06` §3.2's ground words.** A run whose tally reads
+`58 cells claimed · 2 remembered` expands Cartography to `125 XP new ground · 2 XP remembered ground`;
+Wayfaring's reads `318 XP new ground · 196 XP familiar ground · 62 XP remembered ground`.
+
+**Why the XP form, not `58 new cells → 125 XP`.** `06` §3.2 settles it: its breakdown example
+(`318 new ground · 62 remembered · 196 familiar`) is `04` §8.2 Example A's *XP* (148 × 2.15 = 318,
+58 × 0.5 × 2.15 = 62), labelled with ground words. That makes the breakdown XP by reason. It does not
+show cell counts. The bug was the two `cells_*` reasons falling through to the skill sheet's words
+(`new cells`, `remembered cells`), plus the absence of a unit. The fix supplies both. Cell counts stay
+on the cells line alone, so criterion 2 holds because the breakdown shows no counts. The test also
+ties the breakdown's XP to the `0090` feed: the parts sum to `runTerritory(...).cartographyXp`
+(D-327).
+
+**The skill sheet is untouched.** `reasonWords`/`REASON_WORDS` in `lib/skills/detail.ts` are unchanged.
+The skill sheet prints the cell count beside the words (`new cells · 58 cells  +125`), so the cell
+noun is correct there. The run page now has its own two-entry override (`BREAKDOWN_WORDS`, for
+`cells_new` and `cells_rearmed` only) and falls back to `reasonWords` for every other reason. The
+mapping is keyed on reason ids, never on skill ids (D-031).
+
+**Files**
+- `lib/run-moment/tally.ts`: new `breakdownText(parts)`, which renders `N XP <words>` joined by ` · `,
+  plus `BREAKDOWN_WORDS`.
+- `app/run/[activityId]/run-ledger.tsx`: the breakdown `<p>` renders `breakdownText(l.parts)`. The
+  direct `reasonWords` import is dropped.
+- `lib/run-moment/tally.test.tsx`: the existing breakdown assertion now expects the XP wording. A
+  new `0277` block uses the real v2 ruleset and builds the ledger rows from `discoveryRows` →
+  `ledgerEntries` for stored counts 58/2. It asserts:
+  - the tally, the Chronicle row (`chronicleRow`) and `runTerritory` name the same cells
+    (`58 cells claimed · 2 remembered`, `58 new`);
+  - the breakdown is exactly `125 XP new ground · 2 XP remembered ground`, has no `cells`, and its
+    XP sums to the feed's `cartographyXp` (127);
+  - every reason a run can carry is worded with `XP` and without a cell noun.
+- `docs/06-ui-ux.md` §3.2: the breakdown example now reads
+  `318 XP new ground · 196 XP familiar ground · 62 XP remembered ground` (XP-descending, as the code
+  orders it). The line count is unchanged and `build-index.mjs --check` is clean.
+
+**Not changed, noted:** the tally's cells line and the Chronicle row read `summary.newCellCount`
+(the stored award columns) directly, not through `runTerritory`. Per D-328 they are the same numbers,
+because `runTerritory` only passes them through, and the new test asserts that.
+
+**Agent verification.**
+
+Suite: `npx vitest run` green, including the `0277` block. All of the following pass in the
+worktree: the guards listed in the build phase, `typecheck`, `lint`, `build`, and
+`build-index --check`. The operator's perceptual check above is still open.
+

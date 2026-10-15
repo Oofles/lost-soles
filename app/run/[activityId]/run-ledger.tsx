@@ -5,12 +5,11 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { rulesForSkills, type CachedSkill } from "@/lib/log/optimistic"
 import { fetchSkills } from "@/lib/log/transport"
 import { beat2End, countAt, type Beat2Frame } from "@/lib/run-moment/beat2"
-import { kmText, tallyFor, type Tally } from "@/lib/run-moment/tally"
+import { breakdownText, kmText, tallyFor, type Tally } from "@/lib/run-moment/tally"
 import { runDate, runDistance, xpNumber } from "@/lib/runs/format"
 import type { ActivityLedgerRow } from "@/lib/runs/ledger"
 import { fetchActivityLedger } from "@/lib/runs/ledger-transport"
 import type { RunSummary } from "@/lib/runs/wire"
-import { reasonWords } from "@/lib/skills/detail"
 
 /**
  * THE TALLY. Ticket `0078` laid the ledger out still; `0081` makes it beat 2. `06-ui-ux.md` §3.2.
@@ -193,7 +192,7 @@ export function TallyView({
                 </button>
                 {open ? (
                   <p data-breakdown style={{ margin: ".25rem 0 .5rem", color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                    {l.parts.map((part) => `${xpNumber(part.xp)} ${reasonWords(part.reason)}`).join(" · ")}
+                    {breakdownText(l.parts)}
                   </p>
                 ) : null}
               </div>
