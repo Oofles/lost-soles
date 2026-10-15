@@ -976,7 +976,7 @@ What we do *not* take:
 
 ```
 ┌──────────────────────────────────────────────┐
-│  ←   SKILLS                                  │  ← 56dp app bar, back to /
+│  ←   SKILLS                                  │  ← app bar, back to /   
 │ ┌──────────────────────────────────────────┐ │
 │ │        ✦  TOTAL LEVEL  271               │ │  ← pinned header, never scrolls
 │ │        ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░  next: 300     │ │
@@ -1280,7 +1280,7 @@ Two supporting rules keep it true:
   recency or level. A row that moves is a row you mis-tap.
 - **When the page outgrows one screen, it scrolls.** It does not gain sections, tabs, search,
   favourites, or a "frequent" group. Those are all ways of reordering, and reordering is the
-  thing we just forbade. Ten types is a scroll of one thumb-flick; that is fine.
+  thing we just forbade. Ten types is one short scroll; that is fine.
 
 ### 6.6 What is deferred, and how it fits later without a redesign
 

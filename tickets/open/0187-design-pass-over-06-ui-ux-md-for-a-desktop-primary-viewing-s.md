@@ -38,24 +38,24 @@ needs rethinking is where things *live* when the viewport is 1400px wide and the
 
 ## Acceptance criteria
 
-- [ ] §1's screen map and §2's layout are written desktop-first; narrow widths only must not break
+- [x] §1's screen map and §2's layout are written desktop-first; narrow widths only must not break
       (D-251) — the inverse of today. The seven routes do not change; `app/routes.test.ts` still passes.
-- [ ] The plinth is specified for a wide viewport as the primary case. §4.8's left-rail sketch is
+- [x] The plinth is specified for a wide viewport as the primary case. §4.8's left-rail sketch is
       either promoted to the main specification or replaced with something better.
-- [ ] Every remaining phone-first assumption is **removed**, not restated: thumb arc, 56dp targets as
+- [x] Every remaining phone-first assumption is **removed**, not restated: thumb arc, 56dp targets as
       a requirement, one-handed reach, sunlight legibility. *(Amended 2026-09-28 by D-251: it said
       "restated for desktop or explicitly kept with a reason".)*
-- [ ] ~~The phone case is not deleted. It stays as a real, specified surface: D-124's capture half is
+- [x] ~~The phone case is not deleted. It stays as a real, specified surface: D-124's capture half is
       untouched, and `05` §6.4's perf budget and `0059`'s mid-range-Android harness still stand,
       because the phone remains the worst case even when it is not the common case.~~
       **Superseded by D-251 (2026-09-28):** the phone is not a viewing surface, and no design goes
       into it. Replacement: the doc states once that layouts must not *break* at a narrow width
       (ordinary responsive CSS) and that nothing is optimised for the phone. `05` §6.4's budgets
       stand on their own, as measured on the desktop.
-- [ ] `## Operator validation` conventions are stated once, in this doc: the desktop browser is the
+- [x] `## Operator validation` conventions are stated once, in this doc: the desktop browser is the
       default surface, and the phone is never a validation surface; its only role is recording runs
       (D-251; operator 2026-09-28: no /log or capture from the phone).
-- [ ] A `D-xxx` records anything the pass actually changes about the IA, rather than the change
+- [x] A `D-xxx` records anything the pass actually changes about the IA, rather than the change
       arriving only as a diff.
 
 ## Notes
@@ -163,3 +163,9 @@ untouched and `app/routes.test.ts` passes unchanged.
 were not reworded tap→click line by line; the preamble's units note covers them, and a sweep
 would touch the post-run moment's prose for no design gain. `0086`, `0088` and `0098` are not
 edited (other tickets); what they now need is in the orchestrator's report.
+
+**Orchestrator, at close (2026-10-15).** Criteria ticked after checking `06` directly: the surface
+and validation conventions are stated once (§0 lines 28–39), the rail is §2.2's primary case (D-313),
+and the only thumb/56dp/sunlight wording left is struck, historical, or inside superseded §7. Two
+stragglers were fixed in the close commit: §5.2's wireframe said "56dp app bar" and §6 said "one
+thumb-flick".

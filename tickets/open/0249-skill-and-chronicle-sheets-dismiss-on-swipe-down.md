@@ -27,15 +27,15 @@ expected to have there, and nothing more.
 
 ## Acceptance criteria
 
-- [ ] On a touch device at < 1024px, a downward drag on the skill sheet that starts at its top
+- [x] On a touch device at < 1024px, a downward drag on the skill sheet that starts at its top
       (the sheet scrolled to 0) dismisses it through the same path as every other dismissal
       (`router.back()` from the panel, `router.replace("/skills")` after a deep link).
-- [ ] A downward drag while the sheet's content is scrolled scrolls the content and does not
+- [x] A downward drag while the sheet's content is scrolled scrolls the content and does not
       dismiss.
-- [ ] A short or mostly-horizontal drag does not dismiss.
-- [ ] Every existing dismissal path (Esc, scrim, Close, back) still works; at ≥ 1024px, where the
+- [x] A short or mostly-horizontal drag does not dismiss.
+- [x] Every existing dismissal path (Esc, scrim, Close, back) still works; at ≥ 1024px, where the
       sheet is a centred dialog, nothing changes.
-- [ ] One gesture implementation, shared by every sheet — `/chronicle` and ticket capture take it
+- [x] One gesture implementation, shared by every sheet — `/chronicle` and ticket capture take it
       when they are built, rather than each growing their own.
 
 ## Notes
