@@ -52,3 +52,16 @@ Filed by the capability-12 drift audit, 2026-10-15. Wording on desktop deviates 
 
 Desktop browser, `/run/:id`: does the hint read as a quiet affordance, or as clutter competing with
 the totals? (Perceptual — two people could disagree.)
+
+## Resolution
+
+**Files.** `app/run/[activityId]/run-ledger.tsx`: a new `ExpandHint`, rendered after the footers
+when any line has `parts`. It is a right-aligned `<p aria-hidden data-hint="expand">` at `.75rem`
+(12px, §8.4's floor) in `--text-muted`. It reads `click a row for ⌄`, or `tap` under `(pointer:
+coarse)`, via `useSyncExternalStore` on `matchMedia`; the server snapshot is `click`, so SSR and the
+desktop match. It is static, outside beat 2's stagger, so nothing reflows while the counts run. The
+panel is `maxHeight: 55vh` rather than a fixed height, so the extra line fits.
+`lib/run-moment/tally.test.tsx`: the hint's text, attributes, size and token; absent with no rows.
+
+**Choice.** The mockup says "tap". The desktop is the viewing surface (D-227/D-251), so the
+default word is "click", as the ticket's criterion specified.

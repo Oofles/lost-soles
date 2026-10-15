@@ -40,12 +40,12 @@ screen").
 
 ## Acceptance criteria
 
-- [ ] When `tally.total` is null and `tally.runXp > 0`, the ledger footer shows a Total XP line
+- [x] When `tally.total` is null and `tally.runXp > 0`, the ledger footer shows a Total XP line
       carrying the run's own gain (e.g. `Total XP +442`), in the same slot and style as the
       transition line, with no "before → after" and no error wording.
-- [ ] When the read succeeds, the footer is unchanged (`Total XP 522 → 964 (+442)`).
-- [ ] The floor line appears in the animated tally and in the static end state alike.
-- [ ] A unit test covers the null-`xpBefore` path and asserts the floor line, and that no `0`
+- [x] When the read succeeds, the footer is unchanged (`Total XP 522 → 964 (+442)`).
+- [x] The floor line appears in the animated tally and in the static end state alike.
+- [x] A unit test covers the null-`xpBefore` path and asserts the floor line, and that no `0`
       renders anywhere (§3.5).
 
 ## Notes
@@ -57,3 +57,38 @@ Filed by the capability-12 drift audit, 2026-10-15. `totalLevel` stays omitted o
 
 None by eye: the line's look is the existing transition line's. Agent: a unit test on the null path;
 if cheap, force the read to fail in a headless smoke and confirm `Total XP +N` renders.
+
+**Deployed:** Amplify job 395 (`a2e815b`) SUCCEED. Local gate on that commit: typecheck, lint,
+`npm test` 190 files / 3,419 passed (1 skipped, the known gitleaks-availability case), and every
+`amplify.yml` pre-build guard.
+
+**Agent smoke, deployed site, 2026-10-15** (throwaway Cognito user signed in by SRP through the
+repo's own `aws-amplify/auth`, session cookies sent with `curl`; **no data written**. A read-only
+scan of all 11 tables found 0 rows naming the uid, and the user was then deleted):
+- `/skills/might` signed in: HTTP 200. Its shipped JS contains `remembered ground` and
+  `remembered cells`, and neither `re-armed ground` nor `re-armed cells`.
+- A fake `/run/:id` renders the 404 page, which does not load the run page's chunk, so the run
+  page's JS could not be inspected live without seeding an activity on prod. I did not seed one.
+  Instead, a local `next build` of the same commit puts `a row for`, `data-hint` and
+  `pointer: coarse` in `app/run/[activityId]/page-*.js`. The live chunk carries a different hash
+  (env inlined at build), so it could not be fetched by name.
+
+**The floor line by eye:** not forced live. Making D-296's read fail on prod means breaking a grant or a table, and the path is one branch of `TallyView`, which the two new tests render directly. None needed by eye: the line reuses the transition line's style.
+
+## Resolution
+
+**Files.** `app/run/[activityId]/run-ledger.tsx`: `tallyFooters` now pushes `total` when
+`tally.total` exists **or** `tally.runXp > 0`. The `total` case renders `Total XP +N`, counting up
+from 0 with the same `countAt`/`progress(i)` as every other line, when there is no `before`. With
+a `before` the transition line is untouched. `TallyView` is the one component behind both the
+beat-2 panel and the end state, so criterion 3 holds by construction. It is not a second code path.
+`lib/run-moment/tally.test.tsx`: the old test asserted *"no totals"*, which was D-296's rule. It now
+asserts no arrow and no Total Level, and two new tests cover the floor line (and that no bare `0`
+renders) and the unchanged transition.
+
+**Decision.** **D-310** narrows D-296's *"a failed read costs the bars and the totals"* to the bars,
+the transition and Total Level. It is a visible supersession: D-296 is left as written. Total Level
+stays omitted, because without "before" there is no honest number to show.
+
+**What went wrong.** Nothing in the build. The audit itself was the finding. The guarantee in §3.5
+had been quietly traded away by D-296 without amending §3.5, and an existing test locked in the trade.

@@ -6115,7 +6115,7 @@
     "path": "tickets/open/0265-run-ledger-xp-floor-line.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -6136,7 +6136,7 @@
     "path": "tickets/open/0266-say-remembered-not-re-armed.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
