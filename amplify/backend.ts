@@ -1,25 +1,25 @@
-import { defineBackend } from "@aws-amplify/backend";
-import { Duration, RemovalPolicy } from "aws-cdk-lib";
+import { defineBackend } from "@aws-amplify/backend"
+import { Duration, RemovalPolicy } from "aws-cdk-lib"
 import {
   Alarm,
   ComparisonOperator,
   TreatMissingData,
-} from "aws-cdk-lib/aws-cloudwatch";
-import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
+} from "aws-cdk-lib/aws-cloudwatch"
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
 import {
   AttributeType,
   BillingMode,
   ProjectionType,
   Table,
   TableEncryption,
-} from "aws-cdk-lib/aws-dynamodb";
+} from "aws-cdk-lib/aws-dynamodb"
 import {
   AccountRootPrincipal,
   AnyPrincipal,
   Effect,
   PolicyStatement,
   Role,
-} from "aws-cdk-lib/aws-iam";
+} from "aws-cdk-lib/aws-iam"
 import {
   AllowedMethods,
   CachePolicy,
@@ -29,27 +29,27 @@ import {
   OriginRequestPolicy,
   ResponseHeadersPolicy,
   ViewerProtocolPolicy,
-} from "aws-cdk-lib/aws-cloudfront";
-import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
-import { Key } from "aws-cdk-lib/aws-kms";
-import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+} from "aws-cdk-lib/aws-cloudfront"
+import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
+import { Key } from "aws-cdk-lib/aws-kms"
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
 import {
   BlockPublicAccess,
   Bucket,
   BucketEncryption,
   HttpMethods,
-} from "aws-cdk-lib/aws-s3";
-import { Topic } from "aws-cdk-lib/aws-sns";
-import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions";
-import { Queue } from "aws-cdk-lib/aws-sqs";
+} from "aws-cdk-lib/aws-s3"
+import { Topic } from "aws-cdk-lib/aws-sns"
+import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
+import { Queue } from "aws-cdk-lib/aws-sqs"
 
-import { auth } from "./auth/resource";
-import { data } from "./data/resource";
-import { logWorkoutFunction } from "./functions/log-workout/resource";
-import { setActivityKindFunction } from "./functions/set-activity-kind/resource";
-import { processActivity } from "./functions/process-activity/resource";
-import { secretSmokeTest } from "./functions/secret-smoke-test/resource";
-import { storage } from "./storage/resource";
+import { auth } from "./auth/resource"
+import { data } from "./data/resource"
+import { logWorkoutFunction } from "./functions/log-workout/resource"
+import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
+import { processActivity } from "./functions/process-activity/resource"
+import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
+import { storage } from "./storage/resource"
 
 /**
  * All three resources are wired from the first deploy on purpose (ticket 0012).
@@ -88,7 +88,7 @@ export const backend = defineBackend({
   logWorkoutFunction,
   // Ticket 0244. The `setActivityKind` resolver; its grants are below `logWorkout`'s.
   setActivityKindFunction,
-});
+})
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ export const backend = defineBackend({
  * it back and a source-code read would never notice (§5.1, D-163).
  */
 const { cfnUserPool, cfnUserPoolClient, cfnIdentityPool } =
-  backend.auth.resources.cfnResources;
+  backend.auth.resources.cfnResources
 
 /**
  * NO PUBLIC REGISTRATION ENDPOINT. The single most important line in the auth
@@ -121,7 +121,7 @@ const { cfnUserPool, cfnUserPoolClient, cfnIdentityPool } =
  */
 cfnUserPool.adminCreateUserConfig = {
   allowAdminCreateUserOnly: true,
-};
+}
 
 /**
  * Essentials tier: Managed Login and passwordless/passkey (WebAuthn) sign-in,
@@ -129,7 +129,7 @@ cfnUserPool.adminCreateUserConfig = {
  * this scale (D-083). Pinned explicitly rather than relied on as a default: a
  * silent tier change is a silent bill.
  */
-cfnUserPool.userPoolTier = "ESSENTIALS";
+cfnUserPool.userPoolTier = "ESSENTIALS"
 
 /**
  * NO ANONYMOUS IDENTITY, EVER. The identity pool vends no guest credentials.
@@ -137,7 +137,7 @@ cfnUserPool.userPoolTier = "ESSENTIALS";
  * (§6.2), there is then no unauthenticated principal in the account that can
  * touch storage at all.
  */
-cfnIdentityPool.allowUnauthenticatedIdentities = false;
+cfnIdentityPool.allowUnauthenticatedIdentities = false
 
 /**
  * Session handling, §5.3. Token storage is left at Amplify's default, and §5.3
@@ -155,11 +155,11 @@ cfnIdentityPool.allowUnauthenticatedIdentities = false;
  * Revocation is enabled so `globalSignOut` actually invalidates outstanding
  * refresh tokens. §5.3 is pointed that "untested revocation is not revocation".
  */
-cfnUserPoolClient.enableTokenRevocation = true;
+cfnUserPoolClient.enableTokenRevocation = true
 
 /** 1 hour, the default, not extended (§5.3). Units must be set or CFN assumes days. */
-cfnUserPoolClient.accessTokenValidity = 60;
-cfnUserPoolClient.idTokenValidity = 60;
+cfnUserPoolClient.accessTokenValidity = 60
+cfnUserPoolClient.idTokenValidity = 60
 /**
  * ONE YEAR, raised from 30 days in ticket 0151. Sliding.
  *
@@ -186,12 +186,12 @@ cfnUserPoolClient.idTokenValidity = 60;
  * re-pairing the phone annually is a cheap forcing function that proves the
  * recovery path still works before it is needed in anger.
  */
-cfnUserPoolClient.refreshTokenValidity = 525600;
+cfnUserPoolClient.refreshTokenValidity = 525600
 cfnUserPoolClient.tokenValidityUnits = {
   accessToken: "minutes",
   idToken: "minutes",
   refreshToken: "minutes",
-};
+}
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ cfnUserPoolClient.tokenValidityUnits = {
  * container" under exactly the burst it exists to stop. The reasoning is in full in
  * lib/tickets/capture-store.ts.
  */
-const guardStack = backend.createStack("CaptureGuard");
+const guardStack = backend.createStack("CaptureGuard")
 
 const captureGuardTable = new Table(guardStack, "CaptureGuardTable", {
   /**
@@ -246,7 +246,7 @@ const captureGuardTable = new Table(guardStack, "CaptureGuardTable", {
    * next deploy, which is a worse failure than the one it guards against.
    */
   removalPolicy: RemovalPolicy.DESTROY,
-});
+})
 
 /**
  * The grant. `LostSolesAmplifyComputeRole` was created BY HAND in ticket 0018 —
@@ -268,9 +268,9 @@ const computeRole = Role.fromRoleArn(
   "AmplifyComputeRole",
   "arn:aws:iam::286588821906:role/LostSolesAmplifyComputeRole",
   { mutable: true },
-);
+)
 
-captureGuardTable.grantReadWriteData(computeRole);
+captureGuardTable.grantReadWriteData(computeRole)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ captureGuardTable.grantReadWriteData(computeRole);
  * as a connection lives, the other holds a ten-minute nonce. Nothing that can write
  * the second needs to be able to write the first.
  */
-const sourcesStack = backend.createStack("SourceConnections");
+const sourcesStack = backend.createStack("SourceConnections")
 
 /**
  * T7 `SourceAccount`. OAuth access and refresh tokens, one row per (user, source).
@@ -323,12 +323,11 @@ const sourcesStack = backend.createStack("SourceConnections");
  */
 const sourceAccountKey = new Key(sourcesStack, "SourceAccountKey", {
   alias: "alias/lost-soles-source-account",
-  description:
-    "Encrypts the OAuth access and refresh tokens in T7 SourceAccount",
+  description: "Encrypts the OAuth access and refresh tokens in T7 SourceAccount",
   enableKeyRotation: true,
   removalPolicy: RemovalPolicy.RETAIN,
   pendingWindow: Duration.days(30),
-});
+})
 
 const sourceAccountTable = new Table(sourcesStack, "SourceAccountTable", {
   /**
@@ -385,7 +384,7 @@ const sourceAccountTable = new Table(sourcesStack, "SourceAccountTable", {
    * a table, and it would make the drill's §8.3 claim untrue. RETAIN above stops an
    * accidental teardown; a backup of secrets is a different and worse thing to own.
    */
-});
+})
 
 /**
  * The OAuth `state` nonces. Ten-minute rows, issued when a connect starts and deleted
@@ -415,7 +414,7 @@ const oauthStateTable = new Table(sourcesStack, "OAuthStateTable", {
    * the one it would guard against.
    */
   removalPolicy: RemovalPolicy.DESTROY,
-});
+})
 
 /**
  * GSI1 `byExternalOwner`. Ticket 0033 criterion 2, and the resolution of the conflict
@@ -442,10 +441,10 @@ sourceAccountTable.addGlobalSecondaryIndex({
   indexName: "byExternalOwner",
   partitionKey: { name: "gsi1pk", type: AttributeType.STRING },
   projectionType: ProjectionType.KEYS_ONLY,
-});
+})
 
-sourceAccountTable.grantReadWriteData(computeRole);
-oauthStateTable.grantReadWriteData(computeRole);
+sourceAccountTable.grantReadWriteData(computeRole)
+oauthStateTable.grantReadWriteData(computeRole)
 
 /**
  * The client credentials, read from SSM at cold start by
@@ -470,7 +469,7 @@ computeRole.addToPrincipalPolicy(
       `arn:aws:ssm:${sourcesStack.region}:${sourcesStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
     ],
   }),
-);
+)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -487,7 +486,7 @@ computeRole.addToPrincipalPolicy(
  * Two mechanisms, and the split is the point. Versioning and `keepOnDelete` are in
  * `./storage/resource.ts`; the two Deny statements are here.
  */
-const archiveStack = backend.createStack("RawArchive");
+const archiveStack = backend.createStack("RawArchive")
 
 /**
  * THE BREAK-GLASS ROLE. `01-architecture.md` §3 and §6.2 both name it: deletion of
@@ -518,8 +517,8 @@ const archiveStack = backend.createStack("RawArchive");
  * the lifetime GPS history's threat model (§6.2), and there is no reason for the
  * deletion path to be able to look at what it is deleting.
  */
-const ARCHIVE_DELETION_ROLE_NAME = "LostSolesArchiveDeletion";
-const ARCHIVE_DELETION_ROLE_ARN = `arn:aws:iam::${archiveStack.account}:role/${ARCHIVE_DELETION_ROLE_NAME}`;
+const ARCHIVE_DELETION_ROLE_NAME = "LostSolesArchiveDeletion"
+const ARCHIVE_DELETION_ROLE_ARN = `arn:aws:iam::${archiveStack.account}:role/${ARCHIVE_DELETION_ROLE_NAME}`
 
 const archiveDeletionRole = new Role(archiveStack, "ArchiveDeletionRole", {
   roleName: ARCHIVE_DELETION_ROLE_NAME,
@@ -533,10 +532,9 @@ const archiveDeletionRole = new Role(archiveStack, "ArchiveDeletionRole", {
    * system of record.
    */
   maxSessionDuration: Duration.hours(1),
-});
+})
 
-const rawArchiveObjects =
-  backend.storage.resources.bucket.arnForObjects("raw/*");
+const rawArchiveObjects = backend.storage.resources.bucket.arnForObjects("raw/*")
 
 archiveDeletionRole.addToPrincipalPolicy(
   new PolicyStatement({
@@ -550,7 +548,7 @@ archiveDeletionRole.addToPrincipalPolicy(
     actions: ["s3:DeleteObject", "s3:DeleteObjectVersion"],
     resources: [rawArchiveObjects],
   }),
-);
+)
 
 /**
  * THE DENY. `Principal: "*"`, excepted only by the role above.
@@ -587,7 +585,7 @@ backend.storage.resources.bucket.addToResourcePolicy(
       StringNotLike: { "aws:PrincipalArn": ARCHIVE_DELETION_ROLE_ARN },
     },
   }),
-);
+)
 
 /**
  * AND THE BUCKET POLICY ITSELF IS PROTECTED. Without this, the Deny above is one
@@ -612,7 +610,7 @@ backend.storage.resources.bucket.addToResourcePolicy(
       StringNotEquals: { "aws:CalledVia": "cloudformation.amazonaws.com" },
     },
   }),
-);
+)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -632,7 +630,7 @@ backend.storage.resources.bucket.addToResourcePolicy(
  * `src/pipeline/ingest-receipt.ts` holds the four layers this table implements and
  * the reasoning for each. What lives here is only its shape.
  */
-const ingestStack = backend.createStack("IngestPipeline");
+const ingestStack = backend.createStack("IngestPipeline")
 
 const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
   /**
@@ -675,7 +673,7 @@ const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
    * orphaned-name cost is accepted, as it is for T7.
    */
   removalPolicy: RemovalPolicy.RETAIN,
-});
+})
 
 /**
  * THE SPARSE FAILURE INDEX (ticket 0044, criterion 4).
@@ -712,7 +710,7 @@ ingestReceiptTable.addGlobalSecondaryIndex({
     "rawArchived",
     "attempts",
   ],
-});
+})
 
 /**
  * The Sync action (0043) runs the accept gate on the SSR compute, so that role needs
@@ -721,7 +719,7 @@ ingestReceiptTable.addGlobalSecondaryIndex({
  * The `process-activity` Lambda gets its own grant in 0042 — this one is not it, and
  * neither grant is a wildcard over the account's DynamoDB.
  */
-ingestReceiptTable.grantReadWriteData(computeRole);
+ingestReceiptTable.grantReadWriteData(computeRole)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -779,7 +777,7 @@ const exploredCellTable = new Table(ingestStack, "ExploredCellTable", {
    * point-in-time restore turns "the map is wrong" from an incident into an afternoon.
    */
   pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
-});
+})
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -811,7 +809,7 @@ const exploredCellTable = new Table(ingestStack, "ExploredCellTable", {
  */
 const activityIngestDlq = new Queue(ingestStack, "ActivityIngestDLQ", {
   retentionPeriod: Duration.days(14),
-});
+})
 
 /**
  * THE INGEST QUEUE.
@@ -836,9 +834,9 @@ const activityIngestDlq = new Queue(ingestStack, "ActivityIngestDLQ", {
 const activityIngestQueue = new Queue(ingestStack, "ActivityIngestQueue", {
   visibilityTimeout: Duration.minutes(16),
   deadLetterQueue: { queue: activityIngestDlq, maxReceiveCount: 3 },
-});
+})
 
-const processActivityLambda = backend.processActivity.resources.lambda;
+const processActivityLambda = backend.processActivity.resources.lambda
 
 /**
  * `batchSize: 1` — one activity per invocation, and the reason is in the ticket: one
@@ -858,7 +856,7 @@ const processActivityLambda = backend.processActivity.resources.lambda;
  */
 processActivityLambda.addEventSource(
   new SqsEventSource(activityIngestQueue, { batchSize: 1, maxConcurrency: 5 }),
-);
+)
 
 /**
  * THE GRANTS. Amplify grants a CDK-created resource NOTHING for you, and least privilege
@@ -890,11 +888,7 @@ processActivityLambda.addEventSource(
  * worker able to create receipts could manufacture the row it is supposed to be checked
  * against.
  */
-ingestReceiptTable.grant(
-  processActivityLambda,
-  "dynamodb:GetItem",
-  "dynamodb:UpdateItem",
-);
+ingestReceiptTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
 
 /**
  * T6. **`UpdateItem` AND NOTHING ELSE**, and every absence here is deliberate.
@@ -939,7 +933,7 @@ exploredCellTable.grant(
   processActivityLambda,
   "dynamodb:UpdateItem",
   "dynamodb:BatchGetItem",
-);
+)
 
 /**
  * T7. READ **AND WRITE**, and this is a deliberate departure from ticket 0042's third
@@ -964,11 +958,7 @@ exploredCellTable.grant(
  * a provider's owner id into a user id — a lookup this function has no reason to perform
  * and §7 explicitly wants kept off the ingest path.
  */
-sourceAccountTable.grant(
-  processActivityLambda,
-  "dynamodb:GetItem",
-  "dynamodb:UpdateItem",
-);
+sourceAccountTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
 
 /**
  * AND THE KEY, SEPARATELY — which `grantReadWriteData` would have done for free and
@@ -991,7 +981,7 @@ sourceAccountTable.grant(
  * the row back after a token rotation, which is the whole reason the write grant above
  * exists.
  */
-sourceAccountKey.grantEncryptDecrypt(processActivityLambda);
+sourceAccountKey.grantEncryptDecrypt(processActivityLambda)
 
 /**
  * T3, the Amplify-generated `Activity` table. Reached through `backend.data`, because
@@ -1002,7 +992,7 @@ sourceAccountKey.grantEncryptDecrypt(processActivityLambda);
  * must be able to join a `TransactWriteItems` with the receipt, and an AppSync mutation
  * cannot join a transaction. §4 layer 3 dies without one.
  */
-const activityTable = backend.data.resources.tables["Activity"];
+const activityTable = backend.data.resources.tables["Activity"]
 /**
  * `PutItem` and `GetItem`. The transaction writes the row, never updates it in place, and —
  * the one that matters — never deletes it. A source-side delete TOMBSTONES an activity by
@@ -1014,11 +1004,7 @@ const activityTable = backend.data.resources.tables["Activity"];
  * a second delivery keeps the first one rather than overwriting it with an all-`cooled`
  * reclassification (D-260). A single-key read of the award columns, nothing wider.
  */
-activityTable.grant(
-  processActivityLambda,
-  "dynamodb:PutItem",
-  "dynamodb:GetItem",
-);
+activityTable.grant(processActivityLambda, "dynamodb:PutItem", "dynamodb:GetItem")
 
 /**
  * `0179`, pipeline step 3 — `dynamodb:Query` on GSI2 `byUserAndDedupe` ALONE (contract §3, I-22).
@@ -1032,7 +1018,7 @@ processActivityLambda.addToRolePolicy(
     actions: ["dynamodb:Query"],
     resources: [`${activityTable.tableArn}/index/byUserAndDedupe`],
   }),
-);
+)
 
 /**
  * T4 `XpLedgerEntry` and T2 `SkillState`, ticket `0062`. Written directly for the reason T3
@@ -1052,26 +1038,18 @@ processActivityLambda.addToRolePolicy(
  * attribute: `ledgerRulesVersion`, the version fallback for a user with no T2 rows (`0235`,
  * D-275). The totals are still computed from the T2 pre-read. Never `DeleteItem`.
  */
-const xpLedgerTable = backend.data.resources.tables["XpLedgerEntry"];
-const skillStateTable = backend.data.resources.tables["SkillState"];
-xpLedgerTable.grant(processActivityLambda, "dynamodb:PutItem");
+const xpLedgerTable = backend.data.resources.tables["XpLedgerEntry"]
+const skillStateTable = backend.data.resources.tables["SkillState"]
+xpLedgerTable.grant(processActivityLambda, "dynamodb:PutItem")
 processActivityLambda.addToRolePolicy(
   new PolicyStatement({
     actions: ["dynamodb:Query"],
     resources: [`${xpLedgerTable.tableArn}/index/byActivity`],
   }),
-);
-skillStateTable.grant(
-  processActivityLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:Query",
-);
-const profileTable = backend.data.resources.tables["Profile"];
-profileTable.grant(
-  processActivityLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:GetItem",
-);
+)
+skillStateTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+const profileTable = backend.data.resources.tables["Profile"]
+profileTable.grant(processActivityLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
 
 /**
  * `Landmark`, ticket `0248` (D-301). `UpdateItem` ALONE: the row joins the ledger transaction as a
@@ -1079,8 +1057,8 @@ profileTable.grant(
  * `DeleteItem` anywhere — a landmark never un-happens. The same grant goes to `log-workout` and
  * `set-activity-kind`, the other two paths that add XP.
  */
-const landmarkTable = backend.data.resources.tables["Landmark"];
-landmarkTable.grant(processActivityLambda, "dynamodb:UpdateItem");
+const landmarkTable = backend.data.resources.tables["Landmark"]
+landmarkTable.grant(processActivityLambda, "dynamodb:UpdateItem")
 
 /**
  * THE ARCHIVE. `PutObject` for the write, and `GetObject` because `archive.ts` issues a
@@ -1109,7 +1087,7 @@ processActivityLambda.addToRolePolicy(
     actions: ["s3:PutObject", "s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
   }),
-);
+)
 
 /**
  * `s3:ListBucket`, SCOPED BY PREFIX — and it is needed for TWO independent reasons. Ticket `0192`.
@@ -1160,7 +1138,7 @@ processActivityLambda.addToRolePolicy(
     resources: [backend.storage.resources.bucket.bucketArn],
     conditions: { StringLike: { "s3:prefix": ["raw/*", "users/*"] } },
   }),
-);
+)
 
 /**
  * THE DELIVERY LAYER. `0049`, `02-data-model.md` §2.10 and §6.1.
@@ -1193,7 +1171,7 @@ processActivityLambda.addToRolePolicy(
     actions: ["s3:PutObject", "s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
   }),
-);
+)
 
 /**
  * THE SKILL-STATE SNAPSHOT. `0067`, D-143, `02-data-model.md` §8.2.
@@ -1210,11 +1188,9 @@ processActivityLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "WriteSkillStateSnapshots",
     actions: ["s3:PutObject"],
-    resources: [
-      backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*"),
-    ],
+    resources: [backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*")],
   }),
-);
+)
 
 /**
  * DELTA GARBAGE COLLECTION. `0051`, `02-data-model.md` §6.5 — deltas are kept for ~20
@@ -1244,11 +1220,9 @@ processActivityLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "ExpireExploredDeltas",
     actions: ["s3:DeleteObject"],
-    resources: [
-      backend.storage.resources.bucket.arnForObjects("users/*/deltas/*"),
-    ],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*/deltas/*")],
   }),
-);
+)
 
 /**
  * THE BROWSER'S READ PATH, THROUGH THE SSR COMPUTE. `0054`, D-228.
@@ -1288,7 +1262,7 @@ computeRole.addToPrincipalPolicy(
     actions: ["s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
   }),
-);
+)
 /**
  * `0264`, D-306. Without `s3:ListBucket` S3 answers a GET on an absent key with 403 rather than
  * 404, so `/api/runs/web` failed with 500 for a user whose trace web does not exist yet, instead of
@@ -1302,7 +1276,7 @@ computeRole.addToPrincipalPolicy(
     resources: [backend.storage.resources.bucket.bucketArn],
     conditions: { StringLike: { "s3:prefix": ["users/*"] } },
   }),
-);
+)
 
 /**
  * THE CLIENT CREDENTIALS, and this grant was missed on the first pass — worth recording
@@ -1331,7 +1305,7 @@ processActivityLambda.addToRolePolicy(
       `arn:aws:ssm:${ingestStack.region}:${ingestStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
     ],
   }),
-);
+)
 
 /**
  * The environment. Two generated names the function cannot know any other way, plus the
@@ -1343,34 +1317,22 @@ processActivityLambda.addToRolePolicy(
  * been assembled — and on the FACTORY rather than on `resources.lambda`, which Amplify
  * exposes as an `IFunction` with no such method.
  */
-backend.processActivity.addEnvironment(
-  "ACTIVITY_TABLE",
-  activityTable.tableName,
-);
+backend.processActivity.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
 /** `0062`. T4 and T2 — generated names, like T3's. */
-backend.processActivity.addEnvironment(
-  "XP_LEDGER_TABLE",
-  xpLedgerTable.tableName,
-);
-backend.processActivity.addEnvironment(
-  "SKILL_STATE_TABLE",
-  skillStateTable.tableName,
-);
+backend.processActivity.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.processActivity.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
 /** `0219`. T1, for the Profile totals in the ledger transaction. */
-backend.processActivity.addEnvironment("PROFILE_TABLE", profileTable.tableName);
+backend.processActivity.addEnvironment("PROFILE_TABLE", profileTable.tableName)
 /** `0248`. Landmarks, in the same transaction. */
-backend.processActivity.addEnvironment(
-  "LANDMARK_TABLE",
-  landmarkTable.tableName,
-);
+backend.processActivity.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
 backend.processActivity.addEnvironment(
   "RAW_ARCHIVE_BUCKET",
   backend.storage.resources.bucket.bucketName,
-);
+)
 backend.processActivity.addEnvironment(
   "ACTIVITY_INGEST_QUEUE_URL",
   activityIngestQueue.queueUrl,
-);
+)
 /**
  * `0049`. The same bucket as `RAW_ARCHIVE_BUCKET` — there is one `defineStorage` bucket —
  * under its own name because the two prefixes carry different grants and different rules:
@@ -1380,7 +1342,7 @@ backend.processActivity.addEnvironment(
 backend.processActivity.addEnvironment(
   "USER_DATA_BUCKET",
   backend.storage.resources.bucket.bucketName,
-);
+)
 
 /**
  * SURFACED FOR THE PRODUCER. 0043's Sync action runs on the SSR compute, which has no
@@ -1405,7 +1367,7 @@ backend.addOutput({
      */
     xpLedgerTableName: backend.data.resources.tables["XpLedgerEntry"].tableName,
   },
-});
+})
 
 /**
  * `0195`. THE SSR COMPUTE READS T3, AND ONLY QUERIES IT.
@@ -1432,7 +1394,7 @@ computeRole.addToPrincipalPolicy(
     actions: ["dynamodb:Query"],
     resources: [activityTable.tableArn, `${activityTable.tableArn}/index/*`],
   }),
-);
+)
 
 /**
  * `0081`, D-296. THE SSR COMPUTE QUERIES T4's `byUserAndSeq`, AND NOTHING ELSE ON T4.
@@ -1447,14 +1409,12 @@ computeRole.addToPrincipalPolicy(
   new PolicyStatement({
     sid: "QueryXpLedgerByUserAndSeqForRunTally",
     actions: ["dynamodb:Query"],
-    resources: [
-      `${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/byUserAndSeq`,
-    ],
+    resources: [`${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/byUserAndSeq`],
   }),
-);
+)
 
 /** The Sync action is the only producer today. It sends; it never receives. */
-activityIngestQueue.grantSendMessages(computeRole);
+activityIngestQueue.grantSendMessages(computeRole)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -1475,7 +1435,7 @@ activityIngestQueue.grantSendMessages(computeRole);
  */
 const ingestAlarms = new Topic(ingestStack, "IngestAlarms", {
   displayName: "Lost Soles ingest",
-});
+})
 
 /**
  * EMAIL, AND IT COSTS ONE CLICK ONCE. SNS sends a confirmation request on first deploy
@@ -1489,7 +1449,7 @@ const ingestAlarms = new Topic(ingestStack, "IngestAlarms", {
  * Routing it through SSM would add a parameter that must exist before a deploy succeeds,
  * in exchange for hiding something already written down twice.
  */
-ingestAlarms.addSubscription(new EmailSubscription("amazingbrandon@gmail.com"));
+ingestAlarms.addSubscription(new EmailSubscription("amazingbrandon@gmail.com"))
 
 /**
  * THE ALARM NAME IS THE PRODUCT SURFACE, which is a strange sentence until you read one
@@ -1532,9 +1492,9 @@ const dlqNotEmpty = new Alarm(ingestStack, "IngestDlqNotEmpty", {
    * sender filtered, which is the failure §8.6 names.
    */
   treatMissingData: TreatMissingData.NOT_BREACHING,
-});
+})
 
-dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms));
+dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms))
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -1560,7 +1520,7 @@ dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms));
  * egress bills at $0.15/GB. That is what Risk 1 was actually protecting.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-const tilesStack = backend.createStack("BasemapTiles");
+const tilesStack = backend.createStack("BasemapTiles")
 
 const tilesBucket = new Bucket(tilesStack, "TilesBucket", {
   /**
@@ -1635,7 +1595,7 @@ const tilesBucket = new Bucket(tilesStack, "TilesBucket", {
       maxAge: 3600,
     },
   ],
-});
+})
 
 /**
  * The CORS headers the BROWSER actually sees, added by CloudFront to every response.
@@ -1671,7 +1631,7 @@ const tilesCors = new ResponseHeadersPolicy(tilesStack, "TilesCorsPolicy", {
     accessControlMaxAge: Duration.hours(1),
     originOverride: true,
   },
-});
+})
 
 const tilesDistribution = new Distribution(tilesStack, "TilesDistribution", {
   comment: "Lost Soles pmtiles basemap (ticket 0052, D-226)",
@@ -1726,7 +1686,7 @@ const tilesDistribution = new Distribution(tilesStack, "TilesDistribution", {
    * for CNAMEAlreadyExistsException. Nobody types this hostname; it lives in one
    * config module and is read by a map library.
    */
-});
+})
 
 backend.addOutput({
   custom: {
@@ -1738,7 +1698,7 @@ backend.addOutput({
     basemapTilesUrl: `https://${tilesDistribution.distributionDomainName}`,
     basemapDistributionId: tilesDistribution.distributionId,
   },
-});
+})
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -1756,40 +1716,28 @@ backend.addOutput({
  *
  * Every grant is an explicit action list, for the worker's reason above.
  */
-const logWorkoutLambda = backend.logWorkoutFunction.resources.lambda;
+const logWorkoutLambda = backend.logWorkoutFunction.resources.lambda
 
 /** `PutItem` for the accept gate (`acceptIngest`), which the worker never runs — Sync does, for it. */
-ingestReceiptTable.grant(
-  logWorkoutLambda,
-  "dynamodb:PutItem",
-  "dynamodb:GetItem",
-  "dynamodb:UpdateItem",
-);
-activityTable.grant(logWorkoutLambda, "dynamodb:PutItem", "dynamodb:GetItem");
+ingestReceiptTable.grant(logWorkoutLambda, "dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem")
+activityTable.grant(logWorkoutLambda, "dynamodb:PutItem", "dynamodb:GetItem")
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({
     actions: ["dynamodb:Query"],
-    resources: [
-      `${activityTable.tableArn}/index/byUserAndDedupe`,
-      `${xpLedgerTable.tableArn}/index/byActivity`,
-    ],
+    resources: [`${activityTable.tableArn}/index/byUserAndDedupe`, `${xpLedgerTable.tableArn}/index/byActivity`],
   }),
-);
-xpLedgerTable.grant(logWorkoutLambda, "dynamodb:PutItem");
-skillStateTable.grant(
-  logWorkoutLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:Query",
-);
-profileTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:GetItem");
-landmarkTable.grant(logWorkoutLambda, "dynamodb:UpdateItem");
+)
+xpLedgerTable.grant(logWorkoutLambda, "dynamodb:PutItem")
+skillStateTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+profileTable.grant(logWorkoutLambda, "dynamodb:UpdateItem", "dynamodb:GetItem")
+landmarkTable.grant(logWorkoutLambda, "dynamodb:UpdateItem")
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "WriteAndReadRawArchive",
     actions: ["s3:PutObject", "s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
   }),
-);
+)
 /**
  * `0243`. `processActivity` looks for an operator's kind correction beside the archive (D-284) on
  * every activity, a manual log included, and a missing correction is answered by a LIST: without
@@ -1803,7 +1751,7 @@ logWorkoutLambda.addToRolePolicy(
     resources: [backend.storage.resources.bucket.bucketArn],
     conditions: { StringLike: { "s3:prefix": ["raw/*"] } },
   }),
-);
+)
 /** The skill-state snapshot reads the manifest for its generation stamp; it never writes there. */
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({
@@ -1811,41 +1759,21 @@ logWorkoutLambda.addToRolePolicy(
     actions: ["s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
   }),
-);
+)
 logWorkoutLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "WriteSkillStateSnapshots",
     actions: ["s3:PutObject"],
-    resources: [
-      backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*"),
-    ],
+    resources: [backend.storage.resources.bucket.arnForObjects("snapshots/skillstate/*")],
   }),
-);
+)
 
-backend.logWorkoutFunction.addEnvironment(
-  "ACTIVITY_TABLE",
-  activityTable.tableName,
-);
-backend.logWorkoutFunction.addEnvironment(
-  "XP_LEDGER_TABLE",
-  xpLedgerTable.tableName,
-);
-backend.logWorkoutFunction.addEnvironment(
-  "SKILL_STATE_TABLE",
-  skillStateTable.tableName,
-);
-backend.logWorkoutFunction.addEnvironment(
-  "PROFILE_TABLE",
-  profileTable.tableName,
-);
-backend.logWorkoutFunction.addEnvironment(
-  "LANDMARK_TABLE",
-  landmarkTable.tableName,
-);
-backend.logWorkoutFunction.addEnvironment(
-  "USER_DATA_BUCKET",
-  backend.storage.resources.bucket.bucketName,
-);
+backend.logWorkoutFunction.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+backend.logWorkoutFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.logWorkoutFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
+backend.logWorkoutFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.logWorkoutFunction.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
+backend.logWorkoutFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -1870,41 +1798,20 @@ backend.logWorkoutFunction.addEnvironment(
  * Absent: SQS, SSM, `SourceAccount`, the receipt table, the snapshot prefix. A kind correction
  * fetches nothing from a source and accepts no ingest.
  */
-const setActivityKindLambda = backend.setActivityKindFunction.resources.lambda;
+const setActivityKindLambda = backend.setActivityKindFunction.resources.lambda
 
-activityTable.grant(
-  setActivityKindLambda,
-  "dynamodb:GetItem",
-  "dynamodb:UpdateItem",
-);
-xpLedgerTable.grant(
-  setActivityKindLambda,
-  "dynamodb:PutItem",
-  "dynamodb:DeleteItem",
-);
+activityTable.grant(setActivityKindLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+xpLedgerTable.grant(setActivityKindLambda, "dynamodb:PutItem", "dynamodb:DeleteItem")
 setActivityKindLambda.addToRolePolicy(
   new PolicyStatement({
     actions: ["dynamodb:Query"],
     resources: [`${xpLedgerTable.tableArn}/index/byActivity`],
   }),
-);
-skillStateTable.grant(
-  setActivityKindLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:Query",
-);
-profileTable.grant(
-  setActivityKindLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:GetItem",
-  "dynamodb:ConditionCheckItem",
-);
-landmarkTable.grant(setActivityKindLambda, "dynamodb:UpdateItem");
-exploredCellTable.grant(
-  setActivityKindLambda,
-  "dynamodb:UpdateItem",
-  "dynamodb:BatchGetItem",
-);
+)
+skillStateTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:Query")
+profileTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:GetItem", "dynamodb:ConditionCheckItem")
+landmarkTable.grant(setActivityKindLambda, "dynamodb:UpdateItem")
+exploredCellTable.grant(setActivityKindLambda, "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
 /** The override's PUT (`raw/<uid>/<source>/<externalId>.kind-override/<id>.json`) and the archive's GET. Never delete (I-3). */
 setActivityKindLambda.addToRolePolicy(
   new PolicyStatement({
@@ -1912,7 +1819,7 @@ setActivityKindLambda.addToRolePolicy(
     actions: ["s3:PutObject", "s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("raw/*")],
   }),
-);
+)
 /** `raw/` for the override's newest-key list; `users/` so a missing blob reads as 404, not 403 (`0192`). */
 setActivityKindLambda.addToRolePolicy(
   new PolicyStatement({
@@ -1921,45 +1828,25 @@ setActivityKindLambda.addToRolePolicy(
     resources: [backend.storage.resources.bucket.bucketArn],
     conditions: { StringLike: { "s3:prefix": ["raw/*", "users/*"] } },
   }),
-);
+)
 setActivityKindLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "WriteAndReadExploredDeliveryLayer",
     actions: ["s3:PutObject", "s3:GetObject"],
     resources: [backend.storage.resources.bucket.arnForObjects("users/*")],
   }),
-);
+)
 setActivityKindLambda.addToRolePolicy(
   new PolicyStatement({
     sid: "ExpireExploredDeltas",
     actions: ["s3:DeleteObject"],
-    resources: [
-      backend.storage.resources.bucket.arnForObjects("users/*/deltas/*"),
-    ],
+    resources: [backend.storage.resources.bucket.arnForObjects("users/*/deltas/*")],
   }),
-);
+)
 
-backend.setActivityKindFunction.addEnvironment(
-  "ACTIVITY_TABLE",
-  activityTable.tableName,
-);
-backend.setActivityKindFunction.addEnvironment(
-  "XP_LEDGER_TABLE",
-  xpLedgerTable.tableName,
-);
-backend.setActivityKindFunction.addEnvironment(
-  "SKILL_STATE_TABLE",
-  skillStateTable.tableName,
-);
-backend.setActivityKindFunction.addEnvironment(
-  "PROFILE_TABLE",
-  profileTable.tableName,
-);
-backend.setActivityKindFunction.addEnvironment(
-  "LANDMARK_TABLE",
-  landmarkTable.tableName,
-);
-backend.setActivityKindFunction.addEnvironment(
-  "USER_DATA_BUCKET",
-  backend.storage.resources.bucket.bucketName,
-);
+backend.setActivityKindFunction.addEnvironment("ACTIVITY_TABLE", activityTable.tableName)
+backend.setActivityKindFunction.addEnvironment("XP_LEDGER_TABLE", xpLedgerTable.tableName)
+backend.setActivityKindFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTable.tableName)
+backend.setActivityKindFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
+backend.setActivityKindFunction.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
+backend.setActivityKindFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)
