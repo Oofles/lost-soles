@@ -4,7 +4,7 @@ slug: the-plinth-over-the-map
 title: The plinth over the map — Total Level, cells revealed, last run, three destinations
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 13-home-plinth-and-chronicle
 depends_on: [53, 65, 187]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-15T16:40:48Z
+closed: 2026-10-15T17:30:48Z
 ---
 
 ## Description
