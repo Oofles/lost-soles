@@ -38,15 +38,15 @@ re-discovers it and mistakes it for this project's overrun.
 
 ## Acceptance criteria
 
-- [ ] A push whose diff touches only non-deployable paths (`tickets/`, `docs/`, `*.md`, and
+- [x] A push whose diff touches only non-deployable paths (`tickets/`, `docs/`, `*.md`, and
       anything else that provably cannot change the build output, each listed) does not run an
       Amplify build. Use a mechanism Amplify supports, e.g. an `amplify.yml` diff check that ends
       the build early or `[skip-cd]`, and record the choice.
-- [ ] A push touching deployable code still builds and deploys. The gate fails OPEN: if it cannot
+- [x] A push touching deployable code still builds and deploys. The gate fails OPEN: if it cannot
       decide, it builds.
-- [ ] The GitHub Actions gate (`0013`) still runs on every push. This ticket is about the Amplify
+- [x] The GitHub Actions gate (`0013`) still runs on every push. This ticket is about the Amplify
       deploy only.
-- [ ] The saving is measured: build count and `USE1-BuildDuration` for the two weeks after, against
+- [ ] The saving is measured (moved to `0268` by the operator, 2026-10-15: the after window ends 10-29): build count and `USE1-BuildDuration` for the two weeks after, against
       the same window before, recorded in `## Resolution`.
 
 ## Notes
@@ -92,13 +92,23 @@ token (D-311).** Files: `.githooks/commit-msg`, `scripts/skip-cd.mjs`, `scripts/
 **Before, measured 2026-10-01 to 10-14:** 124 Amplify jobs on `main`, `USE1-BuildDuration`
 1,233.2 min = **$12.33**. Replaying those 124 pushes through `shouldSkip` (each job's range runs
 from the previous job's commit) gives **52 jobs and 525 of 1,246 wall-minutes skipped, 42%**.
-That is the projection; the after figure has not been measured yet.
+That is the projection. The operator chose to close now and measure the after figure in `0268`
+(on or after 2026-10-29).
 
 The bigger lever is still build length (~9 min each). `npm install --no-save` with no cache hit
 (D-162, `0128`) is a likely share of it, and a lockfile-keyed cache could cut it.
 
 ## Operator validation
 
-None: build configuration with nothing on screen. Smoke test by the agent: push a docs-only commit
-and confirm the Amplify job is skipped or cancelled, push a code commit and confirm it deploys, then
-check Cost Explorer for the before/after figures.
+None needed: build configuration, nothing on screen. Smoke test by the agent, 2026-10-15, against the
+live Amplify app `d14fhvl4rp79nn`:
+
+- **A code push builds and deploys.** `f4c265d` (touches `scripts/`) → job **398**, SUCCEED,
+  11:05→11:14. `https://soles.devaultsecurity.com/` returned 200 afterwards.
+- **A tickets-only push does not build.** The hook tagged `8f49c85` ("resolution draft") on its
+  own. It was pushed at 11:06, and no job for it existed after 398 finished at 11:14. Before that,
+  `bc309fe` showed the same thing by accident: it mentioned the token, and Amplify started no job.
+- **The GitHub gate still runs on a skipped push.** `gate`, `tickets` and `secret-scan` all
+  succeeded on `bc309fe`.
+- **The before figures come from Cost Explorer and `amplify list-jobs`** (see Resolution). The
+  after figures are `0268`.

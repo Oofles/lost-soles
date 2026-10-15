@@ -4977,7 +4977,7 @@
     "path": "tickets/open/0214-amplify-build-minutes-cost-15-mo-3x-the-d-083-budget-every-p.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 4
     }
   },
@@ -6163,6 +6163,28 @@
     "acceptance": {
       "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 268,
+    "slug": "measure-skip-token-saving",
+    "title": "Measure the skip-token saving: Amplify build count and minutes, 2026-10-15 to 10-29",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      214
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T15:17:29Z",
+    "path": "tickets/open/0268-measure-skip-token-saving.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]
