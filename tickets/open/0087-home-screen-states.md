@@ -77,6 +77,8 @@ The unfogged empty map is a real implementation constraint, not a styling choice
 layer with opacity 0 and call it done, because a zero-cell mask is also the state after a cache
 clear, and the two must behave the same way.
 
+- **From 0086 (2026-10-15).** Total Level and cells paint from IndexedDB on a cold start, but the plinth's last-run line waits for `/api/runs/latest`. §2.4's "cached totals immediately" may want the line cached too; decide it here rather than in a ticket of its own.
+
 ## Operator validation
 
 In the desktop browser: set DevTools to Offline and reload. Your territory and Total Level

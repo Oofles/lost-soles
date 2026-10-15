@@ -2109,7 +2109,7 @@
     "path": "tickets/open/0086-the-plinth-over-the-map.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },

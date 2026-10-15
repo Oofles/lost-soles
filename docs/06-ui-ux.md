@@ -211,7 +211,7 @@ starts, and the plinth's position is fixed at every desktop size.
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░  next: 300  │ │ ADVENTURE  │                       └────┘ │
 │ [5]                                │ └────────────┘                              │
 │                                    │                                             │
-│ Last: Thu · 8.4 km · 21 new      › │                                             │
+│ Last: Fri 28 Aug·8.4 km·21 new   › │                                             │
 │ [7]                                │               THE MAP PANE                  │
 │ ────────────────────────────────── │     parchment + dark fog (D-053);           │
 │ ┌───────┐ ┌──────────────┐ ┌─────┐ │     first-ever load framed on the           │
@@ -267,7 +267,8 @@ focus ring.
 
 **Below 1024px** (the "must not break" case, D-251; nothing here is designed beyond that). The
 rail goes away and its content stacks, unchanged and in the same order, as an opaque card over
-the bottom of a map that now fills the window: 16px insets, full width less 32px, 8px radius,
+the bottom of a map that now fills the window: 16px side insets, its bottom edge clear of the
+MapLibre attribution (36px; D-315), full width less 32px, 8px radius,
 capped at 55% of the window height and scrolling beyond. The right-edge map controls sit 16px
 above that card.
 

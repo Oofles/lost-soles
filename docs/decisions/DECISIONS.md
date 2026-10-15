@@ -4998,3 +4998,19 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Parameters:** touch only, never a mouse. Dismiss at ≥ 96px down with dy > 2·|dx| (within
     ~27° of straight down); velocity ignored. The sheet follows the finger and springs back over
     160ms on a short release. `/chronicle` and any later sheet import the same module.
+- **D-315** **Below 1024px the plinth card's bottom edge clears the MapLibre attribution (36px), not
+  16px.** *(Agent, 2026-10-15, ticket `0086`. Amends `06` §2.2.)* §2.2 gave the card 16px insets and
+  also forbids anything covering the attribution (`0052`); at the window's bottom edge the two
+  collide. The attribution is a licence requirement, so it wins. Side insets stay 16px.
+- **D-316** **The plinth's last-run line reads the same `/api/runs/latest` fetch as D-249's first
+  camera — the latest TRACED activity — and is written `Last: Fri 28 Aug · 8.40 km · 21 new`.**
+  *(Agent, 2026-10-15, ticket `0086`. Amends `06` §2.2's wireframe text.)*
+  - **One source.** `MapShell` hands the run up through `onLatestRun`, so the line, the first
+    camera and `⌖` (`0101`) can never name different runs, and `/` gains no second activity query
+    (`0186`). Cost, accepted: a strength or manual log newer than the last run does not take the
+    line. That is what "Last run" says, and §4.5 makes the last run the selected run.
+  - **The date is absolute, from the run's own wall clock.** "Thu" alone is ambiguous after a week
+    away; a relative age ("3 weeks ago") would be a "days since", which H2/D-013 forbid. Missing
+    parts are omitted, and a run with no new cells says nothing about cells.
+  - **`⚙` is built here** (top-right of the map pane, 40×40, opaque): the ticket's chrome lists it
+    and `0089` assumes it; no other ticket owns it.
