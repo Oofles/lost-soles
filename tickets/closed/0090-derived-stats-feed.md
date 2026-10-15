@@ -4,7 +4,7 @@ slug: derived-stats-feed
 title: Derived stats feed — per-run territory counts, lifetime totals, and the frontier primitive
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 13-home-plinth-and-chronicle
 depends_on: [49, 62, 86]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-15T18:28:53Z
+closed: 2026-10-15T20:12:17Z
 ---
 
 ## Description

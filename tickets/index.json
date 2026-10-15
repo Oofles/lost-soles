@@ -2194,7 +2194,7 @@
     "title": "Derived stats feed — per-run territory counts, lifetime totals, and the frontier primitive",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [
@@ -2206,8 +2206,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-15T18:28:53Z",
-    "path": "tickets/open/0090-derived-stats-feed.md",
-    "ready": true,
+    "closed": "2026-10-15T20:12:17Z",
+    "path": "tickets/closed/0090-derived-stats-feed.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9
@@ -2741,7 +2742,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0113-offline-and-slow-connection-behaviour.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
