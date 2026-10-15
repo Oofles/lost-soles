@@ -122,6 +122,10 @@ have gone up by the run's new-cell count exactly, not approximately.
 Then click the frontier line and drive or walk toward what it named. If it points at somewhere you have
 obviously already run, the novelty scan is reading a stale generation.
 
+**Agent smoke test, deployed `e15122d` (Amplify job 404), 2026-10-15.** Headless Chromium against soles.devaultsecurity.com as a throwaway Cognito user with 18 seeded runs (4 traced), everything deleted and re-verified afterwards. The plinth's lifetime cells read 225 for 225 seeded. The tally matches the Chronicle row for both checked runs: `57 cells claimed` / `57 new`, and `58 cells claimed · 2 remembered` / `58 new`. The click-expanded breakdown reads `125 new cells · 2 remembered cells`. Those are XP amounts labelled as cells (58 × 2.15, 2 × 0.5 × 2.15), not a disagreement in the feed. Filed as `0277`.
+
+**Operator, desktop browser, 2026-10-15:** the frontier line and the cross-screen counts: good.
+
 ## Resolution
 
 **Built the feed in one module, `lib/stats/derived.ts`, and pointed the plinth's cell count at it.

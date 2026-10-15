@@ -99,6 +99,10 @@ nothing in it should make an unremarkable month look like a failure.
 
 - 2026-10-08 (operator, during 0078 validation): **an open question to decide here, not a settled one.** Should back from a run opened from the Chronicle reopen the list instead of going to `/`? §3.3 says it goes to `/`, so today's links use `replace`. The other way costs little: the links push instead of replace. A run opened any other way would still go back to `/`. Ask the operator before building the sheet's dismiss behaviour.
 
+**Agent smoke test, deployed `e15122d` (Amplify job 404), 2026-10-15.** Headless Chromium against soles.devaultsecurity.com as a throwaway Cognito user with 18 seeded runs (4 traced), everything deleted and re-verified afterwards. All 18 rows listed newest first; the gold mark is on the latest unseen run only (D-324). Back from the oldest run restores scrollTop 265 → 265, both from RUNS and from a cold `/chronicle` (seed path). RUNS after a dismiss starts at 0. The sweep `/` → Chronicle → run → Relive → skip → back → back ends on `/`, passing the Chronicle once, with nothing blank. The first two deploys (jobs 402, 403) failed the scroll check; see Resolution.
+
+**Operator, desktop browser, 2026-10-15:** back from an old run, and scrolling the full list after the Strava backfill: good.
+
 ## Resolution
 
 Built by a wave-1 agent (capability `13`), 2026-10-15. Not yet deployed. The orchestrator closes it.

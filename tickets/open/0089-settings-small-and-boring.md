@@ -81,6 +81,10 @@ Then look at the account-deletion entry with fresh eyes and ask whether you coul
 while trying to disconnect. If the answer is anything but a firm no, redesign the spacing before
 closing this ticket.
 
+**Agent smoke test, deployed `e15122d` (Amplify job 404), 2026-10-15.** Headless Chromium against soles.devaultsecurity.com as a throwaway Cognito user with 18 seeded runs (4 traced), everything deleted and re-verified afterwards. `/settings` shows `Build 0.1.0 · e15122d` with the full sha in `data-commit`. A non-owner sees only Sign out and the build line; the source and deletion controls are owner-gated (`app/settings/page.tsx:63`), so they were judged by the operator. Disconnect's retention is proven by `retains-everything.test.ts`, so the operator was not asked to disconnect (D-229).
+
+**Operator, desktop browser, 2026-10-15:** the page is understood at a glance, the disconnect copy reassures, and the deletion entry cannot be hit by accident: good.
+
 ## Resolution
 
 ### What was built
