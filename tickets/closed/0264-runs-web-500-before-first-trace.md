@@ -4,7 +4,7 @@ slug: runs-web-500-before-first-trace
 title: /api/runs/web returns 500 for a user with no trace web yet
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: [85]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T16:56:37Z
 started: 2026-10-15T12:10:40Z
+closed: 2026-10-15T12:27:37Z
 ---
 
 ## Description

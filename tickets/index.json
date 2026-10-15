@@ -6080,7 +6080,7 @@
     "title": "/api/runs/web returns 500 for a user with no trace web yet",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "12-post-run-moment",
     "depends_on": [
@@ -6090,8 +6090,9 @@
     "source": "agent",
     "created": "2026-10-14T16:56:37Z",
     "started": "2026-10-15T12:10:40Z",
-    "path": "tickets/open/0264-runs-web-500-before-first-trace.md",
-    "ready": true,
+    "closed": "2026-10-15T12:27:37Z",
+    "path": "tickets/closed/0264-runs-web-500-before-first-trace.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
