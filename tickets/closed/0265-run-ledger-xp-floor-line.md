@@ -4,7 +4,7 @@ slug: run-ledger-xp-floor-line
 title: The run ledger keeps a +N XP floor line when the earlier standing cannot be read
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T13:20:51Z
 started: 2026-10-15T13:31:03Z
+closed: 2026-10-15T13:52:49Z
 ---
 
 ## Description
