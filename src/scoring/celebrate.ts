@@ -23,12 +23,15 @@
  * flip alone raises it by one. So the baseline also carries the skill ids that counted when it was
  * taken, and "minted" is "introduced after it, or not counted in it".
  *
- * A minted skill yields no level-up event at ANY level, and none of its levels count toward the
- * celebrable delta — including XP it earned in the very activity that first scored it. The next
- * diff, computed from a `before` under the new ruleset, treats it like any other skill.
+ * In `celebrableLevelUps` (the snapshot diff) a minted skill yields no level-up event at ANY level,
+ * and none of its levels count toward the celebrable delta — including XP it earned in the very
+ * activity that first scored it. The next diff, computed from a `before` under the new ruleset,
+ * treats it like any other skill. The level-up cards do NOT use that diff: they follow D-297
+ * (`lib/level-up/cards.ts`), where a minted skill's own earned levels do get cards and only its
+ * free level is excluded, from the earned Total Level.
  *
- * Pure: no I/O, no clock. The consumer — the level-up cards in `12-post-run-moment` — persists
- * the snapshot and the last celebrated milestone; this module only answers from them.
+ * Pure: no I/O, no clock. Its live consumer is `isMinted`, called by the level-up cards, which store
+ * nothing (D-297); the snapshot functions answer from whatever `before` a caller supplies.
  */
 
 import type { RuleCurve, RuleSkill } from "@/src/rules/schema"

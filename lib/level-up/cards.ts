@@ -77,7 +77,7 @@ export function skillCards(
   return cards
 }
 
-/** The Total Level ladder with its computed ceiling appended (§4.3, D-145 — 693 today, never typed). */
+/** The Total Level ladder with its computed ceiling appended (§4.3, D-145 — computed, never typed). */
 export function totalLadder(rules: Pick<RuleSet, "curve" | "skills">): number[] {
   const ceiling = totalLevelCeiling(rules.skills, rules.curve)
   return [...TOTAL_LEVEL_MILESTONES.filter((m) => m < ceiling), ceiling]

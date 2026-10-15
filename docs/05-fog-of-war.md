@@ -1118,6 +1118,12 @@ or shrine (`04` §4.3) is a placed object, *"visible forever"*, so no mist may c
 makes it the same in both modes. The route stays topmost. So the fog goes in under the landmark
 layer when it exists, and under `run-glow` otherwise (`lib/map-layers.ts` `fogBeforeId`).
 
+**The permanent trace web goes under everything above** (D-299; *amended by D-307, `12` audit,
+2026-10-15*): `trace-web` and `trace-web-before`, and beat 1's `trace-ink` on a no-new-ground run,
+sit above the basemap's roads and **below its first label layer** (`lib/trace-web/layer.ts`
+`traceBeforeId`). That puts them below the fog, so unexplored ground hides old routes the same way
+it hides labels. Beat 1's own `run-ink-*` pair is appended on top, beside the route.
+
 Route colour must survive both backgrounds: warm cream core `#fff2d0` with an amber glow reads on
 parchment *and* against dark fog. Pure white blows out on parchment; pure red vanishes into it.
 
@@ -1129,6 +1135,10 @@ write round-trips back (R4 §4.4).
 
 - Drive repaints with `requestAnimationFrame` → `map.triggerRepaint()`, **capped at 30 fps**.
   Drifting mist does not benefit from 60 and it halves the battery cost.
+  *Amended by D-308 (`12` audit, 2026-10-15):* the cap is for **ambient** animation. Beat 1 of the
+  post-run moment (`06` §3.2) is a one-off 2.9 s event and repaints every frame; `0079` measured it
+  against D-241's 60 Hz target. Under reduced motion it is replaced by `06` §3.4's 400 ms
+  cross-fade, which is the stated exception to "stop the rAF loop" below.
 - Pause entirely when `document.hidden`.
 - `matchMedia('(prefers-reduced-motion: reduce)')` → stop the rAF loop and render the fog
   statically at `u_time = 0`. Expose the same switch as a manual battery-saver toggle. Atlas mode

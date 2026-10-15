@@ -1014,7 +1014,7 @@ version), failing the build or the cold start on any violation:
    into `vigil` at full rate, (c) the same run with a trace scores into `wayfaring`, (d) neither
    writes an `ExploredCell` for the traceless case. **This test is the acceptance criterion for
    D-031, wired into CI so the property cannot rot.** *Amended by D-276 (09 audit, 2026-10-02):*
-   clause (d) is not yet wired; it is deferred to open ticket `0159`.
+   clause (d) was deferred to ticket `0159`, which wired both arms (`12` audit, 2026-10-15).
 6. `grep -rE '"(wayfaring|vigil|might|fortitude|endurance|cartography|constitution)"' src/` returns
    nothing outside `rules/`, fixtures and tests — the skill-name equivalent of the contract §5
    `grep -ri strava` check.
@@ -1877,8 +1877,10 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `users/<uid>/traces/<activityId>.segments.json.gz` | forever in practice, **purgeable** | derived from raw; kept because regenerating it costs a `normalize()` and it is served on every activity detail (S-7) |
 | `users/<uid>/traces/web.json.gz` | current only, **purgeable** | derived from the S-7 objects plus T3's `startedAt`; `tools/trace-web/rebuild-trace-web.ts` rebuilds it (S-8, D-299) |
 | `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
+| `users/<uid>/cells/<activityId>.classes.json` | forever in practice, **purgeable** | derived; the run's own new/re-armed verdicts (§4.4, D-294). Step 6 rewrites it from the fold (D-307). |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
 | T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny; PITR on |
+| `Landmark` (place-bound milestones) | forever | derived from the ledger and the stored routes by `tools/landmarks/backfill-landmarks.ts` (D-301). Rebuilt in step 6; under a changed ruleset a rebuilt landmark may stand somewhere else (D-307). |
 | `explored-*.<gen>.bin`, `explored-agg.<gen>.json` | **keep current + 1 previous** | regenerable in <100 ms (§2.10). Older generations are garbage. |
 | `deltas/<toGen>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
 | T8 `IngestReceipt` | **TTL 90 days** | safe to expire: set semantics and the deterministic ledger `id` are the permanent backstops (§2 T8 layer 4) |
@@ -1921,7 +1923,9 @@ the newest snapshot as its waterline.** With it, D-135 survives losing every tab
 D-135 is only as durable as DynamoDB PITR's 35-day window.
 
 This is recorded as an awkwardness rather than hidden: **D-135 is the one decision in this document
-that forces a fact to be stored that is not derivable from the system of record.** It is a small
+that forces a fact to be stored that is not derivable from the system of record.** (`Landmark` is
+derivable, but only under the ruleset that placed it; D-307 accepts that a rebalance may move one
+rather than store it as a second exception.) It is a small
 price and the decision is worth it, but the exception should be visible.
 
 ### 8.3 The rebuild drill
@@ -2009,10 +2013,17 @@ recomputable in the sense 04 §7.2 required.
 a live `SkillState` read (there is none — the tables are new). Ground classification comes from
 step 5's per-activity counts, not from T6, which is the same discipline §4.4 step 3b imposes.
 Write `SkillState`, `Profile.totalXp`/`totalLevel`, and any `retained_floor` rows the waterline
-requires (§4.6).
+requires (§4.6). §4.4 step 3e also rewrites each scored run's `classes.json` from the fold (D-294).
+*Amended by D-307 (`12` audit, 2026-10-15):* then run `tools/landmarks/backfill-landmarks.ts`
+against the rebuilt ledger. Replay writes no landmarks (D-301), so without this the rebuilt stack
+has none. Under the same `xpRulesVersion` every landmark lands where it stood. Under a changed one
+a crossing can move to another activity or point, and the rebuilt landmark follows it — accepted,
+not snapshotted (D-307).
 
 **Step 7 — regenerate the delivery layer.** Encode `explored-r11.bin`, `explored-agg.json` and
 `explored-lastrun-r11.bin` from the step-5 map; PUT them; PUT `manifest.json` last (§6.4).
+Rebuild `users/<uid>/traces/web.json.gz` with `tools/trace-web/rebuild-trace-web.ts` (D-299,
+D-307) — an absent web reads as an empty one (D-306), so forgetting it fails silently.
 **Set `generation = <the step-0 generation> + 1`, never 1.** A generation that goes backwards
 would leave every cached client convinced it is already up to date, and the fog is the one thing
 that must never appear to regress.

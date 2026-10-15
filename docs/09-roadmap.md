@@ -717,6 +717,10 @@ than the ruleset that snapshot was computed under (**D-257**, which refines the 
 and `SkillState` rows are created by first XP, not by a ruleset) — or a row that existed then
 but was not enabled, since a row switched `enabled: false → true` mints the same free point
 (**D-300**, ticket `0222`). Built in `0065`, `src/scoring/celebrate.ts`.
+*Amended at the `12` audit (2026-10-15):* the cards that play were built in `0082` and follow
+**D-297**, not the snapshot diff: a card only for a level the activity's own XP bought, and Total
+Level milestones on an earned total against one fixed baseline (`lib/level-up/cards.ts`). The
+predicate is still `isMinted`, still only in `celebrate.ts`; `06` §5.4 states the rule in full.
 
 Acceptance: a test that adds a skill row to a seeded ruleset, replays, and asserts Total Level
 rose by exactly the skill count added **and** that zero level-up cards were queued.

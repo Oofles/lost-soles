@@ -310,7 +310,9 @@ toast.
 
 - **Camera.** From wherever home left it, fly to the run's bounding box with 12% padding,
   `easeOutCubic`, 400 ms. If the run is already in frame, do not move — a gratuitous camera
-  move at the start reads as jank.
+  move at the start reads as jank. *Amended at the `12` audit (2026-10-15):* `/run/:id` mounts its
+  own map already framed on the run (`0078`), so on entry the run is always in frame and the
+  camera does not move. The flight happens only on ⟲ Relive after the user has panned.
 - **Mode.** The sequence always plays in **adventure** rendering, regardless of the user's
   saved mode. This is the one moment where atmosphere outranks planning, because you are not
   planning — you are looking at what you did. On completion it cross-fades (300 ms) back to the
@@ -381,7 +383,9 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
   `--gold-500` is 2.24:1 there, and a mark that carries meaning needs 3:1; D-296, after D-291) and
   is the only colour in the row: the bars are ink.
 - **Tapping a row expands it to the reason breakdown** (04 §4.2): `318 new ground · 62
-  remembered · 196 familiar`. This falls out of the `XpLedger` for free and it is the thing that
+  remembered · 196 familiar`. *D-309 (`12` audit, 2026-10-15):* **"remembered" is the only word
+  the player sees for re-armed ground** — in this breakdown, the cells line above it and the skill
+  sheet alike. `re-armed`/`rearmed_ground` is the ledger's reason id, never on-screen copy. This falls out of the `XpLedger` for free and it is the thing that
   makes the numbers feel *accountable* rather than dispensed. Expansion pauses the sequence.
 - **"3.18 km never run before"** is deliberately given its own line and phrased in distance, not
   cells. Cells are the mechanic; kilometres of new road is the *feeling* (D-012).
@@ -962,6 +966,15 @@ Two consequences worth writing down before someone hits them:
   first diff — including a level genuinely earned in that same activity. Deliberate; the next diff
   treats it normally. The guard is a pure function in `src/scoring/celebrate.ts`, consumed at the
   notification layer.
+  **Superseded for the cards by D-297 (`0082`, 2026-10-13; recorded here at the `12` audit,
+  2026-10-15).** The cards that actually play (`lib/level-up/cards.ts`, on `/run/:id` and `/log`)
+  do not diff snapshots. A card exists only for a level **this activity's XP bought**, so a minted
+  skill's free level 1 crosses nothing and the per-skill half of the guard falls out of
+  attribution — and a minted skill's own *earned* levels (its first 1 → 2) **do** get cards.
+  Total Level milestones are judged on an **earned** total: the real Total Level minus the free
+  level of every enabled skill `isMinted` against one fixed baseline, the first ruleset that
+  shipped (`BASELINE`, D-297/D-300). The snapshot-diff rule above still governs `0065`'s
+  `celebrableLevelUps`, which no card path calls today.
 
 ### 5.5 The skill detail sheet — `/skills/:skillId`
 
@@ -1427,7 +1440,9 @@ The reading environment is a bright pavement, not a desk (§9.1).
 **All numerals are `font-variant-numeric: tabular-nums`.** Every number in this app either counts
 up in an animation (§3, Beat 2) or sits in a column, and proportional figures make both jitter.
 
-**Never letterspace lowercase Spectral.** The uppercase section rules are the only tracked type.
+**Never letterspace lowercase Spectral.** Only uppercase type is tracked: the Inter section rules,
+and uppercase Spectral where it is used — the level-up card's name and tier rules, and the ledger's
+`RETURN FROM THE FOG` (D-297; *amended at the `12` audit, 2026-10-15*).
 
 ### 8.5 Spacing, shape and elevation
 

@@ -4876,3 +4876,34 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Rejected: treating 403 as missing in `isMissing`.** That would turn a lost or broken grant
     into an empty map that shows no error, on a map that cannot re-fog. A 403 stays an error, and
     `lib/fog/server.test.ts` asserts it.
+- **D-307** **The rebuild drill regenerates what capability `12` added; a rebalance may move a
+  landmark.** *(Operator, 2026-10-15, at the `12-post-run-moment` audit; agent's recommendation
+  accepted.)* Amends `02` §8.1–§8.3 and `08` §6.4. Narrows **D-301**'s "a replay that moves the
+  crossing changes nothing" to the live table: it holds there, and does not survive a rebuild.
+  - **The gap.** `0248`, `0085` and `0253` added three derived objects — `Landmark` rows, the trace
+    web, and each run's `classes.json` — and none reached the drill. A rebuilt stack would have had
+    no cairns, and an empty trace web that reads as a correct one (D-306).
+  - **The drill now:** step 6 notes that §4.4 step 3e rewrites `classes.json` from the fold, then
+    runs `tools/landmarks/backfill-landmarks.ts`; step 7 runs
+    `tools/trace-web/rebuild-trace-web.ts`. §8.1 lists `classes.json` and `Landmark`.
+  - **Landmarks under a changed ruleset.** The backfill re-derives every landmark from the replayed
+    ledger. Same `xpRulesVersion`: each lands where it stood. Different one: a crossing can fall in
+    another activity or at another point, and the rebuilt landmark follows it. **Accepted.** A
+    rebuild is a disaster path, a rebalance is rare, and there is one user. A cairn that moves to
+    where the new rules say it was earned is honest. Rejected: snapshotting the `Landmark` table
+    beside `snapshots/skillstate/` — it would make a second non-derivable fact (§8.2) to protect a
+    case nobody is likely to meet.
+  - **Account deletion** (`08` §6.4 step 4) names every owner-scoped table, `Landmark` among them,
+    since its rows are coordinates near home.
+- **D-308** **The 30 fps repaint cap is for ambient animation; the post-run reveal repaints every
+  frame.** *(Agent, 2026-10-15, `12` audit; records what `0079`/`0080` built.)* Clarifies `05`
+  §4.5. Beat 1 (`06` §3.2) is a 2.9 s one-off event and calls `triggerRepaint()` on every
+  animation frame (`app/run/[activityId]/run-sequence.tsx`), measured against D-241's 60 Hz target.
+  The mist stays capped at 30 fps and paused when hidden (`lib/fog/animation.ts`). Under reduced
+  motion, `06` §3.4's 400 ms cross-fade is the stated exception to "stop the rAF loop".
+- **D-309** **"Remembered" is the only on-screen word for re-armed ground.** *(Operator,
+  2026-10-15, `12` audit.)* `0081` reused the skill sheet's `reasonWords` ("re-armed ground") for
+  the tally breakdown, while the cells line on the same panel says "8 remembered" and `04`/`06`
+  say "remembered" throughout. The design's word wins, because it is the player's word: re-arming
+  is mechanism, being remembered is what it means (D-051). `re-armed`/`rearmed_ground`/
+  `cells_rearmed` stay as ledger reason ids and in code. The copy change is ticket `0266`.

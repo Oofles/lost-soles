@@ -741,7 +741,10 @@ In order, and the order matters:
 3. **Disable, then delete, the Cognito user.** Disable first: it stops sessions immediately
    while the slower deletes run. `globalSignOut` to kill outstanding refresh tokens (§5.3).
 4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, `Trace`, and any
-   `IngestReceipt` rows not yet TTL'd. Partition-key scoping (§5.5) is what makes this a query
+   `IngestReceipt` rows not yet TTL'd. *Amended by D-307 (`12` audit, 2026-10-15):* this list is
+   every owner-scoped table, not just these four — `XpLedgerEntry`, `SkillState`, `Profile`, and
+   **`Landmark`**, whose rows are coordinates near home (D-301). The writers hold `UpdateItem`
+   only, so this delete is an operator action under an operator's credentials. Partition-key scoping (§5.5) is what makes this a query
    rather than a scan, which is a second, quieter reason every model is owner-scoped.
 5. **Delete `raw/<uid>/` and the user's `entity('identity')` prefix — under the break-glass
    role** (§6.2). This is the one step that requires deliberately assuming a role, and that

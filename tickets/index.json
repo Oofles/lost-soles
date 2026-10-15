@@ -6097,5 +6097,65 @@
       "checked": 3,
       "total": 3
     }
+  },
+  {
+    "id": 265,
+    "slug": "run-ledger-xp-floor-line",
+    "title": "The run ledger keeps a +N XP floor line when the earlier standing cannot be read",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T13:20:51Z",
+    "path": "tickets/open/0265-run-ledger-xp-floor-line.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 266,
+    "slug": "say-remembered-not-re-armed",
+    "title": "Say remembered, never re-armed, on screen",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T13:20:51Z",
+    "path": "tickets/open/0266-say-remembered-not-re-armed.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 267,
+    "slug": "tally-tap-a-row-hint",
+    "title": "Show the tap-a-row hint on the post-run tally",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T13:20:51Z",
+    "path": "tickets/open/0267-tally-tap-a-row-hint.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
   }
 ]
