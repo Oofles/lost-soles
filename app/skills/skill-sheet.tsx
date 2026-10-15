@@ -3,6 +3,7 @@
 import { useEffect, useRef, type CSSProperties } from "react"
 
 import { Sigil } from "@/components/sigil"
+import { useSwipeDismiss } from "@/lib/sheet/swipe-dismiss"
 import { reasonWords, type PlaceMilestone, type SkillDetail } from "@/lib/skills/detail"
 
 /**
@@ -12,8 +13,9 @@ import { reasonWords, type PlaceMilestone, type SkillDetail } from "@/lib/skills
  * names one (I-25). Vigil's sheet differs from Wayfaring's only in what its row and ledger hand
  * over — a rules sentence without a ground clause, and no places, so no `ON THE MAP` heading.
  *
- * Dismissal has three paths and none is the only one: Esc, a click on the scrim, and the close
- * button — plus the browser's back, which works because the sheet is a route.
+ * Dismissal has four paths and none is the only one: Esc, a click on the scrim, the close button,
+ * and — on a phone, at < 1024px — a swipe down from the sheet's top (`0249`, §1.5; the shared
+ * `useSwipeDismiss`) — plus the browser's back, which works because the sheet is a route.
  *
  * NO CHART, GRAPH OR SPARKLINE (§5.5): a line going up over time is a stats page and invites
  * comparison with your past self (N4). The bar and the ladder are enough. And nothing is an
@@ -90,6 +92,7 @@ export function SkillSheet({
   // The caller's `onDismiss` is a new function each render; the listener below is installed once.
   const dismiss = useRef(onDismiss)
   dismiss.current = onDismiss
+  useSwipeDismiss(dialog, onDismiss)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -126,6 +129,8 @@ export function SkillSheet({
         style={{
           position: "relative",
           overflowY: "auto",
+          // A pull at the sheet's top is the dismiss gesture, never the page's pull-to-refresh.
+          overscrollBehavior: "contain",
           boxSizing: "border-box",
           background: "var(--surface-raised)",
           color: "var(--text-primary)",
