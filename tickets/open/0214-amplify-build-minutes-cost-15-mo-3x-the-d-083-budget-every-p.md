@@ -65,6 +65,38 @@ Related: D-083, D-150, D-162, `0128`, `0013`.
   Excluding the support plan, the app runs about $21/mo against D-083's $1–5, and build minutes
   are 88% of it.
 
+## Resolution
+
+**Mechanism: a `commit-msg` hook that tags provably non-deployable commits with Amplify's skip
+token (D-311).** Files: `.githooks/commit-msg`, `scripts/skip-cd.mjs`, `scripts/skip-cd.test.mjs`
+(14 tests, run against real temporary repositories with a real upstream), a pointer comment in
+`amplify.yml`, and D-311 in `DECISIONS.md`.
+
+- **The non-deployable list**, anchored at the repo root: `docs/`, `tickets/`, `prompts/`,
+  `.claude/`, `.github/`, `README.md`, `CLAUDE.md`. Grep at 0214 found nothing in `app/`, `lib/`,
+  `src/`, `components/`, `amplify/` or `next.config.ts` reading them. `lib/tickets/` is app code
+  and is not on the list. Nested markdown such as `src/**/__fixtures__/README.md` builds anyway.
+- **It judges the whole unpushed range.** Amplify reads only the head commit's message, so a docs
+  commit on top of an unpushed code commit is not tagged.
+- **It fails open.** No upstream, a git error, an empty commit (the usual way to force a rebuild), a
+  rename out of code (`--no-renames`), or any other path, and the push builds.
+- **Amplify matches the token anywhere in the message.** Found by accident: the first code commit
+  (`bc309fe`) mentioned the token in its subject and Amplify started no job. The hook now defuses
+  a hand-typed token on any commit it would not tag itself (`f4c265d`, which deployed both).
+- **Rejected:** an `amplify.yml` diff check, because a build cannot end early as a success. Also
+  rejected: auto-build off plus a path-filtered GitHub Action calling `amplify start-job`, because
+  it puts AWS credentials in GitHub. See D-311.
+- **The GitHub Actions gate is unaffected.** It does not read the Amplify token: `gate`, `tickets`
+  and `secret-scan` ran on `bc309fe`, the push Amplify skipped.
+
+**Before, measured 2026-10-01 to 10-14:** 124 Amplify jobs on `main`, `USE1-BuildDuration`
+1,233.2 min = **$12.33**. Replaying those 124 pushes through `shouldSkip` (each job's range runs
+from the previous job's commit) gives **52 jobs and 525 of 1,246 wall-minutes skipped, 42%**.
+That is the projection; the after figure has not been measured yet.
+
+The bigger lever is still build length (~9 min each). `npm install --no-save` with no cache hit
+(D-162, `0128`) is a likely share of it, and a lockfile-keyed cache could cut it.
+
 ## Operator validation
 
 None: build configuration with nothing on screen. Smoke test by the agent: push a docs-only commit
