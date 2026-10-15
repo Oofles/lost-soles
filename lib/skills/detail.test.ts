@@ -333,8 +333,9 @@ describe("D-309 — re-armed ground is \"remembered\" on screen (0266)", () => {
             .split("\n")
             .forEach((line, i) => {
               if (/^\s*(\/\/|\*|\/\*)/.test(line)) return
-              // A quoted literal, a template, or JSX text between tags.
-              if (/(["'`][^"'`]*re-armed[^"'`]*["'`])|(>[^<{]*re-armed[^<{]*<)/i.test(line)) offenders.push(`${p}:${i + 1}`)
+              // A quoted literal, a template, or JSX text between tags. Hyphenated only: bare `rearmed`
+              // is a code value (`"new" | "rearmed"`, `m.rearmed`), never copy.
+              if (/(["'`][^"'`]*\bre-armed\b[^"'`]*["'`])|(>[^<{]*\bre-armed\b[^<{]*<)/i.test(line)) offenders.push(`${p}:${i + 1}`)
             })
         }
       }
