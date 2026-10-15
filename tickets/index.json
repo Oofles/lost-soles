@@ -2134,7 +2134,7 @@
     "path": "tickets/open/0087-home-screen-states.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 11,
       "total": 11
     }
   },
@@ -2158,7 +2158,7 @@
     "path": "tickets/open/0088-chronicle-sheet.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -2182,7 +2182,7 @@
     "path": "tickets/open/0089-settings-small-and-boring.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -2207,7 +2207,7 @@
     "path": "tickets/open/0090-derived-stats-feed.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -6285,6 +6285,66 @@
     "acceptance": {
       "checked": 5,
       "total": 5
+    }
+  },
+  {
+    "id": 273,
+    "slug": "home-holds-an-unseen-run-back-without-a-one-request-flash-wh",
+    "title": "Home holds an unseen run back without a one-request flash when it lands mid-session",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T18:54:00Z",
+    "path": "tickets/open/0273-home-holds-an-unseen-run-back-without-a-one-request-flash-wh.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 274,
+    "slug": "run-page-s-back-arrow-pops-to-the-chronicle-when-the-run-was",
+    "title": "Run page's back arrow pops to the Chronicle when the run was opened from it",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T18:54:00Z",
+    "path": "tickets/open/0274-run-page-s-back-arrow-pops-to-the-chronicle-when-the-run-was.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 275,
+    "slug": "deferred-lifetime-stats-explorer-since-re-armed-lifetime-mos",
+    "title": "Deferred lifetime stats — explorer since, re-armed lifetime, most-run ground, total distance and runs",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T18:54:00Z",
+    "path": "tickets/open/0275-deferred-lifetime-stats-explorer-since-re-armed-lifetime-mos.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]

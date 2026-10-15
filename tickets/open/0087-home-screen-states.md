@@ -190,3 +190,5 @@ fog rule (`lib/fog/home-territory.ts`); no state draws chrome of its own.
 explored-set delta arrives first and the latest-run refetch one request later, so the new ground
 can show for that request's duration before it is held; likewise on a first visit with no cached
 latest run. Proposed as a follow-up ticket rather than widened here.
+
+**Decisions recorded at merge (orchestrator):** D-317 (last-run line cached, operator), D-318 (Sync on `/` speaks only on queued; the operator declined to resurface the failed-import count anywhere), D-319 (hold only new cells; no fog layer at zero cells), D-320 (the connect line's condition). The proposed one-request-flash bug is `0273`.

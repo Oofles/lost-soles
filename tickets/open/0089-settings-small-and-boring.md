@@ -117,3 +117,4 @@ closing this ticket.
 
 `06` §1.3 listed "reduced-motion/battery, units" for `/settings`, and §8 promised a theme override there. Both contradict this ticket's "exactly four things" and D-013. Both doc passages are amended in place, citing `0089`.
 
+**Decisions recorded at merge (orchestrator):** D-325 (the deletion entry links to the stub runbook `0106` fills, operator) and D-326 (no preference control, theme included). `0106` has a note that it owns `docs/runbooks/account-deletion.md`.

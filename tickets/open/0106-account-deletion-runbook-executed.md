@@ -94,6 +94,8 @@ test, the Trigger A gate opens and 0114 applies.
   Cognito `sub`, sits outside `users/*` and `raw/*`, and is versioned like the rest of the bucket,
   so the step 6 noncurrent-version purge has to cover it too. The worker role has no delete there.
 
+- **2026-10-15, from `0089` (D-325):** `/settings`' deletion entry already links to `docs/runbooks/account-deletion.md` on GitHub, a stub citing `08` §6.4. This ticket owns turning that file into the executed runbook and **must keep the path**; a test in `app/settings/` fails if it moves.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

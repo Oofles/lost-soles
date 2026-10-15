@@ -5014,3 +5014,72 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     parts are omitted, and a run with no new cells says nothing about cells.
   - **`⚙` is built here** (top-right of the map pane, 40×40, opaque): the ticket's chrome lists it
     and `0089` assumes it; no other ticket owns it.
+- **D-317** **The plinth's last-run line paints from cache on a cold start.** *(Operator,
+  2026-10-15, ticket `0087`; `lib/plinth/latest-run.ts`.)* The last `/api/runs/latest` response is
+  kept in the LogStore kv under `latest-run:<sub>`, painted before the request, overwritten by the
+  network answer, and dropped silently on failure. D-316's single source holds: the line, the first
+  camera and `⌖` read the same value. `/api/runs/latest` also carries `newCells` (the server's
+  classes, D-294) so home can hold an unseen run back (D-319).
+- **D-318** **A Sync press on `/` speaks only when activities were queued, and a failed import
+  surfaces nowhere.** *(Agent, operator-confirmed, 2026-10-15, ticket `0087`. §2.3.)* `N activities
+  queued.` (partial sweeps included) is the only text. "Nothing new", provider failures,
+  not-connected and `0044`'s failed-import count say nothing; a thrown action is caught before an
+  error boundary. The operator declined to resurface the failed-import count on `/settings` or
+  anywhere else: a failed import is not an event (D-013). The only failure ever shown is a broken
+  token, as one ink line to `/settings`.
+- **D-319** **Home holds back only an unseen run's NEW cells, and draws no fog layer at all when the
+  territory to show has zero cells.** *(Agent, 2026-10-15, ticket `0087`.)* Re-armed cells stay
+  clear: they were explored before the run and the map never re-fogs (D-020), even while a sequence
+  waits. "Zero cells" covers nothing imported, a cleared cache before the network answers, and an
+  unseen first run; the `FogMaskLayer` is never constructed, not merely hidden. The pulse on `1 new
+  run — open it` fires once per run per page load; a reload is a cold open (§3.1).
+- **D-320** **`Connect <source> to begin` shows only when nothing has ever been imported AND no
+  source is connected.** *(Agent, 2026-10-15, ticket `0087`.)* A connected account waiting on its
+  first import is told nothing — the one call to action in the app is not repeated as a status.
+- **D-321** **Back from a run opened out of the Chronicle returns to the Chronicle, at the scroll
+  position it was left at; a second back goes to `/`.** *(Operator, 2026-10-15, ticket `0088`.
+  Amends `06` §3.3's "Back returns to `/`".)* Chronicle row links push rather than replace. Runs
+  opened any other way (the plinth's last-run line, a pasted link) still back to `/`. The scroll
+  position is a module-level snapshot (rows, cursor, `scrollTop`) saved on unmount and restored
+  only when the latest `popstate` landed on `/chronicle`; `history.state` belongs to Next's router.
+- **D-322** **`/` and `/chronicle` share an `app/(home)` route-group layout that owns the map and
+  the rail.** *(Agent, 2026-10-15, ticket `0088`.)* The Chronicle is the `/chronicle` page rendered
+  into the rail's column; `HomeScreen` omits the plinth on that path. Rejected: a standalone page
+  rendering its own home screen, which rebuilds MapLibre on every `RUNS` click and dismissal. This
+  makes "dismissing does not move the camera" structural. Precedent: `app/skills/layout.tsx`.
+- **D-323** **The Chronicle pages through `GET /api/runs/chronicle?after=`, whose cursor carries
+  only `[startedAt, id]`.** *(Agent, 2026-10-15, ticket `0088`.)* `userId` comes from the session,
+  so a cursor cannot address another account. 50 projected rows a page (`raw` never travels); rows
+  are a fixed 56px, virtualised with 8 rows of overscan. The per-run new-cell count is the stored T3
+  `newCellCount` column — no second counts source.
+- **D-324** **The Chronicle's gold mark goes on at most one row: the latest traced run, when this
+  device has not seen it.** *(Operator, 2026-10-15, ticket `0088`.)* Marking every unseen run turned
+  the whole list gold after a backfill, which §3.3 rules out. The rule is the plinth's `1 new run`
+  rule, so the two never disagree. A logged workout is never unseen. A 3px inset `--accent` rule
+  plus hidden text; never a count. Cost, accepted: if two runs land between visits, the older is
+  unmarked. `unseenIds` in `lib/chronicle/rows.ts`.
+- **D-325** **The account-deletion entry links to a stable runbook path that `0106` fills.**
+  *(Operator, 2026-10-15, ticket `0089`.)* `/settings` deletes nothing. After the typed confirmation
+  (`delete my account`) it links to `docs/runbooks/account-deletion.md` on GitHub — a stub today,
+  citing `08` §6.4 and saying it is not executable. `0106` owns making it the executed runbook and
+  must keep the path; a test fails if the file moves.
+- **D-326** **`/settings` holds no preference control, theme included.** *(Agent, 2026-10-15,
+  ticket `0089`. Amends `06` §1.3 and §8.)* §8 promised a manual theme override in `/settings`;
+  §1.3 listed reduced motion/battery and units. All contradict `0089`'s criterion 9 and D-013. Theme
+  and reduced motion follow the OS, units follow the locale. The `[data-theme]` CSS block stays so a
+  test can force a theme; nothing in the app sets it.
+- **D-327** **`cartographyXp` is the sum of each ledger row's rounded XP, not
+  `round(credits × rate)`.** *(Agent, 2026-10-15, ticket `0090`.)* `04` §8.2 Example A (148 new, 58
+  re-armed, rate 2.15) is 380 by the ledger (318 + 62, rounded per row, I-19/D-256) and 381 by the
+  ticket's formula, which predates D-256/D-276. The feed must never disagree with the ledger, so
+  `runTerritory` runs `discoveryRows` through `ledgerEntries` and sums them.
+- **D-328** **The per-run territory feed reads the award columns on the activity row (T3), not the
+  XP ledger rows (T4).** *(Agent, 2026-10-15, ticket `0090`.)* Those columns are what `05` §8.2
+  calls "the ledger entry written at projection time"; T4 has no cooled or deferred count. The feed
+  takes no cell set, so it cannot reclassify.
+- **D-329** **The Chronicle carries no lifetime totals, and four of `05` §8.3's totals wait for a
+  screen.** *(Operator, 2026-10-15, tickets `0088`/`0090`. Amends `06` §1.3 and §2.5, annotates
+  `05` §8.3.)* Cumulative numbers live on the plinth alone; the Chronicle is a plain list. Built:
+  cells, area, frontier length. Deferred: explorer since, re-armed lifetime, most-run ground, total
+  distance/runs — they need per-cell history and full run totals the browser does not hold. A
+  ticket exists for them; it opens when a screen needs them.

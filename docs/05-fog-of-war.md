@@ -1768,6 +1768,8 @@ level curve belong to the progression document, not this one.
 
 ### 8.3 Lifetime totals
 
+> **D-329 (2026-10-15, `0090`).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. **Deferred until a screen consumes them:** explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
+
 Cheap aggregates, computed on generation change and memoised:
 
 | Stat | Computation |

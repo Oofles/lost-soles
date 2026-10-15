@@ -203,3 +203,4 @@ Verification: all amplify.yml build-phase guards, `npm run typecheck`, `npm run 
 `npx vitest run` (196 files, 3491 passed), `npm run build`, and the post-build bundle-leak and
 home-not-in-client guards — all green in the worktree.
 
+**Decisions recorded at merge (orchestrator):** D-327 (`cartographyXp` sums the rounded ledger rows) and D-328 (the per-run feed reads T3's award columns). Open question 1 was settled by the operator as D-329: the four unbuilt §8.3 stats wait for a consuming screen, as `0275`. Questions 2 and 3: the Chronicle carries no totals (D-329), and the existing readers stay unrewired.

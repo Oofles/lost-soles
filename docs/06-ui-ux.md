@@ -122,7 +122,7 @@ is ticket `0216`, not this document.
 | `/run/:id` | P2's consequence: "the post-run reveal is the single most important moment in the product. That is where the budget goes." | The reward loop. The app becomes a scorecard. | Never |
 | `/skills` | Constraint R1 — every session must move a *named* number, and the user must be able to go look at those names. Runescape's skills panel is the explicitly-loved reference. | Levels exist but are unreadable; the "9 runs to 48" plan (04 §4.1) has no home. | Never |
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
-| `/chronicle` | The only way back to a past run's `/run/:id`, and the only place lifetime totals live. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
+| `/chronicle` | The only way back to a past run's `/run/:id`. It carries no lifetime totals (D-329): those live on the plinth. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
 | `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — `0216` |
 | `/settings` | Strava re-auth (the one recurring chore S3 permits), sign out, the account-deletion entry point, build info. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
@@ -338,8 +338,10 @@ does is burn back.
 
 `RUNS` opens `/chronicle` **in the rail's column, replacing the rail's contents**: the same
 24rem width, the full window height, with the run list scrolling inside it. The plinth's rows are
-not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4),
-so nothing on the plinth is lost. *(Confirmed by the operator, 2026-10-15.)*
+not drawn while it is open. *(Confirmed by the operator, 2026-10-15.)* The Chronicle does **not**
+repeat the lifetime totals at its own top: it is a plain list, newest first, and cumulative
+numbers live on the plinth alone *(D-329, operator, 2026-10-15, superseding this paragraph's
+earlier "carries the lifetime totals at its own top")*.
 
 - **No scrim, and the map stays live.** The map to its right pans and zooms as normal. A list of
   places you have been, beside the map of those places, is the one case where both should be

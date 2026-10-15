@@ -58,7 +58,8 @@ Paging: the list must survive a backfilled archive of years. Virtualise or page 
 - [x] Rows are reverse chronological and include runs and manually logged workouts in one list.
 - [x] Clicking a row opens `/run/:id` in static end state — no auto-play, asserted by a test.
 - [x] An unseen run is marked in gold; the mark clears after the run is seen or skipped, and no
-      numeric badge is ever rendered.
+      numeric badge is ever rendered. *(Amended by the operator, D-324: at most one row, the
+      latest traced run, carries the mark. Marking every unseen run made a backfill a gold wall.)*
 - [x] A list of 2,000 activities scrolls at the §6.4 frame budget in the desktop browser; DOM node count
       stays bounded. *(Proved with a synthetic 2,000-row fixture in the test suite — window render
       p95 under 16.7 ms, DOM ≤ `maxWindowRows` rows at every scroll offset. How it FEELS to scroll
@@ -80,7 +81,7 @@ Post-run sequences are never launched from here without an explicit `⟲ Relive`
 opt-in (§3.1). Getting this wrong turns browsing your history into being ambushed by animations.
 
 - **Amended by D-313 (0187, 2026-10-15).** The Chronicle opens from the plinth's `RUNS` button only (no handle to click or drag), in the rail's column with no scrim and the map usable beside it — the §2.5 panel, not a sheet over the map. Below 1024px it takes the bottom card's place. It uses `lib/sheet/swipe-dismiss.ts` (D-314) where it is a bottom sheet.
-- **Operator, 2026-10-15 (wave 1 of `13`), settling the open question above: back from a run opened out of the Chronicle returns to the Chronicle**, at the same scroll position, and a second back goes to `/`. Chronicle row links push rather than replace. A run opened any other way still goes back to `/`. This amends `06` §3.3's "Back returns to `/`": amend the doc and propose the decision as D-NEW-a.
+- **Operator, 2026-10-15 (wave 1 of `13`), settling the open question above: back from a run opened out of the Chronicle returns to the Chronicle**, at the same scroll position, and a second back goes to `/`. Chronicle row links push rather than replace. A run opened any other way still goes back to `/`. This amends `06` §3.3's "Back returns to `/`": amend the doc and record the decision (D-321).
 
 ## Operator validation
 
@@ -88,8 +89,10 @@ In the desktop browser: open the Chronicle from the plinth. Open a run from thre
 back in the Chronicle at the same scroll position, not at the top and not on `/`.
 
 Now the back-button sweep, which is this capability's done-condition: from `/`, open Chronicle → open
-a run → hit `⟲ Relive` → skip → back → back → back. You should end on `/` having passed through the
-Chronicle exactly once, with nothing blank in between.
+a run → hit `⟲ Relive` → skip → back → back. You should end on `/` having passed through the
+Chronicle exactly once, with nothing blank in between. *(Amended in wave 1: the sweep had three
+backs, written for the old replace links. With push links (D-321) the stack after the skip is
+`/, /chronicle, /run`, so two backs reach `/`.)*
 
 Then scroll the whole list after a full Strava backfill. It must stay smooth to the bottom, and
 nothing in it should make an unremarkable month look like a failure.
@@ -144,7 +147,7 @@ onto `/run/:id`, not `/chronicle`, and the walk is unchanged. `lib/chronicle/ret
 the stack through a fake session history. Dismissal (Esc, the `×` control, and below 1024px the
 swipe) is always `router.back()`, because a `/` is always behind the Chronicle.
 
-**Unseen mark.** This is `0084`'s per-device `seen` flag, asked once per loaded **traced** row. A
+**Unseen mark.** *(Superseded at merge by D-324: the flag is asked for, and the mark drawn on, only the latest traced row — `unseenIds` replaced `isUnseen`. The rest of this paragraph is as built.)* This is `0084`'s per-device `seen` flag, asked once per loaded **traced** row. A
 logged workout is never "unseen": the user entered it, and it has no reveal. The mark is a 3px gold
 inset rule (`--accent`, D-148: a rule, never text) with visually hidden "not yet seen". There is no
 count anywhere. Nothing is drawn until IndexedDB answers, so there is no flash of gold. The mark
@@ -175,3 +178,5 @@ Files: `app/(home)/layout.tsx` (was `app/page.tsx`), `app/(home)/page.tsx`,
 rows and return, `lib/runs/server.ts`, `lib/runs/wire.ts`, `lib/runs/run-page.test.ts`,
 `lib/run-moment/seen.test.ts`, `app/routes.test.ts`, `app/new-workout-type.test.tsx`,
 `components/plinth/plinth.test.tsx`, `docs/06-ui-ux.md`.
+
+**Decisions recorded at merge (orchestrator):** D-321 (back to the Chronicle), D-322 (`(home)` route group), D-323 (paged endpoint and cursor), D-324 (gold mark on the latest unseen run only, operator), D-329 (no lifetime totals in the Chronicle, operator). The proposed "lifetime totals at the Chronicle's top" ticket was declined by D-329. The run page's `←` bug is `0274`.
