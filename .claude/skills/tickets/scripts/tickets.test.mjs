@@ -2596,4 +2596,24 @@ describe("0269 — waves: a capability's open tickets layered for parallel agent
       assert.notEqual(run(d, "waves", "99-nope").code, 0);
     } finally { rmSync(d, { recursive: true, force: true }); }
   });
+
+  test("CLI 0271: a bare capability number resolves to its slug; none or two is refused", () => {
+    const d = repo();
+    try {
+      ticket(d, "open", FM({ id: 1, slug: "a", capability: "13-home" }));
+      ticket(d, "open", FM({ id: 2, slug: "b", capability: "14-hooks" }));
+      ticket(d, "open", FM({ id: 3, slug: "c", capability: "14-other" }));
+      for (const arg of ["13"]) {
+        const r = run(d, "waves", arg, "--json");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(JSON.parse(r.out).capability, "13-home");
+      }
+      const none = run(d, "waves", "12");
+      assert.notEqual(none.code, 0);
+      assert.match(none.out, /numbered 12/);
+      const two = run(d, "waves", "14");
+      assert.notEqual(two.code, 0);
+      assert.match(two.out, /ambiguous: 14-hooks, 14-other/);
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
 });

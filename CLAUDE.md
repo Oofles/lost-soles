@@ -35,7 +35,7 @@ Check `tickets/closed/` to see what has actually been built.
 
 ## Session protocol (D-151, amended by D-312)
 
-**Default: waves.** `tickets.mjs waves` layers the capability's open tickets. Build each wave with
+**Default: waves.** **`/tickets wave <n>`** runs capability *n*'s next ready wave end to end. Typing it is the go. `tickets.mjs waves` layers the capability's open tickets. Build each wave with
 one agent per ticket, each in its own worktree. Merge, push once, validate once.
 **`docs/capabilities/WAVES.md` is the procedure. Read it before the first wave of a session.**
 The bullets below still govern the orchestrator's context and the serial (width-1) capabilities.

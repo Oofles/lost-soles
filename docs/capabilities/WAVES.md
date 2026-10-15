@@ -22,7 +22,15 @@ Wave 1 is ready now. Wave *k* becomes ready once waves 1..*k*-1 have merged. `he
 ticket cannot be scheduled. Width defaults to 4, because merge cost grows with width: tickets in one
 capability touch the same files (D-151). Capabilities `08`, `09` and `12` stay at width 1.
 
-**Propose the wave to the operator and wait for a yes**, as for any session's batch.
+**Propose the wave to the operator and wait for a yes**, as for any session's batch. The exception
+is **`/tickets wave <n>`** (ticket `0271`): typing it is the yes for that capability's next ready
+wave, and the skill runs this whole procedure from it.
+
+**Before spawning, read each ticket's Description and Notes for a dependency on another ticket in
+the same wave that `depends_on` does not declare.** For example, one ticket says it "follows" or
+"builds from" another. The script layers only what is declared. Capability 13's first wave paired
+`0086` with `0187`, which was rewriting the section `0086` builds from. On a hit, add the
+`depends_on` (after the operator agrees) and re-plan.
 
 ## 2. Before spawning
 
@@ -113,6 +121,8 @@ Rules:
   tickets.mjs create/start/close. Do not push. AWS is read-only for you.
 - Before committing, all of these must pass in your worktree: the guard scripts listed in
   amplify.yml's build phase, npm run typecheck, npm run lint, npx vitest run, npm run build.
+- Tick each acceptance criterion you have actually satisfied (`- [x]`), and amend in place, with a
+  reason, any you could not. Leave `(operator)` criteria unticked.
 - Append a full `## Resolution` to your ticket (files touched, decisions made, why). Leave the
   ticket in tickets/open with status as it is; the orchestrator closes it after deploy.
 - Make exactly ONE commit containing the code and the ticket file: `<NNNN>: <ticket title>`.

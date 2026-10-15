@@ -1808,6 +1808,20 @@ function planWaves(capability, tickets, { max = WAVE_MAX } = {}) {
   };
 }
 
+/**
+ * 0271. A bare capability number (`13`, `08`, `8`) names the one capability whose slug starts
+ * with it, so `/tickets wave 13` works without typing the slug. Anything else passes through
+ * unchanged, and the caller's own existence check reports it.
+ */
+function resolveCapability(arg, ts) {
+  if (typeof arg !== "string" || !/^\d{1,2}$/.test(arg)) return arg;
+  const n = Number(arg);
+  const caps = [...new Set(ts.map((t) => t.fm?.capability).filter((c) => capNumber(c) === n))].sort();
+  if (caps.length === 1) return caps[0];
+  if (!caps.length) die(`no ticket has a capability numbered ${arg}.`);
+  die(`capability ${arg} is ambiguous: ${caps.join(", ")}. Name it in full.`);
+}
+
 function cmdWaves(capability, flags) {
   const ts = load();
   if (!capability) {
@@ -1816,6 +1830,7 @@ function cmdWaves(capability, flags) {
     if (!first) die("nothing is ready and ungated, so there is no capability to plan. Run 'tickets.mjs next'.");
     capability = first.fm.capability;
   }
+  capability = resolveCapability(capability, ts);
   if (!ts.some((t) => t.fm?.capability === capability)) die(`no ticket has capability '${capability}'.`);
   const max = flags.max === undefined ? WAVE_MAX : Number(flags.max);
   if (!Number.isInteger(max) || max < 1) die(`--max must be a positive integer, got '${flags.max}'.`);
@@ -2421,7 +2436,8 @@ if (isMain) try {
   show <id>                   raw markdown + dependency status
   validate                    exit 1 on errors, 0 on warnings only
   next [--all]                highest-priority ready ticket; refuses size:l
-  waves [<capability>] [--max N]  open tickets layered into parallel waves (D-312)
+  waves [<capability>] [--max N]  open tickets layered into parallel waves (D-312);
+                                  <capability> may be its number, e.g. 13
   allocate                    next free id
   create --title --type --priority [--size --capability --slug --depends --source --body]
   start <id>

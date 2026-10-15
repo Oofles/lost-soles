@@ -1,9 +1,10 @@
 ---
 name: tickets
 description: >
-  Manage and implement Lost Soles tickets. Subcommands: list, show, next, triage,
+  Manage and implement Lost Soles tickets. Subcommands: list, show, next, waves, wave, triage,
   create, start, block, close, sync, audit. Bare /tickets works the backlog in priority order.
-argument-hint: "[list|show|next|triage|create|start|block|close|sync|audit] [id]"
+  /tickets wave <capability-number> runs that capability's next ready wave end to end.
+argument-hint: "[list|show|next|waves|wave|triage|create|start|block|close|sync|audit] [id|capability]"
 arguments: [action, id]
 allowed-tools: "Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/tickets/scripts/tickets.mjs *), Bash(git *), Read, Edit, Write, Grep, Glob"
 disable-model-invocation: true
@@ -35,6 +36,7 @@ subcommand dispatch, so this table is the dispatch.
 | `show` | `SCRIPT show $2` | Add the capability doc link; read the body only if asked to explain it |
 | `next` | `SCRIPT next --json` | Summarize, propose an approach, **wait for a go** |
 | `waves` | `SCRIPT waves [$2] [--max N]` | Propose wave 1, **wait for a go**, then follow `docs/capabilities/WAVES.md` (D-312) |
+| `wave` | `SCRIPT waves $2` | **The invocation is the go.** Run the next ready wave end to end. See `## wave` below |
 | `triage` | `SCRIPT list --status inbox --json` | The triage procedure, below |
 | `create` | `SCRIPT create --title "…" --type … --priority …` | Confirm the path it printed |
 | `start` | `SCRIPT start $2` | Then work it |
@@ -69,6 +71,38 @@ Then: summarize the ticket in two or three sentences, **state the approach you i
 If the script refuses because the ticket is `size: l`, do not work around it. Offer a concrete split
 into two or three tickets with proposed titles, and create them with `SCRIPT create` once agreed.
 `size: l` is a smell recorded honestly, not a valid plan.
+
+## `wave`
+
+`/tickets wave 13` means *run capability 13's next ready wave*. `$2` may be the bare number or the
+full slug; the script resolves it. With no `$2`, it means the capability `next` would pick. Typing
+the command **is** the operator's go for that wave, so there is no propose-and-wait step. Every
+other stop in `docs/capabilities/WAVES.md` still applies.
+
+**Read `docs/capabilities/WAVES.md` first, every time.** It is the procedure, and this section only
+says where it may and may not stop.
+
+1. **Plan.** `SCRIPT waves $2`. Wave 1 of the output is the wave to run, because earlier waves have
+   already merged and closed. If it prints `GATED`, or nothing is open, stop and say what
+   `next`/`audit` says instead.
+2. **Look for undeclared coupling before spawning.** Read each wave ticket's Description and Notes,
+   not the design docs. Look for one ticket saying it *follows*, *builds from*, or *waits on*
+   another in the same wave, without a `depends_on` that says so. This is the one check the script
+   cannot make. On a hit, **stop and ask**: offer to add the dependency, which moves the ticket to
+   a later wave. Capability 13's first wave put `0086` beside `0187`, whose output it built from.
+3. **At a capability's first wave,** the orchestrator reads `DECISIONS.md` (WAVES §2.2). In later
+   waves, read only the decisions the wave's tickets cite.
+4. **Start, commit, push, spawn** (WAVES §2). Use the §6 prompt verbatim, plus an orchestrator
+   note per ticket naming any decision it must build from that its text predates.
+5. **Merge, gate, push** (WAVES §4). Before closing, check each agent ticked its criteria
+   (`grep '^- \[ \]'`). An unticked box is checked against the code by you, never ticked on trust.
+6. **Stop and hand over** when any of these happens: an agent returns an open question (relay it,
+   then `SendMessage` the answer); a decision only the operator can make; a red gate or a red build
+   you cannot fix mechanically; and, always, **the wave's perceptual checks**, in one batch.
+   Close the tickets after the operator answers. Tickets with no perceptual checks close as soon
+   as the smoke tests pass.
+7. **End** with the next wave's contents and the context used. Do not roll into the next wave
+   without a new `/tickets wave`: one wave per invocation, so each one costs the operator one word.
 
 ## `defer`
 
