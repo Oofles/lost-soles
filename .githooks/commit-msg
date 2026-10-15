@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Ticket 0214: tag a docs/tickets-only commit [skip-cd] so Amplify does not build
+# it. All logic, and the reasoning, is in scripts/skip-cd.mjs. Never blocks a
+# commit: if node or the script is missing, the message is left alone and the
+# push builds (fails open).
+command -v node >/dev/null 2>&1 || exit 0
+node "$(git rev-parse --show-toplevel)/scripts/skip-cd.mjs" "$1" || true
+exit 0

@@ -4913,3 +4913,16 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   screen, and the run's own `runXp` comes from its ledger rows, not from "before". So the footer
   reads `Total XP +442`, in the transition line's slot and style, with no arrow and no error
   wording. Total Level stays omitted: without "before" it has nothing honest to show.
+- **D-311** **A push that touches only docs and tickets does not run an Amplify build.** *(Agent,
+  2026-10-15, ticket `0214`; the operator pulled it forward from `18`.)* Amends how **D-150** meets Amplify's build-every-push default: build
+  minutes were 88% of the bill, and most builds came from `tickets(#…)` and Resolution commits.
+  `.githooks/commit-msg` runs `scripts/skip-cd.mjs`, which appends `[skip-cd]` to the subject line
+  when every path in the commit **and in every unpushed commit since `@{u}`** is under `docs/`,
+  `tickets/`, `prompts/`, `.claude/`, `.github/`, or is the root `README.md`/`CLAUDE.md`. Amplify
+  reads only the head commit's message, which is why the whole unpushed range counts. It **fails
+  open**: no upstream, a git error, an empty commit, or any other path, and the push builds.
+  Rejected: an `amplify.yml` diff check, because a build cannot end early as a success (it would
+  fail red, with ~2 minutes of provisioning still billed); and turning auto-build off in favour of
+  a path-filtered GitHub Action calling `amplify start-job`, because it puts AWS credentials in
+  GitHub (`08` §7) to save what the hook already saves. The GitHub Actions gate ignores `[skip-cd]`
+  and still runs on every push.

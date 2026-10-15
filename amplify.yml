@@ -17,6 +17,8 @@ backend:
         # see that (08-security-privacy.md §5.1, D-163). Both were live-WRONG
         # before 0014. Fails closed: an unreadable posture fails the deploy.
         - node scripts/check-auth-posture.mjs
+# Docs/tickets-only pushes never reach this file: the commit-msg hook tags them
+# [skip-cd] and Amplify does not start a build (D-311, ticket 0214).
 frontend:
   phases:
     preBuild:
