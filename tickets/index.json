@@ -6093,7 +6093,7 @@
     "path": "tickets/open/0264-runs-web-500-before-first-trace.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }
