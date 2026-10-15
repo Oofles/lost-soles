@@ -122,6 +122,23 @@ must greet you with exactly what it greeted you with before — no catch-up prom
 no gap in the bar, nothing that implies you owe it anything. If anything on the screen makes you feel
 behind, the ticket is not done.
 
+**Done 2026-10-15 (operator, desktop browser, soles.devaultsecurity.com).** P5's two-second test
+passes: Total Level and cells read as the headline. The rail and the map read as one screen. The gold
+underline on + ADD WORKOUT and the gold bar are enough emphasis without competing with the map. The
+last-run line fits on one line, and `Sync now` reads as quiet. The operator: *"All 4 checks look great
+and I love the side bar!"*
+
+**The two-week D-013 test was not run as written.** Waiting two weeks is constructing a scenario (D-229).
+Its substance is held by `components/plinth/plinth.test.tsx`'s refusal tests: no streak, no "days
+since", no catch-up or welcome-back copy, no relative age (D-316), and nothing scheduled over 10
+minutes (`lib/plinth/load.test.ts`).
+
+**Agent smoke test, after Amplify job 401 built `ae569ad` (SUCCEED).** On both hosts, `/` returns 200 and
+signed-out `/api/runs/latest` returns 404. A signed-out visitor sees none of the plinth's strings.
+
+**Follow-up from the operator:** a quick-view list of every skill's level and XP bar in the rail's
+empty lower space. Filed separately, not widened into this ticket (D-152).
+
 ## Resolution
 
 **What shipped.** `/` is now `HomeScreen`: the plinth, the `⚙` link and the map pane, and nothing
