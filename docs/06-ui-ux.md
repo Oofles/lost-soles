@@ -1,10 +1,10 @@
 # 06 — UI / UX
 
 **Status:** design proposal, ready to build from.
-**Last updated:** 2026-08-30
+**Last updated:** 2026-10-15 — desktop-first pass over the IA (ticket `0187`, D-NEW-a)
 **Answers to:** `00-vision.md` (principles) and `decisions/DECISIONS.md` (settled facts).
 **Companions:** `04-game-design.md` (§4.2 is the seed of §3 here), `05-fog-of-war.md`
-(§4–§5 are the rendering contract §4 here dresses), `07-ticketsmith.md` §5 (§7 here).
+(§4–§5 are the rendering contract §4 here dresses). §7 is superseded (D-252).
 
 Binding constraints this document is written under, restated so no reader has to go looking:
 
@@ -12,16 +12,33 @@ Binding constraints this document is written under, restated so no reader has to
 - **D-051** — the map stays a genuinely legible street map. **Atmosphere never costs legibility.**
 - **D-052 / D-133** — two modes, atlas and adventure; cold territory shows in atlas **only**.
 - **D-053** — parchment basemap, dark fog. Not dark-on-dark.
-- **D-061 / D-062** — one "Add workout" button → one dedicated page → one row per type, one tap.
+- **D-061 / D-062** — one "Add workout" button → one dedicated page → one row per type, one click.
 - **D-013 / P3** — zero upkeep. Nothing in this UI may ask for maintenance.
-- **D-124 / D-227** — **Android phone is the primary CAPTURE device; the desktop browser is the
-  primary VIEWING surface.** The run is recorded on the phone; the data is read on the computer.
-  This document is still written phone-first — see D-227 and ticket `0187`.
+- **D-227 / D-251** — **the desktop browser is the only surface this app is designed for**, for
+  viewing and for input alike. The watch or phone records the run, and the run arrives through an
+  adapter; that is the source device, not a screen this document draws.
+- **D-253** — the map is driven by **mouse and keyboard**. No long-press, no gesture-only path.
+- **D-252** — there is no in-app ticket UI. §7 is kept as a record and marked superseded.
 - **D-122** — MVP scope. No combat, no route planner, no loot. Do not draw them.
 
 > **The one-line brief for every screen in this document:** the app is a place you go *after*
 > the run to see what happened (P2), and the thing you are there to see is the map (P4).
 > Everything else is chrome around that, and chrome is a maintenance cost.
+
+### The surface, stated once (D-227, D-251, D-NEW-a)
+
+- **The design case is a desktop browser window**, roughly 1280–1600px wide and 800–1000px
+  tall, driven by mouse, trackpad and keyboard. Every wireframe in §1–§6 is drawn for it.
+- **Narrow widths must not break, and nothing is optimised for them.** Ordinary responsive CSS:
+  no horizontal page scroll, nothing clipped, nothing unreachable, down to ~360px. There is no
+  phone layout, no touch gesture, no thumb arc and no sunlight case; where an older sentence
+  survives in §3, §5 or §6 saying "tap", read it as *click or activate*.
+- **Units.** Sizes written `dp`/`sp` in older sections mean CSS px at 100% zoom (`sp` scales
+  with the browser's text size). New text uses `px`.
+- **Operator validation convention.** A ticket's `## Operator validation` is performed in the
+  **desktop browser**, and only for perception (D-229). **The phone is never a validation
+  surface**: its only role in this project is recording runs, and a check that needs one is
+  either faked through the manual adapter or a replayed activity, or it is not a check.
 
 ---
 
@@ -70,8 +87,8 @@ is to link to other screens.
   ┌───────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
   │ /skills           │   │ /log                 │   │ /chronicle           │
   │ SKILLS PANEL      │   │ ADD WORKOUT  (D-061) │   │ CHRONICLE (run list) │
-  │ ├ sheet: /skills/ │   │ one row per type     │   │ sheet over the map   │
-  │ │   :skillId      │   │ one tap to log       │   │ drag-up from plinth  │
+  │ ├ dialog: /skills/│   │ one row per type     │   │ panel over the map,  │
+  │ │   :skillId      │   │ one click to log     │   │ in the rail's column │
   └───────────────────┘   └──────────┬───────────┘   └──────────┬───────────┘
                                      │                          │
                                      └───────────┬──────────────┘
@@ -85,14 +102,17 @@ is to link to other screens.
 
    ── owner-only, off the main path ───────────────────────────────────────────
   ┌──────────────────────┐   ┌──────────────────────┐
-  │ /settings            │   │ /dev/tickets  (D-092)│
-  │ small, boring        │   │ ├ sheet: capture     │
-  │ reached from plinth  │   │ └ /dev/tickets/:id   │
+  │ /settings            │   │ /dev/tickets         │
+  │ small, boring        │   │ WITHDRAWN (D-252):   │
+  │ reached from the ⚙   │   │ a stub until `0216`  │
   └──────────────────────┘   └──────────────────────┘
 ```
 
-Seven routes. Two of them (`/chronicle`, the skill detail) render as sheets over their parent
-and exist as routes only so the Android back button and deep links behave.
+Seven routes. Two of them (`/chronicle`, the skill detail) render **over** their parent — the
+Chronicle as a panel beside the live map, the skill detail as a dialog over the panel — and
+exist as routes only so the browser's back button and deep links behave. `/dev/tickets` lost its
+UI to D-252; the route survives as a stub, and its removal (with `app/routes.test.ts`'s count)
+is ticket `0216`, not this document.
 
 ### 1.3 Justification, screen by screen
 
@@ -102,8 +122,8 @@ and exist as routes only so the Android back button and deep links behave.
 | `/run/:id` | P2's consequence: "the post-run reveal is the single most important moment in the product. That is where the budget goes." | The reward loop. The app becomes a scorecard. | Never |
 | `/skills` | Constraint R1 — every session must move a *named* number, and the user must be able to go look at those names. Runescape's skills panel is the explicitly-loved reference. | Levels exist but are unreadable; the "9 runs to 48" plan (04 §4.1) has no home. | Never |
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
-| `/chronicle` | The only way back to a past run's `/run/:id`, and the only place lifetime totals live. Sheet, not page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
-| `/dev/tickets` | D-090 + D-092, required from day one. Phone-friendly capture. | The idea you had at the end of a run is lost. | Never (it is the meta-tool) |
+| `/chronicle` | The only way back to a past run's `/run/:id`, and the only place lifetime totals live. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
+| `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — `0216` |
 | `/settings` | Strava re-auth (the one recurring chore S3 permits), reduced-motion/battery, units, sign out. | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
 ### 1.4 Screens deliberately refused
@@ -120,30 +140,33 @@ and exist as routes only so the Android back button and deep links behave.
   are H2's exact prohibition. A grid with holes in it is a picture of your failures.
 - **An onboarding flow.** P9 permits skipping it. First run: connect Strava, backfill, watch
   the biggest reveal you will ever see. That *is* the onboarding.
-- **A notifications inbox.** P3's corollary permits one notification ("your run is on the map")
-  which deep-links to `/run/:id`. A notification that accumulates into a list you must clear is
-  a chore.
+- **A notifications inbox — or any notification at all.** P3's corollary once permitted one push
+  ("your run is on the map"); D-253 dropped it. The plinth's new-run line reports a landed run
+  the next time the app is opened (§2.4), and anything more is the nagging D-013 refuses. A
+  notification that accumulates into a list you must clear is a chore.
 
 ### 1.5 Navigation model
 
-**No bottom tab bar.** A tab bar permanently spends ~56dp of a map-first app on links, and it
-implies peer sections — which these are not. The map is the trunk; everything else is a
-destination you visit and leave.
+**No nav bar, no sidebar of links, no tab strip.** Any of them permanently spends a strip of a
+map-first screen on links, and implies peer sections — which these are not. The map is the
+trunk; everything else is a destination you visit and leave.
 
-Instead: **the plinth** (§2), a persistent card anchored to the bottom of the map, inside the
-thumb arc. It carries the glanceable state *and* the three destinations. Everything else is
-reached from inside those.
+Instead: **the plinth** (§2), a fixed opaque rail on the left of the window, with the map
+filling the rest. It carries the glanceable state *and* the three destinations — it is not a
+column of links. Everything else is reached from
+inside those, or from the `⚙` at top-right.
 
-- Android **back** always returns toward `/`. From `/` back exits (PWA default).
-- Sheets (`/chronicle`, skill detail, ticket capture) dismiss on back, on swipe-down, and on
-  scrim tap.
-- Deep links: the "run is on the map" notification opens `/run/:id` directly and back goes
-  to `/`, not to a stack of nothing.
-- Desktop — **the viewing surface** (D-227, hardened to *only* by D-251; this line said
-  "secondary, D-124" until the `11` audit): the same routes; the plinth becomes a fixed left rail
-  at ≥1024px, and the map takes the remaining width. No separate desktop IA. The phone is for
-  capture and the occasional glance; a phone-only affordance (swipe-down, thumb arc) is
-  low priority by default.
+- **The browser's back always returns toward `/`.** From `/`, back leaves the app like any page.
+- **Things that open over a parent** — the Chronicle panel and the skill-detail dialog — are
+  routes, so back dismisses them. Every one also closes on **Esc** and on a visible **close
+  control**, and the dialog additionally on a click on its scrim. No dismissal is gesture-only,
+  and there is no swipe-down.
+- **Deep links land where they point.** A pasted `/run/:id` or `/chronicle` renders `/`
+  underneath, so back goes to `/`, not to a stack of nothing. (The push notification that used
+  to be the main deep link is gone — D-253, §1.4.)
+- **At ≥1024px the plinth is the rail** (§2.2, D-NEW-a — §4.8's old one-line sketch, promoted
+  to the main specification). Below 1024px its content stacks as a card over the map, the
+  simplest arrangement that does not break (D-251). Same routes, same content, either way.
 
 ---
 
@@ -151,55 +174,111 @@ reached from inside those.
 
 ### 2.1 What it is
 
-Fullscreen map, plus one card at the bottom: **the plinth**. That is the whole home screen.
+**The plinth**, a fixed opaque rail down the left edge of the window, and **the map**, full
+bleed across everything to the right of it. That is the whole home screen.
 
 It must satisfy three things simultaneously:
 
 1. **P4** — the map is the first thing you see. Not a summary of the map. The map.
 2. **P5** — two seconds tells you whether you are further along than last time. That requires
-   exactly two things to be present without scrolling or tapping: **the shape of your
+   exactly two things to be present without scrolling or clicking: **the shape of your
    territory** and **Total Level**.
 3. **D-013 / H2** — nothing on it may ask you for anything. Open it after three weeks away and
    it is exactly as pleased to see you.
 
-### 2.2 Wireframe
+**A rail, chosen over a floating card** (D-NEW-a, operator 2026-10-15). This section used to
+inherit a phone layout (a bottom card in the thumb arc) with a one-line desktop adaptation in
+§4.8: "the plinth becomes a fixed left rail at ≥1024px". The rail is now the main specification.
+The alternative considered was the same content as an opaque card floating over the bottom-left
+corner of a map that fills the whole window. The operator chose the rail. **The costs accepted
+with it**, recorded so they are known rather than rediscovered:
+
+- the map is a pane beside a column rather than the whole window — closer to the app-frame shape
+  §1.1 removed, and P4's "full bleed" now means *full bleed within the pane*;
+- below 1024px a second arrangement is needed (§2.2's last paragraph), so there are two layouts
+  to keep working, not one (P9);
+- the Chronicle must share the rail's column with the plinth (§2.5).
+
+What the rail buys: the map is never occluded, the glance numbers sit where a reading eye
+starts, and the plinth's position is fixed at every desktop size.
+
+### 2.2 Wireframe — the design case, a ~1440 × 900 window
 
 ```
-┌──────────────────────────────────────────────┐
-│ ╔══════╗                              ╔════╗ │ ← status bar (transparent, dark icons)
-│ ║ATLAS ║  ← mode toggle, top-LEFT     ║ ⚙  ║ │
-│ ║ADVEN ║     (D-052, persists)        ╚════╝ │
-│ ╚══════╝                                     │
-│                                              │
-│                                              │
-│              THE MAP, FULL BLEED             │
-│      parchment + dark fog (D-053), your      │
-│      territory centred on last run (D-249)   │
-│                                              │
-│                                              │
-│                                     ╔══════╗ │ ← recentre, above the plinth,
-│                                     ║  ⌖   ║ │   right edge, 48dp
-│                                     ╚══════╝ │
-│ ┌──────────────────────────────────────────┐ │
-│ │ ▁▁▁▁▁▁  (drag handle → Chronicle)        │ │
-│ │                                          │ │
-│ │  TOTAL LEVEL   271        12,480 cells   │ │ ← the two glance numbers
-│ │  ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░  next: 300          │ │
-│ │                                          │ │
-│ │  Last: Thu · 8.4 km · 21 new cells       │ │ ← tap → /run/:id (replay)
-│ │  ────────────────────────────────────────│ │
-│ │  ┌────────┐  ┌──────────────┐  ┌───────┐ │ │
-│ │  │ SKILLS │  │ + ADD WORKOUT│  │ RUNS  │ │ │ ← 56dp tall, thumb arc
-│ │  └────────┘  └──────────────┘  └───────┘ │ │
-│ └──────────────────────────────────────────┘ │
-└──────────────────────────────────────────────┘
+┌────────────────────────────────────┬─────────────────────────────────────────────┐
+│ TOTAL LEVEL  271      12,480 cells │ ┌────────────┐                       ┌────┐ │
+│ [4]                                │ │▓  ATLAS   ▓│ [1]              [2]  │ ⚙  │ │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░  next: 300  │ │ ADVENTURE  │                       └────┘ │
+│ [5]                                │ └────────────┘                              │
+│                                    │                                             │
+│ Last: Thu · 8.4 km · 21 new      › │                                             │
+│ [7]                                │               THE MAP PANE                  │
+│ ────────────────────────────────── │     parchment + dark fog (D-053);           │
+│ ┌───────┐ ┌──────────────┐ ┌─────┐ │     first-ever load framed on the           │
+│ │SKILLS │ │ + ADD WORKOUT│ │RUNS │ │     latest run's bbox centre, z14           │
+│ └───────┘ └──────────────┘ └─────┘ │     (D-249), in the PANE's centre           │
+│ [9]                                │                                             │
+│ Sync now  (interim, until cap 14)  │                                      ┌────┐ │
+│                                    │                                 [6]  │ ⤢  │ │
+│                                    │                                      └────┘ │
+│                                    │                                      ┌────┐ │
+│      (rail background, empty)      │                                 [8]  │ ⌖  │ │
+│                                    │                                      └────┘ │
+│                                    │                                             │
+│ [3]                                │                    © Protomaps · © OSM [10] │
+└────────────────────────────────────┴─────────────────────────────────────────────┘
 ```
+
+| # | Element | Position and size | Notes |
+|---|---|---|---|
+| 1 | **Mode toggle** | Top-left **of the map pane**, 16px insets | Two-row segmented control, both labels always visible (§4.2). Click either row, or press `M` (D-253). Persists. |
+| 2 | **Settings** `⚙` | Top-right of the map pane, 16px insets, 40 × 40px | The door to `/settings` (the §2.4 reconnect line is the other, and appears only when needed). |
+| 3 | **The plinth — the rail** | At ≥1024px: fixed, full window height, left edge, **24rem wide** | Opaque `--surface-raised` (D-148), a 1px `--line` rule on its right edge, no shadow, no radius. 16px padding. Content sits at the top, in rows 4, 5, 7, 9 in exactly that order; the space below stays empty rail. The rail scrolls internally if its content outgrows the window height (200% zoom). |
+| 4 | **The two glance numbers** | First row | `TOTAL LEVEL` label + the number in the §8.4 Total Level style (the largest type on `/`), left; lifetime cells revealed, right-aligned on the same baseline. Not links. |
+| 5 | **Milestone bar** | Second row, full rail width less padding | Named target (`next: 300`), never a bare percentage (§2.3). |
+| 6 | **Fit to territory** | Right edge of the map pane, above ⌖, 40 × 40px, 8px gap | Frames the whole explored set. A separate control, not a long-press (D-253); `0101`'s. |
+| 7 | **Last run** | Third row, one line | One link: the whole line is the hit area, `›` at its end. Click → `/run/:id` end state. This is also the line that carries the §2.4 states (new run, reconnect). |
+| 8 | **Recentre** `⌖` | Right edge of the map pane, 40 × 40px, its bottom 16px above the attribution | Recentres on the last run's end point at z14 (§4.4); `0101`'s. |
+| 9 | **Three destinations** | Fourth row, below a `--line` rule | `SKILLS` · `+ ADD WORKOUT` · `RUNS` in one row, all 40px tall, 8px apart, columns `1fr 1.5fr 1fr` so Add workout is centred and widest (D-061). `RUNS` → `/chronicle`. |
+| 10 | **Attribution** | Bottom-right **of the map pane**, MapLibre's own control, uncompacted | A licence requirement (`0052`). Nothing may cover it. |
+
+**All map chrome lives on the map pane** — the toggle, `⚙`, fit, `⌖` and the attribution are
+positioned against the pane, never against the window, so none of them ever sits under the rail.
+
+**No drag handle** (D-NEW-a). The phone wireframe carried a `▁▁▁` handle on the plinth that a
+thumb dragged up into the Chronicle. With a pointer it is a second, smaller door to the place
+`RUNS` already opens. `RUNS` is the door to the Chronicle.
+
+**Interim, until capability `14` automates ingest:** the manual Sync control (`09` §2.3 — the
+one thing D-013 is knowingly violated for) moves *into* the rail as a quiet caption-size text
+button on its own line below the three destinations, and capability `14` deletes that line with
+no other layout change. It is never a fourth destination button.
+
+**The camera is not offset for the rail.** The map is a pane beside the rail, not a surface
+under it: MapLibre's container *is* the pane, so the first-load framing (D-249) centres the
+latest run in the visible map with no `padding` at all. The pane is narrower than the window,
+not occluded by anything.
+
+**Focus and keyboard order** follows reading order, left to right: the last-run line →
+`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → mode toggle → `⚙` → the map (arrow keys
+and `+`/`−` act on it while it holds focus, D-253) → fit → `⌖`. `M` toggles the mode from
+anywhere on `/` except while a text field has focus. Every focusable element shows the §9.4
+focus ring.
+
+**Below 1024px** (the "must not break" case, D-251; nothing here is designed beyond that). The
+rail goes away and its content stacks, unchanged and in the same order, as an opaque card over
+the bottom of a map that now fills the window: 16px insets, full width less 32px, 8px radius,
+capped at 55% of the window height and scrolling beyond. The right-edge map controls sit 16px
+above that card.
+
+**The plinth belongs to `/` only.** `/run/:id` is §3's, and its ledger owns the bottom of the
+window there.
 
 ### 2.3 What earns its space, and what does not
 
 **Earns it:**
 
-- **The map, full bleed.** Non-negotiable (P4). It opens framed on ~~the *end point of your last
+- **The map, full bleed** — across the whole pane beside the rail (§2.1). Non-negotiable (P4). It opens framed on ~~the *end point of your last
   run*~~ **your last run**, not on your home, and not on your whole territory — because the
   interesting thing is the edge you most recently pushed, and the fog just beyond it. Zoom
   defaults to z14, where a neighbourhood's worth of frontier is visible.
@@ -217,7 +296,7 @@ It must satisfy three things simultaneously:
 - **Progress toward the next Total Level milestone** (100/150/200/…, up to the ceiling — 04 §4.3;
   the ceiling is computed from the ruleset, never a literal) — a bar with a named target, because
   a bare percentage reads as nothing.
-- **The last run, one line, tappable.** It is the door back into §3, and it answers "did my run
+- **The last run, one line, clickable.** It is the door back into §3, and it answers "did my run
   land?" — which is the single most common reason to open this app.
 - **Three destinations.** Skills, Add workout, Runs. Add workout is centre and widest: it is the
   only *action* on the screen, and D-061 says it is one button.
@@ -242,8 +321,8 @@ It must satisfy three things simultaneously:
 | State | Plinth shows | Map shows |
 |---|---|---|
 | Cold start, cached | Cached totals immediately | Cached basemap + last `explored-r11.<gen>.bin` (D-237) from IndexedDB, drawn before any network call |
-| Fresh import waiting | `1 new run — tap to open` in gold, *once*, and it never turns red or repeats | Territory as of *before* the run — the reveal belongs to §3, not here |
-| Nothing ever imported | `Connect Strava to begin` — the only call to action in the app | Parchment, unfogged, centred on device location |
+| Fresh import waiting | `1 new run — open it` with the gold treatment (a gold rule or fill, never gold text — D-148), *once*, and it never turns red or repeats | Territory as of *before* the run — the reveal belongs to §3, not here |
+| Nothing ever imported | `Connect Strava to begin` — the only call to action in the app | Parchment, unfogged, centred on the configured home, else the extract bounds (D-249's precedence with no run to frame). Never device location: a desktop browser's geolocation is an IP guess and a permission prompt |
 | Three weeks idle | Identical to any other day | Identical |
 | Offline | Everything above, from cache, with no error chrome | Cached tiles; missing tiles render as flat parchment, never as grey checkerboard |
 
@@ -251,6 +330,25 @@ The empty state deserves a note: with no territory, the map is *all* fog and rea
 So before the first import, fog is not drawn at all — the parchment map sits there clean, and
 the fog arrives, for the first time, as part of the first reveal. The first thing the fog ever
 does is burn back.
+
+### 2.5 Where the Chronicle opens (D-NEW-a)
+
+`RUNS` opens `/chronicle` **in the rail's column, replacing the rail's contents**: the same
+24rem width, the full window height, with the run list scrolling inside it. The plinth's rows are
+not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4),
+so nothing on the plinth is lost. *(Confirmed by the operator, 2026-10-15.)*
+
+- **No scrim, and the map stays live.** The map to its right pans and zooms as normal. A list of
+  places you have been, beside the map of those places, is the one case where both should be
+  usable at once, and a scrim would make the map a backdrop.
+- **Dismissal:** Esc, its close control, and back (§1.5). Dismissing it does not move the camera.
+- **Clicking a row** goes to `/run/:id` in end state (§4.5). Back returns to the Chronicle.
+- Below 1024px it takes the bottom card's place in the same way, growing up to 16px below the
+  mode toggle. It is still a panel, not a full-screen page.
+
+The skill detail is the other thing that opens over a parent, and it is deliberately different:
+a **centred dialog with a scrim** over `/skills` (§5.5, as `0074` built it), because the panel
+behind it has nothing to do while you read it.
 
 ---
 
@@ -268,8 +366,8 @@ document is infrastructure for these nine seconds.
 
 | Entry | Behaviour |
 |---|---|
-| Push notification "your run is on the map" | Deep-links to `/run/:id`, sequence auto-plays from beat 1 |
-| Plinth `1 new run — tap to open` | Same |
+| ~~Push notification "your run is on the map"~~ | *Dropped by D-253: there is no push notification.* A pasted `/run/:id` link to an unseen run behaves as the next row |
+| Plinth `1 new run — open it` | Opens `/run/:id`; the sequence auto-plays from beat 1 |
 | App opened cold with an unseen import | Home renders first (map, pre-run territory), then the plinth's new-run line pulses **once**. It does **not** auto-play. Ambushing the user with a nine-second animation they did not ask for is how a reward becomes an obstacle |
 | Chronicle → any past run | `/run/:id` opens in **static end-state**, with a `⟲ Relive` control. Replays are opt-in |
 
@@ -492,8 +590,8 @@ The end state is the *canonical* view of a run. The sequence is a decorated way 
   over 4 s, with a ledger showing lifetime totals and starting levels, and a single card:
   `Total Level 214`. Individual runs are then just rows in the Chronicle, unseen-flagged off.
   *(D-298: built in `0257`, capability 14, with the paced historical import `0177`.)*
-- **Failure mid-sequence.** If WebGL context is lost (05 §4.5 says this genuinely happens on
-  phones under memory pressure), abort to the end state with a static map image (D-298: the route drawn from its geometry, until
+- **Failure mid-sequence.** If WebGL context is lost (05 §4.5 says this genuinely happens under
+  GPU memory pressure), abort to the end state with a static map image (D-298: the route drawn from its geometry, until
   the rebuilt map is ready). The ledger is
   plain DOM and always survives. **The numbers must never depend on the graphics.**
 
@@ -582,16 +680,16 @@ here applies equally on `/` and on `/run/:id`, because they render the same map 
 camera framing and a different top layer.
 
 What §4 owes the rest of the document: the mode toggle and its exact consequences (D-052 /
-D-133), the gesture contract, how routes draw over fog (05 §4.4), how you get from a line on the
+D-133), the input contract (D-253), how routes draw over fog (05 §4.4), how you get from a line on the
 map back to the run that drew it, and how cold territory shows up in atlas without turning into a
 third thing competing with the reveal edge.
 
 The rendering itself — shaders, mask passes, layer order, zoom bucketing — is **05-fog-of-war.md
-§4–§6 and is not restated here.** This section is what the user's fingers touch.
+§4–§6 and is not restated here.** This section is what the pointer and the keyboard touch.
 
 ### 4.2 The mode toggle (D-052)
 
-**Placement.** Top-left, as drawn in §2.2. It is a **two-state segmented control with both labels
+**Placement.** Top-left, 16px insets, as drawn in §2.2. It is a **two-state segmented control with both labels
 permanently visible** — never an icon, never a single button whose label is the state you are not
 in. A toggle that shows one word forces the user to work out whether it is naming the current
 mode or the destination, every single time.
@@ -602,23 +700,26 @@ mode or the destination, every single time.
   ├────────────┤
   │  ADVENTURE │   ← unselected: --parch-100 at 0.82, --ink-600 text
   └────────────┘
-      64 × 72dp, two 36dp rows, 8dp corner radius, 1dp --ink-400 hairline
+      two 32px rows, wide enough for ADVENTURE at the §8.4 Label size with 12px
+      either side (~112px), 8px corner radius, 1px --ink-400 hairline
 ```
 
-**Reach.** Top-left is the worst corner on a 6.7" Android phone held right-handed (D-124, §9.2).
-The control stays there because it is a *state display* first — it must be visible without being
-hunted for, and it must be out of the thumb arc so it is never hit by accident while panning.
-Reach is solved without duplicating chrome: **long-press anywhere on the map toggles the mode**,
-with a 10 ms haptic tick and no menu.
+**Why top-left.** It is a *state display* first: it must be visible without being hunted for,
+and the top-left corner is where a reading eye starts. It is the one piece of chrome that answers
+"what am I looking at?", so it sits where that question is asked.
 
-> If the post-MVP route planner (D-070) claims long-press for "set start point," the toggle moves
-> into the right-edge control stack above recentre and the long-press shortcut is dropped. Noted
-> here so that change is a decision rather than a collision.
+**The second path is the keyboard (D-253):** `M` toggles the mode wherever the toggle is shown,
+except while a text field has focus. ~~Long-press anywhere on the map, with a haptic
+tick~~ is gone — with a mouse it is undiscoverable, and it cannot be reached from the keyboard.
+A plain click on empty map still does nothing (§4.4).
+
+> If the post-MVP route planner (D-070) wants a click on empty map for "set start point", that
+> is the gesture this document holds in reserve (§10.5). The toggle does not move either way.
 
 **Persistence.** localStorage, per device, restored before first paint (05 §5.3). It is a viewing
 preference, not user data — it never syncs, and a fresh device starts at the default.
 
-**Default: adventure** (05 §5.3). It is the product's identity. Atlas is one tap away.
+**Default: adventure** (05 §5.3). It is the product's identity. Atlas is one click, or `M`, away.
 
 ### 4.3 What actually changes between the modes
 
@@ -653,16 +754,20 @@ wrong even if it looks good:
 
 | Input | Does | Notes |
 |---|---|---|
-| One-finger drag | Pan | Inertia on, rubber-band at bounds |
-| Pinch | Zoom, anchored at the pinch centroid | z10 → z18 |
-| Double-tap | Zoom in one step, anchored at the tap | |
-| Two-finger tap | Zoom out one step | |
-| **Long-press (350 ms)** | **Toggle atlas / adventure** | Haptic tick. §4.2 |
-| Tap on a route line | Inspect that run (§4.5) | 24dp hit slop |
-| Tap on empty map | **Nothing** | Deliberate. See below |
-| Tap `⌖` | Recentre on the last run's end point, z14 | The §2.2 framing |
-| Long-press `⌖` | Fit the whole territory in view | The "look what I've done" gesture |
-| Drag the plinth handle up | Chronicle sheet | §1.5 |
+| Drag | Pan | Inertia on, rubber-band at bounds |
+| Wheel, or trackpad pinch | Zoom, anchored at the cursor | z10 → z18 |
+| Double-click | Zoom in one step, anchored at the cursor | |
+| Arrow keys · `+` / `−` | Pan · zoom one step | While the map has focus (§2.2's focus order) |
+| `M`, or a click on either row of the toggle | **Toggle atlas / adventure** | §4.2. Not a long-press (D-253) |
+| Hover a route line | The cursor becomes a pointer | 24px slop. The only signifier that a line is clickable; no tooltip |
+| Click on a route line | Inspect that run (§4.5) | 24px hit slop |
+| Click on empty map | **Nothing** | Deliberate. See below |
+| Click `⌖` | Recentre on the last run's end point, z14 | |
+| Click fit-to-territory (beside `⌖`) | Fit the whole territory in view | The "look what I've done" control. Its own button, not a long-press on `⌖` (D-253) |
+| `Esc` | Dismiss the §4.5 card or chip | |
+
+**Dropped with the phone (D-253):** two-finger tap to zoom out, long-press anything, and the
+wet-screen multi-contact rule. The plinth has no drag handle (§2.2).
 
 **Rotation and tilt are disabled. Bearing is locked north-up, pitch locked to 0.** A rotated
 street map with no compass is a map you cannot navigate by, and adding a compass to un-rotate it
@@ -674,10 +779,10 @@ both.
 a smear that misrepresents what you have explored; above z18 the basemap has nothing left to
 show. Both bounds rubber-band rather than hard-stop, so the gesture never feels broken.
 
-**Tapping empty map does nothing, on purpose.** A cell inspector — "you last ran here 211 days
+**Clicking empty map does nothing, on purpose.** A cell inspector — "you last ran here 211 days
 ago" — is a genuinely interesting thing to build and it is a stats organ (§1.4) that turns the
 map into a database browser. The one piece of that information that helps you decide something is
-*rediscoverability*, and §4.6 shows it as colour instead of hiding it behind a tap.
+*rediscoverability*, and §4.6 shows it as colour instead of hiding it behind a click.
 
 ### 4.5 Routes over fog, and inspecting a past run
 
@@ -697,17 +802,17 @@ Route colour is fixed by 05 §4.4 and is not a palette choice: warm cream core w
 is the one combination that survives *both* parchment and near-black fog. Pure white blows out on
 parchment; pure red disappears into it.
 
-**Inspecting.** Tap a line within 24dp:
+**Inspecting.** Click a line within 24px:
 
 ```
  ┌──────────────────────────────────────────────┐
  │                                              │
  │            ╱                                 │
- │      ═════╱══════   ← tapped here, 3 runs    │
- │          ╱             within 24dp           │
+ │      ═════╱══════   ← clicked here, 3 runs   │
+ │          ╱             within 24px           │
  │                                              │
  │   ┌────────────────────────────────────┐     │  ← disambiguation card,
- │   │  3 runs pass here                  │     │    anchored above the tap,
+ │   │  3 runs pass here                  │     │    anchored above the click,
  │   │  ──────────────────────────────────│     │    flips below near the top edge
  │   │  Thu 28 Aug  ·  8.4 km  ·  21 new  │     │
  │   │  Sun 10 Aug  ·  12.1 km ·  4 new   │     │
@@ -717,12 +822,15 @@ parchment; pure red disappears into it.
 ```
 
 - One match → skip the card, highlight that run immediately and show a one-line chip with the
-  same three facts, tappable through to `/run/:id`.
-- Rows are 48dp. The card holds five rows then scrolls; it never becomes a full sheet.
-- Tap a row → `/run/:id` **end state** (§3.3), *not* the sequence. The sequence auto-plays once,
+  same three facts, clickable through to `/run/:id`.
+- Rows are 32px. The card holds five rows then scrolls; it never becomes a panel.
+- Click a row → `/run/:id` **end state** (§3.3), *not* the sequence. The sequence auto-plays once,
   on import, and never ambushes you again (§3.1). `⟲ Relive` in the end state is the only way to
   replay it, and it is a deliberate act.
-- Tapping the map elsewhere, or back, dismisses the card. It never blocks panning.
+- A click elsewhere on the map, `Esc`, or back dismisses the card. It never blocks panning.
+- **Hover shows nothing but the pointer cursor** (§4.4). The card is the click's. A tooltip that
+  appears on its own whenever the cursor crosses a dense trace web is noise, and §4.8 used to
+  promise one; D-NEW-a withdrew it.
 
 ### 4.6 Cold territory in atlas, without competing with the reveal edge (D-133)
 
@@ -813,7 +921,7 @@ above the plinth for 6 seconds with three swatches — `explored` / `rediscovera
 The one line to take from this drawing: **in atlas, "Beck Rd" is legible inside the fog.** That
 is D-051 discharged, and it is the reason atlas exists at all.
 
-### 4.8 Loading, offline, and the desktop case
+### 4.8 Loading, offline, and narrow windows
 
 - **First paint is from cache, always** (§2.4): the last `explored-r11.<gen>.bin` (D-237) and cached tiles
   from IndexedDB render before any network call. The map is never blank while a request is in flight.
@@ -825,11 +933,13 @@ is D-051 discharged, and it is the reason atlas exists at all.
 - **WebGL context loss** (05 §4.5) rebuilds silently. If the rebuild fails, the map falls back to
   a static parchment basemap with the trace web drawn as plain DOM-free canvas lines, and the
   plinth is untouched. The numbers never depend on the graphics (§3.4).
-- **Desktop (D-227, PRIMARY for viewing — this bullet is now the main case, not the exception).**
-  Same routes, same modes. The plinth becomes a fixed left rail
-  at ≥1024px; scroll-wheel zooms, hovering a route line shows the same three facts as the tap
-  card, and the mode toggle gains a keyboard shortcut (`M`). No desktop-only features, because a
-  desktop-only feature is a second product to maintain (P9).
+- **The desktop is not a case here any more — it is the document** (D-251, D-NEW-a). This bullet
+  used to be the whole desktop adaptation ("the plinth becomes a fixed left rail at ≥1024px");
+  §2.2 now specifies that rail in full, §4.4 is the mouse-and-keyboard table, and §4.2 carries
+  `M`.
+- **Below 1024px** the rail's content stacks as a card over the map and the controls keep their
+  corners (§2.2). There are no narrow-only features and no narrow-only removals, because either
+  would be a second product to maintain (P9).
 
 ---
 
@@ -853,8 +963,10 @@ What it gets right, and what we take:
 
 What we do *not* take:
 
-- **No hover.** There is no hover on a phone (D-124). Everything RS puts in a tooltip goes into
-  the detail sheet.
+- **No tooltips.** A pointer can hover, but a tooltip is information that only a mouse can find —
+  not the keyboard, not a screen reader, not a glance. Everything RS puts in a tooltip goes into
+  the detail dialog (§5.5), one click away. *(This bullet used to rest on "there is no hover on a
+  phone", D-124; the conclusion survives D-251 on its own reasons.)*
 - **No experience-per-hour, no goals, no ranks.** RS's panel is one click from a hiscores page.
   Ours is not, and never will be (N1, N4).
 - **No fixed 3×8 board.** RS knows its 23 skills forever. We do not know ours — D-031 says a new
@@ -978,7 +1090,9 @@ Two consequences worth writing down before someone hits them:
 
 ### 5.5 The skill detail sheet — `/skills/:skillId`
 
-Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave).
+Clicking any tile opens a dialog over the panel (§1.5: a route so back and deep links behave; §2.5
+on why it has a scrim and the Chronicle does not). At a narrow window it rises from the bottom
+edge instead of centring, as `0074` built it.
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -1175,9 +1289,10 @@ from day one. The UI's forward path, so nobody has to invent it under pressure:
 
 - Each quick log writes **one set** — `[{reps: 30}]` — not a scalar. The row is already logging
   the deferred shape.
-- The post-MVP sets editor is a **long-press on the row**, opening a sheet with per-set entry
-  and a rest timer. The row itself does not change, the page does not change, and one-tap
-  logging keeps working exactly as it does today for anyone who does not long-press.
+- The post-MVP sets editor is opened by **an explicit control on the row** — not a long-press,
+  which a mouse cannot discover (D-253's reasoning; this said "long-press on the row" until
+  `0187`) — and shows per-set entry and a rest timer. The row's logging controls do not change,
+  the page does not change, and one-click logging keeps working exactly as it does today.
 - A rest timer is the one deferred feature that could violate D-013 — a timer is a thing that
   *runs*, and things that run create obligations. If it lands, it must be startable only from
   inside the sets sheet, must never notify, and must die when the sheet closes.
@@ -1397,7 +1512,7 @@ manual override, and it is the only visual preference the app offers.
 
 | Pair | Ratio | Verdict |
 |---|---|---|
-| `--ink-900` on `--parch-100` | **15.4:1** | Body text. Comfortable in direct sun (§9.1) |
+| `--ink-900` on `--parch-100` | **15.4:1** | Body text |
 | `--ink-600` on `--parch-100` | **7.6:1** | Secondary text. AA at any size |
 | `--ink-500` on `--parch-100` | **4.8:1** | AA for normal text, and the floor. Nothing lighter carries text |
 | `--gold-700` on `--parch-100` | **3.7:1** | **Large text only** (≥24sp, or ≥19sp bold). Never body copy |
@@ -1435,7 +1550,7 @@ render offline, §4.8).
 | Caption | Inter 400 | 12sp | 1.35 | Timestamps, units |
 
 **Nothing renders below 12sp, anywhere.** Not a unit suffix, not a timestamp, not a legend.
-The reading environment is a bright pavement, not a desk (§9.1).
+The reading distance is a monitor at arm's length, often glanced at rather than read (P5).
 
 **All numerals are `font-variant-numeric: tabular-nums`.** Every number in this app either counts
 up in an animation (§3, Beat 2) or sits in a column, and proportional figures make both jitter.
@@ -1454,7 +1569,9 @@ and uppercase Spectral where it is used — the level-up card's name and tier ru
   parchment read as dirt. Use `0 2dp 8dp rgba(20,22,28,0.10)` plus a 1dp `--line` border. Two
   levels only: flat, and raised (cards, floating controls, sheets). There is no level three.
 - **Scrim** for every sheet and every level-up card: `--scrim`, fading in over 120ms.
-- **Minimum touch target 56dp**, exceeding the 48dp platform minimum, for the reasons in §9.3.
+- **Interactive targets:** never below 24 × 24px (WCAG 2.2 SC 2.5.8), 32px for ordinary chrome and
+  rows, 40px for the plinth's destinations and the map's floating controls, 8px between adjacent
+  targets. *(This was "56dp minimum touch target" until D-251 removed the touch case.)*
 
 ### 8.6 Iconography
 
@@ -1464,8 +1581,9 @@ and uppercase Spectral where it is used — the level-up card's name and tier ru
 - **Every sigil must be identifiable in silhouette, in one colour, at 24dp.** The review test is
   a peer naming the skill from the mark alone at arm's length. A sigil that needs its label is a
   sigil that has failed, and it will fail hardest in the skills grid where labels are 12sp.
-- **The UI icon set is eight marks and stays that way:** back, settings, recentre, drag handle,
-  undo, plus, minus, frontier diamond. A ninth icon needs a justification the way a ninth screen
+- **The UI icon set is eight marks and stays that way:** back, settings, recentre, fit to
+  territory, undo, plus, minus, frontier diamond. *(Fit to territory took the drag handle's
+  place when D-253 made fit its own control and `0187` removed the plinth's handle.)* A ninth icon needs a justification the way a ninth screen
   does (§1.1).
 - **No emoji, anywhere, ever.** They break the art direction and render differently per device.
 - Icons inherit `currentColor`. No icon carries meaning by colour alone (§9.4).
@@ -1506,82 +1624,59 @@ moment of exuberance and it is spent there deliberately.
 
 ## 9. Accessibility and reality checks
 
-Every screen in this document gets used in a specific physical situation: outdoors, in daylight,
-one-handed, by someone who has just stopped running. Most accessibility work is the same work as
-making that situation survivable, which is why they are one section.
+Every screen in this document gets used in one physical situation: at a desk, in a desktop
+browser, by someone who has come back from a run and wants to see what it did (D-227, D-251).
+Most accessibility work is the same work as making that situation effortless, which is why they
+are one section.
 
-### 9.1 Sunlight
+*(Until `0187` this section opened "outdoors, in daylight, one-handed", and §9.1–§9.3 were
+sunlight, one-handed reach on a 6.8" Android phone, and sweaty thumbs. D-251 removed the phone as
+a surface; what those sections required for their own sake is kept below, and what they
+required only for the phone is gone. The numbering is kept so citations of §9.4–§9.6 hold.)*
 
-Bright ambient light is the app's real display environment, and it is harsher than any simulator.
+### 9.1 Contrast and legibility
 
-- **The parchment basemap is already the correct sunlight decision.** A light surface under high
-  ambient light needs far less display luminance to stay legible, and the pupil is constricted
-  anyway. The dark-fantasy brief could have produced a dark map that becomes a black mirror on a
-  sunny pavement; D-053 and R4 arrived at parchment for contrast reasons and got sunlight
-  legibility for free (§8.1).
 - **Contrast floor 4.5:1 for all text, 7:1 preferred** (§8.3 measures every pair). `--ink-500` is
   the lightest colour permitted to carry type; `--gold-500` carries none.
 - **Nothing below 12sp** (§8.4), and no thin weights: Inter 400 is the lightest weight shipped.
-- **No hairline-only affordances.** A 1dp border may decorate a control but must never be the
+- **No hairline-only affordances.** A 1px border may decorate a control but must never be the
   only thing that says it is a control — fill and label carry that.
-- **Adventure mode at `u_maxOpacity` 0.94 is genuinely hard to read in direct sun.** That is
-  accepted, and it is why atlas exists and why the toggle is one long-press away (§4.2). What we
-  will **not** do is auto-switch on the ambient light sensor: a map that restyles itself as a
-  cloud passes is a map you cannot trust, and it would make the mode a thing you have to manage
-  (D-013).
-- Polarised sunglasses plus a portrait-locked OLED is a known bad combination and it is not
-  solvable in software. Noted so nobody spends a week on it.
+- **Adventure mode at `u_maxOpacity` 0.94 is deliberately hard to read inside the fog.** That is
+  the discovery beat (§4.3), and it is why atlas exists one click or `M` away (§4.2).
+- **No auto-switching of the map mode** — not on the OS light/dark setting, not on the time of
+  day, not on any sensor. A map that restyles itself is a map you cannot trust, and it would make
+  the mode a thing you have to manage (D-013). The choice is the user's and it persists (§4.2).
 
-### 9.2 One-handed reach on a large Android phone (D-124)
+### 9.2 Pointer and keyboard (D-253)
 
-> **Superseded by D-251 (struck here by D-288, `10` audit, 2026-10-07).** The phone is neither a
-> viewing nor an input surface, so nothing below is a requirement. The section stays as the
-> record of what was designed. The table's *placements* still describe the shipped layout
-> (`LOG` on the right edge, the gear top-right), but the thumb arc is no longer why they are there.
+- **Everything is reachable from the keyboard**, in reading order (§2.2's focus order is the
+  pattern for every screen). `Esc` closes whatever is open over a parent (§1.5).
+- **The map takes keyboard input only while it holds focus**: arrows pan, `+`/`−` zoom. `M`
+  toggles the mode anywhere the toggle is shown, except while a text field has focus. No other
+  single-key shortcut is defined, and none is added without a decision.
+- **No gesture is the only path to anything.** The mode toggle has its row and `M`; zoom has the
+  wheel, double-click and `+`/`−`; fit-to-territory is its own control; every dismissal has Esc,
+  a close control and back. There is no long-press, no drag handle and no swipe anywhere.
+- **Hover never carries information** (§4.5, §5.1). It may change the cursor. Nothing appears on
+  hover that is not also one click away.
+- **Targets** follow §8.5: nothing below 24 × 24px, 40px for the plinth's destinations and the map
+  controls, 8px between neighbours. A route line's click target is 24px either side (§4.4).
+- **Undo, not confirmation dialogs.** `/log` works this way (§6.4, 8-second in-row undo). A confirm
+  dialog asks for a second decision about a thing already decided; undo is one forgiving click,
+  afterwards.
+- **No drag-to-delete, no drag-to-reorder, no drag-and-drop anywhere.** They are hard to discover,
+  impossible from the keyboard, and they always destroy something when they misfire.
 
-Assume the worst realistic case: a 6.8" device, ~412 × 915dp viewport, held right-handed, walking.
-The comfortable right-thumb arc covers roughly **y > 520dp** — the bottom ~43% — plus a narrow
-band up the right edge. The top-left corner is effectively unreachable without a grip change.
+### 9.3 Narrow windows
 
-How each screen sits inside that:
+The "must not break" rule (D-251), as checks rather than a layout:
 
-| Screen | Frequent targets | Where they are |
-|---|---|---|
-| `/` | Skills · Add workout · Runs, last-run row, drag handle, recentre | Plinth and right edge, all below 520dp ✓ |
-| `/` | Mode toggle | **Top-left** — a state display, deliberately out of the arc, with **long-press anywhere on the map** as the reachable path (§4.2) ✓ |
-| `/log` | `−` `+` `LOG` on every row | Right two-thirds; `LOG` hard against the right edge ✓ |
-| `/skills` | Tile taps | Grid scrolls; the header pins, so any tile can be brought into the arc ✓ |
-| `/dev/tickets` | Title field, chips, `SAVE` | Sheet rises from the bottom; `SAVE` bottom-right above the keyboard ✓ |
-| `/run/:id` | Skip (tap anywhere), `⟲ Relive` | Anywhere / bottom ✓ |
-
-- **Back is the system gesture**, not the app-bar arrow. The arrow is present for desktop and for
-  reachability but is never the only path (§1.5).
-- **The gear at top-right** is the one infrequent target in the upper band, and top-right is
-  materially easier than top-left for a right thumb. That is the correct corner for it.
-- ~~**Left-handed mirroring** is a single flexbox direction and one flag in `/settings`: it flips
-  the `LOG` column, `SAVE`, and the recentre button to the left edge. Cheap enough to include,
-  and it is set once and never touched again — so it does not violate D-013.~~ *Withdrawn by
-  D-251 (`0215`); struck here by D-288. There is no `/settings` flag.*
-
-### 9.3 Sweaty thumbs, cold hands, gloves
-
-Moisture on a capacitive screen produces both missed taps and phantom taps. Winter produces
-gloves. Both are the same design problem: **precision is unavailable.**
-
-- **56dp minimum touch target**, above the 48dp platform minimum, with **8dp minimum spacing**
-  between adjacent targets. `LOG` is 56 × 96dp.
-- **Raised touch slop for taps: 16dp**, not the 8dp default, so a finger that slides on a damp
-  screen still registers as a tap rather than a flick.
-- **No gesture is the only path to anything.** Long-press toggles modes *and* the segmented
-  control does (§4.2). Double-tap zooms *and* pinch does. Swipe-down dismisses sheets *and* back
-  does *and* the scrim does (§1.5).
-- **No swipe-to-delete, no drag-to-reorder, no drag-and-drop anywhere.** They are the gestures
-  that fail hardest with a wet thumb and they always destroy something when they misfire.
-- **A second touch point during a tap is treated as a pan, not a tap.** Water bridging two
-  contacts must not log a workout.
-- **Destructive actions get undo, not confirmation dialogs.** `/log` already works this way
-  (§6.4, 8-second in-row undo). A confirm dialog is two precise taps at exactly the moment
-  precision is gone; undo is one large forgiving one, afterwards.
+- **No horizontal page scroll** at any width down to ~360px, and nothing clipped or unreachable.
+- **Below 1024px the rail becomes a bottom card** over the map, the Chronicle takes that card's
+  place, and the right-edge map controls sit above it (§2.2). The skill dialog rises from the bottom
+  edge (§5.5). Nothing else changes.
+- **Nothing is optimised for a phone and nothing is tested on one.** A narrow window in the
+  desktop browser is the test.
 
 ### 9.4 Vision, motion and assistive technology
 
@@ -1589,25 +1684,26 @@ gloves. Both are the same design problem: **precision is unavailable.**
   separate section headers (§5.3). The selected route differs from the trace web in width and
   brightness, not hue (§4.5). Cold ground is a *desaturation* as much as a hue shift, so it
   survives deuteranopia and protanopia (§4.6) — and it gets a one-time three-swatch legend.
-- **Text scaling to 200%.** Layouts reflow rather than truncate: the skills grid drops from three
-  (or five, D-289) columns to two at ≥1.3× and to one at ≥1.8×; the plinth grows and the map shrinks to a floor of
-  45% of viewport height, below which the plinth scrolls internally. Levels and XP never
+- **Browser zoom and text size to 200%.** Layouts reflow rather than truncate: the skills grid drops from three
+  (or five, D-289) columns to two at ≥1.3× and to one at ≥1.8×; the rail scrolls internally rather than widening, and
+  below 1024px the plinth card caps at 55% of the window height so the map keeps at least 45%
+  (§2.2). Levels and XP never
   ellipsize; skill names may.
-- **TalkBack.** The map is not a decorative image — its container carries a live text summary:
+- **Screen readers** (NVDA, VoiceOver). The map is not a decorative image — its container carries a live text summary:
   *"Map. 12,480 cells revealed. Last run Thursday, 8.4 kilometres, 21 new."* Skill tiles announce
   *"Wayfaring, level 47, 88 percent to 48."* The §3 sequence announces each beat through a single
   `aria-live="polite"` region **in beat order**, so the reveal is narrated in the same sequence a
   sighted user sees, and the skip target is the whole screen.
-- **Focus order follows reading order**, and every focusable element has a visible 2dp
-  `--accent` focus ring — including on desktop, where the map's controls are keyboard-reachable
-  and `M` toggles modes (§4.8).
+- **Focus order follows reading order**, and every focusable element has a visible 2px
+  `--accent` focus ring; the map's controls are keyboard-reachable and `M` toggles modes (§9.2).
 - **`prefers-reduced-motion` is honoured everywhere** (§3.4, §8.7): it removes motion, never
   sequence, and it doubles as the manual battery-saver switch (05 §4.5).
 
 ### 9.5 Slow connections and no connection
 
-The app is opened outdoors, often on one bar. The design rule is that **the network is never on
-the critical path to seeing your map.**
+The app is opened on whatever connection the desk has — usually good, sometimes a flaky café
+or hotel network, occasionally none. The design rule is that **the network is never on the
+critical path to seeing your map.**
 
 - **First paint is cache-only.** Cached basemap tiles plus the last `explored-r11.<gen>.bin` (D-237)
   from IndexedDB render before any request is issued (§2.4, §4.8). Target: usable first paint in
@@ -1619,9 +1715,9 @@ the critical path to seeing your map.**
   honest freshness signal — the date of the most recent thing the app knows about. A banner
   announcing a condition the user cannot fix is chrome that exists to blame the world.
 - **Missing tiles are flat parchment, never a checkerboard, never a spinner** (§4.8).
-- **Writes never block.** Workout logs (§6.4) and ticket captures (§7.4) go to IndexedDB and
-  flush on a background-sync queue with idempotency keys. The only sync UI in the app is the
-  `n pending` badge on `/dev/tickets`.
+- **Writes never block.** Workout logs (§6.4) go to IndexedDB and flush on a queue with
+  idempotency keys. There is no sync UI in the app (the `/dev/tickets` `n pending` badge went with
+  D-252).
 - **API timeout 10 s, then queue.** No request is allowed to hold a screen.
 - **No third-party requests at runtime.** Fonts are self-hosted (§8.4); there is no analytics, no
   tag manager, no font CDN. Every one of those is a slow-connection failure mode bought for
@@ -1631,16 +1727,14 @@ the critical path to seeing your map.**
 
 | Situation | What the app does |
 |---|---|
-| Bright sun, adventure mode | Still legible as a map (fog capped at 0.94, grid ghosts through); atlas is one long-press away; **no auto-switch** |
-| Phone died mid-run | Nothing. We do not record runs (N6, D-110). The adapter's data is the adapter's problem |
+| Adventure mode, trying to read a street inside the fog | It is hidden on purpose (§4.3); atlas is one click or `M` away; **no auto-switch** |
+| The watch or phone died mid-run | Nothing. We do not record runs (N6, D-110). The adapter's data is the adapter's problem |
 | Strava token expired | One quiet `--ink` line in the plinth → `/settings`. No badge, no modal, no red (§2.3) |
 | Three weeks without opening it | Identical to any other day. No "welcome back", no summary of what you missed (D-013, H2) |
-| Two bars of EDGE | Cached map paints in under a second; the fog payload catches up silently |
-| Airplane mode | Everything above, plus logging and capture still work and queue |
-| 200% font scale | Grid reflows to one column; map floors at 45% height; nothing truncates |
-| TalkBack only | Map summarised in text; the reveal narrated in beat order |
-| Gloves in January | 56dp targets, 16dp slop, no gesture-only paths; voice dictation for tickets |
-| Dropped in a puddle, screen wet | Multi-contact taps are treated as pans; every destructive action has undo |
+| A slow connection (devtools "Slow 3G") | Cached map paints in under a second; the fog payload catches up silently |
+| No connection (devtools "Offline", app already open) | Everything above, plus logging still works and queues |
+| 200% browser zoom | Grid reflows; the rail scrolls internally (or, below 1024px, the plinth card caps at 55% of the height and scrolls); nothing truncates |
+| Screen reader only | Map summarised in text; the reveal narrated in beat order |
 
 ---
 
@@ -1681,7 +1775,7 @@ they are written down.
 
 | Refused | Instead | Source |
 |---|---|---|
-| Bottom tab bar | The plinth. A tab bar spends 56dp of a map-first app on links | §1.5 |
+| A nav bar, tab strip or sidebar of links | The plinth. Each spends a strip of a map-first screen on links | §1.5 |
 | Per-exercise buttons on the home screen | One `+ ADD WORKOUT` button → `/log` | **D-061** |
 | Streaks, "days since", check-ins, reminders, decay | Nothing. Open it after three weeks and it is as pleased to see you | **D-013**, H2 |
 | A nag when nothing has synced | The plinth shows the last run, whenever it was | §2.3 |
@@ -1689,14 +1783,14 @@ they are written down.
 | Spinners | Cached content, then parchment skeletons | §8.7 |
 | An offline banner | The date of the last thing we know about | §9.5 |
 | Translucent / glassmorphic chrome over the map | Opaque fills with a hairline | §8.1 |
-| Auto-switching modes on the ambient light sensor | The user's explicit choice, persisted | §9.1 |
+| Auto-switching the map mode — on the OS light/dark setting, the time of day, or any sensor | The user's explicit choice, persisted | §9.1 |
 | Cold-territory counts, badges, or "rediscoverable near you" lists | A wash on the terrain, in atlas only | **D-133**, §4.6 |
 | Cold territory in adventure mode, "just a hint" | Nothing. Adventure stays pure known/unknown | **D-133** |
 | A cell inspector ("you last ran here 211 days ago") | The cold wash shows the only actionable part | §4.4 |
 | Charts in the skill detail sheet | A bar and a milestone ladder | §5.5 |
 | Sorting skills or log rows by level, frequency or recency | Registry order, forever | §5.3, §6.5 |
 | Precise dates on milestone estimates | "~3 years". A precise date is a deadline | §5.5 |
-| Ticket editing, closing, comments, kanban, charts | Create + browse. The write-set split *is* the storage design | **D-093**, 07 §5.6 |
+| ~~Ticket editing, closing, comments, kanban, charts~~ | *Moot: D-252 withdrew the in-app ticket UI entirely* | **D-252** |
 | Emoji in the UI | The sigil set | §8.6 |
 | Third-party fonts, analytics, tag managers at runtime | Self-hosted, none, none | §9.5 |
 
@@ -1708,12 +1802,12 @@ Not wrong — **not yet.** These have designs waiting elsewhere and no pixels he
   No Slayer tile beyond the collapsed `Untrained` row (§5.3).
 - **The route planner** (D-070). In scope as a *feature*, out of MVP. Its two hooks already exist
   and cost nothing: the frontier line at the bottom of the reveal (§3, Beat 5) and atlas mode's
-  "unexplored zones near me" overlay (05 §8.4). When it lands, it may claim the long-press
-  gesture, and §4.2 already says what happens to the mode toggle if it does.
+  "unexplored zones near me" overlay (05 §8.4). When it lands, it may claim a click on empty
+  map, which is held in reserve for it (§4.2, §10.5).
 - **Equipment and loot screens.** Out of MVP, and D-134 has already removed the reason they would
   need prominence: gear grants no XP multipliers, only combat power, lantern radius and looks.
-- **Sets, reps-per-set and a rest timer** (D-062). §6.6 specifies the forward path — a long-press
-  on an existing row, no layout change — and flags the rest timer as the one deferred feature
+- **Sets, reps-per-set and a rest timer** (D-062). §6.6 specifies the forward path — an explicit
+  control on an existing row, no layout change — and flags the rest timer as the one deferred feature
   that could violate D-013.
 
 ### 10.5 The standing conditions
@@ -1726,7 +1820,8 @@ them is a decision rather than a drift:
    export, screenshot or friends-map feature reopens D-123 before it ships a single pixel. This
    is the strongest coupling in the document between a UI decision and a security one
    (`08-security-privacy.md` carries it as a standing condition).
-2. **The long-press gesture is on loan** until D-070's route planner is designed (§4.2).
+2. **A click on empty map does nothing, and is held in reserve** until D-070's route planner is
+   designed (§4.2, §4.4). *(This was "the long-press gesture is on loan"; D-253 removed long-press.)*
 3. ~~**04 §1.2's Total Level ceiling needs a one-line correction**~~ — **DONE (`0031`).** §1.2 now
    derives the ceiling from the ruleset rather than stating it, because a literal was falsified
    three times by changes that were each supposed to be data-only. Adding a skill still mints a
