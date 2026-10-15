@@ -108,3 +108,5 @@ app's children until the fresh payload lands.
 (0 warnings), `vitest run` (210 files, 3609 passed) and `build` all pass. `check-bundle-leak`
 passes; `check-home-not-in-client`'s self-test passes. Its scan is a no-op here because the home
 env vars are unset locally.
+
+**Decisions recorded at merge (orchestrator):** D-331.

@@ -124,3 +124,5 @@ name is the `/skills` tile's own wording (`Might, level 42, activity skill`).
 
 Desktop browser, on `/`. Does the quick-view read as a calm glance under the plinth rather than a
 second skills page? Are the bars thin enough, and does the level read beside each name?
+
+**Decisions recorded at merge (orchestrator):** D-330 (sheet dismisses to `/`). D-NEW-b (row layout) is recorded in this Resolution only: a styling choice, not an architectural one.

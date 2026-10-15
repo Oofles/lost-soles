@@ -101,3 +101,5 @@ Suite: `npx vitest run` green, including the `0277` block. All of the following 
 worktree: the guards listed in the build phase, `typecheck`, `lint`, `build`, and
 `build-index --check`. The operator's perceptual check above is still open.
 
+
+**Decisions recorded at merge (orchestrator):** D-332.

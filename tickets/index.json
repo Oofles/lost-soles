@@ -6243,7 +6243,7 @@
     "path": "tickets/open/0270-skills-quick-view-in-the-plinth-rail.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 10,
       "total": 10
     }
   },
@@ -6368,7 +6368,7 @@
     "path": "tickets/open/0276-sign-in-without-reload-leaves-plinth-empty.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -6389,8 +6389,28 @@
     "path": "tickets/open/0277-run-breakdown-labels-xp-as-cells.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
+    }
+  },
+  {
+    "id": 278,
+    "slug": "mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom",
+    "title": "MapShell rebuilds MapLibre on any router.refresh(), because home is compared by object identity",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T20:21:36Z",
+    "path": "tickets/open/0278-mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]

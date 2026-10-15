@@ -5083,3 +5083,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   cells, area, frontier length. Deferred: explorer since, re-armed lifetime, most-run ground, total
   distance/runs — they need per-cell history and full run totals the browser does not hold. A
   ticket exists for them; it opens when a screen needs them.
+- **D-330** **A skill sheet opened from the plinth's quick-view dismisses back to `/`.** *(Agent,
+  2026-10-15, ticket `0270`.)* A row click sets a module-level mark (`lib/skills/sheet-origin.ts`)
+  that the sheet reads to choose `router.back()` over replacing with `/skills`. Not a query string
+  (the sheet route is prerendered, D-282) and not `history.state` (Next's router owns it). A mark for
+  another path is dropped and a reload clears it, so a deep link still lands on `/skills`. Accepted
+  cost: the sheet is the `/skills/<id>` route, so the map unmounts while it is open, as with the
+  SKILLS button; intercepting the route inside `app/(home)` (D-322) would avoid that.
+- **D-331** **An auth transition refreshes the server components, and the app's children are held
+  until the fresh payload lands.** *(Agent, 2026-10-15, ticket `0276`.)* `AuthGate` listens to the
+  Amplify `auth` Hub outside the Authenticator; on `signedIn`/`signedOut` only, it calls
+  `router.refresh()` in a transition and renders no children while it is pending. Mounting on the
+  stale payload and updating in place was rejected: `MapShell` rebuilds MapLibre when `home`
+  changes, and a stale `uid` after sign-out → sign-in could cache one account's cells under
+  another's IndexedDB key.
+- **D-332** **The run page's breakdown shows XP by reason and never a cell count.** *(Agent,
+  2026-10-15, ticket `0277`.)* Each part reads `N XP <words>`, with the cell reasons as ground words
+  (`125 XP new ground · 2 XP remembered ground`); cell counts appear only on the tally's cells line.
+  `06` §3.2's example already settled this. The skill sheet keeps `reasonWords`, where the noun sits
+  beside a real cell count.
