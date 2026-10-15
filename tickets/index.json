@@ -2106,7 +2106,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0086-the-plinth-over-the-map.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
@@ -4381,7 +4381,7 @@
     "title": "Design pass over 06-ui-ux.md for a desktop-primary viewing surface",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [],
@@ -4389,10 +4389,11 @@
     "source": "agent",
     "created": "2026-09-09T16:54:51Z",
     "started": "2026-10-15T15:50:47Z",
-    "path": "tickets/open/0187-design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s.md",
-    "ready": true,
+    "closed": "2026-10-15T16:33:54Z",
+    "path": "tickets/closed/0187-design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -5762,7 +5763,7 @@
     "path": "tickets/open/0249-skill-and-chronicle-sheets-dismiss-on-swipe-down.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

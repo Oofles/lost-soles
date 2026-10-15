@@ -4,7 +4,7 @@ slug: design-pass-over-06-ui-ux-md-for-a-desktop-primary-viewing-s
 title: Design pass over 06-ui-ux.md for a desktop-primary viewing surface
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-09T16:54:51Z
 started: 2026-10-15T15:50:47Z
+closed: 2026-10-15T16:33:54Z
 ---
 
 ## Description
