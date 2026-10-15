@@ -24,7 +24,7 @@ export interface ChronicleSnapshot {
 
 /** `window`, narrowed to what this reads — so a test hands in a plain object. */
 export interface TraversalHost {
-  addEventListener(type: "popstate", listener: () => void): void
+  addEventListener(type: "popstate", listener: () => void, capture?: boolean): void
   location: { pathname: string }
 }
 
@@ -44,9 +44,17 @@ export function chronicleReturn(host: TraversalHost | null): ChronicleReturn {
   let snapshot: ChronicleSnapshot | null = null
   /** Where the last history traversal landed. */
   let traversedTo: string | null = null
-  host?.addEventListener("popstate", () => {
-    traversedTo = host.location.pathname
-  })
+  // Capture phase: Next's router also listens for `popstate` on `window`, registered earlier, and
+  // renders the restored route synchronously inside its handler — so a bubble-phase listener here
+  // ran after the Chronicle had already mounted and asked `take`. At the target, capture listeners
+  // fire before bubble ones regardless of registration order.
+  host?.addEventListener(
+    "popstate",
+    () => {
+      traversedTo = host.location.pathname
+    },
+    true,
+  )
   return {
     leave(s) {
       snapshot = s

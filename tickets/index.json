@@ -6346,5 +6346,45 @@
       "checked": 0,
       "total": 3
     }
+  },
+  {
+    "id": 276,
+    "slug": "sign-in-without-reload-leaves-plinth-empty",
+    "title": "Signing in on / leaves the plinth without fog data until a reload",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T19:20:57Z",
+    "path": "tickets/open/0276-sign-in-without-reload-leaves-plinth-empty.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 277,
+    "slug": "run-breakdown-labels-xp-as-cells",
+    "title": "Run breakdown labels XP amounts as cell counts",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "13-home-plinth-and-chronicle",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-15T19:20:57Z",
+    "path": "tickets/open/0277-run-breakdown-labels-xp-as-cells.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
   }
 ]

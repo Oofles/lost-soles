@@ -180,3 +180,15 @@ rows and return, `lib/runs/server.ts`, `lib/runs/wire.ts`, `lib/runs/run-page.te
 `components/plinth/plinth.test.tsx`, `docs/06-ui-ux.md`.
 
 **Decisions recorded at merge (orchestrator):** D-321 (back to the Chronicle), D-322 (`(home)` route group), D-323 (paged endpoint and cursor), D-324 (gold mark on the latest unseen run only, operator), D-329 (no lifetime totals in the Chronicle, operator). The proposed "lifetime totals at the Chronicle's top" ticket was declined by D-329. The run page's `←` bug is `0274`.
+
+**Post-deploy fix (orchestrator, 2026-10-15).** The wave 1 smoke test against Amplify job 402
+(throwaway user, 18 seeded runs, headless Chromium) found back from a run **never** restored the
+Chronicle's scroll: `scrollTop` 265 before, 0 after, on every run. Next's router registers its own
+`popstate` listener on `window` at hydration and renders the restored route synchronously inside it,
+so the Chronicle mounted and called `take()` before `lib/chronicle/return.ts`'s later-registered
+listener had recorded the traversal. The unit fake fired listeners in an order that hid this. Fix:
+the traversal listener now registers in the **capture** phase, which fires before bubble listeners at
+the target regardless of registration order. The fake history now honours capture-then-bubble, and a
+new test registers a "router" listener first that mounts inside the event; it is red without the fix.
+Two unrelated findings from the same smoke test were filed as `0276` (sign-in without reload leaves
+the plinth without fog data) and `0277` (the run breakdown labels XP as cells).

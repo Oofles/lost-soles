@@ -18,7 +18,7 @@ import { chronicleReturn, type ChronicleSnapshot } from "./return"
 class FakeHistory {
   entries: { url: string; state: unknown }[]
   index = 0
-  private listeners: (() => void)[] = []
+  private listeners: { fn: () => void; capture: boolean }[] = []
   constructor(first: string) {
     this.entries = [{ url: first, state: null }]
   }
@@ -28,8 +28,8 @@ class FakeHistory {
   get location() {
     return { pathname: this.here.url, href: `https://x.test${this.here.url}`, search: "", hash: "" }
   }
-  addEventListener(_type: "popstate", fn: () => void) {
-    this.listeners.push(fn)
+  addEventListener(_type: "popstate", fn: () => void, capture = false) {
+    this.listeners.push({ fn, capture })
   }
   push(url: string, state: unknown = null) {
     this.entries = this.entries.slice(0, this.index + 1)
@@ -42,7 +42,9 @@ class FakeHistory {
   back() {
     if (this.index === 0) return "LEFT THE APP"
     this.index--
-    for (const fn of this.listeners) fn()
+    // As at a real event target: capture listeners first, then bubble, each in registration order.
+    for (const l of this.listeners) if (l.capture) l.fn()
+    for (const l of this.listeners) if (!l.capture) l.fn()
     return this.here.url
   }
   host(navigation: { type: string; name: string } | undefined): HistoryHost {
@@ -117,5 +119,21 @@ describe("the Chronicle's back stack (0088)", () => {
     h.back()
     expect(ret.take("/chronicle")).toEqual(snap(10))
     expect(ret.take("/chronicle")).toEqual(snap(10))
+  })
+
+  it("back restores the offset even when the router renders the Chronicle inside its own earlier popstate listener", () => {
+    // The deployed bug (wave 1 smoke, job 402): Next registers its popstate listener at hydration,
+    // long before the first Chronicle, and mounts the restored route synchronously within it.
+    const h = new FakeHistory("/")
+    let mountedWith: ChronicleSnapshot | null | undefined
+    h.addEventListener("popstate", () => {
+      if (h.location.pathname === "/chronicle") mountedWith = ret.take("/chronicle")
+    })
+    const ret = chronicleReturn(h)
+    h.push("/chronicle")
+    ret.leave(snap(265))
+    h.push("/run/a-1")
+    expect(h.back()).toBe("/chronicle")
+    expect(mountedWith).toEqual(snap(265))
   })
 })
