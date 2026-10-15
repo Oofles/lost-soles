@@ -221,12 +221,12 @@ starts, and the plinth's position is fixed at every desktop size.
 │ └───────┘ └──────────────┘ └─────┘ │     (D-249), in the PANE's centre           │
 │ [9]                                │                                             │
 │ Sync now  (interim, until cap 14)  │                                      ┌────┐ │
-│                                    │                                 [6]  │ ⤢  │ │
-│                                    │                                      └────┘ │
-│                                    │                                      ┌────┐ │
-│      (rail background, empty)      │                                 [8]  │ ⌖  │ │
-│                                    │                                      └────┘ │
-│                                    │                                             │
+│ ────────────────────────────────── │                                 [6]  │ ⤢  │ │
+│ ACTIVITY                      [11] │                                      └────┘ │
+│ ◇ Wayfaring   ▓▓▓▓▓▓▓▓░░░░░░░░  42 │                                      ┌────┐ │
+│ ◇ Might       ▓▓▓░░░░░░░░░░░░░  17 │                                 [8]  │ ⌖  │ │
+│ META                               │                                      └────┘ │
+│ ◇ Cartography ▓▓▓▓▓░░░░░░░░░░░  31 │                                             │
 │ [3]                                │                    © Protomaps · © OSM [10] │
 └────────────────────────────────────┴─────────────────────────────────────────────┘
 ```
@@ -235,7 +235,7 @@ starts, and the plinth's position is fixed at every desktop size.
 |---|---|---|---|
 | 1 | **Mode toggle** | Top-left **of the map pane**, 16px insets | Two-row segmented control, both labels always visible (§4.2). Click either row, or press `M` (D-253). Persists. |
 | 2 | **Settings** `⚙` | Top-right of the map pane, 16px insets, 40 × 40px | The door to `/settings` (the §2.4 reconnect line is the other, and appears only when needed). |
-| 3 | **The plinth — the rail** | At ≥1024px: fixed, full window height, left edge, **24rem wide** | Opaque `--surface-raised` (D-148), a 1px `--line` rule on its right edge, no shadow, no radius. 16px padding. Content sits at the top, in rows 4, 5, 7, 9 in exactly that order; the space below stays empty rail. The rail scrolls internally if its content outgrows the window height (200% zoom). |
+| 3 | **The plinth — the rail** | At ≥1024px: fixed, full window height, left edge, **24rem wide** | Opaque `--surface-raised` (D-148), a 1px `--line` rule on its right edge, no shadow, no radius. 16px padding. Content sits at the top, in rows 4, 5, 7, 9, 11 in exactly that order; the space below row 11 stays empty rail. Only row 11 gives way when the window is short: it scrolls inside itself, so rows 4–9 never scroll away. The rail scrolls internally if rows 4–9 alone outgrow the window height. |
 | 4 | **The two glance numbers** | First row | `TOTAL LEVEL` label + the number in the §8.4 Total Level style (the largest type on `/`), left; lifetime cells revealed, right-aligned on the same baseline. Not links. |
 | 5 | **Milestone bar** | Second row, full rail width less padding | Named target (`next: 300`), never a bare percentage (§2.3). |
 | 6 | **Fit to territory** | Right edge of the map pane, above ⌖, 40 × 40px, 8px gap | Frames the whole explored set. A separate control, not a long-press (D-253); `0101`'s. |
@@ -243,6 +243,7 @@ starts, and the plinth's position is fixed at every desktop size.
 | 8 | **Recentre** `⌖` | Right edge of the map pane, 40 × 40px, its bottom 16px above the attribution | Recentres on the last run's end point at z14 (§4.4); `0101`'s. |
 | 9 | **Three destinations** | Fourth row, below a `--line` rule | `SKILLS` · `+ ADD WORKOUT` · `RUNS` in one row, all 40px tall, 8px apart, columns `1fr 1.5fr 1fr` so Add workout is centred and widest (D-061). `RUNS` → `/chronicle`. |
 | 10 | **Attribution** | Bottom-right **of the map pane**, MapLibre's own control, uncompacted | A licence requirement (`0052`). Nothing may cover it. |
+| 11 | **Skills quick-view** | Fifth row, below the Sync line and a `--line` rule; ≥1024px only | `0270`. A glance, not a second skills panel: one 32px row per TRAINED skill — sigil, name, a 3px bar to the next level in `/skills`' fills, the level; no XP. `ACTIVITY` then `META` headings, registry order; an untrained skill has no row and an empty group no heading. Each row links to `/skills/<id>`'s sheet, which dismisses back to `/`. Below 1024px it is omitted: the bottom card only must not break (D-251). |
 
 **All map chrome lives on the map pane** — the toggle, `⚙`, fit, `⌖` and the attribution are
 positioned against the pane, never against the window, so none of them ever sits under the rail.
@@ -262,7 +263,7 @@ latest run in the visible map with no `padding` at all. The pane is narrower tha
 not occluded by anything.
 
 **Focus and keyboard order** follows reading order, left to right: the last-run line →
-`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → mode toggle → `⚙` → the map (arrow keys
+`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the quick-view's rows (`0270`) → mode toggle → `⚙` → the map (arrow keys
 and `+`/`−` act on it while it holds focus, D-253) → fit → `⌖`. `M` toggles the mode from
 anywhere on `/` except while a text field has focus. Every focusable element shows the §9.4
 focus ring.

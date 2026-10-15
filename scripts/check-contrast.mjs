@@ -34,7 +34,7 @@ export const AA_GRAPHIC = 3
 const BACKGROUNDS = {
   bg: "--bg", // the page, the pinned header, section headings
   surface: "--surface", // tiles, the Total Level card, the NEXT card
-  raised: "--surface-raised", // the detail sheet
+  raised: "--surface-raised", // the detail sheet, and the plinth rail's skills quick-view (0270)
 }
 
 /**

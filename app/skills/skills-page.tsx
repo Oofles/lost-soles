@@ -8,6 +8,7 @@ import { logStore } from "@/lib/log/queue"
 import { currentUid, fetchSkills } from "@/lib/log/transport"
 import { loadSkillsPanel, type PanelState } from "@/lib/skills/load"
 import { nextLine } from "@/lib/skills/next"
+import { sheetOpenedFromHome } from "@/lib/skills/sheet-origin"
 import { skillsPanel } from "@/lib/skills/panel"
 import { fetchReplayInProgress, fetchRecentLedger } from "@/lib/skills/transport"
 
@@ -47,7 +48,8 @@ export function SkillsShell({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     if (pathname === "/skills") sawPanel.current = true
-    setOpenedFromPanel(sawPanel.current && pathname !== "/skills")
+    // `0270`: the plinth's quick-view is the other in-app door to a sheet; its Esc goes back to `/`.
+    setOpenedFromPanel((sawPanel.current && pathname !== "/skills") || sheetOpenedFromHome(pathname))
   }, [pathname])
 
   useEffect(

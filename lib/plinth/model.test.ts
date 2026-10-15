@@ -4,7 +4,7 @@ import { rulesForSkills } from "@/lib/log/optimistic"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
 import { skillsPanel } from "@/lib/skills/panel"
 
-import { lastRunLine, milestoneTarget, plinthModel } from "./model"
+import { lastRunLine, milestoneTarget, plinthModel, quickView } from "./model"
 
 const run = (props: Partial<RunFeatureCollection["features"][0]["properties"]> = {}): RunFeatureCollection => ({
   type: "FeatureCollection",
@@ -125,5 +125,70 @@ describe("the home screen's states (0087, `06` §2.4)", () => {
     ).toEqual({ href: "/settings", text: "Example needs reconnecting" })
     expect(plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("connected") }).reconnect).toBeNull()
     expect(plinthModel({ skills: [], cells: 10, latest: run(), sources: SOURCES("not-connected") }).reconnect).toBeNull()
+  })
+})
+
+describe("the skills quick-view (0270)", () => {
+  const rules = rulesForSkills([])
+  const enabled = rules.skills.filter((s) => s.enabled).sort((a, b) => a.displayOrder - b.displayOrder)
+  const activity = enabled.filter((s) => s.kind === "activity")
+  const meta = enabled.filter((s) => s.kind === "meta")
+
+  it("comes from the same SkillState read as Total Level: trained skills only, ACTIVITY then META, registry order", () => {
+    // Trained in reverse registry order, to prove the order is the registry's and not the input's.
+    const skills = [...enabled].reverse().filter((_, i) => i % 2 === 0).map((s) => ({ skillId: s.id, xp: 5_000 }))
+    const model = plinthModel({ skills, cells: 0, latest: EMPTY_COLLECTION })
+    const panel = skillsPanel(rulesForSkills(skills), skills)
+    expect(model.quickView!.activity.map((r) => r.skillId)).toEqual(panel.activity.map((t) => t.skillId))
+    expect(model.quickView!.meta.map((r) => r.skillId)).toEqual(panel.meta.map((t) => t.skillId))
+    const trained = new Set(skills.map((s) => s.skillId))
+    const rows = [...model.quickView!.activity, ...model.quickView!.meta]
+    expect(rows.map((r) => r.skillId)).toEqual(enabled.filter((s) => trained.has(s.id)).map((s) => s.id))
+    expect(rows.length).toBeGreaterThan(0)
+  })
+
+  it("an untrained skill has no row; a group with none trained is empty", () => {
+    const skills = [
+      { skillId: activity[0]!.id, xp: 5_000 },
+      { skillId: activity[1]!.id, xp: 0 },
+    ]
+    const view = plinthModel({ skills, cells: 0, latest: EMPTY_COLLECTION }).quickView!
+    expect(view.activity.map((r) => r.skillId)).toEqual([activity[0]!.id])
+    expect(view.meta).toEqual([])
+  })
+
+  it("a row is level, progress and a link to the sheet — no XP — named by skill, level and kind", () => {
+    const m = meta[0]!
+    const skills = [{ skillId: m.id, xp: 5_000 }]
+    const [row] = plinthModel({ skills, cells: 0, latest: EMPTY_COLLECTION }).quickView!.meta
+    const tile = skillsPanel(rulesForSkills(skills), skills).meta[0]!
+    expect(row).toEqual({
+      skillId: m.id,
+      href: `/skills/${m.id}`,
+      name: m.name,
+      kind: "meta",
+      level: tile.level,
+      fraction: tile.fraction,
+      label: `${m.name}, level ${tile.level}, meta skill`,
+    })
+    expect(row).not.toHaveProperty("xp")
+  })
+
+  it("nothing known yet draws no list, rather than a list of level 1s", () => {
+    expect(plinthModel({ skills: undefined, cells: null, latest: EMPTY_COLLECTION }).quickView).toBeNull()
+  })
+
+  it("a new registry row is a new quick-view row with no code change (D-031)", () => {
+    // A synthetic skill the code has never heard of, slotted between two real ones.
+    const synthetic = { ...activity[0]!, id: "synthetic-climbing", name: "Climbing", displayOrder: activity[0]!.displayOrder + 1 }
+    const withRow = { ...rules, skills: [...rules.skills, synthetic] }
+    const standing = [
+      { skillId: activity[0]!.id, xp: 5_000 },
+      { skillId: "synthetic-climbing", xp: 2_000 },
+      { skillId: activity[1]!.id, xp: 1_000 },
+    ]
+    const view = quickView(skillsPanel(withRow, standing))
+    expect(view.activity.map((r) => r.skillId)).toEqual([activity[0]!.id, "synthetic-climbing", activity[1]!.id])
+    expect(view.activity[1]).toMatchObject({ name: "Climbing", href: "/skills/synthetic-climbing", label: expect.stringContaining("Climbing, level ") })
   })
 })

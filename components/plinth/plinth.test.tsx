@@ -32,6 +32,14 @@ const FULL: PlinthModel = {
   // line is filled, so every refusal below is also tested against it.
   connect: null,
   reconnect: { href: "/settings", text: "Example needs reconnecting" },
+  // `0270`: both groups filled, so every refusal below is tested against the quick-view too.
+  quickView: {
+    activity: [
+      { skillId: "act-a", href: "/skills/act-a", name: "Alpha", kind: "activity", level: 42, fraction: 0.5, label: "Alpha, level 42, activity skill" },
+      { skillId: "act-b", href: "/skills/act-b", name: "Beta", kind: "activity", level: 7, fraction: 0.25, label: "Beta, level 7, activity skill" },
+    ],
+    meta: [{ skillId: "meta-c", href: "/skills/meta-c", name: "Gamma", kind: "meta", level: 19, fraction: 0.75, label: "Gamma, level 19, meta skill" }],
+  },
 }
 
 const plinth = () => renderToStaticMarkup(<Plinth model={FULL} />)
@@ -78,6 +86,60 @@ describe("the plinth's content (0086)", () => {
   it("carries the interim Sync as a caption text line, not a fourth destination (D-313)", () => {
     const html = plinth()
     expect(html.indexOf("Sync now")).toBeGreaterThan(html.indexOf("</nav>"))
+  })
+})
+
+describe("the skills quick-view (0270)", () => {
+  const quick = (html: string) => html.slice(html.indexOf("data-quick-view"), html.indexOf("</aside>"))
+
+  it("sits inside the plinth, below the Sync and reconnect lines, so /chronicle replaces it with the rest", () => {
+    const html = plinth()
+    expect(html).toMatch(/<aside [^>]*data-plinth=""[\s\S]*data-quick-view[\s\S]*<\/aside>/)
+    expect(html.indexOf("data-quick-view")).toBeGreaterThan(html.indexOf("Sync now"))
+    expect(html.indexOf("data-quick-view")).toBeGreaterThan(html.indexOf("needs reconnecting"))
+  })
+
+  it("draws ACTIVITY then META, each row a link to its sheet carrying name, level and kind — no XP", () => {
+    const html = quick(plinth())
+    expect(html.indexOf(">ACTIVITY<")).toBeLessThan(html.indexOf(">META<"))
+    expect(hrefs(html)).toEqual(["/skills/act-a", "/skills/act-b", "/skills/meta-c"])
+    expect(html).toContain('aria-label="Alpha, level 42, activity skill"')
+    expect(html).toContain('aria-label="Gamma, level 19, meta skill"')
+    const t = text(html)
+    for (const s of ["Alpha", "42", "Beta", "7", "Gamma", "19"]) expect(t).toContain(s)
+    expect(t).not.toMatch(/\bxp\b|untrained|next|%/i)
+  })
+
+  it("bars use /skills' fills: activity gold, meta verdigris, as fills only", () => {
+    const html = quick(plinth())
+    expect(html.match(/background:var\(--progress-activity\)/g)).toHaveLength(2)
+    expect(html.match(/background:var\(--progress-meta\)/g)).toHaveLength(1)
+    expect(html).toContain("width:50%")
+  })
+
+  it("a group with no trained skill has no heading, and no trained skill at all draws nothing", () => {
+    const onlyActivity = renderToStaticMarkup(<Plinth model={{ ...FULL, quickView: { activity: FULL.quickView!.activity, meta: [] } }} />)
+    expect(onlyActivity).toContain(">ACTIVITY<")
+    expect(onlyActivity).not.toContain(">META<")
+    const none = renderToStaticMarkup(<Plinth model={{ ...FULL, quickView: { activity: [], meta: [] } }} />)
+    expect(none).not.toContain("data-quick-view")
+    expect(renderToStaticMarkup(<Plinth model={{ ...FULL, quickView: null }} />)).not.toContain("data-quick-view")
+  })
+
+  it("rows are 32px; below 1024px the list is omitted; at ≥1024px only the list scrolls", () => {
+    const mobile = PLINTH_CSS.slice(0, PLINTH_CSS.indexOf("@media (min-width: 1024px)"))
+    const desktop = PLINTH_CSS.slice(PLINTH_CSS.indexOf("@media (min-width: 1024px)"))
+    expect(mobile).toMatch(/\.plinth-skill \{[^}]*min-height: 32px/)
+    expect(mobile).toContain(".plinth-skills { display: none; }")
+    expect(desktop).toMatch(/\.plinth \{[^}]*display: flex; flex-direction: column/)
+    expect(desktop).toContain(".plinth > * { flex: none; }")
+    expect(desktop).toMatch(/\.plinth > \.plinth-skills \{ display: block;[^}]*min-height: 0; overflow-y: auto; \}/)
+  })
+
+  it("names no skill: the rows are the model's, so a registry row is a quick-view row (D-031)", () => {
+    const src = readFileSync(join(import.meta.dirname, "plinth.tsx"), "utf8")
+    const ids = ["wayfaring", "vigil", "roving", "cadence", "might", "fortitude", "endurance", "cartography", "constitution"]
+    for (const id of ids) expect(src.toLowerCase()).not.toContain(id)
   })
 })
 

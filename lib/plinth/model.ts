@@ -17,7 +17,7 @@ import { rulesForSkills, type CachedSkill } from "@/lib/log/optimistic"
 import type { SourceConnection } from "@/lib/plinth/connections"
 import { runDate, runDistance } from "@/lib/runs/format"
 import { runHref, type RunFeatureCollection } from "@/lib/runs/wire"
-import { skillsPanel } from "@/lib/skills/panel"
+import { skillsPanel, type SkillsPanelModel, type SkillTile } from "@/lib/skills/panel"
 import type { Rung } from "@/src/scoring/levels"
 
 const fmt = new Intl.NumberFormat("en-US")
@@ -60,6 +60,29 @@ export interface PlinthModel {
    * shows (§2.3). One ink line, never red, never a badge, never a modal.
    */
   reconnect: SettingsLine | null
+  /**
+   * `0270`. The skills quick-view under the rail: TRAINED skills only, as thin level bars, grouped
+   * `ACTIVITY` then `META` in registry order. `null` until the cache (or the network) has answered.
+   */
+  quickView: QuickView | null
+}
+
+/** `0270`. One quick-view row: a link to the skill's sheet. Level and progress only — never XP. */
+export interface QuickRow {
+  skillId: string
+  href: string
+  name: string
+  kind: SkillTile["kind"]
+  level: number
+  /** 0..1 toward `level + 1`, the same fraction the `/skills` tile draws. */
+  fraction: number
+  /** `Might, level 42, activity skill` — the `/skills` tile's accessible name, word for word. */
+  label: string
+}
+
+export interface QuickView {
+  activity: QuickRow[]
+  meta: QuickRow[]
 }
 
 /** `0087`. §2.4's wording on the desktop (D-227: there is nothing to tap). */
@@ -90,6 +113,25 @@ function sourceLines(
     connect,
     reconnect: broken ? { href: "/settings", text: `${broken.name} needs reconnecting` } : null,
   }
+}
+
+/**
+ * `0270`. The quick-view rows, from `skillsPanel`'s TRAINED groups — so membership (any lifetime XP),
+ * grouping (`kind`) and order (`displayOrder`) are the panel's rules, not a second copy of them, and
+ * a new registry row is a new row here with no code change (D-031). Untrained skills have no row:
+ * the rail never shows a column of empty bars, and never nudges (D-013).
+ */
+export function quickView(panel: Pick<SkillsPanelModel, "activity" | "meta">): QuickView {
+  const row = (t: SkillTile): QuickRow => ({
+    skillId: t.skillId,
+    href: `/skills/${t.skillId}`,
+    name: t.name,
+    kind: t.kind,
+    level: t.level,
+    fraction: t.fraction,
+    label: `${t.name}, level ${t.level}, ${t.kind} skill`,
+  })
+  return { activity: panel.activity.map(row), meta: panel.meta.map(row) }
 }
 
 /** `next: 300`, or `of <ceiling>` once the ceiling is reached — the `/skills` header's wording. */
@@ -143,5 +185,6 @@ export function plinthModel(input: {
     cells: input.cells === null ? null : fmt.format(input.cells),
     lastRun,
     ...sourceLines(input.sources ?? [], input.reconnectIds ?? [], nothingImported),
+    quickView: panel ? quickView(panel) : null,
   }
 }
