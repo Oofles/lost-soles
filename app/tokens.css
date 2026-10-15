@@ -91,6 +91,10 @@
   --accent: var(--gold-500);
   --accent-text: var(--gold-700);
   --scrim: rgb(11 16 32 / 0.72);          /* --navy-900 @ 0.72 */
+  /* The destructive confirm in /settings, and nothing else (§8.2, ticket 0089). Theme-invariant:
+     a filled --oxblood button with --parch-50 text reads in both themes, so dark does not remap it. */
+  --destructive: var(--oxblood);
+  --on-destructive: var(--parch-50);
   /* --gold-700, not --gold-500 (D-291, ticket 0077): a bar carries meaning, so it is a non-text
      graphic and needs 3:1 against the tile. --gold-500 on --parch-50 is 2.24:1; --gold-700 is 3.95:1.
      scripts/check-contrast.mjs measures it on every build. */
@@ -140,8 +144,8 @@
  * basemap breaks the reveal (§8.1). Only the semantic layer moves here; the
  * primitive ramps are constants.
  *
- * System-following by default; /settings gets the manual override, and it is the
- * ONLY visual preference the app offers.
+ * System-following, and nothing else. Ticket 0089 has no preference control of any kind
+ * on /settings, theme included, so nothing sets `data-theme` today.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -161,7 +165,8 @@
   }
 }
 
-/* The manual override from /settings wins in both directions. */
+/* A `data-theme` override wins in both directions. Nothing sets it today (ticket 0089); kept so a
+   test or a future decision can force a theme without touching the token values. */
 :root[data-theme="dark"] {
   --bg: var(--navy-900);
   --surface: var(--navy-800);

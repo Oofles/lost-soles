@@ -1,21 +1,28 @@
 import { currentUserId, isOwner } from "@/lib/auth/owner"
 import { getSourceAccountSummary } from "@/lib/sources/source-account-store"
+import { buildInfo } from "@/lib/build-info"
 import { connectableSources, getOAuthConnector } from "@/src/adapters/registry"
 
+import { DeletionEntry, DisconnectControl, SignOutButton } from "./settings-controls"
+import { button } from "./styles"
+
 /**
- * §1.3 — small and boring, and it must stay under one screenful. Source re-auth lives
- * here (the one recurring chore S3 permits), plus sign out, the account-deletion
- * entry point and build info.
+ * §1.3, small and boring. Ticket 0089: exactly four things and nothing else.
  *
- * WHAT TICKET 0032 PUT HERE AND WHY IT IS NOT THE WHOLE SCREEN. 0089 owns this page
- * (capability 13) and depends on 0032 for exactly this flow. 0032 needs the smallest
- * surface that lets a person start a connect, read a scope refusal and disconnect,
- * because criterion 3 requires the refusal to be RENDERED and because the operator
- * validation is "tap Connect on the settings screen and untick the permission".
+ *   1. Connect / disconnect each activity source (0032's flow, behind one confirmation).
+ *   2. Sign out.
+ *   3. The account-deletion ENTRY POINT. A typed confirmation that leads to the runbook,
+ *      never a deletion (08 §6.4; ticket 0106 owns the runbook).
+ *   4. Build info: version and commit.
  *
- * So: no sign out, no deletion entry, no build info, no confirmation dialog on
- * disconnect — those are 0089's, listed in its acceptance criteria, and building them
- * here would be widening a ticket rather than finishing one.
+ * NOT A PREFERENCES SCREEN. No theme, units, notifications, map mode or sound. Every
+ * preference is state the user has to maintain, which is D-013's exact prohibition.
+ * `page.test.tsx` asserts that no preference control exists over the rendered tree.
+ *
+ * DISCONNECT AND DELETION ARE KEPT FAR APART. They differ in colour and in wording, and
+ * sign out sits between them, so the deletion entry cannot be hit while reaching for
+ * disconnect. Conflating the two is how a user destroys years of data while trying to
+ * stop a sync (§6.5).
  *
  * NO VENDOR NAME APPEARS IN THIS FILE. The sources come from the registry and each
  * one carries its own display name. `check-boundaries.mjs` scans `app/` for exactly
@@ -31,16 +38,18 @@ const card: React.CSSProperties = {
   marginTop: "1rem",
 }
 
-const button: React.CSSProperties = {
-  display: "inline-block",
-  padding: ".6rem 1rem",
-  borderRadius: ".375rem",
-  border: "1px solid var(--accent)",
-  background: "transparent",
-  color: "var(--accent-text)",
-  font: "inherit",
-  cursor: "pointer",
-  textDecoration: "none",
+const h2: React.CSSProperties = { color: "var(--text-primary)", margin: 0, fontSize: "1.125rem" }
+
+function BuildLine() {
+  const build = buildInfo()
+  return (
+    <p style={{ color: "var(--text-muted)", fontSize: ".8125rem", marginTop: "2rem" }}>
+      Build {build.version} &middot;{" "}
+      <code title={build.sha} data-commit={build.sha}>
+        {build.shortSha}
+      </code>
+    </p>
+  )
 }
 
 export default async function Settings({
@@ -57,6 +66,8 @@ export default async function Settings({
     return (
       <main style={{ padding: "1.5rem", maxWidth: "40rem" }}>
         <h1 style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)", fontWeight: 600 }}>Settings</h1>
+        <SignOutButton />
+        <BuildLine />
       </main>
     )
   }
@@ -78,9 +89,7 @@ export default async function Settings({
 
         return (
           <section key={connector.source} style={card}>
-            <h2 style={{ color: "var(--text-primary)", margin: 0, fontSize: "1.125rem" }}>
-              {connector.displayName}
-            </h2>
+            <h2 style={h2}>{connector.displayName}</h2>
 
             {/*
               THE REFUSAL. Criterion 3: it names the consequence, and the consequence
@@ -119,6 +128,12 @@ export default async function Settings({
               </p>
             ) : null}
 
+            {showOutcome === "disconnected" && !connected ? (
+              <p style={{ color: "var(--text-secondary)" }}>
+                Disconnected. Your map, your levels and your history are all still here.
+              </p>
+            ) : null}
+
             {showOutcome === "failed" || showOutcome === "disconnect-failed" ? (
               <p style={{ color: "var(--text-secondary)" }}>
                 That didn&rsquo;t work. Nothing was changed — try again.
@@ -145,18 +160,22 @@ export default async function Settings({
                 >
                   {account.scopes.join(" ")}
                 </p>
-                <form method="post" action={`/api/auth/${connector.source}/disconnect`}>
-                  <button type="submit" style={button}>
-                    Disconnect
-                  </button>
-                </form>
-                <p style={{ color: "var(--text-muted)", fontSize: ".8125rem" }}>
-                  Disconnecting stops new activities arriving. Your map, your levels and
-                  your history are kept — this is not account deletion.
-                </p>
+                {/*
+                  One confirmation (criterion 3), and the reassurance sits in it
+                  (criterion 4). The POST and its CSRF check are 0032's, unchanged.
+                */}
+                <DisconnectControl
+                  action={`/api/auth/${connector.source}/disconnect`}
+                  displayName={connector.displayName}
+                />
               </>
             ) : (
               <>
+                {/*
+                  A DISCONNECTED row may have got that way without this screen: the
+                  provider's inbound deauthorization webhook (0093) lands here too, and
+                  it reads the same as a disconnect the user made.
+                */}
                 <p style={{ color: "var(--text-secondary)" }}>
                   {account === null
                     ? "Not connected."
@@ -171,9 +190,26 @@ export default async function Settings({
         )
       })}
 
-      <p style={{ color: "var(--text-muted)", fontSize: ".875rem", marginTop: "1.5rem" }}>
-        Sign out, account deletion and build info arrive with ticket 0089.
-      </p>
+      <section style={card}>
+        <SignOutButton />
+      </section>
+
+      {/*
+        Deliberately far from disconnect: a 3rem gap, a rule, its own heading, and a
+        trigger that only opens the typed confirmation. 08 §6.4 is an operator runbook,
+        so this deletes nothing.
+      */}
+      <section
+        aria-labelledby="delete-account"
+        style={{ marginTop: "3rem", paddingTop: "1.5rem", borderTop: "1px solid var(--line)" }}
+      >
+        <h2 id="delete-account" style={{ ...h2, marginBottom: ".75rem" }}>
+          Delete account
+        </h2>
+        <DeletionEntry />
+      </section>
+
+      <BuildLine />
     </main>
   )
 }

@@ -1,3 +1,7 @@
+import { execSync } from "node:child_process"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import type { NextConfig } from "next"
 
 // Path aliases are declared in tsconfig.json and NOWHERE else (01-architecture.md §5).
@@ -42,9 +46,37 @@ const homeEnv = Object.fromEntries(
     .filter(([, value]) => typeof value === "string" && value !== ""),
 ) as Record<string, string>
 
+/**
+ * BUILD INFO, INLINED AT BUILD TIME. Ticket 0089: `/settings` shows the version and
+ * commit, because "which build is deployed" is the first question of every bug report.
+ *
+ * The same reason as the home coordinate: Amplify's SSR compute has no runtime
+ * environment, so the value has to be in the bundle. The sha is Amplify's
+ * `AWS_COMMIT_ID` (set in the build container; "HEAD" on a manual deploy, which says
+ * nothing), falling back to `git rev-parse` for a local build. Neither is a secret —
+ * the repo is public and the sha is in its history — so `lib/build-info.ts` may read
+ * these anywhere.
+ */
+function commitSha(): string {
+  const fromAmplify = process.env.AWS_COMMIT_ID
+  if (fromAmplify && /^[0-9a-f]{7,40}$/i.test(fromAmplify)) return fromAmplify
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()
+  } catch {
+    return "unknown"
+  }
+}
+
+const buildEnv = {
+  LOST_SOLES_BUILD_VERSION: (
+    JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as { version: string }
+  ).version,
+  LOST_SOLES_BUILD_SHA: commitSha(),
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  env: homeEnv,
+  env: { ...homeEnv, ...buildEnv },
 }
 
 export default nextConfig

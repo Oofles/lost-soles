@@ -124,7 +124,7 @@ is ticket `0216`, not this document.
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
 | `/chronicle` | The only way back to a past run's `/run/:id`, and the only place lifetime totals live. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
 | `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — `0216` |
-| `/settings` | Strava re-auth (the one recurring chore S3 permits), reduced-motion/battery, units, sign out. | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
+| `/settings` | Strava re-auth (the one recurring chore S3 permits), sign out, the account-deletion entry point, build info. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
 ### 1.4 Screens deliberately refused
 
@@ -1512,8 +1512,9 @@ white on navy vibrates. `--ink-900` and `--parch-50` are the extremes.
 
 **The dark theme does not darken the map.** It restyles chrome and switches the basemap to its
 *night parchment* variant — the same tiles at −8% lightness and +4% warmth — because a dark
-basemap breaks the reveal (§8.1). Theme is a system-following setting in `/settings` with a
-manual override, and it is the only visual preference the app offers.
+basemap breaks the reveal (§8.1). Theme follows the system. ~~It has a manual override in
+`/settings`~~ — *amended by ticket `0089`: `/settings` holds no preference control of any kind, so
+the app offers no visual preference at all.*
 
 **Measured contrast, so nobody has to guess:**
 
