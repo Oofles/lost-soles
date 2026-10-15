@@ -50,6 +50,15 @@ None from the operator by default: the gesture is behaviour a test can drive wit
 pointer events, and the phone is not a validation surface (D-227). If the operator happens to try
 it on the phone, that is a bonus, not a gate.
 
+**Done 2026-10-15 (agent, desktop machine, headless Chromium).** The agent drove real CDP touch events
+at 400×800 mobile emulation. A long downward swipe at the top dismissed the sheet. A short swipe, a
+horizontal swipe, and a downward swipe from `scrollTop` 500 (the content scrolled to 267) did not.
+At 1280px nothing happened. A pointer-only control fired `pointercancel` and never dismissed, which is
+the evidence for D-314. `lib/sheet/swipe-dismiss.test.ts` holds 12 tests. Gate on `main` at `c0ca988`
+was green (3445 passed). Amplify job 400: SUCCEED. The page is auth-gated
+(`/skills/wayfaring` → 307 to sign-in), so the shipped chunk was not fetched; the deployed build is
+the commit that carries the module.
+
 ## Resolution
 
 **Files touched**

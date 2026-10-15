@@ -85,6 +85,13 @@ pass should reflect both.
 None — a design document. The pass is validated by the capability that builds against it, and the
 first real test is whether `13`'s plinth can be built from §2 without re-deriving the layout.
 
+**Done 2026-10-15 (agent, no device).** Docs-only change. The operator decided the IA's open calls
+during the wave: the left rail over the floating card, `RUNS`-only Chronicle in the rail's column, and
+interim Sync as a text line in the rail (D-313). Gate on `main` at `c0ca988`: every `amplify.yml` guard,
+typecheck, lint, vitest (192 files, 3445 passed, 1 skipped; `app/routes.test.ts` unchanged) and
+`next build` passed. `build-index --check` and `tickets.mjs validate` were clean. Amplify job 400 built
+`c0ca988`: SUCCEED. `GET /` returns 200.
+
 ## Resolution
 
 A design pass over `docs/06-ui-ux.md`, in one file. No code changed; the seven routes are
