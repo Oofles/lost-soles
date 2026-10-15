@@ -107,10 +107,9 @@ export function HomeScreen({
     [explored.generation],
   )
 
-  const cells = lifetimeCells(explored.set)
   const model = useMemo(
-    () => plinthModel({ skills, cells, latest, seen, pulse, sources, reconnectIds }),
-    [skills, cells, latest, seen, pulse, sources, reconnectIds],
+    () => plinthModel({ skills, cells: lifetimeCells(explored.set), latest, seen, pulse, sources, reconnectIds }),
+    [skills, explored.set, latest, seen, pulse, sources, reconnectIds],
   )
 
   return (
