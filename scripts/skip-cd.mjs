@@ -70,11 +70,28 @@ export function pendingPaths() {
   return [...new Set([...staged, ...unpushed])]
 }
 
+/**
+ * A token typed by hand is defused too, unless this commit could carry it anyway.
+ * Amplify matches it anywhere in the message, so a subject that merely MENTIONS it
+ * skips the build: 0214's own code commit did exactly that and never deployed.
+ */
+export function defuse(message) {
+  return message.replaceAll(TAG, TAG.slice(1, -1))
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const file = process.argv[2]
   try {
-    if (shouldSkip(pendingPaths())) writeFileSync(file, tagMessage(readFileSync(file, "utf8")))
+    let skip = false
+    try {
+      skip = shouldSkip(pendingPaths())
+    } catch {
+      // Cannot tell → build (fail open), which also means defusing a typed token.
+    }
+    const message = readFileSync(file, "utf8")
+    const next = skip ? tagMessage(message) : defuse(message)
+    if (next !== message) writeFileSync(file, next)
   } catch {
-    // Fail open: leave the message alone, the push builds.
+    // Unreadable message file: leave it alone.
   }
 }

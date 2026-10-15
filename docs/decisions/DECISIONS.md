@@ -4926,3 +4926,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   a path-filtered GitHub Action calling `amplify start-job`, because it puts AWS credentials in
   GitHub (`08` §7) to save what the hook already saves. The GitHub Actions gate ignores `[skip-cd]`
   and still runs on every push.
+  - **Amplify matches the token anywhere in the head commit's message**, not only at its end.
+    Proven by accident: `0214`'s own code commit (`bc309fe`) *mentioned* the token in its subject
+    and Amplify started no job. So the hook also **defuses** a hand-typed token (strips the
+    brackets) on any commit it would not tag itself. Never write the bracketed token in a
+    message by hand; say "the skip token".

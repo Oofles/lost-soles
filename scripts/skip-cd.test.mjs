@@ -109,6 +109,21 @@ describe("skip-cd: the commit-msg hook in a real repository", () => {
     git(work, "commit", "-q", "-m", "move")
     expect(git(work, "log", "-1", "--format=%B")).not.toContain(TAG)
   })
+  it("defuses a hand-typed token on a code commit — 0214's own commit skipped its deploy this way", () => {
+    const work = repo()
+    const msg = commit(work, { "scripts/x.mjs": "x" }, `0214: tag commits ${TAG} so Amplify skips them`)
+    expect(msg).not.toContain(TAG)
+    expect(msg).toContain("tag commits skip-cd so")
+  })
+  it("keeps a hand-typed token on a docs-only commit, without doubling it", () => {
+    const work = repo()
+    const msg = commit(work, { "docs/a.md": "x" }, `docs ${TAG}`)
+    expect(msg.split(TAG).length - 1).toBe(1)
+  })
+  it("defuses a hand-typed token when it cannot decide (no upstream)", () => {
+    const work = repo({ upstream: false })
+    expect(commit(work, { "docs/a.md": "x" }, `docs ${TAG}`)).not.toContain(TAG)
+  })
   it("fails open with no upstream", () => {
     const work = repo({ upstream: false })
     expect(commit(work, { "docs/a.md": "x" })).not.toContain(TAG)
