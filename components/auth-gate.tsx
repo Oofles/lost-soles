@@ -7,6 +7,7 @@ import { Authenticator } from "@aws-amplify/ui-react"
 import type { ReactNode } from "react"
 
 import outputs from "@/amplify_outputs.json"
+import { useAuthRefresh } from "@/components/auth-refresh"
 
 /**
  * The auth gate (ticket 0014). Everything inside it requires a signed-in user.
@@ -29,9 +30,15 @@ import outputs from "@/amplify_outputs.json"
 Amplify.configure(outputs, { ssr: true })
 
 export function AuthGate({ children }: { children: ReactNode }) {
+  /**
+   * Ticket 0276. Signing in or out re-runs the server components, so `/` stops rendering the
+   * signed-out payload it loaded with; the children are held until the fresh one has landed, so
+   * the home screen mounts once with the signed-in props (`components/auth-refresh.tsx`).
+   */
+  const refreshing = useAuthRefresh()
   return (
     <Authenticator hideSignUp loginMechanisms={["email"]}>
-      {children}
+      {refreshing ? null : children}
     </Authenticator>
   )
 }
