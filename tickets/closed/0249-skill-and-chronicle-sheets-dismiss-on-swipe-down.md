@@ -4,7 +4,7 @@ slug: skill-and-chronicle-sheets-dismiss-on-swipe-down
 title: Skill and chronicle sheets dismiss on swipe-down
 type: feature
 priority: low
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-08T15:18:40Z
 started: 2026-10-15T15:50:47Z
+closed: 2026-10-15T16:34:03Z
 ---
 
 ## Description

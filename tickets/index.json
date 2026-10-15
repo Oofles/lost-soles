@@ -5752,7 +5752,7 @@
     "title": "Skill and chronicle sheets dismiss on swipe-down",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [],
@@ -5760,8 +5760,9 @@
     "source": "agent",
     "created": "2026-10-08T15:18:40Z",
     "started": "2026-10-15T15:50:47Z",
-    "path": "tickets/open/0249-skill-and-chronicle-sheets-dismiss-on-swipe-down.md",
-    "ready": true,
+    "closed": "2026-10-15T16:34:03Z",
+    "path": "tickets/closed/0249-skill-and-chronicle-sheets-dismiss-on-swipe-down.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
