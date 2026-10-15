@@ -4,7 +4,7 @@ slug: amplify-build-minutes-cost-15-mo-3x-the-d-083-budget-every-p
 title: Amplify build minutes cost ~$15/mo, 3x the D-083 budget — every push to main runs a ~9.5-minute build
 type: chore
 priority: high
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-28T16:39:26Z
 started: 2026-10-15T14:55:53Z
+closed: 2026-10-15T15:18:16Z
 ---
 
 ## Description
@@ -46,8 +47,11 @@ re-discovers it and mistakes it for this project's overrun.
       decide, it builds.
 - [x] The GitHub Actions gate (`0013`) still runs on every push. This ticket is about the Amplify
       deploy only.
-- [ ] The saving is measured (moved to `0268` by the operator, 2026-10-15: the after window ends 10-29): build count and `USE1-BuildDuration` for the two weeks after, against
-      the same window before, recorded in `## Resolution`.
+- [x] The saving is measured, as far as can be done on the day: the before figures for
+      2026-10-01 to 10-14 and a 42% projection are recorded in `## Resolution`. *(Edited 2026-10-15
+      by the operator's choice: the two weeks of after figures cannot exist until 10-29, so they
+      moved to `0268`. Originally: "build count and `USE1-BuildDuration` for the two weeks after,
+      against the same window before, recorded in `## Resolution`.")*
 
 ## Notes
 
