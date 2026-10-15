@@ -159,8 +159,10 @@ inside those, or from the `⚙` at top-right.
 - **The browser's back always returns toward `/`.** From `/`, back leaves the app like any page.
 - **Things that open over a parent** — the Chronicle panel and the skill-detail dialog — are
   routes, so back dismisses them. Every one also closes on **Esc** and on a visible **close
-  control**, and the dialog additionally on a click on its scrim. No dismissal is gesture-only,
-  and there is no swipe-down.
+  control**, and the dialog additionally on a click on its scrim. No dismissal is gesture-only.
+  ~~and there is no swipe-down~~ Below 1024px, where each is a bottom sheet, both also take
+  D-314's touch swipe-down (`lib/sheet/swipe-dismiss.ts`) — a finger only, never a mouse, and
+  never the only way out *(ticket `0088`, reconciling this line with D-314)*.
 - **Deep links land where they point.** A pasted `/run/:id` or `/chronicle` renders `/`
   underneath, so back goes to `/`, not to a stack of nothing. (The push notification that used
   to be the main deep link is gone — D-253, §1.4.)
@@ -572,7 +574,11 @@ One line at the very bottom: the nearest unexplored frontier and its distance.
 When the sequence finishes it does not navigate anywhere. `/run/:id` settles into a persistent,
 scrollable page: the lit map on top (pannable again), the full ledger below, chronicle line,
 frontier line, and at the bottom a `⟲ Relive` control plus route stats (distance, duration,
-date, source). Back returns to `/`.
+date, source). Back returns to `/` — ~~always~~ **except for a run opened from the Chronicle,
+whose back returns to the Chronicle at the scroll position it was left at, and a second back to
+`/`** *(operator, 2026-10-15, ticket `0088`; proposed as a decision in that ticket's
+Resolution)*. The Chronicle's row links push rather than replace; a run opened any other way —
+the plinth's last-run line, a pasted link — still backs to `/`.
 
 The end state is the *canonical* view of a run. The sequence is a decorated way of arriving at it.
 

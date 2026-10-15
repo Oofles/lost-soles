@@ -34,7 +34,9 @@ vi.mock("@/lib/runs/server", () => {
   throw new Error("/ must not read activity data on the server (0186)")
 })
 
-const { default: Home } = await import("./page")
+const { default: HomeLayout } = await import("./layout")
+// `0088`: `/` is rendered by the `(home)` layout, shared with `/chronicle`; `page.tsx` is empty.
+const Home = () => HomeLayout({ children: null })
 // `0086`: the map and the plinth are one client component now; its props are the payload.
 const { HomeScreen } = await import("@/components/plinth/home-screen")
 
@@ -68,7 +70,7 @@ describe("the signed-out payload of / (0186)", () => {
 
     const tree = await Home()
 
-    expect(propsOf(tree, HomeScreen)).toStrictEqual({ home: null })
+    expect(propsOf(tree, HomeScreen)).toStrictEqual({ home: null, children: null })
     // `0087`: nothing about the account's connections is read, or sent, for a signed-out visitor.
     expect(sourceConnections).not.toHaveBeenCalled()
     const body = payload(tree)

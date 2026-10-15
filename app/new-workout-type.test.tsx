@@ -78,7 +78,7 @@ async function world(data: typeof BEFORE | typeof AFTER) {
       import("@/lib/skills/next"),
       import("@/lib/log/optimistic"),
       import("@/lib/log/rows"),
-      import("@/app/page"),
+      import("@/app/(home)/layout"),
     ])
   const rules = rulesForSkills([])
   return {
@@ -89,7 +89,7 @@ async function world(data: typeof BEFORE | typeof AFTER) {
       const model = skillsPanel(rules, standing)
       return { model, html: renderToStaticMarkup(<SkillsPanel model={model} next={nextLine(rules, model.activity, {})} />) }
     },
-    homeHtml: renderToStaticMarkup(await Home()),
+    homeHtml: renderToStaticMarkup(await Home({ children: null })),
     awardFor,
     entryFor,
   }

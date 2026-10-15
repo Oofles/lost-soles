@@ -6,8 +6,8 @@ import { activityItem } from "@/src/pipeline/persist"
 import { runDate, runDistance, runDuration, sourceLabel } from "./format"
 import { isColdLanding, seedHomeBehind, SEED_MARKER, type HistoryHost } from "./history"
 import { runLedger, type ActivityLedgerRow } from "./ledger"
-import { RECENT_RUNS_LIMIT, recentRuns, runById, type RunReadDeps } from "./server"
-import { EMPTY_COLLECTION, runHref } from "./wire"
+import { chroniclePage, decodeChronicleCursor, encodeChronicleCursor, runById, type RunReadDeps } from "./server"
+import { CHRONICLE_PAGE_SIZE, EMPTY_COLLECTION, runHref } from "./wire"
 
 /**
  * Ticket `0078` — the run page's reads and its pure helpers. DynamoDB and S3 are stubbed; rows are
@@ -166,15 +166,62 @@ describe("runById — the reveal set (0251, D-294)", () => {
   })
 })
 
-describe("recentRuns — the Chronicle's links", () => {
-  it("reads the caller's newest activities, newest first, bounded", async () => {
-    const { deps, queries } = rig([row(), row({ id: "a-8", startedAtLocal: "2026-08-20T06:00:00" })])
-    const runs = await recentRuns("u-1", deps)
-    expect(queries[0]!.IndexName).toBe("byUserAndStart")
-    expect(queries[0]!.ScanIndexForward).toBe(false)
-    expect(queries[0]!.Limit).toBe(RECENT_RUNS_LIMIT)
-    expect(queries[0]!.ExpressionAttributeValues).toEqual({ ":u": "u-1" })
-    expect(runs.map((r) => r.activityId)).toEqual(["a-9", "a-8"])
+describe("chroniclePage — the Chronicle's rows (0088)", () => {
+  it("reads the caller's newest activities, newest first, one projected page at a time", async () => {
+    const { deps, queries } = rig([row(), row({ id: "a-8", startedAt: "2026-08-20T12:00:00Z", startedAtLocal: "2026-08-20T06:00:00" })])
+    const page = await chroniclePage("u-1", deps)
+    const q = queries[0]!
+    expect(q.IndexName).toBe("byUserAndStart")
+    expect(q.ScanIndexForward).toBe(false)
+    expect(q.Limit).toBe(CHRONICLE_PAGE_SIZE)
+    expect(q.ExpressionAttributeValues).toEqual({ ":u": "u-1" })
+    expect(q.ExclusiveStartKey).toBeUndefined()
+    // A projection, so `raw` (most of an item's bytes) never crosses the wire for a list row.
+    expect(Object.values(q.ExpressionAttributeNames ?? {})).not.toContain("raw")
+    expect(q.ProjectionExpression).toBeTruthy()
+    expect(page.items.map((r) => r.activityId)).toEqual(["a-9", "a-8"])
+    expect(page.next).toBeNull()
+  })
+
+  it("carries the stored new-cell count and the trace flag, computing neither", async () => {
+    const { deps } = rig([row({ newCellCount: 21, traceRef: "users/u-1/traces/a-9.segments.json.gz", hasTrace: true })])
+    const [item] = (await chroniclePage("u-1", deps)).items
+    expect(item).toMatchObject({ newCellCount: 21, traced: true })
+  })
+
+  it("narrows a logged session's sets to what the row's summary reads", async () => {
+    const { deps } = rig([row({ traceRef: null, hasTrace: false, distanceM: null, sets: [{ exercise: "pushup", reps: 40, weightKg: 0 }, { bogus: 1 }] })])
+    const [item] = (await chroniclePage("u-1", deps)).items
+    expect(item!.traced).toBe(false)
+    expect(item!.sets).toEqual([{ exercise: "pushup", reps: 40 }])
+  })
+
+  it("pages with a cursor that names a position, and puts the account back from the caller", async () => {
+    const queries: QueryCommand["input"][] = []
+    const deps = {
+      activityTable: "TestActivity",
+      ddb: {
+        async send(command: QueryCommand) {
+          queries.push(command.input)
+          return { Items: [row()], LastEvaluatedKey: { userId: "u-1", startedAt: "2026-08-28T13:00:00Z", id: "a-9" } }
+        },
+      },
+    }
+    const first = await chroniclePage("u-1", deps)
+    expect(first.next).not.toBeNull()
+    expect(first.next).not.toContain("u-1")
+    const after = decodeChronicleCursor(first.next!)
+    expect(after).toEqual({ startedAt: "2026-08-28T13:00:00Z", id: "a-9" })
+    await chroniclePage("u-1", deps, after)
+    expect(queries[1]!.ExclusiveStartKey).toEqual({ userId: "u-1", startedAt: "2026-08-28T13:00:00Z", id: "a-9" })
+  })
+
+  it("refuses a cursor that is not its own shape", () => {
+    expect(decodeChronicleCursor("")).toBeNull()
+    expect(decodeChronicleCursor("not base64 json")).toBeNull()
+    expect(decodeChronicleCursor(Buffer.from(JSON.stringify(["a", 1])).toString("base64url"))).toBeNull()
+    expect(decodeChronicleCursor(Buffer.from(JSON.stringify({ userId: "u-2" })).toString("base64url"))).toBeNull()
+    expect(decodeChronicleCursor(encodeChronicleCursor({ startedAt: "s", id: "i" }))).toEqual({ startedAt: "s", id: "i" })
   })
 })
 

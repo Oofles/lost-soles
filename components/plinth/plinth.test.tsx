@@ -93,7 +93,7 @@ describe("what the home route must never render (D-013, §2.3)", () => {
     for (const html of [plinth(), home()]) {
       expect(html).not.toMatch(/badge|\bdot\b|toast|role="dialog"|role="alertdialog"|<dialog/i)
     }
-    for (const file of ["components/plinth/plinth.tsx", "components/plinth/home-screen.tsx", "app/page.tsx"]) {
+    for (const file of ["components/plinth/plinth.tsx", "components/plinth/home-screen.tsx", "app/(home)/layout.tsx"]) {
       const src = readFileSync(join(import.meta.dirname, "..", "..", file), "utf8")
       expect(src).not.toMatch(/import[^\n]*(Badge|Dot|Toast|Modal|Dialog)\b/)
       // Criterion 9: nothing on `/` runs on a clock. (The replay gate's single timer lives in

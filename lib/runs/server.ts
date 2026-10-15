@@ -10,7 +10,10 @@ import { routeTraceKey } from "@/src/pipeline/route-trace-store"
 import { traceWebKey, type TraceWeb } from "@/src/pipeline/trace-web-store"
 
 import {
+  CHRONICLE_PAGE_SIZE,
   EMPTY_COLLECTION,
+  type ChroniclePage,
+  type ChronicleSet,
   type RouteTraceGeometry,
   type RunFeatureCollection,
   type RunListItem,
@@ -89,7 +92,7 @@ export const defaultRunReadDeps = (): RunReadDeps => ({
  * keep working unchanged.
  */
 export { EMPTY_COLLECTION } from "./wire"
-export type { RunFeature, RunFeatureCollection, RunListItem, RunSummary } from "./wire"
+export type { ChroniclePage, RunFeature, RunFeatureCollection, RunListItem, RunSummary } from "./wire"
 
 /**
  * HOW FAR BACK THE QUERY WILL LOOK FOR A TRACED ACTIVITY.
@@ -210,7 +213,7 @@ export async function latestRun(
   }
 }
 
-/** T3's columns `runById` and `recentRuns` read. Optional throughout: rows predate columns. */
+/** T3's columns `runById` and `chroniclePage` read. Optional throughout: rows predate columns. */
 type FullActivityRow = ActivityRow & {
   userId?: string
   startedAtLocal?: string
@@ -304,31 +307,109 @@ export async function runById(
   }
 }
 
-/** How many runs the Chronicle link list shows. `0088` owns paging and the real sheet. */
-export const RECENT_RUNS_LIMIT = 50
+/**
+ * THE CHRONICLE'S PAGING CURSOR. Ticket `0088`.
+ *
+ * `LastEvaluatedKey` on `byUserAndStart` is `{ userId, startedAt, id }`. Only the last two travel
+ * to the browser; `userId` is put back from the SESSION on the way in, so a cursor can name a
+ * position in the caller's own history and nothing else — the `userId` contract above, applied to
+ * the one value this module takes from a query string. A cursor that does not decode is `null`,
+ * which the route answers with a 400.
+ */
+export function encodeChronicleCursor(key: { startedAt: string; id: string }): string {
+  return Buffer.from(JSON.stringify([key.startedAt, key.id]), "utf8").toString("base64url")
+}
 
-/** The caller's newest activities, newest first — the Chronicle's links to `/run/:id`. */
-export async function recentRuns(userId: string, deps: RunReadDeps): Promise<RunListItem[]> {
-  const out = await deps.ddb.send(
+export function decodeChronicleCursor(cursor: string): { startedAt: string; id: string } | null {
+  if (cursor.length === 0 || cursor.length > 512) return null
+  try {
+    const v: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))
+    if (!Array.isArray(v) || v.length !== 2) return null
+    const [startedAt, id] = v as unknown[]
+    if (typeof startedAt !== "string" || typeof id !== "string" || !startedAt || !id) return null
+    return { startedAt, id }
+  } catch {
+    return null
+  }
+}
+
+/** The columns a Chronicle row reads, and no others — `raw` alone is most of an item's bytes. */
+const CHRONICLE_COLUMNS = ["id", "startedAt", "startedAtLocal", "name", "kind", "distanceM", "elapsedS", "movingS", "newCellCount", "traceRef", "hasTrace", "sets"]
+
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
+
+function chronicleSets(v: unknown): ChronicleSet[] {
+  if (!Array.isArray(v)) return []
+  return v.flatMap((raw): ChronicleSet[] => {
+    const s = raw as Record<string, unknown> | null
+    if (!s || typeof s.exercise !== "string") return []
+    const reps = num(s.reps)
+    const durationS = num(s.durationS)
+    const distanceM = num(s.distanceM)
+    return [{
+      exercise: s.exercise,
+      ...(reps !== undefined ? { reps } : {}),
+      ...(durationS !== undefined ? { durationS } : {}),
+      ...(distanceM !== undefined ? { distanceM } : {}),
+    }]
+  })
+}
+
+type ChronicleRow = FullActivityRow & { id: string; startedAt: string; sets?: unknown }
+
+/** The row's trace flag, or a `traceRef` on a row that predates `hasTrace`. */
+const isTraced = (r: ChronicleRow): boolean =>
+  (r as Record<string, unknown>)["hasTrace"] === true || (typeof r.traceRef === "string" && r.traceRef.length > 0)
+
+/**
+ * ONE PAGE OF THE CALLER'S HISTORY, NEWEST FIRST. Ticket `0088`, `06-ui-ux.md` §2.5.
+ *
+ * Runs and logged workouts in one list, because they are one table: a manual log is an activity
+ * like any other (`lib/log/log-workout.ts`). One `Query` on `byUserAndStart`, descending, with a
+ * projection, `CHRONICLE_PAGE_SIZE` rows at a time — a backfill of years is paged, never read
+ * whole (the ticket's "do not render 2,000 rows" starts here).
+ */
+export async function chroniclePage(
+  userId: string,
+  deps: Pick<RunReadDeps, "ddb" | "activityTable">,
+  after: { startedAt: string; id: string } | null = null,
+): Promise<ChroniclePage> {
+  const names = Object.fromEntries(CHRONICLE_COLUMNS.map((c, i) => [`#c${i}`, c]))
+  const out = (await deps.ddb.send(
     new QueryCommand({
       TableName: deps.activityTable,
       IndexName: "byUserAndStart",
       KeyConditionExpression: "#u = :u",
-      ExpressionAttributeNames: { "#u": "userId" },
+      ExpressionAttributeNames: { "#u": "userId", ...names },
       ExpressionAttributeValues: { ":u": userId },
+      ProjectionExpression: Object.keys(names).join(", "),
       ScanIndexForward: false,
-      Limit: RECENT_RUNS_LIMIT,
+      Limit: CHRONICLE_PAGE_SIZE,
+      ...(after ? { ExclusiveStartKey: { userId, startedAt: after.startedAt, id: after.id } } : {}),
     }),
-  )
-  return ((out.Items ?? []) as FullActivityRow[])
-    .filter((r): r is FullActivityRow & { id: string } => typeof r.id === "string")
-    .map((r) => ({
+  )) as { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> }
+
+  const items = (out.Items ?? [])
+    .filter((r): r is ChronicleRow => typeof r.id === "string" && typeof r.startedAt === "string")
+    .map((r): RunListItem => ({
       activityId: r.id,
-      startedAtLocal: r.startedAtLocal ?? r.startedAt ?? "",
+      startedAt: r.startedAt,
+      startedAtLocal: r.startedAtLocal ?? r.startedAt,
       name: r.name ?? null,
       kind: r.kind ?? "other",
-      distanceM: r.distanceM ?? null,
+      distanceM: num(r.distanceM) ?? null,
+      durationS: num(r.movingS) ?? num(r.elapsedS) ?? null,
+      newCellCount: num(r.newCellCount) ?? null,
+      traced: isTraced(r),
+      sets: chronicleSets(r.sets),
     }))
+
+  const last = out.LastEvaluatedKey
+  const next =
+    last && typeof last.startedAt === "string" && typeof last.id === "string"
+      ? encodeChronicleCursor({ startedAt: last.startedAt, id: last.id })
+      : null
+  return { items, next }
 }
 
 /**

@@ -16,11 +16,11 @@ const ROOT = join(import.meta.dirname, "..")
 
 /** The seven routes of §1.2, as their nine App Router segments. */
 const SCREEN_MAP = [
-  "app/page.tsx",                      // /                      map + plinth (home)
+  "app/(home)/page.tsx",               // /                      map + plinth (home)
   "app/skills/page.tsx",               // /skills                skills panel
   "app/skills/[skillId]/page.tsx",     // /skills/:skillId       sheet over the panel
   "app/log/page.tsx",                  // /log                   add workout (D-061)
-  "app/chronicle/page.tsx",            // /chronicle             sheet over the map
+  "app/(home)/chronicle/page.tsx",     // /chronicle             panel in the rail's column
   "app/run/[activityId]/page.tsx",     // /run/:activityId       the post-run moment
   "app/settings/page.tsx",             // /settings              small and boring
   "app/dev/tickets/page.tsx",          // /dev/tickets           owner-only (D-092)

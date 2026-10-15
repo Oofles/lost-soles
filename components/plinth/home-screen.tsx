@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { usePathname } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell } from "@/components/map/map-shell"
@@ -37,15 +38,23 @@ import { Plinth, PLINTH_CSS } from "./plinth"
  * `plinthModel`, never a branch that draws chrome of its own.
  *
  * DOM order is §2.2's focus order: the plinth's rows, then `⚙`, then the map.
+ *
+ * `0088`. Rendered by the `(home)` LAYOUT, so it is mounted under both `/` and `/chronicle`.
+ * `children` is the route's own content: nothing on `/`, the Chronicle panel on `/chronicle`,
+ * which takes the rail's column (§2.5, D-313) — so the plinth is not drawn while it is open.
  */
 export function HomeScreen({
   home,
   sources,
+  children,
 }: {
   home: Camera | null
   /** `0087`. From the server; absent for a signed-out visitor. */
   sources?: SourceConnection[]
+  /** `0088`. The `(home)` layout's page: null on `/`, the Chronicle on `/chronicle`. */
+  children?: ReactNode
 }) {
+  const chronicleOpen = usePathname() === "/chronicle"
   const explored = useExplored()
   const [skills, setSkills] = useState<CachedSkill[]>()
   const [latest, setLatest] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
@@ -105,7 +114,8 @@ export function HomeScreen({
   return (
     <>
       <style>{PLINTH_CSS}</style>
-      <Plinth model={model} onReconnect={onReconnect} />
+      {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} />}
+      {children}
       <Link href="/settings" className="home-gear" aria-label="Settings">
         <span aria-hidden="true">⚙</span>
       </Link>

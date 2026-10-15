@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { ExploredProvider } from "@/components/map/explored-provider"
 import { FogStatus } from "@/components/map/fog-status"
 import { HomeScreen } from "@/components/plinth/home-screen"
@@ -9,6 +11,12 @@ import { sourceConnections } from "@/lib/plinth/connections"
 // across the pane beside it (D-313). That is the whole home screen. §4.1 is emphatic that there is
 // NO separate map screen; this route is the map. Cold start lands here and back from everywhere
 // returns here (§1.5).
+//
+// A LAYOUT, NOT A PAGE (ticket 0088). `/chronicle` opens in the rail's column with the map live
+// beside it (§2.5, D-313), and is a route so back and deep links behave (§1.5). Both `/` and
+// `/chronicle` sit in this `(home)` group, so the map is mounted ONCE under both: opening and
+// dismissing the Chronicle never re-creates MapLibre and never moves the camera. The route group
+// adds no URL segment. `page.tsx` beside this is `/`, and renders nothing of its own.
 //
 // This is also where a SIGNED-OUT visitor lands: middleware.ts redirects every
 // other route here, and the Authenticator in the root layout renders sign-in in
@@ -25,7 +33,7 @@ import { sourceConnections } from "@/lib/plinth/connections"
  * `/` is the signed-out landing route, so a prerendered `/` would carry the operator's
  * home coordinate to anyone who fetched it.
  */
-export default async function Home() {
+export default async function HomeLayout({ children }: { children: ReactNode }) {
   const home = await homeCameraForSession()
   /**
    * The IndexedDB key for the explored set (`02-data-model.md` §6.4, ticket 0054), read
@@ -49,7 +57,9 @@ export default async function Home() {
 
   return (
     <ExploredProvider uid={uid}>
-      <HomeScreen home={home} {...(sources ? { sources } : {})} />
+      <HomeScreen home={home} {...(sources ? { sources } : {})}>
+        {children}
+      </HomeScreen>
       <FogStatus />
     </ExploredProvider>
   )

@@ -80,11 +80,18 @@ describe("seen never reaches scoring", () => {
   }
   for (const d of ["src", "lib", "app", "components", "amplify"]) walk(join(ROOT, d))
 
-  it("only RunMoment and the plinth's new-run line (0087) import it", () => {
+  it("only RunMoment (its writer) and the display surfaces that read it import it", () => {
     const importers = files
       .filter((f) => /from ["']@\/lib\/run-moment\/seen["']|from ["']\.\/seen["']/.test(readFileSync(f, "utf8")))
       .map((f) => relative(ROOT, f))
-    expect(importers.sort()).toEqual(["app/run/[activityId]/run-moment.tsx", "components/plinth/home-screen.tsx"])
+      .sort()
+    // `0087`: the plinth's new-run line, and `0088`: the Chronicle's gold mark, read the flag; it is
+    // display state in both.
+    expect(importers).toEqual([
+      "app/run/[activityId]/run-moment.tsx",
+      "components/chronicle/chronicle-panel.tsx",
+      "components/plinth/home-screen.tsx",
+    ])
   })
 
   it("no scoring, pipeline or server code mentions it", () => {

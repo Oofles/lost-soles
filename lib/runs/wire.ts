@@ -107,14 +107,54 @@ export interface RunSummary {
   reveal: RunClasses
 }
 
-/** One row of the Chronicle's run list. Ticket `0078` adds only the link; `0088` builds the sheet. */
+/**
+ * ONE ROW OF THE CHRONICLE. Ticket `0078` added the link; `0088` the rest. `06-ui-ux.md` §2.5.
+ *
+ * Every field is a T3 column `persist.ts` already wrote, read with a projection — nothing is
+ * computed for the list. `newCellCount` is the stored discovery award (`05` §8.2): the same number
+ * the run page and the plinth's last-run line read, so the three can never disagree.
+ */
 export interface RunListItem {
   activityId: string
+  /** ISO 8601 UTC — the sort key, and half of the paging cursor. */
+  startedAt: string
+  /** Naive wall clock (I-13). The row's DATE is read from this. */
   startedAtLocal: string
   name: string | null
   kind: string
   distanceM: number | null
+  /** Moving time, else elapsed. `null` on a row that has neither. */
+  durationS: number | null
+  /** The stored award. `null` on a row that predates the column. */
+  newCellCount: number | null
+  /** Whether the activity has a line on the map. Only a traced run can be an UNSEEN import. */
+  traced: boolean
+  /** A logged session's sets (`WorkoutSet`, D-062), narrowed to what the row's summary reads. */
+  sets: readonly ChronicleSet[]
 }
+
+export interface ChronicleSet {
+  /** An exercise id from the registry — data, never branched on (D-031). */
+  exercise: string
+  reps?: number
+  durationS?: number
+  distanceM?: number
+}
+
+/** One page of the Chronicle, newest first. `next` is the opaque cursor for the page after, or `null` at the end. */
+export interface ChroniclePage {
+  items: RunListItem[]
+  next: string | null
+}
+
+/** `0088`. The Chronicle's later pages. The first is rendered on the server with the route. */
+export const RUNS_CHRONICLE_PATH = "/api/runs/chronicle"
+
+/** The query parameter carrying `ChroniclePage.next`. */
+export const CHRONICLE_AFTER_PARAM = "after"
+
+/** Rows per page. A desktop window shows ~15; fifty is three screens of scrolling per fetch. */
+export const CHRONICLE_PAGE_SIZE = 50
 
 /**
  * THE ONE WRITER OF A `/run/:id` LINK.
