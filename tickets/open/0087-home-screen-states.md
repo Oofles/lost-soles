@@ -107,6 +107,16 @@ In the desktop browser, at ≥1024px:
 2. **The reconnect and connect lines** are judged only if they ever occur for real; their quietness
    is pinned by tests. If one grabs your attention when it does appear, it is too loud.
 
+**Agent smoke test, deployed `e15122d` (Amplify job 404), 2026-10-15.** Throwaway user, headless
+Chromium. With an unseen latest run, `/` shows `1 new run — open it`, linking to
+`/run/<latest>?play=1`. With nothing imported, after a reload, it shows `TOTAL LEVEL 9 · 0 cells ·
+Connect Strava to begin`. Signing in without a reload leaves cells at `—` with no connect line: filed
+as `0276`, likely older than this ticket.
+
+**Operator, 2026-10-15: pending.** Their latest real run (Tue 13 Oct) had already been opened in this
+browser, so the plinth correctly showed `Last: Tue 13 Oct · 4.84 km · 211 new` and not the fresh-run
+line. Item 1 above waits for the next real run. Stays open until then; no one is asked to run for it.
+
 ## Resolution
 
 *(Agent, 2026-10-15, wave 1 of capability `13`. Left in `tickets/open/` for the orchestrator to close
