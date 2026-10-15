@@ -72,6 +72,8 @@ the capability's own done-condition. Do not implement it as a modal held in comp
 Post-run sequences are never launched from here without an explicit `⟲ Relive` click — replays are
 opt-in (§3.1). Getting this wrong turns browsing your history into being ambushed by animations.
 
+- **Amended by D-313 (0187, 2026-10-15).** The Chronicle opens from the plinth's `RUNS` button only (no handle to click or drag), in the rail's column with no scrim and the map usable beside it — the §2.5 panel, not a sheet over the map. Below 1024px it takes the bottom card's place. It uses `lib/sheet/swipe-dismiss.ts` (D-314) where it is a bottom sheet.
+
 ## Operator validation
 
 In the desktop browser: open the Chronicle from the plinth. Open a run from three months ago, then press back — you must be

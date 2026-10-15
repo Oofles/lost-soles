@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 ---
 
@@ -4954,3 +4954,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `scripts/worktree-prepare.mjs`: a hard-linked `node_modules` (a symlink breaks the CDK bundler's
     project-root check), plus `amplify_outputs.json` and the maplibre prebuild. Proven in a real
     worktree: typecheck, lint, the full suite, the guards and `next build` all pass.
+- **D-313** **The desktop IA of `06`: the plinth is a fixed left rail at ≥1024px beside the map
+  pane; `RUNS` is the only way into the Chronicle, which opens in the rail's column.**
+  *(Operator, 2026-10-15, ticket `0187`. Amends `06` §1.2, §1.5, §2.1–§2.5, §4.5, §4.8, §9.3,
+  §9.4, §9.6.)*
+  - **The rail.** Full height, 24rem, opaque, a 1px `--line` rule on its right edge (D-148).
+    Top-down: Total Level with cells revealed, the milestone bar with its named target, the
+    last-run line (one link), then SKILLS / + ADD WORKOUT / RUNS in one row (`1fr 1.5fr 1fr`,
+    40px). The mode toggle, `⚙`, fit-to-territory, `⌖` and attribution sit on the map pane. The
+    camera takes no offset: MapLibre's container is the pane, so D-249's framing centres in what
+    is visible.
+  - **Rejected: an opaque card floating over the bottom-left of a full-window map**, the agent's
+    proposal. Its argument against the rail is kept as the cost accepted: the map becomes a pane
+    in an app frame, closer to the dashboard shape §1.1 removed, so P4's "full bleed" means full
+    bleed within the pane; two layouts must keep working (P9); and the Chronicle shares the
+    rail's column. The operator chose the rail because the map is never covered and the glance
+    numbers sit where reading starts.
+  - **Below 1024px it only must not break** (D-251): the rail's content stacks unchanged as an
+    opaque bottom card over a full-window map, capped at 55% of the height. A 200% zoom on a
+    typical window lands here.
+  - **The Chronicle.** No drag handle. `/chronicle` replaces the rail's contents, no scrim, the map
+    usable beside it; below 1024px it takes the bottom card's place. The skill detail stays a
+    centred dialog with a scrim (`0074`).
+  - **Also settled by the pass:** targets are 24px minimum, 32px for ordinary controls and rows,
+    40px for plinth buttons and map controls (replacing 56dp). Hovering a route changes only the
+    cursor; the hover card §4.8 promised is withdrawn. A click on empty map is reserved for
+    D-070's planner. Fit-to-territory takes the drag handle's slot in the eight-icon set. The map
+    mode never switches itself on OS theme or time of day. With nothing imported the map centres
+    on the configured home. The interim manual Sync is a small text line in the rail, below the
+    three buttons, until capability `14` removes it.
+- **D-314** **The sheet swipe-down gesture is pointer events plus one non-passive `touchmove`, and
+  it claims only a downward finger drag that starts with the sheet at the top.** *(Agent,
+  2026-10-15, ticket `0249`; `lib/sheet/swipe-dismiss.ts`.)*
+  - **Why not pointer events alone**, which `0249`'s notes asked for. Under the default
+    `touch-action: auto`, Chromium treats a vertical drag on a scrollable element as a pan and
+    fires `pointercancel` a few pixels in, even at `scrollTop` 0. A pointer-only gesture never
+    sees the drag; a control probe with real CDP touch events confirmed it. The `touchmove`
+    listener calls `preventDefault` only on a drag the gesture has claimed: a finger, < 1024px,
+    `scrollTop` 0, first move downward. All other drags, content scrolling included, stay the
+    browser's.
+  - **Rejected:** `touch-action: none` (kills content scrolling) and `pan-up`/`pan-down` (direction
+    semantics too unreliable across engines).
+  - **Parameters:** touch only, never a mouse. Dismiss at ≥ 96px down with dy > 2·|dx| (within
+    ~27° of straight down); velocity ignored. The sheet follows the finger and springs back over
+    160ms on a short release. `/chronicle` and any later sheet import the same module.

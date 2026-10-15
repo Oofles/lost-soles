@@ -131,10 +131,10 @@ untouched and `app/routes.test.ts` passes unchanged.
 4. *Narrow widths.* Stated once in the preamble, and checkably in §2.2's last paragraph and §9.3.
 5. *Validation convention.* Stated once, in the preamble: desktop browser, perception only
    (D-229), the phone never a validation surface.
-6. *A D-xxx for the IA change.* Proposed to the orchestrator as **D-NEW-a**; the doc cites the
-   placeholder `D-NEW-a` in eight places, to be replaced with the allocated number.
+6. *A D-xxx for the IA change.* Proposed to the orchestrator as **D-313**; the doc cites the
+   placeholder `D-313` in eight places, to be replaced with the allocated number.
 
-**Decisions made in the pass (all under D-NEW-a, for the operator to confirm or overturn)**
+**Decisions made in the pass (all under D-313, for the operator to confirm or overturn)**
 
 - The rail over the floating card (operator's choice; above).
 - **No drag handle on the plinth.** It was a thumb's second door to the place `RUNS` opens.

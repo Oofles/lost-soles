@@ -104,6 +104,8 @@ shipped the initial camera during capability `08` as the most recent run's **bou
 that as the design. That behaviour already exists; this ticket must not re-implement or replace it.
 The `⌖` recentre-on-end-point control is unchanged and belongs to `0101`.
 
+- **Amended by D-313 (0187, 2026-10-15).** The plinth is a fixed left rail at ≥1024px beside the map pane, not a card at the bottom; `RUNS` is the only way into the Chronicle (no handle); `⌖` and the other map controls sit on the map pane's right edge above the attribution; the interim Sync is a text line in the rail. `06` §2.1–§2.2 is the specification; where this ticket's wording disagrees, §2 wins.
+
 ## Operator validation
 
 In the desktop browser: open the app and start a two-second timer. Before it

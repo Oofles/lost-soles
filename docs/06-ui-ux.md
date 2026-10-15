@@ -1,7 +1,7 @@
 # 06 — UI / UX
 
 **Status:** design proposal, ready to build from.
-**Last updated:** 2026-10-15 — desktop-first pass over the IA (ticket `0187`, D-NEW-a)
+**Last updated:** 2026-10-15 — desktop-first pass over the IA (ticket `0187`, D-313)
 **Answers to:** `00-vision.md` (principles) and `decisions/DECISIONS.md` (settled facts).
 **Companions:** `04-game-design.md` (§4.2 is the seed of §3 here), `05-fog-of-war.md`
 (§4–§5 are the rendering contract §4 here dresses). §7 is superseded (D-252).
@@ -25,7 +25,7 @@ Binding constraints this document is written under, restated so no reader has to
 > the run to see what happened (P2), and the thing you are there to see is the map (P4).
 > Everything else is chrome around that, and chrome is a maintenance cost.
 
-### The surface, stated once (D-227, D-251, D-NEW-a)
+### The surface, stated once (D-227, D-251, D-313)
 
 - **The design case is a desktop browser window**, roughly 1280–1600px wide and 800–1000px
   tall, driven by mouse, trackpad and keyboard. Every wireframe in §1–§6 is drawn for it.
@@ -164,7 +164,7 @@ inside those, or from the `⚙` at top-right.
 - **Deep links land where they point.** A pasted `/run/:id` or `/chronicle` renders `/`
   underneath, so back goes to `/`, not to a stack of nothing. (The push notification that used
   to be the main deep link is gone — D-253, §1.4.)
-- **At ≥1024px the plinth is the rail** (§2.2, D-NEW-a — §4.8's old one-line sketch, promoted
+- **At ≥1024px the plinth is the rail** (§2.2, D-313 — §4.8's old one-line sketch, promoted
   to the main specification). Below 1024px its content stacks as a card over the map, the
   simplest arrangement that does not break (D-251). Same routes, same content, either way.
 
@@ -186,7 +186,7 @@ It must satisfy three things simultaneously:
 3. **D-013 / H2** — nothing on it may ask you for anything. Open it after three weeks away and
    it is exactly as pleased to see you.
 
-**A rail, chosen over a floating card** (D-NEW-a, operator 2026-10-15). This section used to
+**A rail, chosen over a floating card** (D-313, operator 2026-10-15). This section used to
 inherit a phone layout (a bottom card in the thumb arc) with a one-line desktop adaptation in
 §4.8: "the plinth becomes a fixed left rail at ≥1024px". The rail is now the main specification.
 The alternative considered was the same content as an opaque card floating over the bottom-left
@@ -245,7 +245,7 @@ starts, and the plinth's position is fixed at every desktop size.
 **All map chrome lives on the map pane** — the toggle, `⚙`, fit, `⌖` and the attribution are
 positioned against the pane, never against the window, so none of them ever sits under the rail.
 
-**No drag handle** (D-NEW-a). The phone wireframe carried a `▁▁▁` handle on the plinth that a
+**No drag handle** (D-313). The phone wireframe carried a `▁▁▁` handle on the plinth that a
 thumb dragged up into the Chronicle. With a pointer it is a second, smaller door to the place
 `RUNS` already opens. `RUNS` is the door to the Chronicle.
 
@@ -331,7 +331,7 @@ So before the first import, fog is not drawn at all — the parchment map sits t
 the fog arrives, for the first time, as part of the first reveal. The first thing the fog ever
 does is burn back.
 
-### 2.5 Where the Chronicle opens (D-NEW-a)
+### 2.5 Where the Chronicle opens (D-313)
 
 `RUNS` opens `/chronicle` **in the rail's column, replacing the rail's contents**: the same
 24rem width, the full window height, with the run list scrolling inside it. The plinth's rows are
@@ -830,7 +830,7 @@ parchment; pure red disappears into it.
 - A click elsewhere on the map, `Esc`, or back dismisses the card. It never blocks panning.
 - **Hover shows nothing but the pointer cursor** (§4.4). The card is the click's. A tooltip that
   appears on its own whenever the cursor crosses a dense trace web is noise, and §4.8 used to
-  promise one; D-NEW-a withdrew it.
+  promise one; D-313 withdrew it.
 
 ### 4.6 Cold territory in atlas, without competing with the reveal edge (D-133)
 
@@ -933,7 +933,7 @@ is D-051 discharged, and it is the reason atlas exists at all.
 - **WebGL context loss** (05 §4.5) rebuilds silently. If the rebuild fails, the map falls back to
   a static parchment basemap with the trace web drawn as plain DOM-free canvas lines, and the
   plinth is untouched. The numbers never depend on the graphics (§3.4).
-- **The desktop is not a case here any more — it is the document** (D-251, D-NEW-a). This bullet
+- **The desktop is not a case here any more — it is the document** (D-251, D-313). This bullet
   used to be the whole desktop adaptation ("the plinth becomes a fixed left rail at ≥1024px");
   §2.2 now specifies that rail in full, §4.4 is the mouse-and-keyboard table, and §4.2 carries
   `M`.

@@ -90,6 +90,8 @@ interaction rule belongs to 0112 but it interacts with the two-finger tap for zo
 two-finger tap with a tight time and movement threshold so a wet palm reads as a pan.~~ *(D-253:
 two-finger tap and the wet-screen multi-contact rule are dropped.)*
 
+- **Amended by D-313 (0187, 2026-10-15).** No hover card on a route line: hover changes the cursor only, a click shows the card (`06` §4.5). Fit-to-territory and `⌖` are positioned on the map pane, never under the rail.
+
 ## Operator validation
 
 In the desktop browser, on `/`: pan, wheel-zoom, double-click, use the keyboard, hit `⌖` and the
