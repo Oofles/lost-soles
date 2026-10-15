@@ -225,6 +225,8 @@ type FullActivityRow = ActivityRow & {
   newCellCount?: number | null
   rearmedCellCount?: number | null
   cellCount?: number | null
+  cooledCellCount?: number | null
+  deferredCellCount?: number | null
 }
 
 /**
@@ -302,6 +304,8 @@ export async function runById(
     newCellCount: row.newCellCount ?? 0,
     rearmedCellCount: row.rearmedCellCount ?? 0,
     cellCount: row.cellCount ?? null,
+    cooledCellCount: row.cooledCellCount ?? null,
+    deferredCellCount: row.deferredCellCount ?? null,
     route,
     reveal,
   }

@@ -59,23 +59,23 @@ these counts come *from* the ledger entry rather than being recalculated beside 
 
 ## Acceptance criteria
 
-- [ ] Per-run counts (`new` / `rearmed` / `cooled`) are read from the projection's ledger entry;
+- [x] Per-run counts (`new` / `rearmed` / `cooled`) are read from the projection's ledger entry;
       a test asserts no recomputation from the cell set occurs on the read path.
-- [ ] `discoveryCredits` and `cartographyXp` match the `04-game-design.md` §8.2/§8.3 worked examples
+- [x] `discoveryCredits` and `cartographyXp` match the `04-game-design.md` §8.2/§8.3 worked examples
       exactly.
-- [ ] Territory area uses per-cell `cellArea`; a test at two latitudes 20° apart shows the totals
+- [x] Territory area uses per-cell `cellArea`; a test at two latitudes 20° apart shows the totals
       differ from an average-multiplied estimate.
-- [ ] Lifetime totals are memoised and recomputed only when `manifest.json` `generation` changes;
+- [x] Lifetime totals are memoised and recomputed only when `manifest.json` `generation` changes;
       a test asserts two consecutive reads at the same generation do one computation.
-- [ ] The frontier primitive returns clusters at res-8 with `noveltyFraction`, `distanceM`,
+- [x] The frontier primitive returns clusters at res-8 with `noveltyFraction`, `distanceM`,
       `bearing` and `score`, sorted by score descending.
-- [ ] The frontier primitive is a single exported function with no UI imports, callable from both
+- [x] The frontier primitive is a single exported function with no UI imports, callable from both
       0083 and a future planner; a grep finds exactly one implementation.
-- [ ] A run with no new territory returns `newCellCount = 0` and a well-formed record — never
+- [x] A run with no new territory returns `newCellCount = 0` and a well-formed record — never
       `null`, never a thrown error, never a missing field.
-- [ ] Lifetime cell count shown on the plinth equals `exploredSet.size` from the loaded
+- [x] Lifetime cell count shown on the plinth equals `exploredSet.size` from the loaded
       `explored-r10.bin`, asserted against the blob rather than a cached number.
-- [ ] Computing lifetime totals over a year-five-scale fixture stays inside the frame budget or runs
+- [x] Computing lifetime totals over a year-five-scale fixture stays inside the frame budget or runs
       off the main thread.
 
 ## Notes
@@ -121,3 +121,85 @@ have gone up by the run's new-cell count exactly, not approximately.
 
 Then click the frontier line and drive or walk toward what it named. If it points at somewhere you have
 obviously already run, the novelty scan is reading a stale generation.
+
+## Resolution
+
+**Built the feed in one module, `lib/stats/derived.ts`, and pointed the plinth's cell count at it.
+Three of §8.3's six lifetime stats are built; the other three need data the browser does not hold,
+and are left for a decision (below), not guessed at.**
+
+Files touched:
+- `lib/stats/derived.ts` (new) — the feed.
+  - `runTerritory(stored, rules)` — the per-run Cartography feed (§8.2). Takes the counts the
+    projection wrote on the activity row and the run's own ruleset, and **no cell set**, so there is
+    no path by which it could reclassify. Returns `cellCount`, `newCellCount`, `rearmedCellCount`,
+    `cooledCellCount`, `deferredCellCount`, `discoveryCredits`, `cartographyXp` — always all seven, all
+    finite numbers; a column a row predates reads as 0.
+    `discoveryCredits` is `discoveryCredits(counts, row)` from `src/scoring/propagate.ts` (D-272), with
+    the discovery row found by data (`enabled && unitMultipliers`, D-031). `cartographyXp` rates
+    `discoveryRows` through `ledgerEntries`, so it rounds **per row** exactly as the ledger does.
+  - `lifetimeCells(set)` — the loaded set's `size`. What the plinth shows.
+  - `lifetimeTerritory(set)` — cells, `areaKm2` (`Σ cellArea(c,'km2')`), `frontierLength` (explored
+    cells with an unexplored `gridDisk(c,1)` neighbour). Time-sliced: yields every `SLICE_BUDGET_MS`
+    (6 ms), checking the clock every 128 cells. Membership is asked of the array captured at the start,
+    so a delta landing mid-walk (which replaces the set's array) cannot mix two generations.
+  - `lifetimeFeed(compute?)` — memo keyed on (set, generation); a second read at one generation
+    returns the same promise.
+- `lib/stats/derived.test.ts` (new) — 14 tests, one or more per criterion, below.
+- `lib/runs/wire.ts`, `lib/runs/server.ts` — `RunSummary` gains **optional** `cooledCellCount` and
+  `deferredCellCount`, read by `runById` from the T3 columns `persist.ts` already writes. Additive
+  only: `recentRuns`/`RunListItem` and `/api/runs/latest` are unchanged.
+- `components/plinth/home-screen.tsx` — the plinth's cells input is `lifetimeCells(explored.set)`.
+  Same value as before, from the same provider; no new fetch.
+
+How each criterion is met:
+1. `runById` over a row written by the shipped `activityItem` → `runTerritory` returns the stored
+   counts, with every classifier export (`classifyCells`, `awardOf`, `runClassesOf`, `rearmSoonOf`)
+   spied and called 0 times; plus a stored record no classifier could produce (5 new of 3 cells)
+   comes back verbatim, and the function's arity is 2 (no set argument).
+2. Example A: 148 + 58 → 177 credits, **380 XP** (318 + 62). Example B: zeros. A v1 test shows the
+   rate is the run's version's, not today's.
+3. Two 20 km-scale discs at lat 20° and 40°: same count, so `size × getHexagonAreaAvg` calls them
+   equal; the per-cell sums differ by >1 %, and match `Σ cellArea` exactly.
+4. `lifetimeFeed` with a counted `compute`: two reads → 1 call; an `applyDelta` to gen 8 → exactly
+   one more.
+5–6. The primitive is `0083`'s, unchanged. A source walk over `app components lib src amplify tools`
+   finds exactly one `frontier` and one `cellNovelty` definition, both in `src/domain/frontier.ts`,
+   whose imports are `h3-js` and `./` only. (Its own test already covers the cluster fields and sort.)
+7. Three empty-shaped records (zeros, missing columns, nulls) → every field finite, `newCellCount 0`.
+8. `encodeExploredBlob` → `ExploredSet.fromBlob` → `plinthModel({cells: lifetimeCells(set)})` equals
+   the formatted `decodeExploredBlob(bytes).cells.length`; a source assertion pins the home screen to
+   `lifetimeCells(explored.set)`.
+9. Over the 150k perf disc (year five at res 11 — 02 §2's 20–50k res-10 cells × ~6 for res 11), the
+   walk takes ~0.5 s in total; p95 slice < 16.7 ms. Measured before slicing: 215 ms area + 254 ms
+   frontier, unsliced — which is why it is sliced.
+
+Decisions made, and why:
+- **`cartographyXp` is Σ per-row rounded XP, not `round(credits × rate)`.** The ticket's formula would
+  give 381 for Example A; `04` §8.2 says 380 "rounded per ledger row" (I-19, D-256) and the ledger
+  holds 318 + 62. The feed may not disagree with the ledger, so the doc wins over the ticket's sketch.
+- **Per-run counts are read off the activity row (T3), which is "the ledger entry written at
+  projection time" of §8.2/§3.2** — the award columns `persist.ts` stores and says must never be
+  recomputed. Not T4's XP rows: those carry no cooled or deferred count.
+- **The heavy totals are lazy.** Nothing calls `lifetimeTerritory` on render; the plinth reads only
+  `lifetimeCells`, O(1). The frontier scan stays where it is (beat 5, once per run, bounded radius).
+- **Existing per-run surfaces are not rewired.** The tally footer, `chronicleFor` and the plinth's
+  last-run line already read the same stored columns `runTerritory` reads; rewriting them through the
+  feed would change nothing a test or a person could see, and two of them sit in `0088`'s path this
+  wave. A screen that needs credits, XP, or the familiar count reads `runTerritory`.
+- **No period aggregates.** Nothing in the module takes a date or a range.
+
+**Not built — open question for the orchestrator (D-152):** §8.3's *Explorer since*
+(`min(firstRunAt)`), *Cells re-armed lifetime* (`Σ discoveryCount − 1`), *Most-run ground*
+(`max(visitCount)`) and *Total distance / runs*. The browser holds only the cell ids (`LSFG`) and,
+optionally, last-run days (`LSFL`); `firstRunAt`, `discoveryCount` and `visitCount` live only in the
+server's cell table, and the run ledger is only paged 50 at a time to the client. §8 says these run
+"client-side against the in-memory set … no new endpoints", which they cannot. No screen consumes
+any of them yet (the plinth shows cells only; `0088` has no totals criterion). Options: (a) defer
+them to a ticket opened when a screen needs them; (b) a server-side aggregate on the Chronicle's
+SSR read; (c) a new small payload beside the blob.
+
+Verification: all amplify.yml build-phase guards, `npm run typecheck`, `npm run lint`,
+`npx vitest run` (196 files, 3491 passed), `npm run build`, and the post-build bundle-leak and
+home-not-in-client guards — all green in the worktree.
+

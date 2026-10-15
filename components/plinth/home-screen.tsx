@@ -16,6 +16,7 @@ import { plinthModel } from "@/lib/plinth/model"
 import { firstPulse, heldCells } from "@/lib/plinth/states"
 import { isSeen } from "@/lib/run-moment/seen"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
+import { lifetimeCells } from "@/lib/stats/derived"
 import { fetchReplayInProgress } from "@/lib/skills/transport"
 
 import { Plinth, PLINTH_CSS } from "./plinth"
@@ -28,8 +29,9 @@ import { Plinth, PLINTH_CSS } from "./plinth"
  *
  * - **Total Level** — `loadStanding`, cache first, re-asked when the explored set's generation
  *   moves (a finished sync is what moves it, §7.4). No timer.
- * - **Cells revealed** — the explored set's size, from the provider the map already reads. Cached
- *   in IndexedDB, so it is there before any network call.
+ * - **Cells revealed** — `lifetimeCells` (`0090`'s feed): the loaded explored set's own size, from
+ *   the provider the map already reads. Cached in IndexedDB, so it is there before any network
+ *   call, and it is never a second fetch or a stored number.
  * - **The last run** — handed up by `MapShell` from the one `/api/runs/latest` fetch the first
  *   camera already uses (`0186`), so the line and the camera always name the same run.
  *
@@ -105,7 +107,7 @@ export function HomeScreen({
     [explored.generation],
   )
 
-  const cells = explored.set ? explored.set.size : null
+  const cells = lifetimeCells(explored.set)
   const model = useMemo(
     () => plinthModel({ skills, cells, latest, seen, pulse, sources, reconnectIds }),
     [skills, cells, latest, seen, pulse, sources, reconnectIds],

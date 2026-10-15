@@ -93,6 +93,13 @@ export interface RunSummary {
   rearmedCellCount: number
   /** Every cell the run touched, all classes (`0083`'s new-ground share). `null` on a row that predates the column. */
   cellCount: number | null
+  /**
+   * `0090`: the two classes that earn nothing, as the projection stored them — so the derived feed
+   * (`lib/stats/derived.ts`) can surface every count without reclassifying. Optional: absent on a
+   * row that predates the column, and on fixtures written before it.
+   */
+  cooledCellCount?: number | null
+  deferredCellCount?: number | null
   /** The run's line, or the empty collection for an untraced activity. */
   route: RunFeatureCollection
   /**
