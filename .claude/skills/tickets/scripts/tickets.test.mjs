@@ -2617,3 +2617,59 @@ describe("0269 — waves: a capability's open tickets layered for parallel agent
     } finally { rmSync(d, { recursive: true, force: true }); }
   });
 });
+
+describe("0272 — a move fails before it writes, and an untracked ticket still moves", () => {
+  const closable = "\n## Acceptance criteria\n\n- [x] a\n\n## Resolution\n\nx\n\n## Operator validation\n\nx\n";
+
+  test("close moves a ticket git has never seen, and the closed copy carries the new status", () => {
+    const d = repo();
+    try {
+      commitAll(d);
+      const src = ticket(d, "open", FM({ id: 7, slug: "fresh" }), closable);
+      const r = run(d, "close", "7");
+      assert.equal(r.code, 0, r.out);
+      assert.ok(!existsSync(join(d, src)), "nothing is left behind in open/");
+      const p = parse(readFileSync(join(d, "tickets/closed/0007-fresh.md"), "utf8"));
+      assert.equal(p.fm.status, "closed");
+      assert.ok(p.fm.closed);
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+
+  test("a tracked ticket still moves with git mv, so history follows it", () => {
+    const d = repo();
+    try {
+      ticket(d, "open", FM({ id: 8, slug: "old" }), closable);
+      commitAll(d);
+      assert.equal(run(d, "close", "8").code, 0);
+      const st = execFileSync("git", ["status", "--porcelain"], { cwd: d, encoding: "utf8" });
+      assert.match(st, /^R. tickets\/open\/0008-old\.md -> tickets\/closed\/0008-old\.md/m);
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+
+  test("an occupied destination refuses and leaves the source byte-identical", () => {
+    const d = repo();
+    try {
+      const src = ticket(d, "open", FM({ id: 9, slug: "dup" }), closable);
+      writeFileSync(join(d, "tickets/closed/0009-dup.md"), "squatter\n");
+      commitAll(d);
+      const before = readFileSync(join(d, src), "utf8");
+      const r = run(d, "close", "9", "--allow-dirty");
+      assert.notEqual(r.code, 0);
+      assert.match(r.out, /already exists/);
+      assert.equal(readFileSync(join(d, src), "utf8"), before, "the open copy was not rewritten");
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+
+  test("triage-move promotes a hand-carried, untracked capture", () => {
+    const d = repo();
+    try {
+      commitAll(d);
+      writeFileSync(join(d, "tickets/inbox/2026-10-15T1200-carried.md"),
+        serialize({ status: "inbox", title: "carried", type: "feature", priority: "med", source: "ui", created: "2026-10-15T12:00:00Z" }, "\nidea\n"));
+      const r = run(d, "triage-move", "tickets/inbox/2026-10-15T1200-carried.md", "--slug", "carried");
+      assert.equal(r.code, 0, r.out);
+      assert.ok(!existsSync(join(d, "tickets/inbox/2026-10-15T1200-carried.md")));
+      assert.equal(parse(readFileSync(join(d, "tickets/open/0001-carried.md"), "utf8")).fm.status, "open");
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+});

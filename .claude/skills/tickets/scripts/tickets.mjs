@@ -14,7 +14,7 @@
  * No dependencies. Node's stdlib only, so it runs before `npm install` exists.
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, renameSync } from "node:fs";
 import { join, basename, relative } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -1488,6 +1488,24 @@ function printAuditTable(capability, checks, failed, na, errored = []) {
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 
 /**
+ * 0272. Move a ticket file to `dest` with new `content`, and fail BEFORE writing anything.
+ *
+ * Every transition used to write the new frontmatter in place and then `git mv`. `git mv` refuses
+ * an untracked file, which is any ticket created and closed in one commit, and any capture
+ * hand-carried into inbox/. That left a file in its OLD folder claiming its NEW status. Now the
+ * checks run first, the move happens next, and the write lands last, at the destination. A
+ * tracked file moves with `git mv`, so history follows it. An untracked one has no history to
+ * follow, so a plain rename is the whole move.
+ */
+function moveTicketFile(src, dest, content) {
+  if (existsSync(join(ROOT, dest))) die(`${dest} already exists. Nothing was written.`);
+  const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", src], { cwd: ROOT, stdio: "ignore" }).status === 0;
+  if (tracked) git("mv", src, dest);
+  else renameSync(join(ROOT, src), join(ROOT, dest));
+  writeFileSync(join(ROOT, dest), content);
+}
+
+/**
  * `except` is the path of the file this command is itself transitioning.
  * Ticking a ticket's final acceptance criteria is *part of closing it*, so a
  * dirty entry for that exact file is not the "unrelated work in flight" D-158
@@ -1496,7 +1514,9 @@ const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8"
  */
 function requireCleanTree(cmd, allowDirty, except = null) {
   if (allowDirty) return;
-  const dirty = git("status", "--porcelain").split("\n").filter(Boolean)
+  // `--untracked-files=all` (0272): by default git collapses a wholly untracked folder to one
+  // `?? tickets/` line, which hides the ticket being closed inside it from `except`.
+  const dirty = git("status", "--porcelain", "--untracked-files=all").split("\n").filter(Boolean)
     .filter((l) => !l.includes("tickets/index.json"))
     .filter((l) => !(except && l.includes(except)));
   if (dirty.length) {
@@ -2089,8 +2109,7 @@ function cmdClose(id, flags) {
 
   const fm = { ...t.fm, status: "closed", closed: new Date().toISOString().replace(/\.\d+Z$/, "Z") };
   const dest = `${DIRS.closed}/${t.file}`;
-  writeFileSync(join(ROOT, t.path), serialize(fm, t.body));
-  git("mv", t.path, dest);
+  moveTicketFile(t.path, dest, serialize(fm, t.body));
   const after = load();
   writeIndex(after);
 
@@ -2253,8 +2272,7 @@ function cmdTriageMove(path, flags) {
     id: nextId(), slug: flags.slug, status: "open", size: flags.size, capability: flags.capability,
   });
   const dest = `${DIRS.open}/${pad(fm.id)}-${flags.slug}.md`;
-  writeFileSync(join(ROOT, cap.rel), serialize(fm, cap.body));   // body byte-identical
-  git("mv", cap.rel, dest);
+  moveTicketFile(cap.rel, dest, serialize(fm, cap.body));   // body byte-identical
   writeIndex();
   console.log(dest);
 }
@@ -2292,8 +2310,7 @@ function cmdTriageDecline(path, flags) {
   };
   const body = closedCaptureBody(cap, `**Declined at triage, ${today()}.** ${flags.reason}`);
   const dest = `${DIRS.closed}/${pad(id)}-${slug}.md`;
-  writeFileSync(join(ROOT, cap.rel), serialize(fm, body));
-  git("mv", cap.rel, dest);
+  moveTicketFile(cap.rel, dest, serialize(fm, body));
   writeIndex();
   console.log(dest);
 }
@@ -2351,8 +2368,7 @@ function cmdTriageMerge(path, flags) {
     `**Merged at triage, ${today()}, into ${pad(into)} — ${target.fm.title}.** ` +
     `${flags.reason && flags.reason !== true ? flags.reason : "The idea is recorded in that ticket's ## Notes."}`);
   const dest = `${DIRS.closed}/${pad(id)}-${slug}.md`;
-  writeFileSync(join(ROOT, cap.rel), serialize(fm, body));
-  git("mv", cap.rel, dest);
+  moveTicketFile(cap.rel, dest, serialize(fm, body));
   writeIndex();
   console.log(`${dest}  →  merged into ${target.path}`);
 }
