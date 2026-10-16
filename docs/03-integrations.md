@@ -576,6 +576,19 @@ Backfill is therefore a **checkpointed background job**, never a synchronous "co
 account" flow. State per user: `{ cursor, lastActivityId, completed, failedIds[] }` in DynamoDB.
 It must survive being killed at any point and resume from the cursor.
 
+*Amended by ticket `0177` (operator, 2026-10-16):* the account turned out to hold ~115 activities
+(~230 worker reads, about three 15-minute windows), not the 1,600 estimated above. The backfill
+is therefore an operator-run CLI, `tools/backfill/backfill.ts`, and keeps **no stored
+checkpoint**. Resume means re-running it: every activity already accepted is a free duplicate
+at the receipt gate, and the CLI drains the ingest queue before each listing so a re-run never
+enqueues one twice. It lists oldest first, so the only cells that defer (D-221) are those a
+historical run shares with the already-scored first-Sync month. The operator then runs the XP
+replay by hand to settle them. Each window's enqueue is sized from the list call's own headers,
+`floor((0.9 · limit − usage) / 2)` (`backfillPace`), because the two reads per activity are
+spent later by the worker, and `budgetCheck` alone would let the queue overrun the window. If
+a second user with years of history ever arrives (D-014), the checkpointed shape above is still
+the right one.
+
 > Backfill is the one place where the raw archive (§3) pays for itself immediately: 1,600 stream
 > calls are expensive and slow to re-acquire, and after 2026 they may not be re-acquirable at
 > all. Archive first, normalize second.

@@ -44,16 +44,33 @@ long-running import needs that a button press does not:
 
 ## Acceptance criteria
 
-- [ ] A backfill can import activities older than `FIRST_SYNC_LOOKBACK_DAYS` without a manual
+- [x] A backfill can import activities older than `FIRST_SYNC_LOOKBACK_DAYS` without a manual
       press per window.
-- [ ] It calls `budgetCheck` with `interactive: false` before each enqueue batch and stops when
+      *Amended (operator, 2026-10-16):* one hand-started CLI invocation
+      (`tools/backfill/backfill.ts --confirm`) covers every window, sleeping between them. It is
+      not a scheduled job. The operator chose this because one user runs it once.
+- [x] It calls `budgetCheck` with `interactive: false` before each enqueue batch and stops when
       the window is exhausted, rather than discovering the limit by being refused.
-- [ ] Progress is recorded somewhere that is NOT `listSinceWatermark`, and the two cannot be
+      (`backfillPace` calls it before every enqueue, then sizes the batch from the list call's
+      headers. See the Resolution.)
+- [x] Progress is recorded somewhere that is NOT `listSinceWatermark`, and the two cannot be
       confused by a later reader.
-- [ ] It resumes correctly after being interrupted: no activity is enqueued twice and none is
+      *Amended (operator, 2026-10-16):* progress is not stored at all. The cursor lives in the
+      CLI's memory for one run, and the backfill neither reads nor writes `listSinceWatermark`.
+      At ~115 activities a stored checkpoint buys nothing.
+- [x] It resumes correctly after being interrupted: no activity is enqueued twice and none is
       skipped.
-- [ ] A backfill running concurrently with a manual Sync does not corrupt either one's watermark.
-- [ ] The operator can see that a backfill is in progress and roughly how far it has got.
+      *Amended (operator, 2026-10-16):* resume = re-run from the beginning. It is satisfied by
+      idempotency: the receipt gate (`needsEnqueue`) turns every already-accepted activity into a
+      free duplicate, and the drain before each listing means a message from the killed run is
+      delivered before it is re-listed. Proven in `lib/sources/backfill.test.ts`.
+- [x] A backfill running concurrently with a manual Sync does not corrupt either one's watermark.
+      (The backfill has no watermark and never touches the Sync's. Their only shared state is the
+      receipt table's conditional put, which lets exactly one of them enqueue a given activity.)
+- [x] The operator can see that a backfill is in progress and roughly how far it has got.
+      *Amended (operator, 2026-10-16):* the surface is the CLI's own output, one line per window
+      giving the month reached, the counts and the read-budget headroom. There is no app UI;
+      nothing touches the rail or `/settings`, and D-318 stands.
 
 ## Notes
 
@@ -78,5 +95,69 @@ already covered costs one conditional write per activity and nothing else. That 
 1. (agent) Run a backfill over a window known to contain activities and confirm the read budget is
    never exhausted — the rate-limit headers, sampled across the run, never reach the limit.
 2. (agent) Kill it mid-run and restart. No duplicate `Activity` rows, no gap in the imported set.
-3. (operator) Watch it run in the desktop browser. Is it obvious that something is happening, and roughly
-   how far along it is? A progress surface nobody can interpret is the failure this asks about.
+3. (orchestrator) *Amended (operator, 2026-10-16):* the import is run by the orchestrator, and the
+   progress surface is the CLI's terminal output. Is each window's line enough to tell that it is
+   working and how far it has got? No browser check.
+
+## Resolution
+
+**Shape (operator, 2026-10-16, through the orchestrator).** The backfill is a one-time CLI that the
+orchestrator runs by hand under `AWS_PROFILE=devault`. There is no scheduled Lambda, no new queue,
+no new AWS resource and no stored checkpoint. The account holds ~115 activities, which is ~230
+worker reads and about three 15-minute windows, so ~45 minutes. The "~3,200 requests, eight hours"
+in this ticket's Description, inherited from `0043`, was wrong. The comment on
+`FIRST_SYNC_LOOKBACK_DAYS` is corrected.
+
+**Files.**
+- `lib/sources/backfill.ts` (new): `runBackfill`, `nextBackfillCursor`, `BACKFILL_ORIGIN`. A
+  source-agnostic loop with injected seams, in the style of `sync.ts`. Each window waits for the
+  queue to drain (`beginWindow`), lists from the in-memory cursor (oldest first), checks the pace
+  before every enqueue, goes through `needsEnqueue` and then `enqueue`, and sleeps to the next window.
+- `lib/sources/backfill.test.ts` (new): covers paced import across windows, same-second siblings,
+  a 429 on the list call, refusal to pace blind, and resume after a failed enqueue and after a kill
+  that came after the enqueues.
+- `src/adapters/strava/rate-limit.ts`: `backfillPace`, `READS_PER_ENQUEUED_ACTIVITY`,
+  `describeReadBudget`. Tests are in `rate-limit.test.ts`.
+- `lib/sources/sync.ts`: `needsEnqueue` is exported, so the backfill shares the Sync's receipt
+  gate, including its "accepted but never delivered" re-enqueue. The wrong estimate in the
+  `FIRST_SYNC_LOOKBACK_DAYS` comment is corrected. `app/sync-action.ts` is not touched.
+- `tools/backfill/backfill.ts` (new): the CLI. Without `--confirm` it reports the connection status
+  and the queue depth and makes no provider call. With `--confirm` it runs the import, printing one
+  line per window and then a summary. It wraps the Strava client's `fetch` to take the budget
+  reading off each list response, and to tally 1° tiles of `start_latlng` for sizing a basemap
+  follow-up. The tiles go to the terminal only.
+- `docs/03-integrations.md` §2.5: an amendment note recording all of the above against the
+  "checkpointed background job" text.
+
+**Decisions.**
+- **Pacing is sized from the headroom, not a fixed batch.** `budgetCheck` (`interactive: false`)
+  runs first, then the allowance is `floor((0.9·limit − usage)/2) − enqueuedThisWindow`, taking the
+  smaller of the 15-minute and daily buckets. The reason is timing: the worker spends its two reads
+  per activity *after* the enqueue, so on its own the budget check would let a whole page onto the
+  queue. This was about ten lines more than a fixed batch, and it adapts when a Sync or the webhook
+  has already spent part of the window. A missing reading is a `fail`, not a proceed.
+- **Oldest first.** Importing newest first would defer nearly every shared cell (D-221). Importing
+  oldest first defers only the cells shared with the already-scored first-Sync month.
+- **Resume = re-run.** The receipt gate is the checkpoint, and draining the queue before each
+  listing closes the "killed between SendMessage and delivery" double-enqueue.
+- **The XP replay is not here (operator).** The deferred credit is settled afterwards by
+  `tools/xp-replay` (see the run order below).
+
+**Run order (orchestrator, after deploy):**
+1. `AWS_PROFILE=devault npx vite-node --config vitest.config.ts tools/backfill/backfill.ts -- --user <sub>`
+   — status only. Expect `strava ACTIVE` and queue depth 0.
+2. The same command with `--confirm`. Leave it running (about 45 minutes). It ends with
+   `backfill complete`, the date range, this run's start → end instants and the tile summary.
+3. Wait until the ingest queue and its DLQ are quiet, then run
+   `AWS_PROFILE=devault npx vite-node --config vitest.config.ts tools/xp-replay/replay-xp.ts -- --user <sub> --to <N>`
+   as a dry run. It prints each skill's `vN`. Re-run it with `--to <that N> --confirm`.
+
+**For 0257.** Its reveal must play **after** the replay in step 3. The activities this backfill
+imported are the T3 rows whose `ingestedAt` falls inside the run's start → end instants, which the
+CLI prints at the end. A run recorded while the import was going could also be one of those rows,
+so `startedAt` older than the first Sync's oldest import is the tighter filter. Nothing extra is
+stored.
+
+**Region.** The import takes every activity, wherever it is; cells are global. The basemap is a
+Florida extract, so the tile summary at the end of the run is the input for a follow-up basemap
+ticket. Nothing in this ticket handles regions.

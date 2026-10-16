@@ -263,3 +263,83 @@ export function mergeRateLimit(
     overall: incoming.overall ?? previous.overall,
   }
 }
+
+/**
+ * WHAT ONE ENQUEUED ACTIVITY COSTS THE READ BUDGET. `process-activity` fetches the
+ * activity and its streams: two reads, spent LATER, by the worker, not by whoever enqueued
+ * it. Ticket 0177.
+ */
+export const READS_PER_ENQUEUED_ACTIVITY = 2
+
+export type BackfillPace =
+  /** Enqueue up to `allowance` more activities in this window. Always >= 1. */
+  | { action: "proceed"; allowance: number }
+  | { action: "sleep"; untilMs: number; reason: string }
+  | { action: "fail"; reason: string }
+
+/**
+ * HOW MANY MORE ACTIVITIES THE BACKFILL MAY ENQUEUE IN THIS WINDOW. Ticket 0177, D-NEW
+ * (the orchestrator allocates the number).
+ *
+ * `budgetCheck` alone is not enough here, and the reason is WHEN the reads are spent. The
+ * backfill's own call is the list call; the two reads per activity are spent afterwards by
+ * `process-activity`, five workers wide (D-266). A `budgetCheck` that says "proceed" at 5/100
+ * would happily let 200 activities onto the queue, and the workers would then run the window
+ * through four times over and discover the limit by being refused, which is the failure the
+ * ticket names. So the allowance is SIZED from the headroom the list call's own headers report:
+ *
+ *   floor((0.9 · limit − usage) / 2) − enqueuedThisWindow
+ *
+ * taken over the 15-minute and the daily bucket, whichever is smaller. The 0.9 is
+ * `PAUSE_AT_FRACTION`: the backfill never spends the last 10%, which is the Sync press's reserve.
+ *
+ * `enqueuedThisWindow` is subtracted IN FULL even if some of those activities have already been
+ * processed and appear in `usage`. That double-counts, and double-counting is the safe direction.
+ *
+ * NO READING IS A FAILURE, NOT A PROCEED. `budgetCheck` proceeds on `null` because a worker can
+ * only learn the budget by spending one request. The backfill always has just made one, the list
+ * call, so a missing reading means the headers were not there, and pacing blind is exactly what
+ * this function exists to prevent (D-176's "no news is not good news").
+ */
+export function backfillPace(
+  status: RateLimitStatus | null,
+  enqueuedThisWindow: number,
+  now: number,
+): BackfillPace {
+  const read = status?.read
+  if (!status || !read) {
+    return { action: "fail", reason: "the list response carried no read-budget headers; refusing to pace blind" }
+  }
+
+  const gate = budgetCheck(status, now, { interactive: false })
+  if (gate.action === "sleep") return gate
+  if (gate.action !== "proceed") return { action: "fail", reason: "unexpected budget decision" }
+
+  const room = (b: Bucket) =>
+    Math.floor((PAUSE_AT_FRACTION * b.limit - b.usage) / READS_PER_ENQUEUED_ACTIVITY) - enqueuedThisWindow
+
+  const daily = room(read.daily)
+  if (daily <= 0) {
+    return {
+      action: "sleep",
+      untilMs: nextUtcMidnight(now),
+      reason: `daily read budget at ${read.daily.usage}/${read.daily.limit} has no room left for this window's imports`,
+    }
+  }
+  const fifteen = room(read.fifteenMin)
+  if (fifteen <= 0) {
+    return {
+      action: "sleep",
+      untilMs: nextQuarterHour(now),
+      reason: `15-minute read budget at ${read.fifteenMin.usage}/${read.fifteenMin.limit} has no room left for this window's imports`,
+    }
+  }
+  return { action: "proceed", allowance: Math.min(daily, fifteen) }
+}
+
+/** `"reads 12/100 (15 min) · 431/1000 (day)"`, for the backfill's progress line. */
+export function describeReadBudget(status: RateLimitStatus | null): string {
+  const read = status?.read
+  if (!read) return "reads unknown"
+  return `reads ${read.fifteenMin.usage}/${read.fifteenMin.limit} (15 min) · ${read.daily.usage}/${read.daily.limit} (day)`
+}

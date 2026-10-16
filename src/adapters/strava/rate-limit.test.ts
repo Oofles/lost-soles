@@ -6,8 +6,10 @@ import {
   PAUSE_AT_FRACTION,
   RETRY_DELAYS_MS,
   afterResponse,
+  backfillPace,
   backoff,
   budgetCheck,
+  describeReadBudget,
   mergeRateLimit,
   nextQuarterHour,
   nextUtcMidnight,
@@ -299,5 +301,46 @@ describe("a response with no headers carries no news about the budget", () => {
 
   it("accepts the first reading when there is no previous one", () => {
     expect(mergeRateLimit(null, nearlyFull)).toBe(nearlyFull)
+  })
+})
+
+describe("backfillPace: sizing a window's imports from the headroom (ticket 0177)", () => {
+  const NOW = at("2026-09-06T10:07:30Z")
+
+  it("allows floor((0.9 x limit - usage) / 2) activities, since each costs the worker two reads", () => {
+    expect(backfillPace(parseRateLimit(headers("10,100")), 0, NOW)).toEqual({ action: "proceed", allowance: 40 })
+  })
+
+  it("subtracts what this window has already enqueued, because those reads are not in the headers yet", () => {
+    expect(backfillPace(parseRateLimit(headers("10,100")), 39, NOW)).toEqual({ action: "proceed", allowance: 1 })
+    const full = backfillPace(parseRateLimit(headers("10,100")), 40, NOW)
+    expect(full).toMatchObject({ action: "sleep", untilMs: nextQuarterHour(NOW) })
+  })
+
+  it("never lets the workers into the interactive reserve: 40 enqueued from 10 used tops out at 90", () => {
+    const allowance = (backfillPace(parseRateLimit(headers("10,100")), 0, NOW) as { allowance: number }).allowance
+    expect(10 + 2 * allowance).toBeLessThanOrEqual(PAUSE_AT_FRACTION * 100)
+  })
+
+  it("is bounded by the daily bucket too, and sleeps to midnight UTC when that is the one that binds", () => {
+    expect(backfillPace(parseRateLimit(headers("0,880")), 0, NOW)).toEqual({ action: "proceed", allowance: 10 })
+    expect(backfillPace(parseRateLimit(headers("0,880")), 10, NOW)).toMatchObject({
+      action: "sleep",
+      untilMs: nextUtcMidnight(NOW),
+    })
+  })
+
+  it("defers to budgetCheck (interactive: false) at the 90% pause", () => {
+    expect(backfillPace(parseRateLimit(headers("90,100")), 0, NOW)).toMatchObject({ action: "sleep" })
+  })
+
+  it("fails rather than proceeding when the list response carried no headers", () => {
+    expect(backfillPace(null, 0, NOW).action).toBe("fail")
+    expect(backfillPace(parseRateLimit({}), 0, NOW).action).toBe("fail")
+  })
+
+  it("describes the budget for the progress line", () => {
+    expect(describeReadBudget(parseRateLimit(headers("12,431")))).toBe("reads 12/100 (15 min) · 431/1000 (day)")
+    expect(describeReadBudget(null)).toBe("reads unknown")
   })
 })

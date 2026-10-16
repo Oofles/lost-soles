@@ -43,15 +43,18 @@ import { SWEEP_OVERLAP_SECONDS, nextListSinceWatermark } from "./list-since-wate
  * THIRTY DAYS, AND THE CONSTRAINT IS THE RATE LIMIT, not taste. The connected account has
  * years of history; listing it is one cheap call per page, but ENQUEUEING it is two
  * provider requests per activity in the worker, against a budget of 100 reads per 15
- * minutes (`03-integrations.md` §2.5). An unbounded first sync is therefore ~3,200
- * requests — about eight hours of quota — and the 429 handling built in `0042` would
- * return each message to the queue with a delay until its three receives ran out and it
- * reached the DLQ. It would look like a broken import rather than a paced one.
+ * minutes (`03-integrations.md` §2.5). The account holds about 115 activities (counted
+ * in ticket 0177; the "~3,200 requests, eight hours of quota" written here first was
+ * wrong). That is still ~230 reads, more than two windows' worth, enqueued in one press:
+ * the 429 handling built in `0042` would return each message to the queue with a delay
+ * until its three receives ran out and it reached the DLQ. It would look like a broken
+ * import rather than a paced one.
  *
  * A month is ~15-20 runs here: comfortably inside one 15-minute window, and enough ground
  * to make the map worth looking at when capability 08 lands. **Full historical backfill
  * is a separate problem** — it needs budget pacing, resume across invocations and a
- * progress surface — and has its own ticket.
+ * progress surface — and is `lib/sources/backfill.ts` (ticket 0177), run by hand through
+ * `tools/backfill/backfill.ts`. It never touches the watermark this sweep owns.
  */
 export const FIRST_SYNC_LOOKBACK_DAYS = 30
 
@@ -91,7 +94,8 @@ export function firstSyncBoundary(now: Date): string {
 }
 
 /**
- * Whether this job needs to go on the queue.
+ * Whether this job needs to go on the queue. Also the backfill's gate (ticket 0177), which is
+ * why it is exported: one definition of "already on its way".
  *
  * ─── THE ACCEPT GATE, AND THE HOLE IT LEAVES ────────────────────────────────
  *
@@ -113,10 +117,10 @@ export function firstSyncBoundary(now: Date): string {
  * queue's redrive policy owns it from there — re-enqueueing would duplicate work the DLQ
  * is already accounting for.
  */
-async function needsEnqueue(
+export async function needsEnqueue(
   job: IngestJob,
   userId: string,
-  deps: SyncDeps,
+  deps: Pick<SyncDeps, "receipt">,
 ): Promise<boolean> {
   const accepted = await acceptIngest(
     {
