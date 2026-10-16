@@ -186,3 +186,16 @@ export function parseAt(search: string): Camera | null {
 export function atHref(place: { lng: number; lat: number }): string {
   return `/?at=${place.lng.toFixed(5)},${place.lat.toFixed(5)}`
 }
+
+/**
+ * `0278`. A camera's VALUE, as something React compares by value.
+ *
+ * `MapShell`'s build effect tears MapLibre down and constructs a new Map. Its `home` comes from the
+ * server, so every `router.refresh()` delivers a new object with the same numbers, and an effect
+ * keyed on the object would rebuild the map, its camera and its fog layer for nothing. Keyed on
+ * this string it re-runs only when a number actually changes. Bearing is included because it is
+ * part of the camera the map opens on: a different bearing is a different home.
+ */
+export function cameraKey(camera: Camera | null): string {
+  return camera === null ? "none" : `${camera.lng},${camera.lat},${camera.zoom},${camera.bearing}`
+}

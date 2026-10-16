@@ -7,6 +7,7 @@ import {
   AT_ZOOM,
   HOME_ZOOM,
   atHref,
+  cameraKey,
   firstLoadRunCamera,
   parseAt,
   parseCamera,
@@ -143,5 +144,28 @@ describe("?at= — the skill sheet's fly to (0074)", () => {
     for (const search of ["", "?fog=perf", "?at=", "?at=1", "?at=1,2,3", "?at=abc,2", "?at=200,0", "?at=0,95", "?at=,2"]) {
       expect(parseAt(search), search).toBeNull()
     }
+  })
+})
+
+describe("cameraKey — MapShell's build effect is keyed on home's value (0278)", () => {
+  const home = { lng: -83.1, lat: 27.5, zoom: HOME_ZOOM, bearing: 0 }
+
+  it("is the same for a new, value-equal home, so a router.refresh() does not rebuild the map", () => {
+    expect({ ...home }).not.toBe(home)
+    expect(cameraKey({ ...home })).toBe(cameraKey(home))
+    expect(cameraKey(null)).toBe(cameraKey(null))
+  })
+
+  it("changes when any number changes, or home appears or goes, so a real change still rebuilds", () => {
+    const key = cameraKey(home)
+    for (const changed of [
+      { ...home, lng: -83.2 },
+      { ...home, lat: 27.6 },
+      { ...home, zoom: HOME_ZOOM + 1 },
+      { ...home, bearing: 90 },
+    ]) {
+      expect(cameraKey(changed), JSON.stringify(changed)).not.toBe(key)
+    }
+    expect(cameraKey(null)).not.toBe(key)
   })
 })

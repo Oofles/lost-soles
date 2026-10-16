@@ -9,6 +9,7 @@ import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import { revealCellsForRoute, type RevealCell } from "@/lib/fog/reveal"
 import {
+  cameraKey,
   EXTRACT_FALLBACK,
   firstLoadRunCamera,
   parseAt,
@@ -179,6 +180,15 @@ export function MapShell({
   const framed = run !== undefined
   const fixedRun = useRef(run)
   fixedRun.current = run
+  /**
+   * `0278`. The build effect is keyed on home's VALUE (`cameraKey`), not its identity: the server
+   * hands down a new, value-equal `home` on every `router.refresh()`, and rebuilding MapLibre for
+   * one tears down the map, its camera and its fog layer for no change at all. The effect reads
+   * the object through this ref, as it reads the run through `fixedRun`.
+   */
+  const homeKey = cameraKey(home)
+  const fixedHome = useRef(home)
+  fixedHome.current = home
   const container = useRef<HTMLDivElement | null>(null)
   const map = useRef<MapInstance | null>(null)
   const [unsupported, setUnsupported] = useState(false)
@@ -237,6 +247,7 @@ export function MapShell({
     // not every load. After that the operator's own last position is the better answer.
     // `0078`: a run's page starts on the run. (A context-loss rebuild calls `build` directly, not
     // this effect, so it keeps wherever the operator had panned to.)
+    const home = fixedHome.current
     camera.current = framed
       ? (runCamera(fixedRun.current!) ?? home ?? EXTRACT_FALLBACK)
       : (stored ?? home ?? EXTRACT_FALLBACK)
@@ -387,7 +398,7 @@ export function MapShell({
       disposed = true
       teardown()
     }
-  }, [home, framed])
+  }, [homeKey, framed])
 
   /**
    * `0079`. `?fog=scrub` on a run's page: this run's reveal set, computed from the route the page

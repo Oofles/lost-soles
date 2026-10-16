@@ -25,9 +25,9 @@ though, and the hold in D-331 is partly a workaround for this.
 
 ## Acceptance criteria
 
-- [ ] The build effect re-runs only when `home`'s lat, lng or zoom (or `framed`) actually change,
+- [x] The build effect re-runs only when `home`'s lat, lng or zoom (or `framed`) actually change,
       not when a value-equal `home` object arrives.
-- [ ] A test renders `MapShell` (or its effect's dependency derivation), then passes a new `home`
+- [x] A test renders `MapShell` (or its effect's dependency derivation), then passes a new `home`
       object with the same values, and asserts the map is not rebuilt. A changed value still rebuilds.
 
 ## Steps to reproduce
@@ -50,3 +50,35 @@ refreshes with the map mounted. Once fixed, D-331's hold can stay. It also prote
 ## Operator validation
 
 None expected: the test proves it; nothing about it is perceptual.
+
+## Resolution
+
+The build effect is now keyed on home's value instead of its identity.
+
+**Files touched**
+
+- `lib/map-camera.ts`: new `cameraKey(camera: Camera | null): string`. It returns `"none"` for null,
+  otherwise `lng,lat,zoom,bearing`. It is a primitive, so React's `Object.is` dependency check
+  compares by value.
+- `components/map/map-shell.tsx`: `homeKey = cameraKey(home)` and a `fixedHome` ref (the same
+  pattern as `fixedRun`). The build effect reads `home` from the ref and depends on
+  `[homeKey, framed]` instead of `[home, framed]`. Nothing else changed, and the `held` logic was
+  not touched (D-331's hold stays, per the Notes).
+- `lib/map-camera.test.ts`: `cameraKey` is equal for a new, value-equal `home` (and for null to
+  null). It differs when lng, lat, zoom or bearing changes, and when home appears or goes.
+- `components/map/map-shell-build.test.ts` (new): a source tripwire. The effect that constructs
+  `new lib.Map(` must end in `}, [homeKey, framed])`, and `homeKey` must come from `cameraKey(home)`.
+
+**Decisions and why**
+
+- **A derived primitive key, not a deep-compare hook or `useMemo` on the object.** It is one line,
+  needs no new dependency, and passes the exhaustive-deps lint as written. The effect body reads
+  the current object through a ref. That is safe because the ref is only read when the key changes,
+  and a key change means the values the effect uses changed too.
+- **Bearing is in the key.** The criterion names lat, lng and zoom. `Camera` also carries
+  `bearing`, and the map opens on it, so a different bearing is a different home. A value-equal
+  object still gives an equal key, so the criterion holds either way.
+- **How criterion 2 is met.** The vitest environment is `node`, with no DOM, and effects do not run
+  (see `use-latest-run.test.ts`). So `MapShell` cannot be rendered with its effect driven. The
+  criterion allows testing "its effect's dependency derivation". That is the `cameraKey` test,
+  plus the tripwire that the effect is actually keyed on it.
