@@ -4,7 +4,7 @@ import { computeDedupeKey } from "@/src/domain/dedupe-key"
 import type { Activity, GeoPoint, NormalizedIngest, RawArchiveRef, Trace } from "@/src/domain/activity"
 import { MAX_IMPLIED_SPEED_MS, metresBetween } from "@/src/domain/geo"
 
-import type { AckResult, IngestJob, SourceAdapter } from "../types"
+import type { AckResult, IngestJob, SourceAdapter, SweepJob } from "../types"
 
 /**
  * THE SECOND ADAPTER. A fixture, not a product. Ticket `0155`; `0027`'s T3;
@@ -150,7 +150,7 @@ export const gpxFixtureAdapter: SourceAdapter<never> = {
     throw new Error("gpxFixtureAdapter is a test fixture — its bytes are checked in")
   },
 
-  listSince(): AsyncIterable<IngestJob> {
+  listSince(): AsyncIterable<SweepJob> {
     throw new Error("gpxFixtureAdapter is a test fixture — it has nothing to sweep")
   },
 

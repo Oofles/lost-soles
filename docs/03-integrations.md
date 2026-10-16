@@ -354,7 +354,7 @@ a §7.4 deletion trigger. See §2.8 for what we actually do about that.
 POST https://www.strava.com/api/v3/push_subscriptions
   client_id=<id>
   client_secret=<secret>
-  callback_url=https://lostsoles.devaultsecurity.com/api/webhooks/strava
+  callback_url=<the ingest-webhook Function URL>api/webhooks/strava
   verify_token=<a long random string we generate and store>
 ```
 
@@ -379,6 +379,15 @@ You must reply **HTTP 200 within 2 seconds**, `Content-Type: application/json`, 
 Compare `hub.verify_token` against the stored value and return 400 on mismatch — this GET route
 is necessarily public and unauthenticated, because Strava sends no credentials. Only if the
 handshake succeeds does the POST return `{"id": 120475}`, the subscription id.
+
+> **Amended 2026-10-16 (ticket `0091`, Q2 option A).** The callback is the **raw Lambda Function
+> URL** of `ingest-webhook` plus `api/webhooks/strava` — read from the function stack's
+> `IngestWebhookUrl` output — not a path on the app's custom domain. That hostname belongs to
+> Amplify Hosting, and every way of putting this path on it either routes through the SSR compute
+> (`08-security-privacy.md` §4.5 forbids it) or puts our own CloudFront in front of the whole app.
+> The URL is stable for the life of the function's logical id; ticket `0092` owns re-registering
+> the subscription if it ever changes. This text previously said `lostsoles.devaultsecurity.com`,
+> a hostname the app has never used.
 
 Management: `GET /push_subscriptions` (with `client_id`/`client_secret`) to inspect,
 `DELETE /push_subscriptions/{id}` to remove. Because there is one subscription per app and its

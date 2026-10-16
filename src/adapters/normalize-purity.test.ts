@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { Activity, NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
 
 import { assertNormalizeIsPure, ImpurityError, type NormalizeArgs } from "./normalize-purity"
-import type { IngestJob, SourceAdapter } from "./types"
+import type { IngestJob, SourceAdapter, SweepJob } from "./types"
 
 /**
  * T4, ticket 0027. The harness has to be shown to FAIL, not merely to pass — a purity
@@ -48,7 +48,7 @@ const OTHER_PHASES = {
     ext: "json",
     schemaHint: "gpslogger/raw@1",
   }),
-  listSince: async function* (): AsyncGenerator<IngestJob> {},
+  listSince: async function* (): AsyncGenerator<SweepJob> {},
 }
 
 function activity(startedAt: string): Activity {

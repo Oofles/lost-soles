@@ -8,6 +8,7 @@ import type {
   IngestJob,
   InboundRequest,
   SourceAdapter,
+  SweepJob,
 } from "./types"
 
 /**
@@ -122,6 +123,17 @@ type _JobKeys = Expect<
     | "meta"
     | "enqueuedAt"
   >
+>
+
+// D-NEW-a (ticket 0091): `startedAt` is OPTIONAL on a job — a push job cannot know it — and
+// REQUIRED on what `listSince` yields, which is all the watermark ever reads. The key set above
+// did not change; what changed is which type promises the value. If someone "simplifies" this
+// back to one required field, the webhook has to invent a date; if they make SweepJob's optional
+// too, the watermark's crash-recovery rule silently loses its input.
+type _JobStartedAtOptional = Expect<Equals<IngestJob["startedAt"], string | undefined>>
+type _SweepJobStartedAtRequired = Expect<Equals<SweepJob["startedAt"], string>>
+type _ListSinceYieldsSweepJobs = Expect<
+  Equals<ReturnType<SourceAdapter["listSince"]>, AsyncIterable<SweepJob>>
 >
 
 // `command` is the narrow kind union, not `IngestCommand` — see the note on

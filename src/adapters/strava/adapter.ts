@@ -1,9 +1,8 @@
-import { createHash } from "node:crypto"
-
 import type { NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
 
 import { SourceRateLimitedError } from "../errors"
-import type { AckResult, IngestJob, SourceAdapter } from "../types"
+import type { AckResult, InboundRequest, IngestJob, SourceAdapter, SweepJob } from "../types"
+import { acceptStravaEvent, ingestKeyFor } from "./accept"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
 import { normalizeStrava } from "./normalize"
@@ -73,8 +72,13 @@ export interface StravaIngestMeta {
    * That matters against §2.5's budget: the list endpoint is effectively free and the
    * stream calls are the entire cost, so every treadmill run this flag catches is a read
    * that never happens.
+   *
+   * ABSENT ON A WEBHOOK JOB (ticket 0091, D-NEW-b). The event carries no list response, so
+   * the hint is unknown rather than false — and reading "unknown" as "no GPS" would archive
+   * every webhook-delivered run without its trace, on a map that cannot re-fog. `fetchStreams`
+   * decides from the activity detail instead, which it has already fetched.
    */
-  hasGpsHint: boolean
+  hasGpsHint?: boolean
   /** Strava's `sport_type`. Carried for §2.6's mapping, which is another ticket's work. */
   sportType?: string
   /**
@@ -149,13 +153,6 @@ function apiError(step: string, res: Response, now: () => number = Date.now): Er
   return new StravaApiError(step, res.status)
 }
 
-class NotYetImplemented extends Error {
-  constructor(phase: string, ticket: string) {
-    super(`Strava adapter phase "${phase}" is not built yet — ticket ${ticket}`)
-    this.name = "NotYetImplemented"
-  }
-}
-
 /**
  * The activity fields this ticket reads. Deliberately partial: an adapter that declares
  * the vendor's whole schema has to be edited every time the vendor adds a field, and
@@ -170,25 +167,8 @@ interface StravaSummaryActivity {
   map?: { summary_polyline?: unknown }
 }
 
-/**
- * `sha256("<source>:<owner>:<object>:<aspect>")` — `01-architecture.md` §3 step 3, the
- * formula the webhook path uses.
- *
- * THE COLLISION IS THE POINT, and it looks like a bug until you see it. A sweep that finds
- * activity 42 and a webhook `create` for activity 42 produce the SAME `ingestKey`, so the
- * conditional `PutItem` on `IngestReceipt` accepts whichever arrives first and silently
- * drops the second. That is the entire reason the sweep can run every six hours over a
- * 48-hour window without ingesting everything eight times.
- *
- * It is also why `aspectType` is `"create"` here rather than something honest-looking like
- * `"sweep"`: a distinct aspect would mint a distinct key, and the sweep would duplicate
- * every activity the webhook already delivered.
- */
-export function ingestKeyFor(externalOwnerId: string, externalId: string): string {
-  return createHash("sha256")
-    .update(`strava:${externalOwnerId}:${externalId}:create`)
-    .digest("hex")
-}
+/** Defined beside the webhook in `./accept.ts`; the sweep and the webhook share it on purpose. */
+export { ingestKeyFor }
 
 /**
  * HAS THIS ACTIVITY ANY GPS AT ALL? §2.6's "indoor / treadmill runs with no GPS".
@@ -210,6 +190,22 @@ function hasGps(activity: StravaSummaryActivity): boolean {
   return typeof polyline === "string" && polyline.length > 0
 }
 
+/**
+ * THE HINT, WHEN THE JOB HAD NONE TO GIVE (ticket 0091, D-NEW-b). A webhook job is built from an
+ * event, not a list response, so `hasGpsHint` is absent — unknown, not false. The DETAIL carries
+ * the same two fields `hasGps` reads (`manual`, `map.summary_polyline`), and it has already been
+ * fetched, so deciding here costs no API call and gives the sweep's answer exactly. Unparseable
+ * detail falls through to fetching the streams: a wasted call is recoverable, a dropped trace on
+ * a map that never re-fogs is not.
+ */
+function detailHasGps(detail: Buffer): boolean {
+  try {
+    return hasGps(parseWithExactIds(detail.toString("utf8")) as StravaSummaryActivity)
+  } catch {
+    return true
+  }
+}
+
 /** Strava sends ids as JSON numbers; `parseWithExactIds` has already made them strings. */
 function idToString(value: unknown, what: string): string {
   if (typeof value === "string" && /^\d+$/.test(value)) return value
@@ -220,25 +216,12 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
   id: "strava",
 
   /**
-   * ONE PHASE LEFT AS A STUB, and a stub that throws rather than returns something empty.
-   * `listSince` landed in 0034, `fetchRaw` in 0035 and `normalize` in 0036; `accept` is
-   * the webhook endpoint and it is 0093's.
-   *
-   * It exists at all because 0034's criterion 1 asks for `listSince` on an object that
-   * satisfies `SourceAdapter` WITHOUT A CAST, and a cast is exactly how a half-built
-   * adapter gets mistaken for a whole one. This object type-checks, and calling an unbuilt
-   * phase says which ticket builds it.
-   *
-   * NOW IN `registry.ts`'s `ADAPTERS`, as of 0042, and this paragraph used to say the
-   * opposite. The argument it made — `getAdapter("strava")` should never hand back
-   * something that throws on phase 1 — lost to a larger one: `process-activity` reaches
-   * its adapter ONLY through `getAdapter(job.source)`, so an empty registry made the
-   * whole ingest path a function that throws. The webhook endpoint is still the one
-   * caller that would touch `accept`, and it does not exist until capability 14.
-   * `registry.ts` carries the same account of it.
+   * PHASE 1 — the push-subscription event, on Strava's 2-second deadline. Ticket 0091.
+   * The whole implementation is in `./accept.ts`; the webhook Lambda reaches it ONLY through
+   * `registry.ts`'s `getWebhookAdapter`, so deleting this directory still breaks one file.
    */
-  accept(): Promise<AckResult> {
-    throw new NotYetImplemented("accept", "0093")
+  accept(req: InboundRequest): Promise<AckResult> {
+    return acceptStravaEvent(req)
   },
 
   /**
@@ -265,7 +248,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
     const detail = Buffer.from(await detailRes.arrayBuffer())
 
     return {
-      body: sealRawEnvelope(detail, await fetchStreams(client, job)),
+      body: sealRawEnvelope(detail, await fetchStreams(client, job, detail)),
       contentType: "application/json",
       ext: "json",
       /**
@@ -305,7 +288,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
    * the scheduled sweep (ticket 0095) — call `nextListSinceWatermark` and then
    * `advanceListSinceWatermark` once their enqueues have landed.
    */
-  async *listSince(userId: string, watermark: string, creds: StravaCreds): AsyncIterable<IngestJob> {
+  async *listSince(userId: string, watermark: string, creds: StravaCreds): AsyncIterable<SweepJob> {
     const client = createStravaClient(creds)
     const now = creds.now ?? (() => new Date())
 
@@ -352,7 +335,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
   },
 }
 
-function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date): IngestJob {
+function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date): SweepJob {
   const externalId = idToString(activity.id, "activity id")
   const externalOwnerId = idToString(activity.athlete?.id, "athlete id")
 
@@ -421,6 +404,7 @@ function toIngestJob(userId: string, activity: StravaSummaryActivity, now: Date)
 async function fetchStreams(
   client: ReturnType<typeof createStravaClient>,
   job: IngestJob,
+  detail: Buffer,
 ): Promise<Buffer | null> {
   /**
    * NO GPS, NO CALL. Ticket 0034 decided this from the list response — `manual === true`,
@@ -430,7 +414,7 @@ async function fetchStreams(
    * against 1,000 reads/day, §2.5), and there is nothing to fetch.
    */
   const meta = job.meta as StravaIngestMeta | undefined
-  if (meta?.hasGpsHint !== true) return null
+  if (!(meta?.hasGpsHint ?? detailHasGps(detail))) return null
 
   const res = await client.get(`/activities/${job.externalId}/streams`, {
     keys: STREAM_KEYS,

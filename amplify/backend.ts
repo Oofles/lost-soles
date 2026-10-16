@@ -1,5 +1,5 @@
 import { defineBackend } from "@aws-amplify/backend"
-import { Duration, RemovalPolicy } from "aws-cdk-lib"
+import { CfnOutput, Duration, RemovalPolicy } from "aws-cdk-lib"
 import {
   Alarm,
   ComparisonOperator,
@@ -32,6 +32,7 @@ import {
 } from "aws-cdk-lib/aws-cloudfront"
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
 import { Key } from "aws-cdk-lib/aws-kms"
+import { FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda"
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
 import {
   BlockPublicAccess,
@@ -45,6 +46,7 @@ import { Queue } from "aws-cdk-lib/aws-sqs"
 
 import { auth } from "./auth/resource"
 import { data } from "./data/resource"
+import { ingestWebhook } from "./functions/ingest-webhook/resource"
 import { logWorkoutFunction } from "./functions/log-workout/resource"
 import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
 import { processActivity } from "./functions/process-activity/resource"
@@ -68,6 +70,10 @@ import { storage } from "./storage/resource"
  * rule is `defineFunction`'s own `schedule` (01 §2 resource #14 always said so),
  * not CDK. Updated here rather than left to drift, because "keep it to these N
  * uses" is only a constraint while N is true.
+ *
+ * Ticket 0091 adds the webhook Function URL, at the bottom of this file. It was
+ * already one of the four, so the count stays FOUR — it was counted before it
+ * existed, which is what the list is for.
  */
 /**
  * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
@@ -93,6 +99,9 @@ export const backend = defineBackend({
   // Ticket 0094. The scheduled token sweep. Its schedule is Amplify-native
   // (`resource.ts`); its grants on T7 are below the worker's environment.
   tokenRefresh,
+  // Ticket 0091. The public webhook. Its Function URL, two grants and output are at the
+  // bottom of this file — the third of the four escape-hatch uses.
+  ingestWebhook,
 })
 
 /*
@@ -1901,3 +1910,62 @@ backend.setActivityKindFunction.addEnvironment("SKILL_STATE_TABLE", skillStateTa
 backend.setActivityKindFunction.addEnvironment("PROFILE_TABLE", profileTable.tableName)
 backend.setActivityKindFunction.addEnvironment("LANDMARK_TABLE", landmarkTable.tableName)
 backend.setActivityKindFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.resources.bucket.bucketName)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE WEBHOOK  (ticket 0091, 01-architecture.md §2, 08-security-privacy.md §4)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The only unauthenticated, internet-facing surface in the system, so what is MISSING here is
+ * the point. A Function URL and not API Gateway (its cost and its hop buy nothing, §4.4); a
+ * dedicated Lambda and not a Next.js route (the SSR cold start risks the 2-second deadline and a
+ * UI deploy would redeploy it, §4.5); no VPC (D-081).
+ *
+ * TWO GRANTS, BOTH NARROW, BOTH EXPLICIT ACTION LISTS (§4.5, criterion 7):
+ *   - `dynamodb:PutItem` on the receipt table — the conditional accept gate, and nothing else.
+ *     Not `grantWriteData`, which adds `UpdateItem`, `DeleteItem` and `BatchWriteItem`.
+ *   - `sqs:SendMessage` on the ingest queue. Not `grantSendMessages`, which adds
+ *     `GetQueueAttributes` and `GetQueueUrl` this function never calls.
+ * And NOTHING on `LostSolesSourceAccount`: the public endpoint can never read a token, by
+ * policy, not by discipline. `ingest-webhook-stack.test.ts` asserts all three.
+ *
+ * THE CALLBACK IS THE RAW FUNCTION URL plus `/api/webhooks/<source>` (ticket 0091 Q2, option A).
+ * No custom domain: `soles.devaultsecurity.com` is Amplify Hosting's, and every way of putting
+ * this path on it either routes through the SSR compute (forbidden above) or puts our own
+ * CloudFront in front of the whole app. The URL is stable for the life of this function's
+ * logical id; if it ever changes, ticket 0092's script re-registers the subscription.
+ */
+const ingestWebhookLambda = backend.ingestWebhook.resources.lambda
+
+/** ESCAPE HATCH (3 of 4). `defineFunction` has no `url` property. */
+const ingestWebhookUrl = ingestWebhookLambda.addFunctionUrl({
+  authType: FunctionUrlAuthType.NONE,
+})
+
+ingestWebhookLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "AcceptGatePutReceipt",
+    actions: ["dynamodb:PutItem"],
+    resources: [ingestReceiptTable.tableArn],
+  }),
+)
+ingestWebhookLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "SendToIngestQueue",
+    actions: ["sqs:SendMessage"],
+    resources: [activityIngestQueue.queueArn],
+  }),
+)
+backend.ingestWebhook.addEnvironment("INGEST_QUEUE_URL", activityIngestQueue.queueUrl)
+
+/**
+ * SURFACED TWICE, for two readers. `amplify_outputs.json` (`custom.ingestWebhookUrl`) for
+ * anything in the app; a plain CloudFormation output on the function's stack for ticket 0092's
+ * subscription script and the post-deploy smoke test, which read it with `describe-stacks`.
+ * A Function URL is not a secret: Strava has to be told it, and it grants nothing.
+ */
+backend.addOutput({ custom: { ingestWebhookUrl: ingestWebhookUrl.url } })
+new CfnOutput(backend.ingestWebhook.stack, "IngestWebhookUrl", {
+  value: ingestWebhookUrl.url,
+  description: "Function URL of the public ingest webhook (ticket 0091). Callback = this + api/webhooks/<source>.",
+})

@@ -81,6 +81,29 @@ export function registeredSources(): SourceId[] {
 }
 
 /**
+ * THE SOURCES THE PUBLIC WEBHOOK MAY ROUTE TO. Ticket 0091.
+ *
+ * The webhook Lambda is source-agnostic in code (D-194's rule for routes, applied to a function):
+ * it reads the source from its own path, `/api/webhooks/<source>`, so the vendor's name lives in
+ * a URL and in this file, never in `amplify/`. That makes the path ATTACKER-CHOSEN, and the
+ * allowlist below is what keeps it honest.
+ *
+ * `manual` is deliberately absent, and its absence is a security property, not tidiness: the
+ * manual adapter's `accept` trusts an `x-authenticated-sub` header because its only caller is the
+ * `logWorkout` resolver, which sets it from the AppSync identity. Reachable from the internet,
+ * that adapter would accept any sub a stranger typed. A source belongs here only if its events
+ * arrive from the source itself, unauthenticated, and it can tell a forgery from a pointer.
+ */
+export const WEBHOOK_ADAPTERS: Readonly<Partial<Record<SourceId, SourceAdapter>>> = {
+  strava: stravaAdapter as SourceAdapter,
+}
+
+/** `undefined`, not a throw: an unknown path segment on a public endpoint is a 404, not an error. */
+export function getWebhookAdapter(id: string): SourceAdapter | undefined {
+  return Object.hasOwn(WEBHOOK_ADAPTERS, id) ? WEBHOOK_ADAPTERS[id as SourceId] : undefined
+}
+
+/**
  * ─── OAUTH CONNECTORS ────────────────────────────────────────────────────────
  *
  * Ticket 0032. A SECOND lookup in the same file, and the reason is worth stating

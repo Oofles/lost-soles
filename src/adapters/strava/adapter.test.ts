@@ -81,7 +81,9 @@ describe("criterion 1 — it satisfies SourceAdapter without a cast", () => {
     expect(() => stravaAdapter.normalize(Buffer.from(""), {} as never, {} as never)).not.toThrow(
       /0036/,
     )
-    expect(() => stravaAdapter.accept({} as never)).toThrow(/0093/)
+    // `accept` was the last stub, and ticket 0091 built it (`accept.test.ts`). Calling it
+    // now answers rather than throwing a not-built error naming a ticket.
+    expect(String(stravaAdapter.accept)).not.toMatch(/NotYetImplemented/)
   })
 })
 
@@ -521,6 +523,66 @@ describe("the streams request", () => {
       "/api/v3/activities/18736594040",
       "/api/v3/activities/18736594040/streams",
     ])
+  })
+})
+
+/**
+ * Ticket 0091, D-NEW-b. A WEBHOOK job has no list response behind it, so `hasGpsHint` is absent
+ * — unknown, not false. Reading it as false would archive every webhook-delivered run without its
+ * trace, permanently. The detail decides instead, with the same rule the sweep applies.
+ */
+describe("a job with no GPS hint (a webhook job)", () => {
+  const webhookJob = (): IngestJob => ({
+    ingestKey: "k",
+    userId: USER,
+    source: "strava",
+    externalId: "18736594040",
+    command: "ingest",
+    meta: { aspectType: "create" },
+    enqueuedAt: NOW.toISOString(),
+  })
+  const detailWith = (over: Record<string, unknown>) => ({
+    status: 200,
+    body: JSON.stringify({ ...JSON.parse(DETAIL_BODY), ...over }),
+  })
+
+  it("fetches the streams when the detail has a polyline", async () => {
+    const { creds, urls } = fetchHarness([
+      detailWith({ map: { summary_polyline: "abc" } }),
+      { status: 200, body: syntheticStreams(10) },
+    ])
+    await stravaAdapter.fetchRaw(webhookJob(), creds)
+    expect(urls.map((u) => u.pathname)).toEqual([
+      "/api/v3/activities/18736594040",
+      "/api/v3/activities/18736594040/streams",
+    ])
+  })
+
+  it("makes no stream call for a manual activity, exactly as the sweep would", async () => {
+    const { creds, urls } = fetchHarness([detailWith({ manual: true, map: { summary_polyline: "abc" } })])
+    await stravaAdapter.fetchRaw(webhookJob(), creds)
+    expect(urls).toHaveLength(1)
+  })
+
+  it("makes no stream call when the detail has no polyline", async () => {
+    const { creds, urls } = fetchHarness([detailWith({ map: { summary_polyline: "" } })])
+    await stravaAdapter.fetchRaw(webhookJob(), creds)
+    expect(urls).toHaveLength(1)
+  })
+
+  it("errs towards fetching when the detail cannot be read — a wasted call beats a lost trace", async () => {
+    const { creds, urls } = fetchHarness([
+      { status: 200, body: "not json" },
+      { status: 404, body: "{}" },
+    ])
+    await stravaAdapter.fetchRaw(webhookJob(), creds)
+    expect(urls).toHaveLength(2)
+  })
+
+  it("still trusts an explicit hint over the detail — the sweep's behaviour is unchanged", async () => {
+    const { creds, urls } = fetchHarness([detailWith({ map: { summary_polyline: "abc" } })])
+    await stravaAdapter.fetchRaw(jobFor(false), creds)
+    expect(urls).toHaveLength(1)
   })
 })
 

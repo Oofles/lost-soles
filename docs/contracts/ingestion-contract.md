@@ -194,10 +194,15 @@ export interface IngestJob {
   source: SourceId
   externalId: string       // ALWAYS a string — int64 ids corrupt past 2^53 in JSON.parse
   command: IngestCommandKind
-  startedAt: string        // when the ACTIVITY happened, ISO 8601 — not when the job was made
+  startedAt?: string       // when the ACTIVITY happened, ISO 8601 — not when the job was made.
+                           // ABSENT on a push job (D-NEW-a); always present on a SweepJob
   meta: unknown            // adapter-private hints: an aspect type, an S3 key, a page cursor
   enqueuedAt: string
 }
+
+/** What listSince yields. The reconciliation path reads a LIST, so it always knows the start;
+ *  this is the type the watermark reads, and the only place startedAt is promised. */
+export type SweepJob = IngestJob & { startedAt: string }
 
 > **Amended 2026-09-07 by D-208** (ticket `0043`). `startedAt` was added to `IngestJob`, which
 > ticket `0026` had settled. It is not a loosening of the rule above it: every source has "when
@@ -212,6 +217,16 @@ export interface IngestJob {
 > contract types as `unknown` precisely so nothing generic reaches into it. The field moved; the
 > rule did not change. `aspectType`, `hasGpsHint` and `sportType` remain adapter-private and the
 > exact-key-set guard in `src/adapters/adapter-interface.types.test.ts` still refuses them.
+>
+> **Amended 2026-10-16 by D-NEW-a** (ticket `0091`). `startedAt` is now **optional on `IngestJob`
+> and required on `SweepJob`**, which is what `listSince` returns. A push job cannot know it: a
+> Strava webhook event is a pointer (owner, object, aspect), the endpoint may make no API call
+> (`08-security-privacy.md` §4.5), and `event_time` is when the *event* happened — days after the
+> run for a late upload. Any value the webhook wrote would be invented. The only readers of
+> `startedAt` are the sweep's watermark (`lib/sources/sync.ts`) and the backfill tally
+> (`lib/sources/backfill.ts`), and both iterate `listSince`, so the guarantee D-208 exists for is
+> kept as a type rather than weakened. The exact key set is unchanged; the guard additionally
+> pins `IngestJob["startedAt"]` as `string | undefined` and `SweepJob["startedAt"]` as `string`.
 
 /** What accept() returns: the immediate response, plus the intents to enqueue.
  *  `commands`, not `jobs` (D-187) — a delete webhook and a deauthorisation both arrive here
@@ -255,7 +270,7 @@ export interface SourceAdapter<TCreds = unknown> {
   /** MANDATORY, not optional. Push adapters may return empty and rely on events, but every
    *  adapter implements this: it is the reconciliation sweep that covers SILENTLY DROPPED
    *  webhooks. Strava retries 3x then drops with no DLQ and no replay. */
-  listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<IngestJob>
+  listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<SweepJob>
 
   refreshCredentials?(creds: TCreds): Promise<TCreds>
 }

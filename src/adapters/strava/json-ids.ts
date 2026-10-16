@@ -85,11 +85,14 @@ export class IdPrecisionError extends Error {
  *
  * Returns `unknown`: this module's job is precision, not validation. What the shape of a
  * Strava activity is belongs to whoever reads one.
+ *
+ * `idKeys` defaults to the REST API's id fields. A webhook event names its ids differently
+ * (`owner_id`, `object_id`, `subscription_id` — ticket 0091), so `accept.ts` passes its own.
  */
-export function parseWithExactIds(text: string): unknown {
+export function parseWithExactIds(text: string, idKeys: ReadonlySet<string> = ID_KEYS): unknown {
   if (SOURCE_TEXT_AVAILABLE) {
     return JSON.parse(text, function (key, value, context?: { source?: string }) {
-      if (typeof value === "number" && ID_KEYS.has(key) && typeof context?.source === "string") {
+      if (typeof value === "number" && idKeys.has(key) && typeof context?.source === "string") {
         // The characters the wire carried, before anything rounded them. Note this
         // preserves the digits exactly even when they would not round-trip a double.
         return context.source
@@ -99,7 +102,7 @@ export function parseWithExactIds(text: string): unknown {
   }
 
   return JSON.parse(text, function (key, value) {
-    if (typeof value === "number" && ID_KEYS.has(key)) {
+    if (typeof value === "number" && idKeys.has(key)) {
       if (!Number.isSafeInteger(value)) throw new IdPrecisionError(key, value)
       // Exact below 2^53: `String` of a safe integer is its decimal digits.
       return String(value)

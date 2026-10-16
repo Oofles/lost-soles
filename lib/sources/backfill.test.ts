@@ -1,7 +1,7 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it } from "vitest"
 
-import type { IngestJob, SourceAdapter } from "@/src/adapters/types"
+import type { SourceAdapter, SweepJob } from "@/src/adapters/types"
 
 import {
   BACKFILL_ORIGIN,
@@ -21,7 +21,7 @@ const USER = "u-1"
 const SOURCE = "gpslogger"
 const NOW = new Date("2026-10-16T14:00:00.000Z")
 
-const job = (n: number, startedAt: string): IngestJob => ({
+const job = (n: number, startedAt: string): SweepJob => ({
   ingestKey: `k-${n}`,
   userId: USER,
   source: SOURCE,
@@ -41,7 +41,7 @@ const HISTORY = [
 ]
 
 interface Options {
-  history?: IngestJob[]
+  history?: SweepJob[]
   /** Activities the pace allows per window. */
   perWindow?: number
   /** Receipt rows already present, as a delivered (`attempts: 1`) row. */

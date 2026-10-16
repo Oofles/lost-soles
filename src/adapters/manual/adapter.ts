@@ -7,7 +7,7 @@ import { ACTIVITY_KINDS } from "@/src/rules/schema"
 import { computeDedupeKey } from "@/src/domain/dedupe-key"
 
 import { AUTHENTICATED_SUB_HEADER } from "../principal"
-import type { AckResult, InboundRequest, IngestJob, SourceAdapter } from "../types"
+import type { AckResult, InboundRequest, IngestJob, SourceAdapter, SweepJob } from "../types"
 
 /**
  * THE MANUAL ADAPTER. Ticket 0069, D-060/D-061/D-100.
@@ -201,7 +201,7 @@ export const manualAdapter: SourceAdapter<null> = {
    * PHASE 4. Mandatory (D-140) and empty: there is no remote history to reconcile. Every
    * manual log arrives through `accept`, synchronously, with the caller waiting on it.
    */
-  async *listSince(): AsyncIterable<IngestJob> {
+  async *listSince(): AsyncIterable<SweepJob> {
     return
   },
 }

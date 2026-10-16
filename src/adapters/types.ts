@@ -82,12 +82,28 @@ export interface IngestJob {
    * carries `startedAt` in the domain contract already, and a watermark is meaningless
    * without one. This is the field the rule was always written about, moved to where the
    * rule can see it.
+   *
+   * OPTIONAL SINCE TICKET 0091 (D-NEW-a, amending D-208), because a PUSH job cannot know it.
+   * A webhook event is a pointer — an owner id, an object id and an aspect — and the endpoint
+   * that turns it into a job may make no API call (`08-security-privacy.md` §4.5). Any value
+   * it put here would be invented, and `event_time` is when the EVENT happened, which for a
+   * late upload is days after the run. The only readers are the sweep's watermark and the
+   * backfill tally (`lib/sources/sync.ts`, `lib/sources/backfill.ts`), and both read jobs
+   * that came from `listSince` — whose return type is `SweepJob` below, where it is
+   * REQUIRED. So the guarantee the watermark needs is a type, not a convention.
    */
-  startedAt: string
+  startedAt?: string
   /** Adapter-private hints: an event's aspect type, an uploaded file's S3 key, a page cursor. */
   meta: unknown
   enqueuedAt: string
 }
+
+/**
+ * A job produced by `listSince`: the reconciliation path, which reads a LIST response and
+ * therefore always knows when each activity happened. `startedAt` is required here, and
+ * this is the type both watermark-advancing callers iterate over (D-NEW-a).
+ */
+export type SweepJob = IngestJob & { startedAt: string }
 
 /**
  * Intents, never side effects. Exactly four variants — a fifth means the pipeline grew a
@@ -180,7 +196,7 @@ export interface SourceAdapter<TCreds = unknown> {
    * SILENTLY DROPPED webhooks. Strava retries 3x, then drops with no DLQ and no replay.
    * It is also what the manual Sync path in capability `06` runs on.
    */
-  listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<IngestJob>
+  listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<SweepJob>
 
   /** The ONLY optional member. Called by token-refresh for sources with rotating credentials. */
   refreshCredentials?(creds: TCreds): Promise<TCreds>
