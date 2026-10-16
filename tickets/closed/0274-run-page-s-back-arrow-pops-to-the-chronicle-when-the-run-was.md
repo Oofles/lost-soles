@@ -4,7 +4,7 @@ slug: run-page-s-back-arrow-pops-to-the-chronicle-when-the-run-was
 title: Run page's back arrow pops to the Chronicle when the run was opened from it
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T18:54:00Z
 started: 2026-10-16T00:55:18Z
+closed: 2026-10-16T01:20:58Z
 ---
 
 ## Description
