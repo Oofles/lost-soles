@@ -296,7 +296,17 @@ describe("the inline token refresh (§4 step 7)", () => {
    * deploy that caused it. Nothing else in the build would have said so.
    */
   it("can read the two OAuth client parameters, and only those two", () => {
-    const statements = Object.values(workerStack.findResources("AWS::IAM::Policy")).flatMap(
+    /**
+     * SCOPED TO THE WORKER'S ROLE. Since ticket 0094 the function stack holds a second
+     * role with the same two-parameter grant — `token-refresh`'s — so counting every
+     * policy in the stack would find two statements and assert nothing about this one.
+     */
+    const workerRole = (workerFunction().Properties.Role as { "Fn::GetAtt": [string, string] })[
+      "Fn::GetAtt"
+    ][0]
+    const statements = Object.values(workerStack.findResources("AWS::IAM::Policy"))
+      .filter((policy) => JSON.stringify(policy.Properties?.Roles).includes(workerRole))
+      .flatMap(
       (policy) =>
         ((policy.Properties as { PolicyDocument?: { Statement?: unknown[] } }).PolicyDocument
           ?.Statement ?? []) as Array<{ Action?: string | string[]; Resource?: unknown }>,

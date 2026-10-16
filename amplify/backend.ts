@@ -49,6 +49,7 @@ import { logWorkoutFunction } from "./functions/log-workout/resource"
 import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
 import { processActivity } from "./functions/process-activity/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
+import { tokenRefresh } from "./functions/token-refresh/resource"
 import { storage } from "./storage/resource"
 
 /**
@@ -56,16 +57,17 @@ import { storage } from "./storage/resource"
  * Each is near-empty; what matters is that the stack deploys and that every later
  * capability extends these rather than introduces them.
  *
- * The CDK escape hatch (01-architecture.md §2) is used in exactly five places
+ * The CDK escape hatch (01-architecture.md §2) is used in exactly four places
  * later on — machine-only DynamoDB tables, the SQS queue and DLQ, the webhook
- * Function URL, the scheduled token refresh, and the basemap tiles bucket and
- * its CloudFront distribution. The first of those arrives at the bottom of this
- * file in ticket 0019.
+ * Function URL, and the basemap tiles bucket and its CloudFront distribution.
+ * The first of those arrives at the bottom of this file in ticket 0019.
  *
- * The fifth was FOUR until ticket 0052. D-226 moved the pmtiles basemap off
- * Cloudflare R2 and into this account, which is what added it; the count is
- * updated here rather than left to drift, because "keep it to these N uses" is
- * only a constraint while N is true.
+ * The count was FOUR, then FIVE after ticket 0052 — D-226 moved the pmtiles
+ * basemap off Cloudflare R2 and into this account — and is FOUR again after
+ * ticket 0094: the scheduled token refresh was listed here, but its EventBridge
+ * rule is `defineFunction`'s own `schedule` (01 §2 resource #14 always said so),
+ * not CDK. Updated here rather than left to drift, because "keep it to these N
+ * uses" is only a constraint while N is true.
  */
 /**
  * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
@@ -88,6 +90,9 @@ export const backend = defineBackend({
   logWorkoutFunction,
   // Ticket 0244. The `setActivityKind` resolver; its grants are below `logWorkout`'s.
   setActivityKindFunction,
+  // Ticket 0094. The scheduled token sweep. Its schedule is Amplify-native
+  // (`resource.ts`); its grants on T7 are below the worker's environment.
+  tokenRefresh,
 })
 
 /*
@@ -1342,6 +1347,51 @@ backend.processActivity.addEnvironment(
 backend.processActivity.addEnvironment(
   "USER_DATA_BUCKET",
   backend.storage.resources.bucket.bucketName,
+)
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `token-refresh` — THE SCHEDULED SWEEP  (ticket 0094, 01 §2 resource #14)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The schedule itself is in `functions/token-refresh/resource.ts`. What is here is the
+ * reach, and it is the worker's T7 reach plus exactly one action.
+ *
+ * `Scan` — THE ONE ADDITION, and the only principal that holds it on T7. The sweep has to
+ * find every connection near expiry without knowing its user first; `listRefreshCandidates`
+ * projects keys and `expiresAt` only, so the scan's own results never carry a token.
+ * `GetItem`/`UpdateItem` are `accessTokenFor`'s: the credential load, the lease, the
+ * conditional rotation write-back and `markNeedsReauth`. No `PutItem` (creating a
+ * connection is the callback's), no `DeleteItem`, no `Query` on `byExternalOwner`.
+ *
+ * The CMK separately, as for the worker: `Table.grant()` does not cover it, and the
+ * rotation write-back needs the encrypt half.
+ *
+ * The two OAuth client parameters, named — a refresh is an exchange that posts them.
+ * Not a path wildcard, for the same reason as the worker's grant: the prefix also holds
+ * `GITHUB_TICKETS_PAT`.
+ *
+ * NO table name in the environment: `SOURCE_ACCOUNT_TABLE` is a literal both sides state.
+ */
+const tokenRefreshLambda = backend.tokenRefresh.resources.lambda
+const tokenRefreshStack = backend.tokenRefresh.stack
+
+sourceAccountTable.grant(
+  tokenRefreshLambda,
+  "dynamodb:Scan",
+  "dynamodb:GetItem",
+  "dynamodb:UpdateItem",
+)
+sourceAccountKey.grantEncryptDecrypt(tokenRefreshLambda)
+tokenRefreshLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ReadSourceOAuthClientCredentials",
+    actions: ["ssm:GetParameter"],
+    resources: [
+      `arn:aws:ssm:${tokenRefreshStack.region}:${tokenRefreshStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID`,
+      `arn:aws:ssm:${tokenRefreshStack.region}:${tokenRefreshStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
+    ],
+  }),
 )
 
 /**

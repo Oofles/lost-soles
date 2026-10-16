@@ -1362,8 +1362,10 @@ SK: SOURCE#strava                        (SOURCE#health-connect, SOURCE#polar, .
   scan. (`strava-webhook` itself gets **no** grant on this table — it only needs to enqueue,
   and the lookup happens in `process-activity`. Keep the public endpoint's IAM surface as
   close to empty as possible.)
-- `token-refresh` runs `every 4h`, queries for `expiresAt < now + 6h AND status = "active"`,
-  refreshes, and writes back. Strava access tokens live 6 hours, so a 4-hour cadence never
+- `token-refresh` runs `every 4h`, scans for `expiresAt < now + 4h + 300s AND status = "ACTIVE"`
+  (the next run plus the §2.2 skew — ticket 0094; `now + 6h` would refresh every token on
+  every run), refreshes through the same lease and conditional rotation write-back as the
+  inline path, and writes back. Strava access tokens live 6 hours, so a 4-hour cadence never
   races the expiry.
 
 ### What never reaches the client

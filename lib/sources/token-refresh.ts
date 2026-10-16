@@ -96,6 +96,17 @@ export interface AccessTokenRequest {
    * already replaced it, the answer is no and there is nothing to do.
    */
   knownStale?: string
+  /**
+   * HOW CLOSE TO EXPIRY COUNTS AS DUE, in seconds. Defaults to `REFRESH_SKEW_SECONDS`.
+   *
+   * Ticket 0094. The caller about to USE a token wants the last-moment check, five
+   * minutes. The scheduled sweep wants a much wider one — "anything within the next run
+   * plus the skew" — because its whole job is to make sure no caller ever reaches the
+   * last-moment check. Same lease, same rotation, same write-back; only the question of
+   * "is this due yet" differs, so it is a parameter rather than a second refresh path.
+   * Ignored when `knownStale` is given: a 401 settles the question regardless of clock.
+   */
+  refreshWithinSeconds?: number
 }
 
 /**
@@ -121,7 +132,15 @@ export async function accessTokenFor(
   })
   if (!load.ok) throw refusal(request.sourceId, load.reason, load.detail)
 
-  if (isUsable(load.credentials.accessToken, load.credentials.expiresAt, now(), request.knownStale)) {
+  if (
+    isUsable(
+      load.credentials.accessToken,
+      load.credentials.expiresAt,
+      now(),
+      request.knownStale,
+      request.refreshWithinSeconds,
+    )
+  ) {
     return load.credentials.accessToken
   }
 
@@ -146,9 +165,10 @@ function isUsable(
   expiresAt: number,
   now: Date,
   knownStale: string | undefined,
+  withinSeconds: number = REFRESH_SKEW_SECONDS,
 ): boolean {
   if (knownStale !== undefined) return storedToken !== knownStale
-  return Math.floor(now.getTime() / 1000) < expiresAt - REFRESH_SKEW_SECONDS
+  return Math.floor(now.getTime() / 1000) < expiresAt - withinSeconds
 }
 
 function refusal(
@@ -220,6 +240,7 @@ async function refresh(
       current.credentials.expiresAt,
       deps.now(),
       request.knownStale,
+      request.refreshWithinSeconds,
     )
     if (alreadyFresh) {
       await release(userId, sourceId)
@@ -339,7 +360,13 @@ async function reread(
   if (!load.ok) throw refusal(request.sourceId, load.reason, load.detail)
 
   if (opts.ignoreExpiry) return load.credentials.accessToken
-  return isUsable(load.credentials.accessToken, load.credentials.expiresAt, now, request.knownStale)
+  return isUsable(
+    load.credentials.accessToken,
+    load.credentials.expiresAt,
+    now,
+    request.knownStale,
+    request.refreshWithinSeconds,
+  )
     ? load.credentials.accessToken
     : null
 }

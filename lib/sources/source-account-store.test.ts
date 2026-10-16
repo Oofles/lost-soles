@@ -8,6 +8,7 @@ import {
   advanceListSinceWatermark,
   EXTERNAL_OWNER_INDEX,
   getSourceAccountSummary,
+  listRefreshCandidates,
   loadCredentials,
   markNeedsReauth,
   readListSinceWatermark,
@@ -589,5 +590,47 @@ describe("the listSince watermark", () => {
       now: NOW,
     })
     expect(sent[0].input.ConditionExpression).toBe("attribute_exists(pk)")
+  })
+})
+
+/** Ticket 0094 — the scheduled sweep's only read of its own. */
+describe("listing the connections due a refresh", () => {
+  it("scans for ACTIVE rows expiring before the cutoff, projecting no token", async () => {
+    const { sent } = stubClient([
+      { Items: [{ pk: `U#${USER}`, sk: "SRC#acme", expiresAt: 1794700000 }] },
+    ])
+
+    const out = await listRefreshCandidates({ expiringBefore: 1794714700 })
+
+    expect(out).toEqual([{ userId: USER, sourceId: "acme", expiresAt: 1794700000 }])
+    const input = sent[0].input as SentCommand["input"] & { FilterExpression: string }
+    expect(sent[0].constructor.name).toBe("ScanCommand")
+    expect(input.TableName).toBe(SOURCE_ACCOUNT_TABLE)
+    expect(input.ProjectionExpression).toBe("pk, sk, expiresAt")
+    expect(input.ProjectionExpression).not.toMatch(/token/i)
+    expect(input).not.toHaveProperty("IndexName")
+    expect(input.FilterExpression).toBe("#s = :active AND expiresAt < :cutoff")
+    expect(input.ExpressionAttributeNames).toEqual({ "#s": "status" })
+    expect(input.ExpressionAttributeValues).toEqual({ ":active": "ACTIVE", ":cutoff": 1794714700 })
+  })
+
+  it("follows LastEvaluatedKey, because a filter does not shrink a scan page", async () => {
+    const page2Key = { pk: `U#${USER}`, sk: "SRC#acme" }
+    const { sent } = stubClient([
+      { Items: [], LastEvaluatedKey: page2Key },
+      { Items: [{ pk: "U#other", sk: "SRC#acme", expiresAt: 1 }] },
+    ])
+
+    const out = await listRefreshCandidates({ expiringBefore: 2 })
+
+    expect(sent).toHaveLength(2)
+    const second = sent[1].input as SentCommand["input"] & { ExclusiveStartKey: unknown }
+    expect(second.ExclusiveStartKey).toEqual(page2Key)
+    expect(out.map((c) => c.userId)).toEqual(["other"])
+  })
+
+  it("skips a row whose keys are not the shapes this module writes", async () => {
+    stubClient([{ Items: [{ pk: "garbage", sk: "SRC#acme", expiresAt: 1 }] }])
+    expect(await listRefreshCandidates({ expiringBefore: 2 })).toEqual([])
   })
 })

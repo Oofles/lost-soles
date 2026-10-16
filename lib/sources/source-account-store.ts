@@ -4,6 +4,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  ScanCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb"
 
@@ -579,6 +580,77 @@ export async function markNeedsReauth(input: {
     if (isConditionalCheckFailure(err)) return
     throw err
   }
+}
+
+/**
+ * One connection the scheduled sweep should look at. KEYS AND A CLOCK, NOTHING ELSE.
+ *
+ * Ticket 0094. The sweep never needs a credential to decide WHETHER to refresh, only
+ * which rows to hand to `accessTokenFor` — which then loads the tokens itself, under its
+ * own lease. Keeping the tokens out of this shape means the sweep's own code never holds
+ * one, so it cannot log one.
+ */
+export interface RefreshCandidate {
+  userId: string
+  sourceId: string
+  /** Epoch seconds. */
+  expiresAt: number
+}
+
+/**
+ * Every `ACTIVE` connection whose access token expires before `expiringBefore` (epoch
+ * seconds). Ticket 0094, `02-data-model.md` T7: "`token-refresh` sweeps anything within
+ * 4 h".
+ *
+ * A SCAN, deliberately, and not an index. T7 holds at most 24 rows over five years (T7's
+ * own count); a GSI on `expiresAt` would be a projection maintained on every rotation to
+ * save reading two dozen items every four hours. The projection below is what matters:
+ * the token attributes are never requested, so they never leave DynamoDB on this path.
+ *
+ * `NEEDS_REAUTH` AND `DISCONNECTED` ARE FILTERED OUT HERE, which is the half of "do not
+ * retry a revoked grant on a loop" that lives in the store: a connection the sweep marked
+ * dead is not even offered to the next run. (`loadCredentials` refuses it as well; this
+ * just means the refusal is never reached.)
+ *
+ * Paginated, because a filter does not shrink a scan page — a 1 MB page is read before
+ * the filter applies. At 24 rows that never happens; the loop costs nothing and keeps
+ * the function correct if it ever did.
+ */
+export async function listRefreshCandidates(input: {
+  expiringBefore: number
+}): Promise<RefreshCandidate[]> {
+  const out: RefreshCandidate[] = []
+  let startKey: Record<string, unknown> | undefined
+
+  do {
+    const res = await doc().send(
+      new ScanCommand({
+        TableName: SOURCE_ACCOUNT_TABLE,
+        ProjectionExpression: "pk, sk, expiresAt",
+        FilterExpression: "#s = :active AND expiresAt < :cutoff",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: {
+          ":active": "ACTIVE" satisfies SourceAccountStatus,
+          ":cutoff": input.expiringBefore,
+        },
+        ...(startKey !== undefined ? { ExclusiveStartKey: startKey } : {}),
+      }),
+    )
+
+    for (const item of res.Items ?? []) {
+      const { pk, sk, expiresAt } = item
+      if (typeof pk !== "string" || !pk.startsWith("U#")) continue
+      if (typeof sk !== "string" || !sk.startsWith("SRC#")) continue
+      out.push({
+        userId: pk.slice(2),
+        sourceId: sk.slice(4),
+        expiresAt: typeof expiresAt === "number" ? expiresAt : 0,
+      })
+    }
+    startKey = res.LastEvaluatedKey
+  } while (startKey !== undefined)
+
+  return out
 }
 
 /**
