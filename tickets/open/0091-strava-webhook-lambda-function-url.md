@@ -167,3 +167,28 @@ with an empty body. The Strava `accept()` (formerly a stub that threw) is now bu
 **Gate run in the worktree.** All amplify.yml guards (including `check-boundaries` and
 `check-adapter-deletion`), typecheck, lint, the full vitest suite (219 files, 3725 passed) and
 `npm run build` are green.
+
+**Follow-up: the cold path (after the job 408 smoke test).**
+Measured live before this change:
+- Init was 290–310 ms.
+- An unknown-owner cold start then spent ~180 ms in the handler with no AWS call at all.
+- A known-owner cold start (receipt duplicate) spent 976–1,106 ms in the handler, about 1.56 s client-side.
+- Every cold `create` would also pay for a first SQS call, which no test event exercised.
+
+The cost is per-client first-request CPU: client construction, endpoint-ruleset evaluation, the
+middleware stack, signing and the TLS handshake. At 128 MB the invocation gets ~7 % of a vCPU.
+Init is evidently not throttled the same way: the 700 KB bundle imports in ~800 ms locally under a
+7 % cgroup quota, yet Lambda reports Init ≈ 300 ms for it.
+
+Fix, in `amplify/functions/ingest-webhook/handler.ts`, with no new grants, no configuration change
+and no provisioned concurrency:
+- Both clients are constructed at module scope, inside Lambda only.
+- A top-level-await `warmUp` sends one request through each client during init, and neither can have an effect:
+  - `PutItem` on `warmup#never-exists`, conditional on `attribute_exists(ingestKey)`. It never writes, so the key never exists.
+  - `SendMessage` with an empty body. SQS refuses it, so nothing is enqueued.
+- The warm-up is bounded at 1 s and cannot throw. It logs `webhook-warmup` with the two error names it expects, and logs `WROTE-UNEXPECTEDLY` / `SENT-UNEXPECTEDLY` if either request ever succeeds.
+- Tests pin both request shapes, the bound, and that nothing runs outside Lambda.
+
+Local reproduction, with init unthrottled and the invoke under `CPUQuota=7%`: first DynamoDB call
+plus first SQS call fell from ~570 ms to ~87 ms, of which ~80 ms is home→us-east-1 round trips. The
+deployed numbers are the orchestrator's to measure.

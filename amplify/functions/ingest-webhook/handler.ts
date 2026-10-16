@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb"
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs"
 import type { LambdaFunctionURLEvent } from "aws-lambda"
 
@@ -7,7 +7,7 @@ import { AUTHENTICATED_SUB_HEADER } from "@/src/adapters/principal"
 import { getWebhookAdapter } from "@/src/adapters/registry"
 import type { InboundRequest, IngestCommand } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
-import { acceptIngest, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
+import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
 
 /**
  * THE WEBHOOK, AS A TRANSPORT. Ticket 0091.
@@ -43,24 +43,108 @@ export interface WebhookDeps {
   send(messageBody: string): Promise<void>
 }
 
-let liveDeps: WebhookDeps | undefined
+/**
+ * ─── THE COLD START, AND WHY THE CLIENTS ARE BUILT AT IMPORT (ticket 0091 follow-up) ──
+ *
+ * At ~1 event/day every real event is a cold start, so the cold path IS the p99. Measured on the
+ * deployed function before this change (Amplify job 408):
+ *
+ *   Init ≈ 290–310 ms, then Duration ≈ 180 ms with no AWS call at all (client construction), and
+ *   ≈ 1,000–1,100 ms when the first DynamoDB call ran — 1.56–1.59 s client-side, against a 2 s
+ *   deadline. The first SQS call was never measured live (every test event was a duplicate), and
+ *   would have added several hundred more on a real `create`.
+ *
+ * The cause is CPU, not network. At 128 MB the invocation gets ~7 % of a vCPU, and an SDK v3
+ * client's first request — endpoint-ruleset evaluation, middleware stack, signer, the TLS
+ * handshake — is ~20 ms of CPU locally, i.e. hundreds of ms when throttled 14×. INIT IS NOT
+ * THROTTLED THE SAME WAY: the 700 KB bundle imports in ~800 ms locally under a 7 % quota, yet
+ * Lambda reports Init ≈ 300 ms for it. So the work moves into init:
+ *
+ *   1. Both clients are constructed at module scope.
+ *   2. `warmUp` sends one request through each, during init, so the first real request finds a
+ *      resolved endpoint, a built middleware stack and an open keep-alive socket.
+ *
+ * Reproduced locally with the same cgroup trick (init unthrottled, invoke at CPUQuota=7 %): the
+ * invoke went from ~570 ms to ~87 ms, of which ~80 ms is home→us-east-1 round trips.
+ *
+ * ONLY INSIDE LAMBDA (`AWS_LAMBDA_FUNCTION_NAME`): a test that imports this file constructs no
+ * client and makes no call.
+ */
+interface LiveClients {
+  ddb: { send(command: PutCommand): Promise<unknown> }
+  sqs: { send(command: SendMessageCommand): Promise<unknown> }
+}
 
-/** Built on first use, not at import: a test of the routing never constructs an AWS client. */
-function defaultDeps(): WebhookDeps {
-  if (liveDeps) return liveDeps
+function buildLive(): { deps: WebhookDeps; clients: LiveClients } {
   const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
     marshallOptions: { removeUndefinedValues: true },
-  }) as unknown as ReceiptDdb
+  })
   const sqs = new SQSClient({})
   const queueUrl = process.env.INGEST_QUEUE_URL
-  liveDeps = {
-    receipt: { ddb },
-    async send(messageBody) {
-      if (!queueUrl) throw new Error("INGEST_QUEUE_URL is not set")
-      await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: messageBody }))
+  return {
+    clients: { ddb, sqs },
+    deps: {
+      receipt: { ddb: ddb as unknown as ReceiptDdb },
+      async send(messageBody) {
+        if (!queueUrl) throw new Error("INGEST_QUEUE_URL is not set")
+        await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: messageBody }))
+      },
     },
   }
-  return liveDeps
+}
+
+/**
+ * ONE REQUEST THROUGH EACH CLIENT, AND NEITHER CAN HAVE AN EFFECT — using only the two grants the
+ * function already holds (criterion 7 is unchanged):
+ *
+ *   - `PutItem` on a key no one can ever create, CONDITIONAL ON IT ALREADY EXISTING. A key that
+ *     does not exist fails the condition, so this put never writes — and since it never writes,
+ *     the key never comes to exist. Expected result: `ConditionalCheckFailedException`.
+ *   - `SendMessage` with an EMPTY body. SQS requires at least one character, so the request is
+ *     refused server-side and nothing is enqueued. Expected result: `InvalidParameterValue`
+ *     (or `MissingParameter`). Should SQS ever accept it, the log line says so loudly, and the
+ *     worker would reject an empty body into the DLQ, where the alarm fires — noise, never data.
+ *
+ * Bounded: init never waits more than `timeoutMs` for it, and nothing it does can throw. A cold
+ * start that cannot warm up is merely as slow as before.
+ */
+export const WARMUP_KEY = "warmup#never-exists"
+
+export async function warmUp(clients: LiveClients, queueUrl: string | undefined, timeoutMs = 1000): Promise<void> {
+  const started = Date.now()
+  const outcome = (p: Promise<unknown>, unexpected: string) =>
+    p.then(
+      () => unexpected,
+      (e: unknown) => (e as { name?: string })?.name ?? "Error",
+    )
+  const work = Promise.all([
+    outcome(
+      clients.ddb.send(
+        new PutCommand({
+          TableName: INGEST_RECEIPT_TABLE,
+          Item: { ingestKey: WARMUP_KEY },
+          ConditionExpression: "attribute_exists(ingestKey)",
+        }),
+      ),
+      "WROTE-UNEXPECTEDLY",
+    ),
+    queueUrl
+      ? outcome(clients.sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: "" })), "SENT-UNEXPECTEDLY")
+      : Promise.resolve("no-queue-url"),
+  ])
+  const timeout = new Promise<["timeout", "timeout"]>((resolve) =>
+    setTimeout(() => resolve(["timeout", "timeout"]), timeoutMs).unref(),
+  )
+  const [ddb, sqs] = await Promise.race([work, timeout])
+  console.info(JSON.stringify({ msg: "webhook-warmup", ms: Date.now() - started, ddb, sqs }))
+}
+
+const IN_LAMBDA = process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined
+const live = IN_LAMBDA ? buildLive() : undefined
+if (live) await warmUp(live.clients, process.env.INGEST_QUEUE_URL)
+
+function defaultDeps(): WebhookDeps {
+  return (live ?? buildLive()).deps
 }
 
 /** One generic line per request. Never a body, never a header value, never the path itself. */

@@ -10,7 +10,7 @@ import type { SourceId } from "@/src/domain/activity"
 import { computeActivityId } from "@/src/domain/activity-id"
 import { INGEST_RECEIPT_TABLE } from "@/src/pipeline/ingest-receipt"
 
-import { handleWebhook, type WebhookDeps } from "./handler"
+import { handleWebhook, warmUp, WARMUP_KEY, type WebhookDeps } from "./handler"
 
 /**
  * Ticket 0091 — the webhook as a transport, end to end through the REAL adapter (`registry.ts` →
@@ -264,4 +264,59 @@ describe("the bundle (criterion 6)", () => {
     // Nothing from the fog side rides along: those are the modules that pull in h3.
     expect(inputs.filter((i) => /src\/domain\/(fog|fold|discovery|frontier)\b/.test(i))).toEqual([])
   }, 60_000)
+})
+
+/**
+ * The cold-start warm-up (ticket 0091 follow-up). It runs during init, inside Lambda only, and
+ * its whole safety argument is that NEITHER request can have an effect. That argument is pinned
+ * here as request shapes, because a "tidy-up" that dropped the condition or filled the body would
+ * turn a warm-up into a write.
+ */
+describe("warmUp", () => {
+  function clients(behaviour: { ddb?: () => Promise<unknown>; sqs?: () => Promise<unknown> } = {}) {
+    const seen: { ddb: Array<Record<string, unknown>>; sqs: Array<Record<string, unknown>> } = { ddb: [], sqs: [] }
+    const fail = (name: string) => () => Promise.reject(Object.assign(new Error(name), { name }))
+    return {
+      seen,
+      clients: {
+        ddb: { send: (c: { input: unknown }) => (seen.ddb.push(c.input as Record<string, unknown>), (behaviour.ddb ?? fail("ConditionalCheckFailedException"))()) },
+        sqs: { send: (c: { input: unknown }) => (seen.sqs.push(c.input as Record<string, unknown>), (behaviour.sqs ?? fail("InvalidParameterValue"))()) },
+      } as never,
+    }
+  }
+
+  it("puts only on a key that cannot exist, conditional on it existing — so it never writes", async () => {
+    const { seen, clients: c } = clients()
+    await warmUp(c, "https://sqs.example/q")
+    expect(seen.ddb).toEqual([
+      { TableName: INGEST_RECEIPT_TABLE, Item: { ingestKey: WARMUP_KEY }, ConditionExpression: "attribute_exists(ingestKey)" },
+    ])
+  })
+
+  it("sends only an EMPTY body, which SQS refuses — so it never enqueues", async () => {
+    const { seen, clients: c } = clients()
+    await warmUp(c, "https://sqs.example/q")
+    expect(seen.sqs).toEqual([{ QueueUrl: "https://sqs.example/q", MessageBody: "" }])
+  })
+
+  it("logs the expected refusals, and says so loudly if either request unexpectedly succeeded", async () => {
+    await warmUp(clients().clients, "q")
+    expect(logs.join("\n")).toMatch(/"ddb":"ConditionalCheckFailedException","sqs":"InvalidParameterValue"/)
+    logs.length = 0
+    await warmUp(clients({ ddb: async () => ({}), sqs: async () => ({}) }).clients, "q")
+    expect(logs.join("\n")).toMatch(/WROTE-UNEXPECTEDLY.*SENT-UNEXPECTEDLY/)
+  })
+
+  it("never throws and never holds init past its bound", async () => {
+    const hang = () => new Promise(() => {})
+    const t = Date.now()
+    await expect(warmUp(clients({ ddb: hang, sqs: hang }).clients, "q", 50)).resolves.toBeUndefined()
+    expect(Date.now() - t).toBeLessThan(1000)
+    expect(logs.join("\n")).toContain('"ddb":"timeout"')
+  })
+
+  it("is not run outside Lambda: importing the handler in a test made no call", () => {
+    expect(process.env.AWS_LAMBDA_FUNCTION_NAME).toBeUndefined()
+    expect(logs.join("\n")).not.toContain("webhook-warmup")
+  })
 })
