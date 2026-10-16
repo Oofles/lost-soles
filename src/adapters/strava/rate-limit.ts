@@ -278,8 +278,7 @@ export type BackfillPace =
   | { action: "fail"; reason: string }
 
 /**
- * HOW MANY MORE ACTIVITIES THE BACKFILL MAY ENQUEUE IN THIS WINDOW. Ticket 0177, D-NEW
- * (the orchestrator allocates the number).
+ * HOW MANY MORE ACTIVITIES THE BACKFILL MAY ENQUEUE IN THIS WINDOW. Ticket 0177, D-342.
  *
  * `budgetCheck` alone is not enough here, and the reason is WHEN the reads are spent. The
  * backfill's own call is the list call; the two reads per activity are spent afterwards by

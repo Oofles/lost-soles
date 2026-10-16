@@ -2301,7 +2301,7 @@
     "path": "tickets/open/0094-token-refresh-scheduled-lambda.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 9
     }
   },
@@ -4184,7 +4184,7 @@
     "path": "tickets/open/0177-historical-backfill-import-beyond-the-first-30-days-paced-ag.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -6483,7 +6483,7 @@
     "path": "tickets/open/0281-sync-stops-querying-failed-receipts-it-never-shows.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   }

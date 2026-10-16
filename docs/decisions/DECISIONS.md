@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ---
 
@@ -5154,3 +5154,37 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   `lifetimeTerritory`/`lifetimeFeed` (`lib/stats/derived.ts`) compute both and are tested; only
   `lifetimeCells` is wired, to the plinth. They are kept rather than deleted and wait for a screen,
   like the four D-329 deferred (`0275`).
+- **D-341** **The token-refresh sweep marks a dead grant `NEEDS_REAUTH`, never throws for one
+  connection, and refreshes a token at the first 4-hourly run inside 4 h 05 m of expiry.**
+  *(Agent, operator-approved, 2026-10-16, ticket `0094`.)*
+  - **No new flag.** An auth-error refresh goes through `accessTokenFor` → `markNeedsReauth`, the
+    state the plinth's reconnect caption already reads (D-210, D-318, D-337). The sweep scans
+    `ACTIVE` rows only, so a revoked grant costs exactly one exchange, ever.
+  - **Per-connection failures are swallowed and logged.** Lambda's async retry would re-run a
+    transient failure minutes later; the ticket makes the next scheduled run the retry. Only a
+    failure of the scan itself throws.
+  - **One chance, not two.** The ticket said every-4-hours gives two chances against a 6-hour token.
+    With a 4 h + 300 s window it gives one: a transient failure leaves the token to expire before
+    the next run. Accepted, because the refresh token still works and the worker refreshes inline.
+    Two real chances would mean refreshing on every run (~6 exchanges a day, not ~4).
+  - **Amplify-native `schedule`, not the escape hatch**, so `amplify/backend.ts`'s count stays four
+    (D-226).
+- **D-342** **The historical backfill is a one-off CLI the agent runs for the operator, paced from
+  the provider's own headers, oldest first, with no checkpoint.** *(Operator, 2026-10-16, ticket
+  `0177`. Amends `03-integrations.md` §2.5's checkpointed background job.)*
+  - **Sized from the real account.** It holds 115 activities (~230 reads, about three 15-minute
+    windows), not the ~1,600 `lib/sources/sync.ts` estimated. A scheduled worker, a checkpoint table
+    and a progress surface in the app were all dropped as unneeded at that size. The operator runs
+    nothing; the agent runs `tools/backfill/backfill.ts` once and reports.
+  - **Pacing.** Each window's allowance is `floor((0.9·limit − usage)/2) − enqueuedThisWindow`, from
+    the list call's own rate-limit headers, the smaller of the 15-minute and daily buckets.
+    `budgetCheck` alone cannot do it: `process-activity` spends the two reads per activity after the
+    enqueue, five workers wide (D-266). A missing reading fails rather than proceeds.
+  - **Oldest first, from 1970.** Newest first would make each import older than the last one, so
+    nearly every shared cell would defer (D-221). Oldest first defers only cells shared with the
+    first Sync's month.
+  - **Resume is re-running it.** Accepted activities are a free duplicate at the receipt gate
+    (`needsEnqueue`). The CLI waits for the ingest queue to drain before each listing, which closes
+    the kill-between-send-and-delivery hole. `listSinceWatermark` is never read or written.
+  - **The XP replay is run by hand afterwards** (`tools/xp-replay`), so deferred credit settles.
+    `0257`'s aggregate reveal plays after that replay.
