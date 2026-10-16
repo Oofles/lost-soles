@@ -29,7 +29,7 @@ function rig(over: Partial<LatestRunDeps> = {}) {
     }),
     ...over,
   }
-  const emit = vi.fn((r: RunFeatureCollection) => order.push(`emit:${r.features[0]?.properties.activityId ?? "none"}`))
+  const emit = vi.fn<(r: RunFeatureCollection, from: "cache" | "network") => number>((r) => order.push(`emit:${r.features[0]?.properties.activityId ?? "none"}`))
   return { deps, emit, order }
 }
 
@@ -40,6 +40,8 @@ describe("loadLatestRun (0087)", () => {
     loadLatestRun(deps, emit)
     await flush()
     expect(order).toEqual(["emit:cached", "request", "emit:fresh"])
+    // `0273`: each answer says where it came from — a cached one vouches only for a cached fog.
+    expect(emit.mock.calls.map((c) => c[1])).toEqual(["cache", "network"])
     expect(await deps.store!.getKv(latestRunKey("u-1"))).toEqual(run("fresh"))
   })
 
@@ -50,7 +52,7 @@ describe("loadLatestRun (0087)", () => {
     loadLatestRun(deps, emit)
     await flush()
     expect(emit).toHaveBeenCalledTimes(1)
-    expect(emit).toHaveBeenCalledWith(run("cached"))
+    expect(emit).toHaveBeenCalledWith(run("cached"), "cache")
     expect(onError).toHaveBeenCalledTimes(1)
   })
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
 import { perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
+import type { HOLD_PENDING } from "@/lib/fog/home-territory"
 import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
 import { revealCellsForRoute, type RevealCell } from "@/lib/fog/reveal"
@@ -24,7 +25,7 @@ import { PerfOverlay } from "./perf-overlay"
 import { RevealScrub } from "./reveal-scrub"
 import { useFogMask } from "./use-fog-mask"
 import { useLandmarks } from "./use-landmarks"
-import { useLatestRun } from "./use-latest-run"
+import { useLatestRun, type LatestAnswer } from "./use-latest-run"
 import { useTraceWeb } from "./use-trace-web"
 
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -163,13 +164,17 @@ export function MapShell({
    * reads it, so the line and the first camera can never name different runs, and `/` makes one
    * request for it, not two. Home only; a run's page never calls it.
    */
-  onLatestRun?: (runs: RunFeatureCollection) => void
+  onLatestRun?: (runs: RunFeatureCollection, answer: LatestAnswer | null) => void
   /**
    * `0087`. HOME ONLY. While the latest run is UNSEEN, its new cells — held back so `/` shows
    * territory as of before the run (`06` §2.4) — and, by being non-null at all, the corridor off
    * too. `null`: nothing held. Pass a stable identity.
+   *
+   * `0273`: `HOLD_PENDING` while the hold for the explored set as it now stands is not known (the
+   * latest-run answer `onLatestRun` hands up does not speak for it yet): the fog keeps its last
+   * frame, and the corridor stays off.
    */
-  held?: readonly string[] | null
+  held?: readonly string[] | typeof HOLD_PENDING | null
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -434,12 +439,15 @@ export function MapShell({
    * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
    * the same thing at the effect that depends on it.
    */
-  const runs = useLatestRun(loaded, fogLayer, run, held === null)
+  const { runs, answer } = useLatestRun(loaded, fogLayer, run, held === null)
 
-  /** `0086`. Handed up after commit; a run's page (`framed`) has nothing to report. */
+  /**
+   * `0086`. Handed up after commit; a run's page (`framed`) has nothing to report. `0273`: with what
+   * the answer speaks for, in the same call, so home never pairs a new run with an old answer.
+   */
   useEffect(() => {
-    if (!framed) onLatestRun?.(runs)
-  }, [framed, onLatestRun, runs])
+    if (!framed) onLatestRun?.(runs, answer)
+  }, [framed, onLatestRun, runs, answer])
 
   /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
   useTraceWeb(loaded)

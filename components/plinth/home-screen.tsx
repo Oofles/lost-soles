@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell } from "@/components/map/map-shell"
+import type { LatestAnswer } from "@/components/map/use-latest-run"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { logStore } from "@/lib/log/queue"
 import { currentUid, fetchSkills } from "@/lib/log/transport"
@@ -13,7 +14,7 @@ import type { Camera } from "@/lib/map-camera"
 import type { SourceConnection } from "@/lib/plinth/connections"
 import { loadStanding } from "@/lib/plinth/load"
 import { plinthModel } from "@/lib/plinth/model"
-import { firstPulse, heldCells } from "@/lib/plinth/states"
+import { answersFor, firstPulse, homeHold } from "@/lib/plinth/states"
 import { isSeen } from "@/lib/run-moment/seen"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
 import { lifetimeCells } from "@/lib/stats/derived"
@@ -60,7 +61,12 @@ export function HomeScreen({
   const explored = useExplored()
   const [skills, setSkills] = useState<CachedSkill[]>()
   const [latest, setLatest] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
-  const onLatestRun = useCallback((runs: RunFeatureCollection) => setLatest(runs), [])
+  /** `0273`. What `latest` speaks for. Set in the same call as it, so the two never disagree. */
+  const [answer, setAnswer] = useState<LatestAnswer | null>(null)
+  const onLatestRun = useCallback((runs: RunFeatureCollection, tag: LatestAnswer | null) => {
+    setLatest(runs)
+    setAnswer(tag)
+  }, [])
   const [reconnectIds, setReconnectIds] = useState<string[]>([])
   const onReconnect = useCallback((ids: string[]) => setReconnectIds(ids), [])
 
@@ -86,8 +92,16 @@ export function HomeScreen({
   /** `0087`. Decided once per run, so no later render can restart the pulse (`firstPulse`). */
   const pulse = useMemo(() => (latestId && seen === false ? firstPulse(latestId) : false), [latestId, seen])
 
-  /** `0087`. The unseen run's new cells, held off the map until its sequence plays. Stable identity. */
-  const held = useMemo(() => heldCells(latest, seen), [latest, seen])
+  /**
+   * `0087`. The unseen run's new cells, held off the map until its sequence plays. Stable identity.
+   *
+   * `0273`: or PENDING, and the fog keeps its last frame, until the latest-run answer speaks for the
+   * explored set on screen. A run's delta lands one request before the refetch that names it; this
+   * render sees the new generation in the same commit the map does, so no frame draws the delta on
+   * an old answer's hold.
+   */
+  const answered = answersFor(answer, explored)
+  const held = useMemo(() => homeHold(latest, seen, answered), [latest, seen, answered])
 
   useEffect(
     () =>

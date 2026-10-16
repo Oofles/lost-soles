@@ -16,7 +16,7 @@ import { ZoomBucketStore } from "@/lib/fog/zoom-buckets"
 import { fogBeforeId } from "@/lib/map-layers"
 
 import { ExploredSet } from "@/lib/fog/explored-set"
-import { homeTerritory } from "@/lib/fog/home-territory"
+import { homeTerritoryView, type HomeHold } from "@/lib/fog/home-territory"
 
 import { useExplored } from "./explored-provider"
 
@@ -77,8 +77,11 @@ export function useFogMask(
    * `0087`. HOME ONLY (`null` on `/run/:id`): the new cells of an unseen run to hold back, and the
    * rule that a home map with no territory gets NO fog layer at all (`lib/fog/home-territory.ts`,
    * `06` §2.4). Pass a stable identity — it is a memo dependency.
+   *
+   * `0273`: `hold` may be `HOLD_PENDING` — the hold for the set as it now stands is not known yet —
+   * and then home keeps drawing what it last drew rather than the live set (`homeTerritoryView`).
    */
-  home: { hold: readonly string[] } | null = null,
+  home: { hold: HomeHold } | null = null,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -127,11 +130,17 @@ export function useFogMask(
    * a held set is a COPY, and an in-place `applyDelta` must reach it; with nothing held the answer
    * is `explored.set` itself and keeps its identity.
    */
+  /**
+   * `0273`. One view per mount: it remembers what home last drew, so a pending hold freezes the
+   * frame rather than drawing a delta whose run has not been named yet. Lazily created, never reset.
+   */
+  const homeView = useRef<ReturnType<typeof homeTerritoryView> | null>(null)
   const set = useMemo(() => {
     // Read only as a dependency — it is what notices an in-place delta; see above.
     void generation
-    return home
-      ? homeTerritory(explored.set, home.hold)
+    if (home && !homeView.current) homeView.current = homeTerritoryView()
+    return home && homeView.current
+      ? homeView.current(explored.set, home.hold)
       : (explored.set ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null))
   }, [explored.set, hasReveal, home, generation])
   /** `0087`. Home with no territory draws no fog: the layer is never created (§2.4). */

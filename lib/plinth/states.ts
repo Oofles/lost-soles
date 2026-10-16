@@ -2,6 +2,7 @@
  * THE HOME SCREEN'S STATES, THE PARTS THAT ARE NOT PRESENTATION. Ticket `0087`, `06-ui-ux.md` §2.4.
  */
 
+import { HOLD_PENDING } from "@/lib/fog/home-territory"
 import type { RunFeatureCollection } from "@/lib/runs/wire"
 
 /**
@@ -40,4 +41,43 @@ export function heldCells(latest: RunFeatureCollection, seen: boolean | null): r
   const run = latest.features[0]?.properties
   if (!run || seen !== false) return null
   return run.newCells ?? NONE
+}
+
+/** `0273`. What `useLatestRun` says its answer speaks for (`LatestAnswer`), structurally. */
+export interface AnswerTag {
+  generation: number | null
+  network: boolean
+}
+
+/**
+ * `0273`. DOES THE LATEST-RUN ANSWER ON SCREEN SPEAK FOR THE EXPLORED SET ON SCREEN?
+ *
+ * Only for the same generation, and a CACHED answer only for a CACHED set: both are what the last
+ * session left, so a cold start still draws its fog before any request (`06` §4.8). A set the
+ * network has moved — a delta or a full fetch — needs the network's answer for that generation,
+ * because the run that moved it is exactly the one the cache cannot know about.
+ */
+export function answersFor(
+  answer: AnswerTag | null,
+  explored: { generation: number | null; source: string },
+): boolean {
+  if (!answer || answer.generation !== explored.generation) return false
+  return answer.network || explored.source === "cache"
+}
+
+/**
+ * `0273`. WHAT `/` HOLDS BACK, OR THAT IT CANNOT SAY YET. `"pending"` until the latest-run answer
+ * speaks for the explored set (`answersFor`) and, when there is a run, its `seen` flag has been read;
+ * then `heldCells`. The fog freezes on its last frame while pending (`homeTerritoryView`), so the
+ * "nothing is held while `seen` is unknown" rule above no longer has to choose between a flash and a
+ * guess: it waits.
+ */
+export function homeHold(
+  latest: RunFeatureCollection,
+  seen: boolean | null,
+  answered: boolean,
+): readonly string[] | null | typeof HOLD_PENDING {
+  if (!answered) return HOLD_PENDING
+  if (latest.features[0] && seen === null) return HOLD_PENDING
+  return heldCells(latest, seen)
 }

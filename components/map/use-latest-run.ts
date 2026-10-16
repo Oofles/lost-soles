@@ -34,6 +34,21 @@ import { useExplored } from "./explored-provider"
  *
  * A signed-out visitor never asks: `uid` is null, and `/` is a real signed-out route.
  */
+/**
+ * `0273`. WHICH EXPLORED GENERATION THE LATEST-RUN ANSWER ON SCREEN SPEAKS FOR, and whether it came
+ * from the network. Home holds an unseen run's new cells back (D-319), and that hold is only as good
+ * as the answer it was read from: an answer for an older generation knows nothing of the run whose
+ * delta has just landed. `HomeScreen` compares this with the explored set's own generation and
+ * source (`answersFor` in `lib/plinth/states.ts`) and freezes the fog until they agree.
+ *
+ * `null` until the first answer. A failed request still answers — with the runs already on screen —
+ * so an offline open is never frozen waiting on a network that is not there.
+ */
+export interface LatestAnswer {
+  generation: number | null
+  network: boolean
+}
+
 export function useLatestRun(
   map: (LayerHost & { triggerRepaint(): void }) | null,
   layer: FogMaskLayer | null,
@@ -48,9 +63,19 @@ export function useLatestRun(
    * itself is still drawn — it is a route, not territory.
    */
   corridor = true,
-): RunFeatureCollection {
-  const { generation } = useExplored()
+): { runs: RunFeatureCollection; answer: LatestAnswer | null } {
+  const { generation, source } = useExplored()
   const [latest, setRuns] = useState<RunFeatureCollection>(EMPTY_COLLECTION)
+  const [answer, setAnswer] = useState<LatestAnswer | null>(null)
+  /**
+   * `0273`. Whether the explored set on screen is still the CACHED one. Read by the fetch effect but
+   * not a trigger of it — the generation stays the only trigger — so it is a ref, synced in an
+   * effect declared before the one that reads it (effects run in declaration order).
+   */
+  const exploredFromCache = useRef(false)
+  useEffect(() => {
+    exploredFromCache.current = source === "cache"
+  }, [source])
   const runs = fixed ?? latest
   const fetchLatest = fixed === undefined
   /** `0087`. The cache is read on the FIRST ask only; a refetch already has something newer on screen. */
@@ -58,7 +83,13 @@ export function useLatestRun(
 
   useEffect(() => {
     if (!fetchLatest) return
-    const fromCache = !askedOnce.current
+    /**
+     * `0273`: also while the explored set is still the cached one. Its generation usually lands
+     * after this hook's first ask (both are IndexedDB reads), and the cached run is what vouches for
+     * the cached set — without the re-read, every cold start would hold the fog for the network.
+     * Never stale: `loadLatestRun` writes the cache before it emits, so it is never behind the screen.
+     */
+    const fromCache = !askedOnce.current || exploredFromCache.current
     askedOnce.current = true
     /**
      * `0087`: CACHE FIRST, then `fetchLatestRun` (`lib/plinth/latest-run.ts`), so a cold start or
@@ -75,9 +106,15 @@ export function useLatestRun(
         // symptom with no message anywhere — the exact shape of failure `0195`'s empty-collection
         // path was written to stay distinguishable from. Offline lands here too: the console, never
         // the screen (`06` §2.4, "no error chrome").
-        onError: (error) => log.error("latest run: fetch failed", error),
+        onError: (error) => {
+          log.error("latest run: fetch failed", error)
+          setAnswer({ generation, network: true })
+        },
       },
-      setRuns,
+      (runs, from) => {
+        setRuns(runs)
+        setAnswer({ generation, network: from === "network" })
+      },
       fromCache,
     )
   }, [generation, fetchLatest])
@@ -143,5 +180,5 @@ export function useLatestRun(
     map?.triggerRepaint()
   }, [layer, map, runs, corridor])
 
-  return runs
+  return { runs, answer }
 }

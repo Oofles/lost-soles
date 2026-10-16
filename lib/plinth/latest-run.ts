@@ -31,14 +31,16 @@ export interface LatestRunDeps {
 
 /**
  * Starts loading. `emit` is called with the cached collection (when `fromCache` and there is one)
- * and again when the network answers. Returns `stop`.
+ * and again when the network answers, each time with where the answer came from (`0273`: a cached
+ * answer vouches only for a cached explored set, never for one the network has just moved).
+ * Returns `stop`.
  *
  * @param fromCache  `false` on a refetch (a generation change): what is on screen is already newer
  *                   than the cache, and re-emitting the cache would step the line backwards.
  */
 export function loadLatestRun(
   deps: LatestRunDeps,
-  emit: (runs: RunFeatureCollection) => void,
+  emit: (runs: RunFeatureCollection, from: "cache" | "network") => void,
   fromCache = true,
 ): () => void {
   let live = true
@@ -55,7 +57,7 @@ export function loadLatestRun(
     if (fromCache && uid && deps.store) {
       try {
         const cached = await deps.store.getKv<RunFeatureCollection>(latestRunKey(uid))
-        if (live && cached && Array.isArray(cached.features)) emit(cached)
+        if (live && cached && Array.isArray(cached.features)) emit(cached, "cache")
       } catch {
         // A cache that will not read is a cold start, nothing more.
       }
@@ -65,7 +67,7 @@ export function loadLatestRun(
     try {
       const fresh = await deps.fetchLatest()
       if (uid && deps.store) await deps.store.setKv(latestRunKey(uid), fresh).catch(() => {})
-      if (live) emit(fresh)
+      if (live) emit(fresh, "network")
     } catch (error) {
       deps.onError?.(error)
     }
