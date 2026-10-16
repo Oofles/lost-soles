@@ -77,11 +77,19 @@ with a window in which reconciliation (0095) is the only ingestion path.
 - [x] No Next.js route handler serves the webhook path; a test asserts the app router has no
       `/api/webhooks/strava` handler.
 - [x] The function has no VPC configuration (D-081).
-- [ ] The handler returns 200 **before** any queueing side effect is observable to the caller —
-      measured p99 well under 500 ms, cold start included, against the deployed URL.
-      *(Needs the deployed URL; AWS was read-only for the build agent. The measurement is the
-      post-deploy smoke test in `## Resolution`.)*
-- [ ] A cold invocation completes inside 2 s, measured 10 times after forced cold starts.
+- [x] The handler returns 200 **before** any queueing side effect is observable to the caller —
+      ~~measured p99 well under 500 ms, cold start included, against the deployed URL.~~
+      **Amended 2026-10-16 (orchestrator, D-346):** the handler's own `Duration` (REPORT line) is
+      under 500 ms on every invocation, including the first in a fresh environment; the
+      client-measured cold call is under 1 s, keeping at least 1 s of margin to Strava's 2 s; the warm
+      client-measured p99 is under 500 ms. *Why:* a client-measured cold call cannot go below the
+      sandbox-plus-init floor (~0.6–0.7 s even with no AWS call at all) at 128 MB without provisioned
+      concurrency. — verified 2026-10-16: cold handler Duration 105–137 ms with a known owner and
+      22–28 ms with an unknown one; cold client 0.62–0.90 s; warm client p50 0.17 s, max 0.21 s
+      (n=20), after `7773a93`.
+- [x] A cold invocation completes inside 2 s, measured 10 times after forced cold starts.
+      — verified 2026-10-16: 10 forced cold starts after `7773a93` (7 known owner, 3 unknown),
+      0.62–0.90 s client-side. Before the fix, a cold known-owner call measured 1.56–1.59 s.
       *(Post-deploy, same reason; forced cold start = an environment-variable bump between calls.)*
 - [x] The bundle contains no AWS SDK v2, no `h3`, and no ORM; bundle size is asserted in CI under a
       fixed ceiling.
@@ -94,9 +102,10 @@ with a window in which reconciliation (0095) is the only ingestion path.
 - [x] CloudWatch logs at INFO contain `ingestKey` and `aspect_type` and contain no request body, no
       coordinates, and no `owner_id`. *(The log lines are asserted in the unit suite; reading the
       real CloudWatch line is in the smoke test.)*
-- [ ] The Function URL is reachable over HTTPS with a valid full certificate chain at the fixed
+- [x] The Function URL is reachable over HTTPS with a valid full certificate chain at the fixed
       callback path. *(Amended per Q2: the fixed path is `<Function URL>api/webhooks/strava`.
-      Post-deploy: `curl` verifies the chain by default.)*
+      Post-deploy: `curl` verifies the chain by default.)* — verified 2026-10-16: `200`,
+      `ssl_verify_result=0` at `<Function URL>api/webhooks/strava`.
 
 ## Notes
 
@@ -192,3 +201,19 @@ and no provisioned concurrency:
 Local reproduction, with init unthrottled and the invoke under `CPUQuota=7%`: first DynamoDB call
 plus first SQS call fell from ~570 ms to ~87 ms, of which ~80 ms is home→us-east-1 round trips. The
 deployed numbers are the orchestrator's to measure.
+
+**Result, 2026-10-16 (orchestrator, deployed stack; Amplify jobs 408 and 409):**
+
+- **Shape.** 128 MB, 3 s, no VPC. Routing: unknown source `404`, root `404`, `GET` on the
+  callback `405`. `/api/webhooks/manual` is refused (D-345).
+- **Receipt gate, live.** A known owner with real activity `20576149694` gave `200` and an empty
+  body. The log shows `decision: enqueue`, outcome `duplicate`, and the queue stayed at 0/0, so
+  no second message reached the queue for an activity the sweep already holds.
+- **Logs.** `webhook-event`, `webhook-ack` and `webhook-warmup` lines only. No `owner_id`, no
+  athlete id and no body in 30 minutes of logs.
+- **Cold path.** The first deploy measured a cold known-owner call at 1.56–1.59 s, and a real
+  `create` (both clients) would have been worse. The init warm-up (`7773a93`, D-346) brought it to
+  0.71–0.90 s. The warm-up line read `ConditionalCheckFailedException` / `MissingParameter` on
+  every cold start, with no unexpected write or send, and the DLQ stayed at 0.
+- **Not yet exercised:** a real run arriving without a Sync press. That needs the subscription,
+  which is ticket `0092`, and the next real run will exercise it in ordinary use (D-229).

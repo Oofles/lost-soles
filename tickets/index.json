@@ -2234,7 +2234,7 @@
     "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
     "ready": true,
     "acceptance": {
-      "checked": 7,
+      "checked": 10,
       "total": 10
     }
   },
