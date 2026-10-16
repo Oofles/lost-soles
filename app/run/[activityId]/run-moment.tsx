@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
+import { backArrowClick, browserChronicleReturn } from "@/lib/chronicle/return"
 import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
@@ -131,11 +132,13 @@ export function EndState({
 
   return (
     <>
-      {/* §7: back is the browser's, and the arrow is there for desktop — never the only path (§1.5). */}
+      {/* §7: back is the browser's, and the arrow is there for desktop — never the only path (§1.5).
+          Opened from the Chronicle, the arrow IS the browser's back (D-321, `0274`); otherwise `/`. */}
       <header style={{ padding: ".5rem 1rem" }}>
         <Link
           href="/"
           aria-label="Back to the map"
+          onClick={(e) => backArrowClick(browserChronicleReturn(), () => window.history.back())(e)}
           style={{ color: "var(--text-primary)", textDecoration: "none", fontSize: "1.5rem", padding: ".25rem .5rem" }}
         >
           ←

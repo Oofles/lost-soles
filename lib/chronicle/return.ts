@@ -26,8 +26,14 @@ export interface ChronicleSnapshot {
 export interface TraversalHost {
   addEventListener(type: "popstate", listener: () => void): void
   location: { pathname: string }
-  /** The Navigation API, where the browser has it: which session-history entry is current. */
-  navigation?: { currentEntry: { key: string } | null }
+  /**
+   * The Navigation API, where the browser has it: which session-history entry is current, and the
+   * entries around it (`entries()` is in index order; `currentEntry.index` is its place there).
+   */
+  navigation?: {
+    currentEntry: { key: string; index: number } | null
+    entries(): readonly { key: string }[]
+  }
 }
 
 export interface ChronicleReturn {
@@ -50,6 +56,17 @@ export interface ChronicleReturn {
    * The listener remains only as a fallback for a browser without the Navigation API.
    */
   take(pathname: string): ChronicleSnapshot | null
+  /**
+   * Ticket `0274`. Is the entry DIRECTLY BEHIND the current one the Chronicle entry a row was opened
+   * from? Then the run page's `←` is a back, not a push of `/` (D-321). The same record `take` reads
+   * — `leftFrom` — so there is no second note of "opened from the Chronicle".
+   *
+   * A dismissal also `leave`s, but its entry sits FORWARD of `/`, and the next push from `/` prunes
+   * it, so it is never behind anything. A run reached any other way has `/`, or the cold seed, behind
+   * it. Without the Navigation API there is no way to see the entry behind, so this is false and the
+   * arrow keeps pushing `/` — the pre-`0274` behaviour, never a wrong back.
+   */
+  behind(): boolean
 }
 
 export function chronicleReturn(host: TraversalHost | null): ChronicleReturn {
@@ -72,6 +89,12 @@ export function chronicleReturn(host: TraversalHost | null): ChronicleReturn {
       if (leftFrom !== null && host?.navigation) return here() === leftFrom ? snapshot : null
       return traversedTo === pathname ? snapshot : null
     },
+    behind() {
+      const nav = host?.navigation
+      const current = nav?.currentEntry
+      if (!snapshot || leftFrom === null || !nav || !current || current.index < 1) return false
+      return nav.entries()[current.index - 1]?.key === leftFrom
+    },
   }
 }
 
@@ -83,4 +106,32 @@ let ambient: ChronicleReturn | undefined
  */
 export function browserChronicleReturn(): ChronicleReturn {
   return (ambient ??= chronicleReturn(typeof window === "undefined" ? null : window))
+}
+
+/** The parts of a click on the run page's `←` that decide what it does. */
+export interface ArrowClick {
+  defaultPrevented: boolean
+  button: number
+  metaKey: boolean
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+  preventDefault(): void
+}
+
+/**
+ * Ticket `0274`. THE RUN PAGE'S `←`, as a click handler on its `<Link href="/">`. With the
+ * Chronicle directly behind (`behind()`), a plain click is the browser's back — the Chronicle at its
+ * offset, and no new entry — and the link's own push is cancelled (Next's `Link` skips its push on a
+ * prevented click). Otherwise the link goes to `/` as before. A modified or non-primary click (a new
+ * tab) is always the link's, and so is a click the sequence's exit already swallowed
+ * (`lib/run-moment/exit.ts`).
+ */
+export function backArrowClick(ret: Pick<ChronicleReturn, "behind">, back: () => void) {
+  return (e: ArrowClick): void => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if (!ret.behind()) return
+    e.preventDefault()
+    back()
+  }
 }
