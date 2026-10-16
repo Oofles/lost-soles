@@ -4,7 +4,7 @@ slug: token-refresh-scheduled-lambda
 title: token-refresh scheduled Lambda — refresh before expiry, every 4 hours, never on failure
 type: feature
 priority: high
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: [33]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-16T13:42:37Z
+closed: 2026-10-16T15:11:08Z
 ---
 
 ## Description

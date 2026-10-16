@@ -2288,7 +2288,7 @@
     "title": "token-refresh scheduled Lambda — refresh before expiry, every 4 hours, never on failure",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [
@@ -2298,8 +2298,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-16T13:42:37Z",
-    "path": "tickets/open/0094-token-refresh-scheduled-lambda.md",
-    "ready": true,
+    "closed": "2026-10-16T15:11:08Z",
+    "path": "tickets/closed/0094-token-refresh-scheduled-lambda.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9
