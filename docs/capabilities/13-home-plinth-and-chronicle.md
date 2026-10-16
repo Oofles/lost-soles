@@ -80,3 +80,28 @@ Resolution names a new D-xxx, `tickets.mjs close` should require that the commit
 `docs/NN-*.md` file, or take an explicit `--no-doc-change "<reason>"`. Worth a ticket before `14`
 starts.
 
+## Audit — 2026-10-16 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 12 passed, 0 failed, 0 n/a. See AUDIT.md §1, §4, §5.
+
+**Filed by this audit, and therefore excluded from `capability-tickets-closed`:** `0279` Unseen-run marks use --accent-text, not --accent; `0280` Plinth and run-page chrome off the 06 §8 scales: radii, pulse and fly timing, line-height, frontier glyph. This capability passed with work outstanding — its own code-was-wrong findings, filed as AUDIT.md §2 directs and listed under Divergences below, not forgotten.
+
+**Divergences (2 of a budget of 3):**
+
+1. **code-was-wrong** — `0279` — unseen-run marks draw in --gold-500, which D-291 forbids for meaning; D-335 picks --accent-text
+2. **code-was-wrong** — `0280` — plinth and run-page radii, pulse and fly timing, a line-height and the frontier glyph are off 06 §8's scales
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 18/30 invariants cited by a test name, none lost. Ratchet only: the remaining 12 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts, app/skills/vigil-peer.test.tsx
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **pass** — 1 baselined user(s): cells 1352 → 1352, gen 135 → 135 — none lower (docs/capabilities/regression-baseline.json)
+- `xp-not-lower` — **pass** — 1 baselined user(s), 10 skill(s): cartography 16439/L23, constitution 1745/L11, might 80/L4, wayfaring 5159/L16 — none lower (docs/capabilities/regression-baseline.json)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 14 closed; 2 filed by this audit (0279, 0280)
+
+<!-- audit-record {"capability":"13-home-plinth-and-chronicle","audited":"2026-10-16T04:23:02Z","verdict":"pass","mechanical":{"pass":12,"fail":0,"na":0},"divergences":2,"filed":["0279","0280"]} -->
