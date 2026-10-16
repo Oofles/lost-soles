@@ -77,8 +77,8 @@ well short, build minutes are the next capability's cost problem. No NAT gateway
 section in the same commit as the D-xxx") was not followed here either. That is five capabilities
 running. Rules in a reflection do not work. Make it mechanical instead: when a closing ticket's
 Resolution names a new D-xxx, `tickets.mjs close` should require that the commit also touches a
-`docs/NN-*.md` file, or take an explicit `--no-doc-change "<reason>"`. Worth a ticket before `14`
-starts.
+`docs/NN-*.md` file, or take an explicit `--no-doc-change "<reason>"`. **Declined by the operator,
+2026-10-16:** the risk is low, because each audit's DESIGN pass catches the drift. No ticket filed.
 
 ## Audit — 2026-10-16 (`tickets.mjs audit --record`)
 
