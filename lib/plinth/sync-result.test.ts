@@ -18,11 +18,6 @@ describe("plinthSyncResult (0087)", () => {
     expect(result).toEqual({ line: null, reconnect: [] })
   })
 
-  it("an old failed import is not a broken token either, and is not mentioned", () => {
-    const result = plinthSyncResult({ outcomes: [{ sourceId: "s", kind: "nothing-new" }], failedCount: 2 } as never)
-    expect(result.line).toBeNull()
-  })
-
   it("not connected says nothing here", () => {
     expect(plinthSyncResult({ outcomes: [{ sourceId: "s", kind: "not-connected" }] }).line).toBeNull()
   })

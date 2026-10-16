@@ -11,7 +11,6 @@
  * | nothing new                           | nothing — the screen does not change          |
  * | provider failed / unreachable         | nothing — no user-visible error               |
  * | not connected                         | nothing here (the connect line is the model's)|
- * | old failed imports (`failedCount`)    | nothing — not a broken token                  |
  * | broken token (`reconnect`)            | no text here; the source id goes to the       |
  * |                                       | plinth's single ink reconnect line            |
  *

@@ -685,13 +685,14 @@ const ingestReceiptTable = new Table(ingestStack, "IngestReceiptTable", {
  *
  * `failedUserId` is written only by `recordFailure` and removed again by
  * `claimForScoring`, so this index holds one entry per OUTSTANDING failure and is
- * normally empty. That is what lets the Sync action ask "did anything fail for this
- * user?" with a Query rather than a Scan — and, more to the point, what keeps the cost
- * of asking a function of how much is currently broken rather than of how many
- * activities have ever been imported.
+ * normally empty. That is what lets a reader ask "did anything fail for this user?"
+ * with a Query rather than a Scan — and, more to the point, what keeps the cost of
+ * asking a function of how much is currently broken rather than of how many activities
+ * have ever been imported. (The Sync action asked on every press until 0281 removed the
+ * read under D-318; `listFailedReceipts` stays as the tested reader.)
  *
  * THE NAME IS STATED TWICE, like the table's own, and for the identical reason: the
- * reader is the Sync action on Amplify's SSR compute, which has no CloudFormation output
+ * reader was written for Amplify's SSR compute, which has no CloudFormation output
  * to be handed a generated one through. `src/pipeline/ingest-receipt.ts` states the same
  * literal and `ingest-receipt-table.test.ts` asserts the two agree.
  *

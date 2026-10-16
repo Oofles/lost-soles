@@ -19,30 +19,18 @@ import type { SourceSyncOutcome } from "./sync"
  * post-run moment with its tally and its cards is capability 12. One sentence is the
  * whole surface.
  *
- * ─── THE FAILURE COUNT IS ABOUT A DIFFERENT TIME (ticket 0044, criterion 4) ──
+ * ─── NO FAILURE COUNT (ticket 0281, D-318) ────────────────────────────────────
  *
- * `outcomes` describes THIS press. `failedCount` describes activities that failed on
- * some EARLIER one — they were listed, accepted and enqueued, and then the worker could
- * not import them. Nothing in this sweep's outcomes can mention them, which is exactly
- * how the milestone shipped with, in `09-roadmap.md` §2.3's own words, "no error surface
- * — the user finds out because the map did not change".
- *
- * So it is a separate argument and it is appended rather than merged: the two sentences
- * answer "what did pressing this do?" and "what is still broken?", and collapsing them
- * would make a successful sweep read as a failure whenever an old one was outstanding.
+ * `0044` appended "N activities failed to import" from a `failedByUser` query. D-318 shows
+ * a failed import nowhere, so the Sync action stopped paying for that query and this line
+ * stopped taking the count. `outcomes` — this press — is the whole input.
  */
 export function syncResultLine(
   outcomes: readonly SourceSyncOutcome[],
   displayName: (sourceId: string) => string,
-  failedCount = 0,
 ): string {
-  /**
-   * NO SOURCES, BUT POSSIBLY STILL A FAILURE — a connection removed after an import
-   * broke. Reported rather than swallowed, because "no sources are connected" alone
-   * would be a true sentence that hides the reason the map is missing a run.
-   */
   if (outcomes.length === 0) {
-    return ["No sources are connected.", failedLine(failedCount)].filter(Boolean).join(" ")
+    return "No sources are connected."
   }
 
   const lines = outcomes.map((outcome) => {
@@ -76,20 +64,5 @@ export function syncResultLine(
     }
   })
 
-  return [...lines, failedLine(failedCount)].filter(Boolean).join(" ")
-}
-
-/**
- * The outstanding-failure sentence, or an empty string when there is nothing to say.
- *
- * IT NAMES NO SOURCE AND NO CAUSE. `listFailedReceipts` has both, and neither belongs in
- * one line of unstyled chrome: the error class is a class name, and the runbook is what
- * turns it into an action. What this sentence owes the operator is the fact that
- * something is broken and that pressing Sync will not fix it.
- */
-function failedLine(count: number): string {
-  if (count <= 0) return ""
-  return count === 1
-    ? "1 activity failed to import."
-    : `${count} activities failed to import.`
+  return lines.join(" ")
 }

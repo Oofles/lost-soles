@@ -6,7 +6,6 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
 import outputs from "@/amplify_outputs.json"
 import { currentUserId, isOwner } from "@/lib/auth/owner"
-import { log } from "@/lib/log"
 import { oauthCredentialsFor } from "@/lib/sources/adapter-credentials"
 import {
   advanceListSinceWatermark,
@@ -16,7 +15,6 @@ import {
 import { syncResultLine } from "@/lib/sources/sync-message"
 import { syncSource, type SourceSyncOutcome } from "@/lib/sources/sync"
 import { connectableSources, getAdapter, getOAuthConnector } from "@/src/adapters/registry"
-import { listFailedReceipts } from "@/src/pipeline/ingest-receipt"
 
 /**
  * THE SYNC ACTION. Ticket 0043, `09-roadmap.md` §4.5.
@@ -76,11 +74,6 @@ function queueUrl(): string {
 export interface SyncSummary {
   line: string
   outcomes: SourceSyncOutcome[]
-  /**
-   * Activities that failed to import on an EARLIER press and are still outstanding
-   * (ticket 0044, criterion 4). Not a property of this sweep — see `syncResultLine`.
-   */
-  failedCount: number
 }
 
 /**
@@ -103,7 +96,7 @@ export interface SyncSummary {
 export async function syncNow(): Promise<SyncSummary> {
   const userId = await currentUserId()
   if (userId === undefined || !isOwner(userId)) {
-    return { line: "Not signed in.", outcomes: [], failedCount: 0 }
+    return { line: "Not signed in.", outcomes: [] }
   }
 
   const outcomes: SourceSyncOutcome[] = []
@@ -160,32 +153,14 @@ export async function syncNow(): Promise<SyncSummary> {
   }
 
   /**
-   * READ AFTER THE SWEEP, NOT BEFORE (criterion 4). A failure the worker records while
-   * this action is running should be reported by this press rather than the next one,
-   * and more importantly a receipt this sweep just RE-ENQUEUED has had its failure
-   * fields cleared at the score gate — reading first would report a failure that the
-   * press the operator is waiting on has already sent for retry.
-   *
-   * IT IS NOT ALLOWED TO FAIL THE SWEEP. The activities are queued either way, and an
-   * empty index is the common case; losing a real import's confirmation to a failed
-   * report about a hypothetical one would be the wrong trade. The read error is logged
-   * where the worker's are, and the line falls back to saying nothing about failures.
+   * NO FAILED-RECEIPT QUERY (ticket 0281, D-318). `0044` read the `failedByUser` index here
+   * to append "N activities failed to import"; D-318 shows a failed import nowhere, so the
+   * Query was paid on every press for a count nobody read. The write side (`recordFailure`)
+   * and the alarm are untouched — only this per-press read went.
    */
-  let failedCount = 0
-  try {
-    failedCount = (await listFailedReceipts(userId, { ddb })).length
-  } catch (error) {
-    log.error({
-      at: "sync-action",
-      outcome: "failed-receipt-query-failed",
-      error: error instanceof Error ? error.name : "unknown error",
-    })
-  }
-
   return {
-    line: syncResultLine(outcomes, (id) => getOAuthConnector(id).displayName, failedCount),
+    line: syncResultLine(outcomes, (id) => getOAuthConnector(id).displayName),
     outcomes,
-    failedCount,
   }
 }
 

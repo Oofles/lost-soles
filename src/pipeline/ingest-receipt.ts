@@ -468,8 +468,8 @@ export async function recordDelivery(
  * exclusion actually bounded was the operator's ability to intervene.
  *
  * THE REMOVE IS THE CLEARING STEP criterion 6 asks for. A claim wipes the four failure
- * fields, which drops the row out of `FAILED_BY_USER_INDEX` — so the Sync line stops
- * reporting a failure the moment a retry is genuinely underway, and reports it again if
+ * fields, which drops the row out of `FAILED_BY_USER_INDEX` — so the index stops
+ * listing a failure the moment a retry is genuinely underway, and lists it again if
  * `recordFailure` writes them back. `REMOVE` on absent attributes is a no-op, so the
  * ordinary QUEUED path pays nothing for this.
  */
@@ -709,14 +709,18 @@ export async function recordDuplicate(
 }
 
 /**
- * EVERY OUTSTANDING FAILURE FOR ONE USER. Ticket 0044, criterion 4 — the Sync action
- * calls this so the result line can say "1 activity failed to import" instead of
- * reporting nothing at all.
+ * EVERY OUTSTANDING FAILURE FOR ONE USER. Ticket 0044, criterion 4.
  *
- * A Query against the sparse index, which normally returns zero items, so the ordinary
- * press of Sync pays one empty Query. `limit` exists because the line only ever renders
- * a count and a runaway failure does not need to be enumerated to be reported — but
- * note the count is then a floor, and `syncResultLine` is written to say so.
+ * NO APP CALLER SINCE 0281. The Sync action used to call this after every press to append
+ * "N activities failed to import"; D-318 shows a failed import nowhere, so that per-press
+ * read was removed. It is KEPT because it is the one tested reader of the sparse index
+ * `recordFailure` still writes (D-209/D-210) — the query a runbook walk or a later surface
+ * would make — and deleting it would leave the index write-only with nothing proving the
+ * key and projection actually answer the question the index was built for.
+ *
+ * A Query against the sparse index, which normally returns zero items. `limit` exists
+ * because a runaway failure does not need to be enumerated to be reported; a count taken
+ * from it is a floor.
  *
  * NOT CONSISTENT-READ, because a GSI cannot be. A failure recorded moments ago may not
  * appear until the next press. That is acceptable for a report and would not be for a
