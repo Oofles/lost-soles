@@ -4,7 +4,7 @@ slug: skills-quick-view-in-the-plinth-rail
 title: Skills quick-view in the plinth rail — trained skills as thin level bars
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: [86]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-10-15T17:42:12Z
 started: 2026-10-15T20:13:38Z
+closed: 2026-10-16T00:51:13Z
 ---
 
 ## Description
@@ -126,3 +127,12 @@ Desktop browser, on `/`. Does the quick-view read as a calm glance under the pli
 second skills page? Are the bars thin enough, and does the level read beside each name?
 
 **Decisions recorded at merge (orchestrator):** D-330 (sheet dismisses to `/`). D-NEW-b (row layout) is recorded in this Resolution only: a styling choice, not an architectural one.
+
+**Operator, 2026-10-15, desktop browser at ≥1024px, on `/`: passed.** The quick-view reads as a calm
+glance under the plinth, the bars are thin enough and the level reads beside each name. Opening a
+sheet from a row, with the `/skills` panel behind the scrim (D-330's accepted cost), was judged fine,
+so the proposed ticket to intercept `/skills/<id>` inside `app/(home)` was not filed.
+
+**Agent smoke, deployed `2ba691a` (Amplify job 405):** `/` returns 200. Signed out, `/skills/might`
+redirects (307) to sign-in, and `/` renders no plinth, so the quick-view is not curl-visible. The
+agent's proposed curl checks assumed public routes; the auth redirect is correct behaviour.

@@ -4,7 +4,7 @@ slug: run-breakdown-labels-xp-as-cells
 title: Run breakdown labels XP amounts as cell counts
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T19:20:57Z
 started: 2026-10-15T20:13:38Z
+closed: 2026-10-16T00:51:13Z
 ---
 
 ## Description
@@ -52,6 +53,11 @@ Legibility beats atmosphere (D-051): a figure that reads as a contradiction is t
 
 Perceptual: on the desktop browser, expand a real run's breakdown and say whether it reads as XP for
 the cells the tally names, without having to do arithmetic.
+
+**Operator, 2026-10-15, desktop browser, a real run's expanded breakdown: passed.** It reads as XP
+for the cells the tally names without arithmetic, and the `N XP` format on the Wayfaring row reads
+cleanly. Deployed `2ba691a` (Amplify job 405); the numbers themselves are pinned in
+`lib/run-moment/tally.test.tsx`.
 
 ## Resolution
 

@@ -4,7 +4,7 @@ slug: home-screen-states
 title: Home screen states — cold start, nothing imported, sync in progress, sync failed, offline
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 13-home-plinth-and-chronicle
 depends_on: [86, 43]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-15T18:28:53Z
+closed: 2026-10-16T00:51:13Z
 ---
 
 ## Description
@@ -116,6 +117,11 @@ as `0276`, likely older than this ticket.
 **Operator, 2026-10-15: pending.** Their latest real run (Tue 13 Oct) had already been opened in this
 browser, so the plinth correctly showed `Last: Tue 13 Oct · 4.84 km · 211 new` and not the fresh-run
 line. Item 1 above waits for the next real run. Stays open until then; no one is asked to run for it.
+
+**Operator, 2026-10-15: passed.** Checked without waiting for a run: in a private window, where the
+latest run is unseen, `/` showed `1 new run — open it`. The gold rule reads as an invitation rather
+than an alert, the single pulse is noticeable without demanding, and the map showed the territory
+before the run.
 
 ## Resolution
 
