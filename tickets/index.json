@@ -2230,6 +2230,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-16T13:42:37Z",
     "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
     "ready": true,
     "acceptance": {
@@ -2296,6 +2297,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-16T13:42:37Z",
     "path": "tickets/open/0094-token-refresh-scheduled-lambda.md",
     "ready": true,
     "acceptance": {
@@ -4178,6 +4180,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-07T04:57:15Z",
+    "started": "2026-10-16T13:42:37Z",
     "path": "tickets/open/0177-historical-backfill-import-beyond-the-first-30-days-paced-ag.md",
     "ready": true,
     "acceptance": {
@@ -6476,6 +6479,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-16T04:17:56Z",
+    "started": "2026-10-16T13:42:37Z",
     "path": "tickets/open/0281-sync-stops-querying-failed-receipts-it-never-shows.md",
     "ready": true,
     "acceptance": {
