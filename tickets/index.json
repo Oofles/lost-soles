@@ -6310,7 +6310,7 @@
     "path": "tickets/open/0273-home-holds-an-unseen-run-back-without-a-one-request-flash-wh.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -6331,7 +6331,7 @@
     "path": "tickets/open/0274-run-page-s-back-arrow-pops-to-the-chronicle-when-the-run-was.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -6416,7 +6416,7 @@
     "path": "tickets/open/0278-mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   }

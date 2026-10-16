@@ -5102,3 +5102,21 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   (`125 XP new ground · 2 XP remembered ground`); cell counts appear only on the tally's cells line.
   `06` §3.2's example already settled this. The skill sheet keeps `reasonWords`, where the noun sits
   beside a real cell count.
+- **D-333** **Home's fog waits for its hold, and keeps its last frame while it waits.** *(Agent,
+  2026-10-15, ticket `0273`. Supersedes D-319's "while `seen` is unknown nothing is held".)* The hold
+  on `/` has a third state, pending: the latest-run answer on screen does not yet speak for the
+  explored set on screen, or the named run's `seen` flag is still being read. While pending, the fog
+  draws exactly what it last drew under a known hold. An answer speaks for the set when it was asked
+  at the same explored generation. A cached answer counts only for a cached set, so a cold start
+  still paints before any request (`06` §4.8). A set moved by a delta or a full fetch needs the
+  network's answer, and a failed request counts as one, so an offline open never freezes. With
+  nothing drawn yet, pending is D-319's "cleared cache before the network answers": no fog layer
+  until `/api/runs/latest` answers, with the run held back. It adds no request (D-316). The reason:
+  the explored delta lands one request before the latest-run refetch, and for that request the
+  new ground showed on `/` ahead of the post-run moment that owns its reveal.
+- **D-334** **The run page's `←` goes back only when the entry directly behind it is the Chronicle
+  the run was opened from.** *(Agent, 2026-10-15, ticket `0274`.)* The check compares Navigation API
+  entry keys against the `leftFrom` key D-321 already records, so there is no second record.
+  Otherwise `←` pushes `/`. Without the Navigation API it pushes `/` as before, because the entry
+  behind cannot be seen and a guess could back out of the app. Modified and middle clicks always
+  belong to the link, so a new tab still opens `/`.

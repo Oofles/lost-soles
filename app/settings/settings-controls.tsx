@@ -134,7 +134,7 @@ export const deletionPhraseMatches = (typed: string) =>
   typed.trim().toLowerCase() === DELETION_PHRASE
 
 /**
- * The stable runbook path (D-NEW-a, ticket 0089). Today it is a stub saying it is not
+ * The stable runbook path (D-325, ticket 0089). Today it is a stub saying it is not
  * executable. Ticket 0106 owns filling it in. The repo is public (D-199), so the
  * link works from any browser.
  */

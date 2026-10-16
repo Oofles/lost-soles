@@ -106,7 +106,7 @@ Files touched:
   - `lib/fog/home-territory.test.ts`: covers the freeze behaviour.
   - `lib/plinth/latest-run.test.ts`: covers the emit tag.
 
-Decision proposed to the orchestrator (D-NEW): "Home's fog waits for the hold, and keeps its last
+Decision recorded as D-333: "Home's fog waits for the hold, and keeps its last
 frame while it waits." In a node test environment, the React ordering is proved by construction (the
 hold is computed in render from the same context) plus a source tripwire, not by mounting the tree.
 
