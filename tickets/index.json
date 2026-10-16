@@ -6529,5 +6529,47 @@
       "checked": 0,
       "total": 2
     }
+  },
+  {
+    "id": 284,
+    "slug": "the-basemap-covers-every-area-the-operator-has-run-not-only",
+    "title": "The basemap covers every area the operator has run, not only Florida",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-16T15:35:14Z",
+    "path": "tickets/open/0284-the-basemap-covers-every-area-the-operator-has-run-not-only.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 285,
+    "slug": "a-quiet-jump-to-control-lists-the-regions-the-operator-has-r",
+    "title": "A quiet jump-to control lists the regions the operator has run in",
+    "type": "feature",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      284
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-16T15:35:14Z",
+    "path": "tickets/open/0285-a-quiet-jump-to-control-lists-the-regions-the-operator-has-r.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
   }
 ]
