@@ -4174,7 +4174,7 @@
     "title": "Historical backfill — import beyond the first 30 days, paced against the read budget",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [],
@@ -4182,8 +4182,9 @@
     "source": "agent",
     "created": "2026-09-07T04:57:15Z",
     "started": "2026-10-16T13:42:37Z",
-    "path": "tickets/open/0177-historical-backfill-import-beyond-the-first-30-days-paced-ag.md",
-    "ready": true,
+    "closed": "2026-10-16T15:34:24Z",
+    "path": "tickets/closed/0177-historical-backfill-import-beyond-the-first-30-days-paced-ag.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6
@@ -5953,7 +5954,7 @@
     "source": "agent",
     "created": "2026-10-13T22:36:47Z",
     "path": "tickets/open/0257-backfill-aggregate-reveal.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5

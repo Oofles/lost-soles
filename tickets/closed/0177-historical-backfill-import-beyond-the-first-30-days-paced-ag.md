@@ -4,7 +4,7 @@ slug: historical-backfill-import-beyond-the-first-30-days-paced-ag
 title: Historical backfill — import beyond the first 30 days, paced against the read budget
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-07T04:57:15Z
 started: 2026-10-16T13:42:37Z
+closed: 2026-10-16T15:34:24Z
 ---
 
 ## Description
