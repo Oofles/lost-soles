@@ -4,7 +4,7 @@
 > `#### \`18-mvp-hardening\`` section of [`../09-roadmap.md`](../09-roadmap.md). This file is where the
 > DESIGN step's output belongs, and where [`AUDIT.md`](AUDIT.md) results are appended at close.
 
-## Tickets (6)
+## Tickets (7)
 
 - `0112` — Accessibility and reality checks — sunlight, one-handed reach, sweaty thumbs, reduced motion
 - `0113` — Offline and slow-connection behaviour — the map degrades, never blanks
@@ -12,6 +12,7 @@
 - `0115` — Secrets and dependency audit; incident playbook dry-read
 - `0116` — Invariant test sweep — 02-data-model.md §9 I-1 through I-26
 - `0117` — MVP definition-of-done sweep — evaluate every box in roadmap §9 objectively
+- `0275` — Deferred lifetime stats — waits for a consuming screen (D-329); moved here from `13`
 
 ## Design notes
 

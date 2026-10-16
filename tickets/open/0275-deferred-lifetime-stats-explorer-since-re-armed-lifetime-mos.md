@@ -6,7 +6,7 @@ type: feature
 priority: low
 status: open
 size: m
-capability: 13-home-plinth-and-chronicle
+capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
@@ -37,6 +37,8 @@ SSR, or a small derived payload beside `explored-r10.bin`).
 
 `lib/stats/derived.ts` holds the built half (`lifetimeTerritory`: cells, area, frontier length).
 Put the rest beside it, or in its server counterpart, rather than inline in a page.
+
+- 2026-10-15 (operator): moved from `13-home-plinth-and-chronicle` to `18-mvp-hardening`. No capability, MVP or post-MVP, designs a screen that consumes these numbers, and the ticket must not start until one does (D-329); leaving it in 13 blocked that capability's audit. If no screen exists by `18`'s audit, decide then whether to decline it.
 
 ## Operator validation
 

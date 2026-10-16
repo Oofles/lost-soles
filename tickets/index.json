@@ -6345,7 +6345,7 @@
     "priority": "low",
     "status": "open",
     "size": "m",
-    "capability": "13-home-plinth-and-chronicle",
+    "capability": "18-mvp-hardening",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
