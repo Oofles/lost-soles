@@ -4,7 +4,7 @@ slug: strava-webhook-lambda-function-url
 title: strava-webhook Lambda behind a Function URL, added via the CDK escape hatch, acking in 2 s
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: [42]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-16T13:42:37Z
+closed: 2026-10-16T15:42:18Z
 ---
 
 ## Description

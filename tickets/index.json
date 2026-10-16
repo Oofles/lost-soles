@@ -2221,7 +2221,7 @@
     "title": "strava-webhook Lambda behind a Function URL, added via the CDK escape hatch, acking in 2 s",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [
@@ -2231,8 +2231,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-16T13:42:37Z",
-    "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
-    "ready": true,
+    "closed": "2026-10-16T15:42:18Z",
+    "path": "tickets/closed/0091-strava-webhook-lambda-function-url.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -2254,7 +2255,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0092-hub-challenge-handshake-and-subscription-management.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -2276,7 +2277,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 15
@@ -2324,7 +2325,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 10
