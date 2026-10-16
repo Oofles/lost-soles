@@ -161,3 +161,27 @@ stored.
 **Region.** The import takes every activity, wherever it is; cells are global. The basemap is a
 Florida extract, so the tile summary at the end of the run is the input for a follow-up basemap
 ticket. Nothing in this ticket handles regions.
+
+**Result, 2026-10-16 (orchestrator, against the operator's real account, profile `devault`):**
+
+1. **Budget.** Three windows, 15:10Z to 15:30Z. The 15-minute usage was 1/100 at the start of
+   every window, and the day bucket read 1 → 46 → 91. 97 activities were queued and 20 already
+   known, dating 2020-02-24 to 2026-08-05. The worker logged 97 `outcome: persisted`, with no
+   refusals, and the queue and DLQ were 0/0 afterwards. The account spent about one read per
+   activity, not the two the pacer reserves, so pacing was conservative by half.
+2. **Resume.** A full re-run after completion: `+0 queued, 115 already known`, using 11 reads.
+   T3 holds 116 rows and 116 distinct `externalId`s, so there are no duplicates. A kill
+   mid-window takes the same path (the receipt gate plus the queue-drain wait), which the suite
+   covers.
+3. **Legibility.** Each window line names the window, the month reached, queued and known counts,
+   both budget buckets and the next window. It was enough to follow the run without other
+   tooling.
+4. **Settling the credit.** The v3 → v3 XP replay ran afterwards (`REPLAY#…#0MVB4K8NXAXBD9N`):
+   116 activities folded, 360 rows, T6 1,256 cells raised, generation 267, Total Level 100,
+   70,994 XP. Two floor rows were written (Wayfaring 98, Constitution 31), where the fold priced
+   ground slightly below its import-order scoring (D-142). `repair-t3` afterwards: 0 mismatches
+   over 116 activities, 0 reveal-set mismatches. Landmark backfill: 0 place-bound crossings, since
+   no skill has reached 50 yet.
+5. **Regions** (1° tiles of activity starts): `30,-82` 107, `29,-82` 1, `26,-78` 1, `36,-94` 1,
+   `34,-93` 1, `37,-86` 1. Four activities lie outside the Florida basemap: three in the
+   Arkansas/Kentucky area and one in the Bahamas.

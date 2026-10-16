@@ -58,6 +58,13 @@ The `seen` flag is per-device (§3.4). A backfill marks seen on the device that 
 another device sees no individual new-run lines only if the plinth also treats backfilled activities
 as not-new. Decide which with the trigger question above.
 
+- **2026-10-16 (orchestrator, from `0177`):** the backfill ran once, on 2026-10-16 from 15:10:03.786Z
+  to 15:30:08.420Z, and imported 97 activities. They are the T3 rows whose `ingestedAt` falls in
+  that interval; `startedAt` before the first Sync's month is the tighter filter. The v3 → v3 XP
+  replay ran afterwards (`REPLAY#…#0MVB4K8NXAXBD9N`, Total Level 100). The reveal must be judged
+  against that post-replay state. The ledger has already absorbed the backfill, so "before" for an
+  aggregate reveal is the state as of `ingestedAt` < 15:10:03Z, not today's minus nothing.
+
 ## Operator validation
 
 In the desktop browser, after a backfill (a synthetic one against throwaway data is fine — never a
