@@ -31,7 +31,8 @@ Binding constraints this document is written under, restated so no reader has to
   tall, driven by mouse, trackpad and keyboard. Every wireframe in §1–§6 is drawn for it.
 - **Narrow widths must not break, and nothing is optimised for them.** Ordinary responsive CSS:
   no horizontal page scroll, nothing clipped, nothing unreachable, down to ~360px. There is no
-  phone layout, no touch gesture, no thumb arc and no sunlight case; where an older sentence
+  phone layout, no thumb arc and no sunlight case, and one touch gesture only: below 1024px a
+  finger swipe-down dismisses a sheet, never the only way out *(D-314)*. Where an older sentence
   survives in §3, §5 or §6 saying "tap", read it as *click or activate*.
 - **Units.** Sizes written `dp`/`sp` in older sections mean CSS px at 100% zoom (`sp` scales
   with the browser's text size). New text uses `px`.
@@ -89,6 +90,9 @@ is to link to other screens.
   │ SKILLS PANEL      │   │ ADD WORKOUT  (D-061) │   │ CHRONICLE (run list) │
   │ ├ dialog: /skills/│   │ one row per type     │   │ panel over the map,  │
   │ │   :skillId      │   │ one click to log     │   │ in the rail's column │
+  │ │ also from the / │   │                      │   │                      │
+  │ │ quick-view, back│   │                      │   │                      │
+  │ │ to /  (D-330)   │   │                      │   │                      │
   └───────────────────┘   └──────────┬───────────┘   └──────────┬───────────┘
                                      │                          │
                                      └───────────┬──────────────┘
@@ -110,7 +114,11 @@ is to link to other screens.
 
 Seven routes. Two of them (`/chronicle`, the skill detail) render **over** their parent — the
 Chronicle as a panel beside the live map, the skill detail as a dialog over the panel — and
-exist as routes only so the browser's back button and deep links behave. `/dev/tickets` lost its
+exist as routes only so the browser's back button and deep links behave. The skill detail has a
+second way in: a row of the plinth's quick-view opens it straight from `/`, and dismissing it goes
+back to `/`, not to `/skills` *(D-330)*. Accepted cost: the sheet is still the `/skills/:skillId`
+route, so the map unmounts while it is open and the `/skills` panel is drawn behind the dialog; a
+deep link or a reload lands on `/skills` as before. `/dev/tickets` lost its
 UI to D-252; the route survives as a stub, and its removal (with `app/routes.test.ts`'s count)
 is ticket `0216`, not this document.
 
@@ -124,7 +132,7 @@ is ticket `0216`, not this document.
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
 | `/chronicle` | The only way back to a past run's `/run/:id`. It carries no lifetime totals (D-329): those live on the plinth. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
 | `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — `0216` |
-| `/settings` | Strava re-auth (the one recurring chore S3 permits), sign out, the account-deletion entry point, build info. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
+| `/settings` | Connect, reconnect or disconnect each source, named by its connector's display name, never a hard-coded "Strava" *(D-100)* — reconnecting is the one recurring chore S3 permits. Sign out, the account-deletion entry point, a build line. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
 ### 1.4 Screens deliberately refused
 
@@ -213,14 +221,15 @@ starts, and the plinth's position is fixed at every desktop size.
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░  next: 300  │ │ ADVENTURE  │                       └────┘ │
 │ [5]                                │ └────────────┘                              │
 │                                    │                                             │
-│ Last: Fri 28 Aug·8.4 km·21 new   › │                                             │
-│ [7]                                │               THE MAP PANE                  │
+│ Last: Fri 28 Aug · 8.40 km · 21 new│                                             │
+│ [7]  (D-316)                     › │               THE MAP PANE                  │
 │ ────────────────────────────────── │     parchment + dark fog (D-053);           │
 │ ┌───────┐ ┌──────────────┐ ┌─────┐ │     first-ever load framed on the           │
 │ │SKILLS │ │ + ADD WORKOUT│ │RUNS │ │     latest run's bbox centre, z14           │
 │ └───────┘ └──────────────┘ └─────┘ │     (D-249), in the PANE's centre           │
 │ [9]                                │                                             │
-│ Sync now  (interim, until cap 14)  │                                      ┌────┐ │
+│ Sync now  (interim, until cap 14)  │                                             │
+│ Strava needs reconnecting    [12]  │                                      ┌────┐ │
 │ ────────────────────────────────── │                                 [6]  │ ⤢  │ │
 │ ACTIVITY                      [11] │                                      └────┘ │
 │ ◇ Wayfaring   ▓▓▓▓▓▓▓▓░░░░░░░░  42 │                                      ┌────┐ │
@@ -235,15 +244,16 @@ starts, and the plinth's position is fixed at every desktop size.
 |---|---|---|---|
 | 1 | **Mode toggle** | Top-left **of the map pane**, 16px insets | Two-row segmented control, both labels always visible (§4.2). Click either row, or press `M` (D-253). Persists. |
 | 2 | **Settings** `⚙` | Top-right of the map pane, 16px insets, 40 × 40px | The door to `/settings` (the §2.4 reconnect line is the other, and appears only when needed). |
-| 3 | **The plinth — the rail** | At ≥1024px: fixed, full window height, left edge, **24rem wide** | Opaque `--surface-raised` (D-148), a 1px `--line` rule on its right edge, no shadow, no radius. 16px padding. Content sits at the top, in rows 4, 5, 7, 9, 11 in exactly that order; the space below row 11 stays empty rail. Only row 11 gives way when the window is short: it scrolls inside itself, so rows 4–9 never scroll away. The rail scrolls internally if rows 4–9 alone outgrow the window height. |
+| 3 | **The plinth — the rail** | At ≥1024px: fixed, full window height, left edge, **24rem wide** | Opaque `--surface-raised` (D-148), a 1px `--line` rule on its right edge, no shadow, no radius. 16px padding. Content sits at the top, in rows 4, 5, 7, 9, the interim Sync line, 12 and 11 in exactly that order; the space below row 11 stays empty rail. Only row 11 gives way when the window is short: it scrolls inside itself, so rows 4–9 never scroll away. The rail scrolls internally if rows 4–9 alone outgrow the window height. |
 | 4 | **The two glance numbers** | First row | `TOTAL LEVEL` label + the number in the §8.4 Total Level style (the largest type on `/`), left; lifetime cells revealed, right-aligned on the same baseline. Not links. |
-| 5 | **Milestone bar** | Second row, full rail width less padding | Named target (`next: 300`), never a bare percentage (§2.3). |
+| 5 | **Milestone bar** | Second row, full rail width less padding | Named target (`next: 300`), never a bare percentage (§2.3). At the level ceiling the target is the ceiling itself, written `of 2,277` — the `/skills` header's wording, computed from the ruleset, never a literal. |
 | 6 | **Fit to territory** | Right edge of the map pane, above ⌖, 40 × 40px, 8px gap | Frames the whole explored set. A separate control, not a long-press (D-253); `0101`'s. |
-| 7 | **Last run** | Third row, one line | One link: the whole line is the hit area, `›` at its end. Click → `/run/:id` end state. This is also the line that carries the §2.4 states (new run, reconnect). |
+| 7 | **Last run** | Third row, one line | One link: the whole line is the hit area, `›` at its end. Click → `/run/:id` end state. Text: `Last: Fri 28 Aug · 8.40 km · 21 new` — the latest traced run, the date from its own wall clock, missing parts omitted *(D-316)*. This line also carries the §2.4 new-run state, and only that one; reconnect is row 12 *(D-337)*. |
 | 8 | **Recentre** `⌖` | Right edge of the map pane, 40 × 40px, its bottom 16px above the attribution | Recentres on the last run's end point at z14 (§4.4); `0101`'s. |
 | 9 | **Three destinations** | Fourth row, below a `--line` rule | `SKILLS` · `+ ADD WORKOUT` · `RUNS` in one row, all 40px tall, 8px apart, columns `1fr 1.5fr 1fr` so Add workout is centred and widest (D-061). `RUNS` → `/chronicle`. |
 | 10 | **Attribution** | Bottom-right **of the map pane**, MapLibre's own control, uncompacted | A licence requirement (`0052`). Nothing may cover it. |
-| 11 | **Skills quick-view** | Fifth row, below the Sync line and a `--line` rule; ≥1024px only | `0270`. A glance, not a second skills panel: one 32px row per TRAINED skill — sigil, name, a 3px bar to the next level in `/skills`' fills, the level; no XP. `ACTIVITY` then `META` headings, registry order; an untrained skill has no row and an empty group no heading. Each row links to `/skills/<id>`'s sheet, which dismisses back to `/`. Below 1024px it is omitted: the bottom card only must not break (D-251). |
+| 11 | **Skills quick-view** | Fifth row, below the Sync line, the reconnect line when present, and a `--line` rule; ≥1024px only | `0270`. A glance, not a second skills panel: one 32px row per TRAINED skill — sigil, name, a 3px bar to the next level in `/skills`' fills, the level; no XP. `ACTIVITY` then `META` headings, registry order; an untrained skill has no row and an empty group no heading. Each row links to `/skills/<id>`'s sheet, which dismisses back to `/`. Below 1024px it is omitted: the bottom card only must not break (D-251). |
+| 12 | **Reconnect line** | Own caption-size line directly below the Sync line; present only when a token is broken | `<source> needs reconnecting`, named by the connector's display name, one ink link to `/settings` *(D-337, D-318)*. The only failure `/` ever shows. Replacing row 7 would hide the last run, which §2.3 says the plinth still shows. |
 
 **All map chrome lives on the map pane** — the toggle, `⚙`, fit, `⌖` and the attribution are
 positioned against the pane, never against the window, so none of them ever sits under the rail.
@@ -255,7 +265,10 @@ thumb dragged up into the Chronicle. With a pointer it is a second, smaller door
 **Interim, until capability `14` automates ingest:** the manual Sync control (`09` §2.3 — the
 one thing D-013 is knowingly violated for) moves *into* the rail as a quiet caption-size text
 button on its own line below the three destinations, and capability `14` deletes that line with
-no other layout change. It is never a fourth destination button.
+no other layout change. It is never a fourth destination button. Beneath the button sits a
+reserved `aria-live` status line, one caption tall whether or not it has text, so nothing jumps:
+`Checking for new activities…` while the press is in flight (the button itself reads `Syncing…`),
+then D-318's result sentence — `N activities queued.` — or nothing at all.
 
 **The camera is not offset for the rail.** The map is a pane beside the rail, not a surface
 under it: MapLibre's container *is* the pane, so the first-load framing (D-249) centres the
@@ -263,7 +276,7 @@ latest run in the visible map with no `padding` at all. The pane is narrower tha
 not occluded by anything.
 
 **Focus and keyboard order** follows reading order, left to right: the last-run line →
-`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the quick-view's rows (`0270`) → mode toggle → `⚙` → the map (arrow keys
+`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the reconnect line when present (D-337) → the quick-view's rows (`0270`) → mode toggle → `⚙` → the map (arrow keys
 and `+`/`−` act on it while it holds focus, D-253) → fit → `⌖`. `M` toggles the mode from
 anywhere on `/` except while a text field has focus. Every focusable element shows the §9.4
 focus ring.
@@ -317,7 +330,8 @@ window there.
 - **A nag when no run has synced.** If Strava has not delivered in a while, that is *not* an
   event. The plinth simply still shows the last run, whenever it was. The only failure surfaced
   is a genuinely broken token, and it appears as a quiet ink-coloured line in the plinth —
-  `Strava needs reconnecting` → `/settings` — never a red badge, never a modal.
+  `<source> needs reconnecting` → `/settings`, its own line under Sync (§2.2 row 12, D-337) —
+  never a red badge, never a modal.
 - **Notification dot / inbox.** §1.4.
 
 ### 2.4 States
@@ -325,8 +339,10 @@ window there.
 | State | Plinth shows | Map shows |
 |---|---|---|
 | Cold start, cached | Cached totals immediately | Cached basemap + last `explored-r11.<gen>.bin` (D-237) from IndexedDB, drawn before any network call |
-| Fresh import waiting | `1 new run — open it` with the gold treatment (a gold rule or fill, never gold text — D-148), *once*, and it never turns red or repeats | Territory as of *before* the run — the reveal belongs to §3, not here |
-| Nothing ever imported | `Connect Strava to begin` — the only call to action in the app | Parchment, unfogged, centred on the configured home, else the extract bounds (D-249's precedence with no run to frame). Never device location: a desktop browser's geolocation is an IP guess and a permission prompt |
+| Fresh import waiting | `1 new run — open it` in ink text with an `--accent-text` rule, never gold text *(D-148, D-335)*. Its pulse fires once per run per page load — a reload is a cold open *(D-319)* — and the line itself stays until the run is seen; it never turns red or repeats | Only the run's NEW cells held back; re-crossed ground stays clear, because the map never re-fogs *(D-319, D-020)*. The reveal belongs to §3. While the hold is pending — the latest-run answer does not yet speak for the explored set on screen — the fog keeps its last drawn frame *(D-333)* |
+| Nothing ever imported, no source connected | `Connect <source> to begin` — the only call to action in the app. A connected account still awaiting its first import is told nothing *(D-320)* | Parchment, unfogged, centred on the configured home, else the extract bounds (D-249's precedence with no run to frame). Never device location: a desktop browser's geolocation is an IP guess and a permission prompt |
+| Broken token | The ordinary plinth, plus the `<source> needs reconnecting` caption under the Sync line (§2.2 row 12, D-337); the last-run line still shows the last run | Identical |
+| Sync in progress | The button reads `Syncing…`; the status line beneath it `Checking for new activities…`, then `N activities queued.` or nothing (D-318) | Identical; no overlay, nothing blocked but the button |
 | Three weeks idle | Identical to any other day | Identical |
 | Offline | Everything above, from cache, with no error chrome | Cached tiles; missing tiles render as flat parchment, never as grey checkerboard |
 
@@ -349,8 +365,12 @@ earlier "carries the lifetime totals at its own top")*.
   usable at once, and a scrim would make the map a backdrop.
 - **Dismissal:** Esc, its close control, and back (§1.5). Dismissing it does not move the camera.
 - **Clicking a row** goes to `/run/:id` in end state (§4.5). Back returns to the Chronicle.
-- Below 1024px it takes the bottom card's place in the same way, growing up to 16px below the
-  mode toggle. It is still a panel, not a full-screen page.
+- **The unseen mark** goes on at most one row — the latest traced run, when this device has not
+  seen it — as a 3px inset `--accent-text` rule plus hidden text, never a count *(D-324, D-335)*.
+- Below 1024px it takes the bottom card's place as a fixed panel at full height: 16px side
+  insets, `top: 72px` (clear of the `⚙`: 16 + 40 + 16) and `bottom: 36px` (clear of the
+  attribution, D-315). It does not grow with its content. It is still a panel, not a full-screen
+  page. The 72px is revisited when the mode toggle (`0098`) lands, which shares that top edge.
 
 The skill detail is the other thing that opens over a parent, and it is deliberately different:
 a **centred dialog with a scrim** over `/skills` (§5.5, as `0074` built it), because the panel
@@ -465,29 +485,34 @@ is a thing laid *on* the map, in keeping with the fiction that the map is the ar
 ├──────────────────────────────────────────────┤
 │  RETURN FROM THE FOG        Thu 28 Aug · 8.4km│
 │                                              │
-│  Wayfaring    +576   ▓▓▓▓▓▓▓░░░  L47  8,003 →48│
-│  Cartography  +375   ▓▓▓▓▓░░░░░  L41  4,572 →42│
-│  Constitution +192   ▓░░░░░░░░░  L41↑ 6,645 →42│
+│  Wayfaring    +578   ▓▓▓▓▓▓▓░░░  L47  8,001 →48│
+│  Cartography  +380   ▓▓▓▓▓░░░░░  L41  4,567 →42│
+│  Constitution +193   ▓░░░░░░░░░  L41↑ 6,644 →42│
 │  ────────────────────────────────────────────│
-│  21 cells claimed · 8 remembered             │
+│  148 cells claimed · 58 remembered           │
 │  3.18 km never run before                    │
 │                                              │
-│  Total XP  1,884,120 → 1,885,263   (+1,143)  │
+│  Total XP  1,884,120 → 1,885,271   (+1,151)  │
 │  Total Level  271                            │
 │                            [ tap a row for ⌄ ]│
 └──────────────────────────────────────────────┘
 ```
 
+*The figures are 04 §8.2's Example A (+578 / +380 / +193, 148 new and 58 re-armed cells), the
+same numbers `src/scoring/propagate.test.ts` asserts.*
+
 - Rows appear **staggered 240 ms apart**, top to bottom, each sliding up 8dp with a 180 ms fade.
-- The `+576` **counts** from 0 to its value over 700 ms with `easeOutExpo` — fast at the start,
+- The `+578` **counts** from 0 to its value over 700 ms with `easeOutExpo` — fast at the start,
   visibly decelerating into the final digit. Tabular numerals, so nothing reflows while counting.
 - The XP bar fills in the same 700 ms window. If the fill crosses 100%, it does **not** wrap —
   it fills to full, holds, and hands off to beat 3.
 - `L41 ↑` marks a level gained; the arrow is `--progress-activity` (`--gold-700` on parchment —
   `--gold-500` is 2.24:1 there, and a mark that carries meaning needs 3:1; D-296, after D-291) and
   is the only colour in the row: the bars are ink.
-- **Tapping a row expands it to the reason breakdown** (04 §4.2): `318 XP new ground · 196 XP familiar ground · 62 XP
-  remembered ground` — every amount says XP, never a cell noun (`0277`). *D-309 (`12` audit, 2026-10-15):* **"remembered" is the only word
+- **Tapping a row expands it to the reason breakdown** (04 §4.2): Wayfaring's reads `318 XP new ground · 197 XP familiar ground · 63 XP
+  remembered ground` — every amount says XP, never a cell noun (`0277`, D-332). Constitution's
+  single part reads `193 XP share`: it is fed XP, not ground *(operator, 2026-10-16: keeps what
+  ships)*. *D-309 (`12` audit, 2026-10-15):* **"remembered" is the only word
   the player sees for re-armed ground** — in this breakdown, the cells line above it and the skill
   sheet alike. `re-armed`/`rearmed_ground` is the ledger's reason id, never on-screen copy. This falls out of the `XpLedger` for free and it is the thing that
   makes the numbers feel *accountable* rather than dispensed. Expansion pauses the sequence.
@@ -557,7 +582,10 @@ first fix. Motorways and rail never name a street. No name known, the row waits.
 
 #### Beat 5 — the frontier line (7.2 → 8.4 s)
 
-One line at the very bottom: the nearest unexplored frontier and its distance.
+One line at the very bottom: the best-scored unexplored frontier and its distance — not the
+nearest. It is the first cluster in `05` §8.4's novelty ÷ distance order that is at least half
+unexplored (novelty ≥ 0.5) and at least 250 m from the run's origin; below 250 m is the doorstep,
+not a frontier. When nothing passes, there is no line *(D-336)*.
 
 ```
   ◇  Unclaimed ground 1.2 km north — Millbrook
@@ -581,7 +609,9 @@ date, source). Back returns to `/` — ~~always~~ **except for a run opened from
 whose back returns to the Chronicle at the scroll position it was left at, and a second back to
 `/`** *(operator, 2026-10-15, ticket `0088`; proposed as a decision in that ticket's
 Resolution)*. The Chronicle's row links push rather than replace; a run opened any other way —
-the plinth's last-run line, a pasted link — still backs to `/`.
+the plinth's last-run line, a pasted link — still backs to `/`. The scroll position is restored
+when the current history entry's Navigation API key is the one the list was left from, with
+`popstate` as the fallback where that API is missing *(D-321, D-339)*.
 
 The end state is the *canonical* view of a run. The sequence is a decorated way of arriving at it.
 
@@ -1505,13 +1535,25 @@ white on navy vibrates. `--ink-900` and `--parch-50` are the extremes.
 | `--surface-raised` | `--parch-50` | `--navy-700` |
 | `--text-primary` | `--ink-900` | `--parch-100` |
 | `--text-secondary` | `--ink-600` | `--ink-300` |
-| `--text-muted` | `--ink-500` | `#8592A6` |
+| `--text-muted` | `--ink-500` | `--ink-400` |
+| `--text-chronicle` | `--ink-700` | `--parch-100` |
 | `--line` | `--ink-400` @ 0.35 | `--parch-100` @ 0.18 |
 | `--accent` | `--gold-500` | `--gold-300` |
 | `--accent-text` | `--gold-700` | `--gold-300` |
 | `--scrim` | `--navy-900` @ 0.72 | `--navy-900` @ 0.82 |
 | `--progress-activity` | `--gold-700` *(D-291)* | `--gold-300` |
 | `--progress-meta` | `--verdigris-500` | `--verdigris-300` |
+| `--destructive` / `--on-destructive` | `--oxblood` / `--parch-50` | same — theme-invariant |
+| `--route-glow` / `--route-line` | `--lantern-500` / `--route-core` | same — on the map |
+| `--trace-line` | `--ink-300` | same — on the map |
+| `--landmark-stone` / `--landmark-shrine` / `--landmark-ink` | `--parch-200` / `--gold-500` / `--ink-900` | same — on the map |
+
+`--text-chronicle` is §3.2 beat 4's chronicle line (`0083`), the one text between primary and
+secondary. `--destructive` is `/settings`' delete confirm and nothing else (`0089`). The route
+(`0057`), trace (`0085`) and landmark (`0260`) tokens sit on the map, and the dark theme does not
+darken the map, so they are deliberately absent from the dark theme. The unseen-run marks — the
+plinth's `1 new run` rule and pulse, the Chronicle row's inset — are `--accent-text`, never
+`--accent`: they carry meaning, and `--gold-500` is 2.1:1 on parchment *(D-335)*.
 
 **The dark theme does not darken the map.** It restyles chrome and switches the basemap to its
 *night parchment* variant — the same tiles at −8% lightness and +4% warmth — because a dark
@@ -1533,9 +1575,9 @@ the app offers no visual preference at all.*
 | `--verdigris-500` on `--parch-50` | **4.49:1** | Meta progress fill |
 
 That last row is the palette's one genuine trap: gold leaf is the app's signature and it is a
-poor text colour on parchment. Where gold must carry meaning in type — the plinth's "1 new run",
-the level-up card — it is either large (`--gold-700`, ≥24sp) or it sits on navy, where it is
-excellent. Elsewhere gold is the *fill* of a bar and `--ink-900` is the number beside it.
+poor text colour on parchment. Where gold must carry meaning in type — the level-up card — it
+is either large (`--gold-700`, ≥24sp) or it sits on navy, where it is excellent. The plinth's
+`1 new run` is not gold type: it is ink text with an `--accent-text` rule (§2.4, D-335). Elsewhere gold is the *fill* of a bar and `--ink-900` is the number beside it.
 
 ### 8.4 Typography
 
@@ -1601,7 +1643,10 @@ and uppercase Spectral where it is used — the level-up card's name and tier ru
 
 ### 8.7 Motion
 
-Five durations. Nothing else is invented at the component level.
+Five durations. Nothing else is invented at the component level. These govern component chrome
+— the plinth pulse, a camera fly. The post-run sequence is exempt: §3.2 is one
+choreographed spec and keeps its own beat timings (700, 240, 180, 300, 500, 600, 900, 220 ms)
+*(D-338)*.
 
 | Duration | Used for |
 |---|---|
@@ -1667,7 +1712,9 @@ required only for the phone is gone. The numbering is kept so citations of §9.4
   single-key shortcut is defined, and none is added without a decision.
 - **No gesture is the only path to anything.** The mode toggle has its row and `M`; zoom has the
   wheel, double-click and `+`/`−`; fit-to-territory is its own control; every dismissal has Esc,
-  a close control and back. There is no long-press, no drag handle and no swipe anywhere.
+  a close control and back. There is no long-press and no drag handle. One swipe exists: below
+  1024px a finger dragged down from a sheet's top dismisses it, touch only, never a mouse, and
+  never the only way out — Esc, the close control and back still work *(D-314)*.
 - **Hover never carries information** (§4.5, §5.1). It may change the cursor. Nothing appears on
   hover that is not also one click away.
 - **Targets** follow §8.5: nothing below 24 × 24px, 40px for the plinth's destinations and the map

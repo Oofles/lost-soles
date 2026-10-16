@@ -1756,8 +1756,10 @@ One res-11 cell ≈ 2,150 m² (D-237). A kilometre of first-ever ground yields ~
 repeated yields 0. **That diminishing-returns curve *is* the game
 mechanic, and it falls out of the data model for free** (R3 §4e).
 
-The UI should surface all four counts, not just the total. "112 cells run · 41 new · 12
-rediscovered · 59 familiar" tells the story that a single XP number cannot. The per-cell rate is
+All four counts exist in the data, so the story is there to tell, not just a total. **What the
+post-run screen shows is `06` §3.2's, not this section's:** its tally reads `N cells claimed ·
+M remembered`, omits a zero, and states distance rather than cells run; "remembered" is the only
+on-screen word for a re-armed cell (D-309). The per-cell rate is
 the Cartography row's `xpPerUnit` in the user's ruleset version — 2.15 in `rules/xp-rules-v2.yaml`
 (D-279, D-272), and it and the
 level curve belong to the progression document, not this one.
@@ -1768,18 +1770,18 @@ level curve belong to the progression document, not this one.
 
 ### 8.3 Lifetime totals
 
-> **D-329 (2026-10-15, `0090`).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. **Deferred until a screen consumes them:** explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
+> **D-329 (2026-10-15, `0090`), amended by D-340 (`13` audit, 2026-10-16).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. Only cells is shown, on the plinth; area and frontier length are built, memoised and tested in `lib/stats/derived.ts`, and no screen renders them. **Deferred until a screen consumes them** (`0275`): explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
 
 Cheap aggregates, computed on generation change and memoised:
 
-| Stat | Computation |
-|---|---|
-| Territory revealed | `exploredSet.size` cells; area via `sum(cellArea(c, 'km2'))` (do not multiply by the average — use `cellArea`, it varies with latitude) |
-| Explorer since | `min(firstRunAt)` — the reason `firstRunAt` exists (§2.4) |
-| Total distance / runs | run ledger, not the cell set |
-| Cells re-armed lifetime | `sum(discoveryCount - 1)` over cells |
-| Most-run ground | `max(visitCount)` — one cell, or a cluster; good flavour text |
-| Frontier length | count of explored cells with ≥1 unexplored `gridDisk(c,1)` neighbour — a nice "edge of the known world" number, and it is §8.4's precursor |
+| Stat | Computation | Status |
+|---|---|---|
+| Territory revealed | `exploredSet.size` cells; area via `sum(cellArea(c, 'km2'))` (do not multiply by the average — use `cellArea`, it varies with latitude) | cells **shown** (plinth); area built, unrendered (D-340) |
+| Explorer since | `min(firstRunAt)` — the reason `firstRunAt` exists (§2.4) | deferred (D-329) |
+| Total distance / runs | run ledger, not the cell set | deferred (D-329) |
+| Cells re-armed lifetime | `sum(discoveryCount - 1)` over cells | deferred (D-329) |
+| Most-run ground | `max(visitCount)` — one cell, or a cluster; good flavour text | deferred (D-329) |
+| Frontier length | count of explored cells with ≥1 unexplored `gridDisk(c,1)` neighbour — a nice "edge of the known world" number, and it is §8.4's precursor | built, unrendered (D-340) |
 
 ### 8.4 Unexplored zones near me — and the route-planner precursor
 

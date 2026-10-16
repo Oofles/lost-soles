@@ -17,10 +17,12 @@ The design lives in §6.4, and that section is authoritative. In order, because 
 
 1. Revoke upstream first, at the activity source.
 2. Delete the `SourceAccount` row.
-3. Disable, then delete, the Cognito user, then `globalSignOut`.
+3. Disable the Cognito user, `AdminUserGlobalSignOut`, then delete it (sign-out fails on a
+   deleted user).
 4. Delete every owner-scoped DynamoDB row by `uid` (D-307 lists the tables).
 5. Delete `raw/<uid>/` and the identity prefix, under the break-glass role.
-6. Purge noncurrent S3 versions for those prefixes.
+6. Purge noncurrent S3 versions for those prefixes, and set a lifecycle rule to abort incomplete
+   multipart uploads.
 7. Let the logs age out under the 30-day retention.
 8. Confirm in writing what was deleted.
 

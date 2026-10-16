@@ -738,8 +738,10 @@ In order, and the order matters:
 1. **Revoke upstream first.** `POST https://www.strava.com/oauth/deauthorize` with the user's
    access token, so the third party stops being able to send us their data mid-deletion.
 2. **Delete the `SourceAccount` row** (S4 — tokens gone; §3).
-3. **Disable, then delete, the Cognito user.** Disable first: it stops sessions immediately
-   while the slower deletes run. `globalSignOut` to kill outstanding refresh tokens (§5.3).
+3. **Disable the Cognito user, sign it out globally, then delete it.** Disable first: it stops
+   sessions immediately while the slower deletes run. `AdminUserGlobalSignOut` next, to kill
+   outstanding refresh tokens (§5.3); it fails on a user that no longer exists, so delete comes
+   last.
 4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, `Trace`, and any
    `IngestReceipt` rows not yet TTL'd. *Amended by D-307 (`12` audit, 2026-10-15):* this list is
    every owner-scoped table, not just these four — `XpLedgerEntry`, `SkillState`, `Profile`, and
@@ -769,8 +771,9 @@ undone, which is the correct trade at this scale.
 
 ### 6.5 Disconnecting a source is not deleting an account
 
-Removing the Strava connection deletes `SourceAccount` and stops ingest. **It does not touch the
-map** — the explored set was derived from traces that are archived in `raw/` and belong to the
+Removing the Strava connection stops ingest. The `SourceAccount` row is kept, set
+`DISCONNECTED`, with both tokens removed (`02` §7.4, §8.1; `retains-everything.test.ts`). **It does not
+touch the map** — the explored set was derived from traces that are archived in `raw/` and belong to the
 user, not to Strava (D-101). This is the entire point of the archive mitigation in D-121.2: if
 Strava's athlete cap bites (D-102/D-121, "the failure mode is friends being locked out, not data
 deletion"), or the app is downgraded, or the user simply moves to owned hardware (D-117), the

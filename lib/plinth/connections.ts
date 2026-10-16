@@ -1,7 +1,7 @@
 /**
  * THE PLINTH'S ONLY QUESTION ABOUT A SOURCE: IS IT CONNECTED, AND IS IT BROKEN? Ticket `0087`.
  *
- * Read on the server by `app/page.tsx` — the same summary `/settings` reads, with no token
+ * Read on the server by `app/(home)/layout.tsx` (D-322) — the same summary `/settings` reads, with no token
  * attribute projected — and handed to the client as data. The two lines it feeds are the only
  * source-related text `/` ever shows (`06` §2.3, §2.4):
  *

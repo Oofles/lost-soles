@@ -1,10 +1,9 @@
 import { useEffect, useRef, type RefObject } from "react"
 
 /**
- * SWIPE-DOWN TO DISMISS A SHEET. Ticket 0249, `06-ui-ux.md` §1.5: sheets (`/chronicle`, skill
- * detail, ticket capture) dismiss "on back, on swipe-down, and on scrim tap". This is the ONE
- * gesture every sheet takes — the skill sheet first; `/chronicle` and ticket capture call the same
- * hook when they are built, rather than growing their own.
+ * SWIPE-DOWN TO DISMISS A SHEET. Ticket 0249, `06-ui-ux.md` §1.5, D-314: below 1024px a sheet also
+ * dismisses on a finger swipe-down, never as the only way out. This is the ONE gesture every sheet
+ * takes — the skill sheet and `/chronicle` both call this hook rather than growing their own.
  *
  * Pointer events, not a gesture library: one vertical threshold, no inertia physics. The sheet
  * follows the finger while it is held and either dismisses on release or springs back.
@@ -12,8 +11,8 @@ import { useEffect, useRef, type RefObject } from "react"
  * WHEN IT ARMS — all three, read at `pointerdown`:
  *   - the pointer is a finger (`pointerType === "touch"`): a mouse drag on the desktop is not a
  *     sheet gesture, and the desktop has Esc, the scrim and Close;
- *   - the viewport is narrow (< 1024px): at ≥ 1024px the sheet is a centred dialog, not a bottom
- *     sheet, and nothing changes there;
+ *   - the viewport is narrow (< 1024px): at ≥ 1024px the skill detail is a centred dialog and the
+ *     Chronicle a panel in the rail, not bottom sheets, and nothing changes there;
  *   - the sheet is scrolled to its top. A drag while the content is scrolled is a scroll.
  *
  * WHY THERE IS A `touchmove` LISTENER AT ALL. With `touch-action: auto` the browser claims any

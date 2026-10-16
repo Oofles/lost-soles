@@ -5120,3 +5120,37 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   Otherwise `←` pushes `/`. Without the Navigation API it pushes `/` as before, because the entry
   behind cannot be seen and a guess could back out of the app. Modified and middle clicks always
   belong to the link, so a new tab still opens `/`.
+- **D-335** **The unseen-run mark is `--accent-text` (`--gold-700`), never `--accent`.** *(Operator,
+  2026-10-16, capability `13` audit. Supersedes D-324's "3px inset `--accent` rule"; D-324's
+  at-most-one-row rule stands.)* The plinth's `1 new run` rule and pulse and the Chronicle row's
+  inset carry meaning, and on the Chronicle the rule is the only visible cue. `--gold-500` is 2.1:1
+  on parchment, which D-291 forbids for a meaning-bearing graphic; `--gold-700` clears 3:1. D-324
+  contradicted D-291 when written, and D-051 settles which yields. Code: ticket filed by the audit.
+- **D-336** **The frontier line names the best-scored cluster, not the nearest, and only one at least
+  half unexplored and at least 250 m from the origin.** *(Agent, 2026-10-16, capability `13` audit;
+  records what `0083` shipped.)* `pickFrontier` takes the first cluster in `src/domain/frontier.ts`'s
+  novelty ÷ distance order (`05` §8.4) passing `FRONTIER_MIN_NOVELTY` 0.5 and
+  `FRONTIER_MIN_DISTANCE_M` 250 (`lib/run-moment/frontier-line.ts`). Below 250 m is the doorstep,
+  not a frontier; below half unexplored is not "unclaimed". No line when nothing passes. Amends
+  `06` §3.2's "nearest unexplored frontier".
+- **D-337** **The plinth's reconnect line is its own caption under the Sync line; the last-run line
+  keeps showing the last run.** *(Agent, 2026-10-16, capability `13` audit; records what `0087`
+  shipped.)* `06` §2.2 row 7 said the last-run line carries the reconnect state. Replacing it would
+  hide the last run, which §2.3 says the plinth "simply still shows" when nothing syncs. Row 7
+  carries only the new-run state.
+- **D-338** **`06` §8.7's five durations govern component chrome; the post-run sequence keeps its own
+  timings.** *(Agent, 2026-10-16, capability `13` audit.)* §3.2 specifies its beats (700, 240, 180,
+  300, 500, 600, 900, 220 ms) and the code follows them; §8.7's "nothing else is invented at the
+  component level" contradicted it. The sequence is one choreographed spec, not component chrome.
+  Everything else (the plinth pulse, a camera fly) still uses §8.7's set.
+- **D-339** **The Chronicle's scroll snapshot is restored when the current history entry's key is the
+  one the list was left from.** *(Agent, 2026-10-16, capability `13` audit; records `0088`'s
+  post-deploy fix. Supersedes D-321's "only when the latest `popstate` landed on `/chronicle`"; the
+  rest of D-321 stands.)* The Navigation API's `currentEntry.key` is matched against `leftFrom`
+  (`lib/chronicle/return.ts`); `popstate` is the fallback where that API is missing. The popstate
+  test failed the deployed scroll check twice (Amplify jobs 402, 403).
+- **D-340** **Lifetime area and frontier length are built but no screen shows them.** *(Operator,
+  2026-10-16, capability `13` audit. Amends D-329's "Built: cells, area, frontier length".)*
+  `lifetimeTerritory`/`lifetimeFeed` (`lib/stats/derived.ts`) compute both and are tested; only
+  `lifetimeCells` is wired, to the plinth. They are kept rather than deleted and wait for a screen,
+  like the four D-329 deferred (`0275`).

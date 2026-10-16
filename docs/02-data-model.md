@@ -1828,7 +1828,7 @@ even by accident. Three increasingly aggressive retreats from Strava, and what e
 
 | Level | Action | `ExploredCell` | Blobs | XP | Replay fidelity |
 |---|---|---|---|---|---|
-| **(a) Disconnect** | T7 row `DISCONNECTED`, tokens deleted, webhook subscription cancelled | untouched | untouched | untouched | full |
+| **(a) Disconnect** | T7 row `DISCONNECTED`, tokens deleted, athlete deauthorized (stops that athlete's events; the webhook subscription is one per app and permanent, `03` §2.3) | untouched | untouched | untouched | full |
 | **(b) Stop and forget** | (a) + `Activity` rows for Strava marked `TOMBSTONED` | untouched (**D-020, §2 T3: cells are never removed**) | untouched | untouched (**§4.7: tombstoning keeps ledger rows**) | full — raw is still archived |
 | **(c) Purge the raw archive** | (b) + delete `raw/<uid>/strava/**` | untouched | untouched | untouched | **degraded — see below** |
 

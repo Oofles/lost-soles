@@ -398,15 +398,20 @@ component; contrast is checked against the §8 tokens; Total Level reads the com
 a tap at any point lands on the end state; adding a skill produces no level-up card; the whole
 thing is skippable and nothing about it is required.
 
-#### `13-home-plinth-and-chronicle` — 5 tickets
+#### `13-home-plinth-and-chronicle` — 14 tickets
 
 | # | Ticket | Description |
 |---|---|---|
-| 1 | ▸ **The plinth over the map** | `06-ui-ux.md` §2.2: Total Level headline, "1 new run — tap to open", nav to `/skills`, `/log`, settings. |
-| 2 | ▸ **Home states** | §2.4: cold start, no runs yet, sync in progress, sync failed. |
-| 3 | **`/chronicle` sheet — run list, opened from the plinth** | Renders as a sheet; exists as a route so the browser back button and deep links behave (D-251). |
+| 1 | ▸ **The plinth over the map** | `06-ui-ux.md` §2.2: Total Level headline, `1 new run — open it`, then SKILLS / + ADD WORKOUT / RUNS in the rail (D-313). Settings is the `⚙` on the map pane (D-316). |
+| 2 | ▸ **Home states** | §2.4: cold start, no runs yet, sync in progress, offline. No "sync failed": a failed import surfaces nowhere; only a broken token shows, as one reconnect line (D-318, D-337). |
+| 3 | **`/chronicle` — run list, opened from RUNS** | At ≥1024px it replaces the rail's contents in the rail's column, not a sheet (D-313, D-322); exists as a route so the browser back button and deep links behave (D-251). |
 | 4 | **`/settings` — small and boring** | Connect/disconnect source, sign out, account deletion entry point. |
-| 5 | **Derived stats feed: new territory per run, lifetime totals** | `05-fog-of-war.md` §8.2, §8.3. |
+| 5 | **Derived stats feed: new territory per run, lifetime totals** | `05-fog-of-war.md` §8.2, §8.3. No lifetime totals on the Chronicle; only cells is shown (the plinth). Area and frontier length are built but unrendered; the other four are deferred (D-329, D-340, `0275`). |
+
+*Added during the capability (nine more):* `0187` the desktop design pass over `06` (D-313),
+`0215` phone criteria stripped (D-251), `0270` the skills quick-view in the rail, `0249` sheets
+dismiss on swipe-down, and five fixes — `0273` unseen-run flash, `0274` Run page back arrow,
+`0276` empty plinth after sign-in, `0277` XP labelled as cells, `0278` MapLibre rebuilt on refresh.
 
 **Depends on:** `08`, `12`. **Done when:** every route in the §1.2 screen map exists except
 `/dev/tickets` (withdrawn, D-252), and the browser back button behaves at every depth (D-251).
@@ -425,7 +430,7 @@ thing is skippable and nothing about it is required.
 | 3 | ▸ **Verification, replay protection, rate limiting and cost-DoS defence** | §4.1, §4.3, §4.4. The endpoint must never do the work inline (§4.5) — it enqueues. |
 | 4 | ▸ **`token-refresh` scheduled Lambda (every 4 h)** | Refresh before expiry, not on failure. |
 | 5 | ▸ **`nightly-reconcile` — `listSince` backstop** | Covers silently dropped webhooks. This is *why* `listSince` is mandatory (D-140). |
-| 6 | ~~**Push/plinth notification "your run is on the map"**~~ | **DECLINED 2026-09-03, D-185.** Web push was the last MVP item needing the phone *configured* rather than opened. `0087`'s plinth line `1 new run — tap to open` carries the signal; the ticket's own criterion 10 already required the app to work identically with push denied. |
+| 6 | ~~**Push/plinth notification "your run is on the map"**~~ | **DECLINED 2026-09-03, D-185.** Web push was the last MVP item needing the phone *configured* rather than opened. `0087`'s plinth line `1 new run — open it` carries the signal; the ticket's own criterion 10 already required the app to work identically with push denied. |
 
 **Depends on:** `06`, `12`. **Done when:** a run finished on the phone appears on the map with no
 user action *(unchanged — D-185 dropped the push, not the automatic path; you learn about the run

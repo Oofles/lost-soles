@@ -18,12 +18,12 @@ const ROOT = join(import.meta.dirname, "..")
 const SCREEN_MAP = [
   "app/(home)/page.tsx",               // /                      map + plinth (home)
   "app/skills/page.tsx",               // /skills                skills panel
-  "app/skills/[skillId]/page.tsx",     // /skills/:skillId       sheet over the panel
+  "app/skills/[skillId]/page.tsx",     // /skills/:skillId       skill detail (dialog ≥1024px, sheet below)
   "app/log/page.tsx",                  // /log                   add workout (D-061)
   "app/(home)/chronicle/page.tsx",     // /chronicle             panel in the rail's column
   "app/run/[activityId]/page.tsx",     // /run/:activityId       the post-run moment
   "app/settings/page.tsx",             // /settings              small and boring
-  "app/dev/tickets/page.tsx",          // /dev/tickets           owner-only (D-092)
+  "app/dev/tickets/page.tsx",          // /dev/tickets           withdrawn stub (D-252; removal is 0216)
   "app/dev/tickets/[id]/page.tsx",     // /dev/tickets/:id       read-only detail
 ]
 
@@ -39,7 +39,7 @@ describe("the §1.2 screen map", () => {
   it("does not contain a screen §1.4 explicitly refused", () => {
     // Named rather than inferred, so the failure message teaches rather than just fails.
     const REFUSED = {
-      "app/stats/page.tsx": "a stats/dashboard page — lifetime totals live atop the Chronicle sheet",
+      "app/stats/page.tsx": "a stats/dashboard page — cumulative numbers live on the plinth alone (D-329)",
       "app/dashboard/page.tsx": "a stats/dashboard page — P5 rules out progress that only exists in one",
       "app/profile/page.tsx": "a profile page — there is one user (P9); a profile is a social organ",
       "app/achievements/page.tsx": "a badge gallery — milestones are placed on the MAP as landmarks",

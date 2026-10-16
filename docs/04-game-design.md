@@ -1400,29 +1400,10 @@ activity, however many skills fed it — D-255. These numbers are asserted by
 
 **Total Level +1. Constitution 40 → 41.** Level-up card fires (§4.2 step 3).
 
-**What the user sees:**
-
-```
-        ⟡  RETURN FROM THE FOG  ⟡
-
-   [2.5s: the route draws itself in lantern-light,
-    fog peeling back in soft discs behind it]
-
-   Wayfaring      +578   ▓▓▓▓▓▓▓░░░  47      8,001 to 48  (~14 runs)
-   Cartography    +380   ▓▓▓▓▓░░░░░  41      4,567 to 42
-   Constitution   +193   ▓░░░░░░░░░  41 ↑    6,644 to 42
-
-   ┌──────────────────────────────┐
-   │   CONSTITUTION   40 → 41     │
-   └──────────────────────────────┘
-
-   148 cells claimed · 58 remembered · 3.18 km never run before
-
-   "You returned to Ashgrove Lane after two hundred and eleven days.
-    It remembered you."
-
-   Unclaimed ground 1.2 km north — Millbrook
-```
+**What the user sees** is `06` §3.2's, which is authoritative for the screen: its rows, labels,
+counts and order. This section owns only the numbers above — the awards, levels and remaining XP
+the screen renders. *(An earlier mockup here predated `06` and drifted from it — a `~14 runs`
+estimate, no `L`, cells and km on one line; `13` audit, 2026-10-16.)*
 
 *(post-MVP, §5: after step 2 the ledger would also carry up to 3 `slayer_win`/`slayer_loss`
 rows, and 576 damage — ×1.47 at Slayer 47 = 847 — against the active boss.)*
