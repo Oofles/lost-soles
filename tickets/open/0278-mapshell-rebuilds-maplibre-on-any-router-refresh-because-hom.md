@@ -49,7 +49,7 @@ refreshes with the map mounted. Once fixed, D-331's hold can stay. It also prote
 
 ## Operator validation
 
-None expected: the test proves it; nothing about it is perceptual.
+No perceptual check: nothing in the app refreshes with the map mounted today, so there is nothing to see. `cameraKey` and the build-effect tripwire prove the fix. The local gate on merged `main` passed. Smoke test by the orchestrator after the wave 3 deploy (2026-10-15): Amplify job for `86b9924` (which carries this ticket's commit) finished `SUCCEED`; `curl` on the live app gave `/` → 200, `/chronicle` → 307 to sign-in with no session, and `/api/runs/latest` and `/api/fog/update` → 404 with no session, which is these routes' designed concealing answer to an unauthenticated request (unchanged this wave). The minified bundle carries no literal distinctive enough to grep, so the job record is the deploy evidence.
 
 ## Resolution
 

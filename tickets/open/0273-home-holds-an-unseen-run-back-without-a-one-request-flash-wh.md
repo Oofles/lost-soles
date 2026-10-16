@@ -116,6 +116,4 @@ for one frame. This existed before. Closing it would mean making `boot.ts` aware
 
 ## Operator validation
 
-None needed. The ticket's own note says the flash is provable with a test that orders the two
-responses, and `lib/plinth/hold-ordering.test.ts` does exactly that. Post-deploy smoke test, by the
-orchestrator: `/` returns 200, and `/api/runs/latest` still answers 401 to a request with no session.
+No perceptual check: the flash is an ordering of two responses, which `lib/plinth/hold-ordering.test.ts` drives directly (the ticket's own note says so). The local gate on merged `main` passed: guards, typecheck, lint, 3649 tests, build. Smoke test by the orchestrator after the wave 3 deploy (2026-10-15): Amplify job for `86b9924` (which carries this ticket's commit) finished `SUCCEED`; `curl` on the live app gave `/` → 200, `/chronicle` → 307 to sign-in with no session, and `/api/runs/latest` and `/api/fog/update` → 404 with no session, which is these routes' designed concealing answer to an unauthenticated request (unchanged this wave). The minified bundle carries no literal distinctive enough to grep, so the job record is the deploy evidence. The agent's report predicted 401 for `/api/runs/latest`. That was wrong: the route has always answered 404.
