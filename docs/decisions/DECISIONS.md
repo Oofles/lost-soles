@@ -5188,3 +5188,27 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     the kill-between-send-and-delivery hole. `listSinceWatermark` is never read or written.
   - **The XP replay is run by hand afterwards** (`tools/xp-replay`), so deferred credit settles.
     `0257`'s aggregate reveal plays after that replay.
+- **D-343** **`IngestJob.startedAt` is optional; a webhook job omits it, and `listSince` returns
+  `SweepJob`, which carries it.** *(Operator, 2026-10-16, ticket `0091`. Amends D-208 and the
+  ingestion contract §3.)* A webhook event has no activity start date, `event_time` is when the
+  event happened, and the endpoint may make no API call, so any value would be invented — the thing
+  D-208 forbids. The only readers are the sweep watermark (`lib/sources/sync.ts`) and the backfill
+  tally (`lib/sources/backfill.ts`), and both iterate `listSince`, so D-208's guarantee holds as a
+  type: `SweepJob = IngestJob & { startedAt: string }`. The webhook resolves the user through a
+  static owner map (`src/adapters/strava/owner-map.ts`, every sub asserted to be in
+  `OWNER_USER_IDS`), so it needs no grant on `LostSolesSourceAccount`; an unknown owner gets a 200
+  and is dropped. The callback is the Function URL itself (`IngestWebhookUrl` output); `0092` owns
+  re-registering if it ever changes.
+- **D-344** **`StravaIngestMeta.hasGpsHint` is optional; when it is absent, `fetchStreams` judges
+  GPS from the activity detail it already fetched.** *(Agent, 2026-10-16, ticket `0091`.)* Before
+  this, streams were fetched only when the hint was `true`, so every webhook job, which has no list
+  response to hint from, would have archived without its trace — permanently, on a map that cannot
+  re-fog (D-020, D-121). No extra call; an unreadable detail falls back to fetching streams. Sweep
+  jobs are unchanged.
+- **D-345** **The webhook function is `ingest-webhook`, routed on its path segment through a
+  `WEBHOOK_ADAPTERS` allowlist in `registry.ts`, not `strava-webhook`.** *(Agent, 2026-10-16, ticket
+  `0091`.)* D-194's rule for routes, applied to a function: a vendor-named function or a direct
+  adapter import fails `check-boundaries` (D-100) and `check-adapter-deletion` (D-121.1). `manual` is
+  excluded from the allowlist, because its `accept()` trusts the principal header and a public
+  endpoint would let anyone log workouts as any user. `01` §2 and `08` §4 still say
+  `strava-webhook`, and the capability audit's DESIGN pass amends them.

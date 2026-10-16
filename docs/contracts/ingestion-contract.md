@@ -195,7 +195,7 @@ export interface IngestJob {
   externalId: string       // ALWAYS a string — int64 ids corrupt past 2^53 in JSON.parse
   command: IngestCommandKind
   startedAt?: string       // when the ACTIVITY happened, ISO 8601 — not when the job was made.
-                           // ABSENT on a push job (D-NEW-a); always present on a SweepJob
+                           // ABSENT on a push job (D-343); always present on a SweepJob
   meta: unknown            // adapter-private hints: an aspect type, an S3 key, a page cursor
   enqueuedAt: string
 }
@@ -218,7 +218,7 @@ export type SweepJob = IngestJob & { startedAt: string }
 > rule did not change. `aspectType`, `hasGpsHint` and `sportType` remain adapter-private and the
 > exact-key-set guard in `src/adapters/adapter-interface.types.test.ts` still refuses them.
 >
-> **Amended 2026-10-16 by D-NEW-a** (ticket `0091`). `startedAt` is now **optional on `IngestJob`
+> **Amended 2026-10-16 by D-343** (ticket `0091`). `startedAt` is now **optional on `IngestJob`
 > and required on `SweepJob`**, which is what `listSince` returns. A push job cannot know it: a
 > Strava webhook event is a pointer (owner, object, aspect), the endpoint may make no API call
 > (`08-security-privacy.md` §4.5), and `event_time` is when the *event* happened — days after the

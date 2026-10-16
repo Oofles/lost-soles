@@ -527,7 +527,7 @@ describe("the streams request", () => {
 })
 
 /**
- * Ticket 0091, D-NEW-b. A WEBHOOK job has no list response behind it, so `hasGpsHint` is absent
+ * Ticket 0091, D-344. A WEBHOOK job has no list response behind it, so `hasGpsHint` is absent
  * — unknown, not false. Reading it as false would archive every webhook-delivered run without its
  * trace, permanently. The detail decides instead, with the same rule the sweep applies.
  */

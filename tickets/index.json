@@ -2234,7 +2234,7 @@
     "path": "tickets/open/0091-strava-webhook-lambda-function-url.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 10
     }
   },
@@ -6485,6 +6485,26 @@
     "acceptance": {
       "checked": 2,
       "total": 2
+    }
+  },
+  {
+    "id": 282,
+    "slug": "webhook-update-and-delete-aspects-reach-reingest-and-retract",
+    "title": "Webhook update and delete aspects reach reingest and retract",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-16T14:52:18Z",
+    "path": "tickets/open/0282-webhook-update-and-delete-aspects-reach-reingest-and-retract.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

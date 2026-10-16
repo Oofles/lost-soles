@@ -1,5 +1,5 @@
 /**
- * WHICH STRAVA ATHLETE IS WHICH LOST SOLES USER. Ticket 0091, D-NEW-a's sibling (Q1 option A).
+ * WHICH STRAVA ATHLETE IS WHICH LOST SOLES USER. Ticket 0091, D-343's sibling (Q1 option A).
  *
  * No framework import, and no import at all: the webhook Lambda loads this on a 2-second budget
  * through `registry.ts`, the same reason `lib/auth/owner-ids.ts` was split out of `owner.ts`.

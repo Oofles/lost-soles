@@ -24,7 +24,7 @@ import { userIdForOwner } from "./owner-map"
  * ─── THE BODY IS A POINTER, NEVER DATA (§4.1) ───────────────────────────────
  *
  * Only `object_type`, `aspect_type`, `object_id` and `owner_id` are read. `event_time` is NOT a
- * start date (D-NEW-a: the job omits `startedAt` rather than invent one), and nothing else in a
+ * start date (D-343: the job omits `startedAt` rather than invent one), and nothing else in a
  * payload reaches a job.
  */
 
@@ -139,12 +139,12 @@ export async function acceptStravaEvent(
     externalId,
     command: "ingest",
     /**
-     * NO `startedAt` (D-NEW-a). The event does not carry the activity's start, and nothing that
+     * NO `startedAt` (D-343). The event does not carry the activity's start, and nothing that
      * could supply it may be called from here. Only the sweep reads the field, and the sweep's
      * jobs are `SweepJob`s, which always have it.
      *
      * NO `hasGpsHint` either, for the same reason: absent means "not known", and `fetchRaw`
-     * decides from the activity detail it fetches anyway (D-NEW-b).
+     * decides from the activity detail it fetches anyway (D-344).
      */
     meta: { aspectType: "create" },
     enqueuedAt: now().toISOString(),

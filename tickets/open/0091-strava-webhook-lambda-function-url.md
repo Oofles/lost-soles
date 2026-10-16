@@ -147,18 +147,18 @@ with an empty body. The Strava `accept()` (formerly a stub that threw) is now bu
 - `amplify/backend.ts`: registers the function. Adds the Function URL (escape-hatch use 3 of 4, already counted, so the count stays four), two explicit-action grants, `INGEST_QUEUE_URL`, `custom.ingestWebhookUrl` and a `IngestWebhookUrl` CfnOutput. Additive and at the bottom of the file.
 - `src/adapters/strava/accept.ts`: new. The event classifier. Moves `ingestKeyFor` here; `adapter.ts` re-exports it, so the sweep and the webhook share one formula.
 - `src/adapters/strava/owner-map.ts` (+ test): new. Static `owner_id` → Cognito sub map, with no imports. It holds one row, read from the operator's SourceAccount row (`externalOwnerId`), and the test checks every sub against `OWNER_USER_IDS`.
-- `src/adapters/strava/adapter.ts` (+ test): `accept` delegates to `accept.ts`. `hasGpsHint` is now optional, and when it is absent `fetchStreams` decides from the detail it already fetched (D-NEW-b). `listSince` yields `SweepJob`.
+- `src/adapters/strava/adapter.ts` (+ test): `accept` delegates to `accept.ts`. `hasGpsHint` is now optional, and when it is absent `fetchStreams` decides from the detail it already fetched (D-344). `listSince` yields `SweepJob`.
 - `src/adapters/strava/json-ids.ts`: `parseWithExactIds` takes an optional id-key set, so the event's int64 `object_id` stays exact.
 - `src/adapters/registry.ts`: adds `WEBHOOK_ADAPTERS` and `getWebhookAdapter`. `manual` is deliberately absent, because its `accept` trusts a principal header.
-- `src/adapters/types.ts`, `adapter-interface.types.test.ts`: `IngestJob.startedAt` is now optional. New `SweepJob` type, which `listSince` returns. Type assertions added; the exact key set is unchanged (D-NEW-a).
+- `src/adapters/types.ts`, `adapter-interface.types.test.ts`: `IngestJob.startedAt` is now optional. New `SweepJob` type, which `listSince` returns. Type assertions added; the exact key set is unchanged (D-343).
 - `src/adapters/manual/adapter.ts`, `src/adapters/__fixtures__/gpx-adapter.ts`, `src/adapters/normalize-purity.test.ts`, `lib/sources/backfill.test.ts`: retyped to `SweepJob`.
-- `docs/contracts/ingestion-contract.md` §3: amended for D-NEW-a. `docs/03-integrations.md` §2.3: the stale `lostsoles.devaultsecurity.com` callback line now says the Function URL, with the reason.
+- `docs/contracts/ingestion-contract.md` §3: amended for D-343. `docs/03-integrations.md` §2.3: the stale `lostsoles.devaultsecurity.com` callback line now says the Function URL, with the reason.
 
 **Decisions**
 - **Q1 = A (operator).** A static owner map, so the webhook fills `userId` and `activityId` honestly with no SourceAccount grant. An unknown athlete gets a 200 and is dropped, logged as `unknown-owner`. A `create` mints the sweep's key, so the webhook and the sweep collide on one receipt.
-- **D-NEW-a.** Push jobs omit `startedAt`, so `IngestJob.startedAt` is optional. `listSince` returns `SweepJob`, where it is required, which keeps D-208's guarantee as a type.
-- **D-NEW-b.** A webhook job has no `hasGpsHint`, and absent means unknown, not false. Reading it as false would archive every webhook run without its trace. The detail decides, by the same `hasGps` rule; if the detail cannot be read, the streams are fetched.
-- **D-NEW-c.** The function is `ingest-webhook`, not the design's `strava-webhook`. It routes on its own path segment through `getWebhookAdapter`, so no vendor name appears in `amplify/` (D-100) and deleting the adapter still breaks only `registry.ts` (D-121.1). D-194 applied this rule to routes; this applies it to a function.
+- **D-343.** Push jobs omit `startedAt`, so `IngestJob.startedAt` is optional. `listSince` returns `SweepJob`, where it is required, which keeps D-208's guarantee as a type.
+- **D-344.** A webhook job has no `hasGpsHint`, and absent means unknown, not false. Reading it as false would archive every webhook run without its trace. The detail decides, by the same `hasGps` rule; if the detail cannot be read, the streams are fetched.
+- **D-345.** The function is `ingest-webhook`, not the design's `strava-webhook`. It routes on its own path segment through `getWebhookAdapter`, so no vendor name appears in `amplify/` (D-100) and deleting the adapter still breaks only `registry.ts` (D-121.1). D-194 applied this rule to routes; this applies it to a function.
 - **Q2 = A (operator).** The callback is the raw Function URL plus `api/webhooks/strava`.
 - **Q3 (operator).** The `subscription_id` check is left to 0093.
 - **The gap between accept and send.** If the send fails, the handler returns 500 and Strava retries. The retry is a `duplicate`, so the activity sits as `QUEUED`/`attempts: 0` until the next sweep re-enqueues it (`sync.ts` `needsEnqueue`). Re-checking in the webhook would need `GetItem`, a third grant that criterion 7 refuses.

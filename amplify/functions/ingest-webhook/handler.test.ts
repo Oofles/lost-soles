@@ -88,9 +88,9 @@ describe("a valid create event for a known athlete (criterion 8)", () => {
 
     const job = JSON.parse(sent[0])
     expect(job).toMatchObject({ userId: OWNER_SUB, source: SOURCE, externalId: "1360128428", command: "ingest", meta: { aspectType: "create" } })
-    // D-NEW-a: a push job does not invent a start date.
+    // D-343: a push job does not invent a start date.
     expect(job).not.toHaveProperty("startedAt")
-    // D-NEW-b: nor a GPS hint.
+    // D-344: nor a GPS hint.
     expect(job.meta).not.toHaveProperty("hasGpsHint")
     expect((puts[0].Item as Record<string, unknown>).activityId).toBe(computeActivityId(OWNER_SUB, SOURCE, "1360128428"))
   })

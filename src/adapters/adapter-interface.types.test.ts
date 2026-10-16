@@ -125,7 +125,7 @@ type _JobKeys = Expect<
   >
 >
 
-// D-NEW-a (ticket 0091): `startedAt` is OPTIONAL on a job — a push job cannot know it — and
+// D-343 (ticket 0091): `startedAt` is OPTIONAL on a job — a push job cannot know it — and
 // REQUIRED on what `listSince` yields, which is all the watermark ever reads. The key set above
 // did not change; what changed is which type promises the value. If someone "simplifies" this
 // back to one required field, the webhook has to invent a date; if they make SweepJob's optional

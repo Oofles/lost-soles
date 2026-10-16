@@ -83,7 +83,7 @@ export interface IngestJob {
    * without one. This is the field the rule was always written about, moved to where the
    * rule can see it.
    *
-   * OPTIONAL SINCE TICKET 0091 (D-NEW-a, amending D-208), because a PUSH job cannot know it.
+   * OPTIONAL SINCE TICKET 0091 (D-343, amending D-208), because a PUSH job cannot know it.
    * A webhook event is a pointer — an owner id, an object id and an aspect — and the endpoint
    * that turns it into a job may make no API call (`08-security-privacy.md` §4.5). Any value
    * it put here would be invented, and `event_time` is when the EVENT happened, which for a
@@ -101,7 +101,7 @@ export interface IngestJob {
 /**
  * A job produced by `listSince`: the reconciliation path, which reads a LIST response and
  * therefore always knows when each activity happened. `startedAt` is required here, and
- * this is the type both watermark-advancing callers iterate over (D-NEW-a).
+ * this is the type both watermark-advancing callers iterate over (D-343).
  */
 export type SweepJob = IngestJob & { startedAt: string }
 

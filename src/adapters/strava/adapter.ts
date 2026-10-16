@@ -73,7 +73,7 @@ export interface StravaIngestMeta {
    * stream calls are the entire cost, so every treadmill run this flag catches is a read
    * that never happens.
    *
-   * ABSENT ON A WEBHOOK JOB (ticket 0091, D-NEW-b). The event carries no list response, so
+   * ABSENT ON A WEBHOOK JOB (ticket 0091, D-344). The event carries no list response, so
    * the hint is unknown rather than false — and reading "unknown" as "no GPS" would archive
    * every webhook-delivered run without its trace, on a map that cannot re-fog. `fetchStreams`
    * decides from the activity detail instead, which it has already fetched.
@@ -191,7 +191,7 @@ function hasGps(activity: StravaSummaryActivity): boolean {
 }
 
 /**
- * THE HINT, WHEN THE JOB HAD NONE TO GIVE (ticket 0091, D-NEW-b). A webhook job is built from an
+ * THE HINT, WHEN THE JOB HAD NONE TO GIVE (ticket 0091, D-344). A webhook job is built from an
  * event, not a list response, so `hasGpsHint` is absent — unknown, not false. The DETAIL carries
  * the same two fields `hasGps` reads (`manual`, `map.summary_polyline`), and it has already been
  * fetched, so deciding here costs no API call and gives the sweep's answer exactly. Unparseable
