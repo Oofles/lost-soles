@@ -4,7 +4,7 @@ slug: mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom
 title: MapShell rebuilds MapLibre on any router.refresh(), because home is compared by object identity
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T20:21:36Z
 started: 2026-10-16T00:55:18Z
+closed: 2026-10-16T01:20:58Z
 ---
 
 ## Description

@@ -6407,7 +6407,7 @@
     "title": "MapShell rebuilds MapLibre on any router.refresh(), because home is compared by object identity",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [],
@@ -6415,8 +6415,9 @@
     "source": "agent",
     "created": "2026-10-15T20:21:36Z",
     "started": "2026-10-16T00:55:18Z",
-    "path": "tickets/open/0278-mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom.md",
-    "ready": true,
+    "closed": "2026-10-16T01:20:58Z",
+    "path": "tickets/closed/0278-mapshell-rebuilds-maplibre-on-any-router-refresh-because-hom.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
