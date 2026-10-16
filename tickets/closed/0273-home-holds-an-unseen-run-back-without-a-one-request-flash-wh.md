@@ -4,7 +4,7 @@ slug: home-holds-an-unseen-run-back-without-a-one-request-flash-wh
 title: Home holds an unseen run back without a one-request flash when it lands mid-session
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-15T18:54:00Z
 started: 2026-10-16T00:55:18Z
+closed: 2026-10-16T01:20:57Z
 ---
 
 ## Description
