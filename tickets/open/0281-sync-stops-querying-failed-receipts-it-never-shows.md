@@ -100,3 +100,10 @@ false in the code as well. That ticket needs an amendment from the orchestrator.
 **Verification:** all of `amplify.yml`'s build-phase guards, `typecheck`, `lint`, `vitest run`
 (3639 passed) and `build` were green in the worktree. `## Operator validation` above stands as
 written.
+
+**Result, 2026-10-16 (agent, Amplify job 408, `6f3d2b8`):** a Sync press needs the operator's
+signed-in session, which the agent does not hold, so the check was made on the build itself. The
+`.next/server` output of the deployed commit contains no `failedByUser` reference anywhere, and
+`app/sync-action.ts` has no `listFailedReceipts` call. The press's queue path is unchanged and is
+covered by `app/sync-action.test.ts`. The `failedByUser` index stays ACTIVE and is still written
+by `recordFailure`.

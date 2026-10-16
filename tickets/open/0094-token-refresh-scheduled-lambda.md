@@ -181,3 +181,20 @@ is wrong. The secret it proves is `STRAVA_WEBHOOK_VERIFY_TOKEN`, and `token-refr
 The real reader is the webhook Lambda (0091). It was also left alone to keep this change's
 `defineBackend` edit additive while 0091 edits the same block.
 
+**Result, 2026-10-16 (agent smoke test on the deployed stack; Amplify job 408, `6f3d2b8`):**
+
+- Function `…tokenrefreshlambda476763…`: 256 MB, 60 s, no VPC, and one environment key
+  (`AMPLIFY_SSM_ENV_CONFIG`), with no credential in the environment.
+- Schedule `…tokenrefreshlambdaschedu…`: `cron(0 */4 * * ? *)` UTC, ENABLED.
+- Real refresh: the stored token had expired two days earlier (`expiresAt` 1791964887, now
+  1792163353). A manual invoke returned
+  `{"examined":1,"refreshed":1,"needsReauth":0,"skipped":0,"failed":0}`. `expiresAt` moved to
+  1792184964 (+6 h), status stayed `ACTIVE`, and the refresh-token hash prefix was unchanged
+  (`4c7967…`). Strava did not rotate this time, and the write-back stored whatever came back.
+- CloudWatch: one summary line and a REPORT line. The only 40+ hex string is the AWS runtime
+  version ARN; there are no tokens.
+- **Not performed, by D-229:** the 24-hour hands-off run and the revoke-from-Strava check. Both
+  are scenarios the operator would have to construct. The auth-error path is covered by
+  `token-refresh-sweep.test.ts` (16 tests, including `markNeedsReauth` and a single exchange per
+  revoked grant). The scheduled runs prove themselves in CloudWatch from the next 4-hour boundary
+  on.
