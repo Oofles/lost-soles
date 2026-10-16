@@ -6508,5 +6508,25 @@
       "checked": 0,
       "total": 4
     }
+  },
+  {
+    "id": 283,
+    "slug": "cdk-synth-tests-leak-cdk-out-directories-into-tmp",
+    "title": "CDK synth tests leak cdk.out directories into /tmp",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-16T15:19:43Z",
+    "path": "tickets/open/0283-cdk-synth-tests-leak-cdk-out-directories-into-tmp.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
   }
 ]

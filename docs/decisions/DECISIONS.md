@@ -5212,3 +5212,15 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   excluded from the allowlist, because its `accept()` trusts the principal header and a public
   endpoint would let anyone log workouts as any user. `01` §2 and `08` §4 still say
   `strava-webhook`, and the capability audit's DESIGN pass amends them.
+- **D-346** **The public webhook warms its SDK clients during init, with two requests that cannot
+  have an effect, rather than buying provisioned concurrency.** *(Agent, 2026-10-16, ticket `0091`.)*
+  At 128 MB an invocation gets about 7% of a vCPU, and each SDK v3 client's first request (endpoint
+  rules, signing, TLS) cost about 1 s of throttled CPU. The first deploy measured a cold known-owner
+  call at 1.56 s client-side, and a real `create`, which pays both clients, was estimated at 2.0–2.3 s
+  against Strava's 2 s deadline. Init runs far less throttled. The warm-up is a `PutItem` conditioned
+  on `attribute_exists` against a key that never exists, plus an empty-body `SendMessage` that SQS
+  refuses: no new grant, no write, no message. It is bounded at 1 s and never throws, and an
+  unexpected success is logged loudly. Rejected: provisioned concurrency of 1 (~$1.35/mo, a third of
+  D-083's budget) before measuring this. `0091`'s 500 ms criterion is restated against the handler's
+  own duration, because a client-measured cold call cannot go below the sandbox-plus-init floor
+  (~0.7 s) at this size.
