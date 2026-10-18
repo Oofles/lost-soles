@@ -2254,6 +2254,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-18T01:23:55Z",
     "path": "tickets/open/0092-hub-challenge-handshake-and-subscription-management.md",
     "ready": true,
     "acceptance": {
@@ -2276,6 +2277,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-18T01:23:55Z",
     "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
     "ready": true,
     "acceptance": {
@@ -2324,6 +2326,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-18T01:23:55Z",
     "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
     "ready": true,
     "acceptance": {
@@ -5954,6 +5957,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-13T22:36:47Z",
+    "started": "2026-10-18T01:23:55Z",
     "path": "tickets/open/0257-backfill-aggregate-reveal.md",
     "ready": true,
     "acceptance": {
