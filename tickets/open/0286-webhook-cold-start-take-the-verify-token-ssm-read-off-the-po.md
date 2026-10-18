@@ -34,17 +34,29 @@ and drop the `secret()` environment entry.
 
 ## Acceptance criteria
 
-- [ ] A POST cold start makes no SSM call. Asserted by a test on the handler, and on the deployed
+- [x] A POST cold start makes no SSM call. Asserted by a test on the handler, and on the deployed
       stack by an Init Duration back near 0091's ~300 ms.
-      *Code half done — `webhook-secret.test.ts` drives a create, a dropped event and a deauth
-      through the real handler and constructs no SSM reader, reads nothing and calls no `fetch`.
-      Left unticked: the Init Duration half is post-deploy (orchestrator smoke test).*
+      *Code half: `webhook-secret.test.ts` drives a create, a dropped event and a deauth
+      through the real handler and constructs no SSM reader, reads nothing and calls no `fetch`.*
+      *Amended 2026-10-18 (orchestrator, Amplify job 412): the deployed proof is CloudTrail, which
+      is direct; Init Duration was only a proxy for it. Across 13:23–13:25Z the webhook made
+      exactly two SSM calls (`GetParameter`, singular, so ours rather than `secret()`'s), at the two
+      GETs. The two cold POSTs and both deletes made none. Init Duration over three cold starts:
+      399.7, 413.4 and 391.5 ms, against 673–683 ms in job 411. That is ~280 ms back, but ~100 ms
+      above 0091's ~300 ms. The remainder predates this ticket: 0091's figure came before 0093 and
+      0282 grew the handler. Not chased: 1.0 s client-side is well inside Strava's 2 s.*
 - [x] The GET handshake still reads the token from the SecureString and still fails closed if the
       token is missing. `0092`'s handshake tests pass unchanged.
 - [x] The webhook's IAM stays held to exactly the token's path(s). The pinned-grant test in
       `amplify/ingest-webhook-stack.test.ts` is updated on purpose, with the reason.
-- [ ] A cold `create` POST is measured client-side on the deployed stack and recorded.
-      *Post-deploy; left for the orchestrator's smoke test.*
+- [x] A cold `create` POST is measured client-side on the deployed stack and recorded.
+      *Amended 2026-10-18 (orchestrator): measured with a cold `update`, not a `create`. A cold
+      create needs an activity id that no receipt holds. A fake one sends the worker into a 404
+      fetch, retries and the DLQ alarm, and every real one is already a duplicate. Since `0282`,
+      an `update` does exactly the webhook-side work a create does: the flood counter, the receipt
+      `PutItem` and the first SQS `SendMessage`. Cold, enqueued: **1.00 s** client-side (`queued`;
+      the worker re-fetched and kept 169 XP). Cold known-owner duplicate: **0.88 s**, against
+      1.27 s in job 411.*
 
 ## Notes
 
@@ -59,6 +71,22 @@ Keep the token out of logs and out of the bundle, as `0092` did (`check-bundle-l
 
 None needed: Init Duration and the client-side timing are smoke tests, run with `AWS_PROFILE=devault`
 and `curl` against the deployed URL.
+
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify job 412; smoke tests).**
+- **Config.** The env has `WEBHOOK_SECRET_PARAMETER`, no `STRAVA_WEBHOOK_VERIFY_TOKEN`, and
+  `AMPLIFY_SSM_ENV_CONFIG` is `{}`. Reserved concurrency is still 5.
+- **No SSM on POST.** CloudTrail shows `GetParameter` only at the two GETs (13:23:28Z, 13:24:26Z).
+  None at the cold POSTs (13:23:26Z, 13:24:45Z) or the deletes (13:25:07–08Z).
+- **Init Duration**, three cold starts: 399.7, 413.4 and 391.5 ms (job 411: 673–683 ms).
+- **Cold POSTs.** An enqueueing update took 1.00 s and a known-owner duplicate 0.88 s,
+  client-side.
+- **Handshake.** A wrong token got a bare 400 (`handshake-bad-token`). The real token, from SSM,
+  passed `selfCheck` with the exact bytes back. A **cold** GET took **1,895 ms**, close to Strava's
+  2 s deadline. It does not bite in practice: `create` runs this self-check first, which warms
+  the function before Strava's GET arrives. Recorded so a future change to `create` keeps that
+  order.
+- `webhook-secret-unavailable` was never logged.
+- **Perceptual:** none.
 
 ## Resolution
 

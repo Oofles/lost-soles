@@ -48,6 +48,31 @@ command routing, sequence this after it.
 None expected. Smoke test: post a synthetic `update` and `delete` for a real activity id to the
 Function URL and read the receipt, the T3 row and the logs.
 
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify job 412; smoke tests).** All of these
+used activity `15668986664` (T3 `41158eaa…`, 169 XP, ACTIVE), owner `51449053`, subscription
+`377486`.
+- **Update.** The webhook logged `decision: reingest` → `queued`, key `0b455efb…`. The worker
+  re-fetched it (`persisted`, `alreadyScored: true`, `xpAwarded: 169`), and the receipt went to
+  `DONE`. T3 stayed `ACTIVE` at 169 XP, revision 1 (D-278, D-356). The same update redelivered
+  got `duplicate`.
+- **Forged delete of that live activity.** The webhook logged `retract` → `retract-queued`. The
+  worker confirmed with Strava and logged `outcome: forged-or-stale`. T3 is still `ACTIVE` at
+  169 XP (D-355).
+  - Afterwards I deleted that one `DONE` receipt row (`ad300de7…`) by hand, under a
+    `status = DONE` condition. Otherwise it would have used up the run's delete key for 90 days,
+    the `0288` problem.
+- **Delete of id `1`, under our owner.** Strava gave an authenticated 404, so the worker treated
+  it as `gone`; it logged `no-activity`, and no T3 row was created. This exercises the live
+  `gone` branch.
+- **DLQ** depth 0 throughout.
+- **Grants.** The worker role has `dynamodb:UpdateItem` on the Activity table, plus its existing
+  Put/Get and the `byUserAndDedupe` Query. It has no `DeleteItem` anywhere. The webhook's grants
+  are unchanged.
+- **Not exercised live:** a tombstone written for a run that really was deleted. That needs a
+  real deletion at Strava. The `gone` → `TOMBSTONED` write is covered by `retract.test.ts` and
+  `aspects-e2e.test.ts`.
+- **Perceptual:** none. Nothing reads the tombstone yet (`0287`).
+
 ## Resolution
 
 *(Agent, wave of 2026-10-18. The first pass stopped on five design questions (D-152). The operator
