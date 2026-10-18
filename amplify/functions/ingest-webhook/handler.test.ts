@@ -408,7 +408,7 @@ describe("a deauthorization (0093 criterion 14, the webhook half)", () => {
  * Ticket 0282 — an activity's `update` and `delete`, end to end through the real adapter. The keys
  * are restated from the formulas, for the reason the create-key test gives (D-121.1).
  */
-describe("an activity update (0282, D-NEW-b)", () => {
+describe("an activity update (0282, D-356)", () => {
   const update = (eventTime = 1760000000) =>
     createEvent({ aspect_type: "update", updates: { title: "x" }, event_time: eventTime })
   const updateKey = (eventTime = 1760000000) =>
@@ -444,7 +444,7 @@ describe("an activity update (0282, D-NEW-b)", () => {
   })
 })
 
-describe("an activity delete (0282, D-NEW-a)", () => {
+describe("an activity delete (0282, D-355)", () => {
   const del = () => createEvent({ aspect_type: "delete" })
   const deleteKey = createHash("sha256").update(`strava:${KNOWN_OWNER}:1360128428:delete`).digest("hex")
 

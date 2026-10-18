@@ -40,7 +40,7 @@ import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
  *
  * Only `object_type`, `aspect_type`, `object_id`, `owner_id`, `subscription_id` and — for a
  * deauthorization alone — `updates.authorized` are read for meaning. `event_time` reaches exactly
- * one place, an `update`'s receipt key (0282, D-NEW-b), where it tells two edits of one activity
+ * one place, an `update`'s receipt key (0282, D-356), where it tells two edits of one activity
  * apart; it is NOT a start date (D-343: the job omits `startedAt` rather than invent one). The
  * `updates` keys of an activity event are type-checked and discarded — an update re-fetches the
  * whole activity rather than believe a title or a type from the payload.
@@ -68,7 +68,7 @@ export function ingestKeyFor(externalOwnerId: string, externalId: string): strin
 }
 
 /**
- * AN EDIT'S KEY — `sha256("strava:<owner>:<object>:update:<event_time>")`. Ticket 0282, D-NEW-b.
+ * AN EDIT'S KEY — `sha256("strava:<owner>:<object>:update:<event_time>")`. Ticket 0282, D-356.
  *
  * `event_time` is in it so that two edits of one activity are two receipts, while Strava's own
  * redelivery of ONE edit (same `event_time`) is a `duplicate`. The cost, stated: `event_time` is
@@ -285,7 +285,7 @@ export async function acceptStravaEvent(
   }
 
   /**
-   * `update` needs `event_time` for its key (D-NEW-b), so it is checked here, BEFORE the owner
+   * `update` needs `event_time` for its key (D-356), so it is checked here, BEFORE the owner
    * lookup, with the other shape checks. A positive safe integer: Strava sends epoch seconds.
    */
   const eventTime = event.event_time
@@ -302,7 +302,7 @@ export async function acceptStravaEvent(
 
   /**
    * DELETE → `retract` (0282). Nothing to fetch here; the worker asks Strava whether the activity
-   * is really gone before it tombstones anything (D-NEW-a), and a tombstone never removes a cell
+   * is really gone before it tombstones anything (D-355), and a tombstone never removes a cell
    * or a ledger row (`02` §4.7).
    */
   if (aspect === "delete") {
@@ -315,7 +315,7 @@ export async function acceptStravaEvent(
   }
 
   /**
-   * UPDATE → `reingest`, WRAPPING AN ORDINARY `command: "ingest"` JOB (0282, D-NEW-b). The command
+   * UPDATE → `reingest`, WRAPPING AN ORDINARY `command: "ingest"` JOB (0282, D-356). The command
    * says what happened at the source; the job says what the worker does about it, and that is the
    * normal fetch path — re-fetch, re-archive (content-addressed, so the original bytes stay), and
    * persist under D-278: the first version's XP and award stand. NOT `command: "reingest"`, which

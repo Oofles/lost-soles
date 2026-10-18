@@ -5303,3 +5303,36 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   5.0–6.4 s, home at 8.4 s; reduced motion is a 400 ms cross-fade on the same phase boundaries; lost
   WebGL aborts to home; with no WebGL2 the numbers still play; zero prior territory still gets a fog
   layer (extends D-319).
+- **D-355** **A source-side delete is confirmed with the provider before it is believed.**
+  *(Operator, 2026-10-18, ticket `0282`, Q1 = A, Q3, Q4. Extends D-348.)* `accept()` turns an
+  activity `delete` into a `retract` command, which now carries `userId` and `ingestKey`
+  (`ingestion-contract.md` §3), keyed `sha256(strava:<owner>:<object>:delete)` with no
+  `event_time`. The webhook meters it (general budget, then 4 deletes an hour, D-349), passes the
+  receipt gate and sends a `RetractMessage` on the ingest queue; the worker recognises it by
+  `command` before any IngestJob, so D-343's key set is unchanged. The worker records the delivery,
+  then asks the new mandatory `SourceAdapter.confirmRetracted`: for Strava one `GET /activities/{id}`
+  with our token, where only an authenticated 404 (rate-limit headers present) means `gone`, a 200
+  means `present` (logged `forged-or-stale`, nothing written), and anything else throws for
+  redelivery. On `gone` it sets T3 `status = TOMBSTONED` conditionally and touches nothing else:
+  ledger, cells, `lastRunAt`, blobs stay (02 §4.7, D-020, D-135; 03 §1.3/§2.3 corrected). A
+  tombstone is sticky: persist never writes `ACTIVE` over it. Readers do not yet hide tombstoned
+  activities (a separate ticket). Known limit: a forged delete closes the delete key `DONE`, so a
+  genuine delete within the 90-day TTL is dropped; the only effect is that the run stays visible.
+- **D-356** **A source edit takes the ordinary fetch path, not the replay verb.** *(Operator,
+  2026-10-18, ticket `0282`, Q2 = A.)* An activity `update` becomes `{kind:"reingest", job}` whose
+  job is a plain `command:"ingest"` IngestJob, keyed
+  `sha256(strava:<owner>:<object>:update:<event_time>)`: one edit's redeliveries are one receipt,
+  two edits are two. An update without a positive integer `event_time` drops as
+  `missing-event-time`. `IngestJob.command:"reingest"` stays 0192's operator replay from the
+  archive. Every update re-fetches the whole activity and the `updates` payload is never read for
+  meaning, replacing 03 §2.3's title-only shortcut. D-278 governs XP as built: the first version's
+  XP and award stand.
+- **D-357** **The webhook reads its verify token with a hand-signed SSM `GetParameter`, lazily, on
+  GET only.** *(Operator, 2026-10-18, ticket `0286`, Q1 = A. Applies D-347's fallback.)*
+  `@aws-sdk/client-ssm` grew the webhook bundle from ~582 KB to ~783 KB, breaking `0091`'s 700 KB
+  ceiling, and would be parsed in init on every cold start, which is the cost `0286` removes. The
+  SigV4 signer and credential chain are already bundled for DynamoDB and SQS, so one signed
+  JSON-1.1 POST costs ~0 B. The `secret()` entry is gone. One `ssm:GetParameter` grant covers the
+  shared path only. The read is cached on success and never on failure, and a failure resolves
+  undefined, so the handshake fails closed with a bare 400. Rejected: raising the ceiling, and
+  loading the runtime-provided SDK (version drift, and a module load against the 2 s deadline).

@@ -4,7 +4,7 @@ import { defaultProvider } from "@aws-sdk/credential-provider-node"
 import { SignatureV4 } from "@smithy/signature-v4"
 
 /**
- * ONE SSM `GetParameter`, SIGNED BY HAND. Ticket 0286, D-NEW-a (operator, Q1 = A).
+ * ONE SSM `GetParameter`, SIGNED BY HAND. Ticket 0286, D-357 (operator, Q1 = A).
  *
  * WHY NOT `@aws-sdk/client-ssm`: measured, it adds ~200 KB minified to this bundle (783 KB against
  * 0091's pinned 700 KB ceiling). Amplify's esbuild resolves the package's CJS build, so nothing is

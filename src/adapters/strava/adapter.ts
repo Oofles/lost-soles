@@ -262,7 +262,7 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
   },
 
   /**
-   * THE RETRACT CHECK. Ticket `0282` (D-NEW-a), the same move D-348 makes for a deauthorization.
+   * THE RETRACT CHECK. Ticket `0282` (D-355), the same move D-348 makes for a deauthorization.
    *
    * A `delete` event is unsigned (§4.1), so before anything is tombstoned Strava is asked, with
    * our token, for the activity. One read, the detail endpoint `fetchRaw` also uses.

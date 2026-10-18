@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { createParameterReader, ParameterReadError } from "./ssm-reader"
 
 /**
- * Ticket 0286 — the hand-signed SSM `GetParameter` (D-NEW-a). The request shape IS the contract with
+ * Ticket 0286 — the hand-signed SSM `GetParameter` (D-357). The request shape IS the contract with
  * SSM, so it is pinned byte for byte where it can be, and by pattern where SigV4 makes it vary.
  */
 const NAME = "/amplify/shared/app/WEBHOOK_TOKEN_UNDER_TEST"

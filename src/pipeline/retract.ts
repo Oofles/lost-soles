@@ -6,7 +6,7 @@ import { tombstoneActivity, type PersistDeps, type TombstoneResult } from "./per
 import type { RetractMessage } from "./retract-message"
 
 /**
- * A SOURCE-SIDE DELETION, CONFIRMED BEFORE IT IS BELIEVED. Ticket `0282`, D-NEW-a.
+ * A SOURCE-SIDE DELETION, CONFIRMED BEFORE IT IS BELIEVED. Ticket `0282`, D-355.
  *
  * The worker half of a `RetractMessage`. Three steps, in this order, and the order is the point:
  *

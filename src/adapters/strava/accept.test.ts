@@ -166,11 +166,11 @@ describe("the shape check (§4.4 items 2 and 3, criterion 9)", () => {
 
 /**
  * Ticket 0282 — `update` and `delete` on an activity. The keys are restated from the formulas
- * (D-NEW-b, operator Q3) rather than imported, so a change to either is a visible test edit.
+ * (D-356, operator Q3) rather than imported, so a change to either is a visible test edit.
  */
 const sha = (s: string) => createHash("sha256").update(s).digest("hex")
 
-describe("an activity update (0282, D-NEW-b)", () => {
+describe("an activity update (0282, D-356)", () => {
   const update = (over: Record<string, unknown> = {}) =>
     create({ aspect_type: "update", updates: { title: "Evening run" }, event_time: 1760000000, ...over })
 
@@ -228,7 +228,7 @@ describe("an activity update (0282, D-NEW-b)", () => {
   })
 })
 
-describe("an activity delete (0282, D-NEW-a)", () => {
+describe("an activity delete (0282, D-355)", () => {
   const del = (over: Record<string, unknown> = {}) => create({ aspect_type: "delete", ...over })
 
   it("becomes one retract command naming the user, the activity and the delete key (no event_time)", async () => {

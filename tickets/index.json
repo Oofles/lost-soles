@@ -6515,7 +6515,7 @@
     "path": "tickets/open/0282-webhook-update-and-delete-aspects-reach-reingest-and-retract.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -6598,8 +6598,48 @@
     "path": "tickets/open/0286-webhook-cold-start-take-the-verify-token-ssm-read-off-the-po.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 4
+    }
+  },
+  {
+    "id": 287,
+    "slug": "runs-and-chronicle-readers-hide-tombstoned-activities",
+    "title": "Runs and Chronicle readers hide tombstoned activities",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-18T13:09:34Z",
+    "path": "tickets/open/0287-runs-and-chronicle-readers-hide-tombstoned-activities.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 288,
+    "slug": "a-forged-delete-can-pre-empt-a-genuine-one-for-90-days",
+    "title": "A forged delete can pre-empt a genuine one for 90 days",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-18T13:09:34Z",
+    "path": "tickets/open/0288-a-forged-delete-can-pre-empt-a-genuine-one-for-90-days.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]

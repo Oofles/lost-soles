@@ -64,7 +64,7 @@ and `curl` against the deployed URL.
 
 The verify token is no longer an Amplify `secret()`. The webhook reads it from SSM **on a GET only**,
 through one explicit grant, with a hand-signed `GetParameter` request. An event POST's cold start
-touches no SSM. D-347 names this fallback; the request mechanism is D-NEW-a (operator, Q1 = A).
+touches no SSM. D-347 names this fallback; the request mechanism is D-357 (operator, Q1 = A).
 
 **Files**
 - `amplify/functions/ingest-webhook/resource.ts`: the `secret()` environment entry is removed, so
@@ -109,7 +109,7 @@ touches no SSM. D-347 names this fallback; the request mechanism is D-NEW-a (ope
   the lazy GET-only read.
 
 **Decisions**
-- **Hand-signed request, not `@aws-sdk/client-ssm`** (D-NEW-a, proposed). Adding client-ssm took
+- **Hand-signed request, not `@aws-sdk/client-ssm`** (D-357, proposed). Adding client-ssm took
   the handler bundle from ~582 KB to 783 KB, against 0091's pinned 700 KB ceiling. Amplify's esbuild
   resolves the package's CJS build, so nothing tree-shakes; even its ESM build is 161 KB. All of it
   would be parsed in init on every cold start, the cost this ticket removes. The signer and the

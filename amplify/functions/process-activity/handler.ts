@@ -317,7 +317,7 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
   }
 
   /**
-   * THE THIRD SHAPE (ticket 0282, D-NEW-a): a source-side deletion, in `DisconnectMessage`'s
+   * THE THIRD SHAPE (ticket 0282, D-355): a source-side deletion, in `DisconnectMessage`'s
    * pattern. Told apart by `command` before the body is read as a job, so D-343's `IngestJob` key
    * set is untouched. Confirmed with the source before anything is tombstoned.
    */

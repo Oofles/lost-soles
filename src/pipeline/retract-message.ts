@@ -1,7 +1,7 @@
 import type { SourceId } from "@/src/domain/activity"
 
 /**
- * THE THIRD MESSAGE SHAPE ON THE INGEST QUEUE. Ticket 0282, D-NEW-a — built in `DisconnectMessage`'s
+ * THE THIRD MESSAGE SHAPE ON THE INGEST QUEUE. Ticket 0282, D-355 — built in `DisconnectMessage`'s
  * shape (D-348) rather than a second routing scheme.
  *
  * A source-side deletion arrives at the public webhook, which may not call the source and holds no

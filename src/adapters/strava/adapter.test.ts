@@ -882,7 +882,7 @@ describe("no polyline decoder exists anywhere in this repository", () => {
 })
 
 /**
- * Ticket 0282, D-NEW-a — the retract check. One detail read with our token; only an AUTHENTICATED
+ * Ticket 0282, D-355 — the retract check. One detail read with our token; only an AUTHENTICATED
  * 404 (rate-limit headers present, `rate-limit.ts`'s probe table) is believed as `gone`.
  */
 describe("confirmRetracted", () => {

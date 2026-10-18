@@ -807,7 +807,7 @@ is at-least-once and so is Strava.
 
 **Edits.** `aspect_type: "update"` carries `updates` populated **only for title, type, and
 privacy changes**. There is no event for a corrected GPS trace or a changed distance.
-- *(As built, ticket `0282`, D-NEW-b.)* **Every activity `update` re-fetches the whole activity.**
+- *(As built, ticket `0282`, D-356.)* **Every activity `update` re-fetches the whole activity.**
   `accept()` turns it into a `reingest` command wrapping an ordinary fetch job, keyed
   `sha256(strava:<owner>:<object>:update:<event_time>)`: Strava's redelivery of one edit is one
   receipt, and two edits are two. The worker re-fetches the detail and streams, re-archives, and
@@ -826,7 +826,7 @@ privacy changes**. There is no event for a corrected GPS trace or a changed dist
 **Deletions.** `aspect_type: "delete"` → `retract` (§1.3). The activity is tombstoned; its XP
 stays in the total (D-135) and **territory stays revealed**, every cell's `firstRunAt`/`lastRunAt`
 untouched (D-020). See §2.8 for why this is also the honest answer to Policy §6.3's 48-hour rule.
-*(As built, ticket `0282`, D-NEW-a. The event is unsigned, so the worker confirms it first:
+*(As built, ticket `0282`, D-355. The event is unsigned, so the worker confirms it first:
 `GET /activities/{id}` with our token. Only an authenticated 404, meaning one that carries the
 rate-limit headers, tombstones. A 200 means the event was forged or stale; it is logged
 `forged-or-stale` and nothing is written. A 404 without the headers is retried, then goes to the

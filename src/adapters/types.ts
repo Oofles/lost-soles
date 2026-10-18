@@ -113,7 +113,7 @@ export type IngestCommand =
   | { kind: "ingest"; job: IngestJob }
   | { kind: "reingest"; job: IngestJob }
   /**
-   * DELETED AT SOURCE. `userId` and `ingestKey` added by ticket `0282` (D-NEW-a): the endpoint
+   * DELETED AT SOURCE. `userId` and `ingestKey` added by ticket `0282` (D-355): the endpoint
    * meters a retract per user (D-349) and gates it through the same receipt as a job, and both
    * need what only the adapter knows — whose it is and the key formula. A retract tombstones
    * the activity once the source confirms it (`confirmRetracted`); it never removes a cell or a
@@ -230,7 +230,7 @@ export interface SourceAdapter<TCreds = unknown> {
   listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<SweepJob>
 
   /**
-   * THE RETRACT CHECK — runs in the worker. May use the network. Ticket `0282` (D-NEW-a).
+   * THE RETRACT CHECK — runs in the worker. May use the network. Ticket `0282` (D-355).
    *
    * A push event that says "deleted" is unsigned on at least one source
    * (`08-security-privacy.md` §4.1), so before an activity is tombstoned the source itself is

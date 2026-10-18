@@ -11,7 +11,7 @@
  * it on a GET only. Three things keep a POST cold start free of SSM, each asserted in
  * `webhook-secret.test.ts` and `ssm-reader.test.ts`:
  *
- *   1. The SSM request code (`./ssm-reader`, hand-signed, D-NEW-a) is a DYNAMIC import, evaluated on the
+ *   1. The SSM request code (`./ssm-reader`, hand-signed, D-357) is a DYNAMIC import, evaluated on the
  *      first call, not at module load.
  *   2. The client is constructed on the first call, never at module scope, and is NOT in D-346's
  *      init warm-up — warming it would put the cost straight back where 0286 took it from.

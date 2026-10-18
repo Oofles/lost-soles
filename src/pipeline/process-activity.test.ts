@@ -909,7 +909,7 @@ describe("a second delivery keeps the first award (0220, D-260)", () => {
 
   /**
    * `0282` — A SOURCE EDIT, through the worker. The webhook turns an `update` into an ordinary
-   * `command: "ingest"` job under its own key (D-NEW-b); this is that job meeting an activity
+   * `command: "ingest"` job under its own key (D-356); this is that job meeting an activity
    * already scored. It re-fetches (the adapter's `fetchRaw` runs — not the archive replay) and
    * D-278 holds: the first version's XP and award stand.
    */

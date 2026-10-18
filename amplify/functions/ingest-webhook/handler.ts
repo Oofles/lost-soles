@@ -266,7 +266,7 @@ async function forwardDisconnect(
 }
 
 /**
- * A DELETION (0282, D-NEW-a). The `DisconnectMessage` shape again: this function can neither ask
+ * A DELETION (0282, D-355). The `DisconnectMessage` shape again: this function can neither ask
  * the provider nor touch the activity table, so it forwards the claim as a `RetractMessage` and the
  * worker confirms it before it tombstones anything. Unlike a disconnect it HAS an activity, so it
  * passes the same receipt gate as a job — Strava's redeliveries of one deletion are one receipt —

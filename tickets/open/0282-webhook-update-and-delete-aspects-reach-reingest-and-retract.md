@@ -51,11 +51,10 @@ Function URL and read the receipt, the T3 row and the logs.
 ## Resolution
 
 *(Agent, wave of 2026-10-18. The first pass stopped on five design questions (D-152). The operator
-accepted all five recommendations. The answers are recorded as D-NEW-a and D-NEW-b in the wave
-report, for the orchestrator to number. The docs below still say "D-NEW-a/b" and need the real
-numbers substituted.)*
+accepted all five recommendations. The orchestrator recorded the answers at merge as D-355
+(delete confirmation) and D-356 (the edit path).)*
 
-**What an `update` does (D-NEW-b, operator Q2 = A).** `accept()` turns an activity `update` into
+**What an `update` does (D-356, operator Q2 = A).** `accept()` turns an activity `update` into
 `{kind:"reingest", job}`. The job inside is an ordinary `command:"ingest"` job, not `"reingest"`.
 In this codebase `IngestJob.command:"reingest"` is `0192`'s operator replay from the archive: it
 would never see the edit, and it re-claims a `DONE` receipt, which no stranger should be able to
@@ -71,7 +70,7 @@ D-343 `IngestJob` key set is unchanged and pinned by a test. `meta.revision` is 
 edited activity is still revision 1. Nothing reads revisions today, and neither the ticket nor the
 answers asked for it.
 
-**What a `delete` does (D-NEW-a, operator Q1 = A, Q3, Q4).**
+**What a `delete` does (D-355, operator Q1 = A, Q3, Q4).**
 - *Contract.* `IngestCommand.retract` gains `userId` and `ingestKey` (in `types.ts` and
   `ingestion-contract.md` §3). The endpoint meters a retract per user and gates it through the
   receipt, and only the adapter knows the user and the key formula. Q3 approved `userId`;

@@ -51,7 +51,7 @@ const RATE_TTL_SECONDS = 2 * 60 * 60
 export const DEAUTHS_PER_HOUR = 4
 
 /**
- * DELETIONS GET THEIR OWN TIGHT BUDGET TOO (0282, D-NEW-a), for the deauth reason: each one costs
+ * DELETIONS GET THEIR OWN TIGHT BUDGET TOO (0282, D-355), for the deauth reason: each one costs
  * the worker a provider call to confirm it (`SourceAdapter.confirmRetracted`). A real deletion is
  * one event plus Strava's retries, and a person deletes a handful of activities in an hour at
  * most. Past the budget it is dropped, and the run simply stays visible — nothing is lost.
