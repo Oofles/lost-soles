@@ -2258,7 +2258,7 @@
     "path": "tickets/open/0092-hub-challenge-handshake-and-subscription-management.md",
     "ready": true,
     "acceptance": {
-      "checked": 7,
+      "checked": 9,
       "total": 9
     }
   },
@@ -6577,6 +6577,26 @@
     "acceptance": {
       "checked": 0,
       "total": 5
+    }
+  },
+  {
+    "id": 286,
+    "slug": "webhook-cold-start-take-the-verify-token-ssm-read-off-the-po",
+    "title": "Webhook cold start: take the verify-token SSM read off the POST path",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-18T02:50:37Z",
+    "path": "tickets/open/0286-webhook-cold-start-take-the-verify-token-ssm-read-off-the-po.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

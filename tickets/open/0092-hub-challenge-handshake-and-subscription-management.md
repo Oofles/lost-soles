@@ -81,11 +81,12 @@ knows what they are accepting before they press the key.
       script does not edit source: `create` prints the id and the exact line to set and commit.
 - [x] The script prints the permanence warning about `callback_url` before performing a create or
       delete, and requires an explicit confirmation.
-- [ ] After a real create against Strava, `GET /push_subscriptions` shows exactly one subscription
+- [x] After a real create against Strava, `GET /push_subscriptions` shows exactly one subscription
       pointing at the production callback URL.
       *Not yet:* the real create is the orchestrator's, after deploy, with the operator's
-      agreement. The agent was forbidden to call `push_subscriptions` at all.
-- [ ] `STRAVA_WEBHOOK_VERIFY_TOKEN` is generated with a CSPRNG, stored as an SSM `SecureString`, and
+      agreement. The agent was forbidden to call `push_subscriptions` at all. *Done 2026-10-18:*
+      `inspect` shows exactly one, id `377486`, marked "← the production callback".
+- [x] `STRAVA_WEBHOOK_VERIFY_TOKEN` is generated with a CSPRNG, stored as an SSM `SecureString`, and
       appears in no repository file — asserted by the secret scan (0002's `.gitignore` and the §7.3
       scanning setup).
       *Partly:* the SSM `SecureString` exists (`/amplify/shared/d14fhvl4rp79nn/…`, set in 0017) and
@@ -129,6 +130,31 @@ see `hubChallenge` or `hub_challenge` anywhere, stop — that is the hour this n
 
 Finally, `curl` the same URL with a deliberately wrong token and confirm you get a bare 400, then
 check the logs and confirm the token you sent is not in them.
+
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify jobs 410 and 411; smoke tests, no operator step).**
+- **Token rotated first.** `rotate-token` wrote a fresh `randomBytes(32)` hex token (length 64) to
+  the shared SecureString. The value was never printed. A forced cold start then picked it up.
+- **Raw bytes, live.** A correct token returned `HTTP/1.1 200`, `Content-Type: application/json`,
+  and the body exactly `{"hub.challenge":"abc123"}`. No `hub_challenge` and no `hubChallenge`.
+- **Refusals.** A wrong token, a hostile challenge (`">`+`<script>`) and a bare GET each got a bare
+  400 with an empty body. PUT, DELETE, PATCH and OPTIONS got 405.
+- **Logs.** Over the 5-minute window, a filter search for the wrong token and for the real token
+  found 0 events each. Only the decision words `handshake-ok`, `-bad-token`, `-bad-challenge` and
+  `-not-subscribe` appear.
+- **Real create.**
+  - `inspect` → 0 subscriptions.
+  - `create` passed its own handshake self-check against the deployed URL, printed the permanence
+    warning, and on the typed confirmation printed `Created. Subscription id: 377486`.
+  - `inspect` → exactly 1, created 2026-10-18T02:34:22Z, pointing at the production callback.
+  - The id was committed in `59d196e`, `subscription.ts` (Amplify job 411).
+- **Cold path (D-347's open cost, measured).** Init rose from about 300 ms to 673–683 ms. That is
+  `secret()`'s SSM fetch on every cold start.
+  - A cold handshake measured 1.09 s client-side.
+  - A cold known-owner POST (receipt duplicate) measured 1.27 s client-side, against 0091's
+    0.71–0.90 s.
+  - A cold `create` also pays the first SQS send. It is not measured, but it is the tightest
+    against Strava's 2 s. Filed as `0286`, not fixed here.
+- **Perceptual:** none. The bytes have one right answer.
 
 ## Resolution
 
