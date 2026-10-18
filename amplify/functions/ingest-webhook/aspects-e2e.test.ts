@@ -63,7 +63,9 @@ function world() {
       }
       if (command instanceof PutCommand) {
         const item = command.input.Item as Record<string, unknown>
-        if (receipts.has(String(item.ingestKey))) throw fail()
+        const existing = receipts.get(String(item.ingestKey))
+        const reopens = command.input.ConditionExpression === "attribute_not_exists(ingestKey) OR #status = :reclaimable"
+        if (existing && !(reopens && existing.status === "RECLAIMABLE")) throw fail()
         receipts.set(String(item.ingestKey), { ...item })
         return {}
       }
@@ -80,6 +82,11 @@ function world() {
       if (expr === "ADD attempts :one") {
         row.attempts = Number(row.attempts ?? 0) + 1
         return { Attributes: { attempts: row.attempts } }
+      }
+      if (expr.startsWith("SET #status = :reclaimable")) {
+        if (row.status === "DONE") throw fail()
+        Object.assign(row, { status: "RECLAIMABLE", xpAwarded: 0, newCellCount: 0 })
+        return {}
       }
       if (expr.startsWith("SET #status = :done")) {
         Object.assign(row, { status: "DONE", xpAwarded: 0, newCellCount: 0 })
@@ -134,6 +141,37 @@ describe("a delete, webhook to tombstone", () => {
     })
     expect(outcome).toBe("forged-or-stale")
     expect(w.activities.get(ACTIVITY_ID)!.status).toBe("ACTIVE")
+  })
+
+  /** Ticket 0288 — the reproduction steps, end to end. */
+  it("a forged deletion does not pre-empt the genuine one; the genuine one's redeliveries are duplicates", async () => {
+    const w = world()
+    const worker = (answer: "gone" | "present") => {
+      const message: unknown = JSON.parse(w.sent.at(-1)!)
+      if (!isRetractMessage(message)) throw new Error("expected a RetractMessage on the queue")
+      return retractActivity(message, {
+        confirm: async () => answer,
+        receipt: { ddb: w.ddb as never },
+        persist: { ddb: w.ddb as never, activityTable: ACTIVITY_TABLE },
+      })
+    }
+
+    // 1–2. The forgery: Strava still has the run.
+    await handleWebhook(post({ aspect_type: "delete" }), w.webhook)
+    expect(await worker("present")).toBe("forged-or-stale")
+    expect(w.activities.get(ACTIVITY_ID)!.status).toBe("ACTIVE")
+
+    // 3. The genuine delete, same key: re-claimed, confirmed, tombstoned.
+    await handleWebhook(post({ aspect_type: "delete" }), w.webhook)
+    expect(w.sent).toHaveLength(2)
+    expect(await worker("gone")).toBe("tombstoned")
+    expect(w.activities.get(ACTIVITY_ID)!.status).toBe("TOMBSTONED")
+
+    // Strava's retries of it: one receipt, no further message, no second tombstone.
+    await handleWebhook(post({ aspect_type: "delete" }), w.webhook)
+    await handleWebhook(post({ aspect_type: "delete" }), w.webhook)
+    expect(w.sent).toHaveLength(2)
+    expect([...w.receipts.values()].find((r) => r.status === "DONE")).toBeDefined()
   })
 })
 

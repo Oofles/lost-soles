@@ -831,7 +831,10 @@ untouched (D-020). See §2.8 for why this is also the honest answer to Policy §
 rate-limit headers, tombstones. A 200 means the event was forged or stale; it is logged
 `forged-or-stale` and nothing is written. A 404 without the headers is retried, then goes to the
 DLQ. The delete receipt key is `sha256(strava:<owner>:<object>:delete)`, with no `event_time`.
-Deletions have their own flood budget of 4 an hour per user, in front of the receipt gate, the same
+A confirmed deletion closes that receipt `DONE`, so Strava's redeliveries of it are duplicates. A
+`forged-or-stale` answer instead marks it `RECLAIMABLE`, and the gate lets the next delete of that
+activity re-claim it, so a forgery cannot shut out the genuine delete for the receipt's 90 days
+(ticket `0288`, D-NEW-a). Deletions have their own flood budget of 4 an hour per user, in front of the receipt gate, the same
 as deauthorizations.)*
 
 **Deauthorization.** `object_type: "athlete"` with `updates: {"authorized": "false"}` →

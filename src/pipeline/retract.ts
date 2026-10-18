@@ -1,7 +1,7 @@
 import type { RetractConfirmation } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
 
-import { closeRetractReceipt, recordDelivery, type ReceiptDeps } from "./ingest-receipt"
+import { closeRetractReceipt, recordDelivery, releaseRetractReceipt, type ReceiptDeps } from "./ingest-receipt"
 import { tombstoneActivity, type PersistDeps, type TombstoneResult } from "./persist"
 import type { RetractMessage } from "./retract-message"
 
@@ -16,10 +16,15 @@ import type { RetractMessage } from "./retract-message"
  *   2. CONFIRM with the source (`SourceAdapter.confirmRetracted`), with our credential. The event
  *      is unsigned on at least one source (`08-security-privacy.md` §4.1); believing it would let
  *      a stranger hide a real run. `present` → the claim was forged or stale: nothing is written
- *      beyond closing the receipt, and the outcome is logged.
+ *      beyond releasing the receipt, and the outcome is logged.
  *   3. TOMBSTONE — `status = TOMBSTONED` on the T3 row and nothing else (`02` §4.7). Its XP stays
  *      in the total (D-135), its cells stay revealed with their timestamps untouched (D-020), and
  *      later deliveries of the activity keep the tombstone (`activityItem`'s `status`).
+ *
+ *   4. CLOSE or RELEASE the receipt. A confirmed deletion closes it `DONE`, so the source's
+ *      redeliveries of it stay duplicates. A `present` answer marks it `RECLAIMABLE` (`0288`): the
+ *      key carries no `event_time`, and closing it would let a forgery shut out the genuine delete
+ *      for T8's 90 days.
  *
  * A throw anywhere (a 5xx, a timeout, an ambiguous not-found) propagates, so SQS redelivers and
  * the DLQ alarm fires if it never resolves — a fault is never read as either answer.
@@ -52,6 +57,7 @@ export async function retractActivity(message: RetractMessage, deps: RetractDeps
         )
       : "forged-or-stale"
 
-  await closeRetractReceipt(message.ingestKey, deps.receipt)
+  if (outcome === "forged-or-stale") await releaseRetractReceipt(message.ingestKey, deps.receipt)
+  else await closeRetractReceipt(message.ingestKey, deps.receipt)
   return outcome
 }

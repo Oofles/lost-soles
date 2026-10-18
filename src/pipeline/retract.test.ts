@@ -43,7 +43,9 @@ function store() {
       }
       if (command instanceof PutCommand) {
         const item = command.input.Item as Row
-        if (table.has(String(item.ingestKey))) throw conditional()
+        const existing = table.get(String(item.ingestKey))
+        const reopens = command.input.ConditionExpression === "attribute_not_exists(ingestKey) OR #status = :reclaimable"
+        if (existing && !(reopens && existing.status === "RECLAIMABLE")) throw conditional()
         table.set(String(item.ingestKey), { ...item })
         writes.push(`put ${input.TableName}`)
         return {}
@@ -54,6 +56,7 @@ function store() {
       const expr = String(input.UpdateExpression)
       const cond = String(input.ConditionExpression ?? "")
       if (cond === "attribute_exists(ingestKey)" && !row) throw conditional()
+      if (cond === "attribute_exists(ingestKey) AND #status <> :done" && (!row || row.status === "DONE")) throw conditional()
       if (cond.startsWith("attribute_exists(id) AND userId = :uid")) {
         if (!row || row.userId !== values[":uid"] || row.status === values[":tombstoned"]) throw conditional()
       }
@@ -64,6 +67,10 @@ function store() {
       }
       if (expr.startsWith("SET #status = :done")) {
         Object.assign(row!, { status: "DONE", xpAwarded: 0, newCellCount: 0 })
+        return {}
+      }
+      if (expr.startsWith("SET #status = :reclaimable")) {
+        Object.assign(row!, { status: "RECLAIMABLE", xpAwarded: 0, newCellCount: 0 })
         return {}
       }
       if (expr === "SET #status = :tombstoned, updatedAt = :now") {
@@ -169,11 +176,78 @@ describe("a confirmed deletion (gone)", () => {
 })
 
 describe("a forged or stale deletion (present) — §4.1: worthless", () => {
-  it("writes nothing to T3, closes the receipt, and says so", async () => {
+  it("writes nothing to T3, releases the receipt RECLAIMABLE rather than DONE (0288), and says so", async () => {
     const w = await world({ answer: "present" })
     expect(await retractActivity(w.message, w.deps)).toBe("forged-or-stale")
     expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)).toEqual(ACTIVE_ROW)
+    expect(w.tables.get(INGEST_RECEIPT_TABLE)!.get(KEY)).toMatchObject({ status: "RECLAIMABLE", xpAwarded: 0, newCellCount: 0 })
+  })
+})
+
+/**
+ * Ticket 0288. The delete key has no `event_time`, so a forgery and the genuine delete that follows
+ * share one receipt. The gate re-opens it only from `RECLAIMABLE`.
+ */
+describe("a forged delete cannot pre-empt the genuine one (0288)", () => {
+  const ACCEPT = { ingestKey: KEY, userId: USER, activityId: ACTIVITY_ID, source: SOURCE } as const
+  const REOPEN = { reopenReclaimable: true }
+
+  it("after `forged-or-stale`, the genuine delete re-claims the key and tombstones", async () => {
+    const w = await world()
+    w.confirm.mockResolvedValueOnce("present")
+    expect(await retractActivity(w.message, w.deps)).toBe("forged-or-stale")
+
+    expect(await acceptIngest(ACCEPT, w.deps.receipt, REOPEN)).toEqual({ kind: "accepted" })
+    expect(w.tables.get(INGEST_RECEIPT_TABLE)!.get(KEY)).toMatchObject({ status: "QUEUED", attempts: 0 })
+
+    expect(await retractActivity(w.message, w.deps)).toBe("tombstoned")
+    expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)!.status).toBe("TOMBSTONED")
     expect(w.tables.get(INGEST_RECEIPT_TABLE)!.get(KEY)!.status).toBe("DONE")
+  })
+
+  it("once tombstoned the key is DONE, and the source's redeliveries are duplicates: one tombstone", async () => {
+    const w = await world()
+    expect(await retractActivity(w.message, w.deps)).toBe("tombstoned")
+    for (let i = 0; i < 3; i++) {
+      expect(await acceptIngest(ACCEPT, w.deps.receipt, REOPEN)).toEqual({ kind: "duplicate" })
+    }
+    expect(w.confirm).toHaveBeenCalledTimes(1)
+  })
+
+  it("a redelivery while the worker still holds the key (QUEUED) stays a duplicate", async () => {
+    const w = await world()
+    expect(w.tables.get(INGEST_RECEIPT_TABLE)!.get(KEY)!.status).toBe("QUEUED")
+    expect(await acceptIngest(ACCEPT, w.deps.receipt, REOPEN)).toEqual({ kind: "duplicate" })
+  })
+
+  it("repeated forgeries cost one confirmation each, and never tombstone a live run", async () => {
+    const w = await world({ answer: "present" })
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) expect(await acceptIngest(ACCEPT, w.deps.receipt, REOPEN)).toEqual({ kind: "accepted" })
+      expect(await retractActivity(w.message, w.deps)).toBe("forged-or-stale")
+    }
+    expect(w.confirm).toHaveBeenCalledTimes(3)
+    expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)).toEqual(ACTIVE_ROW)
+  })
+
+  it("a late `present` from an older delivery never re-opens a key a `gone` already closed DONE", async () => {
+    const w = await world()
+    w.confirm.mockResolvedValueOnce("present")
+    expect(await retractActivity(w.message, w.deps)).toBe("forged-or-stale")
+    await acceptIngest(ACCEPT, w.deps.receipt, REOPEN)
+    // The genuine delivery finishes first …
+    expect(await retractActivity(w.message, w.deps)).toBe("tombstoned")
+    // … then an SQS redelivery of the forged message, whose source answer is somehow `present`.
+    w.confirm.mockResolvedValueOnce("present")
+    expect(await retractActivity(w.message, w.deps)).toBe("forged-or-stale")
+    expect(w.tables.get(INGEST_RECEIPT_TABLE)!.get(KEY)!.status).toBe("DONE")
+    expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)!.status).toBe("TOMBSTONED")
+  })
+
+  it("without the option the gate never re-opens a RECLAIMABLE receipt (the ingest paths are unchanged)", async () => {
+    const w = await world({ answer: "present" })
+    await retractActivity(w.message, w.deps)
+    expect(await acceptIngest(ACCEPT, w.deps.receipt)).toEqual({ kind: "duplicate" })
   })
 })
 

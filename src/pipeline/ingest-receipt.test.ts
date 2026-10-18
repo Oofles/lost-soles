@@ -17,6 +17,7 @@ import {
   receiptTtl,
   recordDelivery,
   recordFailure,
+  releaseRetractReceipt,
   type IngestReceipt,
   type ReceiptDdb,
 } from "@/src/pipeline/ingest-receipt"
@@ -137,6 +138,44 @@ describe("layer 1 — the accept gate", () => {
 
     expect((sent[0] as PutCommand).input.Item?.activityId).toBe(activityId)
     expect(activityId).toBe(computeActivityId(USER, "gpslogger", "18736594040123457"))
+  })
+})
+
+describe("a released retract key (ticket 0288)", () => {
+  it("the gate re-opens ONLY a RECLAIMABLE receipt, and only when asked", async () => {
+    const { deps, sent } = stub()
+    await acceptIngest(ACCEPT, deps, { reopenReclaimable: true })
+    const input = (sent[0] as PutCommand).input
+    expect(input.ConditionExpression).toBe("attribute_not_exists(ingestKey) OR #status = :reclaimable")
+    expect(input.ExpressionAttributeNames).toEqual({ "#status": "status" })
+    expect(input.ExpressionAttributeValues).toEqual({ ":reclaimable": "RECLAIMABLE" })
+    /** A fresh claim: QUEUED, zero attempts, a new TTL — the PutItem replaces the old row whole. */
+    expect(input.Item).toMatchObject({ status: "QUEUED", attempts: 0, ttl: receiptTtl(NOW) })
+  })
+
+  it("a re-open that meets any other status is a duplicate", async () => {
+    const { deps } = stub([conditionFailed()])
+    expect(await acceptIngest(ACCEPT, deps, { reopenReclaimable: true })).toEqual({ kind: "duplicate" })
+  })
+
+  it("releases the receipt RECLAIMABLE, conditional on it existing and not being DONE", async () => {
+    const { deps, sent } = stub()
+    await releaseRetractReceipt(KEY, deps)
+    const input = (sent[0] as UpdateCommand).input
+    expect(input.Key).toEqual({ ingestKey: KEY })
+    expect(input.UpdateExpression).toMatch(/^SET #status = :reclaimable/)
+    expect(input.ConditionExpression).toBe("attribute_exists(ingestKey) AND #status <> :done")
+    expect(input.ExpressionAttributeValues).toMatchObject({ ":reclaimable": "RECLAIMABLE", ":done": "DONE" })
+  })
+
+  it("losing the release's condition (a `gone` already closed it DONE) is not an error", async () => {
+    const { deps } = stub([conditionFailed()])
+    await expect(releaseRetractReceipt(KEY, deps)).resolves.toBeUndefined()
+  })
+
+  it("a real fault in the release propagates, so SQS redelivers", async () => {
+    const { deps } = stub([new Error("ProvisionedThroughputExceeded")])
+    await expect(releaseRetractReceipt(KEY, deps)).rejects.toThrow("ProvisionedThroughputExceeded")
   })
 })
 

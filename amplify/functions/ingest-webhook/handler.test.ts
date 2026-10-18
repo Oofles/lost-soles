@@ -477,6 +477,15 @@ describe("an activity delete (0282, D-355)", () => {
     expect(logs.join("\n")).toContain(`"ingestKey":"${deleteKey}"`)
   })
 
+  it("its receipt put may re-open a RECLAIMABLE key (0288); a create's may not", async () => {
+    const { deps, puts } = rig()
+    await handleWebhook(event({ body: del() }), deps)
+    await handleWebhook(event(), deps)
+    expect(puts[0].ConditionExpression).toBe("attribute_not_exists(ingestKey) OR #status = :reclaimable")
+    expect(puts[0].ExpressionAttributeValues).toEqual({ ":reclaimable": "RECLAIMABLE" })
+    expect(puts[1].ConditionExpression).toBe("attribute_not_exists(ingestKey)")
+  })
+
   it("the source's retries of one deletion are one receipt and one message", async () => {
     const { deps, sent } = rig()
     for (let i = 0; i < 3; i++) await handleWebhook(event({ body: del() }), deps)

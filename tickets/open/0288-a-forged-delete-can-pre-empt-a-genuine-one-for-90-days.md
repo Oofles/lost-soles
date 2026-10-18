@@ -40,10 +40,10 @@ reconciliation sweep (`0095`) lists activities that exist, so it never notices a
 
 ## Acceptance criteria
 
-- [ ] After a `forged-or-stale` retract, a later genuine delete of the same activity tombstones it.
-- [ ] Strava's own redeliveries of one genuine delete still cost one receipt and one confirmation
+- [x] After a `forged-or-stale` retract, a later genuine delete of the same activity tombstones it.
+- [x] Strava's own redeliveries of one genuine delete still cost one receipt and one confirmation
       each at most, and cannot tombstone twice.
-- [ ] The fix stays inside the webhook's grants (`PutItem` on the receipt gate, plus `UpdateItem`
+- [x] The fix stays inside the webhook's grants (`PutItem` on the receipt gate, plus `UpdateItem`
       on `rate#*` keys only).
 
 ## Notes
@@ -60,3 +60,62 @@ D-349's delete budget.
 
 None expected. Smoke test: a forged delete of a live activity, then a synthetic delete of a
 non-existent id under the same key path, against the deployed URL.
+
+## Resolution
+
+**Operator Q1 (2026-10-18), relayed by the orchestrator:** free the delete key in the worker after
+`forged-or-stale`, by marking the receipt re-claimable. The webhook gate re-claims only that
+status. The key keeps D-355's shape, `sha256(strava:<owner>:<object>:delete)` with no
+`event_time`; Q3 stands. Proposed as **D-NEW-a**, which extends D-355 and replaces its "Known limit"
+sentence.
+
+**What changed**
+
+- `src/pipeline/ingest-receipt.ts`: `ReceiptStatus` gains `RECLAIMABLE`. `acceptIngest` takes an
+  optional third argument, `{ reopenReclaimable }`. When it is set, the gate's `PutItem` condition
+  is `attribute_not_exists(ingestKey) OR #status = :reclaimable`, and the fresh row replaces the old
+  one whole (`QUEUED`, `attempts: 0`, a new 90-day TTL). Without it, the condition is unchanged.
+  New `releaseRetractReceipt`: `SET status = RECLAIMABLE` with the zeros, `REMOVE` the failure
+  fields, conditional on `attribute_exists(ingestKey) AND status <> DONE`. Losing that condition is
+  a normal outcome, not an error.
+- `src/pipeline/retract.ts`: `present` → `releaseRetractReceipt`. Every other outcome still goes
+  to `closeRetractReceipt` (`DONE`): `tombstoned`, `already-tombstoned` and `no-activity`.
+- `amplify/functions/ingest-webhook/handler.ts`: `forwardRetract` passes
+  `{ reopenReclaimable: true }`. The create, update and disconnect paths do not.
+- Tests: `src/pipeline/retract.test.ts` (the stateful fake understands the new expressions, plus
+  six 0288 cases), `src/pipeline/ingest-receipt.test.ts` (the expressions sent, condition loss,
+  fault propagation), `amplify/functions/ingest-webhook/handler.test.ts` (a delete's put re-opens
+  and a create's does not), `amplify/functions/ingest-webhook/aspects-e2e.test.ts` (the ticket's
+  reproduction steps end to end: forged → `forged-or-stale`, genuine → `tombstoned`, two further
+  redeliveries → no message).
+- Docs, amended rather than left describing the old behaviour: `docs/02-data-model.md` T8
+  `status` row, `docs/03-integrations.md` §2.3 Deletions, `docs/08-security-privacy.md` §4.1. D-355's
+  "Known limit" sentence in DECISIONS.md is the orchestrator's to supersede with D-NEW-a.
+
+**Why it is safe**
+
+- *Redeliveries of a genuine delete dedupe.* Once the activity is tombstoned the receipt is `DONE`.
+  The gate re-opens only `RECLAIMABLE`, so every later delivery is `duplicate`, costing one
+  conditional write and no confirmation call. The tombstone write is conditional anyway.
+- *A redelivery during processing.* While the worker holds the key (`QUEUED`, or `PROCESSING`,
+  which retracts never set), a delivery is still `duplicate`. Only `RECLAIMABLE` re-opens.
+- *A late `present` against a finished `gone`.* Two messages for one key can both be in flight
+  only after a re-claim. Say the older one's confirmation answered `present` before the run was
+  deleted, and it writes after the newer one tombstoned and closed `DONE`. The `status <> DONE`
+  condition makes its release a no-op, so the key is not re-opened.
+- *Repeated forgeries* each re-claim, so each costs one `GET /activities/{id}`. D-349's delete
+  budget meters them at 4 an hour per user, in front of the gate.
+- *Grants.* Webhook: the same conditional `PutItem` (no new action; the condition only names
+  `status`). Worker: the `UpdateItem` it already holds on `LostSolesIngestReceipt`
+  (`amplify/backend.ts`, `ingestReceiptTable.grant(processActivityLambda, …UpdateItem)`). No
+  infrastructure change.
+
+**Residual limit (not new, now narrower).** A genuine delete that arrives while a forged delete of
+the same activity is still `QUEUED` is dropped as a duplicate, and the webhook answers 200, so
+Strava does not retry it. The same applies to a genuine delete that Strava sends before its own API
+answers 404: the receipt becomes `RECLAIMABLE`, but nothing redelivers. In both cases the run stays
+visible and no XP or cell is touched, as before. Closing that gap would need the worker to retry a
+`present` later, or a sweep that notices deletions. Neither was asked for.
+
+**Verification:** guard scripts from `amplify.yml`, `npm run typecheck`, `npm run lint`,
+`npx vitest run` and `npm run build`. All were green in the worktree.

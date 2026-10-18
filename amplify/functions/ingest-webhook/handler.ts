@@ -269,7 +269,8 @@ async function forwardDisconnect(
  * A DELETION (0282, D-355). The `DisconnectMessage` shape again: this function can neither ask
  * the provider nor touch the activity table, so it forwards the claim as a `RetractMessage` and the
  * worker confirms it before it tombstones anything. Unlike a disconnect it HAS an activity, so it
- * passes the same receipt gate as a job — Strava's redeliveries of one deletion are one receipt —
+ * passes the same receipt gate as a job — Strava's redeliveries of one deletion are one receipt,
+ * except that a receipt the worker released as `forged-or-stale` may be re-claimed (`0288`) —
  * behind two counters: the athlete's general budget (D-349) and a tight delete budget, because
  * each one costs the worker a provider call.
  */
@@ -293,6 +294,11 @@ async function forwardRetract(
       source: command.source,
     },
     deps.receipt,
+    /**
+     * `0288`: a delete the worker found still present left its receipt `RECLAIMABLE`, and this
+     * delivery may re-claim it. `QUEUED`, `PROCESSING` and `DONE` stay duplicates.
+     */
+    { reopenReclaimable: true },
   )
   if (accepted.kind === "duplicate") return "duplicate"
   const now = deps.receipt.now?.() ?? new Date()

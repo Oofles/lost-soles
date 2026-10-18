@@ -97,8 +97,15 @@ export const PROCESSING_STALE_MS = 15 * 60 * 1000
  */
 export const FAILED_BY_USER_INDEX = "failedByUser"
 
-/** T8. Every transition is a conditional update; there is no unguarded status write. */
-export type ReceiptStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED"
+/**
+ * T8. Every transition is a conditional update; there is no unguarded status write.
+ *
+ * `RECLAIMABLE` (ticket `0288`) is written on ONE kind of receipt only: a retract's, when the source
+ * said the activity still exists (`forged-or-stale`). It is the one status the accept gate may write
+ * over, and only when its caller asks to (`AcceptOptions.reopenReclaimable`). See
+ * `releaseRetractReceipt`.
+ */
+export type ReceiptStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED" | "RECLAIMABLE"
 
 /**
  * Which gate minted this key. Three shapes coexist in one table (T8):
@@ -212,6 +219,20 @@ export function receiptTtl(now: Date): number {
 export type AcceptResult = { kind: "accepted" } | { kind: "duplicate" }
 
 /**
+ * Ticket `0288`. `reopenReclaimable: true` lets the gate's `PutItem` replace a receipt whose status
+ * is `RECLAIMABLE`, as well as create a missing one. Only the webhook's retract path passes it: a
+ * delete the source denied once (`forged-or-stale`) must not shut out the genuine delete that
+ * follows. Every other status, `QUEUED` and `PROCESSING` included, is still a duplicate, so a
+ * redelivery that lands while the worker is mid-confirmation is dropped as before, and a delete that
+ * has tombstoned (`DONE`) stays shut for T8's 90 days.
+ *
+ * It needs no grant beyond the gate's own: it is the same conditional `PutItem`.
+ */
+export interface AcceptOptions {
+  reopenReclaimable?: boolean
+}
+
+/**
  * THE ONLY WAY PAST LAYER 2, and it is deliberately explicit rather than a status the caller can
  * arrange. Ticket `0192`.
  *
@@ -282,6 +303,7 @@ export async function acceptIngest(
     keyKind?: Exclude<ReceiptKeyKind, "ADOPT">
   },
   deps: ReceiptDeps,
+  options: AcceptOptions = {},
 ): Promise<AcceptResult> {
   // The type already refuses it; this is for the caller that arrived through a cast or JSON.
   if ((receipt.keyKind as ReceiptKeyKind | undefined) === "ADOPT") {
@@ -305,7 +327,13 @@ export async function acceptIngest(
       new PutCommand({
         TableName: INGEST_RECEIPT_TABLE,
         Item: item,
-        ConditionExpression: "attribute_not_exists(ingestKey)",
+        ...(options.reopenReclaimable
+          ? {
+              ConditionExpression: "attribute_not_exists(ingestKey) OR #status = :reclaimable",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":reclaimable": "RECLAIMABLE" },
+            }
+          : { ConditionExpression: "attribute_not_exists(ingestKey)" }),
       }),
     )
     return { kind: "accepted" }
@@ -712,9 +740,10 @@ export async function recordDuplicate(
  * CLOSE A RETRACT'S RECEIPT. Ticket `0282`.
  *
  * A retract has no score and no activity write in a transaction — it tombstones with one
- * `UpdateItem` (`persist.ts`'s `tombstoneActivity`), or, when the source says the activity still
- * exists, writes nothing at all. Either way it is HANDLED, and the receipt says so: `DONE`, with
- * the honest zeros (a retract awards nothing and reveals nothing).
+ * `UpdateItem` (`persist.ts`'s `tombstoneActivity`). When the source confirmed the deletion it is
+ * HANDLED, and the receipt says so: `DONE`, with the honest zeros (a retract awards nothing and
+ * reveals nothing). When the source says the activity still exists, the receipt is not closed but
+ * released instead (`releaseRetractReceipt`, `0288`).
  *
  * Not conditional on status: every outcome that reaches here is final, and a redelivery that
  * re-confirms and re-closes is the same write twice. Conditional on the row existing, like
@@ -733,6 +762,40 @@ export async function closeRetractReceipt(ingestKey: string, deps: ReceiptDeps):
       ExpressionAttributeValues: { ":done": "DONE", ":zero": 0 },
     }),
   )
+}
+
+/**
+ * RE-OPEN A RETRACT'S KEY AFTER THE SOURCE DENIED IT. Ticket `0288`, extending D-355.
+ *
+ * A delete is keyed `sha256(<source>:<owner>:<object>:delete)` with no `event_time`, so every
+ * delete of one activity shares one receipt. Closing it `DONE` after a `forged-or-stale` answer let
+ * a forgery pre-empt the genuine delete for T8's 90 days. So that outcome marks the receipt
+ * `RECLAIMABLE` instead, with the honest zeros, and the next delivery of a delete for the activity
+ * re-claims it at the gate (`AcceptOptions.reopenReclaimable`). Each re-claim costs one confirmation
+ * call, and D-349's delete budget (4 an hour) meters them.
+ *
+ * Conditional on the row existing (never mint a receipt the gate did not) AND on it not being
+ * `DONE`: a concurrent delivery that confirmed `gone` and tombstoned has the last word, and this
+ * worker's older `present` answer must not re-open a key whose deletion has been recorded. Losing
+ * that condition is a normal outcome, not an error.
+ */
+export async function releaseRetractReceipt(ingestKey: string, deps: ReceiptDeps): Promise<void> {
+  try {
+    await deps.ddb.send(
+      new UpdateCommand({
+        TableName: INGEST_RECEIPT_TABLE,
+        Key: { ingestKey },
+        UpdateExpression:
+          "SET #status = :reclaimable, xpAwarded = :zero, newCellCount = :zero " +
+          "REMOVE failedUserId, failedAt, errorClass",
+        ConditionExpression: "attribute_exists(ingestKey) AND #status <> :done",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: { ":reclaimable": "RECLAIMABLE", ":done": "DONE", ":zero": 0 },
+      }),
+    )
+  } catch (error) {
+    if (!isConditionalFailure(error)) throw error
+  }
 }
 
 /**

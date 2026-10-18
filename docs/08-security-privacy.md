@@ -393,7 +393,10 @@ a forced token refresh through the refresh lease; only a provider rejection (`cr
 disconnects, and a refresh that succeeds marks the event forged and drops it. D-348, ticket
 `0093`. An activity **delete** would also do harm if believed, because it hides a real run. So the
 worker confirms it the same way: it asks Strava for the activity, and only an authenticated 404
-tombstones. D-355, ticket `0282`.)*
+tombstones. D-355, ticket `0282`. A forged delete that Strava denies releases its receipt for the
+next delete of that activity rather than closing it, so a forgery cannot pre-empt the genuine
+delete. Each forgery costs one confirmation call, inside the 4-an-hour delete budget. D-NEW-a,
+ticket `0288`.)*
 
 **The rule that guarantees it: the webhook body is never trusted as data.** No coordinate, no
 distance, no timestamp, no name from a webhook payload ever reaches the domain model. The
