@@ -4,7 +4,7 @@ slug: a-forged-delete-can-pre-empt-a-genuine-one-for-90-days
 title: A forged delete can pre-empt a genuine one for 90 days
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-18T13:09:34Z
 started: 2026-10-18T23:16:23Z
+closed: 2026-10-18T23:39:43Z
 ---
 
 ## Description

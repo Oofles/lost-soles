@@ -6632,7 +6632,7 @@
     "title": "A forged delete can pre-empt a genuine one for 90 days",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [],
@@ -6640,8 +6640,9 @@
     "source": "agent",
     "created": "2026-10-18T13:09:34Z",
     "started": "2026-10-18T23:16:23Z",
-    "path": "tickets/open/0288-a-forged-delete-can-pre-empt-a-genuine-one-for-90-days.md",
-    "ready": true,
+    "closed": "2026-10-18T23:39:43Z",
+    "path": "tickets/closed/0288-a-forged-delete-can-pre-empt-a-genuine-one-for-90-days.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
