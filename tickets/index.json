@@ -6610,7 +6610,7 @@
     "title": "Runs and Chronicle readers hide tombstoned activities",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [],
@@ -6618,8 +6618,9 @@
     "source": "agent",
     "created": "2026-10-18T13:09:34Z",
     "started": "2026-10-18T23:15:47Z",
-    "path": "tickets/open/0287-runs-and-chronicle-readers-hide-tombstoned-activities.md",
-    "ready": true,
+    "closed": "2026-10-18T23:39:43Z",
+    "path": "tickets/closed/0287-runs-and-chronicle-readers-hide-tombstoned-activities.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5

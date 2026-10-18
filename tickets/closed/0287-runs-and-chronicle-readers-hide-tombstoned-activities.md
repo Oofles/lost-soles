@@ -4,7 +4,7 @@ slug: runs-and-chronicle-readers-hide-tombstoned-activities
 title: Runs and Chronicle readers hide tombstoned activities
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-18T13:09:34Z
 started: 2026-10-18T23:15:47Z
+closed: 2026-10-18T23:39:43Z
 ---
 
 ## Description
