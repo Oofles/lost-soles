@@ -4,7 +4,7 @@ slug: hub-challenge-handshake-and-subscription-management
 title: The hub.challenge handshake (the key has a dot) and subscription lifecycle management
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: [91]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-18T01:23:55Z
+closed: 2026-10-18T02:51:03Z
 ---
 
 ## Description
