@@ -66,7 +66,7 @@ non-existent id under the same key path, against the deployed URL.
 **Operator Q1 (2026-10-18), relayed by the orchestrator:** free the delete key in the worker after
 `forged-or-stale`, by marking the receipt re-claimable. The webhook gate re-claims only that
 status. The key keeps D-355's shape, `sha256(strava:<owner>:<object>:delete)` with no
-`event_time`; Q3 stands. Proposed as **D-NEW-a**, which extends D-355 and replaces its "Known limit"
+`event_time`; Q3 stands. Proposed as **D-360**, which extends D-355 and replaces its "Known limit"
 sentence.
 
 **What changed**
@@ -90,7 +90,7 @@ sentence.
   redeliveries → no message).
 - Docs, amended rather than left describing the old behaviour: `docs/02-data-model.md` T8
   `status` row, `docs/03-integrations.md` §2.3 Deletions, `docs/08-security-privacy.md` §4.1. D-355's
-  "Known limit" sentence in DECISIONS.md is the orchestrator's to supersede with D-NEW-a.
+  "Known limit" sentence in DECISIONS.md is the orchestrator's to supersede with D-360.
 
 **Why it is safe**
 

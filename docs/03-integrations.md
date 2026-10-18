@@ -834,7 +834,7 @@ DLQ. The delete receipt key is `sha256(strava:<owner>:<object>:delete)`, with no
 A confirmed deletion closes that receipt `DONE`, so Strava's redeliveries of it are duplicates. A
 `forged-or-stale` answer instead marks it `RECLAIMABLE`, and the gate lets the next delete of that
 activity re-claim it, so a forgery cannot shut out the genuine delete for the receipt's 90 days
-(ticket `0288`, D-NEW-a). Deletions have their own flood budget of 4 an hour per user, in front of the receipt gate, the same
+(ticket `0288`, D-360). Deletions have their own flood budget of 4 an hour per user, in front of the receipt gate, the same
 as deauthorizations.)*
 
 **Deauthorization.** `object_type: "athlete"` with `updates: {"authorized": "false"}` →

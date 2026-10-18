@@ -30,7 +30,7 @@ stays: only the *list* views drop it.
       list readers (`latestRun`, `chroniclePage`) skip them. `runById` (`/run/:id`) and
       `historyUpTo` (the Chronicle line's lifetime facts) deliberately do not. A direct link is not
       a list, and the lifetime facts count the same lifetime the XP total does (D-135). Proposed as
-      D-NEW-a.*
+      D-358.*
 - [x] The Chronicle does not list a `TOMBSTONED` activity.
 - [x] The runs trace web leaves out a tombstoned activity's trace, or the ticket records why it
       keeps it (the cells stay revealed either way, D-020). *Kept; why is in Resolution.*

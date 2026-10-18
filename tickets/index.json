@@ -6621,7 +6621,7 @@
     "path": "tickets/open/0287-runs-and-chronicle-readers-hide-tombstoned-activities.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -6642,7 +6642,7 @@
     "path": "tickets/open/0288-a-forged-delete-can-pre-empt-a-genuine-one-for-90-days.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }

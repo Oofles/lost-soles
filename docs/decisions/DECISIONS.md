@@ -5336,3 +5336,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   shared path only. The read is cached on success and never on failure, and a failure resolves
   undefined, so the handshake fails closed with a bare 400. Rejected: raising the ceiling, and
   loading the runtime-provided SDK (version drift, and a module load against the 2 s deadline).
+- **D-358** **A tombstone hides an activity from the list readers only.** *(Agent, 2026-10-18,
+  ticket `0287`. Applies D-355 and 02 §4.7.)* `/api/runs/latest` and the Chronicle (API and
+  server-rendered page) skip a `TOMBSTONED` T3 row; a row with no `status` counts as ACTIVE.
+  `/run/:id` still resolves, because a direct link is not a list. The Chronicle line's lifetime facts
+  (`historyUpTo`) still count the run, because they cover the same lifetime as the XP that D-135
+  keeps, and dropping it could let a lifetime threshold be crossed twice. The permanent trace web
+  keeps the run's line: it is part of the map, which never loses ground (D-020), and removing it
+  would mean either the retract path rewriting the web object (which D-355 forbids) or a T3 status
+  query on every web load.
+- **D-359** **A Chronicle page reads on past an all-tombstoned page.** *(Agent, 2026-10-18, ticket
+  `0287`.)* `chroniclePage` keeps reading until it has at least one row or history ends, capped at
+  `CHRONICLE_MAX_READS = 4` reads, and the cursor is always the last key read. Otherwise a first
+  page made up entirely of tombstoned rows would show "Nothing here yet" over an account that has
+  runs.
+- **D-360** **A forged delete releases its key instead of closing it.** *(Operator, 2026-10-18,
+  ticket `0288`, Q1. Extends D-355 and supersedes its "Known limit" sentence.)* When
+  `confirmRetracted` answers `present` (`forged-or-stale`), the worker marks the delete receipt
+  `RECLAIMABLE` instead of `DONE`, conditional on `attribute_exists(ingestKey) AND status <> DONE`,
+  so a late `present` never re-opens a key a `gone` has already closed. Only the webhook's retract
+  path accepts with `attribute_not_exists(ingestKey) OR status = "RECLAIMABLE"`. A re-claim replaces
+  the row whole (`QUEUED`, 0 attempts, a fresh 90-day TTL), so a later genuine delete gets through.
+  `QUEUED`, `PROCESSING` and `DONE` stay duplicates, so redeliveries of a genuine delete cost one
+  conditional write. The key shape is unchanged (Q3 stands), and no grants are new. Each repeated
+  forgery costs one confirmation call inside D-349's 4-an-hour delete budget. Residual limit: a
+  genuine delete is still lost if it arrives while a forgery of the same activity is `QUEUED`, or
+  before Strava's API answers 404. The only effect is that the run stays visible.

@@ -395,7 +395,7 @@ disconnects, and a refresh that succeeds marks the event forged and drops it. D-
 worker confirms it the same way: it asks Strava for the activity, and only an authenticated 404
 tombstones. D-355, ticket `0282`. A forged delete that Strava denies releases its receipt for the
 next delete of that activity rather than closing it, so a forgery cannot pre-empt the genuine
-delete. Each forgery costs one confirmation call, inside the 4-an-hour delete budget. D-NEW-a,
+delete. Each forgery costs one confirmation call, inside the 4-an-hour delete budget. D-360,
 ticket `0288`.)*
 
 **The rule that guarantees it: the webhook body is never trusted as data.** No coordinate, no
