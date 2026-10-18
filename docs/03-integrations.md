@@ -192,11 +192,14 @@ Steps 3–7 are shared and know nothing about sources. Step 1–2 is the adapter
 the whole of D-100, and §6 is the proof that it holds.
 
 **`retract` is not a delete.** D-020 makes revealed territory permanent. Retracting an activity
-removes it from the activity ledger and from XP totals; it does **not** re-fog cells. Cell
-`lastRunAt` (D-120) is recomputed from the surviving activities that touch that cell. If no
-activity survives for a cell, the cell keeps its `revealed` bit and loses its `lastRunAt`
-recency — it stays visible forever, and re-arms for discovery credit. This is deliberate and it
-is what makes §2.8's legal exposure survivable.
+TOMBSTONES it (`02-data-model.md` §4.7): `status = TOMBSTONED` on its row, and nothing else. It
+does **not** re-fog cells, and it does **not** lower XP — the ledger rows stay and the total does
+not move (D-135). *(Corrected by ticket `0282`. This paragraph used to say the activity left the XP
+totals and that each cell's `lastRunAt` was recomputed from the surviving activities. The first
+contradicts D-135. The second contradicts D-020's append-only cells, whose `lastRunAt` is written
+with `max` and never lowered. Both followed `02` §4.7. Hiding a tombstoned activity from the
+activity list and the Chronicle is the readers' job, and a separate ticket.)* This is deliberate
+and it is what makes §2.8's legal exposure survivable.
 
 ---
 
@@ -804,19 +807,32 @@ is at-least-once and so is Strava.
 
 **Edits.** `aspect_type: "update"` carries `updates` populated **only for title, type, and
 privacy changes**. There is no event for a corrected GPS trace or a changed distance.
-- `updates.type` changed → re-map the skill (§2.6). If it moved out of the running set, `retract`.
-- `updates.private` → irrelevant to us. We hold `activity:read_all` and display only to the
-  owner (Policy §6.1, trivially satisfied by D-014/D-123).
-- `updates.title` → cosmetic; update the stored name, do not re-fetch streams.
+- *(As built, ticket `0282`, D-NEW-b.)* **Every activity `update` re-fetches the whole activity.**
+  `accept()` turns it into a `reingest` command wrapping an ordinary fetch job, keyed
+  `sha256(strava:<owner>:<object>:update:<event_time>)`: Strava's redelivery of one edit is one
+  receipt, and two edits are two. The worker re-fetches the detail and streams, re-archives, and
+  persists under D-278 — the row takes the new content, and the first version's XP and discovery
+  award stand. The `updates` payload is never read for meaning (§4.1 of `08`). That replaces the
+  three bullets this list used to have: re-map the skill on `updates.type` (an edited kind is D-278's
+  no-rescore, with a kind correction as the operator's override); ignore `updates.private`; and,
+  for `updates.title`, update the stored name without re-fetching. The title shortcut would have
+  trusted the payload as data. Its saving was one read against a budget of 100 per 15 minutes.
 - **Trace corrections are invisible.** Nothing tells you. The nightly 14-day reconciliation
   sweep (§2.3) is the only defence: compare `distance` and `elapsed_time` against the stored
   Activity and `reingest` on mismatch. Accept that an edit older than 14 days will be missed.
 - On `reingest`: archive the new raw payload under a **new** object version (§3), write a new
   `revision`, recompute cell contributions. Never mutate the archived original.
 
-**Deletions.** `aspect_type: "delete"` → `retract` (§1.3). The activity leaves the ledger and
-XP totals; **territory stays revealed** (D-020). Cell `lastRunAt` is recomputed from surviving
-activities. See §2.8 for why this is also the honest answer to Policy §6.3's 48-hour rule.
+**Deletions.** `aspect_type: "delete"` → `retract` (§1.3). The activity is tombstoned; its XP
+stays in the total (D-135) and **territory stays revealed**, every cell's `firstRunAt`/`lastRunAt`
+untouched (D-020). See §2.8 for why this is also the honest answer to Policy §6.3's 48-hour rule.
+*(As built, ticket `0282`, D-NEW-a. The event is unsigned, so the worker confirms it first:
+`GET /activities/{id}` with our token. Only an authenticated 404, meaning one that carries the
+rate-limit headers, tombstones. A 200 means the event was forged or stale; it is logged
+`forged-or-stale` and nothing is written. A 404 without the headers is retried, then goes to the
+DLQ. The delete receipt key is `sha256(strava:<owner>:<object>:delete)`, with no `event_time`.
+Deletions have their own flood budget of 4 an hour per user, in front of the receipt gate, the same
+as deauthorizations.)*
 
 **Deauthorization.** `object_type: "athlete"` with `updates: {"authorized": "false"}` →
 `disconnect`. Delete the stored tokens immediately, stop all polling for that user, mark the

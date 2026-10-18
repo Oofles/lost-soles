@@ -1022,17 +1022,23 @@ sourceAccountKey.grantEncryptDecrypt(processActivityLambda)
  */
 const activityTable = backend.data.resources.tables["Activity"]
 /**
- * `PutItem` and `GetItem`. The transaction writes the row, never updates it in place, and —
- * the one that matters — never deletes it. A source-side delete TOMBSTONES an activity by
- * setting `status`, which is an update this function does not perform either:
- * `aspect_type: "delete"` handling is capability 14's, and it will need its own grant,
- * written where a reviewer can see what it permits.
+ * `PutItem` and `GetItem`. The transaction writes the row and — the one that matters — never
+ * deletes it.
  *
  * `GetItem` is `0220`'s: before the put, `readStoredAward` reads the row's discovery award so
  * a second delivery keeps the first one rather than overwriting it with an all-`cooled`
  * reclassification (D-260). A single-key read of the award columns, nothing wider.
  */
 activityTable.grant(processActivityLambda, "dynamodb:PutItem", "dynamodb:GetItem")
+/**
+ * `UpdateItem` — ticket `0282`, the grant the comment above said a source-side delete would need,
+ * written here on its own so a reviewer sees what it is for. ONE caller: `tombstoneActivity`
+ * (`src/pipeline/persist.ts`), which sets `status = TOMBSTONED` and `updatedAt` on an existing row
+ * of the message's own user, after the source has confirmed the deletion. It never removes a
+ * row (still no `DeleteItem`, I-7), and it widens nothing a reviewer should worry about: the role
+ * already holds `PutItem` on this table, which can write any attribute.
+ */
+activityTable.grant(processActivityLambda, "dynamodb:UpdateItem")
 
 /**
  * `0179`, pipeline step 3 — `dynamodb:Query` on GSI2 `byUserAndDedupe` ALONE (contract §3, I-22).

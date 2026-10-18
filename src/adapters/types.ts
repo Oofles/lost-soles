@@ -112,8 +112,26 @@ export type SweepJob = IngestJob & { startedAt: string }
 export type IngestCommand =
   | { kind: "ingest"; job: IngestJob }
   | { kind: "reingest"; job: IngestJob }
-  | { kind: "retract"; source: SourceId; externalId: string }
+  /**
+   * DELETED AT SOURCE. `userId` and `ingestKey` added by ticket `0282` (D-NEW-a): the endpoint
+   * meters a retract per user (D-349) and gates it through the same receipt as a job, and both
+   * need what only the adapter knows — whose it is and the key formula. A retract tombstones
+   * the activity once the source confirms it (`confirmRetracted`); it never removes a cell or a
+   * ledger row (D-020, D-135, `02` §4.7).
+   */
+  | { kind: "retract"; source: SourceId; userId: string; externalId: string; ingestKey: string }
   | { kind: "disconnect"; source: SourceId; userId: string }
+
+/**
+ * What the source says about an activity a `retract` claims is gone. Ticket `0282`.
+ *
+ *   - `gone`    the source, asked with OUR credential, answered that the activity does not exist.
+ *   - `present` the source returned it: the claim was forged, or is stale. Nothing is written.
+ *
+ * Anything the source cannot answer cleanly (a 5xx, a timeout, an ambiguous not-found) is a
+ * THROW, so the queue redelivers rather than a fault being read as either answer.
+ */
+export type RetractConfirmation = "gone" | "present"
 
 /**
  * What `accept()` returns: the response to send the source right now, plus the intents to
@@ -197,6 +215,19 @@ export interface SourceAdapter<TCreds = unknown> {
    * It is also what the manual Sync path in capability `06` runs on.
    */
   listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<SweepJob>
+
+  /**
+   * THE RETRACT CHECK — runs in the worker. May use the network. Ticket `0282` (D-NEW-a).
+   *
+   * A push event that says "deleted" is unsigned on at least one source
+   * (`08-security-privacy.md` §4.1), so before an activity is tombstoned the source itself is
+   * asked, with our credential, whether it still exists. Only `gone` tombstones.
+   *
+   * MANDATORY, like `listSince`, so `refreshCredentials` stays the one optional member. A source
+   * with no way to delete at source (a hand-logged workout, a file upload) answers `present`, and
+   * a retract naming one of its activities is refused: a forged event stays worthless by default.
+   */
+  confirmRetracted(externalId: string, creds: TCreds): Promise<RetractConfirmation>
 
   /** The ONLY optional member. Called by token-refresh for sources with rotating credentials. */
   refreshCredentials?(creds: TCreds): Promise<TCreds>

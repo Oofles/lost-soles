@@ -22,6 +22,8 @@ import type { RuleSet } from "@/src/rules/schema"
 import { assertValidRuleSet } from "@/src/rules/validate"
 import { recordFailure } from "@/src/pipeline/ingest-receipt"
 import { isDisconnectMessage } from "@/src/pipeline/disconnect-message"
+import { retractActivity } from "@/src/pipeline/retract"
+import { isRetractMessage, type RetractMessage } from "@/src/pipeline/retract-message"
 import {
   archiveCompletedBy,
   processActivity,
@@ -266,6 +268,39 @@ async function delayMessage(record: SqsRecord, retryAfterMs: number): Promise<vo
   )
 }
 
+/**
+ * A `RetractMessage` (0282). `src/pipeline/retract.ts` does the work; this wires the clients and
+ * applies the one queue rule that reaches it — a 429 on the confirmation call returns the message
+ * with a delay (rule 3), exactly as it would for a job. Every other throw redelivers.
+ */
+async function handleRetract(record: SqsRecord, message: RetractMessage): Promise<void> {
+  const base = {
+    at: "process-activity",
+    event: "retract",
+    messageId: record.messageId,
+    source: message.source,
+    ingestKey: message.ingestKey,
+  }
+  try {
+    const outcome = await retractActivity(message, {
+      confirm: async (m) =>
+        getAdapter(m.source).confirmRetracted(m.externalId, oauthCredentialsFor(m)),
+      receipt: { ddb },
+      persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
+    })
+    // The outcome, never the activity's name or anything the source returned.
+    log.info({ ...base, outcome })
+  } catch (error) {
+    if (error instanceof SourceRateLimitedError) {
+      await delayMessage(record, error.retryAfterMs)
+      log.warn({ ...base, outcome: "rate-limited", retryAfterMs: error.retryAfterMs })
+    } else {
+      log.error({ ...base, outcome: "failed", errorClass: (error as Error)?.name ?? "Error" })
+    }
+    throw error
+  }
+}
+
 async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void> {
   const message: unknown = JSON.parse(record.body)
 
@@ -278,6 +313,16 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
    */
   if (isDisconnectMessage(message)) {
     await handleDeauthorization(message)
+    return
+  }
+
+  /**
+   * THE THIRD SHAPE (ticket 0282, D-NEW-a): a source-side deletion, in `DisconnectMessage`'s
+   * pattern. Told apart by `command` before the body is read as a job, so D-343's `IngestJob` key
+   * set is untouched. Confirmed with the source before anything is tombstoned.
+   */
+  if (isRetractMessage(message)) {
+    await handleRetract(record, message)
     return
   }
 

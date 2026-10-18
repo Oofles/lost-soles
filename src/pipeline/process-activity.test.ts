@@ -894,7 +894,7 @@ describe("a second delivery keeps the first award (0220, D-260)", () => {
     expect(done.ExpressionAttributeValues![":newCellCount"]).toBe(firstRow.newCellCount)
   })
 
-  it("reads T3 consistently, by the activity's id, for the award columns only", async () => {
+  it("reads T3 consistently, by the activity's id, for the award columns and the status (0282) only", async () => {
     const { deps, activityReads } = rig({ ingest: TRACED_RUN })
     await processActivity(JOB, deps)
     expect(activityReads).toHaveLength(1)
@@ -903,7 +903,58 @@ describe("a second delivery keeps the first award (0220, D-260)", () => {
       Key: { id: "a-1" },
       ConsistentRead: true,
     })
-    expect(String(activityReads[0]!.ProjectionExpression).split(", ")).toEqual(AWARD_COLUMNS)
+    expect(String(activityReads[0]!.ProjectionExpression).split(", ")).toEqual([...AWARD_COLUMNS, "#status"])
+    expect(activityReads[0]!.ExpressionAttributeNames).toEqual({ "#status": "status" })
+  })
+
+  /**
+   * `0282` — A SOURCE EDIT, through the worker. The webhook turns an `update` into an ordinary
+   * `command: "ingest"` job under its own key (D-NEW-b); this is that job meeting an activity
+   * already scored. It re-fetches (the adapter's `fetchRaw` runs — not the archive replay) and
+   * D-278 holds: the first version's XP and award stand.
+   */
+  it("an update job re-fetches and keeps the first version's XP and award (D-278)", async () => {
+    const first = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, first.deps)
+    const firstRow = t3Row(first.transacts)
+    // The rig pins the receipt key; the update's own key is the webhook test's to check.
+    const UPDATE_JOB = { ...JOB, meta: { aspectType: "update" } }
+    const second = rig({
+      // The edit: a distance corrected at source. Its content reaches T3; its XP does not move.
+      ingest: { ...TRACED_RUN, distanceM: 300 },
+      ledgerExisting: [{ id: "a-1#wayfaring#new_ground#v1", xpAwarded: 28, xpRulesVersion: 1 }],
+      storedActivity: firstRow,
+    })
+    const r = await processActivity(UPDATE_JOB, second.deps)
+    if (r.outcome !== "persisted") throw new Error("expected persisted")
+    expect(second.calls).toContain("fetch")
+    expect(r.xp).toMatchObject({ alreadyScored: true, rowsWritten: 0, xpAwarded: 28, awardKept: true })
+    expect(awardOf(t3Row(second.transacts))).toEqual(awardOf(firstRow))
+    expect(t3Row(second.transacts).distanceM).toBe(300)
+  })
+
+  /** `0282` — a tombstone is sticky: no later delivery writes `ACTIVE` over it (operator, Q4). */
+  it("a later delivery of a TOMBSTONED activity keeps it TOMBSTONED", async () => {
+    const first = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, first.deps)
+    const tombstoned = { ...t3Row(first.transacts), status: "TOMBSTONED" }
+    const second = rig({
+      ingest: TRACED_RUN,
+      ledgerExisting: [{ id: "a-1#wayfaring#new_ground#v1", xpAwarded: 28, xpRulesVersion: 1 }],
+      storedActivity: tombstoned,
+    })
+    await processActivity(JOB, second.deps)
+    const put = second.transacts.at(-1)!.TransactItems!.find((i) => i.Put?.TableName === ACTIVITY_TABLE)!.Put!
+    expect(put.Item!.status).toBe("TOMBSTONED")
+  })
+
+  it("an ACTIVE write is conditional on the row not having been tombstoned since the read", async () => {
+    const { deps, transacts } = rig({ ingest: TRACED_RUN })
+    await processActivity(JOB, deps)
+    const put = transacts.at(-1)!.TransactItems!.find((i) => i.Put?.TableName === ACTIVITY_TABLE)!.Put!
+    expect(put.Item!.status).toBe("ACTIVE")
+    expect(put.ConditionExpression).toBe("attribute_not_exists(id) OR #status <> :tombstoned")
+    expect(put.ExpressionAttributeValues).toEqual({ ":tombstoned": "TOMBSTONED" })
   })
 
   it("a first delivery writes its own classification and reports nothing kept", async () => {

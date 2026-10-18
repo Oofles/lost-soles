@@ -880,3 +880,56 @@ describe("no polyline decoder exists anywhere in this repository", () => {
     expect(decodesInline.map((f) => f.slice(root.length + 1))).toEqual([])
   })
 })
+
+/**
+ * Ticket 0282, D-NEW-a — the retract check. One detail read with our token; only an AUTHENTICATED
+ * 404 (rate-limit headers present, `rate-limit.ts`'s probe table) is believed as `gone`.
+ */
+describe("confirmRetracted", () => {
+  const LIMITS = {
+    "X-RateLimit-Limit": "200,2000",
+    "X-RateLimit-Usage": "3,40",
+    "X-ReadRateLimit-Limit": "100,1000",
+    "X-ReadRateLimit-Usage": "2,30",
+  }
+  function answer(status: number, headers: Record<string, string> = {}) {
+    const requests: string[] = []
+    const creds: StravaCreds = {
+      accessToken: async () => "access-v1",
+      markNeedsReauth: async () => {},
+      fetch: (async (url: URL) => {
+        requests.push(String(url))
+        return new Response(status === 200 ? "{}" : '{"message":"Record Not Found"}', { status, headers })
+      }) as unknown as typeof fetch,
+    }
+    return { creds, requests }
+  }
+
+  it("asks the detail endpoint for exactly that activity, once", async () => {
+    const { creds, requests } = answer(200, LIMITS)
+    await stravaAdapter.confirmRetracted("17284759302841234567", creds)
+    expect(requests).toEqual(["https://www.strava.com/api/v3/activities/17284759302841234567"])
+  })
+
+  it("a 200 is `present` — the event was forged or stale", async () => {
+    expect(await stravaAdapter.confirmRetracted("1", answer(200, LIMITS).creds)).toBe("present")
+  })
+
+  it("an authenticated 404 is `gone`", async () => {
+    expect(await stravaAdapter.confirmRetracted("1", answer(404, LIMITS).creds)).toBe("gone")
+  })
+
+  it("a 404 with no rate-limit headers is trusted as neither — it throws, so the queue redelivers", async () => {
+    await expect(stravaAdapter.confirmRetracted("1", answer(404).creds)).rejects.toBeInstanceOf(StravaApiError)
+  })
+
+  it("a 5xx throws", async () => {
+    await expect(stravaAdapter.confirmRetracted("1", answer(503, LIMITS).creds)).rejects.toBeInstanceOf(StravaApiError)
+  })
+
+  it("a 429 leaves as the shared rate-limit error, so the worker delays rather than fails", async () => {
+    await expect(stravaAdapter.confirmRetracted("1", answer(429, LIMITS).creds)).rejects.toMatchObject({
+      name: "SourceRateLimitedError",
+    })
+  })
+})

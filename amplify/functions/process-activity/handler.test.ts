@@ -50,11 +50,16 @@ vi.mock("@aws-sdk/client-dynamodb", () => ({ DynamoDBClient: class {} }))
 vi.mock("@aws-sdk/lib-dynamodb", () => ({
   DynamoDBDocumentClient: { from: () => ({}) },
 }))
-vi.mock("@/src/adapters/registry", () => ({ getAdapter: () => ({ id: "test-source" }) }))
+/** `0282`. The adapter's retract check, reached only through the `confirm` dep the handler builds. */
+const confirmRetracted = vi.fn<(...args: unknown[]) => Promise<string>>(async () => "gone")
+vi.mock("@/src/adapters/registry", () => ({ getAdapter: () => ({ id: "test-source", confirmRetracted }) }))
 vi.mock("@/lib/sources/adapter-credentials", () => ({ oauthCredentialsFor: () => ({}) }))
 /** Ticket 0093. The deauthorization path; its own logic is `lib/sources/deauthorization.test.ts`. */
 const handleDeauthorization = vi.fn<(...args: unknown[]) => Promise<string>>(async () => "disconnected")
 vi.mock("@/lib/sources/deauthorization", () => ({ handleDeauthorization }))
+/** Ticket 0282. The retract path; its own logic is `src/pipeline/retract.test.ts`. */
+const retractActivity = vi.fn<(...args: unknown[]) => Promise<string>>(async () => "tombstoned")
+vi.mock("@/src/pipeline/retract", () => ({ retractActivity }))
 /**
  * PARTIALLY MOCKED. `processActivity` is replaced because the point of this file is what
  * the handler does with an outcome, but `archiveCompletedBy` and `INGEST_PHASES` are the
@@ -548,5 +553,57 @@ describe("the disconnect message (0093)", () => {
     await handler(event())
     expect(runPipeline).toHaveBeenCalledTimes(1)
     expect(handleDeauthorization).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Ticket 0282. A `RetractMessage` shares the ingest queue too, recognised by `command` before the
+ * body is read as a job, and never reaches the pipeline.
+ */
+describe("the retract message (0282)", () => {
+  const MESSAGE = {
+    command: "retract",
+    source: "test-source",
+    userId: "u-1",
+    externalId: "9001",
+    ingestKey: "k-del",
+    enqueuedAt: "2026-10-18T00:00:00.000Z",
+  }
+  const retract = () => ({
+    Records: [{ messageId: "m-3", receiptHandle: "rh-3", attributes: { ApproximateReceiveCount: "1" }, body: JSON.stringify(MESSAGE) }],
+  })
+
+  beforeEach(() => {
+    retractActivity.mockReset()
+    retractActivity.mockResolvedValue("tombstoned")
+    confirmRetracted.mockClear()
+  })
+
+  it("is handed to the retract path, with the activity table, and never to the pipeline", async () => {
+    await handler(retract())
+    expect(retractActivity).toHaveBeenCalledTimes(1)
+    const [message, deps] = retractActivity.mock.calls[0] as [unknown, { persist: { activityTable: string } }]
+    expect(message).toEqual(MESSAGE)
+    expect(deps.persist.activityTable).toBe("Activity-test")
+    expect(runPipeline).not.toHaveBeenCalled()
+    expect(recordFailure).not.toHaveBeenCalled()
+  })
+
+  it("its confirm dep asks the message's source adapter about the message's activity", async () => {
+    await handler(retract())
+    const [, deps] = retractActivity.mock.calls[0] as [unknown, { confirm(m: unknown): Promise<string> }]
+    expect(await deps.confirm(MESSAGE)).toBe("gone")
+    expect(confirmRetracted).toHaveBeenCalledWith("9001", {})
+  })
+
+  it("throws when the retract path throws, so SQS redelivers", async () => {
+    retractActivity.mockRejectedValueOnce(new Error("provider 503"))
+    await expect(handler(retract())).rejects.toThrow("provider 503")
+  })
+
+  it("a 429 on the confirmation returns the message with a delay (rule 3), then rethrows", async () => {
+    retractActivity.mockRejectedValueOnce(new SourceRateLimitedError("test-source" as never, "retract check", 90_000))
+    await expect(handler(retract())).rejects.toBeInstanceOf(SourceRateLimitedError)
+    expect(requestedVisibility()).toBe(90)
   })
 })

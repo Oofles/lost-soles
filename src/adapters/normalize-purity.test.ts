@@ -49,6 +49,7 @@ const OTHER_PHASES = {
     schemaHint: "gpslogger/raw@1",
   }),
   listSince: async function* (): AsyncGenerator<SweepJob> {},
+  confirmRetracted: async () => "present" as const,
 }
 
 function activity(startedAt: string): Activity {

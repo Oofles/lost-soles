@@ -154,6 +154,10 @@ export const gpxFixtureAdapter: SourceAdapter<never> = {
     throw new Error("gpxFixtureAdapter is a test fixture — it has nothing to sweep")
   },
 
+  confirmRetracted(): Promise<"present"> {
+    throw new Error("gpxFixtureAdapter is a test fixture — it has no source to ask")
+  },
+
   normalize(raw: Buffer, ref: RawArchiveRef, job: IngestJob): NormalizedIngest {
     const gpx = raw.toString("utf8")
     const startedAt = /<metadata>\s*<time>([^<]+)<\/time>/.exec(gpx)?.[1]

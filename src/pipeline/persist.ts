@@ -1,4 +1,9 @@
-import { GetCommand, TransactWriteCommand, type TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb"
+import {
+  GetCommand,
+  TransactWriteCommand,
+  UpdateCommand,
+  type TransactWriteCommandInput,
+} from "@aws-sdk/lib-dynamodb"
 
 import type { Activity } from "@/src/domain/activity"
 import { NO_CELLS, type DiscoveryAward } from "@/src/domain/discovery"
@@ -56,7 +61,7 @@ import type { KindCorrected } from "./kind-override"
  */
 export interface PersistDeps {
   /** `0220`: the `GetCommand` is `readStoredAward`'s, and it is the only read this module makes. */
-  ddb: { send(command: TransactWriteCommand | GetCommand): Promise<unknown> }
+  ddb: { send(command: TransactWriteCommand | GetCommand | UpdateCommand): Promise<unknown> }
   /**
    * T3's physical table name. Amplify GENERATES it (`Activity-<apiId>-<env>`), so
    * unlike the three CDK tables it cannot be a literal anyone states — the worker is
@@ -159,6 +164,12 @@ export function activityItem(
    * unscored row: `0` and `null`, written rather than omitted so the row shape never varies.
    */
   xp: { xpAwarded: number; xpRulesVersion: number | null } = { xpAwarded: 0, xpRulesVersion: null },
+  /**
+   * `0282`. What the stored row already says, when it says `TOMBSTONED`: a tombstone is STICKY, so
+   * a later delivery of the same activity (an edit's re-fetch, a redelivery after the receipt's TTL)
+   * rewrites everything else and leaves the tombstone where it was. A first delivery is `ACTIVE`.
+   */
+  status: ActivityStatus = ACTIVE_STATUS,
 ): Record<string, unknown> {
   return {
     ...amplifyMetadata(activity.userId, activity.ingestedAt),
@@ -278,9 +289,14 @@ export function activityItem(
     traceRejectCounts: { ...rejects },
 
     /** ACTIVE | TOMBSTONED. A source-side delete tombstones; cells are never removed. */
-    status: "ACTIVE",
+    status,
   }
 }
+
+/** T3's `status` (`02` §2 T3). A source-side delete tombstones; nothing ever un-tombstones. */
+export type ActivityStatus = "ACTIVE" | "TOMBSTONED"
+export const ACTIVE_STATUS: ActivityStatus = "ACTIVE"
+export const TOMBSTONED_STATUS: ActivityStatus = "TOMBSTONED"
 
 /** The T3 columns that ARE the discovery award (`activityItem` above). */
 const AWARD_COLUMNS = [
@@ -312,15 +328,33 @@ export async function readStoredAward(
   activityId: string,
   deps: PersistDeps,
 ): Promise<DiscoveryAward | null> {
+  return (await readStoredActivity(activityId, deps)).award
+}
+
+/**
+ * `0282`. `readStoredAward`'s one consistent read, plus the row's `status` — so the tombstone a
+ * deletion wrote is carried through the unconditional `Put` that follows (`activityItem`'s
+ * `status`). Same `GetItem`, one more projected attribute: no extra call, no extra grant.
+ */
+export async function readStoredActivity(
+  activityId: string,
+  deps: PersistDeps,
+): Promise<{ award: DiscoveryAward | null; status: ActivityStatus | null }> {
   const out = (await deps.ddb.send(
     new GetCommand({
       TableName: deps.activityTable,
       Key: { id: activityId },
       ConsistentRead: true,
-      ProjectionExpression: AWARD_COLUMNS.join(", "),
+      ProjectionExpression: [...AWARD_COLUMNS, "#status"].join(", "),
+      ExpressionAttributeNames: { "#status": "status" },
     }),
   )) as { Item?: Record<string, unknown> } | undefined
   const row = out?.Item
+  const status = row?.status === TOMBSTONED_STATUS ? TOMBSTONED_STATUS : row ? ACTIVE_STATUS : null
+  return { award: awardOf(row), status }
+}
+
+function awardOf(row: Record<string, unknown> | undefined): DiscoveryAward | null {
   if (!row || !AWARD_COLUMNS.every((c) => typeof row[c] === "number")) return null
   const n = (c: (typeof AWARD_COLUMNS)[number]) => row[c] as number
   return {
@@ -396,15 +430,33 @@ export async function persistActivity(
   rejects: TraceRejects = NO_REJECTS,
   /** `0062`. The ruleset the ledger rows in `extraItems` cite; `null` when nothing was scored. */
   xpRulesVersion: number | null = null,
+  /**
+   * `0282`. The status `readStoredActivity` found. `TOMBSTONED` is written back as-is; `ACTIVE`
+   * (or no row) is written CONDITIONALLY on the row not having been tombstoned since that read, so
+   * a deletion confirmed between the read and this commit cancels the transaction instead of being
+   * overwritten. That cancellation is thrown like any item-0 failure; the redelivery re-reads the
+   * row, finds the tombstone, and writes it back.
+   */
+  status: ActivityStatus = ACTIVE_STATUS,
 ): Promise<void> {
   const items: NonNullable<TransactWriteCommandInput["TransactItems"]> = [
     {
       Put: {
         TableName: deps.activityTable,
-        Item: activityItem(activity, award, rejects, {
-          xpAwarded: receipt.xpAwarded ?? 0,
-          xpRulesVersion,
-        }),
+        Item: activityItem(
+          activity,
+          award,
+          rejects,
+          { xpAwarded: receipt.xpAwarded ?? 0, xpRulesVersion },
+          status,
+        ),
+        ...(status === TOMBSTONED_STATUS
+          ? {}
+          : {
+              ConditionExpression: "attribute_not_exists(id) OR #status <> :tombstoned",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":tombstoned": TOMBSTONED_STATUS },
+            }),
       },
     },
     /**
@@ -423,4 +475,55 @@ export async function persistActivity(
   assertNoCellWrites(items)
 
   await deps.ddb.send(new TransactWriteCommand({ TransactItems: items }))
+}
+
+export type TombstoneResult = "tombstoned" | "already-tombstoned" | "no-activity"
+
+/**
+ * TOMBSTONE AN ACTIVITY — a source-side deletion, confirmed (`retract.ts`, ticket `0282`).
+ *
+ * `02` §4.7 TAKEN LITERALLY: this sets `status` and `updatedAt` on the T3 row and does NOTHING
+ * else. Ledger rows stay (D-135: the XP does not leave the total), cells stay with their
+ * `firstRunAt`/`lastRunAt` exactly as written (D-020), the per-run blob, the route and the trace
+ * web stay. Hiding the row from the readers is theirs to do.
+ *
+ * One `UpdateItem`, conditional on the row existing and belonging to `userId` — so a retract can
+ * never create a row, nor touch another user's. Idempotent: a second tombstone of a tombstoned
+ * row answers `already-tombstoned` and writes nothing.
+ */
+export async function tombstoneActivity(
+  input: { activityId: string; userId: string; now: Date },
+  deps: PersistDeps,
+): Promise<TombstoneResult> {
+  try {
+    await deps.ddb.send(
+      new UpdateCommand({
+        TableName: deps.activityTable,
+        Key: { id: input.activityId },
+        UpdateExpression: "SET #status = :tombstoned, updatedAt = :now",
+        ConditionExpression: "attribute_exists(id) AND userId = :uid AND #status <> :tombstoned",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: {
+          ":tombstoned": TOMBSTONED_STATUS,
+          ":uid": input.userId,
+          ":now": input.now.toISOString(),
+        },
+      }),
+    )
+    return "tombstoned"
+  } catch (error) {
+    if ((error as { name?: string })?.name !== "ConditionalCheckFailedException") throw error
+  }
+  // The losing path only: say WHICH condition failed. A consistent read, for the race it explains.
+  const out = (await deps.ddb.send(
+    new GetCommand({
+      TableName: deps.activityTable,
+      Key: { id: input.activityId },
+      ConsistentRead: true,
+      ProjectionExpression: "userId, #status",
+      ExpressionAttributeNames: { "#status": "status" },
+    }),
+  )) as { Item?: Record<string, unknown> } | undefined
+  const row = out?.Item
+  return row?.userId === input.userId && row?.status === TOMBSTONED_STATUS ? "already-tombstoned" : "no-activity"
 }

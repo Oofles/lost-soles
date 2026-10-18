@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { InboundRequest } from "../types"
@@ -157,7 +159,104 @@ describe("the shape check (§4.4 items 2 and 3, criterion 9)", () => {
       req(create({ aspect_type: "update", updates: { title: "t", type: "Run", private: "true" } })),
       { subscriptionId: OURS },
     )
-    // Past the shape check; dropped later for its aspect, not its fields.
+    // Past the shape check, and — since 0282 — a reingest.
+    expect(decision()).toBe("reingest")
+  })
+})
+
+/**
+ * Ticket 0282 — `update` and `delete` on an activity. The keys are restated from the formulas
+ * (D-NEW-b, operator Q3) rather than imported, so a change to either is a visible test edit.
+ */
+const sha = (s: string) => createHash("sha256").update(s).digest("hex")
+
+describe("an activity update (0282, D-NEW-b)", () => {
+  const update = (over: Record<string, unknown> = {}) =>
+    create({ aspect_type: "update", updates: { title: "Evening run" }, event_time: 1760000000, ...over })
+
+  it("becomes one reingest command wrapping an ordinary command:'ingest' job, keyed on event_time", async () => {
+    const ack = await acceptStravaEvent(req(update()), { subscriptionId: OURS, now: () => new Date("2026-10-18T00:00:00Z") })
+    expect(ack.status).toBe(200)
+    expect(ack.commands).toEqual([
+      {
+        kind: "reingest",
+        job: {
+          ingestKey: sha(`strava:${KNOWN_OWNER}:1360128428:update:1760000000`),
+          userId: OWNER_SUB,
+          source: "strava",
+          externalId: "1360128428",
+          // NOT "reingest" — that is 0192's archive replay, and would never see the edit.
+          command: "ingest",
+          meta: { aspectType: "update" },
+          enqueuedAt: "2026-10-18T00:00:00.000Z",
+        },
+      },
+    ])
+    expect(decision()).toBe("reingest")
+  })
+
+  it("never carries the payload's title or type into the job — the worker re-fetches", async () => {
+    const ack = await acceptStravaEvent(req(update({ updates: { title: "LEAK", type: "Ride" } })), { subscriptionId: OURS })
+    expect(JSON.stringify(ack.commands)).not.toMatch(/LEAK|Ride/)
+  })
+
+  it("two edits of one activity are two keys; one edit redelivered is one key", async () => {
+    const a = await acceptStravaEvent(req(update()), { subscriptionId: OURS })
+    const b = await acceptStravaEvent(req(update()), { subscriptionId: OURS })
+    const c = await acceptStravaEvent(req(update({ event_time: 1760000060 })), { subscriptionId: OURS })
+    const key = (x: typeof a) => (x.commands[0] as { job: { ingestKey: string } }).job.ingestKey
+    expect(key(a)).toBe(key(b))
+    expect(key(a)).not.toBe(key(c))
+    // …and never the create key, which the sweep already holds for the original import.
+    expect(key(a)).not.toBe(sha(`strava:${KNOWN_OWNER}:1360128428:create`))
+  })
+
+  it.each([
+    ["no event_time", { event_time: undefined }],
+    ["a zero event_time", { event_time: 0 }],
+    ["a fractional event_time", { event_time: 1.5 }],
+  ])("%s → 200, dropped as missing-event-time", async (_n, over) => {
+    const body = update(over)
+    if (body.event_time === undefined) delete (body as Record<string, unknown>).event_time
+    expect(await acceptStravaEvent(req(body), { subscriptionId: OURS })).toEqual({ status: 200, commands: [] })
+    expect(decision()).toBe("missing-event-time")
+  })
+
+  it("an unknown athlete's update is dropped like their create", async () => {
+    expect(await acceptStravaEvent(req(update({ owner_id: 999 })), { subscriptionId: OURS })).toEqual({ status: 200, commands: [] })
+    expect(decision()).toBe("unknown-owner")
+  })
+})
+
+describe("an activity delete (0282, D-NEW-a)", () => {
+  const del = (over: Record<string, unknown> = {}) => create({ aspect_type: "delete", ...over })
+
+  it("becomes one retract command naming the user, the activity and the delete key (no event_time)", async () => {
+    const ack = await acceptStravaEvent(req(del()), { subscriptionId: OURS })
+    expect(ack).toEqual({
+      status: 200,
+      commands: [
+        {
+          kind: "retract",
+          source: "strava",
+          userId: OWNER_SUB,
+          externalId: "1360128428",
+          ingestKey: sha(`strava:${KNOWN_OWNER}:1360128428:delete`),
+        },
+      ],
+    })
+    expect(decision()).toBe("retract")
+    const again = await acceptStravaEvent(req(del({ event_time: 1 })), { subscriptionId: OURS })
+    expect(again.commands).toEqual(ack.commands)
+  })
+
+  it("an unknown athlete's delete is dropped", async () => {
+    expect(await acceptStravaEvent(req(del({ owner_id: 999 })), { subscriptionId: OURS })).toEqual({ status: 200, commands: [] })
+    expect(decision()).toBe("unknown-owner")
+  })
+
+  it("an unknown aspect is still ignored", async () => {
+    expect(await acceptStravaEvent(req(create({ aspect_type: "archive" })), { subscriptionId: OURS })).toEqual({ status: 200, commands: [] })
     expect(decision()).toBe("ignored-aspect")
   })
 })

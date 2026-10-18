@@ -16,12 +16,12 @@ import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
  *
  * ─── WHAT IS HANDLED, AND WHAT IS LEFT ──────────────────────────────────────
  *
- * An `activity` `create` from a known athlete becomes one `ingest` command, and an `athlete`
- * deauthorization from a known athlete becomes one `disconnect` command (0093). Everything else is
- * acknowledged with a 200 and dropped — Strava only cares that it got a 200, and a 400 would be a
- * free oracle (§4.4). Handled elsewhere, or left, deliberately:
- *   - the `GET` `hub.challenge` handshake → 0092, in `handshake.ts`;
- *   - `update` / `delete` aspects → dropped; the sweep covers neither today either.
+ * From a known athlete: an `activity` `create` becomes one `ingest` command; an `activity` `update`
+ * becomes one `reingest` command wrapping an ordinary fetch job (0282); an `activity` `delete`
+ * becomes one `retract` command (0282); and an `athlete` deauthorization becomes one `disconnect`
+ * command (0093). Everything else is acknowledged with a 200 and dropped — Strava only cares that
+ * it got a 200, and a 400 would be a free oracle (§4.4). The `GET` `hub.challenge` handshake is
+ * 0092's, in `handshake.ts`.
  *
  * ─── THE FILTER CHAIN, CHEAPEST AND LEAST TRUSTING FIRST (0093, §4.1, §4.4) ──
  *
@@ -39,9 +39,11 @@ import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
  * ─── THE BODY IS A POINTER, NEVER DATA (§4.1) ───────────────────────────────
  *
  * Only `object_type`, `aspect_type`, `object_id`, `owner_id`, `subscription_id` and — for a
- * deauthorization alone — `updates.authorized` are read for meaning. `event_time` and the other
- * `updates` keys are type-checked and then discarded: `event_time` is NOT a start date (D-343: the
- * job omits `startedAt` rather than invent one), and nothing else in a payload reaches a command.
+ * deauthorization alone — `updates.authorized` are read for meaning. `event_time` reaches exactly
+ * one place, an `update`'s receipt key (0282, D-NEW-b), where it tells two edits of one activity
+ * apart; it is NOT a start date (D-343: the job omits `startedAt` rather than invent one). The
+ * `updates` keys of an activity event are type-checked and discarded — an update re-fetches the
+ * whole activity rather than believe a title or a type from the payload.
  */
 
 /**
@@ -62,6 +64,34 @@ import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
 export function ingestKeyFor(externalOwnerId: string, externalId: string): string {
   return createHash("sha256")
     .update(`strava:${externalOwnerId}:${externalId}:create`)
+    .digest("hex")
+}
+
+/**
+ * AN EDIT'S KEY — `sha256("strava:<owner>:<object>:update:<event_time>")`. Ticket 0282, D-NEW-b.
+ *
+ * `event_time` is in it so that two edits of one activity are two receipts, while Strava's own
+ * redelivery of ONE edit (same `event_time`) is a `duplicate`. The cost, stated: `event_time` is
+ * attacker-chosen, so a forger can mint as many keys as they like — each one buys a re-fetch of our
+ * own activity with our own token (§4.1's "worthless"), and the per-user flood counter (D-349)
+ * bounds how many an hour.
+ *
+ * Never the create key: a create key would collide with the sweep's and the edit would be dropped
+ * as a `duplicate` of the original import.
+ */
+export function updateKeyFor(externalOwnerId: string, externalId: string, eventTime: number): string {
+  return createHash("sha256")
+    .update(`strava:${externalOwnerId}:${externalId}:update:${eventTime}`)
+    .digest("hex")
+}
+
+/**
+ * A DELETION'S KEY — `sha256("strava:<owner>:<object>:delete")`, no `event_time` (0282, operator
+ * Q3): an activity is deleted once, so every redelivery of its deletion is one receipt.
+ */
+export function deleteKeyFor(externalOwnerId: string, externalId: string): string {
+  return createHash("sha256")
+    .update(`strava:${externalOwnerId}:${externalId}:delete`)
     .digest("hex")
 }
 
@@ -106,8 +136,11 @@ export type WebhookDecision =
   | "ignored-aspect"
   | "ignored-athlete-event"
   | "malformed-ids"
+  | "missing-event-time"
   | "unknown-owner"
   | "enqueue"
+  | "reingest"
+  | "retract"
   | "deauthorize"
 
 /**
@@ -225,7 +258,7 @@ export async function acceptStravaEvent(
     logDecision("ignored-object-type", aspect)
     return DROP
   }
-  if (aspect !== "create") {
+  if (aspect !== "create" && aspect !== "update" && aspect !== "delete") {
     logDecision("ignored-aspect", aspect)
     return DROP
   }
@@ -237,10 +270,56 @@ export async function acceptStravaEvent(
     return DROP
   }
 
+  /**
+   * `update` needs `event_time` for its key (D-NEW-b), so it is checked here, BEFORE the owner
+   * lookup, with the other shape checks. A positive safe integer: Strava sends epoch seconds.
+   */
+  const eventTime = event.event_time
+  if (aspect === "update" && !(typeof eventTime === "number" && Number.isSafeInteger(eventTime) && eventTime > 0)) {
+    logDecision("missing-event-time", aspect)
+    return DROP
+  }
+
   const userId = userIdForOwner(ownerId)
   if (userId === undefined) {
     logDecision("unknown-owner", aspect)
     return DROP
+  }
+
+  /**
+   * DELETE → `retract` (0282). Nothing to fetch here; the worker asks Strava whether the activity
+   * is really gone before it tombstones anything (D-NEW-a), and a tombstone never removes a cell
+   * or a ledger row (`02` §4.7).
+   */
+  if (aspect === "delete") {
+    const ingestKey = deleteKeyFor(ownerId, externalId)
+    logDecision("retract", aspect, ingestKey)
+    return {
+      status: 200,
+      commands: [{ kind: "retract", source: "strava", userId, externalId, ingestKey }],
+    }
+  }
+
+  /**
+   * UPDATE → `reingest`, WRAPPING AN ORDINARY `command: "ingest"` JOB (0282, D-NEW-b). The command
+   * says what happened at the source; the job says what the worker does about it, and that is the
+   * normal fetch path — re-fetch, re-archive (content-addressed, so the original bytes stay), and
+   * persist under D-278: the first version's XP and award stand. NOT `command: "reingest"`, which
+   * is 0192's replay verb: it reads the ARCHIVE, would never see the edit, and re-claims a `DONE`
+   * receipt, which nothing a stranger can send should be able to do.
+   */
+  if (aspect === "update") {
+    const job: IngestJob = {
+      ingestKey: updateKeyFor(ownerId, externalId, eventTime as number),
+      userId,
+      source: "strava",
+      externalId,
+      command: "ingest",
+      meta: { aspectType: "update" },
+      enqueuedAt: now().toISOString(),
+    }
+    logDecision("reingest", aspect, job.ingestKey)
+    return { status: 200, commands: [{ kind: "reingest", job }] }
   }
 
   const job: IngestJob = {

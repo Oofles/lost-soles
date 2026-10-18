@@ -272,16 +272,36 @@ export interface SourceAdapter<TCreds = unknown> {
    *  webhooks. Strava retries 3x then drops with no DLQ and no replay. */
   listSince(userId: string, watermark: string, creds: TCreds): AsyncIterable<SweepJob>
 
+  /** THE RETRACT CHECK — worker, may use the network (ticket 0282). Before a `retract` tombstones
+   *  anything, the source is asked with our credential whether the activity still exists; only
+   *  "gone" tombstones (08-security-privacy.md §4.1: a forged event is worthless). MANDATORY, so
+   *  `refreshCredentials` stays the one optional member; a source with nothing to delete at
+   *  (manual, file upload) answers "present" and every retract naming it is refused. */
+  confirmRetracted(externalId: string, creds: TCreds): Promise<"gone" | "present">
+
   refreshCredentials?(creds: TCreds): Promise<TCreds>
 }
 
 /** Intents, never side effects. */
 export type IngestCommand =
   | { kind: "ingest";     job: IngestJob }
-  | { kind: "reingest";   job: IngestJob }                              // edit ⇒ bump revision
-  | { kind: "retract";    source: SourceId; externalId: string }        // deleted at source
+  | { kind: "reingest";   job: IngestJob }                              // edited at source
+  | { kind: "retract";    source: SourceId; userId: string;             // deleted at source
+                          externalId: string; ingestKey: string }
   | { kind: "disconnect"; source: SourceId; userId: string }
 ```
+
+*(As built, ticket `0282`.)* **`reingest` wraps an ordinary `command: "ingest"` job** under its own
+key — for Strava `sha256(strava:<owner>:<object>:update:<event_time>)` — so a source edit takes the
+normal fetch path: re-fetch, re-archive (content-addressed, so the original bytes stay), persist
+under D-278 (the first version's XP and award stand). `IngestJob.command: "reingest"` is a
+different thing: `0192`'s operator replay from the archive, which a webhook never sends.
+**`retract` carries `userId` and `ingestKey`** because the endpoint meters it per user (D-349) and
+gates it through the same receipt as a job, and only the adapter knows either. It travels as a
+`RetractMessage` (`src/pipeline/retract-message.ts`) beside D-348's `DisconnectMessage`; the worker
+records the delivery, calls `confirmRetracted`, and only on `"gone"` sets `status = TOMBSTONED` on
+the T3 row — nothing else (02 §4.7, D-020, D-135). A tombstone is sticky: a later delivery of the
+activity never writes `ACTIVE` over it.
 
 `src/adapters/registry.ts` is **the one file that names concrete adapters.**
 

@@ -168,7 +168,14 @@ describe("the adapter interface behaves as the contract's reasoning requires", (
   })
 
   it("a retract command carries no job, because a deleted activity has nothing to fetch", () => {
-    const retract: IngestCommand = { kind: "retract", source: "gpslogger", externalId: "17" }
+    // `userId` and `ingestKey` since 0282: the endpoint meters and gates a retract like a job.
+    const retract: IngestCommand = {
+      kind: "retract",
+      source: "gpslogger",
+      userId: "u-1",
+      externalId: "17",
+      ingestKey: "k",
+    }
     expect("job" in retract).toBe(false)
   })
 })

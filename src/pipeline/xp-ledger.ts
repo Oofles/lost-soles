@@ -9,7 +9,12 @@ import { ledgerAward } from "@/src/scoring/propagate"
 import { levelForXp } from "@/src/scoring/levels"
 
 import { landmarksCrossed, landmarkUpdateItem } from "./landmarks"
-import { amplifyMetadata, persistActivity, readStoredAward, type PersistDeps } from "./persist"
+import {
+  amplifyMetadata,
+  persistActivity,
+  readStoredActivity,
+  type PersistDeps,
+} from "./persist"
 import type { RouteTraceGeometry } from "./route-trace-store"
 
 /**
@@ -504,7 +509,8 @@ export async function persistWithLedger(
      * (`0066`), exactly as the XP half does, and half-handling it here would leave T3's counts
      * and T4's XP describing two different versions of the run (D-260).
      */
-    const stored = await readStoredAward(activity.activityId, deps.persist)
+    // `0282`: the same read also carries the row's status, so a tombstone survives this `Put`.
+    const { award: stored, status } = await readStoredActivity(activity.activityId, deps.persist)
     // `0233`, D-271: scored but nothing stored (a pre-`0048` row) — T3 records what T4 credited.
     const committedAward = stored ?? (alreadyScored ? ledgerAward(award, existing) : award)
 
@@ -561,6 +567,7 @@ export async function persistWithLedger(
         committedAward,
         rejects,
         commit.xpRulesVersion,
+        status ?? undefined,
       )
       return commit
     } catch (err) {

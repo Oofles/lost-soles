@@ -204,4 +204,12 @@ export const manualAdapter: SourceAdapter<null> = {
   async *listSince(): AsyncIterable<SweepJob> {
     return
   },
+
+  /**
+   * Mandatory (`0282`) and always `present`: a hand-logged workout has no source to be deleted
+   * at, so a retract naming one is refused rather than believed.
+   */
+  async confirmRetracted() {
+    return "present" as const
+  },
 }

@@ -150,14 +150,16 @@ describe("the worker's grants on T1/T2/T3/T4", () => {
   })
 
   /**
-   * `0220`. The put, and the consistent read of the award that precedes it. No Update, no Delete.
-   * `0179` adds `Query` — on GSI2 alone, asserted below.
+   * `0220`. The put, and the consistent read of the award that precedes it. Never Delete (I-7).
+   * `0179` adds `Query` — on GSI2 alone, asserted below. `0282` adds `UpdateItem`, for one caller:
+   * `tombstoneActivity`, which sets `status` on a row whose deletion the source confirmed.
    */
-  it("T3: GetItem, PutItem and Query only", () => {
+  it("T3: GetItem, PutItem, Query and UpdateItem only", () => {
     expect(actionsOn("ActivityNestedStack")).toEqual([
       "dynamodb:GetItem",
       "dynamodb:PutItem",
       "dynamodb:Query",
+      "dynamodb:UpdateItem",
     ])
   })
 

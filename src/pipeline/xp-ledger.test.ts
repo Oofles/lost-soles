@@ -108,6 +108,11 @@ class Tables {
       const v = item?.[this.name(notOrEq[1]!, names)]
       return v === undefined || v === values[notOrEq[3]!]
     }
+    // `0282`: the activity Put's sticky-tombstone guard, `attribute_not_exists(id) OR #status <> :v`.
+    const notOrNe = /^attribute_not_exists\((\S+)\) OR (\S+) <> (:\w+)$/.exec(cond)
+    if (notOrNe) {
+      return item?.[this.name(notOrNe[1]!, names)] === undefined || item[this.name(notOrNe[2]!, names)] !== values[notOrNe[3]!]
+    }
     // `0235`: the replay store's thaw writes, sent through this fake too.
     const exists = /^attribute_exists\((\S+)\)$/.exec(cond)
     if (exists) return item?.[this.name(exists[1]!, names)] !== undefined

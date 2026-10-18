@@ -171,8 +171,8 @@ describe("events that are acknowledged and dropped", () => {
     ["another subscription's event", createEvent({ subscription_id: 1 }), "wrong-subscription"],
     ["an unknown top-level field", createEvent({ extra: 1 }), "unknown-fields"],
     ["an unknown updates field", createEvent({ updates: { lat: 40.1 } }), "unknown-fields"],
-    ["an update", createEvent({ aspect_type: "update", updates: { title: "x" } }), "ignored-aspect"],
-    ["a delete", createEvent({ aspect_type: "delete" }), "ignored-aspect"],
+    ["an unknown aspect", createEvent({ aspect_type: "archive" }), "ignored-aspect"],
+    ["an update with no event_time", createEvent({ aspect_type: "update", event_time: undefined }), "missing-event-time"],
     ["a non-numeric id", createEvent({ object_id: "abc" }), "malformed-ids"],
     ["an unparseable body", "{not json", "unparseable"],
     ["a JSON array", "[1,2]", "unparseable"],
@@ -401,6 +401,103 @@ describe("a deauthorization (0093 criterion 14, the webhook half)", () => {
     expect(sent).toHaveLength(4)
     expect(logs.join("\n")).toContain('"outcome":"deauth-flood"')
     expect(logs.join("\n")).toContain('"msg":"webhook-flood"')
+  })
+})
+
+/**
+ * Ticket 0282 — an activity's `update` and `delete`, end to end through the real adapter. The keys
+ * are restated from the formulas, for the reason the create-key test gives (D-121.1).
+ */
+describe("an activity update (0282, D-NEW-b)", () => {
+  const update = (eventTime = 1760000000) =>
+    createEvent({ aspect_type: "update", updates: { title: "x" }, event_time: eventTime })
+  const updateKey = (eventTime = 1760000000) =>
+    createHash("sha256").update(`strava:${KNOWN_OWNER}:1360128428:update:${eventTime}`).digest("hex")
+
+  it("counts once, puts one receipt under the update key, and sends one ordinary ingest job", async () => {
+    const { deps, puts, updates, sent } = rig()
+    expect(await handleWebhook(event({ body: update() }), deps)).toEqual({ statusCode: 200, body: "" })
+    expect(updates).toHaveLength(1) // D-349: the general budget, in front of the receipt gate
+    expect(puts).toHaveLength(1)
+    expect((puts[0].Item as Record<string, unknown>).ingestKey).toBe(updateKey())
+    expect((puts[0].Item as Record<string, unknown>).activityId).toBe(computeActivityId(OWNER_SUB, SOURCE, "1360128428"))
+    const job = JSON.parse(sent[0]!)
+    expect(job).toMatchObject({ ingestKey: updateKey(), command: "ingest", meta: { aspectType: "update" } })
+    // D-343's key set, unchanged: an update is an IngestJob like any other.
+    expect(Object.keys(job).sort()).toEqual(["command", "enqueuedAt", "externalId", "ingestKey", "meta", "source", "userId"])
+    expect(logs.join("\n")).toContain('"outcome":"queued"')
+  })
+
+  it("the source's redelivery of one edit is a duplicate; a second edit is not", async () => {
+    const { deps, sent } = rig()
+    await handleWebhook(event({ body: update() }), deps)
+    await handleWebhook(event({ body: update() }), deps)
+    await handleWebhook(event({ body: update(1760000600) }), deps)
+    expect(sent.map((m) => JSON.parse(m).ingestKey)).toEqual([updateKey(), updateKey(1760000600)])
+  })
+
+  it("an update does not collide with the original create's receipt", async () => {
+    const { deps, sent } = rig()
+    await handleWebhook(event(), deps)
+    await handleWebhook(event({ body: update() }), deps)
+    expect(sent).toHaveLength(2)
+  })
+})
+
+describe("an activity delete (0282, D-NEW-a)", () => {
+  const del = () => createEvent({ aspect_type: "delete" })
+  const deleteKey = createHash("sha256").update(`strava:${KNOWN_OWNER}:1360128428:delete`).digest("hex")
+
+  it("counts twice, puts one receipt under the delete key, and sends ONE retract message", async () => {
+    const { deps, puts, updates, sent } = rig()
+    expect(await handleWebhook(event({ body: del() }), deps)).toEqual({ statusCode: 200, body: "" })
+    expect(updates.map((u) => (u.Key as { ingestKey: string }).ingestKey)).toEqual([
+      `rate#${SOURCE}#${OWNER_SUB}#2026-10-16T12`,
+      `rate#${SOURCE}#${OWNER_SUB}#delete#2026-10-16T12`,
+    ])
+    expect(puts).toHaveLength(1)
+    expect(puts[0].Item).toMatchObject({
+      ingestKey: deleteKey,
+      status: "QUEUED",
+      userId: OWNER_SUB,
+      activityId: computeActivityId(OWNER_SUB, SOURCE, "1360128428"),
+    })
+    expect(sent.map((m) => JSON.parse(m))).toEqual([
+      {
+        command: "retract",
+        source: SOURCE,
+        userId: OWNER_SUB,
+        externalId: "1360128428",
+        ingestKey: deleteKey,
+        enqueuedAt: "2026-10-16T12:00:00.000Z",
+      },
+    ])
+    expect(sent[0]).not.toContain(KNOWN_OWNER)
+    expect(logs.join("\n")).toContain('"outcome":"retract-queued"')
+    expect(logs.join("\n")).toContain(`"ingestKey":"${deleteKey}"`)
+  })
+
+  it("the source's retries of one deletion are one receipt and one message", async () => {
+    const { deps, sent } = rig()
+    for (let i = 0; i < 3; i++) await handleWebhook(event({ body: del() }), deps)
+    expect(sent).toHaveLength(1)
+    expect(logs.join("\n")).toContain('"outcome":"duplicate"')
+  })
+
+  it("past four in an hour, a delete is dropped before the receipt: each costs the worker a provider call", async () => {
+    const { deps, puts, sent } = rig()
+    for (let i = 0; i < 10; i++) await handleWebhook(event({ body: createEvent({ aspect_type: "delete", object_id: 2000 + i }) }), deps)
+    expect(sent).toHaveLength(4)
+    expect(puts).toHaveLength(4)
+    expect(logs.join("\n")).toContain('"outcome":"delete-flood"')
+  })
+
+  it("the general budget still binds a delete (D-349)", async () => {
+    const { deps, puts, sent } = rig({ startCount: 50 })
+    await handleWebhook(event({ body: del() }), deps)
+    expect(sent).toHaveLength(0)
+    expect(puts).toHaveLength(0)
+    expect(logs.join("\n")).toContain('"outcome":"owner-flood"')
   })
 })
 

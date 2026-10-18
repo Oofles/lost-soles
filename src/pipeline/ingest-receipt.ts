@@ -709,6 +709,33 @@ export async function recordDuplicate(
 }
 
 /**
+ * CLOSE A RETRACT'S RECEIPT. Ticket `0282`.
+ *
+ * A retract has no score and no activity write in a transaction — it tombstones with one
+ * `UpdateItem` (`persist.ts`'s `tombstoneActivity`), or, when the source says the activity still
+ * exists, writes nothing at all. Either way it is HANDLED, and the receipt says so: `DONE`, with
+ * the honest zeros (a retract awards nothing and reveals nothing).
+ *
+ * Not conditional on status: every outcome that reaches here is final, and a redelivery that
+ * re-confirms and re-closes is the same write twice. Conditional on the row existing, like
+ * `recordDelivery`, so it can never mint a receipt the gate did not.
+ */
+export async function closeRetractReceipt(ingestKey: string, deps: ReceiptDeps): Promise<void> {
+  await deps.ddb.send(
+    new UpdateCommand({
+      TableName: INGEST_RECEIPT_TABLE,
+      Key: { ingestKey },
+      UpdateExpression:
+        "SET #status = :done, xpAwarded = :zero, newCellCount = :zero " +
+        "REMOVE failedUserId, failedAt, errorClass",
+      ConditionExpression: "attribute_exists(ingestKey)",
+      ExpressionAttributeNames: { "#status": "status" },
+      ExpressionAttributeValues: { ":done": "DONE", ":zero": 0 },
+    }),
+  )
+}
+
+/**
  * EVERY OUTSTANDING FAILURE FOR ONE USER. Ticket 0044, criterion 4.
  *
  * NO APP CALLER SINCE 0281. The Sync action used to call this after every press to append

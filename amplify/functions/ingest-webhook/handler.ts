@@ -8,6 +8,7 @@ import { getWebhookAdapter } from "@/src/adapters/registry"
 import type { InboundRequest, IngestCommand } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
 import { disconnectMessage } from "@/src/pipeline/disconnect-message"
+import { retractMessage } from "@/src/pipeline/retract-message"
 import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
 
 import { countOwnerEvent } from "./owner-rate"
@@ -255,9 +256,58 @@ async function forwardDisconnect(
   return "disconnect-queued"
 }
 
+/**
+ * A DELETION (0282, D-NEW-a). The `DisconnectMessage` shape again: this function can neither ask
+ * the provider nor touch the activity table, so it forwards the claim as a `RetractMessage` and the
+ * worker confirms it before it tombstones anything. Unlike a disconnect it HAS an activity, so it
+ * passes the same receipt gate as a job — Strava's redeliveries of one deletion are one receipt —
+ * behind two counters: the athlete's general budget (D-349) and a tight delete budget, because
+ * each one costs the worker a provider call.
+ */
+async function forwardRetract(
+  source: string,
+  command: Extract<IngestCommand, { kind: "retract" }>,
+  deps: WebhookDeps,
+): Promise<string> {
+  for (const bucket of ["events", "delete"] as const) {
+    const rate = await countOwnerEvent({ source, userId: command.userId, bucket }, deps.receipt)
+    if (!rate.withinBudget) {
+      logFlood(source, rate.count)
+      return bucket === "events" ? "owner-flood" : "delete-flood"
+    }
+  }
+  const accepted = await acceptIngest(
+    {
+      ingestKey: command.ingestKey,
+      userId: command.userId,
+      activityId: computeActivityId(command.userId, command.source, command.externalId),
+      source: command.source,
+    },
+    deps.receipt,
+  )
+  if (accepted.kind === "duplicate") return "duplicate"
+  const now = deps.receipt.now?.() ?? new Date()
+  await deps.send(
+    JSON.stringify(
+      retractMessage({
+        source: command.source,
+        userId: command.userId,
+        externalId: command.externalId,
+        ingestKey: command.ingestKey,
+        now,
+      }),
+    ),
+  )
+  return "retract-queued"
+}
+
 async function enqueue(source: string, command: IngestCommand, deps: WebhookDeps): Promise<string> {
   if (command.kind === "disconnect") return forwardDisconnect(source, command, deps)
-  if (command.kind !== "ingest" && command.kind !== "reingest") return "unhandled-command"
+  if (command.kind === "retract") return forwardRetract(source, command, deps)
+  /**
+   * `ingest` and `reingest` take the same path: a `reingest` from a source edit (0282) wraps an
+   * ordinary fetch job under its own key, so nothing here needs to tell them apart.
+   */
   const { job } = command
 
   /**
@@ -312,7 +362,11 @@ export async function handleWebhook(
     for (const command of ack.commands) {
       const outcome = await enqueue(source, command, deps)
       outcomes.push({
-        ...("job" in command ? { ingestKey: command.job.ingestKey } : {}),
+        ...("job" in command
+          ? { ingestKey: command.job.ingestKey }
+          : "ingestKey" in command
+            ? { ingestKey: command.ingestKey }
+            : {}),
         outcome,
       })
     }

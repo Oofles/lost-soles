@@ -6,7 +6,7 @@ import { acceptStravaEvent, ingestKeyFor } from "./accept"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
 import { normalizeStrava } from "./normalize"
-import { afterResponse } from "./rate-limit"
+import { afterResponse, parseRateLimit } from "./rate-limit"
 import { RAW_ENVELOPE_SCHEMA_HINT, sealRawEnvelope } from "./raw-envelope"
 
 /**
@@ -62,9 +62,10 @@ const MAX_PAGES = 100
 export interface StravaIngestMeta {
   /**
    * `"create"` for every job this sweep produces, and that is load-bearing rather than a
-   * placeholder — see `ingestKeyFor`.
+   * placeholder — see `ingestKeyFor`. `"update"` only on a webhook edit (0282), whose key is
+   * `updateKeyFor`'s; nothing downstream reads the field, it is provenance on the queue message.
    */
-  aspectType: "create"
+  aspectType: "create" | "update"
   /**
    * WHETHER THIS ACTIVITY HAS GPS AT ALL, decided from the LIST response so that ticket
    * 0035 can skip the stream call entirely rather than spend one to learn nothing.
@@ -258,6 +259,34 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
        */
       schemaHint: RAW_ENVELOPE_SCHEMA_HINT,
     }
+  },
+
+  /**
+   * THE RETRACT CHECK. Ticket `0282` (D-NEW-a), the same move D-348 makes for a deauthorization.
+   *
+   * A `delete` event is unsigned (§4.1), so before anything is tombstoned Strava is asked, with
+   * our token, for the activity. One read, the detail endpoint `fetchRaw` also uses.
+   *
+   *   - 200: it still exists. The event was forged or stale → `present`, nothing is written.
+   *   - 404 WITH the rate-limit headers: an AUTHENTICATED not-found, which is what Strava answers
+   *     for an activity that is not (or no longer) ours to read (`rate-limit.ts`'s probe table)
+   *     → `gone`.
+   *   - 404 WITHOUT them: not a shape the probe ever saw on this endpoint, so it is not trusted as
+   *     either answer. Thrown, so the queue redelivers and, failing that, the DLQ alarm fires.
+   *   - Anything else: `apiError` — a 429 leaves as the shared rate-limit error, the rest throw.
+   *
+   * A 401 never reaches here as a 401: the client refreshes once and then marks the connection
+   * `NEEDS_REAUTH` and throws, which is correct — with no live token there is nobody to ask.
+   */
+  async confirmRetracted(externalId: string, creds: StravaCreds) {
+    const res = await createStravaClient(creds).get(`/activities/${externalId}`)
+    if (res.ok) return "present" as const
+    if (res.status === 404) {
+      const limits = parseRateLimit(res.headers)
+      if (limits.read !== null || limits.overall !== null) return "gone" as const
+      throw new StravaApiError("retract check (404 without rate-limit headers)", 404)
+    }
+    throw apiError("retract check", res)
   },
 
   /**

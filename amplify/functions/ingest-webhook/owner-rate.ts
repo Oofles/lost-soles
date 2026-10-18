@@ -50,7 +50,17 @@ const RATE_TTL_SECONDS = 2 * 60 * 60
  */
 export const DEAUTHS_PER_HOUR = 4
 
-export type RateBucket = "events" | "deauth"
+/**
+ * DELETIONS GET THEIR OWN TIGHT BUDGET TOO (0282, D-NEW-a), for the deauth reason: each one costs
+ * the worker a provider call to confirm it (`SourceAdapter.confirmRetracted`). A real deletion is
+ * one event plus Strava's retries, and a person deletes a handful of activities in an hour at
+ * most. Past the budget it is dropped, and the run simply stays visible — nothing is lost.
+ */
+export const DELETES_PER_HOUR = 4
+
+const LIMITS = { events: OWNER_EVENTS_PER_HOUR, deauth: DEAUTHS_PER_HOUR, delete: DELETES_PER_HOUR } as const
+
+export type RateBucket = keyof typeof LIMITS
 
 export function rateKeyFor(source: string, userId: string, now: Date, bucket: RateBucket = "events"): string {
   // `2026-10-16T12` — the clock hour, UTC.
@@ -75,7 +85,7 @@ export async function countOwnerEvent(
 ): Promise<{ withinBudget: boolean; count: number }> {
   const now = deps.now?.() ?? new Date()
   const bucket = input.bucket ?? "events"
-  const limit = bucket === "events" ? OWNER_EVENTS_PER_HOUR : DEAUTHS_PER_HOUR
+  const limit = LIMITS[bucket]
   const out = await deps.ddb.send(
     new UpdateCommand({
       TableName: INGEST_RECEIPT_TABLE,
