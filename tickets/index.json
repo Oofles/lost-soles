@@ -6617,6 +6617,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-18T13:09:34Z",
+    "started": "2026-10-18T23:15:47Z",
     "path": "tickets/open/0287-runs-and-chronicle-readers-hide-tombstoned-activities.md",
     "ready": true,
     "acceptance": {
