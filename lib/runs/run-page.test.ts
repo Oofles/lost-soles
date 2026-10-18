@@ -6,7 +6,7 @@ import { activityItem } from "@/src/pipeline/persist"
 import { runDate, runDistance, runDuration, sourceLabel } from "./format"
 import { isColdLanding, seedHomeBehind, SEED_MARKER, type HistoryHost } from "./history"
 import { runLedger, type ActivityLedgerRow } from "./ledger"
-import { chroniclePage, decodeChronicleCursor, encodeChronicleCursor, runById, type RunReadDeps } from "./server"
+import { CHRONICLE_MAX_READS, chroniclePage, decodeChronicleCursor, encodeChronicleCursor, runById, type RunReadDeps } from "./server"
 import { CHRONICLE_PAGE_SIZE, EMPTY_COLLECTION, runHref } from "./wire"
 
 /**
@@ -214,6 +214,52 @@ describe("chroniclePage — the Chronicle's rows (0088)", () => {
     expect(after).toEqual({ startedAt: "2026-08-28T13:00:00Z", id: "a-9" })
     await chroniclePage("u-1", deps, after)
     expect(queries[1]!.ExclusiveStartKey).toEqual({ userId: "u-1", startedAt: "2026-08-28T13:00:00Z", id: "a-9" })
+  })
+
+  it("leaves out a TOMBSTONED activity and keeps the active one beside it (0287, 02 §4.7)", async () => {
+    const { deps, queries } = rig([row({ id: "a-gone", status: "TOMBSTONED" }), row()])
+    const page = await chroniclePage("u-1", deps)
+    expect(page.items.map((r) => r.activityId)).toEqual(["a-9"])
+    // `status` is projected, or every row would read as ACTIVE.
+    expect(Object.values(queries[0]!.ExpressionAttributeNames ?? {})).toContain("status")
+  })
+
+  it("a row that predates the status column is ACTIVE", async () => {
+    const legacy: Record<string, unknown> = row()
+    delete legacy.status
+    const { deps } = rig([legacy])
+    expect((await chroniclePage("u-1", deps)).items.map((r) => r.activityId)).toEqual(["a-9"])
+  })
+
+  it("reads on when a whole page was tombstoned, so the list does not read as empty (0287)", async () => {
+    const queries: QueryCommand["input"][] = []
+    const pages = [
+      { Items: [row({ id: "a-gone", status: "TOMBSTONED" })], LastEvaluatedKey: { userId: "u-1", startedAt: "2026-08-29T11:00:00.000Z", id: "a-gone" } },
+      { Items: [row()], LastEvaluatedKey: { userId: "u-1", startedAt: "2026-08-28T11:00:00.000Z", id: "a-9" } },
+    ]
+    const deps = { activityTable: "TestActivity", ddb: { async send(c: QueryCommand) { queries.push(c.input); return pages[queries.length - 1]! } } }
+    const page = await chroniclePage("u-1", deps)
+    expect(page.items.map((r) => r.activityId)).toEqual(["a-9"])
+    expect(queries).toHaveLength(2)
+    expect(queries[1]!.ExclusiveStartKey).toEqual({ userId: "u-1", startedAt: "2026-08-29T11:00:00.000Z", id: "a-gone" })
+    expect(decodeChronicleCursor(page.next!)).toEqual({ startedAt: "2026-08-28T11:00:00.000Z", id: "a-9" })
+  })
+
+  it("stops after CHRONICLE_MAX_READS and hands back its cursor, never walking the whole history", async () => {
+    let n = 0
+    const deps = {
+      activityTable: "TestActivity",
+      ddb: {
+        async send() {
+          n++
+          return { Items: [row({ id: `gone-${n}`, status: "TOMBSTONED" })], LastEvaluatedKey: { userId: "u-1", startedAt: `s-${n}`, id: `gone-${n}` } }
+        },
+      },
+    }
+    const page = await chroniclePage("u-1", deps)
+    expect(n).toBe(CHRONICLE_MAX_READS)
+    expect(page.items).toEqual([])
+    expect(decodeChronicleCursor(page.next!)).toEqual({ startedAt: `s-${n}`, id: `gone-${n}` })
   })
 
   it("refuses a cursor that is not its own shape", () => {

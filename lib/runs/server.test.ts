@@ -169,6 +169,19 @@ describe("latestRun — choosing the row", () => {
     expect(out.features[0]!.properties.activityId).toBe("a-9")
   })
 
+  it("skips a TOMBSTONED run in front of an active one (0287, 02 §4.7)", async () => {
+    getObject.mockResolvedValueOnce(bytes(GEOMETRY))
+    const { deps } = rig([row({ id: "a-gone", status: "TOMBSTONED" }), row()])
+    const out = await latestRun("u-1", deps)
+    expect(out.features[0]!.properties.activityId).toBe("a-9")
+    expect(getObject.mock.calls.at(-1)![0]).not.toContain("a-gone")
+  })
+
+  it("answers empty when the only traced run is TOMBSTONED (0287)", async () => {
+    const { deps } = rig([row({ status: "TOMBSTONED" })])
+    expect(await latestRun("u-1", deps)).toEqual(EMPTY_COLLECTION)
+  })
+
   /**
    * THE KEY IS REBUILT FROM THE SESSION'S UID, NOT READ OFF THE ROW. A `traceRef` naming
    * another user's prefix — a future code path, a hand-edited row — must not be able to choose

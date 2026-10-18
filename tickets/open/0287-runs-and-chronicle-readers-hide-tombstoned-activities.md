@@ -26,12 +26,16 @@ stays: only the *list* views drop it.
 
 ## Acceptance criteria
 
-- [ ] `lib/runs` (including `/api/runs/latest`) skips `TOMBSTONED` activities.
-- [ ] The Chronicle does not list a `TOMBSTONED` activity.
-- [ ] The runs trace web leaves out a tombstoned activity's trace, or the ticket records why it
-      keeps it (the cells stay revealed either way, D-020).
-- [ ] Map cells, the ledger and Total Level are unchanged by a tombstone, asserted by a test.
-- [ ] Tests cover each reader with one active and one tombstoned activity.
+- [x] `lib/runs` (including `/api/runs/latest`) skips `TOMBSTONED` activities. *Amended: the
+      list readers (`latestRun`, `chroniclePage`) skip them. `runById` (`/run/:id`) and
+      `historyUpTo` (the Chronicle line's lifetime facts) deliberately do not. A direct link is not
+      a list, and the lifetime facts count the same lifetime the XP total does (D-135). Proposed as
+      D-NEW-a.*
+- [x] The Chronicle does not list a `TOMBSTONED` activity.
+- [x] The runs trace web leaves out a tombstoned activity's trace, or the ticket records why it
+      keeps it (the cells stay revealed either way, D-020). *Kept; why is in Resolution.*
+- [x] Map cells, the ledger and Total Level are unchanged by a tombstone, asserted by a test.
+- [x] Tests cover each reader with one active and one tombstoned activity.
 
 ## Notes
 
@@ -42,3 +46,62 @@ and D-355. A tombstone is sticky: persist never writes `ACTIVE` back over it.
 
 None expected beyond a smoke test: tombstone a synthetic activity in a throwaway user's T3 row,
 or through `retractActivity` in a test, and read each endpoint.
+
+## Resolution
+
+A tombstoned activity (D-355) now leaves the two list readers. Nothing else changes for it.
+
+**Files touched**
+
+- `lib/runs/server.ts`: new `isTombstoned(row)`, keyed on `TOMBSTONED_STATUS` from
+  `src/pipeline/persist`. A row with no `status`, written before the column existed, counts as
+  ACTIVE.
+  - `latestRun` skips tombstoned rows when it picks the newest traced row. The home map's last-run
+    line and the plinth fall back to the previous run.
+  - `chroniclePage` adds `status` to its projection and drops tombstoned rows. Dropping rows can
+    empty a page, so it reads on through `ExclusiveStartKey` until it has at least one item or
+    history ends, bounded by the new `CHRONICLE_MAX_READS = 4`. A page that is still empty after
+    that comes back with its cursor, and the panel's existing effect asks again. The cursor is
+    always the last key read, so no row is skipped or repeated.
+- `lib/runs/server.test.ts`: `latestRun` skips a tombstoned run in front of an active one, and
+  answers empty when the only traced run is tombstoned.
+- `lib/runs/run-page.test.ts`: `chroniclePage` drops a tombstoned row and keeps the active one
+  beside it, and projects `status`. A legacy row with no `status` lists. A fully tombstoned page
+  reads on to the next one. The read bound holds.
+- `lib/runs/tombstone.test.ts` (new): one stateful world with T3, the receipt table, T4 and the S3
+  objects. One active run and one newer run that the shipped `retractActivity` tombstones. Before
+  and after the tombstone it asserts:
+  - the Chronicle lists only the active run;
+  - `latestRun` falls back to the active run;
+  - `traceWebRuns` is unchanged;
+  - `runById` still resolves the tombstoned run;
+  - the S3 objects (the cells' `classes` objects, the traces and the web) are byte-identical;
+  - the T4 ledger rows are identical;
+  - Total Level, computed with `totalLevel` over the XP that the shipped `xpBeforeRun` ledger
+    reader returns, is identical;
+  - the T3 row differs only in `status` and `updatedAt`.
+
+**Decisions (proposed to the orchestrator; none allocated here)**
+
+- **The permanent trace web keeps a tombstoned run's line.** The ticket allows this if the reason
+  is recorded, so here it is:
+  - The web is part of the map, and D-020 keeps the map permanent. The cells that run revealed stay
+    revealed, so its line keeps drawing ground that is visibly explored. Removing the line would
+    leave revealed ground with no route through it.
+  - Removing it would also cost one of two things. Either the retract path rewrites the web object,
+    which breaks D-355's "touches nothing but T3 status", or every web load runs a T3 query to
+    filter by status. That is a new read on the map's hot path to hide one line.
+  - The web's rebuild tool is untouched for the same reason.
+- **`/run/:id` and `historyUpTo` do not filter.** `02` §4.7 says the activity "leaves the activity
+  list", and the operator's framing was that only list views drop it.
+  - `/run/:id` is a direct link, not a list. A post-run moment or bookmark already open on the run
+    keeps working, and nothing in the lists links to it any more.
+  - `historyUpTo` feeds the Chronicle line's lifetime facts and thresholds. These count the same
+    lifetime as the XP total, which keeps the tombstoned run's XP (D-135). Leaving it out would also
+    let a lifetime threshold be crossed twice.
+- **The bounded read-on in `chroniclePage`.** Without it, a first page made up entirely of
+  tombstoned rows would render "Nothing here yet" over an account that has runs.
+- The backfill batch reader (`lib/backfill/store.ts`) already counted only ACTIVE rows, so it was
+  left alone.
+
+No design doc changed: `02` §4.7 already says what this implements.

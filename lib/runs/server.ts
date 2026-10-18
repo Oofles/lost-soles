@@ -5,6 +5,7 @@ import outputs from "@/amplify_outputs.json"
 import { getObject, defaultFogReadDeps, type FogReadDeps } from "@/lib/fog/server"
 import type { RunClasses } from "@/src/domain/discovery"
 import { objectKeys, parseRunClasses } from "@/src/pipeline/explored-blob-store"
+import { TOMBSTONED_STATUS } from "@/src/pipeline/persist"
 import type { WebRunInput } from "@/lib/trace-web/web"
 import { routeTraceKey } from "@/src/pipeline/route-trace-store"
 import { traceWebKey, type TraceWeb } from "@/src/pipeline/trace-web-store"
@@ -126,7 +127,20 @@ type ActivityRow = {
   startedAtLocal?: string
   distanceM?: number | null
   newCellCount?: number | null
+  /** `ACTIVE | TOMBSTONED` (`0282`, D-355). Absent on rows that predate the column: ACTIVE. */
+  status?: string
 }
+
+/**
+ * A SOURCE-SIDE DELETE LEAVES THE LISTS, AND ONLY THE LISTS. Ticket `0287`, `02` §4.7, D-355.
+ *
+ * `latestRun` and `chroniclePage` skip a `TOMBSTONED` row. Nothing else here does, on purpose: its
+ * cells stay revealed (D-020) and its XP stays in the total (D-135), so the permanent web keeps its
+ * line (`traceWebRuns`), `/run/:id` still answers for it (`runById`: a direct link is not a list),
+ * and `historyUpTo` still counts it toward the lifetime facts the Chronicle's lines rest on, which
+ * are the same lifetime the XP total is.
+ */
+export const isTombstoned = (row: { status?: unknown }): boolean => row.status === TOMBSTONED_STATUS
 
 /**
  * The caller's most recent activity that has geometry, as GeoJSON.
@@ -162,7 +176,8 @@ export async function latestRun(
   )
 
   const rows = (out.Items ?? []) as ActivityRow[]
-  const row = rows.find((r) => typeof r.traceRef === "string" && r.traceRef.length > 0)
+  // `0287`: a tombstoned run is not the last run, though its line stays in the permanent web.
+  const row = rows.find((r) => !isTombstoned(r) && typeof r.traceRef === "string" && r.traceRef.length > 0)
   if (!row?.id || !row.startedAt) return EMPTY_COLLECTION
 
   /**
@@ -338,7 +353,16 @@ export function decodeChronicleCursor(cursor: string): { startedAt: string; id: 
 }
 
 /** The columns a Chronicle row reads, and no others — `raw` alone is most of an item's bytes. */
-const CHRONICLE_COLUMNS = ["id", "startedAt", "startedAtLocal", "name", "kind", "distanceM", "elapsedS", "movingS", "newCellCount", "traceRef", "hasTrace", "sets"]
+const CHRONICLE_COLUMNS = ["id", "startedAt", "startedAtLocal", "name", "kind", "distanceM", "elapsedS", "movingS", "newCellCount", "traceRef", "hasTrace", "sets", "status"]
+
+/**
+ * `0287`. HOW MANY QUERY PAGES ONE CHRONICLE PAGE MAY READ to find a row that is not tombstoned.
+ * Dropping tombstoned rows can empty a page while history goes on, and an empty first page would
+ * render "Nothing here yet" over an account with runs. A delete is rare, so the second read almost
+ * never happens; the bound only stops a pathological history walking itself on one request. A page
+ * still empty after it is returned with its cursor, and the panel asks again on its next scroll.
+ */
+export const CHRONICLE_MAX_READS = 4
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
 
@@ -379,41 +403,49 @@ export async function chroniclePage(
   after: { startedAt: string; id: string } | null = null,
 ): Promise<ChroniclePage> {
   const names = Object.fromEntries(CHRONICLE_COLUMNS.map((c, i) => [`#c${i}`, c]))
-  const out = (await deps.ddb.send(
-    new QueryCommand({
-      TableName: deps.activityTable,
-      IndexName: "byUserAndStart",
-      KeyConditionExpression: "#u = :u",
-      ExpressionAttributeNames: { "#u": "userId", ...names },
-      ExpressionAttributeValues: { ":u": userId },
-      ProjectionExpression: Object.keys(names).join(", "),
-      ScanIndexForward: false,
-      Limit: CHRONICLE_PAGE_SIZE,
-      ...(after ? { ExclusiveStartKey: { userId, startedAt: after.startedAt, id: after.id } } : {}),
-    }),
-  )) as { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> }
+  const items: RunListItem[] = []
+  let start = after
+  for (let reads = 0; reads < CHRONICLE_MAX_READS; reads++) {
+    const out = (await deps.ddb.send(
+      new QueryCommand({
+        TableName: deps.activityTable,
+        IndexName: "byUserAndStart",
+        KeyConditionExpression: "#u = :u",
+        ExpressionAttributeNames: { "#u": "userId", ...names },
+        ExpressionAttributeValues: { ":u": userId },
+        ProjectionExpression: Object.keys(names).join(", "),
+        ScanIndexForward: false,
+        Limit: CHRONICLE_PAGE_SIZE,
+        ...(start ? { ExclusiveStartKey: { userId, startedAt: start.startedAt, id: start.id } } : {}),
+      }),
+    )) as { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> }
 
-  const items = (out.Items ?? [])
-    .filter((r): r is ChronicleRow => typeof r.id === "string" && typeof r.startedAt === "string")
-    .map((r): RunListItem => ({
-      activityId: r.id,
-      startedAt: r.startedAt,
-      startedAtLocal: r.startedAtLocal ?? r.startedAt,
-      name: r.name ?? null,
-      kind: r.kind ?? "other",
-      distanceM: num(r.distanceM) ?? null,
-      durationS: num(r.movingS) ?? num(r.elapsedS) ?? null,
-      newCellCount: num(r.newCellCount) ?? null,
-      traced: isTraced(r),
-      sets: chronicleSets(r.sets),
-    }))
+    for (const raw of out.Items ?? []) {
+      // `0287`: a tombstoned activity leaves the list (`02` §4.7); its cells and XP do not.
+      if (typeof raw.id !== "string" || typeof raw.startedAt !== "string" || isTombstoned(raw)) continue
+      const r = raw as ChronicleRow
+      items.push({
+        activityId: r.id,
+        startedAt: r.startedAt,
+        startedAtLocal: r.startedAtLocal ?? r.startedAt,
+        name: r.name ?? null,
+        kind: r.kind ?? "other",
+        distanceM: num(r.distanceM) ?? null,
+        durationS: num(r.movingS) ?? num(r.elapsedS) ?? null,
+        newCellCount: num(r.newCellCount) ?? null,
+        traced: isTraced(r),
+        sets: chronicleSets(r.sets),
+      })
+    }
 
-  const last = out.LastEvaluatedKey
-  const next =
-    last && typeof last.startedAt === "string" && typeof last.id === "string"
-      ? encodeChronicleCursor({ startedAt: last.startedAt, id: last.id })
-      : null
-  return { items, next }
+    const last = out.LastEvaluatedKey
+    start =
+      last && typeof last.startedAt === "string" && typeof last.id === "string"
+        ? { startedAt: last.startedAt, id: last.id }
+        : null
+    if (items.length > 0 || !start) break
+  }
+  return { items, next: start ? encodeChronicleCursor(start) : null }
 }
 
 /**
