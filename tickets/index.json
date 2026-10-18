@@ -2315,7 +2315,7 @@
     "title": "The reconciliation sweep — listSince backstop for silently dropped webhooks",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [
@@ -2327,8 +2327,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-18T01:23:55Z",
-    "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
-    "ready": true,
+    "closed": "2026-10-18T02:36:42Z",
+    "path": "tickets/closed/0095-nightly-reconcile-listsince-backstop.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10

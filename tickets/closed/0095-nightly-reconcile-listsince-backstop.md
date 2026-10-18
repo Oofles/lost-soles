@@ -4,7 +4,7 @@ slug: nightly-reconcile-listsince-backstop
 title: The reconciliation sweep — listSince backstop for silently dropped webhooks
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: [34, 42, 91]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-18T01:23:55Z
+closed: 2026-10-18T02:36:42Z
 ---
 
 ## Description
