@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 
 import type { AckResult, InboundRequest, IngestJob } from "../types"
+import { acceptHandshake } from "./handshake"
 import { parseWithExactIds } from "./json-ids"
 import { userIdForOwner } from "./owner-map"
 
@@ -17,7 +18,7 @@ import { userIdForOwner } from "./owner-map"
  * An `activity` `create` from a known athlete becomes one `ingest` command. Everything else is
  * acknowledged with a 200 and dropped — Strava only cares that it got a 200, and a 400 would be a
  * free oracle (§4.4). Left to later tickets, deliberately:
- *   - the `GET` `hub.challenge` handshake → 0092 (405 here until then);
+ *   - the `GET` `hub.challenge` handshake → 0092, in `handshake.ts`;
  *   - `subscription_id` matching, unknown-field rejection, the size cap, deauthorization → 0093;
  *   - `update` / `delete` aspects → dropped; the sweep covers neither today either.
  *
@@ -92,6 +93,7 @@ export async function acceptStravaEvent(
   req: InboundRequest,
   now: () => Date = () => new Date(),
 ): Promise<AckResult> {
+  if (req.method === "GET") return acceptHandshake(req)
   if (req.method !== "POST") {
     logDecision("method-not-allowed", undefined)
     return { status: 405, commands: [] }

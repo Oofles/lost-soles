@@ -176,9 +176,9 @@ describe("routing", () => {
     expect(sent).toHaveLength(0)
   })
 
-  it("answers a GET with 405 until 0092 builds the handshake", async () => {
+  it("answers a method that is neither POST nor the GET handshake with 405", async () => {
     const { deps } = rig()
-    expect((await handleWebhook(event({ method: "GET" }), deps)).statusCode).toBe(405)
+    expect((await handleWebhook(event({ method: "PUT" }), deps)).statusCode).toBe(405)
   })
 })
 

@@ -63,7 +63,19 @@ describe("the function (criteria 1 and 3)", () => {
   it("carries the queue URL and no credential in its environment", () => {
     const env = JSON.stringify(webhookFunction()[1].Properties.Environment ?? {})
     expect(env).toContain("INGEST_QUEUE_URL")
-    expect(env).not.toMatch(/CLIENT_SECRET|refresh_?token|access_?token|AMPLIFY_SSM_ENV_CONFIG":"\{[^}]/i)
+    expect(env).not.toMatch(/CLIENT_SECRET|refresh_?token|access_?token/i)
+  })
+
+  /**
+   * Ticket 0092. Exactly ONE `secret()`, the handshake's verify token, and only as an SSM
+   * reference: the template holds Amplify's placeholder, never a value.
+   */
+  it("resolves exactly one secret, the verify token, from SSM at runtime", () => {
+    const vars = (webhookFunction()[1].Properties.Environment as { Variables: Record<string, unknown> })
+      .Variables
+    expect(vars.STRAVA_WEBHOOK_VERIFY_TOKEN).toBe("<value will be resolved during runtime>")
+    const ssm = JSON.parse(vars.AMPLIFY_SSM_ENV_CONFIG as string) as Record<string, unknown>
+    expect(Object.keys(ssm)).toEqual(["STRAVA_WEBHOOK_VERIFY_TOKEN"])
   })
 })
 
@@ -111,9 +123,16 @@ describe("the Function URL (criterion 1)", () => {
 })
 
 describe("its reach (criterion 7)", () => {
-  it("is exactly two grants: PutItem on the receipt table, SendMessage on the queue", () => {
+  it("is exactly three grants: PutItem on the receipt table, SendMessage on the queue, the verify token", () => {
     const actions = statements().flatMap(actionsOf).sort()
-    expect(actions).toEqual(["dynamodb:PutItem", "sqs:SendMessage"])
+    expect(actions).toEqual(["dynamodb:PutItem", "sqs:SendMessage", "ssm:GetParameters"])
+
+    // 0092: Amplify's `secret()` grant, and it reaches the verify token's two paths (branch,
+    // then shared) and nothing else — not the client secret beside it.
+    const ssm = statements().find((s) => actionsOf(s).includes("ssm:GetParameters"))!
+    const paths = JSON.stringify(ssm.Resource).match(/parameter\/[^"]+/g) ?? []
+    expect(paths).toHaveLength(2)
+    for (const p of paths) expect(p).toMatch(/\/STRAVA_WEBHOOK_VERIFY_TOKEN$/)
 
     const put = statements().find((s) => actionsOf(s).includes("dynamodb:PutItem"))!
     expect(JSON.stringify(put.Resource)).toMatch(/IngestReceiptTable/)

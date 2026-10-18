@@ -63,26 +63,37 @@ knows what they are accepting before they press the key.
 
 ## Acceptance criteria
 
-- [ ] A GET with `hub.mode=subscribe` and the correct `hub.verify_token` returns 200,
+- [x] A GET with `hub.mode=subscribe` and the correct `hub.verify_token` returns 200,
       `Content-Type: application/json`, and a body whose **exact bytes** are
       `{"hub.challenge":"<X>"}` — asserted on the raw response string, not on a parsed object.
-- [ ] A test asserts the response body contains the substring `"hub.challenge"` and does **not**
+- [x] A test asserts the response body contains the substring `"hub.challenge"` and does **not**
       contain `hub_challenge` or `hubChallenge`.
-- [ ] A wrong `hub.verify_token` returns 400 with no body detail, and the supplied token appears
+- [x] A wrong `hub.verify_token` returns 400 with no body detail, and the supplied token appears
       nowhere in the logs at any level.
-- [ ] The token comparison is constant-time; a test asserts the comparison function is the
+- [x] The token comparison is constant-time; a test asserts the comparison function is the
       constant-time one and not `===`.
-- [ ] A `hub.challenge` longer than 256 bytes or containing any character outside `[A-Za-z0-9]` is
+- [x] A `hub.challenge` longer than 256 bytes or containing any character outside `[A-Za-z0-9]` is
       rejected; a challenge of `"><script>` never reaches the response body.
-- [ ] The subscription script can create, inspect and delete the subscription, and stores the
+- [x] The subscription script can create, inspect and delete the subscription, and stores the
       returned subscription id where the webhook handler reads it.
-- [ ] The script prints the permanence warning about `callback_url` before performing a create or
+      *Amended (operator, wave 1):* the id lives in a committed constant,
+      `STRAVA_SUBSCRIPTION_ID` in `src/adapters/strava/subscription.ts` (created by 0093). The
+      script does not edit source: `create` prints the id and the exact line to set and commit.
+- [x] The script prints the permanence warning about `callback_url` before performing a create or
       delete, and requires an explicit confirmation.
 - [ ] After a real create against Strava, `GET /push_subscriptions` shows exactly one subscription
       pointing at the production callback URL.
+      *Not yet:* the real create is the orchestrator's, after deploy, with the operator's
+      agreement. The agent was forbidden to call `push_subscriptions` at all.
 - [ ] `STRAVA_WEBHOOK_VERIFY_TOKEN` is generated with a CSPRNG, stored as an SSM `SecureString`, and
       appears in no repository file — asserted by the secret scan (0002's `.gitignore` and the §7.3
       scanning setup).
+      *Partly:* the SSM `SecureString` exists (`/amplify/shared/d14fhvl4rp79nn/…`, set in 0017) and
+      is in no file (965 worktree files scanned for the value: 0 hits; `check-bundle-leak
+      --require-literals` green). Whether that value came from a CSPRNG is not recorded. The
+      script's `rotate-token` generates `randomBytes(32)` hex straight into the SecureString,
+      without printing it. Running it before `create` closes this criterion. AWS was read-only
+      here, so that run is the orchestrator's.
 
 ## Notes
 
@@ -118,3 +129,71 @@ see `hubChallenge` or `hub_challenge` anywhere, stop — that is the hour this n
 
 Finally, `curl` the same URL with a deliberately wrong token and confirm you get a bare 400, then
 check the logs and confirm the token you sent is not in them.
+
+## Resolution
+
+**What shipped.** The handshake lives in the Strava adapter, inside 0091's design (D-345). The
+`ingest-webhook` handler's code is unchanged. It already passed `method` and `query` to
+`accept()` and emitted a string body verbatim with `content-type: application/json`.
+`acceptStravaEvent` now hands any `GET` to `acceptHandshake`, which is one added line. Other
+non-POST methods still get a 405. Alongside it is an operator script that inspects, creates and
+deletes the one subscription and rotates the verify token.
+
+**Files touched**
+- `src/adapters/strava/handshake.ts`: new. `acceptHandshake(req, expected = env)`. The checks run in this order:
+  - `hub.mode` must be `subscribe`.
+  - The secret must be present. If it is not, the handshake fails closed.
+  - The token is compared in constant time (`tokensMatch`: sha256 both sides, then `timingSafeEqual`, so lengths always match and nothing throws).
+  - The challenge must match `^[A-Za-z0-9]{1,256}$`.
+  - Every failure is a bare `{status: 400}` with no body.
+  - On success the body is `'{"hub.challenge":"' + X + '"}'`, built by concatenation and never by a serializer.
+  - Logging is one `webhook-handshake` line holding a fixed decision word. It never contains T or X.
+- `src/adapters/strava/handshake.test.ts`: new, 25 tests. Covers:
+  - the exact bytes;
+  - the dotted key, and that neither `hub_challenge` nor `hubChallenge` appears;
+  - wrong, prefix, extended, empty and missing tokens;
+  - no T, X or the real token at any console level;
+  - fail-closed when the secret is unset;
+  - criterion 4: `timingSafeEqual` is spied through a wrapped `node:crypto` mock and must be called on both a match and a mismatch, and a source check finds no `===` against the token;
+  - hostile challenges: `"><script>`, a quote, a backslash, a space, a dash, non-ASCII, empty and 257 chars, with 256 accepted;
+  - the registered adapter's `accept()`.
+- `src/adapters/strava/accept.ts`: GET goes to `acceptHandshake`; the header comment is updated. POST path untouched (0093).
+- `amplify/functions/ingest-webhook/handshake.test.ts`: new. The GET through the real handler and adapter, asserted on `res.body` as a raw string, with `content-type` checked. Both AWS deps throw if touched, which proves a GET makes no DynamoDB or SQS call. A separate file keeps `handler.test.ts` clear for 0093.
+- `amplify/functions/ingest-webhook/handler.test.ts`: the "GET → 405 until 0092" test is now "PUT → 405". One test changed.
+- `amplify/functions/ingest-webhook/resource.ts`: `environment: { STRAVA_WEBHOOK_VERIFY_TOKEN: secret(...) }`, with the comment updated. This is an SSM parameter name, which D-166's SCREAMING_SNAKE redaction allows in `amplify/`.
+- `amplify/ingest-webhook-stack.test.ts`:
+  - The grant set is now exactly `PutItem` + `SendMessage` + `ssm:GetParameters`.
+  - The SSM statement must reach exactly two paths (branch and shared), both ending in `/STRAVA_WEBHOOK_VERIFY_TOKEN`, so it cannot reach the client secret.
+  - The environment must hold exactly one SSM-resolved key, as Amplify's placeholder.
+  - The old "no `AMPLIFY_SSM_ENV_CONFIG`" clause is replaced by that positive assertion.
+- `scripts/strava-subscription.mjs`: new. Plain node, like the check scripts. Commands:
+  - `inspect` (read-only).
+  - `create` (refuses if one already exists, then self-checks, prints the permanence warning, waits for the typed confirmation, POSTs, and prints the id plus the line to set in `subscription.ts`).
+  - `delete <id>` (the id must be one of ours; warning, then the id typed back, then DELETE).
+  - `rotate-token` (CSPRNG `randomBytes(32)` hex into a `SecureString`; prints only length and a sha256 prefix).
+
+  Credentials come from the shared SSM path `lib/sources/oauth-credentials.ts` reads. The callback is the `main` stack's `IngestWebhookUrl` output plus `api/webhooks/strava`, verified read-only: `https://2fnck3lexwj2c4yu2ba3rtybum0bspla.lambda-url.us-east-1.on.aws/api/webhooks/strava`. No secret is printed, and a URL that carries one in its query is never echoed.
+- `scripts/strava-subscription.test.mjs`: new, 12 tests, all I/O faked. Covers:
+  - order: self-check, then warning, then prompt, then POST;
+  - no mutating call without the exact word (`""`, `y`, `yes`, `CREATE` all refused);
+  - refusal when a subscription already exists;
+  - refusal when the callback answers `hubChallenge`;
+  - delete's ordering and its unknown-id refusal;
+  - rotate writes to the right SecureString path without printing the value;
+  - no secret printed by any command;
+  - exact-digit id parsing;
+  - the SSM prefix agrees with the app's.
+
+**Decisions**
+- **The handshake is the adapter's, and the handler stays vendor-blind.** This follows the orchestrator note and D-345: `hub.challenge` is Strava vocabulary, and the handler only needed to keep emitting string bodies verbatim, which it already did.
+- **Any non-subscribe GET gets a 400, not a 405.** GET is now a supported method on this route, and §4.2 calls every other GET a scanner. A scanner gets the same bare 400 as a wrong token, so it learns nothing about which check failed.
+- **The check order is token first, then challenge.** Both fail identically from outside, so the order affects only the internal log word.
+- **The token comes from Amplify `secret()`, as §4.2 specifies,** and not from a lazy in-handler SSM read. Cost: Amplify's init banner makes one `ssm:GetParameters` call on every cold start, POSTs included. The parameter exists only at the shared path, so it is really two calls: the branch path misses first. That cost lands in init, which D-346 measured as not throttled the way the handler is, but it should be measured (see the smoke test).
+- **A self-check before `create`.** The ticket's Notes say to test the bytes before Strava does. The script sends its own handshake GET to the deployed callback, with the real token and a fresh challenge, and refuses to create unless the bytes are exact.
+- **`rotate-token` exists** because criterion 9 asks for CSPRNG generation and the current value's origin (0017) is not recorded. It is 32 alphanumerics.
+
+**Gate run in the worktree.**
+- All of amplify.yml's build-phase guards pass, including `check-boundaries` and `check-adapter-deletion` (the seam holds).
+- `typecheck`, `lint`, the full vitest suite (222 files, 3772 passed, 1 skipped) and `npm run build` all pass.
+- `check-bundle-leak --self-test` and `check-bundle-leak --require-literals` both pass, with 3 literals checked.
+- `check-home-not-in-client --self-test` passes.
