@@ -67,8 +67,12 @@ export type SourceSyncOutcome =
   | { sourceId: string; kind: "reconnect" }
   /** Never connected, or disconnected. Distinct from the above: nothing broke. */
   | { sourceId: string; kind: "not-connected" }
-  /** Something else went wrong. `queued` is what did land before it did. */
-  | { sourceId: string; kind: "failed"; queued: number; detail: string }
+  /**
+   * Something else went wrong. `queued` is what did land before it did. `alreadyKnown` is set
+   * by `syncSource` and optional only so a hand-made outcome (a test, the result line's own
+   * fixtures) need not invent one; the scheduled sweep's metrics read it (ticket 0095).
+   */
+  | { sourceId: string; kind: "failed"; queued: number; alreadyKnown?: number; detail: string }
 
 export interface SyncDeps {
   /** Resolved by the caller through `getAdapter`, so this module names no source. */
@@ -86,6 +90,33 @@ export interface SyncDeps {
   readWatermark(): Promise<string | null>
   advanceWatermark(value: string): Promise<void>
   now?: () => Date
+  /** The scheduled sweep's two differences from a Sync press (ticket 0095). Absent for Sync. */
+  window?: SweepWindow
+}
+
+/**
+ * HOW THE SCHEDULED SWEEP DIFFERS FROM A SYNC PRESS, and it is only these two things.
+ * Ticket 0095, `03-integrations.md` §2.3. The listing, the receipt gate, the enqueue and the
+ * advance rule are this file's, unchanged, so the sweep is the manual Sync's code path and
+ * not a parallel one.
+ */
+export interface SweepWindow {
+  /**
+   * LIST AT LEAST THIS FAR BACK FROM NOW, whatever the watermark says. The nightly net's
+   * 14 days. The window opens at the EARLIER of the watermark and `now - this`, so a
+   * connection that has fallen further behind than 14 days is still swept from its watermark
+   * and never skipped.
+   */
+  minLookbackSeconds?: number
+  /**
+   * HOLD THE WATERMARK IF THE LISTING DIES MID-PAGE. Ticket 0095 criterion 6: *"a sweep
+   * interrupted mid-paging leaves it unchanged."* A Sync press advances on a partial listing
+   * instead, which is also safe (listing is oldest-first, see the catch in `syncSource`); the
+   * sweep takes the stricter rule its ticket names because it runs unattended every six hours
+   * and re-listing a window it already covered costs one call. An individual enqueue that
+   * fails is NOT an interrupted listing: it pins the watermark as `unconfirmed`, as before.
+   */
+  holdWatermarkOnListFailure?: boolean
 }
 
 /** The window a never-swept connection starts from. */
@@ -153,6 +184,7 @@ export async function syncSource(
 ): Promise<SourceSyncOutcome> {
   const now = deps.now?.() ?? new Date()
   const previous = (await deps.readWatermark()) ?? firstSyncBoundary(now)
+  const listFrom = windowStart(previous, now, deps.window)
 
   /**
    * ISO start dates, split by whether the enqueue is KNOWN to have landed. This is the
@@ -164,9 +196,10 @@ export async function syncSource(
   let queued = 0
   let alreadyKnown = 0
   let failure: string | undefined
+  let listingInterrupted = false
 
   try {
-    for await (const job of deps.adapter.listSince(userId, previous, deps.credentials)) {
+    for await (const job of deps.adapter.listSince(userId, listFrom, deps.credentials)) {
       try {
         if (await needsEnqueue(job, userId, deps)) {
           await deps.enqueue(job)
@@ -197,6 +230,7 @@ export async function syncSource(
      */
     if (isReauth(error)) return { sourceId, kind: "reconnect" }
     failure ??= describe(error)
+    listingInterrupted = true
   }
 
   /**
@@ -207,7 +241,12 @@ export async function syncSource(
   if (confirmed.length === 0 && unconfirmed.length === 0) {
     return failure === undefined
       ? { sourceId, kind: "nothing-new" }
-      : { sourceId, kind: "failed", queued, detail: failure }
+      : { sourceId, kind: "failed", queued, alreadyKnown, detail: failure }
+  }
+
+  /** The scheduled sweep's stricter rule. See `SweepWindow.holdWatermarkOnListFailure`. */
+  if (listingInterrupted && deps.window?.holdWatermarkOnListFailure === true) {
+    return { sourceId, kind: "failed", queued, alreadyKnown, detail: failure ?? "unknown error" }
   }
 
   /**
@@ -229,8 +268,18 @@ export async function syncSource(
   })
   await deps.advanceWatermark(next)
 
-  if (failure !== undefined) return { sourceId, kind: "failed", queued, detail: failure }
+  if (failure !== undefined) return { sourceId, kind: "failed", queued, alreadyKnown, detail: failure }
   return { sourceId, kind: "queued", queued, alreadyKnown }
+}
+
+/**
+ * Where the listing opens: the watermark, or `now - minLookbackSeconds` if that is earlier.
+ * The ADVANCE still starts from `previous`; the window only ever widens what is re-checked.
+ */
+function windowStart(previous: string, now: Date, window: SweepWindow | undefined): string {
+  if (window?.minLookbackSeconds === undefined) return previous
+  const floorMs = now.getTime() - window.minLookbackSeconds * 1000
+  return Date.parse(previous) <= floorMs ? previous : new Date(floorMs).toISOString()
 }
 
 /** `NEEDS_REAUTH` reaches here as a thrown error from the credential resolver. */

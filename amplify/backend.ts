@@ -5,7 +5,10 @@ import {
   ComparisonOperator,
   TreatMissingData,
 } from "aws-cdk-lib/aws-cloudwatch"
+import { Metric } from "aws-cdk-lib/aws-cloudwatch"
 import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
+import { Schedule, ScheduleExpression, ScheduleTargetInput } from "aws-cdk-lib/aws-scheduler"
+import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets"
 import {
   AttributeType,
   BillingMode,
@@ -52,6 +55,7 @@ import { ingestWebhook } from "./functions/ingest-webhook/resource"
 import { logWorkoutFunction } from "./functions/log-workout/resource"
 import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
 import { processActivity } from "./functions/process-activity/resource"
+import { reconcileSweep } from "./functions/reconcile-sweep/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { tokenRefresh } from "./functions/token-refresh/resource"
 import { storage } from "./storage/resource"
@@ -76,6 +80,10 @@ import { storage } from "./storage/resource"
  * Ticket 0091 adds the webhook Function URL, at the bottom of this file. It was
  * already one of the four, so the count stays FOUR — it was counted before it
  * existed, which is what the list is for.
+ *
+ * Ticket 0095 makes it FIVE: the reconcile sweep's NIGHTLY schedule, at the bottom of
+ * this file. `defineFunction`'s `schedule` targets every entry with the same empty
+ * input, so a second Amplify schedule could not tell the handler which window to use.
  */
 /**
  * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
@@ -104,6 +112,9 @@ export const backend = defineBackend({
   // Ticket 0091. The public webhook. Its Function URL, two grants and output are at the
   // bottom of this file — the third of the four escape-hatch uses.
   ingestWebhook,
+  // Ticket 0095. The listSince backstop. Six-hourly schedule Amplify-native; the nightly
+  // schedule, grants and alarm at the bottom of this file.
+  reconcileSweep,
 })
 
 /*
@@ -821,8 +832,8 @@ const exploredCellTable = new Table(ingestStack, "ExploredCellTable", {
  * for tidiness: a message here is an activity that failed to import, the map cannot
  * re-fog (D-020), and the raw bytes it points at may be the only surviving copy of a
  * run if the source has since deleted it. Two weeks is enough for a holiday. §4 names a
- * CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` here as "the only alarm
- * this app needs" — that alarm is 0044's, and this is the queue it watches.
+ * CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` here (one of two alarms
+ * since ticket 0095) — that alarm is 0044's, and this is the queue it watches.
  */
 const activityIngestDlq = new Queue(ingestStack, "ActivityIngestDLQ", {
   retentionPeriod: Duration.days(14),
@@ -1494,6 +1505,10 @@ activityIngestQueue.grantSendMessages(computeRole)
  * is here if and only if an activity failed three deliveries, and on a map that cannot
  * re-fog (D-020) that is ground permanently missing until someone acts. Do not add a
  * second alarm without deleting a sentence from §4 first.
+ *
+ * Ticket 0095 did exactly that: §4 now names two, and the second (the reconcile sweep's,
+ * at the bottom of this file) shares this topic. It is the same kind of signal — never
+ * noise on a healthy system — for a failure the DLQ cannot see.
  */
 const ingestAlarms = new Topic(ingestStack, "IngestAlarms", {
   displayName: "Lost Soles ingest",
@@ -2074,3 +2089,112 @@ new CfnOutput(backend.ingestWebhook.stack, "IngestWebhookUrl", {
   value: ingestWebhookUrl.url,
   description: "Function URL of the public ingest webhook (ticket 0091). Callback = this + api/webhooks/<source>.",
 })
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `reconcile-sweep` — THE listSince BACKSTOP  (ticket 0095, 03-integrations.md §2.3)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Strava drops a webhook after three failed deliveries, silently and for good. This is the
+ * manual Sync's code path (`lib/sources/sync.ts`) on two schedules, so a dropped event is
+ * recovered within six hours and nothing depends on the webhook arriving.
+ *
+ * THE REACH IS THE SYNC'S, on a function role instead of the SSR compute's:
+ *   - T7 `GetItem` (the status read, the watermark read, the credential load) and `UpdateItem`
+ *     (the watermark advance, and `accessTokenFor`'s lease, rotation and `markNeedsReauth`).
+ *     No `Scan`: the users are the owner allowlist, so every row is read by key. No `PutItem`,
+ *     no `DeleteItem`.
+ *   - The T7 CMK, both halves, for the same reason as the token sweep's: an inline refresh
+ *     writes a rotated token back.
+ *   - The two OAuth client parameters, named, for that inline refresh.
+ *   - The receipt table: `PutItem` (the accept gate) and `GetItem` (`needsEnqueue`'s check
+ *     for an accepted-but-never-delivered receipt). Nothing else on it.
+ *   - `sqs:SendMessage` on the ingest queue, as the webhook's grant: not
+ *     `grantSendMessages`, which adds two actions this function never calls.
+ * No `PutMetricData`: the metrics are Embedded Metric Format log lines.
+ */
+const reconcileLambda = backend.reconcileSweep.resources.lambda
+const reconcileStack = backend.reconcileSweep.stack
+
+sourceAccountTable.grant(reconcileLambda, "dynamodb:GetItem", "dynamodb:UpdateItem")
+sourceAccountKey.grantEncryptDecrypt(reconcileLambda)
+reconcileLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ReadSourceOAuthClientCredentials",
+    actions: ["ssm:GetParameter"],
+    resources: [
+      `arn:aws:ssm:${reconcileStack.region}:${reconcileStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_ID`,
+      `arn:aws:ssm:${reconcileStack.region}:${reconcileStack.account}:parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET`,
+    ],
+  }),
+)
+reconcileLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "AcceptGateReceipt",
+    actions: ["dynamodb:PutItem", "dynamodb:GetItem"],
+    resources: [ingestReceiptTable.tableArn],
+  }),
+)
+reconcileLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "SendToIngestQueue",
+    actions: ["sqs:SendMessage"],
+    resources: [activityIngestQueue.queueArn],
+  }),
+)
+backend.reconcileSweep.addEnvironment("INGEST_QUEUE_URL", activityIngestQueue.queueUrl)
+
+/**
+ * ESCAPE HATCH (5 of 5). THE NIGHTLY SCHEDULE, carrying `{ "mode": "nightly" }`: the 14-day
+ * window. 08:00 UTC (04:00 EDT, 03:00 EST), off the six-hourly grid. MUST MATCH
+ * `NIGHTLY_UTC_HOUR` in `lib/sources/reconcile-sweep.ts`; the synth test checks it. A literal
+ * here rather than an import, because this file imports no application code.
+ */
+new Schedule(reconcileLambda, "NightlySchedule", {
+  schedule: ScheduleExpression.cron({ minute: "0", hour: "8" }),
+  description: "Lost Soles reconcile sweep, nightly 14-day window (ticket 0095)",
+  target: new LambdaInvoke(reconcileLambda, {
+    input: ScheduleTargetInput.fromObject({ mode: "nightly" }),
+  }),
+})
+
+/**
+ * THE SECOND ALARM, and `01-architecture.md` §4 was amended first, as the DLQ alarm's comment
+ * requires. Ticket 0095: *"Silent recovery is good; invisible recovery means a broken webhook
+ * can go unnoticed for months."* The DLQ alarm cannot see this failure, because an activity
+ * the sweep recovers imports successfully, so it needs its own signal.
+ *
+ * WHAT IT COUNTS: `SweepEnqueued`, activities the sweep found with no receipt. On a healthy
+ * system the webhook put one down first, so the daily sum is 0.
+ *
+ * TWO DAYS OUT OF THREE, not one day. "More than occasionally" (the ticket): Strava dropping
+ * one event is the thing the sweep exists to absorb, and an email for each would be the noise
+ * §8.6 warns against. But a threshold on the count WITHIN one day cannot work either: at three
+ * to five runs a week most days hold one run at most, so "more than one in a day" would never
+ * fire on a webhook that is completely dead. Two recovering days in any three is what a broken
+ * webhook looks like at this running cadence, and a single drop never is.
+ *
+ * The sweep emits the metric on every run, zeros included, so every daily datapoint exists.
+ * Missing data (no sweep ran at all) is not breaching: that failure is a Lambda error, not a
+ * dropped webhook. Namespace and name MUST MATCH `lib/sources/reconcile-sweep.ts`; the synth
+ * test checks them.
+ */
+const sweepRecovering = new Alarm(ingestStack, "ReconcileSweepRecovering", {
+  alarmName: "Lost Soles — the webhook is missing runs",
+  alarmDescription:
+    "The reconciliation sweep enqueued activities the webhook never delivered, on two of the " +
+    "last three days. They were imported, so nothing is lost, but the webhook is not working: " +
+    "check the Strava subscription and the ingest-webhook function's logs. Ticket 0095.",
+  metric: new Metric({
+    namespace: "LostSoles/Reconcile",
+    metricName: "SweepEnqueued",
+    statistic: "Sum",
+    period: Duration.days(1),
+  }),
+  threshold: 0,
+  comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+  evaluationPeriods: 3,
+  datapointsToAlarm: 2,
+  treatMissingData: TreatMissingData.NOT_BREACHING,
+})
+sweepRecovering.addAlarmAction(new SnsAction(ingestAlarms))

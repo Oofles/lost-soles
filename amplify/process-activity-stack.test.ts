@@ -366,15 +366,20 @@ describe("the customer-managed key on T7", () => {
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * `01-architecture.md` §4: *"A CloudWatch alarm on `ApproximateNumberOfMessagesVisible >
- * 0` on the DLQ is the only alarm this app needs."* Everything below is that sentence,
+ * 0` on the DLQ is the only alarm this app needs"* (one of two since ticket 0095). Everything below is that sentence,
  * asserted — and the last test in the block is the word "only", which is the half a
  * future edit is most likely to break without meaning to.
  */
 describe("the DLQ alarm", () => {
-  const alarms = () => Object.values(ingest.findResources("AWS::CloudWatch::Alarm"))
+  const alarms = () =>
+    Object.values(ingest.findResources("AWS::CloudWatch::Alarm")) as Array<{
+      Properties: Record<string, unknown>
+    }>
+  /** The DLQ's, told apart from 0095's reconcile alarm by its namespace. */
   const alarm = () => {
-    expect(alarms(), "exactly one alarm — §4 says one is all this app needs").toHaveLength(1)
-    return alarms()[0] as { Properties: Record<string, unknown> }
+    const dlq = alarms().filter((a) => a.Properties.Namespace === "AWS/SQS")
+    expect(dlq, "exactly one DLQ alarm").toHaveLength(1)
+    return dlq[0]
   }
 
   it("watches the queue depth of the DLQ", () => {
@@ -442,13 +447,14 @@ describe("the DLQ alarm", () => {
    * sender — at which point the DLQ alarm stops being read too. A second alarm here means
    * deleting a sentence from §4 first.
    *
-   * 0093 DID: §4 now names the one other alarm, the webhook flood alarm (`08` §4.4 item 6),
-   * which fires only when one athlete's events exceed 50 an hour — a loop, never a blip. It
-   * lives in the functions' stack beside the webhook's log group, and it is pinned here as the
-   * ONLY alarm there, so a third still means amending §4 first.
+   * 0093 and 0095 DID: §4 now names three. The DLQ's and the reconcile sweep's (0095,
+   * `reconcile-sweep-stack.test.ts` asserts it) live in the ingest stack; the webhook flood alarm
+   * (0093, `08` §4.4 item 6) lives in the functions' stack beside the webhook's log group, and is
+   * pinned here as the ONLY alarm there. A fourth still means amending §4 first.
    */
-  it("is the only ingest alarm; the webhook flood alarm is the only other", () => {
-    expect(alarms()).toHaveLength(1)
+  it("is one of exactly three alarms: with the reconcile sweep's here, and the webhook flood alarm", () => {
+    expect(alarms()).toHaveLength(2)
+    expect(alarms().map((a) => a.Properties.Namespace).sort()).toEqual(["AWS/SQS", "LostSoles/Reconcile"])
     const workerAlarms = Object.values(workerStack.findResources("AWS::CloudWatch::Alarm")).map(
       (a) => (a as { Properties: Record<string, unknown> }).Properties,
     )

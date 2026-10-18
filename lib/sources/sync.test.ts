@@ -257,6 +257,24 @@ describe("partial failure — the case the watermark exists for", () => {
   })
 
   /**
+   * TICKET 0095's STRICTER RULE, opt-in. The scheduled sweep holds the watermark when the
+   * listing dies; a Sync press (above) does not. A failed ENQUEUE is not a dead listing, so it
+   * still pins the watermark below itself and the advance happens.
+   */
+  it("holds the watermark on a dead listing when the sweep window asks it to", async () => {
+    const { deps, advanced } = rig({ sourceDiesAfter: 2 })
+    const outcome = await syncSource(USER, SOURCE, { ...deps, window: { holdWatermarkOnListFailure: true } })
+    expect(advanced()).toBeUndefined()
+    expect(outcome).toMatchObject({ kind: "failed", queued: 2, alreadyKnown: 0 })
+  })
+
+  it("still advances past a failed enqueue under the sweep's rule", async () => {
+    const { deps, advanced } = rig({ enqueueFails: ["k-2"] })
+    await syncSource(USER, SOURCE, { ...deps, window: { holdWatermarkOnListFailure: true } })
+    expect(advanced()).toBe("2026-09-01T08:00:00.000Z")
+  })
+
+  /**
    * A dead credential is a different answer, not a worse failure: no amount of retrying
    * fixes it and the only useful thing to say is "reconnect". The watermark is left alone
    * because nothing about the window has been established.
