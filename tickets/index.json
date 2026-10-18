@@ -6638,6 +6638,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-18T13:09:34Z",
+    "started": "2026-10-18T23:16:23Z",
     "path": "tickets/open/0288-a-forged-delete-can-pre-empt-a-genuine-one-for-90-days.md",
     "ready": true,
     "acceptance": {
