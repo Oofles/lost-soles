@@ -78,7 +78,7 @@ watermark where it was — re-scanning a window is free; skipping one loses a ru
 - [x] A CloudWatch alarm fires when enqueued-by-sweep exceeds a small threshold in a day.
       *(Amended shape: the daily sum `> 0` on **2 of the last 3 days**. A threshold above 1 within one
       day could never fire at 3–5 runs a week. A threshold of 0 on one day would email on every single
-      drop Strava makes, and absorbing those is what the sweep is for. See Resolution, D-NEW-b.)*
+      drop Strava makes, and absorbing those is what the sweep is for. See Resolution, D-351.)*
 - [ ] **The drop-recovery drill passes:** disable the webhook for 24 hours, complete activities in
       that window, re-enable, and run the sweep — every missed activity is recovered with correct XP
       and correct territory, and nothing is double-counted.

@@ -270,7 +270,7 @@ async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void
   const message: unknown = JSON.parse(record.body)
 
   /**
-   * THE ONE OTHER MESSAGE SHAPE (ticket 0093, D-NEW): a provider's deauthorization, sent by the
+   * THE ONE OTHER MESSAGE SHAPE (ticket 0093, D-348): a provider's deauthorization, sent by the
    * webhook because only this function holds the `SourceAccount` grant to act on it. Told apart
    * by `command` before anything reads the body as a job, and confirmed with the provider
    * before it is believed (`lib/sources/deauthorization.ts`). A thrown error redelivers, like a

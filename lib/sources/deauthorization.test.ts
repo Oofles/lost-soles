@@ -4,7 +4,7 @@ import { SourceNeedsReauthError, SourceNotConnectedError } from "@/src/adapters/
 import { disconnectMessage } from "@/src/pipeline/disconnect-message"
 
 /**
- * Ticket 0093, D-NEW (operator Q1 = A′) — a deauthorization is confirmed with the provider before
+ * Ticket 0093, D-348 (operator Q1 = A′) — a deauthorization is confirmed with the provider before
  * it is believed. The forced refresh's own mechanics (lease, conditional rotation, `credentialIsDead`
  * → `NEEDS_REAUTH`) are `token-refresh.test.ts`; this file is the decision taken on its answer.
  */

@@ -390,7 +390,7 @@ make a forged event **worthless rather than blocked**:
 event is dropped before it costs a queue message. A **deauthorization** is the one event that
 could do harm if believed — it deletes our tokens — so the worker confirms it with Strava first:
 a forced token refresh through the refresh lease; only a provider rejection (`credentialIsDead`)
-disconnects, and a refresh that succeeds marks the event forged and drops it. D-NEW, ticket
+disconnects, and a refresh that succeeds marks the event forged and drops it. D-348, ticket
 `0093`.)*
 
 **The rule that guarantees it: the webhook body is never trusted as data.** No coordinate, no

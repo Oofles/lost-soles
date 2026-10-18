@@ -5224,3 +5224,82 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   D-083's budget) before measuring this. `0091`'s 500 ms criterion is restated against the handler's
   own duration, because a client-measured cold call cannot go below the sandbox-plus-init floor
   (~0.7 s) at this size.
+- **D-347** **The `hub.challenge` handshake lives in the Strava adapter; the verify token is
+  Amplify's `secret()`; `create` checks the deployed callback before asking Strava.** *(Agent,
+  2026-10-17, ticket `0092`. Applies D-345.)* `acceptStravaEvent` sends any GET to
+  `acceptHandshake`, so the webhook handler stays vendor-blind. Every GET that is not
+  `hub.mode=subscribe` with a matching token and a challenge of `^[A-Za-z0-9]{1,256}$` gets the same
+  bare 400; the token compare hashes both sides with sha256 and uses `timingSafeEqual`, so length
+  never leaks; the body `{"hub.challenge":"…"}` is built by hand, never by a serializer; a missing
+  secret fails closed. `secret()` costs `ssm:GetParameters` on every cold start, POSTs included (two
+  round trips: branch path misses, shared path hits), which touches D-346's measured cold path; the
+  fallback if it matters is a lazy SSM read on GET only. `scripts/strava-subscription.mjs create`
+  sends its own handshake to the deployed URL first and refuses unless the exact bytes come back,
+  refuses if a subscription exists, and makes the operator type `create` after the permanence
+  warning. Rotate the token before creating, never after. The returned id is committed into
+  `src/adapters/strava/subscription.ts` (operator, 2026-10-17).
+- **D-348** **A deauthorization is confirmed with the provider before it is believed.**
+  *(Operator, 2026-10-17, ticket `0093`, Q1 = A′.)* Strava signs nothing, and a forged
+  `authorized:"false"` is the one event that would do harm if trusted: it deletes our tokens. The
+  webhook, which has no grant on `LostSolesSourceAccount`, forwards a `DisconnectMessage`
+  (`{command:"disconnect", source, userId, enqueuedAt}`) on the existing ingest queue;
+  `process-activity` recognises it by `command` before reading an IngestJob, so D-343's key set is
+  unchanged. The worker forces a refresh through `accessTokenFor` (lease plus conditional rotation).
+  Only a provider rejection (`credentialIsDead`) calls `markDisconnected`; a refresh that succeeds
+  means the event was forged or stale, the rotated tokens are kept, and the outcome is logged
+  `forged-or-stale`. §4.1's "a forged event is worthless" holds even for this event. Rejected:
+  trusting the event (a nuisance DoS that forces a reconnect), and a marker row read by the next
+  sweep (up to 6 h late, and still forgeable).
+- **D-349** **The webhook's cost-DoS filters, as built.** *(Agent and operator, 2026-10-17,
+  ticket `0093`.)* The flood counter is keyed by user, not `owner_id` (the owner map is one-to-one,
+  and it keeps athlete ids and vendor names out of table keys): `rate#<source>#<userId>#<UTC hour>`
+  in `LostSolesIngestReceipt`, 2 h TTL, 50 events and 4 deauthorizations an hour. Its `UpdateItem`
+  grant is held to `rate#*` by `dynamodb:LeadingKeys`, so the public endpoint still cannot modify a
+  receipt; the sweep never passes through it. Every rejected POST, oversize included, gets a 200 with
+  no body. The field check is strict: if Strava adds a field, every event drops as `unknown-fields`,
+  loudly, and the sweep loses nothing. Receipts keep T8's **90-day** TTL (operator, Q2 = a); the
+  "~30 days" in `08` §4.3 and the ticket was the error and is corrected.
+- **D-350** **The reconciliation sweep reuses `syncSource` through an opt-in window.** *(Agent,
+  2026-10-17, ticket `0095`.)* `SyncDeps.window` takes `minLookbackSeconds` and
+  `holdWatermarkOnListFailure`; the manual Sync and the backfill pass none and are unchanged. Only
+  the scheduled sweep holds the watermark when a listing dies partway; a failed enqueue still holds
+  it below that activity, as before. The six-hourly window is the stored watermark as-is, because
+  `nextListSinceWatermark` already subtracts 48 h on write; the nightly window is
+  `min(watermark, now − 14d)` and advances by the normal rule, so it never drags the watermark back.
+  The six-hourly schedule is Amplify-native; the nightly one is a CDK `Schedule` carrying
+  `{mode:"nightly"}` at 08:00 UTC (escape hatch five), because Amplify schedules all invoke with the
+  same empty input. Metrics are embedded-metric-format log lines (`SweepSeen`, `SweepEnqueued`,
+  `SweepAlreadyPresent`), zeros included, so no `PutMetricData` grant. Trace corrections are still
+  not caught: the receipt gate counts any receipted activity as present.
+- **D-351** **"The webhook is missing runs" alarms when the sweep enqueues anything on 2 of the
+  last 3 days.** *(Operator, 2026-10-17, ticket `0095`.)* At 3–5 runs a week, a dead webhook loses
+  about one run per run-day, so "more than N a day" with N ≥ 1 never fires, and a single-day `> 0`
+  emails on every event Strava drops, which is what the sweep exists to absorb. Sum of
+  `LostSoles/Reconcile` `SweepEnqueued` over 1-day periods, `> 0` on 2 of 3, missing data not
+  breaching, to `IngestAlarms`. `01` §4 now names three alarms (DLQ, this, and D-349's flood alarm).
+- **D-352** **The backfill reveal plays on the next map visit, and the server marks it.**
+  *(Operator, 2026-10-17, ticket `0257`. Settles `06` §3.4 against `0177`'s paced import.)* The
+  backfill CLI writes one server-side batch record when it completes (window, before totals, after
+  totals). On the next map visit, on any device, the 4 s aggregate reveal plays once. Backfilled
+  activities count as not-new on every device: no individual new-run lines, and their Chronicle rows
+  already `seen`. The per-device `seen` store still records that the reveal has played on that
+  device. The CLI writes the record before the XP replay and prints the command to refresh it after;
+  the minutes-long gap was accepted rather than adding a mandatory post-replay step (operator).
+- **D-353** **The backfill batch record is an S3 object, `users/<uid>/backfill/batch.json`, derived
+  and rewritable.** *(Agent, 2026-10-17, ticket `0257`.)* The SSR role already reads `users/*`, so
+  no resource, grant or schema change. One record per account; only tools write it; `batchId` is the
+  window's start, so a refresh never replays the reveal on a device that has played it. The batch is
+  the ACTIVE rows whose `ingestedAt` falls in the window and whose `startedAt` predates the account's
+  oldest earlier activity, so a run synced during the import stays an ordinary new run. "Before" XP
+  is the newest SkillState snapshot before the window (D-143) — what the user was actually shown —
+  and "before" map is the newest explored blob published before it; "after" is the account now. The
+  browser gets the record without activity ids, on `/api/runs/latest`, and membership as
+  `backfilled: true` on the run and on Chronicle rows.
+- **D-354** **How the aggregate reveal plays.** *(Agent, 2026-10-17, ticket `0257`.)* The `seen`
+  key is `backfill:<batchId>`; no client write reaches the server. Until home knows whether a reveal
+  is due, the fog holds its last frame (extends D-333). The batch's cells (`after` blob − `before`
+  blob) are held back and burn outward from the map centre by rank of distance; the plinth is veiled
+  while the reveal is ready or playing. Burn 0–4.0 s, ledger at 4.0 s, one Total Level card
+  5.0–6.4 s, home at 8.4 s; reduced motion is a 400 ms cross-fade on the same phase boundaries; lost
+  WebGL aborts to home; with no WebGL2 the numbers still play; zero prior territory still gets a fog
+  layer (extends D-319).

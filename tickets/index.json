@@ -2258,7 +2258,7 @@
     "path": "tickets/open/0092-hub-challenge-handshake-and-subscription-management.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 9
     }
   },
@@ -2281,7 +2281,7 @@
     "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 12,
       "total": 15
     }
   },
@@ -2330,7 +2330,7 @@
     "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 10
     }
   },
@@ -5961,7 +5961,7 @@
     "path": "tickets/open/0257-backfill-aggregate-reveal.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },

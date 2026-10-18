@@ -233,7 +233,7 @@ function logFlood(source: string, count: number): void {
 }
 
 /**
- * A DEAUTHORIZATION (0093, D-NEW): this function cannot touch `SourceAccount`, so it forwards the
+ * A DEAUTHORIZATION (0093, D-348): this function cannot touch `SourceAccount`, so it forwards the
  * claim to the worker as a `DisconnectMessage`, which confirms it with the provider before acting.
  * No receipt — a disconnect has no activity — but two counters: the athlete's general budget, and
  * a far tighter deauth budget, because each one costs the worker a provider call.

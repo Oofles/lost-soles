@@ -1,7 +1,7 @@
 import type { SourceId } from "@/src/domain/activity"
 
 /**
- * THE SECOND MESSAGE SHAPE ON THE INGEST QUEUE. Ticket 0093, D-NEW (Q1 = A′).
+ * THE SECOND MESSAGE SHAPE ON THE INGEST QUEUE. Ticket 0093, D-348 (Q1 = A′).
  *
  * A source's deauthorization (`03-integrations.md` §2.3: the athlete revoked us at the provider)
  * arrives at the public webhook, which holds no grant on `LostSolesSourceAccount` (§4.5) and so

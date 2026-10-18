@@ -6,7 +6,7 @@ import { getOAuthConnector } from "@/src/adapters/registry"
 import type { DisconnectMessage } from "@/src/pipeline/disconnect-message"
 
 /**
- * A DEAUTHORIZATION, CONFIRMED BEFORE IT IS BELIEVED. Ticket 0093, D-NEW (operator Q1 = A′).
+ * A DEAUTHORIZATION, CONFIRMED BEFORE IT IS BELIEVED. Ticket 0093, D-348 (operator Q1 = A′).
  *
  * The webhook turns a provider's "this athlete revoked you" event into a `DisconnectMessage`
  * (`src/pipeline/disconnect-message.ts`). The event is unsigned (`08-security-privacy.md` §4.1),

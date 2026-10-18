@@ -37,8 +37,8 @@ cross-fade instead of the 4 s burn), WebGL-loss fallback to the end state, and t
 ## Acceptance criteria
 
 - [x] When the aggregate reveal plays is decided with the operator and recorded as a `D-xxx`.
-      *(Decided by the operator 2026-10-17: on the next map visit, server-marked. Proposed as
-      D-NEW-a in this ticket's report; the orchestrator allocates the number, agents may not.)*
+      *(Decided by the operator 2026-10-17: on the next map visit, server-marked. Recorded as
+      D-352.)*
 - [x] A backfill import of ≥50 activities produces exactly **one** sequence, a 4 s aggregate reveal,
       a lifetime-totals ledger, and one Total Level card — not one sequence per activity.
 - [x] After backfill, every backfilled activity is `seen` on this device and the plinth shows no
@@ -78,7 +78,7 @@ a queue. Then reload and confirm nothing was double-scored.
 
 ## Resolution
 
-**The trigger (operator, 2026-10-17, proposed as D-NEW-a).** The reveal plays on the next map
+**The trigger (operator, 2026-10-17, D-352).** The reveal plays on the next map
 visit, and the server marks it. When an import completes, one server-side **backfill batch
 record** is written. It holds the window, the imported activity ids, and the standing before and
 after. The next visit to `/`, on any device, plays one aggregate reveal, once per device. Every
