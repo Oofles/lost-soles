@@ -61,6 +61,13 @@ D-349's delete budget.
 None expected. Smoke test: a forged delete of a live activity, then a synthetic delete of a
 non-existent id under the same key path, against the deployed URL.
 
+**Result, 2026-10-18 23:36Z (orchestrator, deployed stack, Amplify job 413; smoke test against the webhook Function URL).**
+- **Forged delete of live activity `15668986664`.** The webhook answered `200`, `retract-queued`. The worker logged `forged-or-stale`, and receipt `sha256("strava:51449053:15668986664:delete")` read `status: RECLAIMABLE`.
+- **The same key again.** `200`, `retract-queued` again, not `duplicate`, so the key re-opened. The worker logged `forged-or-stale` and the receipt went back to `RECLAIMABLE`.
+- **Delete of id `1`, twice.** Both answered `200`, `duplicate`. That receipt was already `DONE` from `0282`'s smoke test, so this shows a `DONE` key stays closed and is never re-claimed. It did not re-exercise the `gone` → `DONE` transition, which `0282`'s smoke test and `retract.test.ts` cover. A fresh id would have exceeded D-349's 4-deletes-an-hour budget.
+- DLQ depth stayed at 0.
+- **Perceptual:** none.
+
 ## Resolution
 
 **Operator Q1 (2026-10-18), relayed by the orchestrator:** free the delete key in the worker after

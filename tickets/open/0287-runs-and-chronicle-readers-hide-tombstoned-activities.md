@@ -47,6 +47,11 @@ and D-355. A tombstone is sticky: persist never writes `ACTIVE` back over it.
 None expected beyond a smoke test: tombstone a synthetic activity in a throwaway user's T3 row,
 or through `retractActivity` in a test, and read each endpoint.
 
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify job 413; smoke test).**
+- `chroniclePage` ran from the merged code against the real Activity table (`Activity-nog4xy2l7baqlhghpndh2565qe-NONE`). The data was two throwaway rows under user `smoke-0287-throwaway`: one `ACTIVE`, and one `TOMBSTONED` with a later `startedAt`. It returned only `smoke-0287-active`, so the newer tombstoned row was dropped at the head of the page. Both rows were then deleted. They were synthetic, under a user that does not exist, so D-020 is not involved.
+- `latestRun`, the trace-web decision (D-358) and "cells, ledger and Total Level unchanged" are proven by `lib/runs/tombstone.test.ts`, which tombstones through the real `retractActivity`. No tombstoned row exists in production yet, so there is nothing more to read live.
+- **Perceptual:** none.
+
 ## Resolution
 
 A tombstoned activity (D-355) now leaves the two list readers. Nothing else changes for it.
