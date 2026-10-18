@@ -2330,7 +2330,7 @@
     "path": "tickets/open/0095-nightly-reconcile-listsince-backstop.md",
     "ready": true,
     "acceptance": {
-      "checked": 8,
+      "checked": 10,
       "total": 10
     }
   },

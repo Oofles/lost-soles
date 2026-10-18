@@ -76,6 +76,19 @@ In the desktop browser, after a backfill (a synthetic one against throwaway data
 real first connect just to test this): one four-second reveal of the whole history and one card, not
 a queue. Then reload and confirm nothing was double-scored.
 
+**Result, 2026-10-18.**
+- **Record written (orchestrator, deployed stack, job 410).** `tools/backfill/batch-record.ts`
+  dry run, then `--confirm`, for the real 2026-10-16 import, window 15:10:03.786Z → 15:31:00Z:
+  - 97 activities, started 2020-02-24 → 2026-08-05.
+  - Before: gen 135 · 1352 cells · 19 activities · Total Level 59 · 23423 XP.
+  - After: gen 267 · 5211 cells · 116 activities · Total Level 100 · 70994 XP.
+  - 3859 cells burn back.
+  - The object is at `users/<sub>/backfill/batch.json`.
+- **Operator, desktop browser, `/`:** "It lands."
+  - The 4 s burn reads as the whole history arriving.
+  - The ledger reads right, and so does the single Total Level 100 card.
+  - On reload it does not replay, and no imported run shows as new.
+
 ## Resolution
 
 **The trigger (operator, 2026-10-17, D-352).** The reveal plays on the next map

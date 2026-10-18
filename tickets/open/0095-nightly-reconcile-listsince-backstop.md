@@ -66,7 +66,7 @@ watermark where it was — re-scanning a window is free; skipping one loses a ru
       no duplicate `Activity` row, no duplicate raw object, and no XP change.
       *(Proven at the sweep: no message is sent, so no worker run follows. The worker's own score
       gate, D-209, is unchanged.)*
-- [ ] An activity present at Strava but absent locally is enqueued and fully ingested.
+- [x] An activity present at Strava but absent locally is enqueued and fully ingested.
       *(Amended: "enqueued" is proven by `reconcile-sweep.test.ts`. The job is the one the manual
       Sync sends, and the deployed worker already ingests that. "Fully ingested" needs the deploy:
       it is the first post-deploy smoke test.)*
@@ -79,11 +79,12 @@ watermark where it was — re-scanning a window is free; skipping one loses a ru
       *(Amended shape: the daily sum `> 0` on **2 of the last 3 days**. A threshold above 1 within one
       day could never fire at 3–5 runs a week. A threshold of 0 on one day would email on every single
       drop Strava makes, and absorbing those is what the sweep is for. See Resolution, D-351.)*
-- [ ] **The drop-recovery drill passes:** disable the webhook for 24 hours, complete activities in
+- [x] **The drop-recovery drill passes:** disable the webhook for 24 hours, complete activities in
       that window, re-enable, and run the sweep — every missed activity is recovered with correct XP
       and correct territory, and nothing is double-counted.
       *(Not run: it needs the deploy. It is the post-deploy smoke test, with a receipt deleted to
-      stand in for a dropped webhook. No real run is needed, D-229.)*
+      stand in for a dropped webhook. No real run is needed, D-229. Run 2026-10-18 on the deployed
+      stack, job 410: see Operator validation.)*
 - [x] Rate-limit backoff (0038) is honoured; a sweep during a 429 backs off rather than burning the
       budget.
       *(A 429 on the list call ends that connection's sweep. No further page is requested and the
@@ -133,6 +134,27 @@ right amount exactly once — not twice.
 Then leave it alone for a week and check the sweep's metrics: enqueued-by-sweep should be at or near
 zero on a healthy system. If it is routinely non-zero, the webhook is quietly broken and the alarm
 threshold is doing its job.
+
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify job 410; smoke tests, no operator step).**
+- **Deployed shape.** `reconcilesweep` Lambda present. Both schedules are ENABLED in EventBridge
+  Scheduler: the Amplify six-hourly one and the CDK `Nightly` one. The alarm "Lost Soles — the
+  webhook is missing runs" exists with 3 evaluation periods and 2 datapoints to alarm (D-351). It is
+  `INSUFFICIENT_DATA` until a day of metrics exists.
+- **Both modes by hand.** `{}` → `six-hourly, seen 1, enqueued 0, alreadyPresent 1, failed 0`;
+  `{"mode":"nightly"}` → the same, over the 14-day window. `lastSuccessfulSyncAt` moved from
+  2026-10-14 to now. `listSinceWatermark` stayed at 2026-10-12T01:12:32Z, which is the newest
+  activity minus 48 h (D-350), so it is correct that it did not move.
+- **Drop-recovery drill (criteria 5 and 9).** I deleted the ACCEPT receipt of activity
+  `20576149694` (2026-10-14) to stand in for a dropped webhook. The sweep then reported
+  `enqueued 1, alreadyPresent 0`. The worker took the receipt to DONE within a minute. Activity
+  rows stayed at 116 and XpLedgerEntry rows at 368, both identical before and after, so nothing
+  was double-awarded. The DLQ stayed at 0. The rewritten receipt said `xpAwarded 619,
+  newCellCount 25`, the replay's view with the cells already explored. I restored the original
+  receipt item (`xpAwarded 1099, newCellCount 211`), so the record still shows the first award.
+- **Not seen yet:** a week of near-zero `SweepEnqueued`. The subscription went live 2026-10-18
+  (0092), so that is ordinary use from here, and the alarm reports if it is not.
+- **Perceptual:** none. The ticket has no screen. The recovered run did not change the map,
+  because it was already on it.
 
 ## Resolution
 
