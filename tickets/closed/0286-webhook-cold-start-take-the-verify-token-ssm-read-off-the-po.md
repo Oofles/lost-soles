@@ -4,7 +4,7 @@ slug: webhook-cold-start-take-the-verify-token-ssm-read-off-the-po
 title: Webhook cold start: take the verify-token SSM read off the POST path
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-18T02:50:37Z
 started: 2026-10-18T12:44:03Z
+closed: 2026-10-18T13:27:14Z
 ---
 
 ## Description

@@ -6588,7 +6588,7 @@
     "title": "Webhook cold start: take the verify-token SSM read off the POST path",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [],
@@ -6596,8 +6596,9 @@
     "source": "agent",
     "created": "2026-10-18T02:50:37Z",
     "started": "2026-10-18T12:44:03Z",
-    "path": "tickets/open/0286-webhook-cold-start-take-the-verify-token-ssm-read-off-the-po.md",
-    "ready": true,
+    "closed": "2026-10-18T13:27:14Z",
+    "path": "tickets/closed/0286-webhook-cold-start-take-the-verify-token-ssm-read-off-the-po.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
