@@ -24,6 +24,12 @@ vi.mock("@/lib/runs/server", () => ({
   EMPTY_COLLECTION: { type: "FeatureCollection", features: [] },
 }))
 
+/** `0257`. The batch record, read beside the run. `null` (no import) unless a test says otherwise. */
+const batchOrNull = vi.fn()
+vi.mock("@/lib/backfill/store", () => ({
+  backfillBatchOrNull: (...args: unknown[]) => batchOrNull(...args),
+}))
+
 const { GET } = await import("./route")
 
 const COLLECTION = {
@@ -41,7 +47,11 @@ describe("GET /api/runs/latest", () => {
   // The mock is module-scoped, so a stale call from the previous test would satisfy an
   // assertion about this one — which is exactly how a route that stopped reading anything
   // would keep passing.
-  beforeEach(() => latestRun.mockReset())
+  beforeEach(() => {
+    latestRun.mockReset()
+    batchOrNull.mockReset()
+    batchOrNull.mockResolvedValue(null)
+  })
 
   it("serves the caller's latest run as GeoJSON", async () => {
     signedInAs = "u-1"
@@ -49,7 +59,32 @@ describe("GET /api/runs/latest", () => {
 
     const response = await GET()
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual(COLLECTION)
+    expect(await response.json()).toEqual({ ...COLLECTION, backfill: null })
+  })
+
+  /**
+   * `0257`. A historical import rides on this answer: its mark (never its ids — the browser does not
+   * need the list), and `backfilled` on the latest run when the import brought it in.
+   */
+  it("carries the backfill mark, and marks a run the import brought in", async () => {
+    signedInAs = "u-1"
+    latestRun.mockResolvedValueOnce(COLLECTION)
+    const standing = { generation: 1, cells: 0, activities: 0, skills: [], totalLevel: 0, totalXp: 0 }
+    batchOrNull.mockResolvedValueOnce({
+      version: 1,
+      batchId: "2026-10-16T15:10:03.786Z",
+      window: { from: "2026-10-16T15:10:03.786Z", to: "2026-10-16T15:31:00.000Z" },
+      writtenAt: "2026-10-17T00:00:00.000Z",
+      imported: { count: 1, firstStartedAt: "2026-09-09T11:00:00.000Z", lastStartedAt: "2026-09-09T11:00:00.000Z" },
+      activityIds: ["a-9"],
+      before: standing,
+      after: { ...standing, generation: 2 },
+    })
+    const body = await (await GET()).json()
+    expect(batchOrNull.mock.calls.at(-1)![0]).toBe("u-1")
+    expect(body.backfill.batchId).toBe("2026-10-16T15:10:03.786Z")
+    expect(body.backfill.activityIds).toBeUndefined()
+    expect(body.features[0].properties.backfilled).toBe(true)
   })
 
   /**
@@ -96,7 +131,7 @@ describe("GET /api/runs/latest", () => {
     latestRun.mockResolvedValueOnce({ type: "FeatureCollection", features: [] })
     const response = await GET()
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ type: "FeatureCollection", features: [] })
+    expect(await response.json()).toEqual({ type: "FeatureCollection", features: [], backfill: null })
   })
 
   /** The absence of the other verbs IS the control — a GET-only route file 405s by construction. */

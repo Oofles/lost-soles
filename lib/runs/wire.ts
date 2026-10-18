@@ -23,6 +23,7 @@
  */
 import type { RouteTraceGeometry } from "@/src/pipeline/route-trace-store"
 import type { RunClasses } from "@/src/domain/discovery"
+import type { BackfillMark } from "@/lib/backfill/batch"
 
 export type { RouteTraceGeometry }
 
@@ -49,12 +50,23 @@ export interface RunFeature {
      * run"). `null` for a run never classified: hide nothing.
      */
     newCells?: string[] | null
+    /**
+     * `0257`. The run came in with a historical import (`lib/backfill/batch.ts`): it is never "new",
+     * on any device — the import's one aggregate reveal stands for it. Absent otherwise.
+     */
+    backfilled?: true
   }
 }
 
 export interface RunFeatureCollection {
   type: "FeatureCollection"
   features: RunFeature[]
+  /**
+   * `0257`. The account's historical-import record, without its ids (`markOf`): what the next map
+   * visit's aggregate reveal plays from. `null`: the account has none. ABSENT (`undefined`): the
+   * answer predates `0257` — a cached body, say — and says nothing either way.
+   */
+  backfill?: BackfillMark | null
 }
 
 /**
@@ -138,6 +150,8 @@ export interface RunListItem {
   traced: boolean
   /** A logged session's sets (`WorkoutSet`, D-062), narrowed to what the row's summary reads. */
   sets: readonly ChronicleSet[]
+  /** `0257`. Came in with a historical import, so never the gold row (`chronicleWithBackfill`). */
+  backfilled?: true
 }
 
 export interface ChronicleSet {

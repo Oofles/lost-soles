@@ -89,6 +89,8 @@ describe("seen never reaches scoring", () => {
     // display state in both.
     expect(importers).toEqual([
       "app/run/[activityId]/run-moment.tsx",
+      // `0257`: the aggregate reveal of a historical import writes and reads it under `revealSeenKey`.
+      "components/backfill/use-backfill-reveal.ts",
       "components/chronicle/chronicle-panel.tsx",
       "components/plinth/home-screen.tsx",
     ])

@@ -155,13 +155,26 @@ const label: CSSProperties = {
 export function Plinth({
   model,
   onReconnect,
+  veiled = false,
 }: {
   model: PlinthModel
   /** `0087`. A Sync press that found a broken token; `HomeScreen` turns it into `model.reconnect`. */
   onReconnect?: (sourceIds: string[]) => void
+  /**
+   * `0257`. Held back while the aggregate reveal plays: the map first, then the numbers (§3.2), and
+   * the plinth would otherwise show the new Total Level before its card. `visibility`, so the rail
+   * keeps its size and the map pane does not move under the burn.
+   */
+  veiled?: boolean
 }) {
   return (
-    <aside className="plinth" aria-label="Plinth" data-plinth="">
+    <aside
+      className="plinth"
+      aria-label="Plinth"
+      data-plinth=""
+      aria-hidden={veiled || undefined}
+      style={veiled ? { visibility: "hidden" } : undefined}
+    >
       {/* Row 4 — the two glance numbers, on one baseline. Not links. */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <p style={{ margin: 0, display: "flex", alignItems: "baseline", gap: 12 }} data-total-level="">

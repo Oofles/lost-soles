@@ -4,14 +4,17 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 
+import { BackfillRevealSequence } from "@/components/backfill/backfill-reveal"
+import { useBackfillReveal } from "@/components/backfill/use-backfill-reveal"
 import { useExplored } from "@/components/map/explored-provider"
-import { MapShell } from "@/components/map/map-shell"
+import { MapShell, type MapStage } from "@/components/map/map-shell"
 import type { LatestAnswer } from "@/components/map/use-latest-run"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { logStore } from "@/lib/log/queue"
 import { currentUid, fetchSkills } from "@/lib/log/transport"
 import type { Camera } from "@/lib/map-camera"
 import type { SourceConnection } from "@/lib/plinth/connections"
+import { latestSeen, mergeHolds } from "@/lib/backfill/plan"
 import { loadStanding } from "@/lib/plinth/load"
 import { plinthModel } from "@/lib/plinth/model"
 import { answersFor, firstPulse, homeHold } from "@/lib/plinth/states"
@@ -87,7 +90,8 @@ export function HomeScreen({
       live = false
     }
   }, [latestId])
-  const seen = latestId === null ? true : seenOf?.id === latestId ? seenOf.seen : null
+  // `0257`: a run that came in with a historical import is seen on every device (`latestSeen`).
+  const seen = latestSeen(latest, latestId === null ? true : seenOf?.id === latestId ? seenOf.seen : null)
 
   /** `0087`. Decided once per run, so no later render can restart the pulse (`firstPulse`). */
   const pulse = useMemo(() => (latestId && seen === false ? firstPulse(latestId) : false), [latestId, seen])
@@ -101,7 +105,16 @@ export function HomeScreen({
    * an old answer's hold.
    */
   const answered = answersFor(answer, explored)
-  const held = useMemo(() => homeHold(latest, seen, answered), [latest, seen, answered])
+  const runHold = useMemo(() => homeHold(latest, seen, answered), [latest, seen, answered])
+
+  /**
+   * `0257`. THE AGGREGATE REVEAL of a historical import, on the first map visit after it, once per
+   * device. Its ground is held back with the unseen run's until it plays (`mergeHolds`), and while
+   * home cannot yet say whether one is due, the fog waits (D-333).
+   */
+  const [stage, setStage] = useState<MapStage>(null)
+  const backfill = useBackfillReveal({ latest, answer, stage, enabled: !chronicleOpen })
+  const held = useMemo(() => mergeHolds(runHold, backfill.hold), [runHold, backfill.hold])
 
   useEffect(
     () =>
@@ -129,12 +142,28 @@ export function HomeScreen({
   return (
     <>
       <style>{PLINTH_CSS}</style>
-      {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} />}
+      {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} veiled={Array.isArray(backfill.hold)} />}
       {children}
       <Link href="/settings" className="home-gear" aria-label="Settings">
         <span aria-hidden="true">⚙</span>
       </Link>
-      <MapShell home={home} paneClassName="home-pane" onLatestRun={onLatestRun} held={held} />
+      <MapShell
+        home={home}
+        paneClassName="home-pane"
+        onLatestRun={onLatestRun}
+        held={held}
+        reveal={backfill.reveal}
+        onStage={setStage}
+      />
+      {backfill.playing ? (
+        <BackfillRevealSequence
+          key={backfill.playing.batchId}
+          mark={backfill.playing}
+          stage={stage}
+          cells={backfill.reveal?.length ?? 0}
+          onDone={backfill.finish}
+        />
+      ) : null}
     </>
   )
 }

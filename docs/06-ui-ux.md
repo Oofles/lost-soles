@@ -630,6 +630,11 @@ The end state is the *canonical* view of a run. The sequence is a decorated way 
   over 4 s, with a ledger showing lifetime totals and starting levels, and a single card:
   `Total Level 214`. Individual runs are then just rows in the Chronicle, unseen-flagged off.
   *(D-298: built in `0257`, capability 14, with the paced historical import `0177`.)*
+  *(`0257`, operator 2026-10-17: the import is paced over minutes to hours, so it plays on the
+  **next map visit** after the import, once per device, from a server-side batch record
+  (`users/<uid>/backfill/batch.json`: window, imported ids, standing before and after). Every
+  imported activity is not-new on every device. The burn clears outward from the map's centre;
+  the ledger rises at 4 s, the card plays at 5.0–6.4 s, and home returns at 8.4 s.)*
 - **Failure mid-sequence.** If WebGL context is lost (05 §4.5 says this genuinely happens under
   GPU memory pressure), abort to the end state with a static map image (D-298: the route drawn from its geometry, until
   the rebuilt map is ready). The ledger is

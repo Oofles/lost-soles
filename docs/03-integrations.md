@@ -596,7 +596,9 @@ replay by hand to settle them. Each window's enqueue is sized from the list call
 `floor((0.9 · limit − usage) / 2)` (`backfillPace`), because the two reads per activity are
 spent later by the worker, and `budgetCheck` alone would let the queue overrun the window. If
 a second user with years of history ever arrives (D-014), the checkpointed shape above is still
-the right one.
+the right one. *(`0257`:)* on completion the CLI waits for the queue to drain and writes the
+backfill batch record that `06` §3.4's aggregate reveal plays from; after the XP replay,
+`tools/backfill/batch-record.ts --confirm` rewrites it with the post-replay standing.
 
 > Backfill is the one place where the raw archive (§3) pays for itself immediately: 1,600 stream
 > calls are expensive and slow to re-acquire, and after 2026 they may not be re-acquirable at

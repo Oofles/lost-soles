@@ -1,5 +1,7 @@
 import { ChroniclePanel } from "@/components/chronicle/chronicle-panel"
 import { currentUserId } from "@/lib/auth/owner"
+import { chronicleWithBackfill } from "@/lib/backfill/batch"
+import { backfillBatchOrNull } from "@/lib/backfill/store"
 import { chroniclePage, defaultRunReadDeps } from "@/lib/runs/server"
 import type { ChroniclePage } from "@/lib/runs/wire"
 
@@ -13,6 +15,11 @@ const EMPTY: ChroniclePage = { items: [], next: null }
 
 export default async function Chronicle() {
   const uid = await currentUserId()
-  const initial = uid ? await chroniclePage(uid, defaultRunReadDeps()) : EMPTY
+  // `0257`: a historical import's rows are marked, so none of them is ever the gold row.
+  const deps = uid ? defaultRunReadDeps() : null
+  const initial =
+    uid && deps
+      ? chronicleWithBackfill(...(await Promise.all([chroniclePage(uid, deps), backfillBatchOrNull(uid, deps)])))
+      : EMPTY
   return <ChroniclePanel initial={initial} />
 }

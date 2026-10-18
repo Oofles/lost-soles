@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs"
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
+import { S3Client } from "@aws-sdk/client-s3"
 import { GetQueueAttributesCommand, SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs"
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
+import { buildBackfillBatch, writeBackfillBatch } from "../../lib/backfill/store"
 import { runBackfill, type BackfillWindowReport } from "../../lib/sources/backfill"
 import { oauthCredentialsFor } from "../../lib/sources/adapter-credentials"
 import { getSourceAccountSummary } from "../../lib/sources/source-account-store"
@@ -15,6 +17,7 @@ import {
   parseRateLimit,
   type RateLimitStatus,
 } from "../../src/adapters/strava/rate-limit"
+import { modelTables } from "../xp-replay/tables"
 
 /**
  * THE HISTORICAL BACKFILL. Ticket 0177, `03-integrations.md` §2.5.
@@ -40,7 +43,13 @@ import {
  * window: the date the listing has reached, the counts, and the read budget. Nothing in the app
  * shows it, and D-318 stands.
  *
- * WHEN IT FINISHES, run the XP replay. Cells a historical run shares with the recent,
+ * WHEN IT FINISHES (`0257`) it waits for the ingest queue to drain — the last window's activities
+ * are still being processed — and writes the BACKFILL BATCH RECORD (`lib/backfill/store.ts`): the
+ * window, which activities came in, and the standing before and after. The next map visit, on any
+ * device, plays one aggregate reveal of the whole import from it, and none of the imported runs
+ * counts as new. An import that queued nothing writes no record.
+ *
+ * THEN run the XP replay. Cells a historical run shares with the recent,
  * already-scored month classify `deferred` and earn nothing until a replay folds the history
  * (D-221, D-271). The completion message prints the exact command.
  *
@@ -51,6 +60,7 @@ const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const outputs = JSON.parse(readFileSync(`${ROOT}/amplify_outputs.json`, "utf8")) as {
   custom?: { activityIngestQueueUrl?: string }
   data?: { aws_region?: string }
+  storage?: { bucket_name?: string }
 }
 
 const args = process.argv.slice(2)
@@ -184,14 +194,49 @@ const tally = await runBackfill(userId, {
 })
 
 /**
- * FOR TICKET 0257. T3 rows carry `ingestedAt`, so the activities this run imported are the ones
- * whose `ingestedAt` falls between these two instants. Record the line where 0257 can find it.
+ * `0257`. THE WINDOW CLOSES WHEN THE WORKER HAS FINISHED, not when the last enqueue returned: on
+ * 2026-10-16 four of the 97 activities were ingested a few seconds after the end instant this CLI
+ * printed. So wait for the queue to drain, then a little longer for the last commit.
  */
+if (tally.queued > 0) {
+  let depth = await queueDepth()
+  while (depth > 0) {
+    console.log(`[${stamp(Date.now())}] waiting for ${depth} queued activities to finish`)
+    await sleep(15_000)
+    depth = await queueDepth()
+  }
+  await sleep(15_000)
+}
+const runEndedAt = new Date().toISOString()
+
 const range = tally.importedFrom ? `, runs dated ${tally.importedFrom} → ${tally.importedTo}` : ""
 console.log(
   `\nbackfill complete: ${tally.queued} queued, ${tally.alreadyKnown} already known${range}\n` +
-    `  this run: ${runStartedAt} → ${new Date().toISOString()} (match T3 ingestedAt against it)`,
+    `  this run: ${runStartedAt} → ${runEndedAt} (match T3 ingestedAt against it)`,
 )
+
+/** `0257`. The record the aggregate reveal plays from. Only for an import that brought something in. */
+const bucket = outputs.storage?.bucket_name
+if (tally.queued > 0 && bucket) {
+  try {
+    const s3 = new S3Client({ region })
+    const tables = await modelTables(new DynamoDBClient({ region }))
+    const batch = await buildBackfillBatch(
+      userId,
+      { from: runStartedAt, to: runEndedAt },
+      { ddb: ddb as never, s3: s3 as never, bucket, activityTable: tables.Activity, skillStateTable: tables.SkillState },
+    )
+    const key = await writeBackfillBatch(batch, userId, { s3: s3 as never, bucket })
+    console.log(
+      `\nbatch record written: s3://${bucket}/${key}\n` +
+        `  ${batch.imported.count} activities · Total Level ${batch.before.totalLevel} → ${batch.after.totalLevel} · ` +
+        `${batch.after.cells - batch.before.cells} cells to burn back`,
+    )
+  } catch (error) {
+    // The import itself succeeded; the record can be written by hand (the command below).
+    console.error(`\nthe batch record could not be written: ${(error as Error).message}`)
+  }
+}
 if (tiles.size > 0) {
   console.log("\nwhere the listed activities start, by 1° tile (lat, lng of the south-west corner):")
   for (const [tile, ids] of [...tiles].sort((a, b) => b[1].size - a[1].size)) {
@@ -201,5 +246,7 @@ if (tiles.size > 0) {
 console.log(
   "\nNEXT, once the ingest queue and its DLQ are quiet: fold the history so deferred cells earn their credit.\n" +
     `  npx vite-node --config vitest.config.ts tools/xp-replay/replay-xp.ts -- --user ${userId} --to <current version>\n` +
-    "  (the dry run prints each skill's current ruleset version; re-run with that --to and --confirm)",
+    "  (the dry run prints each skill's current ruleset version; re-run with that --to and --confirm)\n" +
+    "\nTHEN refresh the batch record, so the reveal shows the post-replay standing (0257):\n" +
+    `  npx vite-node --config vitest.config.ts tools/backfill/batch-record.ts -- --user ${userId} --from ${runStartedAt} --to ${runEndedAt} --confirm`,
 )

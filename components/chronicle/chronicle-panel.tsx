@@ -165,7 +165,8 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
   // `0084`'s per-device flag, asked once per loaded traced row.
   useEffect(() => {
     const latest = latestTraced(items)
-    const ask = latest && !seen.has(latest.activityId) ? [latest] : []
+    // `0257`: a backfilled row is never new, so its flag is not worth reading.
+    const ask = latest && !latest.backfilled && !seen.has(latest.activityId) ? [latest] : []
     if (ask.length === 0) return
     let live = true
     void Promise.all(ask.map(async (r) => [r.activityId, await isSeen(r.activityId)] as const)).then((answers) => {

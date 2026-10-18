@@ -139,9 +139,11 @@ export function useFogMask(
     // Read only as a dependency — it is what notices an in-place delta; see above.
     void generation
     if (home && !homeView.current) homeView.current = homeTerritoryView()
-    return home && homeView.current
-      ? homeView.current(explored.set, home.hold)
-      : (explored.set ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null))
+    const view = home && homeView.current ? homeView.current(explored.set, home.hold) : explored.set
+    // `0257`: on home too, a reveal over no territory still needs a layer — an account whose only
+    // ground is a historical import plays its aggregate reveal over an empty map, and the first
+    // thing its fog ever does is burn back (D-319).
+    return view ?? (hasReveal ? ExploredSet.fromCells(new BigUint64Array(0), -1) : null)
   }, [explored.set, hasReveal, home, generation])
   /** `0087`. Home with no territory draws no fog: the layer is never created (§2.4). */
   const fogless = home !== null && set === null

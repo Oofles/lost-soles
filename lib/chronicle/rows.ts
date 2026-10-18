@@ -80,9 +80,12 @@ export function latestTraced<T extends Pick<RunListItem, "traced">>(items: reado
 }
 
 export function unseenIds(
-  items: readonly Pick<RunListItem, "traced" | "activityId">[],
+  items: readonly (Pick<RunListItem, "traced" | "activityId"> & { backfilled?: true })[],
   seen: ReadonlyMap<string, boolean>,
 ): Set<string> {
   const latest = latestTraced(items)
-  return latest && seen.get(latest.activityId) === false ? new Set([latest.activityId]) : new Set()
+  // `0257`: a run that came in with a historical import is never new, on any device — the import's
+  // one aggregate reveal stands for it, whatever this device's `seen` store says.
+  if (!latest || latest.backfilled) return new Set()
+  return seen.get(latest.activityId) === false ? new Set([latest.activityId]) : new Set()
 }

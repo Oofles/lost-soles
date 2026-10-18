@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { currentUserId } from "@/lib/auth/owner"
 import { defaultRunReadDeps, latestRun } from "@/lib/runs/server"
+import { withBackfill } from "@/lib/backfill/batch"
+import { backfillBatchOrNull } from "@/lib/backfill/store"
 
 /**
  * GET /api/runs/latest — ticket `0195`. `02-data-model.md` §5.1 (S-7);
@@ -38,7 +40,11 @@ export async function GET(): Promise<NextResponse> {
   const userId = await currentUserId()
   if (!userId) return notFound()
 
-  const collection = await latestRun(userId, defaultRunReadDeps())
+  // `0257`: the historical-import record rides on this answer, which home already waits for and
+  // caches (D-333), so a warm start knows about a due aggregate reveal before any request.
+  const deps = defaultRunReadDeps()
+  const [latest, batch] = await Promise.all([latestRun(userId, deps), backfillBatchOrNull(userId, deps)])
+  const collection = withBackfill(latest, batch)
 
   return NextResponse.json(collection, {
     headers: {
