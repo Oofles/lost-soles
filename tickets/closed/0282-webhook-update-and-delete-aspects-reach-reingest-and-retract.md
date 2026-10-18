@@ -4,7 +4,7 @@ slug: webhook-update-and-delete-aspects-reach-reingest-and-retract
 title: Webhook update and delete aspects reach reingest and retract
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-16T14:52:18Z
 started: 2026-10-18T12:44:03Z
+closed: 2026-10-18T13:27:14Z
 ---
 
 ## Description

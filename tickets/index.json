@@ -6504,7 +6504,7 @@
     "title": "Webhook update and delete aspects reach reingest and retract",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [],
@@ -6512,8 +6512,9 @@
     "source": "agent",
     "created": "2026-10-16T14:52:18Z",
     "started": "2026-10-18T12:44:03Z",
-    "path": "tickets/open/0282-webhook-update-and-delete-aspects-reach-reingest-and-retract.md",
-    "ready": true,
+    "closed": "2026-10-18T13:27:14Z",
+    "path": "tickets/closed/0282-webhook-update-and-delete-aspects-reach-reingest-and-retract.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
