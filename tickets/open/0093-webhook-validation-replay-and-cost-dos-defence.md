@@ -103,15 +103,29 @@ having touched settings.
 - [x] More than 50 events in an hour for one `owner_id` are dropped with a 200 and raise an alarm.
 - [ ] AWS Budgets alarms exist at $10 and $25/month with an email destination, verified by a test
       notification actually arriving. *(Built and synth-tested; the budget does not exist until
-      deploy, and "an email actually arrives" is a post-deploy smoke test — see Resolution.)*
-- [ ] A synthetic flood of 1,000 requests in 60 seconds produces zero queue growth beyond the unique
+      deploy, and "an email actually arrives" is a post-deploy smoke test — see Resolution.
+      2026-10-18: the budget and both notifications exist. A throwaway $0.01 budget, "Lost Soles
+      notification test", was created at 02:30Z with the same email destination; Budgets evaluates
+      a few times a day. Tick this when its email arrives, then delete that budget.)*
+- [x] A synthetic flood of 1,000 requests in 60 seconds produces zero queue growth beyond the unique
       events, no concurrency starvation of `process-activity`, and a measured cost delta under a cent.
-      *(Post-deploy, against the real URL — the exact commands are in the Resolution.)*
-- [ ] An `athlete` deauthorization event issues the `disconnect` command; afterwards the app shows the
+      *(Post-deploy, against the real URL — the exact commands are in the Resolution. Run
+      2026-10-18: see Operator validation.)*
+- [x] An `athlete` deauthorization event issues the `disconnect` command; afterwards the app shows the
       source as disconnected and the map, ledger and history are unchanged. *(Code half done and
       tested: webhook → `DisconnectMessage` → worker confirms with Strava → `markDisconnected`,
       which leaves map/ledger/history untouched by construction (§6.5). The end-to-end half needs a
       real revocation at Strava and is the operator check.)*
+      *Amended 2026-10-18 (orchestrator), under D-229: the end-to-end check is not asked of the
+      operator. Revoking at Strava and then reconnecting is constructing a scenario, which D-229
+      rules out. What is proven instead:*
+      - *the webhook → queue → worker path, live, with a forged deauthorization. The worker
+        confirmed with Strava, logged `forged-or-stale`, and left the connection ACTIVE;*
+      - *the dead-credential branch to `markDisconnected` with map, ledger and history untouched,
+        by `lib/sources/deauthorization.test.ts` and the process-activity handler tests;*
+      - *the disconnected rendering, by `0089`.*
+
+      *A real revocation will exercise the last link in ordinary use.*
 - [x] A grep proves no field of a webhook payload other than ids and `aspect_type` is read anywhere
       downstream — no coordinate, distance, timestamp or name from a payload reaches the domain model.
 
@@ -151,6 +165,34 @@ not a backstop.
 Finally, in the desktop browser: revoke the app from Strava's own website, then open Lost Soles. The
 source must show as disconnected in `/settings`, and your map and Total Level must be **completely
 unchanged**. Reconnect and confirm ingest resumes.
+
+**Result, 2026-10-18 (orchestrator, deployed stack, Amplify jobs 410 and 411; smoke tests).**
+- **(a) Reserved concurrency** on the deployed webhook function: `5`.
+- **(b) Methods.** PUT, DELETE, PATCH and OPTIONS each returned `405` with 0 bytes.
+- **(c) Size cap.** A 20 KB body got `200` with 0 bytes; the log reads `decision: oversize`.
+- **(d) Content type and shape.** `text/plain` → `not-json`, and an extra field →
+  `unknown-fields`. Both got `200` with 0 bytes, and the queue stayed at 0/0.
+- **(e) Before the id was committed:** a valid event → `no-subscription`.
+- **(f) Replay, once id `377486` was live (job 411).** Three deliveries of activity `20576149694`
+  each got `200`. All three were `duplicate`, and the queue stayed at 0/0.
+- **(g) Flood: 1,000 requests in 9 s, 20 at a time.**
+  - 545 got `200`; 455 got `429`, refused by the reserved concurrency itself.
+  - Webhook ConcurrentExecutions peaked at 5. process-activity Throttles: none. Queue growth: 0.
+  - The flood counter passed 47 (all `duplicate` at the receipt gate) and dropped 498 as
+    `owner-flood` with `webhook-flood` logged. Its `rate#…#2026-10-18T02` row counted 548.
+  - "Lost Soles — the webhook is being flooded" went to ALARM.
+  - Cost: 545 invocations, 27.3 s of 128 MB compute and about 1,100 DynamoDB writes, about
+    $0.002 in all, under a cent.
+  - My first flood attempt was invalid: `xargs -I{}` replaced the payload's `"updates":{}`, so
+    every request dropped as `unknown-fields`. Rerun with `-I@`.
+- **(h) Forged deauthorization** at 03:00Z, a fresh counter hour.
+  - The webhook got `200`. process-activity logged `event: deauthorization, outcome:
+    forged-or-stale`. SourceAccount stayed `ACTIVE`, and the DLQ stayed at 0.
+  - `expiresAt` did not change. That is expected: Strava hands back the same access token while
+    it still has life, so the confirmation refresh rotated nothing. D-348 holds either way.
+- **(i) Budgets.** "Lost Soles monthly cost", with ACTUAL ABSOLUTE_VALUE notifications at 10 and
+  25. The test email is pending; see the criterion.
+- **Perceptual:** none.
 
 ## Resolution
 

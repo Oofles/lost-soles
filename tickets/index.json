@@ -2282,7 +2282,7 @@
     "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
     "ready": true,
     "acceptance": {
-      "checked": 12,
+      "checked": 14,
       "total": 15
     }
   },
