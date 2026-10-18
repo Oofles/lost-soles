@@ -17,5 +17,8 @@
  * the id is committed here then. While this is `null` every POST event is dropped, logged as
  * `no-subscription`: that is FAIL-CLOSED and LOSSLESS, because the reconciliation sweep (0095)
  * ingests whatever the webhook did not.
+ *
+ * Created 2026-10-18T02:34:22Z by `scripts/strava-subscription.mjs create` (D-347), callback the
+ * `IngestWebhookUrl` output plus `api/webhooks/strava`.
  */
-export const STRAVA_SUBSCRIPTION_ID: number | null = null
+export const STRAVA_SUBSCRIPTION_ID: number | null = 377486

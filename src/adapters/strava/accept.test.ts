@@ -55,8 +55,8 @@ afterEach(() => {
 const decision = () => JSON.parse(logs.at(-1) ?? "{}").decision as string
 
 describe("subscription_id (§4.1 filter 1, criterion 1)", () => {
-  it("is null in source until 0092 creates the subscription", () => {
-    expect(STRAVA_SUBSCRIPTION_ID).toBeNull()
+  it("is the subscription 0092's script created on 2026-10-18", () => {
+    expect(STRAVA_SUBSCRIPTION_ID).toBe(377486)
   })
 
   it("null drops EVERY event with a 200, under its own decision name", async () => {
@@ -67,9 +67,10 @@ describe("subscription_id (§4.1 filter 1, criterion 1)", () => {
     }
   })
 
-  it("the committed constant is what production uses — today, everything drops", async () => {
-    expect(await acceptStravaEvent(req(create()))).toEqual({ status: 200, commands: [] })
-    expect(decision()).toBe("no-subscription")
+  it("the committed constant is what production uses: another id drops against it", async () => {
+    const other = create({ subscription_id: STRAVA_SUBSCRIPTION_ID! + 1 })
+    expect(await acceptStravaEvent(req(other))).toEqual({ status: 200, commands: [] })
+    expect(decision()).toBe("wrong-subscription")
   })
 
   it("another subscription's id is dropped with a 200", async () => {
