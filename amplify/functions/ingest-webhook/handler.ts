@@ -7,7 +7,10 @@ import { AUTHENTICATED_SUB_HEADER } from "@/src/adapters/principal"
 import { getWebhookAdapter } from "@/src/adapters/registry"
 import type { InboundRequest, IngestCommand } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
+import { disconnectMessage } from "@/src/pipeline/disconnect-message"
 import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
+
+import { countOwnerEvent } from "./owner-rate"
 
 /**
  * THE WEBHOOK, AS A TRANSPORT. Ticket 0091.
@@ -16,8 +19,15 @@ import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipel
  * put the receipt and send the message for each job it returns, answer. Everything the source
  * knows — what an event looks like, whose it is, which ones matter — is in the adapter. This
  * file knows a URL, a receipt and a queue, and nothing else is reachable from it: its role holds
- * `PutItem` on `LostSolesIngestReceipt` and `SendMessage` on the ingest queue, and no grant on
+ * `PutItem` on `LostSolesIngestReceipt`, `UpdateItem` on that table's `rate#` keys only (the
+ * flood counter, 0093), and `SendMessage` on the ingest queue, and no grant on
  * `LostSolesSourceAccount`, so the public endpoint cannot read a token by policy (§4.5).
+ *
+ * ─── WHAT 0093 ADDED, ALL SOURCE-AGNOSTIC TRANSPORT ─────────────────────────
+ *
+ * A method allowlist (GET, POST; else 405), an 8 KB body cap checked before anything is decoded,
+ * and a per-user flood counter in front of the receipt gate (`owner-rate.ts`). What an event must
+ * look like — content type, exact field set, subscription id — is the adapter's (`accept()`).
  *
  * ─── THE ACCEPT GATE IS THE SAME ONE THE SYNC BUTTON USES ───────────────────
  *
@@ -37,6 +47,34 @@ import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipel
 
 /** `/api/webhooks/<source>`, the fixed callback path. A source id is lower-case and short. */
 const CALLBACK_PATH = /^\/api\/webhooks\/([a-z0-9-]{1,32})\/?$/
+
+/**
+ * METHOD ALLOWLIST (ticket 0093, `08-security-privacy.md` §4.4 item 4). GET for the handshake,
+ * POST for events; anything else is a 405 with no body, decided before any adapter code runs.
+ */
+const ALLOWED_METHODS: ReadonlySet<string> = new Set(["GET", "POST"])
+
+/**
+ * THE HARD PAYLOAD CAP (ticket 0093, §4.4 item 2). Strava's events are a few hundred bytes; 8 KB
+ * is twenty times that. Checked on the declared `Content-Length` AND on the bytes actually
+ * received, BEFORE the body is decoded or parsed — the point is that an oversized body costs one
+ * comparison. Answered with a 200 and no body, like every other rejected POST: a 413 tells a
+ * prober where the limit is, and Strava does not care which success it gets.
+ */
+export const MAX_BODY_BYTES = 8 * 1024
+
+function bodyTooLarge(event: LambdaFunctionURLEvent): boolean {
+  const declared = Object.entries(event.headers ?? {}).find(
+    ([k]) => k.toLowerCase() === "content-length",
+  )?.[1]
+  if (declared !== undefined && !(Number(declared) <= MAX_BODY_BYTES)) return true
+  const body = event.body ?? ""
+  // Base64 is 4 characters per 3 bytes, so the decoded size is bounded without decoding anything.
+  const received = event.isBase64Encoded
+    ? Math.floor((body.length * 3) / 4)
+    : Buffer.byteLength(body, "utf8")
+  return received > MAX_BODY_BYTES
+}
 
 export interface WebhookDeps {
   receipt: { ddb: ReceiptDdb; now?: () => Date }
@@ -186,9 +224,52 @@ function toInboundRequest(source: string, event: LambdaFunctionURLEvent): Inboun
   }
 }
 
-async function enqueue(command: IngestCommand, deps: WebhookDeps): Promise<string> {
+/**
+ * THE FLOOD LINE (ticket 0093). Its own `msg`, because a metric filter on exactly this term drives
+ * the alarm (`amplify/backend.ts`). No user id: the count says what happened.
+ */
+function logFlood(source: string, count: number): void {
+  console.info(JSON.stringify({ msg: "webhook-flood", source, count }))
+}
+
+/**
+ * A DEAUTHORIZATION (0093, D-NEW): this function cannot touch `SourceAccount`, so it forwards the
+ * claim to the worker as a `DisconnectMessage`, which confirms it with the provider before acting.
+ * No receipt — a disconnect has no activity — but two counters: the athlete's general budget, and
+ * a far tighter deauth budget, because each one costs the worker a provider call.
+ */
+async function forwardDisconnect(
+  source: string,
+  command: Extract<IngestCommand, { kind: "disconnect" }>,
+  deps: WebhookDeps,
+): Promise<string> {
+  for (const bucket of ["events", "deauth"] as const) {
+    const rate = await countOwnerEvent({ source, userId: command.userId, bucket }, deps.receipt)
+    if (!rate.withinBudget) {
+      logFlood(source, rate.count)
+      return bucket === "events" ? "owner-flood" : "deauth-flood"
+    }
+  }
+  const now = deps.receipt.now?.() ?? new Date()
+  await deps.send(JSON.stringify(disconnectMessage({ source: command.source, userId: command.userId, now })))
+  return "disconnect-queued"
+}
+
+async function enqueue(source: string, command: IngestCommand, deps: WebhookDeps): Promise<string> {
+  if (command.kind === "disconnect") return forwardDisconnect(source, command, deps)
   if (command.kind !== "ingest" && command.kind !== "reingest") return "unhandled-command"
   const { job } = command
+
+  /**
+   * THE PER-ATHLETE COUNTER RUNS FIRST (0093, §4.4 item 6), so a flood of one event is dropped
+   * here rather than also costing a receipt write. Only events that passed every cheap filter in
+   * `accept()` reach it.
+   */
+  const rate = await countOwnerEvent({ source, userId: job.userId }, deps.receipt)
+  if (!rate.withinBudget) {
+    logFlood(source, rate.count)
+    return "owner-flood"
+  }
   const accepted = await acceptIngest(
     {
       ingestKey: job.ingestKey,
@@ -215,11 +296,21 @@ export async function handleWebhook(
   }
   const source = match[1]
 
+  const method = event.requestContext.http.method
+  if (!ALLOWED_METHODS.has(method)) {
+    log({ source, decision: "method-not-allowed" })
+    return empty(405)
+  }
+  if (method === "POST" && bodyTooLarge(event)) {
+    log({ source, decision: "oversize" })
+    return empty(200)
+  }
+
   try {
     const ack = await adapter.accept(toInboundRequest(source, event))
     const outcomes: Array<{ ingestKey?: string; outcome: string }> = []
     for (const command of ack.commands) {
-      const outcome = await enqueue(command, deps)
+      const outcome = await enqueue(source, command, deps)
       outcomes.push({
         ...("job" in command ? { ingestKey: command.job.ingestKey } : {}),
         outcome,

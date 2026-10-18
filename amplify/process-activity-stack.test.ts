@@ -441,10 +441,19 @@ describe("the DLQ alarm", () => {
    * errors or duration fires on cold starts and blips until the operator filters the
    * sender — at which point the DLQ alarm stops being read too. A second alarm here means
    * deleting a sentence from §4 first.
+   *
+   * 0093 DID: §4 now names the one other alarm, the webhook flood alarm (`08` §4.4 item 6),
+   * which fires only when one athlete's events exceed 50 an hour — a loop, never a blip. It
+   * lives in the functions' stack beside the webhook's log group, and it is pinned here as the
+   * ONLY alarm there, so a third still means amending §4 first.
    */
-  it("is the only alarm in the ingest stack", () => {
+  it("is the only ingest alarm; the webhook flood alarm is the only other", () => {
     expect(alarms()).toHaveLength(1)
-    expect(Object.values(workerStack.findResources("AWS::CloudWatch::Alarm"))).toHaveLength(0)
+    const workerAlarms = Object.values(workerStack.findResources("AWS::CloudWatch::Alarm")).map(
+      (a) => (a as { Properties: Record<string, unknown> }).Properties,
+    )
+    expect(workerAlarms).toHaveLength(1)
+    expect(workerAlarms[0].MetricName).toBe("WebhookOwnerFlood")
   })
 })
 

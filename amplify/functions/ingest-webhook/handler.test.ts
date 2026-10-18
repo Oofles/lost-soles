@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { readdirSync, statSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import { build } from "esbuild"
@@ -10,7 +10,7 @@ import type { SourceId } from "@/src/domain/activity"
 import { computeActivityId } from "@/src/domain/activity-id"
 import { INGEST_RECEIPT_TABLE } from "@/src/pipeline/ingest-receipt"
 
-import { handleWebhook, warmUp, WARMUP_KEY, type WebhookDeps } from "./handler"
+import { handleWebhook, MAX_BODY_BYTES, warmUp, WARMUP_KEY, type WebhookDeps } from "./handler"
 
 /**
  * Ticket 0091 — the webhook as a transport, end to end through the REAL adapter (`registry.ts` →
@@ -45,15 +45,42 @@ function createEvent(over: Record<string, unknown> = {}) {
   return { object_type: "activity", object_id: 1360128428, aspect_type: "create", updates: {}, owner_id: Number(KNOWN_OWNER), subscription_id: 120475, event_time: 1516126040, ...over }
 }
 
-function rig(opts: { duplicate?: boolean; sendFails?: boolean } = {}) {
+/**
+ * The subscription id is a committed constant (`subscription.ts`), `null` until 0092 creates the
+ * subscription — and `null` drops every event. These tests drive the path an event takes once the
+ * id is committed, so the constant is replaced with the id the fixtures carry. The adapter's own
+ * tests (`accept.test.ts`) cover the `null` and mismatch cases.
+ */
+vi.mock("@/src/adapters/strava/subscription", () => ({ STRAVA_SUBSCRIPTION_ID: 120475 }))
+
+/**
+ * A stateful fake of the receipt table: `PutItem` with `attribute_not_exists` behaves like the
+ * real conditional write (so a replay is a real duplicate), and `UpdateItem` `ADD` counts.
+ */
+function rig(opts: { duplicate?: boolean; sendFails?: boolean; startCount?: number } = {}) {
   const puts: Array<Record<string, unknown>> = []
+  const updates: Array<Record<string, unknown>> = []
   const sent: string[] = []
+  const keys = new Set<string>()
+  const counts = new Map<string, number>()
   const deps: WebhookDeps = {
     receipt: {
       ddb: {
         async send(command) {
-          puts.push((command as { input: Record<string, unknown> }).input)
-          if (opts.duplicate) throw Object.assign(new Error("dup"), { name: "ConditionalCheckFailedException" })
+          const input = (command as { input: Record<string, unknown> }).input
+          if ("UpdateExpression" in input) {
+            updates.push(input)
+            const key = (input.Key as { ingestKey: string }).ingestKey
+            const next = (counts.get(key) ?? opts.startCount ?? 0) + 1
+            counts.set(key, next)
+            return { Attributes: { eventCount: next } }
+          }
+          puts.push(input)
+          const key = (input.Item as { ingestKey: string }).ingestKey
+          if (opts.duplicate || keys.has(key)) {
+            throw Object.assign(new Error("dup"), { name: "ConditionalCheckFailedException" })
+          }
+          keys.add(key)
           return {}
         },
       },
@@ -64,7 +91,7 @@ function rig(opts: { duplicate?: boolean; sendFails?: boolean } = {}) {
       sent.push(body)
     },
   }
-  return { deps, puts, sent }
+  return { deps, puts, updates, sent }
 }
 
 const logs: string[] = []
@@ -139,17 +166,22 @@ describe("a valid create event for a known athlete (criterion 8)", () => {
 describe("events that are acknowledged and dropped", () => {
   it.each([
     ["an unknown athlete", createEvent({ owner_id: 999 }), "unknown-owner"],
-    ["an athlete event", createEvent({ object_type: "athlete", updates: { authorized: "false" } }), "ignored-object-type"],
+    ["a club event", createEvent({ object_type: "club" }), "ignored-object-type"],
+    ["an athlete update that is not a deauthorization", createEvent({ object_type: "athlete", object_id: Number(KNOWN_OWNER), aspect_type: "update", updates: { title: "x" } }), "ignored-athlete-event"],
+    ["another subscription's event", createEvent({ subscription_id: 1 }), "wrong-subscription"],
+    ["an unknown top-level field", createEvent({ extra: 1 }), "unknown-fields"],
+    ["an unknown updates field", createEvent({ updates: { lat: 40.1 } }), "unknown-fields"],
     ["an update", createEvent({ aspect_type: "update", updates: { title: "x" } }), "ignored-aspect"],
     ["a delete", createEvent({ aspect_type: "delete" }), "ignored-aspect"],
     ["a non-numeric id", createEvent({ object_id: "abc" }), "malformed-ids"],
     ["an unparseable body", "{not json", "unparseable"],
     ["a JSON array", "[1,2]", "unparseable"],
-  ])("%s → 200, empty body, no receipt, no message", async (_name, body, decision) => {
-    const { deps, puts, sent } = rig()
+  ])("%s → 200, empty body, no receipt, no counter, no message", async (_name, body, decision) => {
+    const { deps, puts, updates, sent } = rig()
     const res = await handleWebhook(event({ body: typeof body === "string" ? body : JSON.stringify(body) }), deps)
     expect(res).toEqual({ statusCode: 200, body: "" })
     expect(puts).toHaveLength(0)
+    expect(updates).toHaveLength(0)
     expect(sent).toHaveLength(0)
     expect(logs.join("\n")).toContain(`"decision":"${decision}"`)
   })
@@ -180,6 +212,220 @@ describe("routing", () => {
     const { deps } = rig()
     expect((await handleWebhook(event({ method: "PUT" }), deps)).statusCode).toBe(405)
   })
+})
+
+/*
+ * ─── TICKET 0093 — validation, replay, cost-DoS ──────────────────────────────
+ */
+
+describe("replay (0093 criterion 4)", () => {
+  it("the same event three times: three 200s, ONE message, and the 2nd and 3rd cost one conditional write each", async () => {
+    const { deps, puts, sent } = rig()
+    const responses = []
+    for (let i = 0; i < 3; i++) responses.push(await handleWebhook(event(), deps))
+
+    expect(responses).toEqual([0, 1, 2].map(() => ({ statusCode: 200, body: "" })))
+    expect(sent).toHaveLength(1)
+    expect(puts).toHaveLength(3)
+    for (const put of puts) expect(put.ConditionExpression).toBe("attribute_not_exists(ingestKey)")
+    expect(new Set(puts.map((p) => (p.Item as { ingestKey: string }).ingestKey)).size).toBe(1)
+  })
+})
+
+describe("the method allowlist (0093 criterion 10)", () => {
+  it.each(["PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])("%s → 405 with no body, nothing read or written", async (method) => {
+    const { deps, puts, updates, sent } = rig()
+    expect(await handleWebhook(event({ method }), deps)).toEqual({ statusCode: 405, body: "" })
+    expect(puts).toHaveLength(0)
+    expect(updates).toHaveLength(0)
+    expect(sent).toHaveLength(0)
+    // Decided before the adapter ran: the adapter's own log line never appears.
+    expect(logs.join("\n")).not.toContain("webhook-event")
+  })
+})
+
+describe("the 8 KB cap (0093 criterion 8)", () => {
+  it("a declared Content-Length over 8 KB is dropped with a 200 BEFORE the body is parsed", async () => {
+    const { deps, puts, sent } = rig()
+    // A valid event: if anything parsed it, it would be enqueued.
+    const res = await handleWebhook(event({ headers: { "content-length": String(MAX_BODY_BYTES + 1) } }), deps)
+    expect(res).toEqual({ statusCode: 200, body: "" })
+    expect(puts).toHaveLength(0)
+    expect(sent).toHaveLength(0)
+    expect(logs.join("\n")).toContain('"decision":"oversize"')
+    expect(logs.join("\n")).not.toContain("webhook-event")
+  })
+
+  it("a 20 KB body is dropped even when Content-Length lies, plain or base64", async () => {
+    for (const base64 of [false, true]) {
+      const { deps, puts, sent } = rig()
+      const body = JSON.stringify(createEvent()) + " ".repeat(20 * 1024)
+      const res = await handleWebhook(event({ body, base64, headers: { "content-length": "200" } }), deps)
+      expect(res).toEqual({ statusCode: 200, body: "" })
+      expect(puts).toHaveLength(0)
+      expect(sent).toHaveLength(0)
+    }
+    expect(logs.join("\n")).not.toContain("webhook-event")
+  })
+
+  it("a non-numeric Content-Length is treated as oversize, not as zero", async () => {
+    const { deps, sent } = rig()
+    await handleWebhook(event({ headers: { "content-length": "lots" } }), deps)
+    expect(sent).toHaveLength(0)
+  })
+
+  it("an ordinary event is well inside the cap", async () => {
+    const { deps, sent } = rig()
+    await handleWebhook(event({ headers: { "content-length": String(JSON.stringify(createEvent()).length) } }), deps)
+    expect(sent).toHaveLength(1)
+  })
+})
+
+describe("non-JSON, unparseable and unknown-field bodies (0093 criterion 9)", () => {
+  it.each([
+    ["text/plain", { "content-type": "text/plain" }, JSON.stringify(createEvent()), "not-json"],
+    ["no content-type", { "content-type": "" }, JSON.stringify(createEvent()), "not-json"],
+    ["form-encoded", { "content-type": "application/x-www-form-urlencoded" }, "a=1", "not-json"],
+    ["unparseable JSON", {}, '{"object_type":', "unparseable"],
+    ["an extra field", {}, JSON.stringify(createEvent({ distance: 5000 })), "unknown-fields"],
+    ["a nested updates value", {}, JSON.stringify(createEvent({ updates: { title: { a: 1 } } })), "unknown-fields"],
+  ])("%s → 200, no body, no detail, nothing reaches SQS", async (_name, headers, body, decision) => {
+    const { deps, puts, sent } = rig()
+    const res = await handleWebhook(event({ headers, body }), deps)
+    expect(res).toEqual({ statusCode: 200, body: "" })
+    expect(puts).toHaveLength(0)
+    expect(sent).toHaveLength(0)
+    expect(logs.join("\n")).toContain(`"decision":"${decision}"`)
+  })
+
+  it("accepts JSON with a charset parameter", async () => {
+    const { deps, sent } = rig()
+    await handleWebhook(event({ headers: { "content-type": "application/json; charset=utf-8" } }), deps)
+    expect(sent).toHaveLength(1)
+  })
+})
+
+describe("the per-athlete flood counter (0093 criterion 11)", () => {
+  it("counts each accepted-shape event in the receipt table, on a rate# key with a TTL", async () => {
+    const { deps, updates } = rig()
+    await handleWebhook(event(), deps)
+    expect(updates).toHaveLength(1)
+    const u = updates[0] as { TableName: string; Key: { ingestKey: string }; UpdateExpression: string }
+    expect(u.TableName).toBe(INGEST_RECEIPT_TABLE)
+    expect(u.Key.ingestKey).toBe(`rate#${SOURCE}#${OWNER_SUB}#2026-10-16T12`)
+    expect(u.UpdateExpression).toContain("ADD")
+    expect(u.UpdateExpression).toContain("ttl")
+    // The athlete id is not in the key.
+    expect(u.Key.ingestKey).not.toContain(KNOWN_OWNER)
+  })
+
+  it("the 51st event in an hour is dropped with a 200, costs no receipt write, and logs webhook-flood", async () => {
+    const { deps, puts, sent } = rig()
+    for (let i = 0; i < 50; i++) {
+      await handleWebhook(event({ body: createEvent({ object_id: 1000 + i }) }), deps)
+    }
+    expect(sent).toHaveLength(50)
+    expect(logs.join("\n")).not.toContain("webhook-flood")
+
+    const res = await handleWebhook(event({ body: createEvent({ object_id: 9999 }) }), deps)
+    expect(res).toEqual({ statusCode: 200, body: "" })
+    expect(sent).toHaveLength(50)
+    expect(puts).toHaveLength(50)
+    expect(logs.join("\n")).toContain('"msg":"webhook-flood"')
+    expect(logs.join("\n")).toContain('"outcome":"owner-flood"')
+  })
+
+  it("a flood of one duplicated event stops costing receipt writes past the threshold", async () => {
+    const { deps, puts, sent } = rig({ startCount: 50 })
+    for (let i = 0; i < 10; i++) await handleWebhook(event(), deps)
+    expect(sent).toHaveLength(0)
+    expect(puts).toHaveLength(0)
+  })
+
+  it("never counts what the cheap filters already dropped — a stranger's flood costs no write", async () => {
+    const { deps, updates } = rig()
+    for (let i = 0; i < 5; i++) await handleWebhook(event({ body: createEvent({ owner_id: 999 }) }), deps)
+    expect(updates).toHaveLength(0)
+  })
+})
+
+/**
+ * 0093 criterion 15 — THE PAYLOAD IS A POINTER, NEVER DATA (§4.1), as a grep. A webhook event's
+ * own field names are read in exactly one kind of file, an adapter's `accept.ts`, and nowhere
+ * downstream: no worker, pipeline, domain, scoring or UI code reads `event_time`, `updates` or any
+ * other field of an event. What leaves `accept()` is the job, whose keys the first describe block
+ * pins (ids, `aspectType`, and the enqueue clock).
+ */
+describe("no webhook payload field is read outside accept() (0093 criterion 15)", () => {
+  const FIELD = /\.(event_time|updates|subscription_id|owner_id|object_id|object_type|aspect_type)\b|\[["'](event_time|updates|subscription_id|owner_id|object_id|object_type|aspect_type)["']\]/
+
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap((n) => {
+      if (n === "node_modules" || n.startsWith(".")) return []
+      const full = join(dir, n)
+      return statSync(full).isDirectory() ? sourceFiles(full) : /\.(ts|tsx)$/.test(n) ? [full] : []
+    })
+  }
+
+  it("every hit is in an adapter's accept.ts", () => {
+    const root = process.cwd()
+    const hits = ["src", "lib", "app", "components", "amplify"]
+      .flatMap((d) => sourceFiles(join(root, d)))
+      .filter((f) => !/\.test\.tsx?$/.test(f) && !f.includes("__fixtures__"))
+      .filter((f) => FIELD.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(root.length + 1))
+    expect(hits.length).toBeGreaterThan(0) // the scan can see the one legitimate reader
+    expect(hits.filter((f) => !/^src\/adapters\/[a-z0-9-]+\/accept\.ts$/.test(f))).toEqual([])
+  })
+})
+
+describe("a deauthorization (0093 criterion 14, the webhook half)", () => {
+  const deauth = () =>
+    createEvent({ object_type: "athlete", object_id: Number(KNOWN_OWNER), aspect_type: "update", updates: { authorized: "false" } })
+
+  it("sends ONE disconnect message naming the user, writes no receipt, and answers 200", async () => {
+    const { deps, puts, updates, sent } = rig()
+    const res = await handleWebhook(event({ body: deauth() }), deps)
+    expect(res).toEqual({ statusCode: 200, body: "" })
+    expect(puts).toHaveLength(0)
+    expect(updates).toHaveLength(2) // the athlete's general budget, and the deauth budget
+    expect(sent.map((s) => JSON.parse(s))).toEqual([
+      { command: "disconnect", source: SOURCE, userId: OWNER_SUB, enqueuedAt: "2026-10-16T12:00:00.000Z" },
+    ])
+    expect(sent[0]).not.toContain(KNOWN_OWNER)
+  })
+
+  it("past four in an hour, a deauthorization is dropped: each costs the worker a provider call", async () => {
+    const { deps, sent } = rig()
+    for (let i = 0; i < 10; i++) await handleWebhook(event({ body: deauth() }), deps)
+    expect(sent).toHaveLength(4)
+    expect(logs.join("\n")).toContain('"outcome":"deauth-flood"')
+    expect(logs.join("\n")).toContain('"msg":"webhook-flood"')
+  })
+})
+
+describe("no owner lookup against SourceAccount (0093 criterion 3, code level)", () => {
+  /**
+   * The IAM half is `ingest-webhook-stack.test.ts`. This is the code half: nothing the webhook
+   * bundles can name the SourceAccount table or its store, so there is no lookup to grant.
+   */
+  it("the bundle contains no SourceAccount store, table name or byExternalOwner index", async () => {
+    const result = await build({
+      entryPoints: [join(process.cwd(), "amplify/functions/ingest-webhook/handler.ts")],
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      target: "node22",
+      write: false,
+      metafile: true,
+      logLevel: "silent",
+    })
+    const [output] = Object.values(result.metafile.outputs)
+    expect(Object.keys(output.inputs).filter((i) => /source-account|lib\/sources\//.test(i))).toEqual([])
+    const text = result.outputFiles[0].text
+    expect(text).not.toContain("LostSolesSourceAccount")
+    expect(text).not.toContain("byExternalOwner")
+  }, 60_000)
 })
 
 describe("the log line (criterion 9)", () => {

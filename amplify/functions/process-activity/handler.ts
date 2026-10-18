@@ -7,6 +7,7 @@ import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 
 import { log } from "@/lib/log"
 import { oauthCredentialsFor } from "@/lib/sources/adapter-credentials"
+import { handleDeauthorization } from "@/lib/sources/deauthorization"
 import {
   SourceNeedsReauthError,
   SourceNotConnectedError,
@@ -20,6 +21,7 @@ import { rulesForUser } from "@/src/pipeline/worker-rules"
 import type { RuleSet } from "@/src/rules/schema"
 import { assertValidRuleSet } from "@/src/rules/validate"
 import { recordFailure } from "@/src/pipeline/ingest-receipt"
+import { isDisconnectMessage } from "@/src/pipeline/disconnect-message"
 import {
   archiveCompletedBy,
   processActivity,
@@ -265,7 +267,21 @@ async function delayMessage(record: SqsRecord, retryAfterMs: number): Promise<vo
 }
 
 async function handleRecord(record: SqsRecord, coldStart: boolean): Promise<void> {
-  const job = JSON.parse(record.body) as IngestJob
+  const message: unknown = JSON.parse(record.body)
+
+  /**
+   * THE ONE OTHER MESSAGE SHAPE (ticket 0093, D-NEW): a provider's deauthorization, sent by the
+   * webhook because only this function holds the `SourceAccount` grant to act on it. Told apart
+   * by `command` before anything reads the body as a job, and confirmed with the provider
+   * before it is believed (`lib/sources/deauthorization.ts`). A thrown error redelivers, like a
+   * job's would.
+   */
+  if (isDisconnectMessage(message)) {
+    await handleDeauthorization(message)
+    return
+  }
+
+  const job = message as IngestJob
   const startedAt = Date.now()
 
   /**

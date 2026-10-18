@@ -31,7 +31,9 @@ import {
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront"
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
+import { CfnBudget } from "aws-cdk-lib/aws-budgets"
 import { Key } from "aws-cdk-lib/aws-kms"
+import { FilterPattern, LogGroup, MetricFilter } from "aws-cdk-lib/aws-logs"
 import { FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda"
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources"
 import {
@@ -1957,6 +1959,109 @@ ingestWebhookLambda.addToRolePolicy(
   }),
 )
 backend.ingestWebhook.addEnvironment("INGEST_QUEUE_URL", activityIngestQueue.queueUrl)
+
+/*
+ * ─── COST-DoS DEFENCE  (ticket 0093, 08-security-privacy.md §4.4) ───────────
+ *
+ * An attacker cannot read anything through this endpoint; they can only spend money, against a
+ * $3–5/month budget (D-083). Layered, cheapest first — the code-side layers (method allowlist,
+ * 8 KB cap, strict field set, receipt gate) are in the handler and the adapter; these are the
+ * infrastructure ones.
+ */
+
+/**
+ * RESERVED CONCURRENCY: 5. §4.4 calls it the single most important control in the section. It
+ * bounds any flood to five concurrent 128 MB invocations and, as important, protects the REST of
+ * the account: without it a flood exhausts regional concurrency and throttles `process-activity`
+ * and the SSR compute. Excess requests get a 429 from the Function URL — Strava retries those,
+ * and the sweep (0095) is the path of record either way.
+ *
+ * A property on the L1 function, not a new escape hatch: `defineFunction` has no setting for it,
+ * and this is the same `cfnResources` override the other functions' tuning would use.
+ */
+backend.ingestWebhook.resources.cfnResources.cfnFunction.reservedConcurrentExecutions = 5
+
+/**
+ * THE FLOOD COUNTER'S ONE ACTION (§4.4 item 6, `owner-rate.ts`). `UpdateItem`, for its atomic
+ * `ADD` — and ONLY on keys beginning `rate#`, by `dynamodb:LeadingKeys`. The public endpoint can
+ * bump a counter row and can still not modify a receipt: the accept gate stays `PutItem`-only.
+ */
+ingestWebhookLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "OwnerFloodCounter",
+    actions: ["dynamodb:UpdateItem"],
+    resources: [ingestReceiptTable.tableArn],
+    conditions: { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["rate#*"] } },
+  }),
+)
+
+/**
+ * THE FLOOD ALARM. The handler logs `webhook-flood` for every event dropped past 50 an hour for
+ * one athlete; a metric filter counts those lines and the alarm emails through the same topic as
+ * the DLQ alarm. A TERM match, not a JSON selector, because Lambda's text log format prefixes each
+ * line with a timestamp and request id.
+ *
+ * The second alarm `01-architecture.md` §4 said this app would never need, and §4 now says why it
+ * does: it can only fire when something is looping, so it is never the noise §8.6 warns of.
+ */
+const webhookFloodFilter = new MetricFilter(backend.ingestWebhook.stack, "WebhookOwnerFloodFilter", {
+  // Lambda's default group. It exists: the function has logged since 0091 deployed it.
+  logGroup: LogGroup.fromLogGroupName(
+    backend.ingestWebhook.stack,
+    "IngestWebhookLogGroup",
+    `/aws/lambda/${ingestWebhookLambda.functionName}`,
+  ),
+  filterPattern: FilterPattern.allTerms("webhook-flood"),
+  metricNamespace: "LostSoles",
+  metricName: "WebhookOwnerFlood",
+  metricValue: "1",
+  defaultValue: 0,
+})
+const webhookFlood = new Alarm(backend.ingestWebhook.stack, "WebhookOwnerFlood", {
+  alarmName: "Lost Soles — the webhook is being flooded",
+  alarmDescription:
+    "More than 50 webhook events arrived in one hour for one athlete, and the excess is being " +
+    "dropped. That is a loop or a replay, not a person running. Nothing is lost — the sweep " +
+    "ingests anything real — but check the ingest-webhook logs. 08-security-privacy.md §4.4, §8.4.",
+  metric: webhookFloodFilter.metric({ period: Duration.minutes(5), statistic: "Sum" }),
+  threshold: 0,
+  comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+  evaluationPeriods: 1,
+  datapointsToAlarm: 1,
+  treatMissingData: TreatMissingData.NOT_BREACHING,
+})
+webhookFlood.addAlarmAction(new SnsAction(ingestAlarms))
+
+/**
+ * AWS BUDGETS AT $10 AND $25 A MONTH (§4.4 item 7) — "the real backstop". Cost-DoS is only
+ * dangerous when it is silent, and these turn an unbounded bill into an email. ACTUAL spend, not
+ * forecast: a forecast alarms on day 2 of any month with a one-off spike, which is noise.
+ *
+ * EMAIL SUBSCRIBERS DIRECTLY, not the SNS topic: a Budgets → SNS route needs a topic policy for
+ * `budgets.amazonaws.com`, and a direct email subscriber needs no confirmation click, so it
+ * cannot sit silently unconfirmed. The address is the operator's, in source for the reason the
+ * topic subscription above gives.
+ *
+ * ACCOUNT-WIDE, and named, so a second deploy of this backend (an `ampx sandbox`) would collide on
+ * the name — the same cost `LostSolesIngestReceipt` already imposes.
+ */
+new CfnBudget(ingestStack, "MonthlyCostBudget", {
+  budget: {
+    budgetName: "Lost Soles monthly cost",
+    budgetType: "COST",
+    timeUnit: "MONTHLY",
+    budgetLimit: { amount: 25, unit: "USD" },
+  },
+  notificationsWithSubscribers: [10, 25].map((dollars) => ({
+    notification: {
+      notificationType: "ACTUAL",
+      comparisonOperator: "GREATER_THAN",
+      threshold: dollars,
+      thresholdType: "ABSOLUTE_VALUE",
+    },
+    subscribers: [{ subscriptionType: "EMAIL", address: "amazingbrandon@gmail.com" }],
+  })),
+})
 
 /**
  * SURFACED TWICE, for two readers. `amplify_outputs.json` (`custom.ingestWebhookUrl`) for

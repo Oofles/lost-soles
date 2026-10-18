@@ -385,6 +385,14 @@ make a forged event **worthless rather than blocked**:
    data; they can only ask us to re-fetch our own.** That is the actual security property, and it
    comes from the architecture — the payload is a *notification*, never a data carrier.
 
+*(As built, `0091`/`0093`: filter 3 runs IN the webhook, against a static `owner_id` → user map
+(`src/adapters/strava/owner-map.ts`), so the no-SourceAccount-grant rule holds and a stranger's
+event is dropped before it costs a queue message. A **deauthorization** is the one event that
+could do harm if believed — it deletes our tokens — so the worker confirms it with Strava first:
+a forced token refresh through the refresh lease; only a provider rejection (`credentialIsDead`)
+disconnects, and a refresh that succeeds marks the event forged and drops it. D-NEW, ticket
+`0093`.)*
+
 **The rule that guarantees it: the webhook body is never trusted as data.** No coordinate, no
 distance, no timestamp, no name from a webhook payload ever reaches the domain model. The
 payload's only job is to name an id we then fetch authoritatively.
@@ -424,8 +432,11 @@ ConditionalPut IngestReceipt {ingestKey, status:"QUEUED"}  if attribute_not_exis
 The `IngestReceipt` ledger is the replay defence *and* the flood defence: a replayed or forged
 duplicate costs one conditional write and terminates. Downstream, `activityId` is
 `sha256(user, source, externalId)` (D-140) precisely so replay is deterministic and cannot
-double-award XP. Give `IngestReceipt` rows a **TTL of ~30 days** — long enough that no legitimate
-retry outlives it, short enough that the table stays free.
+double-award XP. `IngestReceipt` rows carry **T8's 90-day TTL** (`02-data-model.md` §2 T8) —
+long enough that no legitimate retry outlives it, short enough that the table stays free.
+*(Corrected in `0093`: this line said "~30 days", which contradicted T8 and the decisions that
+cite the 90-day receipt TTL. 90 meets both halves of the test above, and expiry is safe either
+way because cell set-semantics and the deterministic ledger `id` are the permanent backstops.)*
 
 ### 4.4 Rate limiting and cost-DoS
 
@@ -447,7 +458,12 @@ $3–5/month budget is a real threat, if an unexciting one. Layered, cheapest fi
 5. **The `IngestReceipt` conditional write is itself a limiter** (§4.3) — floods of the *same*
    event cost one write each and never reach SQS.
 6. **A per-`owner_id` counter** in the receipt table with a TTL: more than ~50 events/hour for
-   one athlete is not a human running, it is a loop. Drop with a 200 and alarm.
+   one athlete is not a human running, it is a loop. Drop with a 200 and alarm. *(Built in
+   `0093`: one `rate#<source>#<userId>#<hour>` row per clock hour, keyed on the user the static
+   owner map resolves — one-to-one with the athlete — so no athlete id sits in a table key. The
+   role's `UpdateItem` is held to `rate#` keys by `dynamodb:LeadingKeys`. Only events that passed
+   every cheap filter are counted; the sweep never passes through the webhook and is never
+   counted.)*
 7. **AWS Budgets alarm at $10/month and $25/month, notifying by email.** This is the real
    backstop and it takes five minutes. Cost-DoS is only dangerous when it is *silent*; an alarm
    converts an unbounded bill into a bounded one.

@@ -818,7 +818,12 @@ activities. See §2.8 for why this is also the honest answer to Policy §6.3's 4
 
 **Deauthorization.** `object_type: "athlete"` with `updates: {"authorized": "false"}` →
 `disconnect`. Delete the stored tokens immediately, stop all polling for that user, mark the
-connection dead. §2.8 covers what happens to the data.
+connection dead. §2.8 covers what happens to the data. *(As built, `0093`: "immediately" means
+once confirmed. The event is unsigned, so the webhook forwards a `DisconnectMessage` on the ingest
+queue and `process-activity` forces a token refresh through the refresh lease first. Strava
+rejecting it confirms the revocation and the row goes `DISCONNECTED`; a refresh that succeeds
+means the event was forged, the rotated tokens are kept, and nothing is disconnected.
+`08-security-privacy.md` §4.1.)*
 
 **Cross-source dedupe.** This is the real risk once §4 adapters land, not now. If the same run
 arrives via both Strava and GPSLogger, naive ingestion double-reveals and double-counts XP.

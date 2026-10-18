@@ -82,28 +82,37 @@ having touched settings.
 
 ## Acceptance criteria
 
-- [ ] An event whose `subscription_id` does not match ours is dropped with a 200 and no queue write.
-- [ ] `object_type` values other than `activity` and `athlete` are dropped with a 200.
-- [ ] No `owner_id` lookup against `LostSolesSourceAccount` occurs in this function — asserted by the
+- [x] An event whose `subscription_id` does not match ours is dropped with a 200 and no queue write.
+- [x] `object_type` values other than `activity` and `athlete` are dropped with a 200.
+- [x] No `owner_id` lookup against `LostSolesSourceAccount` occurs in this function — asserted by the
       absence of the IAM grant (0091) and by a code-level test.
-- [ ] The same event delivered three times produces exactly **one** SQS message and three 200s; the
+- [x] The same event delivered three times produces exactly **one** SQS message and three 200s; the
       second and third cost one conditional write each.
-- [ ] `IngestReceipt` rows carry a ~30-day TTL.
-- [ ] A downstream test proves a replayed event does not double-award XP, via the deterministic
+- [x] `IngestReceipt` rows carry the T8 TTL (**90 days**). *(Amended 2026-10-17, operator Q2 = (a):
+      this read "~30-day", which contradicted `02-data-model.md` T8 and the decisions citing the
+      90-day receipt TTL. 90 days meets this ticket's own test — no retry outlives it, the table
+      stays free — and expiry is safe because set semantics and the deterministic ledger `id` are
+      the backstops. Already built as `RECEIPT_TTL_DAYS = 90`; `08` §4.3 corrected.)*
+- [x] A downstream test proves a replayed event does not double-award XP, via the deterministic
       `activityId`.
-- [ ] Reserved concurrency on the function is set to 5 in CDK.
-- [ ] A request with `Content-Length` > 8 KB is rejected **before** the body is parsed.
-- [ ] Non-JSON `Content-Type`, unparseable bodies, and bodies with unknown fields are all rejected
+- [x] Reserved concurrency on the function is set to 5 in CDK.
+- [x] A request with `Content-Length` > 8 KB is rejected **before** the body is parsed.
+- [x] Non-JSON `Content-Type`, unparseable bodies, and bodies with unknown fields are all rejected
       with a 200 and no detail; none reaches SQS.
-- [ ] `PUT`, `DELETE`, `PATCH` and `OPTIONS` return 405 with no body.
-- [ ] More than 50 events in an hour for one `owner_id` are dropped with a 200 and raise an alarm.
+- [x] `PUT`, `DELETE`, `PATCH` and `OPTIONS` return 405 with no body.
+- [x] More than 50 events in an hour for one `owner_id` are dropped with a 200 and raise an alarm.
 - [ ] AWS Budgets alarms exist at $10 and $25/month with an email destination, verified by a test
-      notification actually arriving.
+      notification actually arriving. *(Built and synth-tested; the budget does not exist until
+      deploy, and "an email actually arrives" is a post-deploy smoke test — see Resolution.)*
 - [ ] A synthetic flood of 1,000 requests in 60 seconds produces zero queue growth beyond the unique
       events, no concurrency starvation of `process-activity`, and a measured cost delta under a cent.
+      *(Post-deploy, against the real URL — the exact commands are in the Resolution.)*
 - [ ] An `athlete` deauthorization event issues the `disconnect` command; afterwards the app shows the
-      source as disconnected and the map, ledger and history are unchanged.
-- [ ] A grep proves no field of a webhook payload other than ids and `aspect_type` is read anywhere
+      source as disconnected and the map, ledger and history are unchanged. *(Code half done and
+      tested: webhook → `DisconnectMessage` → worker confirms with Strava → `markDisconnected`,
+      which leaves map/ledger/history untouched by construction (§6.5). The end-to-end half needs a
+      real revocation at Strava and is the operator check.)*
+- [x] A grep proves no field of a webhook payload other than ids and `aspect_type` is read anywhere
       downstream — no coordinate, distance, timestamp or name from a payload reaches the domain model.
 
 ## Notes
@@ -142,3 +151,81 @@ not a backstop.
 Finally, in the desktop browser: revoke the app from Strava's own website, then open Lost Soles. The
 source must show as disconnected in `/settings`, and your map and Total Level must be **completely
 unchanged**. Reconnect and confirm ingest resumes.
+
+## Resolution
+
+**What shipped.** This builds on 0091's `ingest-webhook` and adds the rest of §4.1/§4.4: the
+cheap filters, a per-athlete flood counter, reserved concurrency, a flood alarm, the Budgets
+backstop, and deauthorization. A deauthorization is **confirmed with Strava before it is
+believed**.
+
+**The order, per request.**
+1. Handler, method allowlist: GET/POST only; anything else is a 405 with no body.
+2. Handler, 8 KB cap on the declared `Content-Length` and on the bytes received. It runs before
+   any decode or parse, and an oversize body gets a 200 with no body.
+3. Adapter, JSON `Content-Type`.
+4. Adapter, the body must parse to an object.
+5. Adapter, exactly the documented top-level and `updates` keys, with their types.
+6. Adapter, the `subscription_id` must equal `STRAVA_SUBSCRIPTION_ID`. While that is `null`,
+   every event drops as `no-subscription`.
+7. Adapter, `object_type` must be `activity` or `athlete`.
+8. Adapter, the static owner map (0091).
+9. Handler, the per-user flood counter.
+10. Handler, the receipt gate (0091), then the SQS send.
+
+Every POST rejection is a 200 with an empty body. Each one logs a distinct `decision`.
+
+**Files touched**
+- `src/adapters/strava/subscription.ts`: new. `STRAVA_SUBSCRIPTION_ID: number | null = null`. 0092's id gets committed here.
+- `src/adapters/strava/accept.ts`: the filter chain above. It adds a deauthorization branch: `athlete`, `update`, `updates` exactly `{authorized:"false"}`, and `object_id === owner_id`. That branch returns `{kind:"disconnect", source, userId}`. `acceptStravaEvent(req, {now, subscriptionId})` lets tests inject the id.
+- `src/adapters/strava/accept.test.ts`: new. Covers the subscription (null, mismatch, missing), `object_type`, the deauth shape, content type, unknown fields (including a 10,000-key body) and the documented fields.
+- `src/adapters/strava/webhook-replay.test.ts`: new, for criterion 6. Three deliveries at three clocks go through the real `accept` and `normalize`. They give one `activityId` (= `computeActivityId`), so one `ledgerId`, which is written `attribute_not_exists(id)`. It also proves `event_time` never becomes `startedAt`. The pipeline half is the existing "a second delivery keeps the first award (0220)" test.
+- `amplify/functions/ingest-webhook/handler.ts`: the method allowlist, `MAX_BODY_BYTES` / `bodyTooLarge`, the flood counter in front of the receipt gate, the `webhook-flood` log line, and `forwardDisconnect`. A disconnect writes no receipt, is counted in two buckets, and is sent as a `DisconnectMessage`.
+- `amplify/functions/ingest-webhook/owner-rate.ts`: new. Atomic `ADD` on `rate#<source>#<userId>#<UTC hour>` (deauths use `…#deauth#<hour>`) in `LostSolesIngestReceipt`, with a 2 h TTL. The limits are 50 events per hour and 4 deauths per hour.
+- `amplify/functions/ingest-webhook/handler.test.ts`:
+  - The subscription is mocked to the fixture id, and the receipt fake is now stateful.
+  - New tests cover:
+    - replay (3 × 200, 1 message, 3 conditional puts);
+    - 405s for PUT/DELETE/PATCH/OPTIONS/HEAD, all decided before the adapter runs;
+    - oversize (declared, actual, base64, non-numeric length);
+    - not-json, unparseable and unknown-fields;
+    - the flood (the 51st event drops with no receipt write);
+    - a stranger's flood, which costs no writes;
+    - deauth forwarding and the deauth flood.
+  - It also adds criterion 15's grep and criterion 3's bundle test (no SourceAccount store, table name or `byExternalOwner` in the bundle).
+- `src/pipeline/disconnect-message.ts`: new. `DisconnectMessage {command:"disconnect", source, userId, enqueuedAt}`, with a builder and `isDisconnectMessage`. It is not an `IngestJob`, so D-343's key set is untouched.
+- `lib/sources/deauthorization.ts` (+ test): new. `handleDeauthorization` forces a refresh through `accessTokenFor`, which is the existing lease plus conditional rotation, with `refreshWithinSeconds` larger than any token's life. It can end four ways:
+  - `SourceNeedsReauthError`: Strava rejected the credential (`credentialIsDead`), so the row is marked `markDisconnected`.
+  - Success: the event was forged or stale. The rotated tokens are already persisted, nothing is disconnected, and the outcome is logged as `forged-or-stale`.
+  - `SourceNotConnectedError`: the row is already disconnected, so nothing happens.
+  - Anything else: it throws, so SQS redelivers.
+- `amplify/functions/process-activity/handler.ts` (+ test): `handleRecord` checks `isDisconnectMessage` before it reads the body as a job. No new grant: it already holds GetItem/UpdateItem on SourceAccount, KMS, and the client credentials.
+- `amplify/backend.ts`:
+  - `reservedConcurrentExecutions = 5`, set on the L1 `cfnFunction`;
+  - a new statement `OwnerFloodCounter`: `dynamodb:UpdateItem` on the receipt table, conditioned on `ForAllValues:StringLike dynamodb:LeadingKeys ["rate#*"]`;
+  - a `MetricFilter` on the webhook's log group (term `"webhook-flood"` → `LostSoles/WebhookOwnerFlood`) with a `WebhookOwnerFlood` alarm (Sum > 0 over 5 min, missing data = not breaching). It emails through the existing `IngestAlarms` topic. Both sit in the functions' stack, because putting them in `IngestPipeline` would create a stack cycle;
+  - `CfnBudget` "Lost Soles monthly cost": COST, MONTHLY, ACTUAL > $10 and > $25, with a direct EMAIL subscriber.
+- `amplify/ingest-webhook-stack.test.ts`: **0091's pinned-grant test is amended on purpose**. It now expects exactly three actions, and the `UpdateItem` must carry the `rate#*` condition on its own statement. New synth tests cover reserved concurrency, the filter and alarm, and the budget.
+- `amplify/process-activity-stack.test.ts`: the "only alarm" test now allows exactly one other alarm in the functions' stack, the flood alarm. *(0095 edited the same assertion; the orchestrator resolves that at merge.)*
+- `docs/01-architecture.md` §4: the "only alarm" line now names the flood alarm. *(It also conflicts with 0095; resolved at merge.)*
+- `docs/08-security-privacy.md` §4.1: an as-built note covering the static owner map (0091's drift) and deauth confirmation.
+- `docs/08-security-privacy.md` §4.3: the TTL is corrected to T8's 90 days, with the reason.
+- `docs/08-security-privacy.md` §4.4 item 6: the counter's as-built shape.
+- `docs/03-integrations.md` §2.3 "Deauthorization": "immediately" now means once confirmed.
+
+**Decisions**
+- **D-NEW-a (operator Q1 = A′).** A deauthorization is forwarded as a `DisconnectMessage` on the ingest queue. `process-activity` disconnects only after a forced refresh through the refresh lease shows Strava rejecting the credential. A refresh that succeeds marks the event forged; the rotated tokens are kept. This keeps §4.1's guarantee that a forgery is worthless, for the one event that would otherwise delete tokens.
+- **D-NEW-b.** The flood counter is keyed on the **user**, not on `owner_id`. The static map is one-to-one, the counter row stays vendor-neutral (D-100), and no athlete id lands in a table key. `UpdateItem` is held to `rate#` keys by `LeadingKeys`, so the accept gate stays `PutItem`-only. Deauths get their own budget of 4 per hour, because each one costs the worker a Strava call.
+- **Q2 = (a) (operator).** The receipt TTL stays at T8's 90 days. Criterion 5 and `08` §4.3 are amended.
+- **Oversize → 200 (operator confirmed).** Same as every other POST rejection; a 413 would be an oracle.
+- **The design called the strict field set "reject unknown fields"; the cost is accepted.** If Strava adds a field, every event drops as `unknown-fields`. That is loud in the log and lossless, because the sweep (0095) is the path of record.
+
+**Gate (worktree).**
+- All `amplify.yml` guards passed, including `check-adapter-deletion` and the post-build `check-bundle-leak` and `check-home-not-in-client`.
+- `npm run typecheck` and `npm run lint` are clean.
+- `npx vitest run`: 222 files, 3,803 passed, 1 skipped.
+- `npm run build` is green.
+
+**Post-deploy.**
+- The `MetricFilter` needs the webhook's log group to exist; it has existed since 0091.
+- Until 0092's subscription id is committed, every POST drops as `no-subscription`. The replay, flood-counter and deauth smoke tests need that id; the method, size, content-type and field tests do not.

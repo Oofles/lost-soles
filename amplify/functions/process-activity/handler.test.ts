@@ -52,6 +52,9 @@ vi.mock("@aws-sdk/lib-dynamodb", () => ({
 }))
 vi.mock("@/src/adapters/registry", () => ({ getAdapter: () => ({ id: "test-source" }) }))
 vi.mock("@/lib/sources/adapter-credentials", () => ({ oauthCredentialsFor: () => ({}) }))
+/** Ticket 0093. The deauthorization path; its own logic is `lib/sources/deauthorization.test.ts`. */
+const handleDeauthorization = vi.fn<(...args: unknown[]) => Promise<string>>(async () => "disconnected")
+vi.mock("@/lib/sources/deauthorization", () => ({ handleDeauthorization }))
 /**
  * PARTIALLY MOCKED. `processActivity` is replaced because the point of this file is what
  * the handler does with an outcome, but `archiveCompletedBy` and `INGEST_PHASES` are the
@@ -507,5 +510,43 @@ describe("criterion 3 — one structured line per terminal failure", () => {
     await expect(handler(event(3))).rejects.toThrow()
 
     expect(errorLine()).toMatchObject({ terminal: true, failureRecorded: false })
+  })
+})
+
+/**
+ * Ticket 0093. A `DisconnectMessage` shares the ingest queue. It is recognised BEFORE anything reads
+ * the body as a job, goes to the deauthorization path, and never reaches the pipeline.
+ */
+describe("the disconnect message (0093)", () => {
+  const disconnect = () => ({
+    Records: [
+      {
+        messageId: "m-2",
+        receiptHandle: "rh-2",
+        attributes: { ApproximateReceiveCount: "1" },
+        body: JSON.stringify({ command: "disconnect", source: "test-source", userId: "u-1", enqueuedAt: "2026-10-17T00:00:00.000Z" }),
+      },
+    ],
+  })
+
+  it("is handed to the deauthorization path and never to the pipeline", async () => {
+    handleDeauthorization.mockClear()
+    await handler(disconnect())
+    expect(handleDeauthorization).toHaveBeenCalledWith({ command: "disconnect", source: "test-source", userId: "u-1", enqueuedAt: "2026-10-17T00:00:00.000Z" })
+    expect(runPipeline).not.toHaveBeenCalled()
+    expect(recordFailure).not.toHaveBeenCalled()
+  })
+
+  it("throws when the deauthorization path throws, so SQS redelivers", async () => {
+    handleDeauthorization.mockRejectedValueOnce(new Error("provider 503"))
+    await expect(handler(disconnect())).rejects.toThrow("provider 503")
+  })
+
+  it("an ordinary job still goes to the pipeline, not the deauthorization path", async () => {
+    handleDeauthorization.mockClear()
+    runPipeline.mockResolvedValue({ outcome: "already-done", xpAwarded: 0, newCellCount: 0 })
+    await handler(event())
+    expect(runPipeline).toHaveBeenCalledTimes(1)
+    expect(handleDeauthorization).not.toHaveBeenCalled()
   })
 })

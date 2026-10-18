@@ -4,29 +4,44 @@ import type { AckResult, InboundRequest, IngestJob } from "../types"
 import { acceptHandshake } from "./handshake"
 import { parseWithExactIds } from "./json-ids"
 import { userIdForOwner } from "./owner-map"
+import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
 
 /**
- * PHASE 1 — `accept()` for Strava's push subscription. Ticket 0091.
+ * PHASE 1 — `accept()` for Strava's push subscription. Tickets 0091, 0093.
  *
  * Runs in the public webhook Lambda on Strava's 2-second deadline (`03-integrations.md` §2.3,
  * `08-security-privacy.md` §4.5). NO network call, NO token, NO S3, NO clock beyond `enqueuedAt`.
  * It reads the body, decides, and hands back at most one command; the Lambda writes the receipt
  * and the queue message.
  *
- * ─── WHAT THIS TICKET HANDLES, AND WHAT IT LEAVES ───────────────────────────
+ * ─── WHAT IS HANDLED, AND WHAT IS LEFT ──────────────────────────────────────
  *
- * An `activity` `create` from a known athlete becomes one `ingest` command. Everything else is
+ * An `activity` `create` from a known athlete becomes one `ingest` command, and an `athlete`
+ * deauthorization from a known athlete becomes one `disconnect` command (0093). Everything else is
  * acknowledged with a 200 and dropped — Strava only cares that it got a 200, and a 400 would be a
- * free oracle (§4.4). Left to later tickets, deliberately:
+ * free oracle (§4.4). Handled elsewhere, or left, deliberately:
  *   - the `GET` `hub.challenge` handshake → 0092, in `handshake.ts`;
- *   - `subscription_id` matching, unknown-field rejection, the size cap, deauthorization → 0093;
  *   - `update` / `delete` aspects → dropped; the sweep covers neither today either.
+ *
+ * ─── THE FILTER CHAIN, CHEAPEST AND LEAST TRUSTING FIRST (0093, §4.1, §4.4) ──
+ *
+ *   1. `Content-Type` must be JSON.        (the 8 KB cap runs before this, in the Lambda)
+ *   2. The body must parse, to a plain object.
+ *   3. EXACTLY the documented fields, of the documented types — an unknown key is a reject, not a
+ *      skip, because a payload of 10,000 keys is a parser-cost attack (§4.4 item 3).
+ *   4. `subscription_id` must be ours (`subscription.ts`); `null` there drops everything.
+ *   5. `object_type` must be `activity` or `athlete`.
+ *   6. `owner_id` must be in the static owner map (0091, Q1=A).
+ *
+ * None of these VERIFIES the event, and nothing could: Strava signs nothing (§4.1). They make a
+ * forgery cheap to discard; the architecture is what makes one worthless.
  *
  * ─── THE BODY IS A POINTER, NEVER DATA (§4.1) ───────────────────────────────
  *
- * Only `object_type`, `aspect_type`, `object_id` and `owner_id` are read. `event_time` is NOT a
- * start date (D-343: the job omits `startedAt` rather than invent one), and nothing else in a
- * payload reaches a job.
+ * Only `object_type`, `aspect_type`, `object_id`, `owner_id`, `subscription_id` and — for a
+ * deauthorization alone — `updates.authorized` are read for meaning. `event_time` and the other
+ * `updates` keys are type-checked and then discarded: `event_time` is NOT a start date (D-343: the
+ * job omits `startedAt` rather than invent one), and nothing else in a payload reaches a command.
  */
 
 /**
@@ -53,17 +68,47 @@ export function ingestKeyFor(externalOwnerId: string, externalId: string): strin
 /** The event's id fields, kept as exact wire digits — `object_id` is an int64. */
 const EVENT_ID_KEYS: ReadonlySet<string> = new Set(["owner_id", "object_id", "subscription_id"])
 
+/**
+ * EVERY TOP-LEVEL FIELD STRAVA DOCUMENTS (`03-integrations.md` §2.3), and no other. An event with
+ * a key outside this set is dropped — §4.4 item 3: reject unknown fields rather than ignore them.
+ *
+ * THE COST OF STRICTNESS, stated: if Strava ever adds a field, every event is dropped as
+ * `unknown-fields` until this set learns it. That is loud (the decision is logged) and lossless
+ * (the sweep, 0095, is the path of record), which is why strict is affordable here.
+ */
+const EVENT_KEYS: ReadonlySet<string> = new Set([
+  "object_type",
+  "object_id",
+  "aspect_type",
+  "updates",
+  "owner_id",
+  "subscription_id",
+  "event_time",
+])
+
+/**
+ * The `updates` keys Strava documents: `title`, `type`, `private` on an activity update, and
+ * `authorized` on a deauthorization. Values are scalars. Anything else is an unknown field.
+ */
+const UPDATE_KEYS: ReadonlySet<string> = new Set(["title", "type", "private", "authorized"])
+
 /** Values logged verbatim. Anything else is attacker-chosen text and is logged as `"other"`. */
 const KNOWN_ASPECTS = new Set(["create", "update", "delete"])
 
 export type WebhookDecision =
   | "method-not-allowed"
+  | "not-json"
   | "unparseable"
+  | "unknown-fields"
+  | "no-subscription"
+  | "wrong-subscription"
   | "ignored-object-type"
   | "ignored-aspect"
+  | "ignored-athlete-event"
   | "malformed-ids"
   | "unknown-owner"
   | "enqueue"
+  | "deauthorize"
 
 /**
  * THE ONE LOG LINE, and what is missing from it is the point (§4.5, criterion 9): no body, no
@@ -89,14 +134,59 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 const isId = (v: unknown): v is string => typeof v === "string" && /^\d{1,20}$/.test(v)
 
+const isScalar = (v: unknown) =>
+  typeof v === "string" || typeof v === "boolean" || typeof v === "number"
+
+/** `application/json`, any case, optionally with parameters (`; charset=utf-8`). */
+function isJsonContentType(value: string | undefined): boolean {
+  if (value === undefined) return false
+  return value.split(";")[0].trim().toLowerCase() === "application/json"
+}
+
+/**
+ * THE SHAPE CHECK: exactly the documented keys, each of its documented type. The ids are already
+ * digit strings (`parseWithExactIds`); `isId` checks them later, where a failure logs as
+ * `malformed-ids` rather than `unknown-fields`, because that is the more useful line.
+ *
+ * `updates` must be a flat object of documented keys with scalar values — a nested object there is
+ * the same parser-cost shape as an unknown top-level key, one level down.
+ */
+function hasOnlyKnownFields(event: Record<string, unknown>): boolean {
+  for (const key of Object.keys(event)) if (!EVENT_KEYS.has(key)) return false
+  if (typeof event.object_type !== "string" || typeof event.aspect_type !== "string") return false
+  if (event.event_time !== undefined && typeof event.event_time !== "number") return false
+  if (event.updates !== undefined) {
+    if (!isRecord(event.updates)) return false
+    for (const [key, value] of Object.entries(event.updates)) {
+      if (!UPDATE_KEYS.has(key) || !isScalar(value)) return false
+    }
+  }
+  return true
+}
+
+export interface AcceptOptions {
+  now?: () => Date
+  /** Injected by tests. Production reads the committed `STRAVA_SUBSCRIPTION_ID`. */
+  subscriptionId?: number | null
+}
+
 export async function acceptStravaEvent(
   req: InboundRequest,
-  now: () => Date = () => new Date(),
+  options: AcceptOptions = {},
 ): Promise<AckResult> {
   if (req.method === "GET") return acceptHandshake(req)
+  const now = options.now ?? (() => new Date())
+  const ourSubscription =
+    options.subscriptionId === undefined ? STRAVA_SUBSCRIPTION_ID : options.subscriptionId
+
   if (req.method !== "POST") {
     logDecision("method-not-allowed", undefined)
     return { status: 405, commands: [] }
+  }
+
+  if (!isJsonContentType(req.headers["content-type"])) {
+    logDecision("not-json", undefined)
+    return DROP
   }
 
   let event: unknown
@@ -110,8 +200,27 @@ export async function acceptStravaEvent(
     logDecision("unparseable", undefined)
     return DROP
   }
+  if (!hasOnlyKnownFields(event)) {
+    logDecision("unknown-fields", undefined)
+    return DROP
+  }
 
   const aspect = event.aspect_type
+
+  /**
+   * `null`: the subscription does not exist yet, or its id is not committed yet. Every event is
+   * dropped, under its own name, so the log says WHY nothing is arriving.
+   */
+  if (ourSubscription === null) {
+    logDecision("no-subscription", aspect)
+    return DROP
+  }
+  if (event.subscription_id !== String(ourSubscription)) {
+    logDecision("wrong-subscription", aspect)
+    return DROP
+  }
+
+  if (event.object_type === "athlete") return acceptAthleteEvent(event, aspect)
   if (event.object_type !== "activity") {
     logDecision("ignored-object-type", aspect)
     return DROP
@@ -153,4 +262,38 @@ export async function acceptStravaEvent(
   }
   logDecision("enqueue", aspect, job.ingestKey)
   return { status: 200, commands: [{ kind: "ingest", job }] }
+}
+
+/**
+ * DEAUTHORIZATION — the one meaningful `athlete` event (`03-integrations.md` §2.3): the athlete
+ * revoked us at Strava. `aspect_type: "update"`, `updates` EXACTLY `{"authorized": "false"}`, and
+ * `object_id` is the athlete, so it must equal `owner_id`. Anything else on an athlete is dropped.
+ *
+ * It becomes a `disconnect` command (§7.4's trigger). The command names the USER, never the
+ * athlete: `userId` comes from the static map, so nothing the payload says reaches the command
+ * except the fact that it was a deauthorization.
+ */
+function acceptAthleteEvent(event: Record<string, unknown>, aspect: unknown): AckResult {
+  const updates = isRecord(event.updates) ? event.updates : {}
+  const isDeauth =
+    aspect === "update" && Object.keys(updates).length === 1 && updates.authorized === "false"
+  if (!isDeauth) {
+    logDecision("ignored-athlete-event", aspect)
+    return DROP
+  }
+
+  const ownerId = event.owner_id
+  if (!isId(ownerId) || event.object_id !== ownerId) {
+    logDecision("malformed-ids", aspect)
+    return DROP
+  }
+
+  const userId = userIdForOwner(ownerId)
+  if (userId === undefined) {
+    logDecision("unknown-owner", aspect)
+    return DROP
+  }
+
+  logDecision("deauthorize", aspect)
+  return { status: 200, commands: [{ kind: "disconnect", source: "strava", userId }] }
 }

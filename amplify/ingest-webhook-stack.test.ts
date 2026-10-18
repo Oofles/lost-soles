@@ -123,9 +123,16 @@ describe("the Function URL (criterion 1)", () => {
 })
 
 describe("its reach (criterion 7)", () => {
-  it("is exactly three grants: PutItem on the receipt table, SendMessage on the queue, the verify token", () => {
+  /**
+   * AMENDED DELIBERATELY BY 0092 AND 0093. 0091 pinned exactly two actions. 0092's verify token is
+   * Amplify's `secret()`, which adds `ssm:GetParameters`; 0093's per-athlete flood counter (§4.4
+   * item 6) needs an atomic `ADD`, which is `UpdateItem`, held to keys beginning `rate#` by
+   * `dynamodb:LeadingKeys`, so the accept gate itself is still `PutItem`-only and the public endpoint
+   * can still not modify a receipt.
+   */
+  it("is exactly four actions: PutItem on the receipt table, UpdateItem on rate# keys only, SendMessage on the queue, the verify token", () => {
     const actions = statements().flatMap(actionsOf).sort()
-    expect(actions).toEqual(["dynamodb:PutItem", "sqs:SendMessage", "ssm:GetParameters"])
+    expect(actions).toEqual(["dynamodb:PutItem", "dynamodb:UpdateItem", "sqs:SendMessage", "ssm:GetParameters"])
 
     // 0092: Amplify's `secret()` grant, and it reaches the verify token's two paths (branch,
     // then shared) and nothing else — not the client secret beside it.
@@ -133,6 +140,15 @@ describe("its reach (criterion 7)", () => {
     const paths = JSON.stringify(ssm.Resource).match(/parameter\/[^"]+/g) ?? []
     expect(paths).toHaveLength(2)
     for (const p of paths) expect(p).toMatch(/\/STRAVA_WEBHOOK_VERIFY_TOKEN$/)
+
+    const update = statements().find((s) => actionsOf(s).includes("dynamodb:UpdateItem"))! as Statement & {
+      Condition?: unknown
+    }
+    expect(JSON.stringify(update.Resource)).toMatch(/IngestReceiptTable/)
+    expect(JSON.stringify(update.Resource)).not.toContain("index")
+    expect(update.Condition).toEqual({ "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["rate#*"] } })
+    // Not on the same statement as the accept gate's PutItem, which must stay unconditioned.
+    expect(actionsOf(update)).toEqual(["dynamodb:UpdateItem"])
 
     const put = statements().find((s) => actionsOf(s).includes("dynamodb:PutItem"))!
     expect(JSON.stringify(put.Resource)).toMatch(/IngestReceiptTable/)
@@ -153,6 +169,62 @@ describe("its reach (criterion 7)", () => {
     for (const s of statements()) {
       expect(actionsOf(s).some((a) => a.includes("*"))).toBe(false)
       expect(JSON.stringify(s.Resource)).not.toBe('"*"')
+    }
+  })
+})
+
+/**
+ * Ticket 0093 — the infrastructure layers of the cost-DoS defence (`08-security-privacy.md` §4.4).
+ * Each is invisible to a runtime test and only "works" in production, which is why each is pinned
+ * here against the synthesized template.
+ */
+describe("cost-DoS defence (ticket 0093)", () => {
+  it("reserves concurrency 5 on the webhook function (§4.4 item 1)", () => {
+    expect(webhookFunction()[1].Properties.ReservedConcurrentExecutions).toBe(5)
+  })
+
+  it("counts `webhook-flood` lines from the webhook's own log group, and alarms on any", () => {
+    const filters = Object.values(stack.findResources("AWS::Logs::MetricFilter")).map(
+      (f) => (f as Resource).Properties,
+    )
+    expect(filters).toHaveLength(1)
+    expect(filters[0].FilterPattern).toBe('"webhook-flood"')
+    expect(JSON.stringify(filters[0].LogGroupName)).toContain("/aws/lambda/")
+    expect(filters[0].MetricTransformations).toEqual([
+      expect.objectContaining({ MetricNamespace: "LostSoles", MetricName: "WebhookOwnerFlood", MetricValue: "1" }),
+    ])
+
+    const alarms = Object.values(stack.findResources("AWS::CloudWatch::Alarm")).map(
+      (a) => (a as Resource).Properties,
+    )
+    const flood = alarms.find((a) => a.MetricName === "WebhookOwnerFlood")!
+    expect(flood).toMatchObject({
+      Namespace: "LostSoles",
+      Statistic: "Sum",
+      Threshold: 0,
+      ComparisonOperator: "GreaterThanThreshold",
+      TreatMissingData: "notBreaching",
+    })
+    // Emails through the same topic as the DLQ alarm.
+    expect(JSON.stringify(flood.AlarmActions)).toMatch(/IngestAlarms/)
+  })
+
+  it("has a monthly Budget emailing at $10 and $25 actual spend (§4.4 item 7)", () => {
+    const budgets = everyStack.flatMap((t) =>
+      Object.values(t.findResources("AWS::Budgets::Budget")).map((b) => (b as Resource).Properties),
+    )
+    expect(budgets).toHaveLength(1)
+    const [b] = budgets as Array<{
+      Budget: Record<string, unknown>
+      NotificationsWithSubscribers: Array<{ Notification: Record<string, unknown>; Subscribers: unknown[] }>
+    }>
+    expect(b.Budget).toMatchObject({ BudgetType: "COST", TimeUnit: "MONTHLY" })
+    expect(b.NotificationsWithSubscribers.map((n) => n.Notification)).toEqual([
+      expect.objectContaining({ NotificationType: "ACTUAL", Threshold: 10, ThresholdType: "ABSOLUTE_VALUE", ComparisonOperator: "GREATER_THAN" }),
+      expect.objectContaining({ NotificationType: "ACTUAL", Threshold: 25, ThresholdType: "ABSOLUTE_VALUE", ComparisonOperator: "GREATER_THAN" }),
+    ])
+    for (const n of b.NotificationsWithSubscribers) {
+      expect(n.Subscribers).toEqual([{ SubscriptionType: "EMAIL", Address: expect.stringContaining("@") }])
     }
   })
 })
