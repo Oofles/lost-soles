@@ -12,6 +12,7 @@ import { retractMessage } from "@/src/pipeline/retract-message"
 import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
 
 import { countOwnerEvent } from "./owner-rate"
+import { lazyWebhookSecret, WEBHOOK_SECRET_PARAMETER_ENV } from "./webhook-secret"
 
 /**
  * THE WEBHOOK, AS A TRANSPORT. Ticket 0091.
@@ -21,7 +22,8 @@ import { countOwnerEvent } from "./owner-rate"
  * knows — what an event looks like, whose it is, which ones matter — is in the adapter. This
  * file knows a URL, a receipt and a queue, and nothing else is reachable from it: its role holds
  * `PutItem` on `LostSolesIngestReceipt`, `UpdateItem` on that table's `rate#` keys only (the
- * flood counter, 0093), and `SendMessage` on the ingest queue, and no grant on
+ * flood counter, 0093), `SendMessage` on the ingest queue, and `GetParameter` on the one SSM
+ * parameter the handshake reads (0286, `webhook-secret.ts`), and no grant on
  * `LostSolesSourceAccount`, so the public endpoint cannot read a token by policy (§4.5).
  *
  * ─── WHAT 0093 ADDED, ALL SOURCE-AGNOSTIC TRANSPORT ─────────────────────────
@@ -80,6 +82,11 @@ function bodyTooLarge(event: LambdaFunctionURLEvent): boolean {
 export interface WebhookDeps {
   receipt: { ddb: ReceiptDdb; now?: () => Date }
   send(messageBody: string): Promise<void>
+  /**
+   * The handshake's secret, read lazily (ticket 0286). Handed to `accept()` as
+   * `AcceptContext.webhookSecret`; the adapter calls it on a GET only, so a POST never touches SSM.
+   */
+  webhookSecret?: () => Promise<string | undefined>
 }
 
 /**
@@ -124,6 +131,8 @@ function buildLive(): { deps: WebhookDeps; clients: LiveClients } {
     clients: { ddb, sqs },
     deps: {
       receipt: { ddb: ddb as unknown as ReceiptDdb },
+      // NOT a client: nothing is imported or built until a GET calls it (0286). Never warmed.
+      webhookSecret: lazyWebhookSecret(process.env[WEBHOOK_SECRET_PARAMETER_ENV]),
       async send(messageBody) {
         if (!queueUrl) throw new Error("INGEST_QUEUE_URL is not set")
         await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: messageBody }))
@@ -357,7 +366,9 @@ export async function handleWebhook(
   }
 
   try {
-    const ack = await adapter.accept(toInboundRequest(source, event))
+    const ack = await adapter.accept(toInboundRequest(source, event), {
+      webhookSecret: deps.webhookSecret,
+    })
     const outcomes: Array<{ ingestKey?: string; outcome: string }> = []
     for (const command of ack.commands) {
       const outcome = await enqueue(source, command, deps)

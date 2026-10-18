@@ -67,15 +67,17 @@ describe("the function (criteria 1 and 3)", () => {
   })
 
   /**
-   * Ticket 0092. Exactly ONE `secret()`, the handshake's verify token, and only as an SSM
-   * reference: the template holds Amplify's placeholder, never a value.
+   * Ticket 0286 (D-347's fallback), replacing 0092's "exactly one `secret()`". A `secret()` is
+   * resolved in init on every cold start, POSTs included, so there must be NONE: Amplify's SSM
+   * config is empty, and the token's NAME — never its value — is an ordinary variable the GET path
+   * reads SSM with.
    */
-  it("resolves exactly one secret, the verify token, from SSM at runtime", () => {
+  it("resolves no secret at init; carries only the verify token's parameter name", () => {
     const vars = (webhookFunction()[1].Properties.Environment as { Variables: Record<string, unknown> })
       .Variables
-    expect(vars.STRAVA_WEBHOOK_VERIFY_TOKEN).toBe("<value will be resolved during runtime>")
-    const ssm = JSON.parse(vars.AMPLIFY_SSM_ENV_CONFIG as string) as Record<string, unknown>
-    expect(Object.keys(ssm)).toEqual(["STRAVA_WEBHOOK_VERIFY_TOKEN"])
+    expect(vars).not.toHaveProperty("STRAVA_WEBHOOK_VERIFY_TOKEN")
+    expect(JSON.parse((vars.AMPLIFY_SSM_ENV_CONFIG as string | undefined) ?? "{}")).toEqual({})
+    expect(vars.WEBHOOK_SECRET_PARAMETER).toBe("/amplify/shared/d14fhvl4rp79nn/STRAVA_WEBHOOK_VERIFY_TOKEN")
   })
 })
 
@@ -124,22 +126,25 @@ describe("the Function URL (criterion 1)", () => {
 
 describe("its reach (criterion 7)", () => {
   /**
-   * AMENDED DELIBERATELY BY 0092 AND 0093. 0091 pinned exactly two actions. 0092's verify token is
-   * Amplify's `secret()`, which adds `ssm:GetParameters`; 0093's per-athlete flood counter (§4.4
-   * item 6) needs an atomic `ADD`, which is `UpdateItem`, held to keys beginning `rate#` by
-   * `dynamodb:LeadingKeys`, so the accept gate itself is still `PutItem`-only and the public endpoint
-   * can still not modify a receipt.
+   * AMENDED DELIBERATELY BY 0092, 0093 AND 0286. 0091 pinned exactly two actions. 0092's verify
+   * token was Amplify's `secret()`, which added `ssm:GetParameters` on two paths (branch, shared);
+   * 0093's per-athlete flood counter (§4.4 item 6) needs an atomic `ADD`, which is `UpdateItem`,
+   * held to keys beginning `rate#` by `dynamodb:LeadingKeys`, so the accept gate itself is still
+   * `PutItem`-only and the public endpoint can still not modify a receipt. 0286 replaced the
+   * `secret()` with a lazy read on GET only, so its grant is now our own explicit
+   * `ssm:GetParameter` (singular — what `webhook-secret.ts` calls) on the ONE path the token
+   * lives at: the shared one. The branch path it used to miss is no longer reachable at all.
    */
   it("is exactly four actions: PutItem on the receipt table, UpdateItem on rate# keys only, SendMessage on the queue, the verify token", () => {
     const actions = statements().flatMap(actionsOf).sort()
-    expect(actions).toEqual(["dynamodb:PutItem", "dynamodb:UpdateItem", "sqs:SendMessage", "ssm:GetParameters"])
+    expect(actions).toEqual(["dynamodb:PutItem", "dynamodb:UpdateItem", "sqs:SendMessage", "ssm:GetParameter"])
 
-    // 0092: Amplify's `secret()` grant, and it reaches the verify token's two paths (branch,
-    // then shared) and nothing else — not the client secret beside it.
-    const ssm = statements().find((s) => actionsOf(s).includes("ssm:GetParameters"))!
+    // 0286: one statement, one parameter ARN, the verify token's shared path — not the client
+    // secret beside it, and no wildcard.
+    const ssm = statements().find((s) => actionsOf(s).includes("ssm:GetParameter"))!
+    expect(actionsOf(ssm)).toEqual(["ssm:GetParameter"])
     const paths = JSON.stringify(ssm.Resource).match(/parameter\/[^"]+/g) ?? []
-    expect(paths).toHaveLength(2)
-    for (const p of paths) expect(p).toMatch(/\/STRAVA_WEBHOOK_VERIFY_TOKEN$/)
+    expect(paths).toEqual(["parameter/amplify/shared/d14fhvl4rp79nn/STRAVA_WEBHOOK_VERIFY_TOKEN"])
 
     const update = statements().find((s) => actionsOf(s).includes("dynamodb:UpdateItem"))! as Statement & {
       Condition?: unknown

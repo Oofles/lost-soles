@@ -1,7 +1,7 @@
 import type { NormalizedIngest, RawArchiveRef } from "@/src/domain/activity"
 
 import { SourceRateLimitedError } from "../errors"
-import type { AckResult, InboundRequest, IngestJob, SourceAdapter, SweepJob } from "../types"
+import type { AcceptContext, AckResult, InboundRequest, IngestJob, SourceAdapter, SweepJob } from "../types"
 import { acceptStravaEvent, ingestKeyFor } from "./accept"
 import { createStravaClient, type StravaClientDeps } from "./client"
 import { parseWithExactIds } from "./json-ids"
@@ -221,8 +221,8 @@ export const stravaAdapter: SourceAdapter<StravaCreds> = {
    * The whole implementation is in `./accept.ts`; the webhook Lambda reaches it ONLY through
    * `registry.ts`'s `getWebhookAdapter`, so deleting this directory still breaks one file.
    */
-  accept(req: InboundRequest): Promise<AckResult> {
-    return acceptStravaEvent(req)
+  accept(req: InboundRequest, ctx?: AcceptContext): Promise<AckResult> {
+    return acceptStravaEvent(req, { webhookSecret: ctx?.webhookSecret })
   },
 
   /**

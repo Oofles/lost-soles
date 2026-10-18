@@ -150,6 +150,19 @@ export interface AckResult {
 }
 
 /**
+ * What the public endpoint offers `accept()` besides the request. Ticket 0286, D-347.
+ *
+ * `webhookSecret` is the shared secret a source's subscription handshake is checked against (for
+ * Strava, the `hub.verify_token`). It is a GETTER, not a value, and that is the point: the endpoint
+ * reads it from SSM only when it is called, so an adapter that calls it only on the handshake keeps
+ * every event POST — the cold path on a 2 s deadline (D-346) — free of any SSM round trip. It
+ * resolves `undefined` when the secret cannot be read; an adapter must then fail closed.
+ */
+export interface AcceptContext {
+  webhookSecret?: () => Promise<string | undefined>
+}
+
+/**
  * One source, four phases. The phase comments are load-bearing — each one names a thing
  * the implementation must NOT do, and those are the constraints that make the boundary
  * survivable rather than merely tidy.
@@ -166,7 +179,7 @@ export interface SourceAdapter<TCreds = unknown> {
    * MUST NOT call the source API, refresh tokens, or touch S3. Validation and command
    * construction only.
    */
-  accept(req: InboundRequest): Promise<AckResult>
+  accept(req: InboundRequest, ctx?: AcceptContext): Promise<AckResult>
 
   /**
    * PHASE 2 — runs in the worker. May use the network.

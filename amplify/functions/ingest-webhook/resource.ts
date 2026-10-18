@@ -1,4 +1,4 @@
-import { defineFunction, secret } from "@aws-amplify/backend"
+import { defineFunction } from "@aws-amplify/backend"
 
 /**
  * `ingest-webhook` — the push-subscription endpoint. Ticket 0091, `01-architecture.md` §2
@@ -14,21 +14,18 @@ import { defineFunction, secret } from "@aws-amplify/backend"
  * timeout is the budget plus a margin, never a licence to spend it. At ~1 event/day this function
  * is ALWAYS cold, which is why it imports nothing it does not call.
  *
- * **No VPC** (D-081). **One `secret()`** (ticket 0092): `STRAVA_WEBHOOK_VERIFY_TOKEN`, read only
- * by the adapter's `GET` handshake (`src/adapters/strava/handshake.ts`). Amplify resolves it from
- * SSM during init, so the value is in no template, no output and no build artifact; the cost is
- * one `ssm:GetParameters` round trip per cold start (init, not the handler — see D-346 for why
- * that distinction matters at 128 MB). **No API Gateway**: the Function URL is added in
- * `backend.ts`, because `defineFunction` has no `url` property — the third of the escape-hatch
- * uses `01-architecture.md` §2 sanctions.
+ * **No VPC** (D-081). **No `secret()`** (ticket 0286, D-347's fallback). The handshake's verify
+ * token is read from SSM on a GET only, by `webhook-secret.ts`, through one explicit
+ * `ssm:GetParameter` grant in `backend.ts`. It was a `secret()` in 0092, and Amplify resolves those
+ * in init on EVERY cold start — two SSM round trips that took Init from ~300 ms to ~680 ms on event
+ * POSTs that never read the token (D-346 is why init time matters at 128 MB).
+ *
+ * **No API Gateway**: the Function URL is added in `backend.ts`, because `defineFunction` has no
+ * `url` property — the third of the escape-hatch uses `01-architecture.md` §2 sanctions.
  */
 export const ingestWebhook = defineFunction({
   name: "ingest-webhook",
   entry: "./handler.ts",
   timeoutSeconds: 3,
   memoryMB: 128,
-  environment: {
-    // An SSM parameter NAME, not a value (D-166's SCREAMING_SNAKE redaction in check-boundaries).
-    STRAVA_WEBHOOK_VERIFY_TOKEN: secret("STRAVA_WEBHOOK_VERIFY_TOKEN"),
-  },
 })

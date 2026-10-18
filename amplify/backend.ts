@@ -1981,6 +1981,29 @@ ingestWebhookLambda.addToRolePolicy(
 )
 backend.ingestWebhook.addEnvironment("INGEST_QUEUE_URL", activityIngestQueue.queueUrl)
 
+/**
+ * THE HANDSHAKE'S VERIFY TOKEN, READ ON A GET ONLY (ticket 0286, D-347's fallback). ONE parameter
+ * ARN, named — the shared path, where the token lives, and not the branch path `secret()` also
+ * tried and missed. Not a path wildcard, for the reason the OAuth grants above give:
+ * `/amplify/shared/<app>/*` also covers the client secret and `GITHUB_TICKETS_PAT`.
+ *
+ * The NAME goes into the environment from the same constant, so the grant and what the handler
+ * reads cannot drift apart. A name is not a secret; the value never leaves SSM except into the
+ * handler's memory, and only after a GET asks for it (`webhook-secret.ts`). SecureString under the
+ * AWS-managed `aws/ssm` key, so no `kms:` grant — the same as every other parameter read here.
+ */
+const WEBHOOK_VERIFY_TOKEN_PARAMETER = "/amplify/shared/d14fhvl4rp79nn/STRAVA_WEBHOOK_VERIFY_TOKEN"
+ingestWebhookLambda.addToRolePolicy(
+  new PolicyStatement({
+    sid: "ReadWebhookVerifyToken",
+    actions: ["ssm:GetParameter"],
+    resources: [
+      `arn:aws:ssm:${backend.ingestWebhook.stack.region}:${backend.ingestWebhook.stack.account}:parameter${WEBHOOK_VERIFY_TOKEN_PARAMETER}`,
+    ],
+  }),
+)
+backend.ingestWebhook.addEnvironment("WEBHOOK_SECRET_PARAMETER", WEBHOOK_VERIFY_TOKEN_PARAMETER)
+
 /*
  * ─── COST-DoS DEFENCE  (ticket 0093, 08-security-privacy.md §4.4) ───────────
  *

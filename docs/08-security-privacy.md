@@ -297,7 +297,7 @@ unused at $0.40/secret/month (§9).
 |---|---|---|---|---|---|
 | S1 | `STRAVA_CLIENT_ID` | SSM, via `secret()` | callback route, `process-activity`, `token-refresh` | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
 | S2 | `STRAVA_CLIENT_SECRET` | SSM, via `secret()` | callback + token refresh Lambdas only. **Never leaves a Lambda** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
-| S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM, via `secret()` | `strava-webhook` GET handshake only | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
+| S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `strava-webhook` GET handshake only | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
 | S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly three principals | `process-activity`, `token-refresh`, `/api/auth/strava/callback` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/deauthorize`, then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
@@ -403,7 +403,7 @@ payload's only job is to name an id we then fetch authoritatively.
 
 ```
 GET ?hub.mode=subscribe&hub.challenge=X&hub.verify_token=T
-  → constant-time compare T against secret("STRAVA_WEBHOOK_VERIFY_TOKEN")
+  → constant-time compare T against SSM STRAVA_WEBHOOK_VERIFY_TOKEN (read on GET only, 0286)
   → mismatch: 400, no body detail, no log of T
   → match:    200, Content-Type: application/json, body exactly {"hub.challenge": X}
 ```
@@ -482,7 +482,8 @@ function is, the less there is to attack.
 
 - **No network calls.** No Strava API call, no token refresh, no S3, no AppSync, no `h3` import.
   A cold start on a fat bundle blows the deadline and disables the subscription.
-- **No credential access.** Its only secret is `STRAVA_WEBHOOK_VERIFY_TOKEN`. It holds **no IAM
+- **No credential access.** Its only secret is `STRAVA_WEBHOOK_VERIFY_TOKEN`, read from SSM on the
+  GET handshake only, so an event POST's cold start makes no SSM call (ticket `0286`). It holds **no IAM
   grant on `LostSolesSourceAccount`** — the public endpoint can never read a token, by policy,
   not by discipline.
 - **No writes outside `IngestReceipt` and the SQS queue.** Two grants, both narrow.
@@ -854,7 +855,7 @@ Two of these deserve a note:
 
 | Never | Where it lives instead |
 |---|---|
-| `STRAVA_CLIENT_SECRET`, `STRAVA_WEBHOOK_VERIFY_TOKEN`, `INGEST_BEARER_TOKEN` (S2, S3, S7) | SSM via `secret()` (§3) |
+| `STRAVA_CLIENT_SECRET`, `STRAVA_WEBHOOK_VERIFY_TOKEN`, `INGEST_BEARER_TOKEN` (S2, S3, S7) | SSM (§3) — via `secret()`, or read at runtime through an explicit grant (S3, ticket `0286`) |
 | The GitHub PAT (S5) or the GitHub webhook secret (S6) | SSM. `07-ticketsmith.md` §6.2: *"never in a committed `.env`, never echoed into logs"* |
 | Any AWS access key ID or secret access key (S8) | `~/.aws` — better, **IAM Identity Center SSO, so no long-lived `AKIA…` exists on the laptop at all** (§3, S8) |
 | Any user's Strava tokens (S4) | DynamoDB, never a file |

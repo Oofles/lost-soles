@@ -35,12 +35,17 @@ import type { AckResult, InboundRequest } from "../types"
  * `timingSafeEqual` sees equal lengths and the comparison leaks neither content nor length. T
  * appears in no log line at any level; the one line this writes is a fixed decision word.
  *
- * The expected value is `secret("STRAVA_WEBHOOK_VERIFY_TOKEN")`, which Amplify resolves into the
- * function's environment at init (`amplify/functions/ingest-webhook/resource.ts`). If it is
- * absent the handshake FAILS CLOSED — no token, no subscription.
+ * The expected value is the SecureString `STRAVA_WEBHOOK_VERIFY_TOKEN`, read from SSM by the webhook
+ * Lambda ON A GET ONLY, through the `webhookSecret` getter `accept.ts` is handed (ticket 0286,
+ * D-347's fallback). It was Amplify's `secret()` until then, which made every cold start — event
+ * POSTs included — pay the SSM round trips in init. If it is absent or unreadable the handshake
+ * FAILS CLOSED — no token, no subscription.
  */
 
-/** The env key the webhook function's `secret()` resolves into. */
+/**
+ * The parameter's leaf name, and the env key a caller with no getter (the tests) reads it from.
+ * The deployed function has no such env key: it reads SSM.
+ */
 export const VERIFY_TOKEN_ENV = "STRAVA_WEBHOOK_VERIFY_TOKEN"
 
 /** §4.2: at most 256 bytes, `[A-Za-z0-9]` only. ASCII, so characters are bytes. */

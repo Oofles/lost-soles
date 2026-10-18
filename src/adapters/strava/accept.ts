@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 
 import type { AckResult, InboundRequest, IngestJob } from "../types"
-import { acceptHandshake } from "./handshake"
+import { acceptHandshake, VERIFY_TOKEN_ENV } from "./handshake"
 import { parseWithExactIds } from "./json-ids"
 import { userIdForOwner } from "./owner-map"
 import { STRAVA_SUBSCRIPTION_ID } from "./subscription"
@@ -201,13 +201,27 @@ export interface AcceptOptions {
   now?: () => Date
   /** Injected by tests. Production reads the committed `STRAVA_SUBSCRIPTION_ID`. */
   subscriptionId?: number | null
+  /**
+   * The verify token, as the webhook's lazy SSM getter (`AcceptContext`, ticket 0286). Called on a
+   * GET only — never on a POST, which is why an event's cold start makes no SSM call. Absent (a
+   * test, or a caller with no getter) the token is read from the environment, which in the deployed
+   * function holds no such key, so that path fails closed there too.
+   */
+  webhookSecret?: () => Promise<string | undefined>
 }
 
 export async function acceptStravaEvent(
   req: InboundRequest,
   options: AcceptOptions = {},
 ): Promise<AckResult> {
-  if (req.method === "GET") return acceptHandshake(req)
+  if (req.method === "GET") {
+    // `?? ""` and not `undefined`: undefined would re-trigger `acceptHandshake`'s env default.
+    // An empty token is "unconfigured", a fail-closed 400.
+    const token = options.webhookSecret
+      ? ((await options.webhookSecret()) ?? "")
+      : process.env[VERIFY_TOKEN_ENV]
+    return acceptHandshake(req, token)
+  }
   const now = options.now ?? (() => new Date())
   const ourSubscription =
     options.subscriptionId === undefined ? STRAVA_SUBSCRIPTION_ID : options.subscriptionId
