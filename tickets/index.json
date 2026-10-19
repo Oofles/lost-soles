@@ -2430,7 +2430,7 @@
     "path": "tickets/open/0099-mode-parity-invariant-tests.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -2477,7 +2477,7 @@
     "path": "tickets/open/0101-map-controls-and-run-inspection.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -5912,7 +5912,7 @@
     "path": "tickets/open/0254-beat-1-mode-crossfade.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -6814,6 +6814,26 @@
     "acceptance": {
       "checked": 0,
       "total": 2
+    }
+  },
+  {
+    "id": 296,
+    "slug": "drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e",
+    "title": "Drop the dead Profile.mapMode column and its mode-boundary exemption",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T23:33:11Z",
+    "path": "tickets/open/0296-drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

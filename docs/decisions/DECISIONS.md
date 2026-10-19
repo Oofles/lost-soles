@@ -5553,3 +5553,37 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   basemap names inside them.** *(Operator, 2026-10-19, `0285`.)* `PlaceNames.prominent` (D-302)
   pads the box 5 km and ranks locality over neighbourhood, then population, then name. With no name
   or on any failure the label is the box centre to 0.1°, never an error.
+- **D-383** **The map mode's name is confined by an allowlist build gate.** *(Agent, 2026-10-19,
+  ticket `0099`; operator agreed the gate's one exemption is temporary.)* `scripts/check-mode-boundary.mjs`
+  runs in `amplify.yml` and the gate workflow. The mode may be named only in the renderer, the toggle and
+  the run-moment seam (`lib/run-moment/mode.ts` and its tests, `app/run/[activityId]/`); anywhere else
+  under `app`, `components`, `lib`, `src`, `amplify`, `rules` or `middleware.ts` fails the build. It is
+  an allowlist, so a new Lambda or XP module is covered without anyone remembering to add it. Prose
+  comments are exempt. The one exemption, the dead `Profile.mapMode` column and its grant test, is
+  removed by the ticket that drops the column (05 §5.3: the mode is per device).
+- **D-384** **Label contrast is measured against the 2 px ring around the glyph in the shipped frame,
+  halo included; the glyph is its darkest tenth of pixels.** *(Agent, 2026-10-19, `0099`.)* By this
+  method the stock `light` map measures ~2.0:1 although its colours are 3.4:1 by design, so figures are
+  reported relative to stock. Atlas street names over unexplored ground measure 0.73–0.77× stock; no
+  floor is set, and the operator's reading check judges it *(operator, same day)*.
+- **D-385** **The selected run is above the fog and topmost in both modes; the trace web keeps D-299's
+  paint and D-368's placement.** *(Operator, 2026-10-19, ticket `0101` Q1 = A.)* The web is `k × wear`,
+  `--trace-line`, 2 px, the same in both modes: above the fog in atlas, below it in adventure. The route
+  glow is 0.35 in adventure and 0 in atlas (`0098` Q4); the cream core is one colour in both. 06 §4.5's
+  table (`--ink-300` at 0.34/0.22, an `--ink-800` selected run in atlas) is replaced by what shipped.
+- **D-386** **On `/run/:id` the trace web dims proportionally, `k = 0.18 / 0.28`.** *(Operator,
+  2026-10-19, `0101` Q2 = B.)* A path run once reads 0.18 and worn ground stays proportionally darker.
+  The settled k is held per map in `lib/trace-web/layer.ts`; beat 1 cross-fades within it and its
+  `remove()` restores it rather than 1. Rejected: a flat 0.18 (loses wear) and k = 0.18 (~0.05, too faint).
+- **D-387** **`GET /api/runs/summary?ids=…` supplies date, distance and new cells for inspected runs.**
+  *(Operator, 2026-10-19, `0101` Q4 = A.)* The uid comes from the session only, and a signed-out caller
+  gets the middleware's 404. 1–25 unique ids matching `[A-Za-z0-9_-]{1,128}`, else 400. One base-table
+  `Query` per id under the existing compute-role grant, no S3 reads, no IAM change. A run that is not the
+  caller's is omitted exactly like a missing one, so the endpoint cannot probe for ids; tombstoned runs
+  are answered, since their lines stay in the web. `no-store, private`. Rejected: paging the chronicle
+  on the client, and carrying the facts in `web.json` (touches ingest). Card rows are 32 px per D-313.
+- **D-388** **Fit-to-territory fits every traced point when that fits at z10 or closer; otherwise it
+  frames the D-381 region in view, or the nearest.** *(Operator, 2026-10-19, `0101`.)* The operator's
+  runs span states, so the whole territory never fits above the z10 floor, and the floor wins
+  (§4.4: below z10 the fog misrepresents what was explored). Jump-to reaches the other regions.
+  Rejected: clamping a whole-territory fit at z10, and lifting the floor for fit only.

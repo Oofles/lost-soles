@@ -139,7 +139,7 @@ One placement differs from the "side by side" that was agreed. 06 §2.2 rows 6 a
   - Below 1024 px they stack under jump-to, because the plinth card's height varies (06 §2.2 amended).
   - `recentre` eases to the last run's end point at z14.
   - `fitTerritory` frames the box of every trace-web point with 12% padding, never past z18.
-  - When that box needs a zoom below z10, the floor wins and fit frames the D-381 region in view, or the nearest region (`territoryTarget`). The operator's runs span states, so "the whole territory" cannot fit above z10. This is proposed as a decision in the report.
+  - When that box needs a zoom below z10, the floor wins and fit frames the D-381 region in view, or the nearest region (`territoryTarget`). The operator's runs span states, so "the whole territory" cannot fit above z10. Recorded as D-388.
 - **Inspection, `lib/route-inspect.ts` (new, pure).**
   - Hit-testing uses the web's per-run inputs, plus the latest run when the web lacks it. The drawn web draws each stretch of ground once (D-299), so its features belong to no single run.
   - A click's box of ±24 px, in degrees, rejects whole runs and segments before anything is projected. Bearing is locked, so the box is axis-aligned.
