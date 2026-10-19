@@ -4,7 +4,7 @@ slug: remove-the-account-wide-budgets-resource-from-the-backend
 title: Remove the account-wide Budgets resource from the backend
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T03:32:39Z
 started: 2026-10-19T03:36:42Z
+closed: 2026-10-19T03:49:20Z
 ---
 
 ## Description
