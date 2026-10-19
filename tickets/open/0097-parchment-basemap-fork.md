@@ -98,6 +98,15 @@ planning and viewing the roads!"* The atlas layout, Arkansas and the other out-o
 and the fog were judged good. The parchment colouring was rejected; the rework below (D-373)
 restores the stock colours and keeps the structure.
 
+**Recorded (operator, 2026-10-19, desktop browser, on the deployed rework, Amplify build 417,
+commit `bb054dd`):** `/` (adventure) and `/?basemap=atlas` show the stock map colours with no warm
+filter, and the atlas layout is unchanged. *"Looks right, close it."*
+
+**Smoke test (orchestrator), against the deployed bundle** (the 20 public
+`/_next/static/chunks/*.js` served by `soles.devaultsecurity.com`): the stock `earth` colour
+`#e2dfda` and the `lost-soles:above-fog` layer tag are each present in one chunk; `--map-ground` and
+`documentMapPalette` are present in none, so no parchment palette code shipped.
+
 ## Resolution
 
 **Files touched**
