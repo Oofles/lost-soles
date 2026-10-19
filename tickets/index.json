@@ -4623,7 +4623,7 @@
     "title": "Re-judge the run polyline's legibility against the parchment basemap",
     "type": "design",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -4632,7 +4632,8 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-11T00:25:31Z",
-    "path": "tickets/open/0197-re-judge-the-run-polyline-s-legibility-against-the-parchment.md",
+    "closed": "2026-10-19T14:35:36Z",
+    "path": "tickets/closed/0197-re-judge-the-run-polyline-s-legibility-against-the-parchment.md",
     "ready": false,
     "acceptance": {
       "checked": 1,

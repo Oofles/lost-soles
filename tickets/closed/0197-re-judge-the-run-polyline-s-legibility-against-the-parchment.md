@@ -4,13 +4,14 @@ slug: re-judge-the-run-polyline-s-legibility-against-the-parchment
 title: Re-judge the run polyline's legibility against the parchment basemap
 type: design
 priority: low
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [97]
 blocked_by: []
 source: agent
 created: 2026-09-11T00:25:31Z
+closed: 2026-10-19T14:35:36Z
 ---
 
 ## Description
