@@ -441,8 +441,9 @@ toast.
   camera does not move. The flight happens only on ⟲ Relive after the user has panned.
 - **Mode.** The sequence always plays in **adventure** rendering, regardless of the user's
   saved mode. This is the one moment where atmosphere outranks planning, because you are not
-  planning — you are looking at what you did. On completion it cross-fades (300 ms) back to the
-  saved mode. This is legal under D-051: legibility is a *task* guarantee, and there is no
+  planning — you are looking at what you did. On completion it cross-fades back to the
+  saved mode, with the toggle's own 320 ms fade (§4.3) *(was 300 ms; one fade for every mode
+  change, operator, `0098`)*. This is legal under D-051: legibility is a *task* guarantee, and there is no
   wayfinding task inside the reveal. The cross-fade back is what keeps the promise.
 - **The lantern.** A point of warm light (`--lantern-500 #FFB347`, 18dp soft radius, additive)
   travels the actual `latlng` stream — the full stream, never `summary_polyline` (D-121
@@ -783,7 +784,7 @@ switch stated in terms of what the user perceives, which is what the UI must be 
 |---|---|---|
 | Unexplored ground | Dimmed, cool, clearly still a map. You can read it. | Near-opaque dark. A ghost of the street grid, no more. |
 | Street names in unexplored ground | **Readable.** Labels sit above the fog. | **Hidden.** Labels sit below the fog. This is the discovery beat. |
-| Street *geometry* in unexplored ground | Fully traceable — road lines drawn above the fog at ~0.5 | Only what `u_maxOpacity` 0.94 lets through |
+| Street *geometry* in unexplored ground | Fully traceable — road lines drawn above the fog at ~0.5 | Only what `u_maxOpacity` 0.90 lets through *(was 0.94; `0119`'s tuning, `0098`)* |
 | The frontier edge | A hairline warm rim; close to true coverage | A wide lantern glow with a ragged, organic edge |
 | Motion | **None.** Static, always. | Mist drifts at 30 fps |
 | Cold / rediscoverable ground | **Shown** (§4.6) | **Never shown** (D-133) |
@@ -798,10 +799,16 @@ wrong even if it looks good:
 2. **Territory does not appear or disappear** (05 §5.4). Both modes render the identical cell set
    at the identical `revealScale`. If toggling ever reads as ground being granted or taken away,
    the app has lied about the one thing it promises never to lie about (D-020).
-3. **The transition is a 320 ms cross-fade of uniforms and layer opacities**, not a reload and
-   not a style swap. `ease-in-out`. Under `prefers-reduced-motion` it is a hard cut — an instant
-   change of a setting the user just asked for is honest; a 320 ms dissolve of the whole viewport
-   is not, for someone who asked for less motion.
+3. **The transition is a 320 ms cross-fade of the fog's uniforms and the route glow**, on one
+   `ease-in-out` curve, and never a reload. ~~not a style swap~~ *(Amended by `0098`, operator,
+   D-NEW-c.)* The basemap variant **is** swapped — a diffed `setStyle` at the start of the fade —
+   because atlas's labels and road-fill copies sit on the other side of the fog (D-368), and no
+   opacity animation moves a layer across another. So the road copies appear in one frame and the
+   labels change on MapLibre's own ~300 ms symbol fade, not on the shared curve. The camera is
+   still untouched (property 1) and nothing revealed changes (property 2). Under
+   `prefers-reduced-motion` it is a hard cut — an instant change of a setting the user just asked
+   for is honest; a 320 ms dissolve of the whole viewport is not, for someone who asked for less
+   motion.
 
 ### 4.4 Controls and gestures
 

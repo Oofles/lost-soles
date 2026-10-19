@@ -14,7 +14,7 @@ import { BEAT1_MS, CAMERA_MS, FROST_MS, GOLD_MS, SETTLE_MS, TRAVERSAL_MS, beat1A
 import { flyToRun, runInView, type Box, type CameraMap } from "./camera"
 import { INK_CORE_ID, INK_GLOW_ID, INK_SOURCE_ID, installInk, type InkMap } from "./ink"
 import { inkGradient, lanternPath } from "./lantern-path"
-import { modeCrossFade, savedRenderMode, SEQUENCE_MODE } from "./mode"
+import { FRONTIER_MODE, modeCrossFade, runPageMode, savedRenderMode, SEQUENCE_MODE } from "./mode"
 import { bloomPaletteFrom, clearOf, hexToRgb } from "./palette"
 
 /**
@@ -455,17 +455,27 @@ describe("three kinds of ground — criterion 6", () => {
   })
 })
 
-/* ─── Criterion 5: the mode, stubbed (D-295) ────────────────────────────────── */
+/* ─── Criterion 5: the mode (D-295; real since 0098) ───────────────────────── */
 
-describe("the mode around the sequence — criterion 5, stubbed until capability 15", () => {
-  it("plays in adventure; the saved mode is adventure; so there is nothing to cross-fade", () => {
+describe("the mode around the sequence — criterion 5 (0098 made it real)", () => {
+  it("plays in adventure; with no saved mode (no browser) there is nothing to cross-fade", () => {
     expect(SEQUENCE_MODE).toBe("adventure")
     expect(savedRenderMode()).toBe("adventure")
     expect(modeCrossFade(savedRenderMode())).toBeNull()
   })
 
-  it("describes a 300 ms fade to the saved mode once one can differ", () => {
-    expect(modeCrossFade("atlas")).toEqual({ from: "adventure", to: "atlas", ms: 300 })
+  it("describes the toggle's 320 ms fade to the saved mode once one differs (06 §3.2, amended by 0098)", () => {
+    expect(modeCrossFade("atlas")).toEqual({ from: "adventure", to: "atlas", ms: 320 })
+  })
+
+  it("shows adventure during the sequence whatever was saved or clicked, then the saved mode or the frontier's atlas", () => {
+    for (const saved of ["atlas", "adventure"] as const) {
+      for (const frontierClicked of [true, false]) {
+        expect(runPageMode({ sequencePlaying: true, frontierClicked, saved })).toBe("adventure")
+      }
+      expect(runPageMode({ sequencePlaying: false, frontierClicked: false, saved })).toBe(saved)
+      expect(runPageMode({ sequencePlaying: false, frontierClicked: true, saved })).toBe(FRONTIER_MODE)
+    }
   })
 })
 

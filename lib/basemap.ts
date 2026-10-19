@@ -2,6 +2,7 @@ import { Protocol } from "pmtiles"
 
 import outputs from "@/amplify_outputs.json"
 import { basemapLayers, type BasemapVariant } from "@/lib/basemap-style"
+import { FOG_LAYER_ID, fogBeforeId } from "@/lib/map-layers"
 
 /**
  * THE ONE PLACE THE APP KNOWS WHERE THE GROUND COMES FROM. Ticket 0052, D-226.
@@ -111,4 +112,78 @@ export function basemapStyle(variant: BasemapVariant) {
     },
     layers: basemapLayers(BASEMAP_SOURCE, variant),
   }
+}
+
+/* ─── `0098`: swapping the variant under a live map ──────────────────────────── */
+
+/** The slice of a style these touch: what `map.getStyle()` returns and `setStyle` takes. */
+interface StyleLike {
+  sources: Record<string, unknown>
+  layers: ReadonlyArray<{ id: string; type: string; source?: unknown }>
+  [key: string]: unknown
+}
+
+/** A layer the basemap owns: its background, or anything drawn from its one source. */
+function isBasemapLayer(l: { type: string; source?: unknown }): boolean {
+  return l.type === "background" || l.source === BASEMAP_SOURCE
+}
+
+/**
+ * `setStyle`'s `transformStyle` for a variant swap: THE NEXT BASEMAP, WITH EVERY APP LAYER CARRIED
+ * ACROSS. Pure, so `basemap.test.ts` runs MapLibre's own style diff over it.
+ *
+ * Without it a diffed `setStyle` removes the route, the trace web and the landmarks — they are in
+ * the current style and not in `basemapStyle(variant)`, and the diff's job is to make the one into
+ * the other. Their sources likewise. With it, the diff sees them unchanged and leaves them alone.
+ *
+ * WHERE THEY GO. An app layer that sat below the first label (the trace web, D-307; beat inks) goes
+ * below the next variant's first label — which in atlas lands it above the road copies and so above
+ * the fog (D-368). Everything else (landmarks, the route) goes on top, in the order it had. The fog
+ * is a custom layer, which a style serialisation never contains; `swapBasemap` re-places it.
+ */
+export function carryAppLayers<S extends StyleLike>(prev: S | undefined, next: S): S {
+  if (!prev) return next
+  const prevFirstSymbol = prev.layers.findIndex((l) => l.type === "symbol")
+  const below: S["layers"][number][] = []
+  const above: S["layers"][number][] = []
+  prev.layers.forEach((l, i) => {
+    if (isBasemapLayer(l)) return
+    if (prevFirstSymbol !== -1 && i < prevFirstSymbol) below.push(l)
+    else above.push(l)
+  })
+  const base = [...next.layers]
+  const firstSymbol = base.findIndex((l) => l.type === "symbol")
+  const at = firstSymbol === -1 ? base.length : firstSymbol
+  const layers = [...base.slice(0, at), ...below, ...base.slice(at), ...above]
+  const sources = { ...next.sources }
+  for (const [id, source] of Object.entries(prev.sources)) {
+    if (id !== BASEMAP_SOURCE && !(id in sources)) sources[id] = source
+  }
+  return { ...next, sources, layers }
+}
+
+/** The slice of MapLibre's `Map` a swap needs. Structural, so a test drives it with a plain object. */
+export interface SwapHost {
+  setStyle(style: unknown, options: { diff: true; transformStyle: (prev: never, next: never) => unknown }): unknown
+  getLayer(id: string): unknown
+  moveLayer(id: string, beforeId?: string): void
+  getStyle(): { layers?: ReadonlyArray<{ id: string; metadata?: unknown }> } | undefined
+}
+
+/**
+ * SWAP THE VARIANT IN PLACE. `0098`, operator Q1 = B, D-NEW-c.
+ *
+ * A DIFFED `setStyle`: MapLibre adds, removes and re-filters only the layers that differ, keeps the
+ * one source and its loaded tiles, keeps the custom fog layer (which no serialisation contains, so
+ * no diff can remove it), and **never touches the camera** — the diff skips centre, zoom, bearing
+ * and pitch outright, and this style carries none. Then the fog is moved to where `fogBeforeId`
+ * says, because its placement relative to the labels is decided per variant (D-368): under atlas's
+ * first above-fog layer, or over adventure's whole basemap.
+ */
+export function swapBasemap(map: SwapHost, variant: BasemapVariant): void {
+  map.setStyle(basemapStyle(variant), {
+    diff: true,
+    transformStyle: ((prev: StyleLike | undefined, next: StyleLike) => carryAppLayers(prev, next)) as never,
+  })
+  if (map.getLayer(FOG_LAYER_ID)) map.moveLayer(FOG_LAYER_ID, fogBeforeId(map))
 }

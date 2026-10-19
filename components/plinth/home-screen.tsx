@@ -8,6 +8,7 @@ import { BackfillRevealSequence } from "@/components/backfill/backfill-reveal"
 import { useBackfillReveal } from "@/components/backfill/use-backfill-reveal"
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
+import { ModeToggle } from "@/components/map/mode-toggle"
 import type { LatestAnswer } from "@/components/map/use-latest-run"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { logStore } from "@/lib/log/queue"
@@ -28,8 +29,7 @@ import { Plinth, PLINTH_CSS } from "./plinth"
 /**
  * `/`, IN THE BROWSER. Ticket `0086`, `06-ui-ux.md` §2.
  *
- * The plinth and the map pane, and nothing else (the mode toggle is `0098`'s, `⌖` and fit are
- * `0101`'s). The three inputs the plinth reads:
+ * The plinth, the map pane and `0098`'s mode toggle (`⌖` and fit are `0101`'s). The three inputs the plinth reads:
  *
  * - **Total Level** — `loadStanding`, cache first, re-asked when the explored set's generation
  *   moves (a finished sync is what moves it, §7.4). No timer.
@@ -144,6 +144,8 @@ export function HomeScreen({
       <style>{PLINTH_CSS}</style>
       {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} veiled={Array.isArray(backfill.hold)} />}
       {children}
+      {/* `0098`. Top-left of the map pane (06 §4.2); before `⚙` in §2.2's focus order; `M` from anywhere. */}
+      <ModeToggle />
       <Link href="/settings" className="home-gear" aria-label="Settings">
         <span aria-hidden="true">⚙</span>
       </Link>

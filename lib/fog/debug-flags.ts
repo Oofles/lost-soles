@@ -73,12 +73,18 @@ export function fogDisabled(search: string): boolean {
 
 /**
  * `0097` — `?basemap=atlas` or `?basemap=adventure`: force-load one basemap variant. Its own
- * parameter, not a `?fog=` flag: it picks the ground, not a view of the fog. Anything else, or
- * nothing, is the default (adventure, 05 §5.3). The real toggle, with its saved mode, is `0098`.
+ * parameter, not a `?fog=` flag: it picks the ground, not a view of the fog. `null` when absent or
+ * unrecognised. `0098`: the flag outranks the saved mode, and the saved mode outranks the default
+ * (D-370) — `initialMapMode` in `lib/map-mode.ts`.
  */
-export function basemapVariant(search: string): BasemapVariant {
+export function basemapFlag(search: string): BasemapVariant | null {
   const raw = new URLSearchParams(search).get("basemap")?.trim().toLowerCase()
-  return BASEMAP_VARIANTS.find((v) => v === raw) ?? DEFAULT_BASEMAP_VARIANT
+  return BASEMAP_VARIANTS.find((v) => v === raw) ?? null
+}
+
+/** `basemapFlag`, or the default (adventure, 05 §5.3) when the flag is absent. */
+export function basemapVariant(search: string): BasemapVariant {
+  return basemapFlag(search) ?? DEFAULT_BASEMAP_VARIANT
 }
 
 /** Either debug view shows the HUD. `0055`'s cell-count readout is useful under both. */

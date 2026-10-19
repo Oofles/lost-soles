@@ -10,20 +10,14 @@
  *
  * Capability `15` adds the second map mode. §5.2 is explicit that the two modes differ in
  * *"style-layer configuration and shader uniforms only — no second tileset, no second code path"*,
- * so `ATLAS` and `ADVENTURE` are recorded here, in full, today. **Nothing reads them yet** and
- * nothing here builds a mode switcher — the ticket forbids it. They are written down because a pair
- * that exists only in a table in a design document is a pair that gets re-derived wrongly.
+ * so `ATLAS` and `ADVENTURE` both live here, in `FOG_MODES`, and the toggle (`0098`,
+ * `lib/map-mode.ts`) cross-fades between them.
  *
- * ─── WHAT ACTUALLY SHIPS IS `V1`, AND IT IS A HYBRID ────────────────────────
+ * ─── ADVENTURE IS WHAT `0056`/`0119` SHIPPED AS `V1` ─────────────────────────
  *
- * `0056` shipped a hybrid — adventure's colours and 0.94 opacity with atlas's `noiseAmp` 0.10 and
- * `rimAmt` 0.08 — and `0119` tuned it by eye over the real basemap. The result stays one rendering,
- * not two: §2.3 carries one, and D-051 binds it. Each number's reason sits on its own `V1_*`
- * constant below, which is where capability 15 starts from rather than re-deriving.
- *
- * `V1` and §5.2's atlas column still disagree on `maxOpacity`: 0.90 here, 0.55 there. **Atlas's
- * 0.55 is not lost** — it is `ATLAS.maxOpacity` below, waiting for the mode switch that makes a
- * second value meaningful.
+ * The single-rendering milestone shipped `V1`, `0119`'s tuning by eye over the real basemap. `0098`
+ * made that tuning adventure's column (operator, Q2) rather than §5.2's original 0.94/0.30, so the
+ * default mode looks exactly as it did before the toggle existed. `V1` remains as an alias.
  */
 
 /** An RGB triple in linear-ish 0..1 shader space, as the shader's `vec3` uniforms take it. */
@@ -52,12 +46,11 @@ export interface FogPalette {
 }
 
 /**
- * §5.2's atlas column, **verbatim and unused**. Capability `15` is its first reader.
+ * §5.2's atlas column, verbatim. Read by the mode toggle (`0098`, `FOG_MODES` below).
  *
- * `maskScale` is deliberately absent: §5.2 gives atlas 0.75x, and the mask FBO is `0055`'s
- * `MASK_SCALE`, one module away. A second copy of that number here would be the drift D-153 exists
- * to catch. When capability 15 needs it, it moves `MASK_SCALE` into the mode — it does not add a
- * duplicate.
+ * `maskScale` is deliberately absent: both modes draw the mask at `0055`'s `MASK_SCALE` (0.5x).
+ * §5.2 once gave atlas 0.75x; a resolution cannot be cross-faded and a change of it moves the edge,
+ * which 05 §5.4 forbids, so the row was amended to one scale (`0098`, operator, Q3).
  */
 export const ATLAS: FogPalette = {
   fogDeep: [0.1, 0.11, 0.14],
@@ -69,31 +62,24 @@ export const ATLAS: FogPalette = {
   animated: false,
 }
 
-/** §5.2's adventure column, **verbatim and unused**. Same reason, same first reader. */
-export const ADVENTURE: FogPalette = {
-  fogDeep: [0.035, 0.045, 0.075],
-  fogEdge: [0.22, 0.24, 0.3],
-  rimGlow: [0.85, 0.7, 0.42],
-  maxOpacity: 0.94,
-  noiseAmp: 0.3,
-  rimAmt: 0.3,
-  animated: true,
-}
-
 /*
- * ─── `0119`'S TUNED VALUES ─────────────────────────────────────────────────────
+ * ─── `0119`'S TUNED VALUES — WHICH ARE ADVENTURE (`0098`) ─────────────────────
  *
  * Chosen by eye over the REAL basemap with labels at z16 (`tools/fog-harness/tune.mjs`), operator
- * approved 2026-09-28. Every one is inside §5.2's atlas..adventure range; the seam budget holds
- * because `SEAM_FLOOR` is derived from adventure's 0.30 and 0.25 is below it.
+ * approved 2026-09-28. Every one is inside §5.2's original atlas..adventure range; the seam budget
+ * holds because `SEAM_FLOOR` is derived from `NOISE_AMP_CEILING` (0.30) and 0.25 is below it.
+ *
+ * `0098` made these ADVENTURE's values rather than §5.2's original column (0.94 / 0.30 / edge
+ * 0.22,0.24,0.30): adventure is the default mode and this is the look the operator approved and
+ * uses, so the toggle must not change it (operator, `0098` Q2; 05 §5.2 amended).
  */
 
-/** Unchanged from adventure: unexplored ground must read as dark and unknown, not greyed out. */
-export const V1_FOG_DEEP: Rgb = ADVENTURE.fogDeep
-/** Lighter than adventure's (0.22,0.24,0.30) so the fBm density reads as mist, not a flat wash. */
+/** Unchanged from §5.2: unexplored ground must read as dark and unknown, not greyed out. */
+export const V1_FOG_DEEP: Rgb = [0.035, 0.045, 0.075]
+/** Lighter than §5.2's (0.22,0.24,0.30) so the fBm density reads as mist, not a flat wash. */
 export const V1_FOG_EDGE: Rgb = [0.27, 0.29, 0.35]
 /** Unchanged: the hue is right in principle; its visibility is `0119`'s open finding, not a colour. */
-export const V1_RIM_GLOW: Rgb = ADVENTURE.rimGlow
+export const V1_RIM_GLOW: Rgb = [0.85, 0.7, 0.42]
 /**
  * 0.90, down from 0.94, and **never 1.0.** A fully opaque fog reads as a hole punched in the map;
  * at 0.90 fogged ground keeps a readable ghost of its street grid and labels (D-051) while still
@@ -113,11 +99,8 @@ export const V1_NOISE_AMP = 0.25
  */
 export const V1_RIM_AMT = 0.3
 
-/**
- * WHAT SHIPS. The milestone's single rendering: adventure's darkness and animation, tuned by
- * `0119` for legibility and texture. See the constants above for each number's reason.
- */
-export const V1: FogPalette = {
+/** Adventure: `0119`'s tuned rendering — darkness and animation, tuned for legibility and texture. */
+export const ADVENTURE: FogPalette = {
   fogDeep: V1_FOG_DEEP,
   fogEdge: V1_FOG_EDGE,
   rimGlow: V1_RIM_GLOW,
@@ -127,6 +110,51 @@ export const V1: FogPalette = {
   animated: true,
 }
 
+/** The name the single-rendering milestone shipped under. Adventure, and only an alias of it. */
+export const V1: FogPalette = ADVENTURE
+
+/** The two map modes. Structurally `BasemapVariant`; restated so this module keeps zero imports. */
+export type FogMode = "atlas" | "adventure"
+
+/**
+ * THE ONE EXPORTED CONSTANT MAP of per-mode uniforms (`0098` criterion 4). Everything that asks
+ * "what does mode X draw the fog with" reads this; nothing else names a per-mode number.
+ */
+export const FOG_MODES: Readonly<Record<FogMode, FogPalette>> = { atlas: ATLAS, adventure: ADVENTURE }
+
+/**
+ * §4.3/§5.3: the fog never exceeds **0.94** in any mode, and never reaches 1.0. A ceiling, asserted
+ * against every entry of `FOG_MODES` — `0098` criterion 5.
+ */
+export const MAX_OPACITY_CEILING = 0.94
+
+/**
+ * The largest `noiseAmp` any mode may take: §5.2's original adventure 0.30. `mask.ts`'s
+ * `SEAM_FLOOR` was measured once on a GPU against this amplitude (D-231), so it is the bound, not
+ * whatever a mode happens to ship.
+ */
+export const NOISE_AMP_CEILING = 0.3
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+const lerpRgb = (a: Rgb, b: Rgb, t: number): Rgb => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
+
+/**
+ * `0098`. One palette between two, at progress `t` (0 = `from`, 1 = `to`). Every scalar and every
+ * channel moves by the same `t`, which is the cross-fade's "one timeline". `animated` is not
+ * interpolated: freezing the clock is the toggle's to schedule (D-NEW-a, `map-mode.ts`).
+ */
+export function lerpPalette(from: FogPalette, to: FogPalette, t: number): FogPalette {
+  return {
+    fogDeep: lerpRgb(from.fogDeep, to.fogDeep, t),
+    fogEdge: lerpRgb(from.fogEdge, to.fogEdge, t),
+    rimGlow: lerpRgb(from.rimGlow, to.rimGlow, t),
+    maxOpacity: lerp(from.maxOpacity, to.maxOpacity, t),
+    noiseAmp: lerp(from.noiseAmp, to.noiseAmp, t),
+    rimAmt: lerp(from.rimAmt, to.rimAmt, t),
+    animated: t < 1 ? from.animated : to.animated,
+  }
+}
+
 /* ─── The reveal ramp ───────────────────────────────────────────────────────── */
 
 /**
@@ -134,9 +162,9 @@ export const V1: FogPalette = {
  * DERIVED FROM `REVEAL_HI` and the derivation has to be checkable.
  *
  * `mask.ts` computes the floor a neighbour seam must clear as `REVEAL_HI + noiseAmp / 2`, using
- * **adventure's** 0.30 rather than the 0.10 that ships — the conservative half of the pair, because
- * capability 15 raising `noiseAmp` must not silently invalidate a mask constant that was measured
- * once on a GPU and never re-measured. `fog-uniforms.test.ts` asserts the two agree.
+ * `NOISE_AMP_CEILING` (0.30) rather than either mode's amplitude, because a mode raising `noiseAmp`
+ * must not silently invalidate a mask constant that was measured once on a GPU and never
+ * re-measured. `fog-uniforms.test.ts` asserts the two agree.
  */
 export const REVEAL_LO = 0.3
 /** The upper end of the reveal ramp. See `REVEAL_LO`. */

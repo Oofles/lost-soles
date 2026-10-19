@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { FogAnimator, browserAnimationHost, type AnimationHost } from "@/lib/fog/animation"
 import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
+import type { FogPalette } from "@/lib/fog/fog-uniforms"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
 import type { FogHarness } from "@/lib/fog/perf/harness"
 import { postRunCells, preRunCells, type RevealCell } from "@/lib/fog/reveal"
@@ -82,6 +83,13 @@ export function useFogMask(
    * and then home keeps drawing what it last drew rather than the live set (`homeTerritoryView`).
    */
   home: { hold: HomeHold } | null = null,
+  /**
+   * `0098`. THE MODE'S LOOK. `palette` is READ ONCE, when the layer is created, so a layer built
+   * mid-session (a context-loss rebuild, a fogless home gaining territory) draws its first frame in
+   * the mode on screen; after that the shell moves it imperatively, every frame of a cross-fade.
+   * `animated` is the settled mode's clock: `false` freezes the mist in place (atlas, D-NEW-a).
+   */
+  look: { palette: () => FogPalette; animated: boolean } | null = null,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -99,6 +107,11 @@ export function useFogMask(
    */
   const drawn = useRef<number | null>(null)
   const latest = useRef<number | null>(null)
+  /** `0098`. The current layer's animator, so the mode can freeze it without recreating the layer. */
+  const animatorRef = useRef<FogAnimator | null>(null)
+  const lookRef = useRef(look)
+  lookRef.current = look
+  const animated = look?.animated ?? true
 
   /**
    * Read ONCE, on mount, rather than watched. `?fog=mask` is a debug flag; re-reading it on every
@@ -201,7 +214,10 @@ export function useFogMask(
       debug,
       timeSource: () => animator.time(),
       timer: harness?.timer,
+      palette: lookRef.current?.palette(),
     })
+    animator.setFrozen(!(lookRef.current?.animated ?? true))
+    animatorRef.current = animator
     /**
      * `0057` — UNDER THE ROUTE IF THE ROUTE IS ALREADY THERE, on top of everything otherwise.
      * Either way the fog lands above every symbol layer, which is what keeps unexplored place
@@ -227,6 +243,7 @@ export function useFogMask(
       setLayer(null)
       unsubscribe()
       animator.stop()
+      if (animatorRef.current === animator) animatorRef.current = null
       try {
         if (map.getLayer(created.id)) map.removeLayer(created.id)
       } catch {
@@ -236,6 +253,11 @@ export function useFogMask(
       }
     }
   }, [map, debug, disabled, fogless, harness])
+
+  /** `0098`. The mode's clock: atlas holds the mist where it is; adventure lets it drift again. */
+  useEffect(() => {
+    animatorRef.current?.setFrozen(!animated)
+  }, [layer, animated])
 
   /**
    * THE CULL, attached to the camera. One controller per (map, layer, store) triple.

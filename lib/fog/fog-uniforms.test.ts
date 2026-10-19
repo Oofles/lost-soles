@@ -7,6 +7,10 @@ import {
   FBM_LACUNARITY,
   FBM_OCTAVES,
   FOG_FPS,
+  FOG_MODES,
+  lerpPalette,
+  MAX_OPACITY_CEILING,
+  NOISE_AMP_CEILING,
   NOISE_DRIFT_1,
   NOISE_DRIFT_2,
   NOISE_FIELD_2_FREQ,
@@ -40,27 +44,76 @@ describe("V1 — what ships, as 0119 tuned it", () => {
     }
   })
 
-  /** `0119` was told to tune WITHIN §5.2's ranges; a value outside them is a design change. */
-  it("stays inside the atlas..adventure range on every scalar", () => {
-    for (const key of ["noiseAmp", "rimAmt"] as const) {
-      expect(V1[key]).toBeGreaterThanOrEqual(ATLAS[key])
-      expect(V1[key]).toBeLessThanOrEqual(ADVENTURE[key])
-    }
+  /** `0119` was told to tune WITHIN §5.2's original ranges; a value outside them is a design change. */
+  it("stays inside §5.2's original atlas..adventure range on every scalar", () => {
+    expect(V1.noiseAmp).toBeGreaterThanOrEqual(ATLAS.noiseAmp)
+    expect(V1.noiseAmp).toBeLessThanOrEqual(NOISE_AMP_CEILING)
+    expect(V1.rimAmt).toBeGreaterThanOrEqual(ATLAS.rimAmt)
+    expect(V1.rimAmt).toBeLessThanOrEqual(0.3)
     expect(V1.maxOpacity).toBeGreaterThanOrEqual(ATLAS.maxOpacity)
-    expect(V1.maxOpacity).toBeLessThanOrEqual(ADVENTURE.maxOpacity)
+    expect(V1.maxOpacity).toBeLessThanOrEqual(MAX_OPACITY_CEILING)
   })
 })
 
-describe("the §5.2 pairs, recorded ahead of capability 15", () => {
-  it("carries both columns of §5.2's table", () => {
-    expect(ATLAS.maxOpacity).toBe(0.55)
-    expect(ADVENTURE.maxOpacity).toBe(0.94)
-    expect(ATLAS.noiseAmp).toBe(0.1)
-    expect(ADVENTURE.noiseAmp).toBe(0.3)
-    expect(ATLAS.rimAmt).toBe(0.08)
-    expect(ADVENTURE.rimAmt).toBe(0.3)
-    expect(ATLAS.animated).toBe(false)
-    expect(ADVENTURE.animated).toBe(true)
+/**
+ * `0098` criterion 4 — the amended §5.2 table, as a snapshot. Atlas is §5.2's column verbatim;
+ * adventure is `0119`'s tuning (operator, `0098` Q2). A change to either is a change to this table.
+ */
+describe("FOG_MODES — the one constant map of per-mode uniforms (0098)", () => {
+  it("matches 05 §5.2's table, value for value", () => {
+    expect(FOG_MODES).toEqual({
+      atlas: {
+        fogDeep: [0.1, 0.11, 0.14],
+        fogEdge: [0.3, 0.32, 0.36],
+        rimGlow: [0.85, 0.7, 0.42],
+        maxOpacity: 0.55,
+        noiseAmp: 0.1,
+        rimAmt: 0.08,
+        animated: false,
+      },
+      adventure: {
+        fogDeep: [0.035, 0.045, 0.075],
+        fogEdge: [0.27, 0.29, 0.35],
+        rimGlow: [0.85, 0.7, 0.42],
+        maxOpacity: 0.9,
+        noiseAmp: 0.25,
+        rimAmt: 0.3,
+        animated: true,
+      },
+    })
+    expect(FOG_MODES.atlas).toBe(ATLAS)
+    expect(FOG_MODES.adventure).toBe(ADVENTURE)
+    expect(V1).toBe(ADVENTURE)
+  })
+
+  /** Criterion 5. §4.3: never 1.0; §5.3: adventure is capped at 0.94. */
+  it("never lets u_maxOpacity exceed 0.94 in any mode", () => {
+    expect(MAX_OPACITY_CEILING).toBe(0.94)
+    for (const palette of Object.values(FOG_MODES)) {
+      expect(palette.maxOpacity).toBeLessThanOrEqual(MAX_OPACITY_CEILING)
+    }
+  })
+
+  /** …nor at any point of a cross-fade between them, which is a convex combination. */
+  it("never exceeds 0.94 anywhere along a cross-fade either", () => {
+    for (let i = 0; i <= 20; i++) {
+      expect(lerpPalette(ATLAS, ADVENTURE, i / 20).maxOpacity).toBeLessThanOrEqual(MAX_OPACITY_CEILING)
+    }
+  })
+
+  it("keeps every mode's noise inside the amplitude SEAM_FLOOR was measured for", () => {
+    for (const palette of Object.values(FOG_MODES)) expect(palette.noiseAmp).toBeLessThanOrEqual(NOISE_AMP_CEILING)
+  })
+
+  it("interpolates every scalar and channel by the same t", () => {
+    const mid = lerpPalette(ATLAS, ADVENTURE, 0.25)
+    const at = (a: number, b: number, v: number) => (v - a) / (b - a)
+    expect(at(ATLAS.maxOpacity, ADVENTURE.maxOpacity, mid.maxOpacity)).toBeCloseTo(0.25, 12)
+    expect(at(ATLAS.noiseAmp, ADVENTURE.noiseAmp, mid.noiseAmp)).toBeCloseTo(0.25, 12)
+    expect(at(ATLAS.rimAmt, ADVENTURE.rimAmt, mid.rimAmt)).toBeCloseTo(0.25, 12)
+    expect(at(ATLAS.fogDeep[2], ADVENTURE.fogDeep[2], mid.fogDeep[2])).toBeCloseTo(0.25, 12)
+    expect(lerpPalette(ATLAS, ADVENTURE, 1)).toEqual(ADVENTURE)
+    expect(lerpPalette(ATLAS, ADVENTURE, 0)).toEqual(ATLAS)
   })
 
   /** §5.4: neither mode may change what is revealed. The rim colour is shared for §5.1's reason. */
@@ -75,12 +128,12 @@ describe("SEAM_FLOOR — 0055's mask constant is derived from 0056's ramp", () =
    * to stay above the reveal ramp's top even at the noise's worst downward swing, or the seam
    * breathes in and out of the mist as the animation drifts (D-231).
    *
-   * The derivation uses **adventure's** `noiseAmp`, not the 0.25 that ships. That is the whole point
+   * The derivation uses `NOISE_AMP_CEILING` (§5.2's original adventure 0.30), not the 0.25 that ships. That is the whole point
    * of asserting it here rather than trusting the comment: capability 15 raising the amplitude must
    * not silently invalidate a constant that was measured once on a real GPU and never re-measured.
    */
-  it("equals REVEAL_HI plus the worst downward swing of ADVENTURE's noise", () => {
-    expect(SEAM_FLOOR).toBeCloseTo(REVEAL_HI + ADVENTURE.noiseAmp / 2, 10)
+  it("equals REVEAL_HI plus the worst downward swing of the noise ceiling", () => {
+    expect(SEAM_FLOOR).toBeCloseTo(REVEAL_HI + NOISE_AMP_CEILING / 2, 10)
   })
 
   it("leaves the shipped amplitude a margin rather than sitting on the threshold", () => {

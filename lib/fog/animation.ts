@@ -66,6 +66,7 @@ export class FogAnimator {
   #last = 0
   #elapsed = 0
   #batterySaver = false
+  #frozen = false
   #repaints = 0
   #framesSeen = 0
 
@@ -96,6 +97,20 @@ export class FogAnimator {
   /** Reduced motion (§4.5) or the manual battery saver — the same switch, as the ticket asks. */
   isStatic(): boolean {
     return this.#batterySaver || this.#host.prefersReducedMotion()
+  }
+
+  /**
+   * `0098`. ATLAS: the mist stops WHERE IT IS (D-NEW-a), rather than at `u_time = 0`.
+   *
+   * Different from `isStatic` on purpose. Reduced motion asks for *the* static frame, the same one
+   * every time (criterion 7 above). Atlas only asks for no motion, and jumping `u_time` from wherever
+   * it had drifted to 0 re-rolls every wisp in one frame — which reads as the fog changing, the one
+   * thing a mode toggle must never look like (05 §5.4). So the loop stops and the clock holds.
+   */
+  setFrozen(on: boolean): void {
+    if (this.#frozen === on) return
+    this.#frozen = on
+    this.#sync()
   }
 
   /**
@@ -132,7 +147,7 @@ export class FogAnimator {
    */
   #sync(): void {
     if (!this.#running) return
-    const shouldRun = !this.isStatic()
+    const shouldRun = !this.isStatic() && !this.#frozen
     const wasRunning = this.#handle !== null
     if (shouldRun && !wasRunning) {
       this.#last = 0
@@ -174,7 +189,7 @@ export class FogAnimator {
 
     // Reduced motion or the battery saver can be turned on between frames; `subscribe` covers the
     // media query, and this covers everything else. Returning without rescheduling ends the loop.
-    if (this.isStatic()) return
+    if (this.isStatic() || this.#frozen) return
 
     // CRITERION 6: paused ENTIRELY when hidden. The loop keeps being scheduled — a real browser
     // simply stops delivering rAF to a hidden tab, and the one that does not is the one this guard

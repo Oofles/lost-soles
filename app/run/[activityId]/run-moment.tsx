@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 
 import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
+import { useMapMode } from "@/components/map/use-map-mode"
 import { backArrowClick, browserChronicleReturn } from "@/lib/chronicle/return"
 import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
@@ -12,7 +13,7 @@ import type { Camera } from "@/lib/map-camera"
 import { basemapPlaceNames } from "@/lib/place-names"
 import { frontierOrigin, frontierText, pickFrontier } from "@/lib/run-moment/frontier-line"
 import { browserSequenceHistory, wireSequenceExit, type SequenceExit } from "@/lib/run-moment/exit"
-import { FRONTIER_MODE, requestRenderMode } from "@/lib/run-moment/mode"
+import { runPageMode } from "@/lib/run-moment/mode"
 import { routeStill } from "@/lib/run-moment/route-still"
 import { markSeen } from "@/lib/run-moment/seen"
 import { runDate, runDistance, runDuration, sourceLabel } from "@/lib/runs/format"
@@ -290,6 +291,13 @@ export function RunMoment({
     return reduced ? cells.map((c) => ({ ...c, arc: 0 })) : cells
   }, [summary, reduced])
   const [stage, setStage] = useState<MapStage>(null)
+  /**
+   * `0098`. The map's mode on this page (`06` §3.2): adventure while the sequence plays, then the
+   * saved mode — `MapShell` cross-fades the change — or atlas once the frontier line is clicked.
+   */
+  const savedMode = useMapMode()
+  const [frontierClicked, setFrontierClicked] = useState(false)
+  const mapMode = runPageMode({ sequencePlaying: state.phase === "sequence", frontierClicked, saved: savedMode })
 
   /**
    * `0084`. WEBGL LOST: abort to the end state, and hold the still until a rebuilt map is ready. The
@@ -349,7 +357,8 @@ export function RunMoment({
   const onFrontier = () => {
     if (!target) return
     window.scrollTo({ top: 0, behavior: "smooth" })
-    requestRenderMode(FRONTIER_MODE)
+    // `0098`: honoured — the map cross-fades to atlas (`runPageMode`) while the camera flies.
+    setFrontierClicked(true)
     if (stage?.kind === "ready") {
       stage.map.flyTo({ center: [target.centre.lng, target.centre.lat], zoom: FRONTIER_ZOOM, duration: 800 })
     }
@@ -360,6 +369,7 @@ export function RunMoment({
 
   const onRelive = () => {
     window.scrollTo({ top: 0 })
+    setFrontierClicked(false)
     dispatch({ type: "relive" })
   }
 
@@ -374,6 +384,7 @@ export function RunMoment({
               run={summary.route}
               reveal={state.phase === "sequence" ? reveal : null}
               onStage={setStage}
+              mode={mapMode}
             />
             {still ? <RouteStill summary={summary} /> : null}
           </div>

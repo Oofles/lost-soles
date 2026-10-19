@@ -59,6 +59,15 @@ export const ATLAS_ROAD_GHOST_OPACITY = 0.5
 /** Prefix of atlas's above-fog road copies. One per upstream road FILL layer, derived, never listed. */
 export const ROAD_GHOST_PREFIX = "atlas_road_ghost_"
 
+/**
+ * Prefix of atlas's labels. `0098`: atlas's labels carry ids of their own, never upstream's, because
+ * the toggle swaps variants with a DIFFED `setStyle` (D-NEW-c) and MapLibre's style diff ignores
+ * `metadata`. Under a shared id, the label would keep atlas's above-fog tag after a swap to adventure
+ * — `fogBeforeId` would then put the fog under adventure's labels. A different id makes the diff
+ * remove one layer and add the other, so the tag always belongs to the variant on screen.
+ */
+export const ATLAS_LABEL_PREFIX = "atlas_label_"
+
 type StyleLayer = ReturnType<typeof layers>[number]
 
 /** A road FILL (not a casing, not a tunnel, not rail): what the street grid is drawn with. */
@@ -119,7 +128,8 @@ export function basemapLayers(source: string, variant: BasemapVariant): StyleLay
         out.push(...ghosts)
         placed = true
       }
-      out.push(aboveFog(l.id === "address_label" ? ({ ...l, minzoom: ATLAS_ADDRESS_MINZOOM } as StyleLayer) : l))
+      const label = { ...l, id: `${ATLAS_LABEL_PREFIX}${l.id}` } as StyleLayer
+      out.push(aboveFog(l.id === "address_label" ? ({ ...label, minzoom: ATLAS_ADDRESS_MINZOOM } as StyleLayer) : label))
     } else {
       out.push(l)
     }

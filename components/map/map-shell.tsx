@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
-import { basemapVariant, perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
+import { basemapStyle, registerPmtilesProtocol, swapBasemap } from "@/lib/basemap"
+import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
+import { perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
 import type { HOLD_PENDING } from "@/lib/fog/home-territory"
 import type { FogMaskLayer } from "@/lib/fog/mask-layer"
 import { createFogHarness, type FogHarness } from "@/lib/fog/perf/harness"
@@ -19,6 +20,9 @@ import {
   writeCamera,
   type Camera,
 } from "@/lib/map-camera"
+import { RUN_GLOW_ID } from "@/lib/map-layers"
+import { MODE_FRAMES, startModeTransition, type MapMode, type ModeFrame, type ModeTransition } from "@/lib/map-mode"
+import { log } from "@/lib/log"
 import type { RunFeatureCollection } from "@/lib/runs/wire"
 
 import { MaskHud } from "./mask-hud"
@@ -28,6 +32,7 @@ import { useFogMask } from "./use-fog-mask"
 import { useLandmarks } from "./use-landmarks"
 import { useLatestRun, type LatestAnswer } from "./use-latest-run"
 import { useTraceWeb } from "./use-trace-web"
+import { useMapMode } from "./use-map-mode"
 
 import "maplibre-gl/dist/maplibre-gl.css"
 
@@ -125,6 +130,24 @@ const framedShell: React.CSSProperties = {
 
 const NO_CELLS: readonly string[] = []
 
+/**
+ * `0098`. ONE FRAME OF A MODE ON THE MAP: the fog's uniforms and the route glow's opacity, both off
+ * the same `ModeFrame`, so a cross-fade moves them together. Nothing here moves the camera.
+ */
+function applyModeFrame(map: MapInstance, layer: FogMaskLayer | null, frame: ModeFrame): void {
+  layer?.setPalette(frame.fog)
+  try {
+    if (map.getLayer(RUN_GLOW_ID)) map.setPaintProperty(RUN_GLOW_ID, "line-opacity", frame.routeGlowOpacity)
+  } catch {
+    // A map mid-teardown. The next build starts from the mode, not from this frame.
+  }
+  map.triggerRepaint()
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(REDUCED_MOTION_QUERY).matches
+}
+
 export function MapShell({
   home,
   run,
@@ -133,6 +156,7 @@ export function MapShell({
   paneClassName,
   onLatestRun,
   held = null,
+  mode: modeProp,
 }: {
   home: Camera | null
   /**
@@ -176,6 +200,12 @@ export function MapShell({
    * frame, and the corridor stays off.
    */
   held?: readonly string[] | typeof HOLD_PENDING | null
+  /**
+   * `0098`. THE MODE TO SHOW. Absent on `/`, which shows the saved mode (`lib/map-mode.ts`); the run
+   * page passes its own — adventure while the sequence plays, the saved mode after, atlas after a
+   * frontier click (`06` §3.2). A change cross-fades in 320 ms; the camera never moves.
+   */
+  mode?: MapMode
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -203,6 +233,21 @@ export function MapShell({
    * which is what makes the layer's lifetime exactly the map's.
    */
   const [loaded, setLoaded] = useState<MapInstance | null>(null)
+
+  /**
+   * `0098`. THE MODE. `wanted` is what should be on screen; `shown` is the variant the current Map
+   * was built or last swapped with; `frame` is the uniforms and glow opacity applied right now,
+   * mid-fade included. Refs: a cross-fade writes 20 frames in 320 ms and none of them is a render.
+   */
+  const savedMode = useMapMode()
+  const wanted: MapMode = modeProp ?? savedMode
+  const wantedRef = useRef(wanted)
+  wantedRef.current = wanted
+  const shown = useRef<MapMode | null>(null)
+  const frame = useRef<ModeFrame>(MODE_FRAMES[wanted])
+  const transition = useRef<ModeTransition | null>(null)
+  /** The SETTLED mode's clock — flips to frozen when a fade to atlas ends, to running when one to adventure starts. */
+  const [fogAnimated, setFogAnimated] = useState(MODE_FRAMES[wanted].fog.animated)
 
   /**
    * The camera is held in a ref as well as in `localStorage` so that a context-loss
@@ -292,11 +337,16 @@ export function MapShell({
 
       registerPmtilesProtocol(lib)
 
+      // `0098`. The mode on screen NOW — saved, flagged (`?basemap=`, D-370) or the run page's — and
+      // its frame, so a context-loss rebuild comes back in the mode it left, settled, not mid-fade.
+      const initialMode = wantedRef.current
+      shown.current = initialMode
+      transition.current?.cancel()
+      transition.current = null
+      frame.current = MODE_FRAMES[initialMode]
       const instance = new lib.Map({
         container: container.current,
-        // `0097`. Adventure unless `?basemap=atlas`; the saved toggle is `0098`. Read once, on
-        // creation: a variant is a different style, never a live swap of this one.
-        style: basemapStyle(basemapVariant(window.location.search)),
+        style: basemapStyle(initialMode),
         center: [camera.current.lng, camera.current.lat],
         zoom: camera.current.zoom,
         bearing: camera.current.bearing,
@@ -428,7 +478,60 @@ export function MapShell({
    * (`lib/fog/home-territory.ts`). `null` on a run's page, which plays its reveal over any set.
    */
   const homeFog = useMemo(() => (framed ? null : { hold: held ?? NO_CELLS }), [framed, held])
-  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog)
+  const look = useMemo(() => ({ palette: () => frame.current.fog, animated: fogAnimated }), [fogAnimated])
+  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog, look)
+  const fogLayerRef = useRef(fogLayer)
+  fogLayerRef.current = fogLayer
+
+  /**
+   * `0098`. A MODE CHANGE: the basemap variant swaps at once (a diffed `setStyle`, `swapBasemap` —
+   * operator Q1 = B), then the fog's uniforms and the route glow cross-fade over 320 ms on one
+   * eased curve. Under reduced motion the fade is a hard cut (`06` §4.3 #3).
+   *
+   * THE CAMERA IS NOT TOUCHED. No `jumpTo`, no `easeTo`; the style carries no centre or zoom, and
+   * MapLibre's diff skips camera commands even if it did. `tools/fog-harness/run-mode-swap.mjs`
+   * measures it on a real Map.
+   *
+   * A re-toggle mid-fade starts from the frame on screen, so nothing jumps back to an end state.
+   */
+  useEffect(() => {
+    if (!loaded) return
+    const to = wanted
+    if (shown.current === to) {
+      setFogAnimated(MODE_FRAMES[to].fog.animated)
+      return
+    }
+    shown.current = to
+    try {
+      swapBasemap(loaded as never, to)
+    } catch (error) {
+      log.warn(`map mode: the basemap swap to ${to} failed: ${(error as Error).message}`)
+    }
+    transition.current?.cancel()
+    if (MODE_FRAMES[to].fog.animated) setFogAnimated(true)
+    transition.current = startModeTransition({
+      from: frame.current,
+      to: MODE_FRAMES[to],
+      reduced: prefersReducedMotion(),
+      clock: {
+        now: () => performance.now(),
+        requestAnimationFrame: (cb) => window.requestAnimationFrame(cb),
+        cancelAnimationFrame: (h) => window.cancelAnimationFrame(h),
+      },
+      apply: (next) => {
+        frame.current = next
+        applyModeFrame(loaded, fogLayerRef.current, next)
+      },
+      done: () => setFogAnimated(MODE_FRAMES[to].fog.animated),
+    })
+  }, [loaded, wanted])
+
+  useEffect(() => () => transition.current?.cancel(), [])
+
+  /** `0098`. A fog layer created mid-session takes the frame on screen (it was built from it too). */
+  useEffect(() => {
+    fogLayer?.setPalette(frame.current.fog)
+  }, [fogLayer])
 
   /** `0080`. Reported after commit, so the layer handed over has had its reveal installed. */
   useEffect(() => {
@@ -461,6 +564,14 @@ export function MapShell({
   useEffect(() => {
     if (!framed) onLatestRun?.(runs, answer)
   }, [framed, onLatestRun, runs, answer])
+
+  /**
+   * `0098`. The route's glow, in the mode on screen. The route layers are added with §4.4's 0.35
+   * (`useLatestRun`, just above, in an earlier effect of the same commit); atlas draws the core alone.
+   */
+  useEffect(() => {
+    if (loaded) applyModeFrame(loaded, fogLayerRef.current, frame.current)
+  }, [loaded, runs])
 
   /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
   useTraceWeb(loaded)

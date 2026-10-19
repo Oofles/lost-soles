@@ -19,7 +19,6 @@ import { cardTriggers, type CardTrigger } from "@/lib/run-moment/tally"
 import { flyToRun, pullBack } from "@/lib/run-moment/camera"
 import { installInk, installTraceInk, type Ink, type TraceInk } from "@/lib/run-moment/ink"
 import { lanternPath } from "@/lib/run-moment/lantern-path"
-import { modeCrossFade, savedRenderMode } from "@/lib/run-moment/mode"
 import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
 import { documentTraceColor, installWebBeat, type WebBeat } from "@/lib/trace-web/layer"
@@ -279,9 +278,8 @@ function Beat1({
               : ""),
         )
       }
-      // §3.2's cross-fade back to the saved mode. Always `null` until capability 15 adds the setting
-      // (`lib/run-moment/mode.ts`, D-295): the beat already renders in the only mode there is.
-      void modeCrossFade(savedRenderMode())
+      // §3.2's cross-fade back to the saved mode is `MapShell`'s (`0098`): the run page hands it
+      // `runPageMode`, which leaves adventure when the sequence's phase ends.
       onDone(t0 !== null && now - t0 >= BEAT1_MS ? t0 + BEAT1_MS : now)
     }
 

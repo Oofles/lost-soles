@@ -1,25 +1,27 @@
+import { DEFAULT_MAP_MODE, MODE_CROSSFADE_MS as CROSSFADE_MS, mapModeStore, type MapMode } from "@/lib/map-mode"
+
 /**
  * THE RENDERING MODE AROUND THE SEQUENCE. Ticket `0080`, `06-ui-ux.md` §3.2: *"The sequence always
  * plays in adventure rendering, regardless of the user's saved mode … On completion it cross-fades
- * (300 ms) back to the saved mode."*
+ * back to the saved mode."*
  *
- * A STUB, AND DELIBERATELY ONE (D-295). No saved mode exists yet: the milestone ships ONE rendering,
- * `V1` in `lib/fog/fog-uniforms.ts`, which is adventure's darkness and animation, and atlas's first
- * reader is capability 15. So the beat already plays in adventure, the saved mode is always adventure,
- * and the cross-fade has nothing to fade to. This module holds the seam so capability 15 has one place
- * to change: give `savedRenderMode` a real answer, and apply the fade `modeCrossFade` describes.
+ * `0098` gave this seam real answers: the saved mode is the toggle's (`lib/map-mode.ts`), and the
+ * run page hands `MapShell` the mode to show — `SEQUENCE_MODE` while the sequence plays, then the
+ * saved mode, or `FRONTIER_MODE` after a frontier click. `MapShell` runs the cross-fade, the same
+ * 320 ms one the toggle uses (06 §3.2 amended from 300, operator, `0098` Q5).
  */
 
-export type RenderMode = "adventure" | "atlas"
+export type RenderMode = MapMode
 
 /** What the sequence renders in, always. */
 export const SEQUENCE_MODE: RenderMode = "adventure"
 
-export const MODE_CROSSFADE_MS = 300
+/** One fade for every mode change on the map (`lib/map-mode.ts`). */
+export const MODE_CROSSFADE_MS = CROSSFADE_MS
 
-/** The user's saved mode. Always adventure until capability 15 adds the setting. */
+/** The user's saved mode — the toggle's, per device. Adventure on the server, which has none. */
 export function savedRenderMode(): RenderMode {
-  return "adventure"
+  return mapModeStore()?.get() ?? DEFAULT_MAP_MODE
 }
 
 export interface ModeCrossFade {
@@ -34,13 +36,17 @@ export function modeCrossFade(saved: RenderMode): ModeCrossFade | null {
 }
 
 /**
- * `0083`. §3.2 beat 5: the frontier line *"recentres the map there in atlas mode"*. Named here, and
- * requested through `requestRenderMode`, so capability 15 (`0098`) has one place to honour it. Until
- * then there is one rendering and the request changes nothing — the recentre is the whole effect.
+ * `0083`. §3.2 beat 5: the frontier line *"recentres the map there in atlas mode"*. `0098` honours it:
+ * the run page shows this mode after the click. It is a request of this surface, not a change of the
+ * saved preference — the toggle on `/` is where the user's own choice is made and kept.
  */
 export const FRONTIER_MODE: RenderMode = "atlas"
 
-/** A surface asking for a mode. A no-op until capability 15 gives the map a second one (D-295). */
-export function requestRenderMode(mode: RenderMode): void {
-  void mode
+/**
+ * The mode the run page's map shows. A pure function of the page's state, so the sequence can
+ * never play in anything but adventure, whatever was saved or clicked.
+ */
+export function runPageMode(state: { sequencePlaying: boolean; frontierClicked: boolean; saved: RenderMode }): RenderMode {
+  if (state.sequencePlaying) return SEQUENCE_MODE
+  return state.frontierClicked ? FRONTIER_MODE : state.saved
 }

@@ -12,6 +12,7 @@ import {
   BASEMAP_VARIANTS,
   DEFAULT_BASEMAP_VARIANT,
   ROAD_GHOST_PREFIX,
+  ATLAS_LABEL_PREFIX,
   basemapLayers,
   type BasemapVariant,
 } from "./basemap-style"
@@ -157,7 +158,7 @@ describe("D-373 — both variants paint the stock `light` colours", () => {
     it(`${v}: every upstream layer keeps upstream's paint`, () => {
       const kept = styleLayers(v).filter((l) => !l.id.startsWith(ROAD_GHOST_PREFIX))
       expect(kept.length).toBeGreaterThan(50)
-      for (const l of kept) expect(l.paint).toStrictEqual(stock.get(l.id)!.paint)
+      for (const l of kept) expect(l.paint).toStrictEqual(stock.get(l.id.replace(ATLAS_LABEL_PREFIX, ""))!.paint)
     })
   }
 
@@ -168,13 +169,13 @@ describe("D-373 — both variants paint the stock `light` colours", () => {
 
 describe("criterion 2 — label density", () => {
   it("atlas renders street names down to residential at z16", () => {
-    const minor = styleLayers("atlas").find((l) => l.id === "roads_labels_minor")!
+    const minor = styleLayers("atlas").find((l) => l.id === `${ATLAS_LABEL_PREFIX}roads_labels_minor`)!
     expect(minor.minzoom ?? 0).toBeLessThanOrEqual(16)
     expect(JSON.stringify(minor.filter)).toContain("minor_road")
   })
 
   it("atlas shows house-number labels from z16", () => {
-    expect(styleLayers("atlas").find((l) => l.id === "address_label")!.minzoom).toBe(ATLAS_ADDRESS_MINZOOM)
+    expect(styleLayers("atlas").find((l) => l.id === `${ATLAS_LABEL_PREFIX}address_label`)!.minzoom).toBe(ATLAS_ADDRESS_MINZOOM)
   })
 
   it("adventure drops the small labels and narrows POIs to park-like kinds", () => {

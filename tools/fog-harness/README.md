@@ -6,7 +6,15 @@ Tickets `0055` and `0058`. `05-fog-of-war.md` §4.1, §4.2, §6.2.
 node tools/fog-harness/run.mjs            # the mask shader on a real GPU
 node tools/fog-harness/run-maplibre.mjs   # the same layer inside a real MapLibre Map
 node tools/fog-harness/run-cull.mjs       # the zoom buckets and the cull, driven by a real camera
+node tools/fog-harness/run-mode-swap.mjs  # 0098: atlas/adventure swaps keep the camera and every layer
 ```
+
+**`run-mode-swap.mjs`** (ticket `0098`) builds a real Map on the shipped `basemapStyle`, adds the trace
+web, landmarks, the shipped `FogMaskLayer` and the route through the app's own helpers, then swaps the
+variant twelve times at three zooms with `swapBasemap`. It fails if any of centre, zoom, bearing or
+pitch differs by a single bit across a swap, if MapLibre falls back to rebuilding the style from
+scratch (which drops every app layer), or if any layer leaves its D-368 slot. No tiles are fetched;
+a diff is about the style, not the tiles.
 
 **`run.mjs`** compiles `lib/fog/mask.ts` **alone** — which is why that module has zero imports —
 inlines it into one `file://` page with `harness.js`, and runs it in headless Chromium. Exit 0 on

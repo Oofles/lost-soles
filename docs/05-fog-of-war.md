@@ -1127,7 +1127,8 @@ Two constants worth defending:
   makes it read as *mist over a map* rather than *a hole cut in a black sheet*. It is also a
   direct contribution to D-051 — even fully fogged ground retains a ghost of its street grid.
   **The milestone's single rendering ships 0.90** (ticket `0119`): on the stock basemap, 0.94 hid
-  that ghost almost entirely. §5.2's 0.94 remains adventure's value. All of `0119`'s tuned values
+  that ghost almost entirely. ~~§5.2's 0.94 remains adventure's value.~~ Since `0098` the 0.90
+  rendering IS adventure (§5.2), and 0.94 is the ceiling no mode may exceed. All of `0119`'s tuned values
   and their reasons: `docs/capabilities/08-map-and-fog-renderer.md`.
 - **The noise scale (260 px per cell) must not match the parchment grain.** *(Moot since D-373:
   the basemap is stock `light` and has no paper grain. Kept for any future textured ground.)*
@@ -1259,15 +1260,20 @@ the darkening. If the basemap is already mid-dark, the fog has nowhere to go.
 Both modes share one basemap *source* (one PMTiles archive) and one fog shader. They differ in
 style-layer configuration and shader uniforms only — no second tileset, no second code path.
 
+*Amended by `0098` (operator, Q2/Q3): adventure's column is `0119`'s tuned rendering — the look
+the product shipped with before the toggle existed — not the original sketch, and both modes draw
+the mask at 0.5×. The per-mode uniforms live in one constant map, `FOG_MODES` in
+`lib/fog/fog-uniforms.ts`, which a snapshot test holds to this table.*
+
 | | **Atlas** | **Adventure** |
 |---|---|---|
 | **Purpose** | Deciding where to run tomorrow | Looking at what you've done |
-| `u_maxOpacity` | **0.55** | **0.94** |
-| `u_noiseAmp` (threshold perturbation) | **0.10** — edge stays close to true coverage | **0.30** — ragged, organic |
-| Noise animation | **Off.** `u_time` frozen at 0 | **On**, 30 fps drift |
+| `u_maxOpacity` | **0.55** | ~~0.94~~ **0.90** *(`0119`'s tuning, `0098`; 0.94 stays the ceiling, §5.3)* |
+| `u_noiseAmp` (threshold perturbation) | **0.10** — edge stays close to true coverage | ~~0.30~~ **0.25** — wisps; raggedness is the edge warp's (D-372). 0.30 stays the ceiling `SEAM_FLOOR` was measured for |
+| Noise animation | **Off.** `u_time` frozen where it stood *(was "at 0"; a jump re-rolls the wisps, D-NEW-a, `0098`)* | **On**, 30 fps drift |
 | `u_rimAmt` (rim glow) | **0.08** — a hairline, just enough to find the frontier | **0.30** — full lantern-light |
-| `u_fogDeep` / `u_fogEdge` | Desaturated, lighter: `(0.10,0.11,0.14)` / `(0.30,0.32,0.36)` | `(0.035,0.045,0.075)` / `(0.22,0.24,0.30)` |
-| Mask FBO scale | **0.75×** — tighter, more accurate frontier | **0.5×** — softer, cheaper |
+| `u_fogDeep` / `u_fogEdge` | Desaturated, lighter: `(0.10,0.11,0.14)` / `(0.30,0.32,0.36)` | `(0.035,0.045,0.075)` / ~~`(0.22,0.24,0.30)`~~ `(0.27,0.29,0.35)` *(`0119`, `0098`)* |
+| Mask FBO scale | ~~0.75×~~ **0.5×**, as adventure *(`0098`: a resolution cannot be cross-faded, and changing it moves the edge, which §5.4 forbids)* | **0.5×** — softer, cheaper |
 | **Basemap style** | ~~Parchment, **high contrast**: dark road casings, strong hierarchy, water clearly separated from land~~ Stock `light` colours (D-373) | ~~Parchment, **aged**: lower contrast, warmer, paper grain, hand-drawn-feeling casings~~ Stock `light` colours (D-373). The modes differ in label density and layer order, not colour |
 | **Label density** | Full: street names down to residential, POIs, park names, house-number-scale labels at z≥16 | Reduced: place names, major roads, parks. Small POIs suppressed |
 | **Label layer position** | **ABOVE the fog.** Street names remain readable through fogged ground | **BELOW the fog.** Unexplored place names stay hidden — the discovery beat |

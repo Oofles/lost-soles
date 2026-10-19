@@ -14,13 +14,14 @@ import type { PlinthModel } from "@/lib/plinth/model"
  *
  * The plinth is rendered with a FULLY POPULATED model — every row filled — because a refusal tested
  * against an empty screen proves nothing. `HomeScreen` is rendered too, with the map stubbed, to
- * show that the plinth, the gear and the map are the whole of `/`.
+ * show that the plinth, the mode toggle (`0098`), the gear and the map are the whole of `/`.
  */
 vi.mock("@/app/sync-action", () => ({ syncNowAction: vi.fn() }))
 vi.mock("@/components/map/map-shell", () => ({ MapShell: () => <div data-testid="map-shell" /> }))
 
 const { Plinth, PLINTH_CSS } = await import("./plinth")
 const { HomeScreen } = await import("./home-screen")
+const { MODE_TOGGLE_CSS } = await import("@/components/map/mode-toggle")
 
 const FULL: PlinthModel = {
   totalLevel: 271,
@@ -170,11 +171,25 @@ describe("what the home route must never render (D-013, §2.3)", () => {
     expect(links.every((h) => !/\/log[?#/]/.test(h))).toBe(true)
   })
 
-  it("renders only the plinth, the gear and the map — no other UI", () => {
+  it("renders only the plinth, the mode toggle, the gear and the map — no other UI", () => {
     // React's static render appends its form-replay `<script>` for the Sync form; it draws nothing.
-    const html = home().replace(/<style>[\s\S]*?<\/style>/, "").replace(/<script>[\s\S]*?<\/script>/g, "")
-    const top = html.replace(/<aside[\s\S]*<\/aside>/, "").replace(/<a [^>]*class="home-gear"[\s\S]*?<\/a>/, "")
+    const html = home().replace(/<style>[\s\S]*?<\/style>/g, "").replace(/<script>[\s\S]*?<\/script>/g, "")
+    const top = html
+      .replace(/<aside[\s\S]*<\/aside>/, "")
+      .replace(/<div class="mode-toggle"[\s\S]*?<\/div>/, "")
+      .replace(/<a [^>]*class="home-gear"[\s\S]*?<\/a>/, "")
     expect(top).toBe('<div data-testid="map-shell"></div>')
+  })
+
+  /** `0098`, 06 §4.2: two rows, both labels always visible, neither selected before the client knows. */
+  it("the mode toggle shows both labels, in §2.2's focus order before the gear", () => {
+    const html = home()
+    const toggle = /<div class="mode-toggle"[\s\S]*?<\/div>/.exec(html)![0]
+    expect(toggle).toContain(">Atlas<")
+    expect(toggle).toContain(">Adventure<")
+    expect(toggle.match(/role="radio"/g)).toHaveLength(2)
+    expect(toggle).not.toContain('aria-checked="true"')
+    expect(html.indexOf('class="mode-toggle"')).toBeLessThan(html.indexOf('class="home-gear"'))
   })
 })
 
@@ -183,6 +198,12 @@ describe("chrome is opaque and gold is never text (D-148)", () => {
     expect(PLINTH_CSS).toMatch(/\.plinth \{[^}]*background: var\(--surface-raised\)/)
     expect(PLINTH_CSS).toMatch(/\.home-gear \{[^}]*background: var\(--surface-raised\)/)
     expect(PLINTH_CSS).not.toMatch(/opacity|rgba|transparent|backdrop/)
+    // `0098`. The mode toggle is floating chrome too.
+    expect(MODE_TOGGLE_CSS).toMatch(/\.mode-toggle \{[^}]*background: var\(--surface-raised\)/)
+    expect(MODE_TOGGLE_CSS).not.toMatch(/opacity|rgba|transparent|backdrop/)
+    // Gold is the selected row's FILL; its text is ink.
+    expect(MODE_TOGGLE_CSS).toContain("[aria-checked='true'] { background: var(--accent); color: var(--text-primary); }")
+    expect(MODE_TOGGLE_CSS).not.toMatch(/color: var\(--(accent|gold|progress)/)
   })
 
   it("gold appears only as a fill or a rule", () => {

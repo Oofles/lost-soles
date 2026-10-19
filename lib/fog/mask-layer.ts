@@ -204,6 +204,8 @@ export class FogMaskLayer implements CustomLayerInterface {
    */
   #warpRadius: { res: number; merc: number } | null = null
   #fogTime = 0
+  /** `0098`. The per-mode uniforms in force; moved every frame of a mode cross-fade. */
+  #palette: FogPalette
 
   constructor(
     private readonly options: {
@@ -216,14 +218,29 @@ export class FogMaskLayer implements CustomLayerInterface {
        * 0, which is the correct static fog — a layer with no animator is not a broken animator.
        */
       timeSource?: () => number
-      /** `0056`. The six per-mode uniforms. Defaults to `V1`; capability 15 is what passes another. */
+      /** `0056`. The six per-mode uniforms, initially. Defaults to `V1`; `setPalette` moves them. */
       palette?: FogPalette
       /** `0056`. Lever (c): fBm octaves. Defaults to `FBM_OCTAVES`. */
       octaves?: number
       /** `0059`, §6.4 item 2. Only `?fog=perf` passes one. */
       timer?: PassTimer
     } = {},
-  ) {}
+  ) {
+    this.#palette = options.palette ?? V1
+  }
+
+  /**
+   * `0098`. The uniforms the next composite draws with. A mode cross-fade calls this every frame
+   * and asks MapLibre for a repaint; nothing here touches GL, the composite reads it in `render`.
+   */
+  setPalette(palette: FogPalette): void {
+    this.#palette = palette
+  }
+
+  /** `0098`. What `setPalette` last installed — the toggle's tests and the harness read it. */
+  palette(): FogPalette {
+    return this.#palette
+  }
 
   /* ─── The data seam ───────────────────────────────────────────────────────── */
 
@@ -618,7 +635,7 @@ export class FogMaskLayer implements CustomLayerInterface {
       mask: this.#resources.texture,
       noise: this.#noise,
       time: this.#fogTime,
-      palette: this.options.palette ?? V1,
+      palette: this.#palette,
       bloom: this.#bloomPalette,
       warp: edgeWarp(this.#noise, warpRadius.merc),
     })
