@@ -2377,6 +2377,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-19T13:08:21Z",
     "path": "tickets/open/0097-parchment-basemap-fork.md",
     "ready": true,
     "acceptance": {
@@ -4625,12 +4626,14 @@
     "status": "open",
     "size": "s",
     "capability": "15-two-map-modes-and-cold-territory",
-    "depends_on": [],
+    "depends_on": [
+      97
+    ],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-11T00:25:31Z",
     "path": "tickets/open/0197-re-judge-the-run-polyline-s-legibility-against-the-parchment.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 4
@@ -5888,13 +5891,14 @@
     "size": "s",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
-      80
+      80,
+      98
     ],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-13T15:53:19Z",
     "path": "tickets/open/0254-beat-1-mode-crossfade.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 5
@@ -6554,6 +6558,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-16T15:35:14Z",
+    "started": "2026-10-19T13:08:21Z",
     "path": "tickets/open/0284-the-basemap-covers-every-area-the-operator-has-run-not-only.md",
     "ready": true,
     "acceptance": {
