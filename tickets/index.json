@@ -2402,6 +2402,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-19T15:53:10Z",
     "path": "tickets/open/0098-atlas-adventure-toggle.md",
     "ready": true,
     "acceptance": {
@@ -6587,6 +6588,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-16T15:35:14Z",
+    "started": "2026-10-19T15:53:10Z",
     "path": "tickets/open/0285-a-quiet-jump-to-control-lists-the-regions-the-operator-has-r.md",
     "ready": true,
     "acceptance": {
