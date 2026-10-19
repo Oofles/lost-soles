@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,446 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,466 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,682 lines
+**01 — System Architecture** — 1,683 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -90,33 +90,33 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `842-876` | D-120 is final and supersedes the provisional D-022. |
 | &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `877-922` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
 | &nbsp;&nbsp;↳ Failure handling | `923-948` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `949-1165` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| 5. Frontend architecture | `949-1166` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
 | &nbsp;&nbsp;↳ The fact that drives the whole design | `951-980` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
 | &nbsp;&nbsp;↳ App Router structure | `981-1070` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1071-1154` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `1155-1165` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `1166-1336` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `1168-1185` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `1186-1203` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1204-1266` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1267-1314` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1315-1336` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1337-1460` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1342-1384` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1385-1427` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1428-1445` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1446-1460` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1461-1556` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1492-1524` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1525-1538` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1539-1556` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1557-1608` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1562-1584` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1585-1597` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1598-1608` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1609-1630` |  |
-| 11. Known tensions the decision log creates | `1631-1671` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1672-1682` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1071-1155` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `1156-1166` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1167-1337` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1169-1186` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1187-1204` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1205-1267` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1268-1315` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1316-1337` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1338-1461` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1343-1385` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1386-1428` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1429-1446` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1447-1461` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1462-1557` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1493-1525` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1526-1539` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1540-1557` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1558-1609` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1563-1585` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1586-1598` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1599-1609` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1610-1631` |  |
+| 11. Known tensions the decision log creates | `1632-1672` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1673-1683` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 
@@ -310,146 +310,146 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 2,050 lines
+**05 — Fog of War** — 2,062 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | Table of contents | `19-32` |  |
-| 1. The mechanic, stated plainly | `33-89` | The map opens as a sheet of dark, drifting mist over a warm parchment street map. |
-| &nbsp;&nbsp;↳ 1.1 Two different things happen to the same cell | `43-68` | This is the single most important distinction in this document, and conflating them will |
-| &nbsp;&nbsp;↳ 1.2 Worked example | `69-81` | You run the same loop three times. |
-| &nbsp;&nbsp;↳ 1.3 What the fog is *not* | `82-89` |  |
-| 2. Territory representation | `90-414` |  |
-| &nbsp;&nbsp;↳ 2.1 H3 resolution 10, canonical, never mixed | `92-147` | the path (§2.3). At res 10 that is exactly k = 0 — the cell you are standing in. The |
-| &nbsp;&nbsp;↳ 2.2 Trace → cells | `148-326` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
-| &nbsp;&nbsp;↳ 2.3 The reveal radius | `327-371` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
-| &nbsp;&nbsp;↳ 2.4 The per-cell record | `372-414` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
-| 3. The discovery-scoring algorithm | `415-713` | (D-021, D-120). |
-| &nbsp;&nbsp;↳ 3.1 Definitions | `425-453` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
-| &nbsp;&nbsp;↳ 3.2 The algorithm | `454-572` | key = idempotencyKey(activity, trace) |
-| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `573-603` | All of these are solved by one design decision — traceToCells returns a Set — but each |
-| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `604-642` | Activities do not arrive in chronological order. |
-| &nbsp;&nbsp;↳ 3.5 Idempotency | `643-677` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
-| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `678-713` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
-| 4. Rendering | `714-1217` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
-| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `728-790` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
-| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `791-926` | MapLibre calls prerender during its offscreen pass. |
-| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `927-1134` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
-| &nbsp;&nbsp;↳ 4.4 Layer order | `1135-1187` | map.on('style.load', () => { |
-| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1188-1202` | Drifting mist does not benefit from 60 and it halves the battery cost. |
-| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1203-1217` | Recorded so that a future session does not rediscover them the expensive way. |
-| 5. The two map modes | `1218-1289` | run) and adventure (full atmosphere, for admiring the map). |
-| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1227-1244` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
-| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1245-1267` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
-| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1268-1280` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
-| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1281-1289` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `1290-1547` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1302-1389` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1390-1449` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `1450-1465` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1466-1547` | None of the above is true until measured. |
-| 7. Data delivery | `1548-1761` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1570-1613` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1614-1635` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1636-1696` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1697-1761` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1762-1918` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1767-1791` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1792-1824` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1825-1839` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1840-1905` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1906-1918` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1919-2032` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1924-1931` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1932-1936` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1937-1946` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1947-1969` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1970-1977` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1978-1990` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `1991-1997` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `1998-2003` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `2004-2010` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `2011-2021` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `2022-2032` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `2033-2050` | radius never feeds back into scoring. |
+| 1. The mechanic, stated plainly | `33-90` | The map opens as a sheet of dark, drifting mist over a warm parchment street map. |
+| &nbsp;&nbsp;↳ 1.1 Two different things happen to the same cell | `44-69` | This is the single most important distinction in this document, and conflating them will |
+| &nbsp;&nbsp;↳ 1.2 Worked example | `70-82` | You run the same loop three times. |
+| &nbsp;&nbsp;↳ 1.3 What the fog is *not* | `83-90` |  |
+| 2. Territory representation | `91-415` |  |
+| &nbsp;&nbsp;↳ 2.1 H3 resolution 10, canonical, never mixed | `93-148` | the path (§2.3). At res 10 that is exactly k = 0 — the cell you are standing in. The |
+| &nbsp;&nbsp;↳ 2.2 Trace → cells | `149-327` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
+| &nbsp;&nbsp;↳ 2.3 The reveal radius | `328-372` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
+| &nbsp;&nbsp;↳ 2.4 The per-cell record | `373-415` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
+| 3. The discovery-scoring algorithm | `416-714` | (D-021, D-120). |
+| &nbsp;&nbsp;↳ 3.1 Definitions | `426-454` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
+| &nbsp;&nbsp;↳ 3.2 The algorithm | `455-573` | key = idempotencyKey(activity, trace) |
+| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `574-604` | All of these are solved by one design decision — traceToCells returns a Set — but each |
+| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `605-643` | Activities do not arrive in chronological order. |
+| &nbsp;&nbsp;↳ 3.5 Idempotency | `644-678` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
+| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `679-714` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
+| 4. Rendering | `715-1219` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
+| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `729-791` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
+| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `792-927` | MapLibre calls prerender during its offscreen pass. |
+| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `928-1136` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
+| &nbsp;&nbsp;↳ 4.4 Layer order | `1137-1189` | map.on('style.load', () => { |
+| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1190-1204` | Drifting mist does not benefit from 60 and it halves the battery cost. |
+| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1205-1219` | Recorded so that a future session does not rediscover them the expensive way. |
+| 5. The two map modes | `1220-1301` | run) and adventure (full atmosphere, for admiring the map). |
+| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1229-1256` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
+| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1257-1279` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
+| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1280-1292` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
+| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1293-1301` | and style-layer switch, entirely client-side, with no path back to §3. |
+| 6. Performance | `1302-1559` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1314-1401` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1402-1461` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1462-1477` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1478-1559` | None of the above is true until measured. |
+| 7. Data delivery | `1560-1773` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1582-1625` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1626-1647` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1648-1708` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1709-1773` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1774-1930` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1779-1803` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1804-1836` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1837-1851` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1852-1917` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Optional: stale territory | `1918-1930` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1931-2044` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1936-1943` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1944-1948` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1949-1958` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `1959-1981` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `1982-1989` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `1990-2002` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION** | `2003-2009` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `2010-2015` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `2016-2022` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `2023-2033` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `2034-2044` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `2045-2062` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,912 lines
+**06 — UI / UX** — 1,919 lines
 
 | Section | Lines | Settles |
 |---|---|---|
-| &nbsp;&nbsp;↳ The surface, stated once (D-227, D-251, D-313) | `28-45` | tall, driven by mouse, trackpad and keyboard. |
-| Contents | `46-60` |  |
-| 1. Information architecture | `61-182` | Every screen is a thing that must be styled, kept responsive, kept accessible, kept working |
-| &nbsp;&nbsp;↳ 1.1 The rule that shapes it | `63-76` | Every screen is a thing that must be styled, kept responsive, kept accessible, kept working |
-| &nbsp;&nbsp;↳ 1.2 The screen map | `77-124` | ┌───────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 1.3 Justification, screen by screen | `125-136` |  |
-| &nbsp;&nbsp;↳ 1.4 Screens deliberately refused | `137-155` | Lifetime totals live at the top of the Chronicle sheet, where you are already looking at your |
-| &nbsp;&nbsp;↳ 1.5 Navigation model | `156-182` | implies peer sections — which these are not. |
-| 2. The home screen | `183-380` | Fullscreen map, plus one card at the bottom: the plinth. |
-| &nbsp;&nbsp;↳ 2.1 What it is | `185-214` | Fullscreen map, plus one card at the bottom: the plinth. |
-| &nbsp;&nbsp;↳ 2.2 Wireframe — the design case, a ~1440 × 900 window | `215-293` | ┌────────────────────────────────────┬─────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 2.3 What earns its space, and what does not | `294-336` | run, not on your home, and not on your whole territory — because the interesting thing is |
-| &nbsp;&nbsp;↳ 2.4 States | `337-353` | The empty state deserves a note: with no territory, the map is all fog and reads as broken. |
-| &nbsp;&nbsp;↳ 2.5 Where the Chronicle opens (D-313) | `354-380` | not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4), |
-| 3. The post-run moment — "Return from the Fog" | `381-723` | This is the most important screen in the app and it is not really a screen. |
-| &nbsp;&nbsp;↳ 3.1 Entry points | `391-402` | A run is marked seen the first time the sequence completes or is skipped. |
-| &nbsp;&nbsp;↳ 3.2 The sequence | `403-602` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
-| &nbsp;&nbsp;↳ 3.3 The end state | `603-617` | When the sequence finishes it does not navigate anywhere. |
-| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `618-648` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
-| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `649-723` | This is the case that decides whether the app survives month four. |
-| 4. The map screen | `724-996` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.1 There is no map screen | `726-740` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `741-774` | permanently visible — never an icon, never a single button whose label is the state you are not |
-| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `775-803` |  |
-| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `804-837` |  |
-| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `838-885` | On / the trace web is always drawn and the last run is the selected run. |
-| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `886-943` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
-| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `944-974` | ATLAS ADVENTURE |
-| &nbsp;&nbsp;↳ 4.8 Loading, offline, and narrow windows | `975-996` | from IndexedDB render before any network call. |
-| 5. The skills panel | `997-1202` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `999-1025` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.2 Wireframe | `1026-1072` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `1073-1102` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
-| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `1103-1141` | which makes it the first live test of D-031's promise that a new skill is a data row. |
-| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `1142-1202` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
-| 6. Add workout (D-061) | `1203-1352` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1205-1222` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1223-1239` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
-| &nbsp;&nbsp;↳ 6.3 Wireframe | `1240-1284` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1285-1310` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
-| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1311-1335` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
-| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1336-1352` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
-| 7. Ticket capture UI (D-092) | `1353-1478` | wireframes, and the reasons the constraints are what they are. |
-| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1363-1377` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
-| &nbsp;&nbsp;↳ 7.2 Placement and access | `1378-1386` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
-| &nbsp;&nbsp;↳ 7.3 Capture | `1387-1424` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1425-1436` | browse list with a pending marker. |
-| &nbsp;&nbsp;↳ 7.5 Browse | `1437-1465` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1466-1478` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
-| 8. Visual system | `1479-1691` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1481-1504` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1505-1539` | Six ramps. Nothing outside them ships. |
-| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1540-1592` |  |
-| &nbsp;&nbsp;↳ 8.4 Typography | `1593-1625` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
-| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1626-1639` | the map's floating controls 8dp. |
-| &nbsp;&nbsp;↳ 8.6 Iconography | `1640-1654` | an 8dp construction grid, no fills, no gradients, no two-tone. |
-| &nbsp;&nbsp;↳ 8.7 Motion | `1655-1691` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1692-1809` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
-| &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1704-1716` | the lightest colour permitted to carry type; --gold-500 carries none. |
-| &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1717-1738` | pattern for every screen). |
-| &nbsp;&nbsp;↳ 9.3 Narrow windows | `1739-1749` | place, and the right-edge map controls sit above it (§2.2). |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1750-1770` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1771-1794` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1795-1809` |  |
-| 10. What we are deliberately NOT building | `1810-1912` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1819-1832` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1833-1839` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1840-1865` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1866-1881` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1882-1898` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1899-1912` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ The surface, stated once (D-227, D-251, D-313) | `30-47` | tall, driven by mouse, trackpad and keyboard. |
+| Contents | `48-62` |  |
+| 1. Information architecture | `63-184` | Every screen is a thing that must be styled, kept responsive, kept accessible, kept working |
+| &nbsp;&nbsp;↳ 1.1 The rule that shapes it | `65-78` | Every screen is a thing that must be styled, kept responsive, kept accessible, kept working |
+| &nbsp;&nbsp;↳ 1.2 The screen map | `79-126` | ┌───────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 1.3 Justification, screen by screen | `127-138` |  |
+| &nbsp;&nbsp;↳ 1.4 Screens deliberately refused | `139-157` | Lifetime totals live at the top of the Chronicle sheet, where you are already looking at your |
+| &nbsp;&nbsp;↳ 1.5 Navigation model | `158-184` | implies peer sections — which these are not. |
+| 2. The home screen | `185-382` | Fullscreen map, plus one card at the bottom: the plinth. |
+| &nbsp;&nbsp;↳ 2.1 What it is | `187-216` | Fullscreen map, plus one card at the bottom: the plinth. |
+| &nbsp;&nbsp;↳ 2.2 Wireframe — the design case, a ~1440 × 900 window | `217-295` | ┌────────────────────────────────────┬─────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 2.3 What earns its space, and what does not | `296-338` | run, not on your home, and not on your whole territory — because the interesting thing is |
+| &nbsp;&nbsp;↳ 2.4 States | `339-355` | The empty state deserves a note: with no territory, the map is all fog and reads as broken. |
+| &nbsp;&nbsp;↳ 2.5 Where the Chronicle opens (D-313) | `356-382` | not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4), |
+| 3. The post-run moment — "Return from the Fog" | `383-725` | This is the most important screen in the app and it is not really a screen. |
+| &nbsp;&nbsp;↳ 3.1 Entry points | `393-404` | A run is marked seen the first time the sequence completes or is skipped. |
+| &nbsp;&nbsp;↳ 3.2 The sequence | `405-604` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
+| &nbsp;&nbsp;↳ 3.3 The end state | `605-619` | When the sequence finishes it does not navigate anywhere. |
+| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `620-650` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
+| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `651-725` | This is the case that decides whether the app survives month four. |
+| 4. The map screen | `726-999` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.1 There is no map screen | `728-742` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `743-776` | permanently visible — never an icon, never a single button whose label is the state you are not |
+| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `777-805` |  |
+| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `806-839` |  |
+| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `840-887` | On / the trace web is always drawn and the last run is the selected run. |
+| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `888-945` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
+| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `946-976` | ATLAS ADVENTURE |
+| &nbsp;&nbsp;↳ 4.8 Loading, offline, and narrow windows | `977-999` | from IndexedDB render before any network call. |
+| 5. The skills panel | `1000-1205` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `1002-1028` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.2 Wireframe | `1029-1075` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `1076-1105` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
+| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `1106-1144` | which makes it the first live test of D-031's promise that a new skill is a data row. |
+| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `1145-1205` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
+| 6. Add workout (D-061) | `1206-1355` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1208-1225` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1226-1242` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
+| &nbsp;&nbsp;↳ 6.3 Wireframe | `1243-1287` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1288-1313` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
+| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1314-1338` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
+| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1339-1355` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
+| 7. Ticket capture UI (D-092) | `1356-1481` | wireframes, and the reasons the constraints are what they are. |
+| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1366-1380` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
+| &nbsp;&nbsp;↳ 7.2 Placement and access | `1381-1389` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
+| &nbsp;&nbsp;↳ 7.3 Capture | `1390-1427` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1428-1439` | browse list with a pending marker. |
+| &nbsp;&nbsp;↳ 7.5 Browse | `1440-1468` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1469-1481` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
+| 8. Visual system | `1482-1698` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1484-1510` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1511-1545` | Six ramps. Nothing outside them ships. |
+| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1546-1599` |  |
+| &nbsp;&nbsp;↳ 8.4 Typography | `1600-1632` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
+| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1633-1646` | the map's floating controls 8dp. |
+| &nbsp;&nbsp;↳ 8.6 Iconography | `1647-1661` | an 8dp construction grid, no fills, no gradients, no two-tone. |
+| &nbsp;&nbsp;↳ 8.7 Motion | `1662-1698` | Five durations. Nothing else is invented at the component level. |
+| 9. Accessibility and reality checks | `1699-1816` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1711-1723` | the lightest colour permitted to carry type; --gold-500 carries none. |
+| &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1724-1745` | pattern for every screen). |
+| &nbsp;&nbsp;↳ 9.3 Narrow windows | `1746-1756` | place, and the right-edge map controls sit above it (§2.2). |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1757-1777` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1778-1801` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1802-1816` |  |
+| 10. What we are deliberately NOT building | `1817-1919` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1826-1839` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1840-1846` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1847-1872` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1873-1888` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1889-1905` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1906-1919` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 
