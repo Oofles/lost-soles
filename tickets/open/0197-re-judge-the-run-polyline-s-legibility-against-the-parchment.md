@@ -56,14 +56,8 @@ third layer for a problem two are meant to solve.
 
 ## Acceptance criteria
 
-- [ ] The route is looked at on the parchment basemap, at a zoom where the line crosses from
-      revealed ground onto fogged ground in the same frame.
-- [ ] **(operator)** A verdict is recorded: the pairing is confirmed as-is, or changed.
-- [ ] If changed: `app/tokens.css`, `05-fog-of-war.md` §4.4 and `0016`'s "DO NOT RETUNE" comment
-      are updated together, with a `D-xxx` recording why the original values did not survive their
-      intended background.
-- [ ] If confirmed: §4.4 gains one line saying the pairing was re-checked against parchment and
-      held, so a third session does not re-open it.
+- [x] Closed as declined, with a `## Resolution` recording the decision (D-373), and moved to
+      `closed/` rather than deleted. The original criteria are preserved verbatim in `## Resolution`.
 
 ## Notes
 
@@ -92,5 +86,29 @@ not in scope here.
 
 ## Operator validation
 
-TODO — this ticket is almost entirely an operator judgement; the section is written when it is
-worked, against whatever the parchment fork actually looks like.
+None: declined before any work. The operator's verdict that retired its premise was given on the deployed `0097` parchment fork, desktop browser, 2026-10-19 (D-373).
+
+## Resolution
+
+**Declined 2026-10-19. Recorded as D-373.** This ticket existed to look at the amber route pairing
+once the parchment basemap replaced the stock Protomaps `light` ground. The operator saw the deployed
+parchment fork (`0097`) and withdrew it: both variants keep the stock colours. The ground that ships is
+therefore the one the pairing was already judged on in `0057`, where the operator's verdict was *"a
+little hard to see ... However, I kind of like it since it's not too obtrusive."* The operator chose
+option 1 of this ticket, **confirmed as-is**, without a second look. Criterion 4's one line in `05`
+§4.4 (re-checked and held) was added in the same commit. `app/tokens.css` and `0016`'s "DO NOT
+RETUNE" comment are untouched.
+
+The open questions answer themselves: there is no parchment ground on which the two modes could
+diverge, and the dark-theme question stays as `0057` left it.
+
+Original acceptance criteria, verbatim:
+
+- (original) The route is looked at on the parchment basemap, at a zoom where the line crosses from
+      revealed ground onto fogged ground in the same frame.
+- (original) **(operator)** A verdict is recorded: the pairing is confirmed as-is, or changed.
+- (original) If changed: `app/tokens.css`, `05-fog-of-war.md` §4.4 and `0016`'s "DO NOT RETUNE" comment
+      are updated together, with a `D-xxx` recording why the original values did not survive their
+      intended background.
+- (original) If confirmed: §4.4 gains one line saying the pairing was re-checked against parchment and
+      held, so a third session does not re-open it.

@@ -15,26 +15,34 @@ created: 2026-10-19T13:47:44Z
 
 ## Description
 
-/tmp/claude-1000/-home-vivicat-lost-soles/4489f85e-7f4b-4df7-9d4b-a7645cb8e011/scratchpad/w.md
-
-## Acceptance criteria
-
-- [ ] TODO
+`docs/capabilities/WAVES.md` §2 says agent worktrees under `.claude/worktrees/` are gitignored "and
+neither `tsc` nor `vitest` sees it". One test does: `src/adapters/strava/adapter.test.ts` > "no
+polyline decoder exists anywhere in this repository" walks the filesystem rather than the git index,
+so during capability 15's wave 1 gate it found each worktree's copy of
+`scripts/make-strava-fixture.mjs` and failed. It passed once the worktrees were removed. Every wave's
+orchestrator gate runs while worktrees still exist, so every wave will hit this.
 
 ## Steps to reproduce
 
-1. TODO
+1. Have any agent worktree present under `.claude/worktrees/`.
+2. `npx vitest run src/adapters/strava/adapter.test.ts` from the main checkout.
 
 ## Expected vs actual
 
-**Expected:** TODO
+**Expected:** the test scans only the repository's own tree and passes.
 
-**Actual:** TODO
+**Actual:** it fails, listing `.claude/worktrees/agent-*/scripts/make-strava-fixture.mjs` as unexpected importers.
+
+## Acceptance criteria
+
+- [ ] The scan excludes `.claude/` (or enumerates via `git ls-files`), with a test that a file under `.claude/worktrees/` is not scanned.
+- [ ] Any other filesystem-walking test or guard is checked for the same blind spot, and fixed or listed in the Resolution.
 
 ## Notes
 
-TODO
+Found by the orchestrator in capability 15 wave 1 (2026-10-19). Workaround until fixed: remove the
+worktrees (WAVES §4 step 8) before the gate.
 
 ## Operator validation
 
-TODO
+None needed: a test-only change, proven by the suite with a worktree present.

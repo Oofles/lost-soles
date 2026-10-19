@@ -4635,8 +4635,8 @@
     "path": "tickets/open/0197-re-judge-the-run-polyline-s-legibility-against-the-parchment.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
-      "total": 4
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -6759,7 +6759,7 @@
     "ready": false,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 3
     }
   },
   {
@@ -6780,7 +6780,7 @@
     "path": "tickets/open/0294-retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa.md",
     "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 1,
       "total": 1
     }
   },
@@ -6801,7 +6801,7 @@
     "ready": true,
     "acceptance": {
       "checked": 0,
-      "total": 1
+      "total": 2
     }
   }
 ]

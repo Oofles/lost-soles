@@ -1176,6 +1176,10 @@ along. Landmarks and the route stay above everything in both variants.
 
 Route colour must survive both backgrounds: warm cream core `#fff2d0` with an amber glow reads on
 parchment *and* against dark fog. Pure white blows out on parchment; pure red vanishes into it.
+**Re-checked and held (2026-10-19, `0197` declined, D-373):** the parchment basemap was withdrawn,
+so the ground that ships is the stock Protomaps `light` flavour, the same one the operator judged
+this pairing on in `0057` (*"not too obtrusive"*). The pairing is confirmed as-is; do not re-open it
+without a new ground to judge against.
 
 **Optimisation worth taking:** draw the just-uploaded run's polyline into the *mask* as a thick
 soft line as well, so the corridor clears the instant the run appears, before the server's cell

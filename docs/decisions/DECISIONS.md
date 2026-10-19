@@ -5475,3 +5475,25 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     stays inside the 0.7 r a lone corridor holds saturated, so no hole opens. T3 seam 0.980; `0079`
     R1/R2 diff 0 pixels.
   - **Rejected, all rendered:** a higher `noiseAmp`, a lower `FALLOFF_INNER`, noise in the mask pass.
+- **D-373** **The basemap keeps the stock Protomaps `light` colours. The parchment colouring is
+  withdrawn; the fork's structure stays.** *(Operator, 2026-10-19, on the deployed `0097`.)*
+  Supersedes D-053's parchment ground and D-369; D-368 and D-370 stand; D-371's metric stands and
+  is re-measured on the stock ground.
+  - **The operator's verdict:** *"I don't like the coloring at all... it just looks like an
+    unappealing filter applied on top of the map. I liked the standard colors that just existed
+    with the openstreetmap before. And I think that the fog layer accomplishes the objective well
+    enough. The basemap atlas view is perfect for planning and viewing the roads!"*
+  - **What stays:** the fork module and its two variants; atlas's labels and road-fill copies above
+    the fog with the trace web above them (D-368); adventure's reduced labels below the fog; the
+    `?basemap=` flag with adventure as default (D-370).
+  - **What goes:** the `--map-*` tokens, adventure's ageing toward `--parch-300`, and the paper
+    grain that was never built. The app's own chrome keeps its parchment ramps; only the map ground
+    changes.
+  - **D-053's load-bearing half survives.** It refused a *dark* basemap because dark fog on dark
+    ground destroys reveal contrast. The stock `light` ground is light, and the fog does the
+    darkening. Only the parchment *hue* is dropped, because the operator judged the contrast the
+    fog already gives on the stock ground to be enough — which is the D-051 reading: a familiar
+    street map beats an atmospheric one.
+  - **Consequences:** `0294` (trace ink vs parchment water) and `0197` (route re-judged against
+    parchment) are declined, since the ground they were filed against will not ship. The route
+    pairing is recorded as held in `05` §4.4.
