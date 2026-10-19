@@ -5522,7 +5522,9 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 - **D-378** **The run page's frontier click shows atlas on that page only, and every mode fade is
   320 ms.** *(Operator, 2026-10-19, `0098` Q5.)* It does not change the saved preference. `0080`'s
   fade back to the saved mode uses the toggle's 320 ms constant (06 §3.2 amended from 300 ms). The
-  "suggest atlas once" clause waits for a route-planning surface (follow-up ticket).
+  "suggest atlas once" clause is dropped *(operator, same day)*: the toggle is a visible control with
+  a shortcut (D-253), and the planner it would hook into (D-070) has no ticket. Whoever designs the
+  planner decides its opening mode.
 - **D-379** **The frontier rim is lit mist.** *(Operator, 2026-10-19, ticket `0210`, option B.)*
   Supersedes 05 §4.3's additive rim and §5.1's "picks up the parchment hue" (retired by D-373).
   - Fog near revealed ground is mixed toward warm lamplight (1.00, 0.78, 0.40) by `lit` and thinned to

@@ -54,8 +54,8 @@ handler (which owns the arrows and `+`/`−`). ~~Long-press (350 ms) anywhere on
 haptic tick (06 §4.4).~~ *(D-253)* Default
 is **adventure** — it is the product's identity. State persists in `localStorage`: it is a
 per-device viewing preference, not user data, and it is not synced. ~~The first time the user opens
-a route-planning surface, the app suggests atlas once.~~ *(Moved to a follow-up ticket, operator
-2026-10-19: no route-planning surface exists yet, and this ticket does not invent one.)*
+a route-planning surface, the app suggests atlas once.~~ *(Dropped, operator
+2026-10-19, D-378: no route-planning surface exists, and the toggle is now a visible control.)*
 
 Under `prefers-reduced-motion` or battery saver, adventure falls back to atlas's **static** fog
 while keeping adventure's colours (05 §5.2 last row), and the rAF loop stops — that is a §9 MVP
@@ -194,4 +194,4 @@ D-375 and D-376 were accepted; Q1 is recorded as D-374, Q2/Q3 as D-377, the fron
 
 ### Not done here
 
-"Suggest atlas once on the first route-planning surface" is a follow-up. The operator will file it; no such surface exists yet.
+"Suggest atlas once on the first route-planning surface" was proposed as a follow-up, then dropped by the operator (D-378): the toggle is a visible control with a shortcut (D-253), and the planner (D-070) has no ticket. Whoever designs the planner decides its opening mode.
