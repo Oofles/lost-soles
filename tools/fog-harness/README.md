@@ -83,7 +83,7 @@ Set `CHROMIUM` to override the browser path (default `/usr/bin/chromium-browser`
 ## `tune.mjs` — the fog over the real basemap, as screenshots (ticket `0119`)
 
 ```
-node tools/fog-harness/tune.mjs [variants.json] [--zoom 16] [--out tmp/0119]
+node tools/fog-harness/tune.mjs [variants.json] [--zoom 16] [--dpr 1] [--out tmp/0119]
 ```
 
 Unlike the harnesses above, this one has no probes and no pass/fail. It renders the stock Protomaps
@@ -92,6 +92,10 @@ palette under test, then the route, all over a synthetic loop through downtown O
 one PNG per variant. `variants.json` maps names to overrides on `V1`, and `null` means no fog layer:
 the legibility baseline. It exists for taste work (`0119`, capability 15), where the question is
 whether it looks right and not whether a number matches.
+
+Since `0210` a variant may also carry `"_basemap"` (`atlas` or `adventure`, the style variant;
+default adventure), `"_base"` (the `FOG_MODES` palette its overrides apply to; default `V1`) and
+`"_off": true` (no fog, on the chosen basemap). `--dpr 2` captures at device scale 2.
 
 Three things differ from the other harnesses, and each cost a round to find:
 

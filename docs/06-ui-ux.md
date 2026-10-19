@@ -786,7 +786,7 @@ switch stated in terms of what the user perceives, which is what the UI must be 
 | Unexplored ground | Dimmed, cool, clearly still a map. You can read it. | Near-opaque dark. A ghost of the street grid, no more. |
 | Street names in unexplored ground | **Readable.** Labels sit above the fog. | **Hidden.** Labels sit below the fog. This is the discovery beat. |
 | Street *geometry* in unexplored ground | Fully traceable — road lines drawn above the fog at ~0.5 | Only what `u_maxOpacity` 0.90 lets through *(was 0.94; `0119`'s tuning, `0098`)* |
-| The frontier edge | A hairline warm rim; close to true coverage | A wide lantern glow with a ragged, organic edge |
+| The frontier edge | Close to true coverage. The same lit-mist rim as adventure *(`0210`, 05 §4.3)* | A ragged, organic edge (D-372) with the lit-mist rim: warm, thinned fog on the fog side of the frontier *(`0210`; was "a wide lantern glow")* |
 | Motion | **None.** Static, always. | Mist drifts at 30 fps |
 | Cold / rediscoverable ground | **Shown** (§4.6) | **Never shown** (D-133) |
 | "Unexplored zones near me" (05 §8.4) | Available | Hidden |

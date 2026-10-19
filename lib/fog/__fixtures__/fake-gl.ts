@@ -89,6 +89,7 @@ const COMPOSITE_UNIFORMS = new Set([
   "u_bloomGlint",
   "u_warp",
   "u_warpOrigin",
+  "u_rimBand",
 ])
 
 export interface GlCall {

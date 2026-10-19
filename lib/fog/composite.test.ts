@@ -14,6 +14,8 @@ import {
   noiseFrame,
   NO_BLOOM_PALETTE,
   NO_EDGE_WARP,
+  rimBand,
+  rimTaps,
   runCompositePass,
   TIME_WRAP_S,
   type NoiseFrame,
@@ -27,6 +29,9 @@ import {
   NOISE_PX_QUANTISED,
   REVEAL_HI,
   REVEAL_LO,
+  RIM_BAND_R,
+  RIM_RINGS,
+  RIM_TAPS_PER_RING,
   V1,
   WARP_FREQ_MAX,
   WARP_GAIN_R,
@@ -607,6 +612,71 @@ describe("edgeWarp — the ragged edge is ground-anchored and frozen (0211)", ()
     const off = fakeGl()
     runCompositePass(off.gl, createCompositeResources(off.gl), base)
     expect(off.of("uniform2f").map((c) => c.args.slice(1))).toContainEqual([0, 1])
+  })
+})
+
+/**
+ * `0210`. THE RIM IS LIT MIST. These are the CPU half: the band's size, its tap pattern, and the
+ * shader's structure. Whether it is zero on revealed ground at the pixel level is the GPU harness's
+ * C1 (`tools/fog-harness/run.mjs`), which differences a render against `rimAmt` 0.
+ */
+describe("the lit-mist rim (0210)", () => {
+  const equatorR = (res: number): number => metresToMercator(discRadiusM(res), 0)
+  const frameAt = (zoom: number) =>
+    noiseFrame(mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, width: 800, height: 600 }), 800, 600)
+
+  it("is RIM_BAND_R disc radii on the ground at every zoom, like the warp (D-372)", () => {
+    const cosLat = Math.cos((latOfMercY(HOME.y) * Math.PI) / 180)
+    for (const zoom of [14, 15, 16, 17, 18]) {
+      const frame = frameAt(zoom)
+      // noise cells / (noise cells per mercator unit) = mercator; x cosLat = equatorial mercator
+      expect((rimBand(frame, equatorR(11)) / frame.scale) * cosLat).toBeCloseTo(RIM_BAND_R * equatorR(11), 15)
+    }
+  })
+
+  it("is off on a degenerate frame rather than sized in screen space", () => {
+    const frame = noiseFrame(new Float64Array(16), 800, 600)
+    expect(rimBand(frame, equatorR(11))).toBe(0)
+  })
+
+  it("taps RIM_RINGS rings of RIM_TAPS_PER_RING, out to exactly the band's reach, inner rings heaviest", () => {
+    const taps = rimTaps()
+    expect(taps).toHaveLength(RIM_RINGS * RIM_TAPS_PER_RING)
+    const radii = taps.map((t) => Math.hypot(t.x, t.y))
+    expect(Math.max(...radii)).toBeCloseTo(1, 12)
+    for (const t of taps) {
+      const ring = Math.round(Math.hypot(t.x, t.y) * RIM_RINGS)
+      expect(t.w).toBe(RIM_RINGS + 1 - ring)
+    }
+  })
+
+  it("is zero on revealed ground BY CONSTRUCTION, and has no alpha floor (D-051)", () => {
+    const src = compositeFragmentSource()
+    // lit is scaled by (1 - reveal): reveal 1 gives lit 0 exactly, so col and alpha are untouched.
+    expect(src).toContain("* (1.0 - reveal) * u_rimAmt;")
+    expect(src).toContain("col = mix(col, u_rimGlow, lit);")
+    // It only ever THINS: alpha is multiplied by a factor in (0, 1], never raised.
+    expect(src).toMatch(/alpha \*= 1\.0 - lit \* [0-9.]+;/)
+    // The old rim's max(alpha, rim * 0.10) laid a veil over cleared ground. It must not come back.
+    expect(src).not.toContain("max(alpha")
+  })
+
+  it("samples the mask once per tap, unrolled, with no trigonometry per fragment", () => {
+    const src = compositeFragmentSource()
+    expect(src.match(/texture\(u_mask, maskUv \+ tapToUv/g)).toHaveLength(RIM_RINGS * RIM_TAPS_PER_RING)
+    expect(src).not.toMatch(/\b(cos|sin)\(/)
+  })
+
+  it("reaches the GPU as u_rimBand, and is 0 (no rim) when omitted", () => {
+    const noise = frameAt(16)
+    const band = rimBand(noise, equatorR(11))
+    const base = { mask: {} as WebGLTexture, noise, time: 0, palette: V1, bloom: NO_BLOOM_PALETTE }
+    const on = fakeGl()
+    runCompositePass(on.gl, createCompositeResources(on.gl), { ...base, rimBand: band })
+    expect(on.of("uniform1f").map((c) => c.args[1])).toContain(band)
+    const off = fakeGl()
+    runCompositePass(off.gl, createCompositeResources(off.gl), base)
+    expect(off.of("uniform1f").map((c) => c.args[1])).toContain(0)
   })
 })
 

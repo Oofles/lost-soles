@@ -29,7 +29,7 @@ export interface FogPalette {
   readonly fogDeep: Rgb
   /** `u_fogEdge` — lit mist, mixed toward as the noise field brightens. */
   readonly fogEdge: Rgb
-  /** `u_rimGlow` — warm parchment at the frontier. §5.1: it picks up the basemap's own hue. */
+  /** `u_rimGlow` — the warm light the fog is tinted toward near revealed ground (`0210`, `RIM_GLOW`). */
   readonly rimGlow: Rgb
   /**
    * `u_maxOpacity` — **never 1.0.** §4.3: letting 5-8% of the basemap bleed through is the whole
@@ -39,11 +39,63 @@ export interface FogPalette {
   readonly maxOpacity: number
   /** `u_noiseAmp` — how far the fBm field is allowed to displace the reveal threshold. */
   readonly noiseAmp: number
-  /** `u_rimAmt` — how much of `rimGlow` lands at the boundary. */
+  /**
+   * `u_rimAmt` — the lit band's strength at the frontier: how far the fog there mixes toward
+   * `rimGlow`, and (times `RIM_THIN`) how much it thins. 0 is no rim. `0210`: 0..1, ships 0.9.
+   */
   readonly rimAmt: number
   /** §4.5 / §5.2. Atlas freezes `u_time` at 0; adventure drifts at 30 fps. */
   readonly animated: boolean
 }
+
+/* ─── The rim (ticket 0210) ───────────────────────────────────────── */
+
+/*
+ * THE RIM IS LIT MIST. The old rim added `rimGlow` to the fog colour and was then premultiplied by the
+ * boundary's own ~0.45 alpha, so no `rimAmt` in §5.2's range could be seen (`0119`). The operator
+ * chose, from three rendered designs (`docs/capabilities/assets/0210/`), a band of fog on the FOG
+ * side of the frontier that is warmed toward `RIM_GLOW` and thinned, as if light from the cleared
+ * ground were falling on the mist. It is zero on revealed ground by construction (D-051).
+ *
+ * Both modes share every rim number: the operator judged the design on one set of values in both.
+ * They are declared before `ATLAS` because the palettes below reference them.
+ */
+
+/**
+ * Warm lamplight, chosen for the STOCK `light` basemap (D-373). §5.1's "picks up the parchment hue"
+ * no longer applies: there is no parchment, and the colour is chosen to read as light against dark
+ * fog rather than to match the ground.
+ */
+export const RIM_GLOW: Rgb = [1.0, 0.78, 0.4]
+
+/** How far the fog at the frontier mixes toward `RIM_GLOW`. 0 switches the rim off. */
+export const RIM_AMT = 0.9
+
+/**
+ * The band's reach, in disc radii on the ground: about 21 m at res 11, which is the ~20 CSS px at z16
+ * (at the operator's ~28.5°N, 1.05 m per CSS px) that was rendered and picked. Sized from the disc,
+ * as D-372 sizes the warp, so the band is the same fraction of a corridor at every zoom.
+ */
+export const RIM_BAND_R = 0.55
+
+/**
+ * The ring blur's mean reveal is multiplied by this before clamping, so fog right at the frontier
+ * (where only about half the ring lands on revealed ground) reaches full strength.
+ */
+export const RIM_GAIN = 1.5
+
+/**
+ * How much the lit band thins the fog, per unit of lit (`rimAmt` is already in it). At `RIM_AMT` 0.9
+ * the fog at the frontier keeps 40% of its alpha. That is what lets the street grid show through
+ * the band. Thinning only ever lowers alpha, so it can never veil cleared ground.
+ */
+export const RIM_THIN = 2 / 3
+
+/** The ring blur's rings. The inner ring weighs most, so the light falls off away from the frontier. */
+export const RIM_RINGS = 2
+
+/** Taps per ring. `RIM_RINGS x RIM_TAPS_PER_RING` extra mask reads per fragment that is not fully revealed. */
+export const RIM_TAPS_PER_RING = 8
 
 /**
  * §5.2's atlas column, verbatim. Read by the mode toggle (`0098`, `FOG_MODES` below).
@@ -55,10 +107,10 @@ export interface FogPalette {
 export const ATLAS: FogPalette = {
   fogDeep: [0.1, 0.11, 0.14],
   fogEdge: [0.3, 0.32, 0.36],
-  rimGlow: [0.85, 0.7, 0.42],
+  rimGlow: RIM_GLOW,
   maxOpacity: 0.55,
   noiseAmp: 0.1,
-  rimAmt: 0.08,
+  rimAmt: RIM_AMT,
   animated: false,
 }
 
@@ -78,8 +130,8 @@ export const ATLAS: FogPalette = {
 export const V1_FOG_DEEP: Rgb = [0.035, 0.045, 0.075]
 /** Lighter than §5.2's (0.22,0.24,0.30) so the fBm density reads as mist, not a flat wash. */
 export const V1_FOG_EDGE: Rgb = [0.27, 0.29, 0.35]
-/** Unchanged: the hue is right in principle; its visibility is `0119`'s open finding, not a colour. */
-export const V1_RIM_GLOW: Rgb = [0.85, 0.7, 0.42]
+/** `0210`: the shared rim colour. See `RIM_GLOW`. */
+export const V1_RIM_GLOW: Rgb = RIM_GLOW
 /**
  * 0.90, down from 0.94, and **never 1.0.** A fully opaque fog reads as a hole punched in the map;
  * at 0.90 fogged ground keeps a readable ghost of its street grid and labels (D-051) while still
@@ -93,11 +145,10 @@ export const V1_MAX_OPACITY = 0.9
  */
 export const V1_NOISE_AMP = 0.25
 /**
- * 0.30, up from 0.08 — the top of the range, because 0.08 was measurably invisible (`0056`: +10/255)
- * and 0.30 is only barely visible (~+30/255, the rim is scaled by the boundary's own ~0.47 alpha).
- * Making the rim read needs a design change, filed from `0119`; this is the most the range allows.
+ * `0210`: the shared rim strength. See `RIM_AMT`. (`0119` shipped 0.30 of the old glow, which could
+ * not be seen at any value in range; that rim is gone.)
  */
-export const V1_RIM_AMT = 0.3
+export const V1_RIM_AMT = RIM_AMT
 
 /** Adventure: `0119`'s tuned rendering — darkness and animation, tuned for legibility and texture. */
 export const ADVENTURE: FogPalette = {

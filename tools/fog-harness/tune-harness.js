@@ -9,11 +9,12 @@ import * as maplibre from "maplibre-gl"
 import { basemapStyle, registerPmtilesProtocol } from "../../lib/basemap.ts"
 import { packBucket } from "../../lib/fog/instances.ts"
 import { FogMaskLayer } from "../../lib/fog/mask-layer.ts"
-import { V1 } from "../../lib/fog/fog-uniforms.ts"
+import { FOG_MODES, V1 } from "../../lib/fog/fog-uniforms.ts"
 import { RUN_SOURCE_ID, fogBeforeId, runCoreSpec, runGlowSpec, runSourceSpec } from "../../lib/map-layers.ts"
 import { traceToCells } from "../../src/domain/fog.ts"
 
-// Injected by tune.mjs: { variant: overrides-on-V1 | null (fog off), centre, zoom, route: {glow, core}, trace: [[lat,lng],...] }
+// Injected by tune.mjs: { variant: overrides | null (fog off), basemap: "atlas" | "adventure", base: the
+// FOG_MODES entry the overrides apply to (V1 if absent), centre, zoom, route: {glow, core}, trace: [[lat,lng],...] }
 const CFG = window.__TUNE
 
 registerPmtilesProtocol(maplibre)
@@ -25,7 +26,9 @@ maplibre.setWorkerUrl(
 
 const map = new maplibre.Map({
   container: "map",
-  style: basemapStyle(),
+  // `0210`: the variant is explicit. Since `0097` `basemapStyle` takes one, and the call without it
+  // drew `basemapLayers(source, undefined)`.
+  style: basemapStyle(CFG.basemap ?? "adventure"),
   center: [CFG.centre.lng, CFG.centre.lat],
   zoom: CFG.zoom,
   attributionControl: false,
@@ -67,7 +70,8 @@ map.on("load", () => {
   if (CFG.variant) {
     // u_time pinned: every variant is rendered against the same noise field, so a difference between
     // two screenshots is the palette and nothing else.
-    const layer = new FogMaskLayer({ palette: { ...V1, ...CFG.variant }, timeSource: () => 0 })
+    const base = FOG_MODES[CFG.base] ?? V1
+    const layer = new FogMaskLayer({ palette: { ...base, ...CFG.variant }, timeSource: () => 0 })
     map.addLayer(layer, fogBeforeId(map))
     layer.setBucket(bucket)
   }

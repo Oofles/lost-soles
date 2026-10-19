@@ -441,7 +441,7 @@ function main() {
 
   /* ══ 0056 — PASS 2, THE NOISY COMPOSITE ═════════════════════════════════ */
   //
-  // C1  the warm rim appears at the BOUNDARY and nowhere else       criterion 3
+  // C1  the rim lights the fog at the BOUNDARY, never revealed ground  criterion 3, 0210
   // C2  u_maxOpacity = 0.94 lets 6% of the basemap through          criterion 4
   // C3  the noise is anchored to the GROUND, not to the screen      criterion 9  (D-233)
   // C4  what the composite costs per frame                          criterion 8  (recorded)
@@ -555,6 +555,7 @@ function compositeProbes(gl, res) {
       time: options.time || 0,
       palette: options.palette || V1,
       bloom: options.bloom || NO_BLOOM_PALETTE,
+      rimBand: options.rimBand || 0,
     })
     gl.readPixels(0, 0, CANVAS_W, CANVAS_H, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
     return pixels.slice()
@@ -587,61 +588,62 @@ function compositeProbes(gl, res) {
     )
   }
 
-  /* ── C1 — the rim glow is a BAND, not a wash. Criterion 3. ─────────────── */
+  /* ── C1 — the rim is lit mist on the FOG side, and nothing on revealed ground. 0210. ─── */
   //
-  // Measured by DIFFERENCING two renders that differ only in u_rimAmt. That isolates the glow's own
-  // contribution from everything else in the frame: `alpha` does not depend on u_rimAmt, so the
-  // difference at a pixel is exactly `u_rimGlow * rim * u_rimAmt * alpha` and nothing else.
+  // Measured by DIFFERENCING two renders that differ only in u_rimAmt. That isolates the rim's own
+  // contribution — warming and thinning the fog — from everything else in the frame.
   //
-  // `rim = reveal * (1 - reveal) * 4` is zero at reveal 0 and at reveal 1, which is the whole claim:
-  // deep inside revealed ground and deep inside the fog the difference must be ZERO, and it must be
-  // large in between. A profile across the boundary is what shows that.
+  // `0210` replaced §4.3's glow (`reveal * (1 - reveal) * 4`, scaled by the edge's own alpha and
+  // invisible at every rimAmt in range) with a ring blur of the mask. The claims are now three:
+  //   - INSIDE revealed ground the difference is EXACTLY ZERO. That is the D-051 guarantee: the rim
+  //     never tints, thins or veils cleared ground, so labels there read as they do with fog off.
+  //   - It PEAKS on the fog side of the edge (coverage under 0.5), and is large there.
+  //   - FARTHER than the band's reach from the edge, it is zero again: a band, not a wash.
   {
     // THREE TIMES THE DISC RADIUS, NOT SIX, AND THE DIFFERENCE IS THE WHOLE PROBE. At 6x the blob
     // is wider than the camera window, so no sample on screen has zero coverage — `outside` comes
     // back EMPTY, `Math.max()` of nothing is -Infinity, and `-Infinity <= 1` reports a pass. The
     // probe read green while measuring nothing at all, which is 0055's SEAM_FLOOR lesson in a
     // different costume. The population guard below is the fix; this radius is what makes it
-    // satisfiable.
+    // satisfiable — 3 radii of blob plus the band's 1.1 still leaves room inside the window.
     const bigR = RADIUS * 3
     const blob = pack([{ x: CX, y: CY, r: bigR, fraction: 1 }])
-    const withRim = frame({ instances: blob, palette: V1 })
-    const noRim = frame({ instances: blob, palette: { ...V1, rimAmt: 0 } })
+    const projection = PROJECTION
+    const band = rimBand(noiseFrame(projection.mainMatrix, CANVAS_W, CANVAS_H), metresToMercator(DISC_R_M, 0))
+    const withRim = frame({ instances: blob, palette: V1, rimBand: band })
+    const noRim = frame({ instances: blob, palette: { ...V1, rimAmt: 0 }, rimBand: band })
     const { red: coverage } = { red: readMaskRed(gl, res).red }
 
-    // A radial profile east from the centre, out past the disc edge and stopping inside the window.
+    // A radial profile east from the centre, out past the band and stopping inside the window.
     const reach = HALF_W * 0.95
     const profile = []
     for (let mercOffset = 0; mercOffset <= reach; mercOffset += HALF_W / 200) {
       const mx = CX + mercOffset
       const i = screenIndex(CX, CY, mx, CY)
       if (i < 0) continue
-      profile.push({ mx, cover: sample(coverage, mx, CY) / 255, d: withRim[i] - noRim[i] })
+      const d = Math.max(...[0, 1, 2].map((c) => Math.abs(withRim[i + c] - noRim[i + c])))
+      profile.push({ mx, cover: sample(coverage, mx, CY) / 255, d })
     }
 
     const inside = profile.filter((p) => p.cover >= 0.95)
-    const outside = profile.filter((p) => p.cover <= 0.02)
+    // Past the edge (coverage 0 at bigR) by the band's reach plus a quarter-radius of slack.
+    const far = profile.filter((p) => p.mx - CX >= bigR + (RIM_BAND_R + 0.25) * RADIUS)
     const peak = profile.reduce((best, p) => (p.d > best.d ? p : best), profile[0])
-    const populated = inside.length >= 5 && outside.length >= 5
-    const insideMax = populated ? Math.max(...inside.map((p) => Math.abs(p.d))) : NaN
-    const outsideMax = populated ? Math.max(...outside.map((p) => Math.abs(p.d))) : NaN
+    const populated = inside.length >= 5 && far.length >= 5
+    const insideMax = populated ? Math.max(...inside.map((p) => p.d)) : NaN
+    const farMax = populated ? Math.max(...far.map((p) => p.d)) : NaN
 
     record(
-      "C1 rim is a band at the edge",
-      populated &&
-        peak.d >= 4 &&
-        insideMax <= 1 &&
-        outsideMax <= 1 &&
-        peak.cover > 0.1 &&
-        peak.cover < 0.95,
-      `peak +${peak.d}/255 at coverage ${peak.cover.toFixed(2)}; ` +
-        `well inside (${inside.length} samples, cover>=0.95) max ${insideMax}, ` +
-        `well outside (${outside.length} samples, cover<=0.02) max ${outsideMax}`,
+      "C1 rim is lit mist at the edge",
+      populated && peak.d >= 20 && insideMax === 0 && farMax <= 1 && peak.cover < 0.5,
+      `peak ${peak.d}/255 at coverage ${peak.cover.toFixed(2)} (want >= 20, fog side < 0.5); ` +
+        `revealed (${inside.length} samples, cover>=0.95) max ${insideMax} (want 0); ` +
+        `beyond the band (${far.length} samples) max ${farMax}`,
     )
 
     // THE DIFFERENCING ITSELF HAS TO BE PROVED. Two identical renders must difference to nothing,
-    // or C1's "max 0 inside" is measuring a constant rather than an absence.
-    const again = frame({ instances: blob, palette: { ...V1, rimAmt: 0 } })
+    // or C1's "0 inside" is measuring a constant rather than an absence.
+    const again = frame({ instances: blob, palette: { ...V1, rimAmt: 0 }, rimBand: band })
     let selfDiff = 0
     for (const p of profile) {
       const i = screenIndex(CX, CY, p.mx, CY)
@@ -650,7 +652,7 @@ function compositeProbes(gl, res) {
     record(
       "S1 the rim probe can read zero",
       selfDiff === 0 && peak.d > 0,
-      `rimAmt=0 differenced against itself reads ${selfDiff} (want 0), against 0.08 reads +${peak.d}`,
+      `rimAmt=0 differenced against itself reads ${selfDiff} (want 0), against ${V1.rimAmt} reads ${peak.d}`,
     )
   }
 
@@ -757,26 +759,35 @@ function compositeProbes(gl, res) {
 
     // 0211: the edge warp, sized as the layer sizes it: this harness's disc radius, at the equator.
     const warp = edgeWarp(noise, metresToMercator(DISC_R_M, 0))
-    const run = (n, w) => {
+    // 0210: the rim's ring blur, sized as the layer sizes it. The mask is EMPTY here, so no fragment
+    // is fully revealed and every one of them pays for the taps: this is the rim's worst case.
+    const band = rimBand(noise, metresToMercator(DISC_R_M, 0))
+    const run = (n, w, rb = 0) => {
       for (let i = 0; i < n; i++) {
-        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1, bloom: NO_BLOOM_PALETTE, warp: w })
+        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1, bloom: NO_BLOOM_PALETTE, warp: w, rimBand: rb })
       }
+      // 0210: `gl.finish()` alone does NOT wait for the GPU process in Chromium. It returned before
+      // the draws ran, so C4 read 0.70 ms whether the rim took 24 taps or 192. A one-pixel readback
+      // is a true sync point; one per batch of frames costs nothing measurable.
       gl.finish()
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4))
     }
-    const measure = (w) => {
-      run(10, w) // warm the pipeline; the first draw carries the program switch
+    const measure = (w, rb) => {
+      run(10, w, rb) // warm the pipeline; the first draw carries the program switch
       const started = performance.now()
       const frames = 60
-      run(frames, w)
+      run(frames, w, rb)
       return (performance.now() - started) / frames
     }
     const per = measure(undefined)
     const perWarp = measure(warp)
+    const perRim = measure(warp, band)
 
     record(
       "C4 composite cost",
       gl.getError() === gl.NO_ERROR,
       `${per.toFixed(2)} ms/frame without the edge warp, ${perWarp.toFixed(2)} with it (freq ${warp.freq}), ` +
+        `${perRim.toFixed(2)} with the warp and the rim's ${RIM_RINGS}x${RIM_TAPS_PER_RING} taps (0210, worst case), ` +
         `at ${CANVAS_W}x${CANVAS_H} on THIS software rasteriser — not the 2 ms phone budget, which is 0059's gate`,
     )
   }

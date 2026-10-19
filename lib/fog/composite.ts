@@ -4,7 +4,7 @@
  * MapLibre calls `render` during its translucent pass. We draw **one full-screen triangle** into
  * MapLibre's own framebuffer, sample `0055`'s half-resolution `R8` coverage mask, and threshold it
  * with a `smoothstep` whose cut point is perturbed by animated 3-octave value-noise fBm — plus a
- * warm rim glow where the threshold is being crossed.
+ * warm, thinned band of "lit mist" on the fog side of the frontier (`0210`).
  *
  * A TRIANGLE AND NOT A QUAD. Two triangles meet along a diagonal, and a fragment exactly on that
  * seam is rasterised by neither or both depending on the driver's fill rule; a single oversized
@@ -53,6 +53,11 @@ import {
   WARP_GAIN_R,
   WARP_JITTER_X,
   WARP_JITTER_Y,
+  RIM_BAND_R,
+  RIM_GAIN,
+  RIM_RINGS,
+  RIM_TAPS_PER_RING,
+  RIM_THIN,
   WARP_WAVELENGTH_R,
   type FogPalette,
   type Rgb,
@@ -106,6 +111,24 @@ export const CELL_BIAS = 65536
 export const TIME_WRAP_S = 86_400
 
 /**
+ * `0210`. The rim's ring-blur taps, as ground offsets in units of the band's reach: `RIM_RINGS`
+ * rings at k/RIM_RINGS of the reach, `RIM_TAPS_PER_RING` taps each, every ring rotated half a step
+ * from the last so no two rings line up. The inner ring weighs most (weight `RIM_RINGS + 1 - k`),
+ * so the light falls off away from the frontier. Unrolled into the shader as constants.
+ */
+export function rimTaps(): { x: number; y: number; w: number }[] {
+  const taps: { x: number; y: number; w: number }[] = []
+  for (let k = 1; k <= RIM_RINGS; k++) {
+    const r = k / RIM_RINGS
+    for (let i = 0; i < RIM_TAPS_PER_RING; i++) {
+      const a = ((i + 0.5 * k) * 2 * Math.PI) / RIM_TAPS_PER_RING
+      taps.push({ x: r * Math.cos(a), y: r * Math.sin(a), w: RIM_RINGS + 1 - k })
+    }
+  }
+  return taps
+}
+
+/**
  * §4.3's composite, with three deliberate divergences from the sketch, all of them D-233:
  *
  *  1. **The noise coordinate is ground-anchored** (see this module's header). `u_screen` is gone
@@ -121,9 +144,12 @@ export const TIME_WRAP_S = 86_400
  *  4. **The mask is sampled at a warped point** (`0211`, D-372). This is now §4.3's own text:
  *     the edge warp in `fog-uniforms.ts` and `edgeWarp` below. Without a warp (`u_warp.x == 0`) the
  *     shader reads `v_uv`, the same as the sketch.
+ *  5. **The rim is lit mist, not a glow scaled by the edge's own alpha** (`0210`). This is now
+ *     §4.3's own text: a ring blur of the mask, on the ground, warms and thins the fog near revealed
+ *     ground, and is zero on revealed ground. `rimBand` below sizes it.
  *
- * Everything else — the two drifting fields, the mix, the reveal ramp, the rim's
- * `reveal * (1 - reveal) * 4`, the premultiplied output — is §4.3 unchanged.
+ * Everything else — the two drifting fields, the mix, the reveal ramp, the premultiplied output —
+ * is §4.3 unchanged.
  */
 export function compositeFragmentSource(octaves: number = FBM_OCTAVES): string {
   return `#version 300 es
@@ -145,6 +171,7 @@ uniform vec3  u_bloomFrost;    // 0080: --frost-400. Read only where the mask's 
 uniform vec3  u_bloomGlint;    // 0080: --route-core, the warm near-white gold leans to at its peak.
 uniform vec2  u_warp;          // 0211: (amplitude in noise cells, integer frequency). x = 0 is no warp.
 uniform vec2  u_warpOrigin;    // 0211: the warp lattice's integer origin, (origin x freq) mod modulus
+uniform float u_rimBand;       // 0210: the lit band's reach on the ground, in noise cells. 0 = no rim.
 
 in  vec2 v_uv;
 in  vec3 v_noiseH;
@@ -189,15 +216,19 @@ void main() {
     // the wisps below animate. The offset is in noise cells, so the inverse of q's screen Jacobian
     // turns it into pixels, which is correct under pitch as well. All of RGB is read at the moved
     // point, so 0080's bloom follows the same edge as the coverage.
+    //
+    // Ground -> screen: q's screen Jacobian is noise cells per pixel, so its inverse times a ground
+    // offset in noise cells is pixels, and \`pxUv\` turns pixels into mask UV. Shared by the warp and
+    // by 0210's rim taps. A degenerate frame gets a zero matrix: no warp and no rim, never a NaN.
+    mat2 J = mat2(dFdx(q), dFdy(q));
+    mat2 groundToPx = abs(determinant(J)) > 0.0 ? inverse(J) : mat2(0.0);
+    vec2 pxUv = vec2(dFdx(v_uv).x, dFdy(v_uv).y);
     vec2 maskUv = v_uv;
     if (u_warp.x > 0.0) {
         vec2 qw = q * u_warp.y;
         vec2 w = vec2(fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_X[0]}.0, ${WARP_JITTER_X[1]}.0)),
                       fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_Y[0]}.0, ${WARP_JITTER_Y[1]}.0))) - 0.5;
-        mat2 J = mat2(dFdx(q), dFdy(q));          // noise cells per pixel
-        if (abs(determinant(J)) > 0.0) {
-            maskUv += (inverse(J) * (w * u_warp.x)) * vec2(dFdx(v_uv).x, dFdy(v_uv).y);
-        }
+        maskUv += (groundToPx * (w * u_warp.x)) * pxUv;
     }
 
     vec3  mask = texture(u_mask, maskUv).rgb;
@@ -219,11 +250,29 @@ void main() {
     // Density variation INSIDE the fog, so it is not a flat wash.
     vec3 col = mix(u_fogDeep, u_fogEdge, smoothstep(0.25, 0.85, n));
 
-    // Rim: peaks where the threshold is being crossed and is exactly zero on both sides. This is
-    // the "torchlight at the edge of the known world" beat. Keep it subtle.
-    float rim = reveal * (1.0 - reveal) * 4.0;
-    col += u_rimGlow * rim * u_rimAmt;
-    alpha = max(alpha, rim * 0.10);   // a faint glow bleeding into cleared ground
+    // 0210. THE RIM IS LIT MIST: fog within u_rimBand of revealed ground is warmed toward
+    // u_rimGlow and thinned, as if lantern light from the cleared side were falling on it. How near
+    // revealed ground is: a ring blur of the reveal ramp over the mask, the taps placed ON THE GROUND
+    // (groundToPx), so the band is a fixed fraction of a disc at every zoom, pitch and bearing.
+    // The (1 - reveal) factor is the D-051 guarantee: fully revealed ground gets lit = 0 exactly, so
+    // the rim never tints, thins or veils cleared ground. There is no alpha floor any more either:
+    // the old rim floored alpha at rim * 0.10, a veil laid over cleared ground.
+    float lit = 0.0;
+    if (u_rimBand > 0.0 && u_rimAmt > 0.0 && reveal < 1.0) {
+        float near = 0.0;
+        // The tap pattern is unrolled at build time (\`rimTaps\`): each tap is a constant ground offset in
+        // units of u_rimBand, with its ring's weight. No sin/cos per fragment.
+        mat2 tapToUv = mat2(groundToPx[0] * pxUv, groundToPx[1] * pxUv) * u_rimBand;
+${rimTaps()
+  .map(
+    (t) =>
+      `        near += ${t.w.toFixed(1)} * smoothstep(${REVEAL_LO}, ${REVEAL_HI}, texture(u_mask, maskUv + tapToUv * vec2(${t.x.toFixed(6)}, ${t.y.toFixed(6)})).r);`,
+  )
+  .join("\n")}
+        lit = clamp(near * ${(RIM_GAIN / rimTaps().reduce((sum, t) => sum + t.w, 0)).toFixed(6)}, 0.0, 1.0) * (1.0 - reveal) * u_rimAmt;
+    }
+    col = mix(col, u_rimGlow, lit);
+    alpha *= 1.0 - lit * ${RIM_THIN.toFixed(4)};
 
     vec4 outColor = vec4(col * alpha, alpha);   // premultiplied — MapLibre's default blend
 
@@ -506,6 +555,22 @@ export function edgeWarp(frame: NoiseFrame, equatorRadiusMerc: number): EdgeWarp
 }
 
 /**
+ * `0210`. THE RIM'S REACH, SIZED FROM THE DISC, as `edgeWarp` sizes the warp and for the same reason
+ * (D-372): `RIM_BAND_R` disc radii on the ground, in noise cells, so the lit band is the same fraction
+ * of a corridor at every zoom. Sized in screen pixels it would swamp a z14 corridor (a res-11 disc is
+ * ~9 px there) and thin to a hairline at z18. It also keeps the ring blur's tap spacing a constant
+ * fraction of a disc, so the sampling quality does not change with zoom either.
+ *
+ * 0 (no rim) on a degenerate frame, as `edgeWarp` returns `NO_EDGE_WARP` there.
+ */
+export function rimBand(frame: NoiseFrame, equatorRadiusMerc: number): number {
+  if (frame.degenerate || !(frame.scale > 0) || !(equatorRadiusMerc > 0)) return 0
+  const cosLat = Math.cos((latOfMercY(frame.centre[1]) * Math.PI) / 180)
+  if (!(cosLat > 0)) return 0
+  return (RIM_BAND_R * equatorRadiusMerc * frame.scale) / cosLat
+}
+
+/**
  * The absolute warp-lattice coordinate of one mercator point. TEST-ONLY, `groundNoiseCoord`'s
  * counterpart: two frames related by a pan, or by a pinch inside one bucket, must agree on it.
  */
@@ -558,6 +623,7 @@ const UNIFORM_NAMES = [
   "u_bloomGlint",
   "u_warp",
   "u_warpOrigin",
+  "u_rimBand",
 ] as const
 
 export function createCompositeResources(
@@ -626,6 +692,8 @@ export interface CompositeFrame {
   bloom: BloomPalette
   /** `0211`. The edge warp, from `edgeWarp`. Omitted means `NO_EDGE_WARP`, which the GPU harnesses rely on. */
   warp?: EdgeWarp
+  /** `0210`. The rim's reach in noise cells, from `rimBand`. Omitted or 0 means no rim. */
+  rimBand?: number
 }
 
 /**
@@ -695,6 +763,7 @@ export function runCompositePass(
   const w = frame.warp ?? NO_EDGE_WARP
   if (u.u_warp) gl.uniform2f(u.u_warp, w.amp, w.freq)
   if (u.u_warpOrigin) gl.uniform2f(u.u_warpOrigin, w.origin[0], w.origin[1])
+  if (u.u_rimBand) gl.uniform1f(u.u_rimBand, frame.rimBand ?? 0)
 
   gl.disable(gl.DEPTH_TEST)
   gl.enable(gl.BLEND)

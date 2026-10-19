@@ -10,6 +10,7 @@ import {
   createCompositeResources,
   disposeCompositeResources,
   edgeWarp,
+  rimBand,
   NO_BLOOM_PALETTE,
   type BloomPalette,
   noiseFrame,
@@ -638,6 +639,8 @@ export class FogMaskLayer implements CustomLayerInterface {
       palette: this.#palette,
       bloom: this.#bloomPalette,
       warp: edgeWarp(this.#noise, warpRadius.merc),
+      // 0210: the rim's reach, sized from the same disc as the warp.
+      rimBand: rimBand(this.#noise, warpRadius.merc),
     })
     this.options.timer?.end()
     this.#composites++

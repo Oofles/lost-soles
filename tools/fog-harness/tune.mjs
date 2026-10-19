@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 // Ticket 0119 — render the fog over the REAL basemap, with labels, once per palette variant.
 //
-//   node tools/fog-harness/tune.mjs [variants.json] [--zoom 16] [--out tmp/0119]
+//   node tools/fog-harness/tune.mjs [variants.json] [--zoom 16] [--dpr 1] [--out tmp/0119]
 //
-// `variants.json` is `{ "<name>": { <FogPalette overrides on V1> } | null }`; `null` means the fog
+// `variants.json` is `{ "<name>": { <FogPalette overrides> } | null }`; `null` means the fog
 // layer is not added at all — the legibility baseline `0119` compares against. With no file, it
 // renders `off` and `V1`. One PNG per variant lands in `--out`.
+//
+// `0210` added three optional keys to a variant, none of them a palette field:
+//   "_basemap": "atlas" | "adventure"   the basemap style variant (default adventure)
+//   "_base":    "atlas" | "adventure"   the FOG_MODES palette the overrides apply to (default V1)
+//   "_off":     true                    no fog layer, but on the chosen basemap (null cannot say which)
+// `--dpr 2` captures at device scale 2, which is what a desktop retina screen and the phone show.
 //
 // WHERE IT STANDS: a synthetic loop through downtown Orlando. The legibility check needs real
 // streets with real names under it, so Point Nemo will not do — but it must not be anywhere the
@@ -28,6 +34,7 @@ const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const args = process.argv.slice(2)
 const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args.splice(i, 2)[1] : d }
 const ZOOM = Number(flag("zoom", 16))
+const DPR = Number(flag("dpr", 1))
 const OUT = resolve(ROOT, flag("out", "tmp/0119"))
 const VARIANTS = args[0] ? JSON.parse(readFileSync(args[0], "utf8")) : { off: null, V1: {} }
 mkdirSync(OUT, { recursive: true })
@@ -109,10 +116,11 @@ ws.addEventListener("message", (m) => {
   if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id) }
 })
 const cdp = (method, params = {}) => new Promise((r) => { const id = ++seq; pending.set(id, r); ws.send(JSON.stringify({ id, method, params })) })
-await cdp("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false })
+await cdp("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: DPR, mobile: false })
 
 for (const [name, variant] of Object.entries(VARIANTS)) {
-  const cfg = { variant, workerSrc, centre, zoom: ZOOM, route, trace }
+  const { _basemap: basemap, _base: base, _off: off, ...overrides } = variant ?? {}
+  const cfg = { variant: variant && !off ? overrides : null, basemap, base, workerSrc, centre, zoom: ZOOM, route, trace }
   // Separate classic scripts rather than inline: a 2 MB bundle inlined into HTML contains `<!--` and
   // `<script` sequences that throw the tokenizer into script-escaped states, and nothing runs.
   writeFileSync(join(work, `${name}.cfg.js`), `window.__TUNE=${JSON.stringify(cfg)}`)

@@ -18,6 +18,8 @@ import {
   NOISE_PX,
   OCTAVE_JITTER,
   REVEAL_HI,
+  RIM_BAND_R,
+  RIM_THIN,
   V1,
 } from "./fog-uniforms"
 import { SEAM_FLOOR } from "./mask"
@@ -26,10 +28,11 @@ describe("V1 — what ships, as 0119 tuned it", () => {
   it("is 0119's approved values, value for value", () => {
     expect(V1.fogDeep).toEqual([0.035, 0.045, 0.075])
     expect(V1.fogEdge).toEqual([0.27, 0.29, 0.35])
-    expect(V1.rimGlow).toEqual([0.85, 0.7, 0.42])
     expect(V1.maxOpacity).toBe(0.9)
     expect(V1.noiseAmp).toBe(0.25)
-    expect(V1.rimAmt).toBe(0.3)
+    // The rim is 0210's, not 0119's: 0119's 0.30 of the old glow could not be seen.
+    expect(V1.rimGlow).toEqual([1, 0.78, 0.4])
+    expect(V1.rimAmt).toBe(0.9)
   })
 
   /**
@@ -44,12 +47,13 @@ describe("V1 — what ships, as 0119 tuned it", () => {
     }
   })
 
-  /** `0119` was told to tune WITHIN §5.2's original ranges; a value outside them is a design change. */
-  it("stays inside §5.2's original atlas..adventure range on every scalar", () => {
+  /**
+   * `0119` was told to tune WITHIN §5.2's original ranges; a value outside them is a design change.
+   * `rimAmt` left that range on purpose in `0210`, which redesigned the rim: §5.2's range is now 0..1.
+   */
+  it("stays inside §5.2's original atlas..adventure range on every scalar but the rim", () => {
     expect(V1.noiseAmp).toBeGreaterThanOrEqual(ATLAS.noiseAmp)
     expect(V1.noiseAmp).toBeLessThanOrEqual(NOISE_AMP_CEILING)
-    expect(V1.rimAmt).toBeGreaterThanOrEqual(ATLAS.rimAmt)
-    expect(V1.rimAmt).toBeLessThanOrEqual(0.3)
     expect(V1.maxOpacity).toBeGreaterThanOrEqual(ATLAS.maxOpacity)
     expect(V1.maxOpacity).toBeLessThanOrEqual(MAX_OPACITY_CEILING)
   })
@@ -65,19 +69,19 @@ describe("FOG_MODES — the one constant map of per-mode uniforms (0098)", () =>
       atlas: {
         fogDeep: [0.1, 0.11, 0.14],
         fogEdge: [0.3, 0.32, 0.36],
-        rimGlow: [0.85, 0.7, 0.42],
+        rimGlow: [1, 0.78, 0.4],
         maxOpacity: 0.55,
         noiseAmp: 0.1,
-        rimAmt: 0.08,
+        rimAmt: 0.9,
         animated: false,
       },
       adventure: {
         fogDeep: [0.035, 0.045, 0.075],
         fogEdge: [0.27, 0.29, 0.35],
-        rimGlow: [0.85, 0.7, 0.42],
+        rimGlow: [1, 0.78, 0.4],
         maxOpacity: 0.9,
         noiseAmp: 0.25,
-        rimAmt: 0.3,
+        rimAmt: 0.9,
         animated: true,
       },
     })
@@ -110,15 +114,34 @@ describe("FOG_MODES — the one constant map of per-mode uniforms (0098)", () =>
     const at = (a: number, b: number, v: number) => (v - a) / (b - a)
     expect(at(ATLAS.maxOpacity, ADVENTURE.maxOpacity, mid.maxOpacity)).toBeCloseTo(0.25, 12)
     expect(at(ATLAS.noiseAmp, ADVENTURE.noiseAmp, mid.noiseAmp)).toBeCloseTo(0.25, 12)
-    expect(at(ATLAS.rimAmt, ADVENTURE.rimAmt, mid.rimAmt)).toBeCloseTo(0.25, 12)
+    // 0210: both modes share the rim, so there is nothing to interpolate; it must stay put.
+    expect(mid.rimAmt).toBe(ADVENTURE.rimAmt)
     expect(at(ATLAS.fogDeep[2], ADVENTURE.fogDeep[2], mid.fogDeep[2])).toBeCloseTo(0.25, 12)
     expect(lerpPalette(ATLAS, ADVENTURE, 1)).toEqual(ADVENTURE)
     expect(lerpPalette(ATLAS, ADVENTURE, 0)).toEqual(ATLAS)
   })
 
-  /** §5.4: neither mode may change what is revealed. The rim colour is shared for §5.1's reason. */
-  it("gives both modes the same warm rim, which is the basemap's own hue", () => {
+  /**
+   * `0210`: the operator chose the lit-mist rim on one set of values shown in both modes, so the modes
+   * share it. A per-mode rim is a new decision, not a tuning change.
+   */
+  it("gives both modes the same rim, and a strength inside 0..1", () => {
     expect(ATLAS.rimGlow).toEqual(ADVENTURE.rimGlow)
+    expect(ATLAS.rimAmt).toBe(ADVENTURE.rimAmt)
+    for (const palette of Object.values(FOG_MODES)) {
+      expect(palette.rimAmt).toBeGreaterThan(0)
+      expect(palette.rimAmt).toBeLessThanOrEqual(1)
+    }
+  })
+
+  /**
+   * `0210`: the thinning can only lower alpha. At full strength the fog keeps a positive share of its
+   * alpha, so the band never punches a hole, and lit never exceeds 1, so alpha never goes negative.
+   */
+  it("thins the fog in the lit band without ever removing it", () => {
+    expect(RIM_THIN).toBeGreaterThan(0)
+    expect(1 - 1 * RIM_THIN).toBeGreaterThan(0)
+    expect(RIM_BAND_R).toBeGreaterThan(0)
   })
 })
 

@@ -722,7 +722,7 @@ Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation.
 | Fog technique | **Custom WebGL2 layer**, two passes: coverage-mask FBO → noisy composite |
 | Mask primitive | **Instanced soft radial discs**, unioned with `gl.blendEquation(gl.MAX)` |
 | Mask target | Half-resolution, single-channel `R8` framebuffer |
-| Composite | One full-screen triangle, `smoothstep` threshold perturbed by animated 3-octave fBm, plus a warm rim glow at the boundary |
+| Composite | One full-screen triangle, `smoothstep` threshold perturbed by animated 3-octave fBm, plus a band of warm "lit mist" on the fog side of the boundary (`0210`) |
 | Basemap | Protomaps PMTiles on S3 + CloudFront; `@protomaps/basemaps` `light` flavour, forked for label density and layer order; colours stock (D-373, superseding the parchment of R4 §5.1, §6.2) |
 | DPR | Capped at 2 (`pixelRatio: Math.min(devicePixelRatio, 2)`) |
 
@@ -940,11 +940,12 @@ uniform vec2  u_noiseOrigin; // integer lattice origin, re-added inside the hash
 uniform float u_time;        // seconds, wrapped at 24 h
 uniform vec3  u_fogDeep;     // e.g. vec3(0.035, 0.045, 0.075)  near-black blue
 uniform vec3  u_fogEdge;     // e.g. vec3(0.22,  0.24,  0.30)   lit mist
-uniform vec3  u_rimGlow;     // e.g. vec3(0.85,  0.70,  0.42)   warm parchment
+uniform vec3  u_rimGlow;     // vec3(1.00, 0.78, 0.40)  warm lamplight (0210; was parchment 0.85,0.70,0.42)
 uniform float u_maxOpacity;  // 0.94 — never fully 1.0; a hint of the world
                              // showing through reads as mist, not as a hole.
 uniform float u_noiseAmp;    // 0.30 adventure / 0.10 atlas   (§5)
-uniform float u_rimAmt;      // 0.30 adventure / 0.08 atlas   (§5)
+uniform float u_rimAmt;      // 0.90 both modes, range 0..1   (§5, 0210)
+uniform float u_rimBand;     // the lit band's reach on the ground, in noise cells (0210)
 
 // --- cheap value-noise fBm ---
 //
@@ -1005,12 +1006,14 @@ void main() {
     // Density variation *inside* the fog so it isn't a flat wash.
     vec3 col = mix(u_fogDeep, u_fogEdge, smoothstep(0.25, 0.85, n));
 
-    // Rim: peaks at the boundary (reveal ~ 0.5) and vanishes on both sides.
-    // This is the "torchlight at the edge of the known world" beat, and it is
-    // the single detail that sells the effect. Keep it subtle.
-    float rim = reveal * (1.0 - reveal) * 4.0;
-    col += u_rimGlow * rim * u_rimAmt;
-    alpha = max(alpha, rim * 0.10);   // faint glow bleeding into cleared ground
+    // Rim — AMENDED BY 0210 ("The rim is lit mist" below). Fog near revealed ground is
+    // warmed toward u_rimGlow and thinned, as if lantern light from the cleared side
+    // fell on it. `near` is a ring blur of the reveal ramp: 2 rings x 8 taps, placed on
+    // the ground out to u_rimBand, inner ring weighted 2, outer 1, unrolled as constants.
+    float near = ringBlur(u_mask, maskUv, u_rimBand);           // 0..1
+    float lit  = clamp(near * 1.5, 0.0, 1.0) * (1.0 - reveal) * u_rimAmt;
+    col    = mix(col, u_rimGlow, lit);
+    alpha *= 1.0 - lit * (2.0 / 3.0);   // thins only; never raises alpha
 
     fragColor = vec4(col * alpha, alpha);   // premultiplied — MapLibre's default
 }
@@ -1120,6 +1123,31 @@ likes.
 **Cost.** Two more 3-octave fBm per fragment. `run.mjs`'s C4 on SwiftShader measured 0.70 → 0.71
 ms/frame at 1280×800, inside the noise. §6.4 item 2's GPU timer needs a real GPU (`?fog=perf`).
 Renders: `docs/capabilities/assets/0211/`.
+
+#### The rim is lit mist (ticket `0210`)
+
+**The sketch's rim could not be seen at any `u_rimAmt` in §5.2's range.** It added `u_rimGlow`
+to the fog colour *before* the premultiply, so it was scaled by the boundary's own alpha, about
+0.45 at its peak. Its only way into cleared ground was an alpha floor of `rim × 0.10`. `0119`
+measured +10/255 at 0.08 and +30/255 at 0.30, and at 0.60 the rim read as a grey outline rather
+than light. Three replacements were rendered over the stock basemap in both modes: an additive glow
+outside the premultiply, a crisp amber line, and a wide band of lit mist. The operator chose the
+lit mist. Renders: `docs/capabilities/assets/0210/`.
+
+| | Value | Why |
+|---|---|---|
+| Where | **The fog side only.** `lit` carries a `(1 − reveal)` factor | Fully revealed ground gets `lit = 0` exactly, so the rim never tints, thins or veils it. That is the D-051 guarantee. The GPU harness's C1 checks it pixel for pixel. The old alpha floor is gone |
+| How it relates to fog alpha | It **thins** the fog: `alpha × (1 − lit × 2/3)`, and mixes its colour toward `u_rimGlow` by `lit` | It no longer depends on the fog being transparent at the boundary. At full strength the fog keeps 40% of its alpha, so the street grid shows through the band |
+| Band width | `RIM_BAND_R` = **0.55 disc radii** on the ground, about 21 m at res 11 (~20 CSS px at z16) | Sized from the disc, as D-372 sizes the warp. It stays the same fraction of a corridor at every zoom, and the taps stay the same fraction of a disc apart, so sampling quality does not change with zoom |
+| Colour | `u_rimGlow` **(1.00, 0.78, 0.40)**, warm lamplight | Chosen to read as light against dark fog on the stock `light` ground (D-373). §5.1's "picks up the parchment hue" no longer applies |
+| Strength | `u_rimAmt` **0.90 in both modes**, range 0..1 | The operator chose the design from one set of values shown in both modes |
+| Taps | 2 rings × 8 = 16 mask reads per fragment that is not fully revealed | 3 × 8 looked the same at z16. Measured in `run.mjs` C4 on SwiftShader: the composite costs 15.0 ms, 20.5 with the warp, 27.0 with the rim, worst case (an empty mask, so every fragment pays). A software rasteriser is not a phone, and `0059`'s `?fog=perf` is the real gate |
+
+**The C4 numbers before `0210` were not frame times.** `gl.finish()` returned without waiting for
+Chromium's GPU process, so C4 read about 0.70 ms whatever the shader did: 192 taps measured the
+same as none. The 0.70 → 0.71 ms that `0211` recorded for the warp has the same flaw. Measured
+properly, the warp costs about +5.5 ms on SwiftShader. C4 now ends each batch with a one-pixel
+`readPixels`.
 
 Two constants worth defending:
 
@@ -1238,8 +1266,9 @@ allowed to be unusable.
 > section is its load-bearing half — **never a dark basemap**: stock light is a light,
 > nearly-neutral ground (sampled L\* 88.9, CIELAB saturation 3.1%, `15-two-map-modes-and-cold-territory.md`),
 > so the corollary below still holds and the fog still does the darkening. The reasoning about
-> parchment is left standing so the reversal is visible. `u_rimGlow`'s warm hue now stitches
-> against a near-neutral ground rather than a matching one.
+> parchment is left standing so the reversal is visible. `u_rimGlow` no longer picks up any
+> basemap hue. Since `0210` it is warm lamplight, chosen to read as light against the dark fog,
+> and it is applied on the fog side only (§4.3, "The rim is lit mist").
 
 The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep
 navy) is a dark basemap. Do not. With a dark basemap, dark fog has almost no contrast against
@@ -1271,7 +1300,7 @@ the mask at 0.5×. The per-mode uniforms live in one constant map, `FOG_MODES` i
 | `u_maxOpacity` | **0.55** | ~~0.94~~ **0.90** *(`0119`'s tuning, `0098`; 0.94 stays the ceiling, §5.3)* |
 | `u_noiseAmp` (threshold perturbation) | **0.10** — edge stays close to true coverage | ~~0.30~~ **0.25** — wisps; raggedness is the edge warp's (D-372). 0.30 stays the ceiling `SEAM_FLOOR` was measured for |
 | Noise animation | **Off.** `u_time` frozen where it stood *(was "at 0"; a jump re-rolls the wisps, D-NEW-a, `0098`)* | **On**, 30 fps drift |
-| `u_rimAmt` (rim glow) | **0.08** — a hairline, just enough to find the frontier | **0.30** — full lantern-light |
+| `u_rimAmt` (rim: lit mist, §4.3) | ~~0.08 — a hairline~~ **0.90**, the same as adventure *(`0210`: the old rim was invisible at any value in range; range now 0..1)* | ~~0.30 — full lantern-light~~ **0.90** *(`0210`)*. Both modes share `u_rimGlow` (1.00, 0.78, 0.40) and the band width |
 | `u_fogDeep` / `u_fogEdge` | Desaturated, lighter: `(0.10,0.11,0.14)` / `(0.30,0.32,0.36)` | `(0.035,0.045,0.075)` / ~~`(0.22,0.24,0.30)`~~ `(0.27,0.29,0.35)` *(`0119`, `0098`)* |
 | Mask FBO scale | ~~0.75×~~ **0.5×**, as adventure *(`0098`: a resolution cannot be cross-faded, and changing it moves the edge, which §5.4 forbids)* | **0.5×** — softer, cheaper |
 | **Basemap style** | ~~Parchment, **high contrast**: dark road casings, strong hierarchy, water clearly separated from land~~ Stock `light` colours (D-373) | ~~Parchment, **aged**: lower contrast, warmer, paper grain, hand-drawn-feeling casings~~ Stock `light` colours (D-373). The modes differ in label density and layer order, not colour |

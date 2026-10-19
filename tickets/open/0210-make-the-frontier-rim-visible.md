@@ -36,13 +36,19 @@ wider band, a different colour), and does it wait for the parchment basemap?
 ## Acceptance criteria
 
 - [ ] A rim design is chosen and recorded as a `D-xxx`: how its contribution relates to fog alpha, and
-      its band width and colour.
-- [ ] §4.3 and §5.2 of `05-fog-of-war.md` are amended to match, including the `u_rimAmt` range if it
+      its band width and colour. *(Chosen by the operator on 2026-10-19: option B, lit mist. The
+      `D-xxx` is proposed as D-NEW-a in the wave report, because WAVES §3 leaves allocating it to
+      the orchestrator. Tick this when it is recorded.)*
+- [x] §4.3 and §5.2 of `05-fog-of-war.md` are amended to match, including the `u_rimAmt` range if it
       changes.
-- [ ] Rendered over the parchment basemap (or the stock one, if the decision is not to wait) with
+- [x] Rendered over the parchment basemap (or the stock one, if the decision is not to wait) with
       `tools/fog-harness/tune.mjs`, and the rim reads as warm light at the frontier at z16.
-- [ ] Labels inside revealed ground at the frontier are no less readable than with the fog off (D-051).
+      *(Rendered over the stock basemap, since D-373 withdrew the parchment. The operator picked B
+      from `assets/0210/z16-options-sheet.png`. The deployed look is the operator check below.)*
+- [x] Labels inside revealed ground at the frontier are no less readable than with the fog off (D-051).
       A rim that bleeds light into cleared ground is exactly where this can break.
+      *(By construction, `lit` carries `(1 − reveal)`. `run.mjs` C1 measures 0/255 difference on
+      revealed ground. Atlas labels sit above the fog layer.)*
 
 ## Notes
 
@@ -50,6 +56,87 @@ wider band, a different colour), and does it wait for the parchment basemap?
   and 0.60 at 2x was not committed; regenerate it with `tune.mjs` plus a variants file.
 - Probably depends on the parchment fork landing first; if so, add that dependency when the fork has
   a ticket.
+
+## Resolution
+
+**The rim is lit mist.** Fog within about 0.55 disc radii of revealed ground (~21 m at res 11,
+~20 CSS px at z16) is mixed toward warm lamplight (1.00, 0.78, 0.40) and thinned. It is zero on
+revealed ground. The operator chose it from three rendered options:
+- A: an additive glow outside the premultiply.
+- B: lit mist.
+- C: a crisp amber line.
+
+All three were rendered at z16 in both modes against fog-off and the old rim
+(`docs/capabilities/assets/0210/z16-options-sheet.png`).
+
+**What it is, exactly** (`lib/fog/composite.ts`):
+- `near` is a ring blur of the reveal ramp over the mask: 2 rings × 8 taps, inner ring weighted 2,
+  outer 1.
+- The taps are placed on the ground through the inverse of `q`'s screen Jacobian. That is the same
+  ground→pixel matrix the D-372 warp uses, now computed once and shared. They are unrolled as
+  constants (`rimTaps()`), so there is no trig per fragment.
+- `lit = clamp(near × 1.5) × (1 − reveal) × u_rimAmt`, then `col = mix(col, u_rimGlow, lit)` and
+  `alpha ×= 1 − lit × 2/3`.
+- The old rim is gone, including its alpha floor `rim × 0.10`, which was a veil over cleared ground.
+
+**Band width is sized from the disc** (`rimBand()`, the new `u_rimBand` uniform), as D-372 sizes
+the warp. The band is the same fraction of a corridor at every zoom, and the tap spacing stays the
+same fraction of a disc, so sampling quality does not change with zoom. z14 checked:
+`assets/0210/z14-shipped-adventure-atlas.png`.
+
+**Both modes share the rim.** In `FOG_MODES`, `rimGlow` and `rimAmt` (0.90) are now the same for
+atlas and adventure: the operator judged the design on one set of values shown in both. The
+`u_rimAmt` range is now 0..1. `RIM_GLOW`, `RIM_AMT`, `RIM_BAND_R`, `RIM_GAIN`, `RIM_THIN`,
+`RIM_RINGS` and `RIM_TAPS_PER_RING` are in `fog-uniforms.ts`. Only the rim fields of the palettes
+changed.
+
+**Cost, and a broken instrument.** `run.mjs` C4 was not measuring frame time. `gl.finish()` returns
+before Chromium's GPU process runs the draws, so C4 read ~0.70 ms whether the rim had 0 taps or 192.
+That also invalidates `0211`'s recorded "0.70 → 0.71 ms" for the warp. C4 now ends each batch with
+a one-pixel `readPixels`. Measured properly on SwiftShader at 1280×800, worst case (empty mask, so
+every fragment pays):
+
+| | ms/frame |
+|---|---|
+| Base composite | 15.0 |
+| + edge warp | 20.5 |
+| + rim | 27.0 |
+
+The rim's cost at different tap layouts, on the same setup:
+
+| Layout | Rim cost (ms/frame) | Note |
+|---|---|---|
+| 3 × 8 in a loop with sin/cos | +18 | Before any optimisation |
+| 3 × 8 unrolled | +9 | Same look as 2 × 8 at z16 |
+| 2 × 8 unrolled | +6.5 | Shipped |
+
+SwiftShader is not a phone. `0059`'s `?fog=perf` on real hardware is the gate.
+
+**Files touched:**
+- `lib/fog/composite.ts`: the rim, `u_rimBand`, `rimBand()`, `rimTaps()`, the shared ground→px matrix.
+- `lib/fog/fog-uniforms.ts`: the rim constants. `ATLAS` and `ADVENTURE` changed in `rimGlow` and
+  `rimAmt` only.
+- `lib/fog/mask-layer.ts`: passes `rimBand` from the bucket's disc radius.
+- `lib/fog/__fixtures__/fake-gl.ts`: `u_rimBand`.
+- `lib/fog/composite.test.ts`: new "lit-mist rim" block — size on the ground, degenerate frame
+  off, tap pattern, zero on revealed ground by construction, no trig, uniform plumbing.
+- `lib/fog/fog-uniforms.test.ts`: values and the shared-rim test.
+- `tools/fog-harness/harness.js`: C1 rewritten for the new rim (revealed ground exactly 0, peak on
+  the fog side, zero beyond the band). C4 gets a real sync point and a rim measurement.
+- `tools/fog-harness/tune.mjs`, `tune-harness.js`, `README.md`:
+  - `--dpr`.
+  - Variant keys `_basemap`, `_base` and `_off`.
+  - Fixes a real bug: `basemapStyle()` was called with no variant after `0097`.
+- `docs/05-fog-of-war.md`: the overview table, §4.3 code and the new "The rim is lit mist"
+  section, §5.1's note, and §5.2's `u_rimAmt` row.
+- `docs/06-ui-ux.md`: the frontier-edge row of the mode table.
+- `docs/capabilities/assets/0210/`: the options sheet, the shipped z16 comparison (fog off /
+  shipped / `rimAmt` 0, both modes), and z14.
+
+**Not changed:**
+- `docs/09-roadmap.md` §-table row "u_rimAmt 0.08/0.30" and capability `08`'s tuning record are
+  history, left as written.
+- `docs/INDEX.md` is not regenerated (the orchestrator's).
 
 ## Operator validation
 
