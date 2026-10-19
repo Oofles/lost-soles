@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,240 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,243 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 559 sections · regenerated 2026-10-18
+13 documents · 559 sections · regenerated 2026-10-19
 
 
 ## `docs/00-vision.md`
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,630 lines
+**01 — System Architecture** — 1,629 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -86,37 +86,37 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ How each source plugs into the same contract | `619-678` | job from {ownerid, objectid, aspecttype}. |
 | &nbsp;&nbsp;↳ The test that proves the boundary is right | `679-735` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
 | &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `736-777` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
-| 4. Data flow — one activity, end to end | `778-903` |  |
+| 4. Data flow — one activity, end to end | `778-902` |  |
 | &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `803-837` | D-120 is final and supersedes the provisional D-022. |
 | &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `838-879` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
-| &nbsp;&nbsp;↳ Failure handling | `880-903` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `904-1120` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ The fact that drives the whole design | `906-935` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ App Router structure | `936-1025` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1026-1109` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `1110-1120` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `1121-1291` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `1123-1140` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `1141-1158` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1159-1221` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1222-1269` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1270-1291` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1292-1408` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1297-1339` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1340-1375` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1376-1393` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1394-1408` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1409-1504` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1440-1472` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1473-1486` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1487-1504` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1505-1556` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1510-1532` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1533-1545` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1546-1556` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1557-1578` |  |
-| 11. Known tensions the decision log creates | `1579-1619` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1620-1630` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ Failure handling | `880-902` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
+| 5. Frontend architecture | `903-1119` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ The fact that drives the whole design | `905-934` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ App Router structure | `935-1024` | layout.tsx root: fonts, theme, <AmplifyProvider> |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1025-1108` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `1109-1119` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1120-1290` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1122-1139` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1140-1157` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1158-1220` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1221-1268` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1269-1290` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1291-1407` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1296-1338` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1339-1374` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1375-1392` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1393-1407` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1408-1503` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1439-1471` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1472-1485` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1486-1503` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1504-1555` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1509-1531` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1532-1544` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1545-1555` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1556-1577` |  |
+| 11. Known tensions the decision log creates | `1578-1618` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1619-1629` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 
@@ -510,7 +510,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,139 lines
+**08 — Security & Privacy** — 1,143 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -527,36 +527,36 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 2.5 Where this checklist lives so it is actually enforced | `272-288` | points at DECISIONS.md. Any agent starting a session reads it. |
 | 3. Secrets inventory | `289-355` | Every credential the system holds. |
 | &nbsp;&nbsp;↳ 3.1 What must never reach the browser bundle | `308-355` | happens entirely inside /api/strava/callback; the browser sees a redirect and a connected |
-| 4. The webhook endpoint | `356-504` | (01-architecture.md §2). This is the only unauthenticated, internet-facing surface in the |
+| 4. The webhook endpoint | `356-509` | (01-architecture.md §2). This is the only unauthenticated, internet-facing surface in the |
 | &nbsp;&nbsp;↳ 4.1 Verifying events actually came from Strava — honestly | `368-404` | "verify the webhook" here would be false. |
 | &nbsp;&nbsp;↳ 4.2 The `hub.challenge` handshake | `405-423` | GET ?hub.mode=subscribe&hub.challenge=X&hub.verifytoken=T |
 | &nbsp;&nbsp;↳ 4.3 Replay and idempotency | `424-445` | Strava retries up to three times and has no dead-letter mechanism, so duplicates are normal |
-| &nbsp;&nbsp;↳ 4.4 Rate limiting and cost-DoS | `446-480` | An attacker cannot read anything here. |
-| &nbsp;&nbsp;↳ 4.5 What the endpoint must never do | `481-504` | The 2-second budget is a security control as much as a performance one: the smaller this |
-| 5. Authentication and account provisioning | `505-663` | The whole auth surface serves one person today and at most six ever (D-014). |
-| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `511-563` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
-| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `564-587` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
-| &nbsp;&nbsp;↳ 5.3 Session handling | `588-604` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
-| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `605-644` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
-| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `645-663` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
-| 6. Data lifecycle, retention, and deletion | `664-807` |  |
-| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `666-682` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
-| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `683-712` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
-| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `713-750` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
-| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `751-793` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
-| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `794-807` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `808-987` | The repository is the most likely place a secret in this project actually escapes. |
-| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `815-856` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `857-879` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `880-911` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `912-970` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `971-987` | control, not a convenience. |
-| 8. Incident playbook | `988-1102` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1006-1031` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1032-1049` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1050-1075` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1076-1102` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1103-1139` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 4.4 Rate limiting and cost-DoS | `446-485` | An attacker cannot read anything here. |
+| &nbsp;&nbsp;↳ 4.5 What the endpoint must never do | `486-509` | The 2-second budget is a security control as much as a performance one: the smaller this |
+| 5. Authentication and account provisioning | `510-668` | The whole auth surface serves one person today and at most six ever (D-014). |
+| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `516-568` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
+| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `569-592` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
+| &nbsp;&nbsp;↳ 5.3 Session handling | `593-609` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
+| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `610-649` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
+| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `650-668` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
+| 6. Data lifecycle, retention, and deletion | `669-812` |  |
+| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `671-687` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
+| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `688-717` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
+| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `718-755` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
+| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `756-798` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
+| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `799-812` | Removing the Strava connection deletes SourceAccount and stops ingest. |
+| 7. Repo hygiene — and one live finding (O-005) | `813-992` | The repository is the most likely place a secret in this project actually escapes. |
+| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `820-861` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `862-884` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `885-916` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `917-975` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `976-992` | control, not a convenience. |
+| 8. Incident playbook | `993-1106` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1011-1036` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1037-1054` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1055-1079` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1080-1106` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1107-1143` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 

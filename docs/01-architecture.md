@@ -884,8 +884,7 @@ Two more properties worth stating because they are easy to get wrong:
   others: the reconcile sweep's "the webhook is missing runs" alarm (ticket `0095`), and the
   webhook flood alarm (`08-security-privacy.md` §4.4 item 6, ticket `0093`), which fires only when
   one athlete's events pass 50 an hour — a loop, never a blip, so it cannot become the noise
-  `09-roadmap.md` §8.6 warns of. The $10/$25 AWS Budgets emails are billing notifications, not
-  CloudWatch alarms. A fourth alarm still means amending this line first.
+  `09-roadmap.md` §8.6 warns of. AWS cost alerting is the operator's, outside this project (D-361). A fourth alarm still means amending this line first.
 - At most **five** workers at once, capped on the SQS event source rather than by reserved
   concurrency (a message not yet handed over burns no receive attempt). Every worker races the
   same user's `manifest.json`; five keeps a bulk replay or backfill inside the publish's retry

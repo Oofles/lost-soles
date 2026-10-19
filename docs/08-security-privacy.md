@@ -472,6 +472,11 @@ $3–5/month budget is a real threat, if an unexciting one. Layered, cheapest fi
 7. **AWS Budgets alarm at $10/month and $25/month, notifying by email.** This is the real
    backstop and it takes five minutes. Cost-DoS is only dangerous when it is *silent*; an alarm
    converts an unbounded bill into a bounded one.
+   *(As built: **not this project's control** — D-361. The AWS account is shared with the
+   operator's other apps, so an account-wide budget measures them, not Lost Soles: October 2026
+   passed $10 in its first fortnight. The operator manages AWS cost outside this project. The
+   bounded-bill guarantee comes from item 1's reserved concurrency, which the 0093 flood test
+   proved: 1,000 requests cost about $0.002.)*
 8. **SQS DLQ already exists** (`01-architecture.md` §1, item 10) so a poison message cannot spin.
 
 Explicitly **not** doing: WAF ($15/month per app, ~5× the entire budget — §9), API Gateway
@@ -1054,8 +1059,7 @@ where speed genuinely matters, because the second-order damage is automated bots
 compute within minutes.
 
 - **Detect** — an AWS Health / abuse notification (AWS scans public GitHub and does email);
-  the Budgets alarm at $10 / $25 firing (§4.4, item 7) — *this is the tripwire that actually
-  catches it*; unfamiliar regions or services in Cost Explorer; CloudTrail entries from an
+  the operator's own account-level cost alerts (§4.4 item 7 is not this project's since D-361); unfamiliar regions or services in Cost Explorer; CloudTrail entries from an
   unrecognised source IP; or, as in O-005, finding the key somewhere it should not be.
 - **Contain** — **deactivate the access key in IAM immediately** (deactivate, not delete: it is
   instant, reversible, and preserves the key ID for CloudTrail correlation). If the compromised
@@ -1078,7 +1082,7 @@ compute within minutes.
 Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5)
 — but it can spend money, and a $3–5/month budget notices.
 
-- **Detect** — the Budgets alarm; a spike in `strava-webhook` invocations or throttles in
+- **Detect** — the operator's account-level cost alerts (D-361); a spike in `strava-webhook` invocations or throttles in
   CloudWatch; the §4.4(6) per-`owner_id` counter alarming; SQS queue depth or DLQ messages;
   `IngestReceipt` writes far exceeding real activity.
 - **Contain** — **set the Lambda's reserved concurrency to 0.** That is the kill switch: it
@@ -1112,7 +1116,7 @@ that protects six people who are already behind Cognito.
 |---|---|
 | **WAF** | $15/month per app plus per-request charges — **~5× the entire infrastructure budget** (`01-architecture.md` §12), to rate-limit an endpoint whose worst case is "re-fetch our own activity" (§4.1). §4.4's reserved concurrency achieves the part that matters for one CDK line and $0 |
 | **API Gateway in front of the webhook** | The Function URL was chosen *specifically* to avoid its cost and its extra hop (§4). Adding it back for throttling reinvents the thing we declined |
-| **SIEM / centralised log aggregation / CloudTrail alerting pipeline** | One responder who reads CloudWatch directly. The alerting that actually catches things here is **a $10 Budgets alarm** (§4.4, §8.3) — for a personal AWS account, cost *is* the intrusion detection signal, and it is free |
+| **SIEM / centralised log aggregation / CloudTrail alerting pipeline** | One responder who reads CloudWatch directly. Cost is still the best intrusion signal, but on a shared account the operator watches it account-wide, outside this project (D-361) |
 | **GuardDuty** | ~$3–5/month at minimum: it would roughly double the bill to monitor an account with one Lambda pipeline and one bucket. Reconsider if the account ever holds anything for anyone else |
 | **Penetration testing** | The attack surface is one unauthenticated endpoint that holds no credentials and can be reasoned about completely in §4. A pen test would cost more than the app will cost to run for a decade |
 | **SOC 2, ISO 27001, GDPR Article 30 records, a DPA, a formal DPIA** | No customers, no processors, no controller relationship, nothing to attest to. If friends are ever added (§5.4), the *substance* they would be owed — knowing what is stored, and being able to have it deleted — is already required by §2.4 A-4 and §6.4. **That is the part worth having; the paperwork is not** |

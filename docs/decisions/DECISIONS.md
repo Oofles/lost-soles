@@ -5362,3 +5362,12 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   forgery costs one confirmation call inside D-349's 4-an-hour delete budget. Residual limit: a
   genuine delete is still lost if it arrives while a forgery of the same activity is `QUEUED`, or
   before Strava's API answers 404. The only effect is that the run stays visible.
+- **D-361** **AWS cost alerting is not this project's.** *(Operator, 2026-10-18, ticket `0093`.
+  Supersedes `08` §4.4 item 7's Budgets alarm as a project control.)* The AWS account hosts the
+  operator's other Amplify apps, so an account-wide Budget measures them, not Lost Soles: the
+  account had spent $16.53 by 2026-10-18 ($14.65 of it Amplify), and $50.08 in September. 0093's
+  $10/$25 budget was already in ALARM when it deployed, and neither it nor a $0.01 test budget
+  emailed in 25 hours, although SNS email reached the same inbox. Filtering the budget to Lost Soles
+  by cost-allocation tag was rejected: the operator manages the account's cost separately. The
+  cost-DoS bound is the webhook's reserved concurrency of 5, proven by 0093's flood test (1,000
+  requests, about $0.002). The `CfnBudget` that 0093 deployed is removed by a follow-up ticket.

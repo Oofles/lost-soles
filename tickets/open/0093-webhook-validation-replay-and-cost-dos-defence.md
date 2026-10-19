@@ -101,8 +101,13 @@ having touched settings.
       with a 200 and no detail; none reaches SQS.
 - [x] `PUT`, `DELETE`, `PATCH` and `OPTIONS` return 405 with no body.
 - [x] More than 50 events in an hour for one `owner_id` are dropped with a 200 and raise an alarm.
-- [ ] AWS Budgets alarms exist at $10 and $25/month with an email destination, verified by a test
-      notification actually arriving. *(Built and synth-tested; the budget does not exist until
+- [x] ~~AWS Budgets alarms exist at $10 and $25/month with an email destination, verified by a test
+      notification actually arriving.~~ *Amended 2026-10-18 (operator, D-361): withdrawn. The
+      account is shared with the operator's other apps, so the budget measured them, not Lost Soles
+      ($16.53 by Oct 18, $50.08 in September). It deployed already in ALARM, and neither it nor
+      the $0.01 test budget emailed in 25 hours, although SNS email reached the same inbox. The
+      operator manages AWS cost outside this project. The cost-DoS bound is reserved concurrency,
+      proven by the flood test. The test budget is deleted, and `0289` removes the `CfnBudget`.* *(Built and synth-tested; the budget does not exist until
       deploy, and "an email actually arrives" is a post-deploy smoke test — see Resolution.
       2026-10-18: the budget and both notifications exist. A throwaway $0.01 budget, "Lost Soles
       notification test", was created at 02:30Z with the same email destination; Budgets evaluates
@@ -192,6 +197,10 @@ unchanged**. Reconnect and confirm ingest resumes.
     it still has life, so the confirmation refresh rotated nothing. D-348 holds either way.
 - **(i) Budgets.** "Lost Soles monthly cost", with ACTUAL ABSOLUTE_VALUE notifications at 10 and
   25. The test email is pending; see the criterion.
+- **(j) Budgets, 2026-10-19 03:30Z.** Both notifications on "Lost Soles monthly cost" and the
+  test budget were in ALARM, and the account had spent $16.53, but no Budgets email reached
+  Gmail, spam included. A CloudWatch SNS alarm email from 02:49Z did arrive. The operator chose
+  to take cost alerting off the project (D-361). The test budget is deleted.
 - **Perceptual:** none.
 
 ## Resolution

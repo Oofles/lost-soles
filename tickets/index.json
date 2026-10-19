@@ -2282,7 +2282,7 @@
     "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
     "ready": true,
     "acceptance": {
-      "checked": 14,
+      "checked": 15,
       "total": 15
     }
   },
@@ -6645,6 +6645,26 @@
     "ready": false,
     "acceptance": {
       "checked": 3,
+      "total": 3
+    }
+  },
+  {
+    "id": 289,
+    "slug": "remove-the-account-wide-budgets-resource-from-the-backend",
+    "title": "Remove the account-wide Budgets resource from the backend",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T03:32:39Z",
+    "path": "tickets/open/0289-remove-the-account-wide-budgets-resource-from-the-backend.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
       "total": 3
     }
   }
