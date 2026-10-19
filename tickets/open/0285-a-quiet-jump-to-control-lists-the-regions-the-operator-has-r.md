@@ -51,8 +51,12 @@ holds two far-apart areas, as Arkansas does today.
 
 ## Operator validation
 
-- (operator) On the desktop browser, open the control, jump between regions, and judge whether it
-  is quiet enough when closed and quick enough when open.
+- [x] (operator) On the desktop browser, open the control, jump between regions, and judge whether it
+  is quiet enough when closed and quick enough when open. — verified 2026-10-19: passed
+
+**Result.** Operator, desktop browser, 2026-10-19 — **passed**: the ⚑ button under ⚙ is quiet when closed and reads as jump-to; the list is quick and the jumps read as jumps; the region labels are recognisable.
+
+Smoke test (orchestrator, after Amplify job 418, commit e5bdae0): `/` 200; `/api/runs/web` signed-out 404; the deployed chunks contain `Jump to a region`.
 
 ## Resolution
 

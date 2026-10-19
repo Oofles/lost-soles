@@ -109,6 +109,10 @@ Nothing may translate, scale or jump; the fog changes character in place. Toggle
 five times quickly and confirm the map never drifts. Then enable the OS reduce-motion
 setting and confirm the adventure fog stops moving but stays adventure-coloured.
 
+**Result.** Operator, desktop browser, 2026-10-19 — **passed**: toggling with the control and `M` at a z16 frontier, the map does not move; the fog change reads as one change and the labels' own fade is acceptable; atlas labels, the 0.5 road grid and the trace web read over the fog; the control's look and top-left position are right; with OS reduce-motion, adventure's mist stops in its colours and the toggle is an instant cut. Local: `run-mode-swap.mjs` MODE SWAP HARNESS PASS on the merged tree (12 swaps, camera identical by `Object.is`).
+
+Smoke test (orchestrator, after Amplify job 418, commit e5bdae0): `/` 200; `/api/runs/web` signed-out 404; the deployed chunks contain `lost-soles:map-mode`.
+
 ## Resolution
 
 Built after a D-152 stop. The operator answered five questions on 2026-10-19:

@@ -142,3 +142,7 @@ SwiftShader is not a phone. `0059`'s `?fog=perf` on real hardware is the gate.
 Desktop browser (D-240). Look at the frontier at z16 over the parchment basemap: does the rim
 read as warm lantern light at a glance, without zooming the screenshot, and are the street names
 at the edge as readable as with `?fog=off`? A perceptual call (D-229).
+
+**Result.** Operator, desktop browser, 2026-10-19 — **passed**: at a z16 frontier in both modes the rim reads as warm lantern light on the mist at a glance; street names at the edge are as readable as with `?fog=off`; z14 also reads well. Local: fog harness C1 on the merged tree — peak 75/255 on the fog side, revealed ground 0/255 over 76 samples; C4 26.3 ms/frame worst case on SwiftShader (real-GPU gate is `0059`).
+
+Smoke test (orchestrator, after Amplify job 418, commit e5bdae0): `/` 200; `/api/runs/web` signed-out 404; the deployed chunks contain `u_rimBand` and `tapToUv`, and no `max(alpha, rim`.
