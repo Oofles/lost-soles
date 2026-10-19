@@ -4930,7 +4930,7 @@
     "title": "The fog edge reads as disc outlines, not ragged mist — noiseAmp cannot fix it",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -4940,8 +4940,9 @@
     "source": "agent",
     "created": "2026-09-28T12:27:56Z",
     "started": "2026-10-19T13:08:43Z",
-    "path": "tickets/open/0211-fog-edge-reads-as-disc-outlines.md",
-    "ready": true,
+    "closed": "2026-10-19T14:34:36Z",
+    "path": "tickets/closed/0211-fog-edge-reads-as-disc-outlines.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
