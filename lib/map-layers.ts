@@ -71,9 +71,10 @@ export const RUN_LAYER_IDS = [RUN_GLOW_ID, RUN_CORE_ID] as const
  * been "the colour is specified elsewhere", and it turned out to be specified in exactly the file
  * the gate points at.
  *
- * It also buys the thing §8.1 argues the palette is for: **capability 15 introduces the parchment
- * background these were chosen against**, and it edits `tokens.css`. A literal in this module
- * would have made the route the one element of the map its art-direction pass could not see.
+ * It also buys the thing §8.1 argues the palette is for: **capability 15 was to introduce the
+ * parchment background these were chosen against**, by editing `tokens.css` (D-373 then kept the
+ * stock ground). A literal in this module would have made the route the one element of the map
+ * its art-direction pass could not see.
  *
  * The cost is that a MapLibre paint value cannot BE a CSS variable — the style spec takes a colour
  * string — so it is resolved from the computed style once, when the layers are added.

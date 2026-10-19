@@ -127,26 +127,6 @@
   --landmark-shrine: var(--gold-500);
   --landmark-ink: var(--ink-900);
 
-  /* The parchment basemap (ticket 0097, 05 §5). Parchment and ink ramps ONLY — no seventh ramp:
-     water is an ink wash, parks and woods are deeper parchment. lib/basemap-style.ts maps each of
-     upstream @protomaps/basemaps' flavour fields onto one of these roles, and lays a role over the
-     ground at an opacity where a variant wants it weaker. Ground lightness is the D-053 corollary:
-     high L*, low chroma, so the fog has somewhere to go (sampled values in
-     docs/capabilities/15-two-map-modes-and-cold-territory.md). NO GOLD (D-148): no --map-* token
-     points at a gold primitive. Absent from the dark blocks for the route's reason; the night
-     parchment variant (§8.3) is not built yet. */
-  --map-ground: var(--parch-100);
-  --map-paper: var(--parch-50);
-  --map-tint: var(--parch-200);
-  --map-tint-deep: var(--parch-300);
-  --map-rule: var(--parch-400);
-  --map-casing: var(--ink-400);
-  --map-water: var(--ink-300);
-  --map-label-strong: var(--ink-900);
-  --map-label: var(--ink-600);
-  --map-label-muted: var(--ink-500);
-  --map-halo: var(--parch-50);
-
   /* Type — 06-ui-ux.md §8.4. Two families, both self-hosted (ticket 0255): app/layout.tsx loads
      the files from app/fonts/ through next/font/local, which sets --font-spectral and --font-inter
      on <html>. Nothing is fetched from a font CDN (§4.8). The fallbacks only show if the variable

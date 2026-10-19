@@ -1,8 +1,6 @@
-import { readFileSync } from "node:fs"
-
 import { describe, expect, it, vi } from "vitest"
 
-import { cssTokenReader, mapPaletteFrom, parchmentLayers } from "./basemap-style"
+import { basemapLayers } from "./basemap-style"
 
 /**
  * `@/amplify_outputs.json` is gitignored and generated per environment, so its content
@@ -17,11 +15,7 @@ vi.mock("@/amplify_outputs.json", () => ({
 const { BASEMAP_ARCHIVE, BASEMAP_SOURCE, basemapArchiveUrl, basemapStyle: styleFor, registerPmtilesProtocol } =
   await import("./basemap")
 
-/** The real palette file, so these assertions run against the colours that ship. */
-const PALETTE = mapPaletteFrom(
-  cssTokenReader(readFileSync(new URL("../app/tokens.css", import.meta.url), "utf8")),
-)
-const basemapStyle = (variant: "atlas" | "adventure" = "adventure") => styleFor(variant, PALETTE)
+const basemapStyle = (variant: "atlas" | "adventure" = "adventure") => styleFor(variant)
 
 describe("pmtiles protocol registration (0052)", () => {
   /**
@@ -52,10 +46,10 @@ describe("basemap style (0052, forked by 0097)", () => {
    * criterion was holding the place for, so what is asserted now is that `basemapStyle` binds
    * the fork — `lib/basemap-style.ts`, tested in `basemap-style.test.ts` — and nothing else.
    */
-  it("is the parchment fork, in the variant asked for", () => {
+  it("is the two-variant fork, in the variant asked for", () => {
     for (const variant of ["atlas", "adventure"] as const) {
       expect(basemapStyle(variant).layers).toStrictEqual(
-        parchmentLayers(BASEMAP_SOURCE, variant, PALETTE),
+        basemapLayers(BASEMAP_SOURCE, variant),
       )
     }
   })

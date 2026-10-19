@@ -72,7 +72,7 @@ export function fogDisabled(search: string): boolean {
 }
 
 /**
- * `0097` — `?basemap=atlas` or `?basemap=adventure`: force-load one parchment variant. Its own
+ * `0097` — `?basemap=atlas` or `?basemap=adventure`: force-load one basemap variant. Its own
  * parameter, not a `?fog=` flag: it picks the ground, not a view of the fog. Anything else, or
  * nothing, is the default (adventure, 05 §5.3). The real toggle, with its saved mode, is `0098`.
  */

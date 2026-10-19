@@ -56,16 +56,20 @@ gold road labels.
       **above** the fog layer id; adventure places both **below** it. *(The fog is a custom layer
       the style JSON cannot hold; asserted on the built layers with the fog inserted by the real
       `fogBeforeId`, in either add order.)*
-- [x] Basemap lightness measured on the parchment ground is ≥ 80 L\* and **CIELAB saturation**
-      (C\*/√(C\*²+L\*²)) ≤ 25% in both variants, with HSV saturation reported beside it — recorded
-      as sampled values in the capability doc. *(Amended at 0097, operator: "saturation" named no
-      metric, and HSL fails the design's own `--parch-100` at 58%; see the capability doc. "0.80
-      L\*" read as L\* 80 on the 0–100 scale.)*
-- [x] No layer in either variant uses gold (`--gold`) as a text colour (D-148).
-- [x] Style loads from cache offline and paints flat parchment where tiles are missing
-      — never a checkerboard, never a spinner (`06-ui-ux.md` §4.8, §9.5). *(Per D-287, in a
-      running app: the style is a bundled JS object with no fetch of its own, tiles come from the
-      browser's HTTP cache, and the background layer is the parchment ground. No service worker.)*
+- [x] Basemap lightness measured on the ~~parchment~~ **stock `light`** ground is ≥ 80 L\* and
+      **CIELAB saturation** (C\*/√(C\*²+L\*²)) ≤ 25% in both variants, with HSV saturation
+      reported beside it — recorded as sampled values in the capability doc. *(Amended at 0097,
+      operator: "saturation" named no metric, and HSL fails the design's own `--parch-100` at 58%;
+      see the capability doc. "0.80 L\*" read as L\* 80 on the 0–100 scale.)* *(Amended again,
+      D-373: the colours are stock `light`; re-measured — ground L\* 88.9 / 3.1%, background
+      L\* 82.0 / 0.0% — and the intent "lightness high, the fog does the darkening" holds.)*
+- [x] No layer in either variant uses gold (`--gold`) as a text colour (D-148). *(D-373: holds
+      trivially for the stock flavour; still asserted against the real `--gold-*` tokens.)*
+- [x] Style loads from cache offline and paints ~~flat parchment~~ **the flat stock background
+      colour** *(D-373)* where tiles are missing — never a checkerboard, never a spinner
+      (`06-ui-ux.md` §4.8, §9.5). *(Per D-287, in a running app: the style is a bundled JS object
+      with no fetch of its own, tiles come from the browser's HTTP cache, and the background layer
+      is stock `light`'s `#cccccc`. No service worker.)*
 
 ## Notes
 
@@ -85,6 +89,14 @@ fog, and that adventure's paper by comparison feels warmer and older with the st
 traceable through the fog ghost. If you
 have to study the screen to tell explored from unexplored, the lightness target is not met and this
 ticket is not done. ~~cupping a hand over the screen~~ *(D-251, 0215)*
+
+**Recorded (operator, 2026-10-19, desktop browser, on the deployed parchment version, 1805ec5):**
+*"I don't like the coloring at all... it just looks like an unappealing filter applied on top of
+the map. I liked the standard colors that just existed with the openstreetmap before. And I think
+that the fog layer accomplishes the objective well enough. The basemap atlas view is perfect for
+planning and viewing the roads!"* The atlas layout, Arkansas and the other out-of-Florida areas,
+and the fog were judged good. The parchment colouring was rejected; the rework below (D-373)
+restores the stock colours and keeps the structure.
 
 ## Resolution
 
@@ -135,3 +147,49 @@ ticket is not done. ~~cupping a hand over the screen~~ *(D-251, 0215)*
 - Paper grain and the night-parchment variant are not built. Glyphs and sprites still load from
   protomaps.github.io, against 06 §9.5's "no third-party requests"; proposed as its own ticket.
 
+### Rework 2026-10-19 (D-373)
+
+The operator rejected the parchment colouring on the deployed build (see Operator validation) and
+chose: both variants back to the stock `@protomaps/basemaps` 5.7.2 `light` colours, structure kept.
+D-373 supersedes D-053's parchment ground and D-369; D-368 and D-370 stand; D-371's metric stands
+with new numbers.
+
+**Files touched**
+- `lib/basemap-style.ts` — `parchmentFlavor`, `MAP_TOKENS`/`MapPalette`, `mapPaletteFrom`,
+  `documentMapPalette`, `parseColor`, `over`, `LOOK` (adventure's ageing toward `--parch-300`, the
+  water wash, ink casings) and `cssTokenReader` removed. Both variants call `layers()` once with
+  `BASEMAP_FLAVOR = namedFlavor("light")`. `parchmentLayers(source, variant, palette)` →
+  `basemapLayers(source, variant)`; `PARCHMENT_UPSTREAM` → `BASEMAP_UPSTREAM`. The post-pass is
+  unchanged: adventure's dropped layers and park-only POIs; atlas's `atlas_road_ghost_*` copies
+  (the stock fill colour, so still invisible over explored ground) and every label tagged
+  `ABOVE_FOG_METADATA`, address labels from z16.
+- `lib/basemap.ts` — `basemapStyle(variant)`; the palette argument is gone.
+- `components/map/map-shell.tsx` — no `documentMapPalette()` call.
+- `app/tokens.css` — the eleven `--map-*` tokens and their comment removed. App-chrome parchment
+  ramps untouched.
+- `lib/fog/debug-flags.ts`, `lib/map-layers.ts` — comment wording only.
+- Tests: `lib/basemap-style.test.ts` (palette/`over` tests dropped; new "D-373" block asserting
+  every non-copy layer of both variants has upstream's exact paint and that `tokens.css` holds no
+  `--map-*`; criterion 4 measures `earth` and `background`; criterion 6 asserts the stock
+  background), `lib/basemap.test.ts`, `lib/map-layers.test.ts`, `lib/landmarks/markers.test.ts`
+  (new signatures).
+- Docs: `docs/capabilities/15-two-map-modes-and-cold-territory.md` (stock samples replace the
+  parchment table; the water-vs-trace ΔE table and the paper-grain note replaced by a line
+  pointing at D-373); `docs/05-fog-of-war.md` §1, §4 stack table, §4 noise-scale bullet, §5.1 (superseded
+  block, reasoning kept), §5.2 basemap row; `docs/06-ui-ux.md` D-053 bullet, §2 diagram, empty
+  and offline states, §4.8, §8.1, §8.3's night parchment, §9.5; `docs/01-architecture.md` and
+  `docs/09-roadmap.md` one annotation each. App-chrome "parchment" references were left alone.
+
+**Decisions inside D-373**
+- "Ground" for criterion 4 is the `earth` fill (what land looks like); `background` shows only
+  where no tile is loaded and is held to the same floor. Stock light's two differ (`#e2dfda` vs
+  `#cccccc`), unlike the parchment version where they were one token.
+- With colour gone, the two variants differ only in label density and layer order. 05 §5.2's
+  basemap-style row says so.
+
+**Findings**
+- Stock water `#80deea` is cyan (L\* 83.3, CIELAB sat. 32.7%), so the old water-vs-trace ink
+  collision is gone; `0294` can be declined on that basis.
+- Stock POI labels keep upstream's eight category hues in atlas; `tangerine` `#CB6704` is orange,
+  not a `--gold-*` value, and the no-gold test passes.
+- Glyphs and sprites still load from protomaps.github.io (unchanged from the first pass).

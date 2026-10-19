@@ -1,17 +1,13 @@
 import { Protocol } from "pmtiles"
 
 import outputs from "@/amplify_outputs.json"
-import {
-  parchmentLayers,
-  type BasemapVariant,
-  type MapPalette,
-} from "@/lib/basemap-style"
+import { basemapLayers, type BasemapVariant } from "@/lib/basemap-style"
 
 /**
  * THE ONE PLACE THE APP KNOWS WHERE THE GROUND COMES FROM. Ticket 0052, D-226.
  *
- * 0052's Notes require exactly this: capability 15 swaps the stock flavour for the
- * parchment fork (`0097`, `lib/basemap-style.ts`) by changing this module and nothing
+ * 0052's Notes require exactly this: capability 15 swaps the stock style for the
+ * two-variant fork (`0097`, `lib/basemap-style.ts`) by changing this module and nothing
  * else. A tile URL or a colour literal anywhere in a component is what makes that a
  * refactor instead of an edit.
  */
@@ -96,14 +92,12 @@ export function registerPmtilesProtocol(maplibre: {
 }
 
 /**
- * The parchment style (ticket `0097`), in the variant asked for. The colours, label density and
- * the atlas variant's above-fog layers are `lib/basemap-style.ts`'s; this function only binds them
- * to the ONE source and the ONE archive. Both variants share both (05 §5.2).
- *
- * `palette` is resolved by the caller — `documentMapPalette()` in the browser, the real
- * `app/tokens.css` in a test — because a MapLibre paint value cannot be a CSS variable.
+ * The basemap style (ticket `0097`), in the variant asked for. Label density and the atlas
+ * variant's above-fog layers are `lib/basemap-style.ts`'s; the colours are the stock `light`
+ * flavour's (D-373). This function only binds them to the ONE source and the ONE archive. Both
+ * variants share both (05 §5.2).
  */
-export function basemapStyle(variant: BasemapVariant, palette: MapPalette) {
+export function basemapStyle(variant: BasemapVariant) {
   return {
     version: 8 as const,
     glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
@@ -115,6 +109,6 @@ export function basemapStyle(variant: BasemapVariant, palette: MapPalette) {
         attribution: BASEMAP_ATTRIBUTION,
       },
     },
-    layers: parchmentLayers(BASEMAP_SOURCE, variant, palette),
+    layers: basemapLayers(BASEMAP_SOURCE, variant),
   }
 }

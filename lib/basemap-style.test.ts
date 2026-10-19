@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 
+import { layers as upstreamLayers, namedFlavor } from "@protomaps/basemaps"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -7,16 +8,11 @@ import {
   ADVENTURE_POI_KINDS,
   ATLAS_ADDRESS_MINZOOM,
   ATLAS_ROAD_GHOST_OPACITY,
+  BASEMAP_UPSTREAM,
   BASEMAP_VARIANTS,
   DEFAULT_BASEMAP_VARIANT,
-  MAP_TOKENS,
-  PARCHMENT_UPSTREAM,
   ROAD_GHOST_PREFIX,
-  cssTokenReader,
-  mapPaletteFrom,
-  over,
-  parchmentLayers,
-  parseColor,
+  basemapLayers,
   type BasemapVariant,
 } from "./basemap-style"
 import { basemapVariant } from "./fog/debug-flags"
@@ -33,15 +29,27 @@ import {
 import { TRACE_LAYER_ID, traceBeforeId } from "./trace-web/layer"
 
 /**
- * THE PARCHMENT FORK. Ticket `0097`, `05-fog-of-war.md` §5.
+ * THE BASEMAP FORK. Ticket `0097`, `05-fog-of-war.md` §5. Stock `light` colours in both variants
+ * (D-373); the fork is label density and atlas's above-fog layers.
  *
- * Every colour is resolved from the REAL `app/tokens.css`, never a hand-written palette: the
- * lightness and no-gold criteria are claims about the colours that ship.
+ * The gold check reads the REAL `app/tokens.css`, never a hand-written copy of the gold ramp.
  */
 const tokensCss = readFileSync(new URL("../app/tokens.css", import.meta.url), "utf8")
-const read = cssTokenReader(tokensCss)
-const PALETTE = mapPaletteFrom(read)
+const read = (name: string) => new RegExp(`\\${name}:\\s*([^;]+);`).exec(tokensCss)?.[1]?.trim() ?? ""
 const SOURCE = "protomaps"
+
+type Rgb = readonly [number, number, number]
+
+/** `#rgb`, `#rrggbb` or `rgb[a](r, g, b[, a])` — every form the stock flavour and tokens.css use. */
+function parseColor(color: string): Rgb {
+  const c = color.trim()
+  const fn = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+\s*)?\)$/.exec(c)
+  if (fn) return [Number(fn[1]), Number(fn[2]), Number(fn[3])]
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(c)
+  if (!m) throw new Error(`colour ${color} is neither hex nor rgb()`)
+  const h = m[1]!.length === 3 ? [...m[1]!].map((x) => x + x).join("") : m[1]!
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as unknown as Rgb
+}
 
 type Layer = {
   id: string
@@ -53,7 +61,7 @@ type Layer = {
   paint?: Record<string, unknown>
   layout?: Record<string, unknown>
 }
-const styleLayers = (v: BasemapVariant) => parchmentLayers(SOURCE, v, PALETTE) as unknown as Layer[]
+const styleLayers = (v: BasemapVariant) => basemapLayers(SOURCE, v) as unknown as Layer[]
 
 /** The slice of MapLibre's `Map` the insertion helpers touch, over a real layer list. */
 class FakeMap {
@@ -89,7 +97,7 @@ function stack(variant: BasemapVariant, fogFirst: boolean) {
 }
 const index = (layers: Layer[], id: string) => layers.findIndex((l) => l.id === id)
 
-/** sRGB → CIELAB (D65), for the D-053 corollary. */
+/** sRGB → CIELAB (D65), for the D-053 corollary (D-371's metric). */
 function lab(color: string): { L: number; C: number; sat: number; hsv: number; hsl: number } {
   const rgb = parseColor(color).map((v) => v / 255)
   const lin = rgb.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
@@ -136,7 +144,25 @@ describe("criterion 1 — one source, one style module, one layer array", () => 
     const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
       dependencies: Record<string, string>
     }
-    expect(pkg.dependencies[PARCHMENT_UPSTREAM.package]).toBe(PARCHMENT_UPSTREAM.version)
+    expect(pkg.dependencies[BASEMAP_UPSTREAM.package]).toBe(BASEMAP_UPSTREAM.version)
+  })
+})
+
+describe("D-373 — both variants paint the stock `light` colours", () => {
+  const stock = new Map(
+    (upstreamLayers(SOURCE, namedFlavor("light"), { lang: "en" }) as unknown as Layer[]).map((l) => [l.id, l]),
+  )
+
+  for (const v of BASEMAP_VARIANTS) {
+    it(`${v}: every upstream layer keeps upstream's paint`, () => {
+      const kept = styleLayers(v).filter((l) => !l.id.startsWith(ROAD_GHOST_PREFIX))
+      expect(kept.length).toBeGreaterThan(50)
+      for (const l of kept) expect(l.paint).toStrictEqual(stock.get(l.id)!.paint)
+    })
+  }
+
+  it("app/tokens.css carries no --map-* basemap palette", () => {
+    expect(tokensCss).not.toMatch(/--map-[\w-]+:/)
   })
 })
 
@@ -228,35 +254,28 @@ describe("criterion 3 — above or below the fog", () => {
   })
 })
 
-describe("criterion 4 — the D-053 corollary: light, low-chroma ground", () => {
+describe("criterion 4 — the D-053 corollary: light, low-chroma ground (D-373: stock light)", () => {
+  /**
+   * The ground is `earth` — the land fill, what explored territory sits on. `background` only
+   * shows where there are no tiles (criterion 6); it is held to the lightness floor too.
+   */
   for (const v of BASEMAP_VARIANTS) {
     it(`${v}: ground L* >= 80 and CIELAB saturation <= 25%`, () => {
-      const ground = styleLayers(v).find((l) => l.id === "background")!.paint!["background-color"] as string
-      const earth = styleLayers(v).find((l) => l.id === "earth")!.paint!["fill-color"]
-      expect(earth).toBe(ground)
-      const m = lab(ground)
-      expect(m.L).toBeGreaterThanOrEqual(80)
-      expect(m.sat).toBeLessThanOrEqual(0.25)
-      expect(m.hsv).toBeLessThanOrEqual(0.25)
+      for (const [id, prop] of [
+        ["earth", "fill-color"],
+        ["background", "background-color"],
+      ] as const) {
+        const m = lab(styleLayers(v).find((l) => l.id === id)!.paint![prop] as string)
+        expect(m.L).toBeGreaterThanOrEqual(80)
+        expect(m.sat).toBeLessThanOrEqual(0.25)
+        expect(m.hsv).toBeLessThanOrEqual(0.25)
+      }
     })
   }
-
-  it("adventure's paper is warmer and older than atlas's, never darker than the floor", () => {
-    const g = (v: BasemapVariant) =>
-      lab(styleLayers(v).find((l) => l.id === "background")!.paint!["background-color"] as string)
-    expect(g("adventure").L).toBeLessThan(g("atlas").L)
-    expect(g("adventure").C).toBeGreaterThan(g("atlas").C)
-  })
 })
 
 describe("criterion 5 — no gold anywhere in the basemap (D-148)", () => {
   const golds = ["--gold-300", "--gold-500", "--gold-700"].map((t) => parseColor(read(t)).join(","))
-
-  it("no --map-* token points at a gold primitive", () => {
-    for (const token of Object.values(MAP_TOKENS)) {
-      expect(tokensCss).not.toMatch(new RegExp(`\\${token}:\\s*var\\(--gold`))
-    }
-  })
 
   it("no layer in either variant paints gold, as text or otherwise", () => {
     const colours: string[] = []
@@ -271,24 +290,14 @@ describe("criterion 5 — no gold anywhere in the basemap (D-148)", () => {
   })
 })
 
-describe("criterion 6 — missing tiles paint flat parchment", () => {
-  it("the background layer is the ground colour, so a hole in the tiles is parchment", () => {
+describe("criterion 6 — missing tiles paint the flat stock background (D-373)", () => {
+  it("the first layer is a background in the stock flavour's background colour", () => {
     for (const v of BASEMAP_VARIANTS) {
       const bg = styleLayers(v)[0]!
       expect(bg.type).toBe("background")
+      expect(bg.paint!["background-color"]).toBe(namedFlavor("light").background)
       expect(lab(bg.paint!["background-color"] as string).L).toBeGreaterThanOrEqual(80)
     }
-  })
-})
-
-describe("the palette resolver", () => {
-  it("throws on a missing token rather than inventing a colour", () => {
-    expect(() => mapPaletteFrom(() => "")).toThrow(/--map-ground/)
-  })
-
-  it("lays a colour over the ground at an opacity", () => {
-    expect(parseColor(over(read("--parch-100"), read("--ink-300"), 0))).toEqual(parseColor(read("--parch-100")))
-    expect(parseColor(over(read("--parch-100"), read("--ink-300"), 1))).toEqual(parseColor(read("--ink-300")))
   })
 })
 

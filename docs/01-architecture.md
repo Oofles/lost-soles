@@ -1085,7 +1085,8 @@ modes are two MapLibre style objects over the *same* tiles — "atlas" (high-leg
 planning where to run) and "adventure" (full parchment/ink/gold-leaf atmosphere, D-050).
 A style swap, not a data swap. R3/R4 converged on a **parchment basemap with dark fog**
 rather than dark-on-dark, because a dark basemap plus dark fog destroys reveal contrast
-(D-053).
+(D-053). *(D-373: the ground became stock Protomaps `light`, not parchment; still light under
+dark fog. The two modes differ in label density and layer order, not colour.)*
 
 **The delivery path for the explored set:**
 

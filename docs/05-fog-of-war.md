@@ -32,7 +32,8 @@ how discovery is scored, how it is drawn, how the data reaches the browser, and 
 
 ## 1. The mechanic, stated plainly
 
-The map opens as a sheet of dark, drifting mist over a warm parchment street map. Wherever you
+The map opens as a sheet of dark, drifting mist over a light street map *(stock Protomaps
+`light` colours, D-373; this sentence said "warm parchment" until then)*. Wherever you
 have run, the mist is gone and the streets show through. Every run you upload clears a little
 more. **It never comes back** (D-020, D-120).
 
@@ -722,7 +723,7 @@ Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation.
 | Mask primitive | **Instanced soft radial discs**, unioned with `gl.blendEquation(gl.MAX)` |
 | Mask target | Half-resolution, single-channel `R8` framebuffer |
 | Composite | One full-screen triangle, `smoothstep` threshold perturbed by animated 3-octave fBm, plus a warm rim glow at the boundary |
-| Basemap | Protomaps PMTiles on S3 + CloudFront; `@protomaps/basemaps` `light` flavour forked to parchment (R4 §5.1, §6.2) |
+| Basemap | Protomaps PMTiles on S3 + CloudFront; `@protomaps/basemaps` `light` flavour, forked for label density and layer order; colours stock (D-373, superseding the parchment of R4 §5.1, §6.2) |
 | DPR | Capped at 2 (`pixelRatio: Math.min(devicePixelRatio, 2)`) |
 
 ### 4.1 Why discs, not hexagons
@@ -1128,8 +1129,9 @@ Two constants worth defending:
   **The milestone's single rendering ships 0.90** (ticket `0119`): on the stock basemap, 0.94 hid
   that ghost almost entirely. §5.2's 0.94 remains adventure's value. All of `0119`'s tuned values
   and their reasons: `docs/capabilities/08-map-and-fog-renderer.md`.
-- **The noise scale (260 px per cell) must not match the parchment grain.** Parchment grain is fine
-  (~2–4 px), mist noise is coarse (~150–300 px). Matching frequencies produces a beat pattern
+- **The noise scale (260 px per cell) must not match the parchment grain.** *(Moot since D-373:
+  the basemap is stock `light` and has no paper grain. Kept for any future textured ground.)*
+  Parchment grain is fine (~2–4 px), mist noise is coarse (~150–300 px). Matching frequencies produces a beat pattern
   that looks like video compression artefacts (R4 §6.6).
 
 ### 4.4 Layer order
@@ -1228,6 +1230,16 @@ allowed to be unusable.
 
 **Parchment basemap, dark fog** (D-053, R4 §6.1). Not dark-on-dark.
 
+> **The parchment ground is SUPERSEDED BY D-373 (`0097` rework, 2026-10-19). The light ground
+> stands.** A parchment recolouring of the stock `light` flavour was built and shipped, and the
+> operator rejected it on sight: it read as a filter laid over the map, and the fog already does
+> the atmospheric work. Both modes now paint the stock `light` colours. What survives of this
+> section is its load-bearing half — **never a dark basemap**: stock light is a light,
+> nearly-neutral ground (sampled L\* 88.9, CIELAB saturation 3.1%, `15-two-map-modes-and-cold-territory.md`),
+> so the corollary below still holds and the fog still does the darkening. The reasoning about
+> parchment is left standing so the reversal is visible. `u_rimGlow`'s warm hue now stitches
+> against a near-neutral ground rather than a matching one.
+
 The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep
 navy) is a dark basemap. Do not. With a dark basemap, dark fog has almost no contrast against
 unexplored ground and **the reveal does not read at all**. The only fix would be to *brighten*
@@ -1256,7 +1268,7 @@ style-layer configuration and shader uniforms only — no second tileset, no sec
 | `u_rimAmt` (rim glow) | **0.08** — a hairline, just enough to find the frontier | **0.30** — full lantern-light |
 | `u_fogDeep` / `u_fogEdge` | Desaturated, lighter: `(0.10,0.11,0.14)` / `(0.30,0.32,0.36)` | `(0.035,0.045,0.075)` / `(0.22,0.24,0.30)` |
 | Mask FBO scale | **0.75×** — tighter, more accurate frontier | **0.5×** — softer, cheaper |
-| **Basemap style** | Parchment, **high contrast**: dark road casings, strong hierarchy, water clearly separated from land | Parchment, **aged**: lower contrast, warmer, paper grain, hand-drawn-feeling casings |
+| **Basemap style** | ~~Parchment, **high contrast**: dark road casings, strong hierarchy, water clearly separated from land~~ Stock `light` colours (D-373) | ~~Parchment, **aged**: lower contrast, warmer, paper grain, hand-drawn-feeling casings~~ Stock `light` colours (D-373). The modes differ in label density and layer order, not colour |
 | **Label density** | Full: street names down to residential, POIs, park names, house-number-scale labels at z≥16 | Reduced: place names, major roads, parks. Small POIs suppressed |
 | **Label layer position** | **ABOVE the fog.** Street names remain readable through fogged ground | **BELOW the fog.** Unexplored place names stay hidden — the discovery beat |
 | **Road layer position** | **Road geometry drawn above the fog** at ~0.5 opacity, so the street grid is fully traceable into unexplored ground | Below the fog. Only the ghost that `u_maxOpacity < 1.0` lets through |

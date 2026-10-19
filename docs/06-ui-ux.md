@@ -11,7 +11,9 @@ Binding constraints this document is written under, restated so no reader has to
 - **D-050** — dark fantasy: ink, parchment, lantern-light, gold leaf, deep navy.
 - **D-051** — the map stays a genuinely legible street map. **Atmosphere never costs legibility.**
 - **D-052 / D-133** — two modes, atlas and adventure; cold territory shows in atlas **only**.
-- **D-053** — parchment basemap, dark fog. Not dark-on-dark.
+- **D-053** — parchment basemap, dark fog. Not dark-on-dark. *(The parchment ground is superseded
+  by **D-373**: the basemap is stock Protomaps `light`. Light ground, dark fog, still never
+  dark-on-dark. The app chrome keeps its parchment ramps.)*
 - **D-061 / D-062** — one "Add workout" button → one dedicated page → one row per type, one click.
 - **D-013 / P3** — zero upkeep. Nothing in this UI may ask for maintenance.
 - **D-227 / D-251** — **the desktop browser is the only surface this app is designed for**, for
@@ -223,7 +225,7 @@ starts, and the plinth's position is fixed at every desktop size.
 │                                    │                                             │
 │ Last: Fri 28 Aug · 8.40 km · 21 new│                                             │
 │ [7]  (D-316)                     › │               THE MAP PANE                  │
-│ ────────────────────────────────── │     parchment + dark fog (D-053);           │
+│ ────────────────────────────────── │     light map + dark fog (D-373);           │
 │ ┌───────┐ ┌──────────────┐ ┌─────┐ │     first-ever load framed on the           │
 │ │SKILLS │ │ + ADD WORKOUT│ │RUNS │ │     latest run's bbox centre, z14           │
 │ └───────┘ └──────────────┘ └─────┘ │     (D-249), in the PANE's centre           │
@@ -340,14 +342,14 @@ window there.
 |---|---|---|
 | Cold start, cached | Cached totals immediately | Cached basemap + last `explored-r11.<gen>.bin` (D-237) from IndexedDB, drawn before any network call |
 | Fresh import waiting | `1 new run — open it` in ink text with an `--accent-text` rule, never gold text *(D-148, D-335)*. Its pulse fires once per run per page load — a reload is a cold open *(D-319)* — and the line itself stays until the run is seen; it never turns red or repeats | Only the run's NEW cells held back; re-crossed ground stays clear, because the map never re-fogs *(D-319, D-020)*. The reveal belongs to §3. While the hold is pending — the latest-run answer does not yet speak for the explored set on screen — the fog keeps its last drawn frame *(D-333)* |
-| Nothing ever imported, no source connected | `Connect <source> to begin` — the only call to action in the app. A connected account still awaiting its first import is told nothing *(D-320)* | Parchment, unfogged, centred on the configured home, else the extract bounds (D-249's precedence with no run to frame). Never device location: a desktop browser's geolocation is an IP guess and a permission prompt |
+| Nothing ever imported, no source connected | `Connect <source> to begin` — the only call to action in the app. A connected account still awaiting its first import is told nothing *(D-320)* | The basemap, unfogged, centred on the configured home, else the extract bounds (D-249's precedence with no run to frame). Never device location: a desktop browser's geolocation is an IP guess and a permission prompt |
 | Broken token | The ordinary plinth, plus the `<source> needs reconnecting` caption under the Sync line (§2.2 row 12, D-337); the last-run line still shows the last run | Identical |
 | Sync in progress | The button reads `Syncing…`; the status line beneath it `Checking for new activities…`, then `N activities queued.` or nothing (D-318) | Identical; no overlay, nothing blocked but the button |
 | Three weeks idle | Identical to any other day | Identical |
-| Offline | Everything above, from cache, with no error chrome | Cached tiles; missing tiles render as flat parchment, never as grey checkerboard |
+| Offline | Everything above, from cache, with no error chrome | Cached tiles; missing tiles render as the flat basemap background (D-373; was "flat parchment"), never as grey checkerboard |
 
 The empty state deserves a note: with no territory, the map is *all* fog and reads as broken.
-So before the first import, fog is not drawn at all — the parchment map sits there clean, and
+So before the first import, fog is not drawn at all — the street map sits there clean, and
 the fog arrives, for the first time, as part of the first reveal. The first thing the fog ever
 does is burn back.
 
@@ -976,13 +978,14 @@ is D-051 discharged, and it is the reason atlas exists at all.
 
 - **First paint is from cache, always** (§2.4): the last `explored-r11.<gen>.bin` (D-237) and cached tiles
   from IndexedDB render before any network call. The map is never blank while a request is in flight.
-- **Missing tiles render as flat parchment**, never as a grey checkerboard and never as a spinner
+- **Missing tiles render as the flat basemap background** *(stock `light`'s, D-373; this said
+  "flat parchment")*, never as a grey checkerboard and never as a spinner
   over the map. A hole in the basemap is a cosmetic gap; a checkerboard is an error message about
   something the user cannot fix.
 - **Fog never waits on tiles.** Coverage is client-side and draws over whatever basemap has
   arrived, so an offline map still shows the correct shape of your territory.
 - **WebGL context loss** (05 §4.5) rebuilds silently. If the rebuild fails, the map falls back to
-  a static parchment basemap with the trace web drawn as plain DOM-free canvas lines, and the
+  a static basemap *(stock colours, D-373)* with the trace web drawn as plain DOM-free canvas lines, and the
   plinth is untouched. The numbers never depend on the graphics (§3.4).
 - **The desktop is not a case here any more — it is the document** (D-251, D-313). This bullet
   used to be the whole desktop adaptation ("the plinth becomes a fixed left rail at ≥1024px");
@@ -1489,7 +1492,10 @@ is worth restating because it governs the chrome too:
 > a framebuffer readback — expensive, awkward, and it discards the additive-only shader
 > (05 §5.1).
 
-So the map is **warm parchment with near-black-blue fog**, in both themes, forever. The
+So the map is **warm parchment with near-black-blue fog**, in both themes, forever. *(D-373: the
+map's ground is now stock Protomaps `light`, not parchment — the operator rejected the parchment
+recolouring as a filter over the map. It is still a light ground under dark fog, so the argument
+above stands; the chrome below keeps its parchment.)* The
 consequence for this section is that **UI chrome must sit comfortably against parchment first**,
 and against dark fog second — not the other way round. The dark fantasy lives in the *ink*, the
 *fog*, the *gold*, and the type; it does not live in a dark background behind the map.
@@ -1568,7 +1574,8 @@ plinth's `1 new run` rule and pulse, the Chronicle row's inset — are `--accent
 
 **The dark theme does not darken the map.** It restyles chrome and switches the basemap to its
 *night parchment* variant — the same tiles at −8% lightness and +4% warmth — because a dark
-basemap breaks the reveal (§8.1). Theme follows the system. ~~It has a manual override in
+basemap breaks the reveal (§8.1). *(D-373: there is no night parchment; the basemap is stock
+`light` in both themes, which is what "does not darken the map" already required.)* Theme follows the system. ~~It has a manual override in
 `/settings`~~ — *amended by ticket `0089`: `/settings` holds no preference control of any kind, so
 the app offers no visual preference at all.*
 
@@ -1783,7 +1790,7 @@ critical path to seeing your map.**
 - **There is no offline banner.** The plinth already shows *"Last: Thu · 8.4 km"*, which is the
   honest freshness signal — the date of the most recent thing the app knows about. A banner
   announcing a condition the user cannot fix is chrome that exists to blame the world.
-- **Missing tiles are flat parchment, never a checkerboard, never a spinner** (§4.8).
+- **Missing tiles are the flat basemap background, never a checkerboard, never a spinner** (§4.8, D-373).
 - **Writes never block.** Workout logs (§6.4) go to IndexedDB and flush on a queue with
   idempotency keys. There is no sync UI in the app (the `/dev/tickets` `n pending` badge went with
   D-252).

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { basemapStyle, registerPmtilesProtocol } from "@/lib/basemap"
-import { documentMapPalette } from "@/lib/basemap-style"
 import { basemapVariant, perfEnabled, revealScrubEnabled } from "@/lib/fog/debug-flags"
 import type { HOLD_PENDING } from "@/lib/fog/home-territory"
 import type { FogMaskLayer } from "@/lib/fog/mask-layer"
@@ -297,7 +296,7 @@ export function MapShell({
         container: container.current,
         // `0097`. Adventure unless `?basemap=atlas`; the saved toggle is `0098`. Read once, on
         // creation: a variant is a different style, never a live swap of this one.
-        style: basemapStyle(basemapVariant(window.location.search), documentMapPalette()),
+        style: basemapStyle(basemapVariant(window.location.search)),
         center: [camera.current.lng, camera.current.lat],
         zoom: camera.current.zoom,
         bearing: camera.current.bearing,
