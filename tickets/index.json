@@ -4911,13 +4911,14 @@
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
-      119
+      119,
+      97
     ],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-28T12:27:56Z",
     "path": "tickets/open/0210-make-the-frontier-rim-visible.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 4
@@ -4938,6 +4939,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-28T12:27:56Z",
+    "started": "2026-10-19T13:08:43Z",
     "path": "tickets/open/0211-fog-edge-reads-as-disc-outlines.md",
     "ready": true,
     "acceptance": {

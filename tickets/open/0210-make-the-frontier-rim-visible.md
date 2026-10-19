@@ -7,7 +7,7 @@ priority: low
 status: open
 size: m
 capability: 15-two-map-modes-and-cold-territory
-depends_on: [119]
+depends_on: [119, 97]
 blocked_by: []
 source: agent
 created: 2026-09-28T12:27:56Z
