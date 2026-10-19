@@ -1121,8 +1121,15 @@ layer when it exists, and under `run-glow` otherwise (`lib/map-layers.ts` `fogBe
 **The permanent trace web goes under everything above** (D-299; *amended by D-307, `12` audit,
 2026-10-15*): `trace-web` and `trace-web-before`, and beat 1's `trace-ink` on a no-new-ground run,
 sit above the basemap's roads and **below its first label layer** (`lib/trace-web/layer.ts`
-`traceBeforeId`). That puts them below the fog, so unexplored ground hides old routes the same way
-it hides labels. Beat 1's own `run-ink-*` pair is appended on top, beside the route.
+`traceBeforeId`). In adventure that puts them below the fog, so unexplored ground hides old routes
+the same way it hides labels. Beat 1's own `run-ink-*` pair is appended on top, beside the route.
+
+**Atlas puts its labels and a 0.5-opacity copy of the road fills above the fog** (§5.2, ticket
+`0097`). Those layers carry `ABOVE_FOG_METADATA` and `fogBeforeId` inserts the fog under the first
+of them. The rule "below the first label" is unchanged, so in atlas the trace web lands between
+the road copy and the labels — **above the fog** *(operator call at `0097`, amending D-307 for
+atlas)*: below it, the road copy would wash the web to half strength on the very streets it runs
+along. Landmarks and the route stay above everything in both variants.
 
 Route colour must survive both backgrounds: warm cream core `#fff2d0` with an amber glow reads on
 parchment *and* against dark fog. Pure white blows out on parchment; pure red vanishes into it.

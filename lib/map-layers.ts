@@ -6,10 +6,13 @@ import type { RunFeatureCollection } from "@/lib/runs/wire"
  *
  * Two rules, and the mechanic depends on both:
  *
- *   1. **The fog sits above the basemap AND ITS LABELS.** A fog layer inserted below the symbol
- *      layers leaves street names and place names floating over undiscovered ground. That reads
- *      as a rendering bug, and it hands the operator the map's answers for free — most of the
- *      "uncovering the world" feeling is names you cannot read yet.
+ *   1. **The fog sits above the basemap AND ITS LABELS** — in adventure. A fog layer inserted
+ *      below the symbol layers leaves street names and place names floating over undiscovered
+ *      ground, and most of the "uncovering the world" feeling is names you cannot read yet.
+ *      **Atlas is the one exception, and it is the style's to declare** (`0097`, 05 §5.2): its
+ *      labels and a 0.5-opacity copy of the road grid sit ABOVE the fog, so every street stays
+ *      readable for planning. Those layers carry `ABOVE_FOG_METADATA`, and the fog goes in under
+ *      the first of them. Adventure tags nothing, so rule 1 holds there unchanged.
  *   2. **The route sits above the fog.** Your own trace is always visible, including over ground
  *      whose cells have not been written: a run that is still syncing must still draw its line.
  *
@@ -36,6 +39,20 @@ export const RUN_CORE_ID = "run-core"
 
 /** `0260`. The recorded landmarks' symbol layer (`lib/landmarks/markers.ts`). Above fog, below route. */
 export const LANDMARK_LAYER_ID = "landmarks"
+
+/**
+ * `0097`. A basemap layer carrying this metadata belongs ABOVE the fog — atlas's labels and its
+ * road-grid copy. Metadata rather than an id list, because the style module derives those layers
+ * from upstream's generator and this module must not know their names.
+ */
+export const ABOVE_FOG_KEY = "lost-soles:above-fog"
+export const ABOVE_FOG_METADATA = { [ABOVE_FOG_KEY]: true } as const
+
+/** Whether a style layer declares itself above the fog. */
+export function isAboveFogLayer(layer: { metadata?: unknown }): boolean {
+  const m = layer.metadata
+  return typeof m === "object" && m !== null && (m as Record<string, unknown>)[ABOVE_FOG_KEY] === true
+}
 
 /** Bottom to top. The route's own two layers, in the order they must be added. */
 export const RUN_LAYER_IDS = [RUN_GLOW_ID, RUN_CORE_ID] as const
@@ -169,7 +186,15 @@ export interface LayerHost {
  * put the fog over the route on exactly those paths — the route would vanish into the mist it is
  * supposed to be drawn on top of, intermittently, which is the worst kind of ordering bug.
  */
-export function fogBeforeId(host: Pick<LayerHost, "getLayer">): string | undefined {
+export function fogBeforeId(
+  host: Pick<LayerHost, "getLayer"> & {
+    getStyle?(): { layers?: ReadonlyArray<{ id: string; metadata?: unknown }> } | undefined
+  },
+): string | undefined {
+  // `0097`: atlas's labels and road-grid copy declare themselves above the fog; the fog goes under
+  // the first. They sit below the landmarks and the route, so neither rule below is disturbed.
+  const slot = host.getStyle?.()?.layers?.find(isAboveFogLayer)?.id
+  if (slot) return slot
   // `0260`: the landmarks sit under the route, so when they exist they are the lower insertion point.
   if (host.getLayer(LANDMARK_LAYER_ID)) return LANDMARK_LAYER_ID
   return host.getLayer(RUN_GLOW_ID) ? RUN_GLOW_ID : undefined
@@ -219,6 +244,23 @@ export function lastSymbolIndex(layers: ReadonlyArray<{ type: string }>): number
 export function fogIsAboveAllSymbols(layers: ReadonlyArray<{ id: string; type: string }>): boolean {
   const fog = layers.findIndex((l) => l.id === FOG_LAYER_ID)
   return fog !== -1 && fog > lastSymbolIndex(layers)
+}
+
+/**
+ * `0097`, criterion 3, as a predicate for either variant: every layer that declares itself above
+ * the fog is above it, and every other layer of the basemap's own source is below it.
+ */
+export function fogSplitsBasemap(
+  layers: ReadonlyArray<{ id: string; type: string; source?: unknown; metadata?: unknown }>,
+  basemapSource: string,
+): boolean {
+  const fog = layers.findIndex((l) => l.id === FOG_LAYER_ID)
+  if (fog === -1) return false
+  return layers.every((l, i) => {
+    if (isAboveFogLayer(l)) return i > fog
+    if (l.type === "background" || l.source === basemapSource) return i < fog
+    return true
+  })
 }
 
 /** Criterion 3, as a predicate: both route layers sit above the fog, glow under core. */

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { basemapStyle } from "@/lib/basemap"
+import { mapPaletteFrom } from "@/lib/basemap-style"
 import { AT_ZOOM, HOME_ZOOM } from "@/lib/map-camera"
 import {
   FOG_LAYER_ID,
@@ -88,7 +89,7 @@ class FakeMap {
   }
 }
 
-const style = () => basemapStyle().layers as unknown as Layer[]
+const style = () => basemapStyle("adventure", mapPaletteFrom(token)).layers as unknown as Layer[]
 const fog = (): Layer => ({ id: FOG_LAYER_ID, type: "custom" })
 const empty = { type: "FeatureCollection" as const, features: [] }
 const ROUTE = routePaletteFrom(token)

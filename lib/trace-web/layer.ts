@@ -62,7 +62,15 @@ export interface TraceHost {
   getStyle(): { layers?: ReadonlyArray<{ id: string; type: string }> } | undefined
 }
 
-/** The first label layer, which every trace layer goes under. `undefined`: no labels, so on top. */
+/**
+ * The first label layer, which every trace layer goes under. `undefined`: no labels, so on top.
+ *
+ * `0097`: in ATLAS that first label is above the fog, and so is the 0.5-opacity road-grid copy just
+ * below it, so the web lands between the two — above the fog. That is deliberate (operator call,
+ * amending D-307 for atlas): a web below the fog would sit under the road copy and be washed to
+ * half strength on the very streets it runs along. In adventure the labels are below the fog, so
+ * the web is too, unchanged.
+ */
 export function traceBeforeId(host: Pick<TraceHost, "getStyle">): string | undefined {
   return host.getStyle()?.layers?.find((l) => l.type === "symbol")?.id
 }

@@ -1,14 +1,19 @@
-import { layers, namedFlavor } from "@protomaps/basemaps"
 import { Protocol } from "pmtiles"
 
 import outputs from "@/amplify_outputs.json"
+import {
+  parchmentLayers,
+  type BasemapVariant,
+  type MapPalette,
+} from "@/lib/basemap-style"
 
 /**
  * THE ONE PLACE THE APP KNOWS WHERE THE GROUND COMES FROM. Ticket 0052, D-226.
  *
  * 0052's Notes require exactly this: capability 15 swaps the stock flavour for the
- * parchment fork by changing this module and nothing else. A tile URL or a colour
- * literal anywhere in a component is what makes that a refactor instead of an edit.
+ * parchment fork (`0097`, `lib/basemap-style.ts`) by changing this module and nothing
+ * else. A tile URL or a colour literal anywhere in a component is what makes that a
+ * refactor instead of an edit.
  */
 
 /**
@@ -82,17 +87,14 @@ export function registerPmtilesProtocol(maplibre: {
 }
 
 /**
- * The stock `light` flavour, unmodified — 0052 makes "a diff against the published
- * style is empty" an acceptance criterion, and `basemap-style.test.ts` asserts it
- * layer for layer against `@protomaps/basemaps` itself.
+ * The parchment style (ticket `0097`), in the variant asked for. The colours, label density and
+ * the atlas variant's above-fog layers are `lib/basemap-style.ts`'s; this function only binds them
+ * to the ONE source and the ONE archive. Both variants share both (05 §5.2).
  *
- * THE GROUND IS GENERIC ON PURPOSE. `09-roadmap.md` §2.3 calls it "present but ugly",
- * which is a statement of intent and not a defect report: the parchment fork is
- * capability 15, deliberately after the milestone, because colour work must never
- * delay the reveal. Do not add an override here. The correct place for the first one
- * is capability 15's fork, and the test below will fail if it lands early.
+ * `palette` is resolved by the caller — `documentMapPalette()` in the browser, the real
+ * `app/tokens.css` in a test — because a MapLibre paint value cannot be a CSS variable.
  */
-export function basemapStyle() {
+export function basemapStyle(variant: BasemapVariant, palette: MapPalette) {
   return {
     version: 8 as const,
     glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
@@ -104,6 +106,6 @@ export function basemapStyle() {
         attribution: BASEMAP_ATTRIBUTION,
       },
     },
-    layers: layers(BASEMAP_SOURCE, namedFlavor("light"), { lang: "en" }),
+    layers: parchmentLayers(BASEMAP_SOURCE, variant, palette),
   }
 }

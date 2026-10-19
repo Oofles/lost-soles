@@ -14,6 +14,7 @@ vi.mock("@/amplify_outputs.json", () => ({
 }))
 
 const { basemapStyle } = await import("./basemap")
+const { mapPaletteFrom } = await import("./basemap-style")
 const { FogMaskLayer } = await import("./fog/mask-layer")
 const {
   FOG_LAYER_ID,
@@ -81,7 +82,7 @@ class FakeMap {
   }
 }
 
-const style = () => basemapStyle().layers as unknown as Layer[]
+const style = () => basemapStyle("adventure", mapPaletteFrom(token)).layers as unknown as Layer[]
 const empty = { type: "FeatureCollection" as const, features: [] }
 
 /**

@@ -1,3 +1,5 @@
+import { BASEMAP_VARIANTS, DEFAULT_BASEMAP_VARIANT, type BasemapVariant } from "@/lib/basemap-style"
+
 /**
  * THE `?fog=` DEBUG FLAGS, IN ONE PLACE. Tickets `0054` and `0055`.
  *
@@ -67,6 +69,16 @@ export function noiseDebugEnabled(search: string): boolean {
  */
 export function fogDisabled(search: string): boolean {
   return fogFlags(search).has("off")
+}
+
+/**
+ * `0097` — `?basemap=atlas` or `?basemap=adventure`: force-load one parchment variant. Its own
+ * parameter, not a `?fog=` flag: it picks the ground, not a view of the fog. Anything else, or
+ * nothing, is the default (adventure, 05 §5.3). The real toggle, with its saved mode, is `0098`.
+ */
+export function basemapVariant(search: string): BasemapVariant {
+  const raw = new URLSearchParams(search).get("basemap")?.trim().toLowerCase()
+  return BASEMAP_VARIANTS.find((v) => v === raw) ?? DEFAULT_BASEMAP_VARIANT
 }
 
 /** Either debug view shows the HUD. `0055`'s cell-count readout is useful under both. */

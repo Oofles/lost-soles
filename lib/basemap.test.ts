@@ -1,5 +1,8 @@
-import { layers, namedFlavor } from "@protomaps/basemaps"
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it, vi } from "vitest"
+
+import { cssTokenReader, mapPaletteFrom, parchmentLayers } from "./basemap-style"
 
 /**
  * `@/amplify_outputs.json` is gitignored and generated per environment, so its content
@@ -11,8 +14,14 @@ vi.mock("@/amplify_outputs.json", () => ({
   default: { custom: { basemapTilesUrl: "https://dexample123.cloudfront.net" } },
 }))
 
-const { BASEMAP_ARCHIVE, basemapArchiveUrl, basemapStyle, registerPmtilesProtocol } =
+const { BASEMAP_ARCHIVE, BASEMAP_SOURCE, basemapArchiveUrl, basemapStyle: styleFor, registerPmtilesProtocol } =
   await import("./basemap")
+
+/** The real palette file, so these assertions run against the colours that ship. */
+const PALETTE = mapPaletteFrom(
+  cssTokenReader(readFileSync(new URL("../app/tokens.css", import.meta.url), "utf8")),
+)
+const basemapStyle = (variant: "atlas" | "adventure" = "adventure") => styleFor(variant, PALETTE)
 
 describe("pmtiles protocol registration (0052)", () => {
   /**
@@ -37,22 +46,18 @@ describe("pmtiles protocol registration (0052)", () => {
   })
 })
 
-describe("basemap style (0052)", () => {
+describe("basemap style (0052, forked by 0097)", () => {
   /**
-   * THE CRITERION THIS FILE EXISTS FOR: "The style is stock @protomaps/basemaps
-   * light, pinned to an exact version, with ZERO local colour overrides — a diff
-   * against the published style is empty."
-   *
-   * Asserted by recomputing the published layers from the package and comparing the
-   * whole array. A single re-tinted road casing fails this, which is the point:
-   * D-051 says legibility beats atmosphere, and 09-roadmap.md §2.3 puts the parchment
-   * fork in capability 15, AFTER the milestone. An override landing here early is a
-   * schedule decision made by accident.
+   * 0052's criterion was "a diff against the published style is empty". 0097 is the fork that
+   * criterion was holding the place for, so what is asserted now is that `basemapStyle` binds
+   * the fork — `lib/basemap-style.ts`, tested in `basemap-style.test.ts` — and nothing else.
    */
-  it("is byte-identical to the published light flavour", () => {
-    expect(basemapStyle().layers).toStrictEqual(
-      layers("protomaps", namedFlavor("light"), { lang: "en" }),
-    )
+  it("is the parchment fork, in the variant asked for", () => {
+    for (const variant of ["atlas", "adventure"] as const) {
+      expect(basemapStyle(variant).layers).toStrictEqual(
+        parchmentLayers(BASEMAP_SOURCE, variant, PALETTE),
+      )
+    }
   })
 
   it("carries a non-trivial number of layers — an empty style would also 'match'", () => {
