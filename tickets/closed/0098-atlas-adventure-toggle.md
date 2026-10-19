@@ -4,7 +4,7 @@ slug: atlas-adventure-toggle
 title: The atlas / adventure toggle — uniforms, style variants, 320 ms cross-fade
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [97, 59]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-19T15:53:10Z
+closed: 2026-10-19T20:37:39Z
 ---
 
 ## Description

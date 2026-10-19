@@ -2392,7 +2392,7 @@
     "title": "The atlas / adventure toggle — uniforms, style variants, 320 ms cross-fade",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -2403,8 +2403,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-19T15:53:10Z",
-    "path": "tickets/open/0098-atlas-adventure-toggle.md",
-    "ready": true,
+    "closed": "2026-10-19T20:37:39Z",
+    "path": "tickets/closed/0098-atlas-adventure-toggle.md",
+    "ready": false,
     "acceptance": {
       "checked": 7,
       "total": 7
@@ -2426,7 +2427,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0099-mode-parity-invariant-tests.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6
@@ -2472,7 +2473,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0101-map-controls-and-run-inspection.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -5905,7 +5906,7 @@
     "source": "agent",
     "created": "2026-10-13T15:53:19Z",
     "path": "tickets/open/0254-beat-1-mode-crossfade.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5
