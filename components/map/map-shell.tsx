@@ -20,11 +20,15 @@ import {
   writeCamera,
   type Camera,
 } from "@/lib/map-camera"
-import { RUN_GLOW_ID } from "@/lib/map-layers"
+import { lockOrientation, MAP_INPUT_OPTIONS, settleZoom, ZOOM_SETTLE_MS } from "@/lib/map-controls"
+import { RUN_GLOW_ID, RUN_SOURCE_ID } from "@/lib/map-layers"
 import { MODE_FRAMES, startModeTransition, type MapMode, type ModeFrame, type ModeTransition } from "@/lib/map-mode"
 import { log } from "@/lib/log"
+import { selectedCollection, type IndexedRun } from "@/lib/route-inspect"
 import type { RunFeatureCollection } from "@/lib/runs/wire"
+import { RUN_PAGE_TRACE_K } from "@/lib/trace-web/layer"
 
+import { MapControls } from "./map-controls"
 import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
 import { RegionJump } from "./region-jump"
@@ -360,7 +364,13 @@ export function MapShell({
         style: basemapStyle(initialMode),
         center: [camera.current.lng, camera.current.lat],
         zoom: camera.current.zoom,
-        bearing: camera.current.bearing,
+        /**
+         * `0101`. North-up, always, and flat — whatever a camera stored before the lock says. The
+         * rotation and tilt handlers are off in `MAP_INPUT_OPTIONS`, at the options level (§4.4).
+         */
+        bearing: 0,
+        pitch: 0,
+        ...MAP_INPUT_OPTIONS,
         /**
          * `Math.min(devicePixelRatio, 2)` — the ticket's cheapest mobile win. A 3x phone
          * gains essentially nothing on a soft mist effect and costs 2.25x the composite
@@ -369,6 +379,9 @@ export function MapShell({
         pixelRatio: Math.min(window.devicePixelRatio, 2),
         attributionControl: { compact: false },
       })
+
+      // `0101`. The two rotations MapLibre has no option for: Shift+arrows and a two-finger twist.
+      lockOrientation(instance)
 
       map.current = instance
       // `once`, not `on`: a style change re-fires `load`, and a second setState with the same
@@ -390,12 +403,22 @@ export function MapShell({
       })
 
       instance.on("moveend", () => {
+        /**
+         * `0101`. THE RUBBER BAND. A gesture may carry the zoom half a level past z10 or z18
+         * (`MAP_INPUT_OPTIONS`); on release it eases back inside, so neither bound hard-stops
+         * (§4.4). The settle's own `moveend` is the one that stores the camera.
+         */
+        const settled = settleZoom(instance.getZoom())
+        if (settled !== null) {
+          instance.easeTo({ zoom: settled, duration: prefersReducedMotion() ? 0 : ZOOM_SETTLE_MS })
+          return
+        }
         const centre = instance.getCenter()
         camera.current = {
           lng: centre.lng,
           lat: centre.lat,
           zoom: instance.getZoom(),
-          bearing: instance.getBearing(),
+          bearing: 0,
         }
         if (!framed) writeCamera(camera.current)
       })
@@ -585,8 +608,28 @@ export function MapShell({
     if (loaded) applyModeFrame(loaded, fogLayerRef.current, frame.current)
   }, [loaded, runs])
 
-  /** Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). */
-  useTraceWeb(loaded)
+  /**
+   * Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). `0101`: on a
+   * run's page it dims beneath the selected run, so a path run once reads 0.18 (`06` §4.5).
+   */
+  useTraceWeb(loaded, framed ? RUN_PAGE_TRACE_K : 1)
+
+  /**
+   * `0101`. THE SELECTED RUN ON `/`: the latest, unless a click on one route line picked another
+   * (`MapControls`, `06` §4.5). Declared after `useLatestRun`, so on a commit that carries both, this
+   * effect writes last and the inspected run stays drawn; dismissing it gives the line back.
+   */
+  const [inspected, setInspected] = useState<IndexedRun | null>(null)
+  useEffect(() => {
+    if (!loaded || framed) return
+    try {
+      const source = loaded.getSource(RUN_SOURCE_ID) as { setData?: (d: unknown) => void } | undefined
+      source?.setData?.(inspected ? selectedCollection(inspected) : runs)
+      loaded.triggerRepaint()
+    } catch (error) {
+      log.warn(`map: could not draw the selected run: ${(error as Error).message}`)
+    }
+  }, [loaded, framed, runs, inspected])
 
   /**
    * Ticket `0260`. Every recorded cairn and shrine, above the fog and under the route. Home only: a
@@ -621,7 +664,7 @@ export function MapShell({
     const at = parseAt(window.location.search)
     if (!at) return
     centredOnRun.current = true
-    loaded.flyTo({ center: [at.lng, at.lat], zoom: at.zoom, bearing: at.bearing })
+    loaded.flyTo({ center: [at.lng, at.lat], zoom: at.zoom, bearing: 0 })
     const url = new URL(window.location.href)
     url.searchParams.delete("at")
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
@@ -637,7 +680,7 @@ export function MapShell({
     })
     if (!target) return
     centredOnRun.current = true
-    loaded.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: target.bearing })
+    loaded.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: 0 })
   }, [loaded, runs, framed])
 
   if (unsupported) {
@@ -666,6 +709,8 @@ export function MapShell({
           }}
         />
       )}
+      {/* Ticket 0101. Home only: fit-to-territory and `⌖` on the pane, and inspecting a run by clicking its line. */}
+      {framed ? null : <MapControls map={loaded} latest={runs} onSelect={setInspected} />}
       <div
         ref={container}
         style={framed ? framedShell : paneClassName ? undefined : shell}

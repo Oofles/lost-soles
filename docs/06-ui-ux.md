@@ -288,8 +288,9 @@ focus ring.
 rail goes away and its content stacks, unchanged and in the same order, as an opaque card over
 the bottom of a map that now fills the window: 16px side insets, its bottom edge clear of the
 MapLibre attribution (36px; D-315), full width less 32px, 8px radius,
-capped at 55% of the window height and scrolling beyond. The right-edge map controls sit 16px
-above that card.
+capped at 55% of the window height and scrolling beyond. The right-edge map controls stack
+down the right edge under `⚙` and jump-to *(`0101`: the card's height varies with its content, so
+"16px above the card" has no fixed position; under jump-to it cannot collide with the card)*.
 
 **The plinth belongs to `/` only.** `/run/:id` is §3's, and its ledger owns the bottom of the
 window there.
@@ -816,8 +817,8 @@ wrong even if it looks good:
 
 | Input | Does | Notes |
 |---|---|---|
-| Drag | Pan | Inertia on, rubber-band at bounds |
-| Wheel, or trackpad pinch | Zoom, anchored at the cursor | z10 → z18 |
+| Drag | Pan | Inertia on. The rubber band is on the zoom bounds; there are no pan bounds |
+| Wheel, or trackpad pinch | Zoom, anchored at the cursor | z10 → z18. A gesture may carry half a level past either bound, then eases back in 250 ms (`lib/map-controls.ts`) |
 | Double-click | Zoom in one step, anchored at the cursor | |
 | Arrow keys · `+` / `−` | Pan · zoom one step | While the map has focus (§2.2's focus order) |
 | `M`, or a click on either row of the toggle | **Toggle atlas / adventure** | §4.2. Not a long-press (D-253) |
@@ -825,7 +826,7 @@ wrong even if it looks good:
 | Click on a route line | Inspect that run (§4.5) | 24px hit slop |
 | Click on empty map | **Nothing** | Deliberate. See below |
 | Click `⌖` | Recentre on the last run's end point, z14 | |
-| Click fit-to-territory (beside `⌖`) | Fit the whole territory in view | The "look what I've done" control. Its own button, not a long-press on `⌖` (D-253) |
+| Click fit-to-territory (beside `⌖`) | Fit the whole territory in view | The "look what I've done" control. Its own button, not a long-press on `⌖` (D-253). It frames the box of every traced point. When that box needs a zoom below z10, the z10 floor wins and it frames the region in view instead (D-381's clusters); jump-to reaches the others (`0101`) |
 | `Esc` | Dismiss the §4.5 card or chip | |
 
 **Dropped with the phone (D-253):** two-finger tap to zoom out, long-press anything, and the
@@ -848,17 +849,25 @@ map into a database browser. The one piece of that information that helps you de
 
 ### 4.5 Routes over fog, and inspecting a past run
 
-**Three route layers, all above the fog** (05 §4.4 fixes the order and the colours):
+**Three route layers** (05 §4.4 fixes the order and the colours). *Rewritten to what shipped
+(`0101`; D-299, D-368, `0098` Q4): the selected run is above the fog and topmost in both modes; the
+trace web is above the fog in atlas only, and below it in adventure, where unexplored ground hides
+old routes as it hides labels.*
 
 | Layer | What it is | Atlas | Adventure |
 |---|---|---|---|
-| **Trace web** | Every run you have ever done, accumulated (§3.5) | `--ink-300` @ 0.34, 1.5dp | `--ink-300` @ 0.22, 1.5dp |
-| **Selected run** | The run being looked at | 2dp `--ink-800`, hard edges | 2.5dp `#fff2d0` core + 12dp `#ffb347` glow @ 0.35 |
+| **Trace web** | Every run you have ever done, accumulated (§3.5) | `--trace-line` (`--ink-300`), 2px, opacity = k × wear (D-299: 0.28 / 0.36 / 0.44 / 0.52 / 0.60 for 1 / 2 / 3–4 / 5–8 / 9+ runs). **Above the fog**, between atlas's road copy and its labels (D-368) | The same paint. **Below the fog**, under the first label (D-299, D-307) |
+| **Selected run** | The run being looked at | 2.5px `--route-line` (`#fff2d0`) core; the glow faded to 0 (`0098` Q4). Topmost | 2.5px `--route-line` core + 12px `--route-glow` (`#ffb347`) glow @ 0.35, blur 10. Topmost |
 | **Live corridor** | A run that just landed, drawn into the mask as a thick soft line before the server's cells round-trip (05 §4.4) | — | — |
 
-On `/` the trace web is always drawn and **the last run is the selected run.** On `/run/:id` the
-selected run is that run and the web dims to 0.18 beneath it, so the line you came to see is
-unambiguous.
+The route's colours are one constant pair (`app/tokens.css`, `lib/map-layers.ts`) in both modes. Only
+the glow's opacity is per mode, and it cross-fades with the toggle (D-374).
+
+On `/` the trace web is always drawn (k = 1) and **the last run is the selected run.** On `/run/:id`
+the selected run is that run and the web dims beneath it, so the line you came to see is
+unambiguous. The dim is proportional, k = 0.18 / 0.28: a path run once reads 0.18, and worn ground
+stays proportionally darker (`0101`). Beat 1 cross-fades within that k, and when it ends the web
+returns to it, not to 1.
 
 Route colour is fixed by 05 §4.4 and is not a palette choice: warm cream core with an amber glow
 is the one combination that survives *both* parchment and near-black fog. Pure white blows out on
@@ -885,7 +894,11 @@ parchment; pure red disappears into it.
 
 - One match → skip the card, highlight that run immediately and show a one-line chip with the
   same three facts, clickable through to `/run/:id`.
-- Rows are 32px. The card holds five rows then scrolls; it never becomes a panel.
+- Rows are 32px (D-313). The card holds five rows then scrolls; it never becomes a panel. A row
+  reads `Thu 28 Aug · 8.40 km · 21 new`; the year joins the date only when it is not this year.
+  The facts come from `GET /api/runs/summary?ids=…` (`0101`): session-gated, `no-store, private`,
+  at most 25 ids a request, and a run that is not the caller's is left out, the same as one that
+  does not exist. Until they arrive a row shows its date alone.
 - Click a row → `/run/:id` **end state** (§3.3), *not* the sequence. The sequence auto-plays once,
   on import, and never ambushes you again (§3.1). `⟲ Relive` in the end state is the only way to
   replay it, and it is a deliberate act.

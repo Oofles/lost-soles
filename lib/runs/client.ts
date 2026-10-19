@@ -1,6 +1,15 @@
 import type { WebRunInput } from "@/lib/trace-web/web"
 
-import { EMPTY_COLLECTION, RUNS_LATEST_PATH, RUNS_WEB_PATH, type RunFeatureCollection } from "./wire"
+import {
+  EMPTY_COLLECTION,
+  RUNS_LATEST_PATH,
+  RUNS_SUMMARY_IDS_PARAM,
+  RUNS_SUMMARY_MAX_IDS,
+  RUNS_SUMMARY_PATH,
+  RUNS_WEB_PATH,
+  type RunFacts,
+  type RunFeatureCollection,
+} from "./wire"
 
 /**
  * THE BROWSER HALF OF `/api/runs/latest`. Ticket `0057`. `05-fog-of-war.md` §4.4.
@@ -76,4 +85,25 @@ export async function fetchTraceWebRuns(fetchImpl: Fetch = globalThis.fetch): Pr
   }
   const body = (await response.json()) as { runs?: unknown }
   return Array.isArray(body?.runs) ? (body.runs as WebRunInput[]) : []
+}
+
+/**
+ * `0101`. The facts for the runs a click on the map hit, in requests of at most
+ * `RUNS_SUMMARY_MAX_IDS`. Same contract as above: a 404 is a signed-out map and reads as "no facts";
+ * any other failure throws. An id the server does not answer for is simply absent.
+ */
+export async function fetchRunFacts(ids: readonly string[], fetchImpl: Fetch = globalThis.fetch): Promise<RunFacts[]> {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += RUNS_SUMMARY_MAX_IDS) chunks.push(ids.slice(i, i + RUNS_SUMMARY_MAX_IDS))
+  const answers = await Promise.all(
+    chunks.map(async (chunk) => {
+      const url = `${RUNS_SUMMARY_PATH}?${RUNS_SUMMARY_IDS_PARAM}=${chunk.map(encodeURIComponent).join(",")}`
+      const response = await fetchImpl(url, { credentials: "same-origin", cache: "no-store" })
+      if (response.status === 404) return []
+      if (!response.ok) throw new RunFetchError(response.status, `GET ${RUNS_SUMMARY_PATH} returned ${response.status}`)
+      const body = (await response.json()) as { runs?: unknown }
+      return Array.isArray(body?.runs) ? (body.runs as RunFacts[]) : []
+    }),
+  )
+  return answers.flat()
 }

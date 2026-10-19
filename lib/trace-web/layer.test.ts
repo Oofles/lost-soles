@@ -9,6 +9,8 @@ import { lanternPath } from "@/lib/run-moment/lantern-path"
 
 import {
   installWebBeat,
+  RUN_PAGE_TRACE_K,
+  setTraceK,
   setTraceWeb,
   TRACE_BEFORE_LAYER_ID,
   TRACE_INK_LAYER_ID,
@@ -16,10 +18,11 @@ import {
   traceBeforeId,
   traceColorFrom,
   traceIsBetweenBasemapAndRoute,
+  traceK,
   traceOpacity,
   type TraceHost,
 } from "./layer"
-import { EMPTY_WEB, WEAR_MAX } from "./web"
+import { EMPTY_WEB, WEAR, WEAR_MAX } from "./web"
 
 /** Ticket `0085`. The trace layer's place in the stack and beat 1's two seams. Point Nemo (D-199). */
 
@@ -97,6 +100,52 @@ describe("beat 1's web, before and after this run", () => {
     beat.remove()
     expect(stack.some((l) => l.id === TRACE_BEFORE_LAYER_ID)).toBe(false)
     expect(paint.at(-1)).toEqual([TRACE_LAYER_ID, "line-opacity", traceOpacity(1)])
+  })
+})
+
+/**
+ * `0101`. ON `/run/:id` THE WEB DIMS TO 0.18 beneath the selected run (`06` §4.5): a proportional
+ * dim, so a path run once reads 0.18 and worn ground stays proportionally darker. Beat 1 fades
+ * within it, and its `remove()` restores it — never a hard 1.
+ */
+describe("the run page's dimmed web (0101)", () => {
+  it("is a proportional k: a path run once reads 0.18, the most worn 0.18 × 0.60/0.28", () => {
+    expect(RUN_PAGE_TRACE_K * WEAR[0]).toBeCloseTo(0.18, 10)
+    expect(RUN_PAGE_TRACE_K * WEAR_MAX).toBeCloseTo((0.18 * 0.6) / 0.28, 10)
+  })
+
+  it("adds the steady layer at the settled k, and moves it when k changes", () => {
+    const { host, stack, paint } = fakeMap(BASEMAP)
+    expect(traceK(host)).toBe(1)
+    setTraceK(host, RUN_PAGE_TRACE_K)
+    setTraceWeb(host, EMPTY_WEB, COLOR)
+    const web = stack.find((l) => l.id === TRACE_LAYER_ID) as unknown as { paint: Record<string, unknown> }
+    expect(web.paint["line-opacity"]).toEqual(traceOpacity(RUN_PAGE_TRACE_K))
+    setTraceK(host, 1)
+    expect(paint.at(-1)).toEqual([TRACE_LAYER_ID, "line-opacity", traceOpacity(1)])
+  })
+
+  it("beat 1 cross-fades within the settled k and restores it on remove, not 1", () => {
+    const { host, paint } = fakeMap(BASEMAP)
+    setTraceK(host, RUN_PAGE_TRACE_K)
+    setTraceWeb(host, EMPTY_WEB, COLOR)
+    const beat = installWebBeat(host, EMPTY_WEB, COLOR)
+    beat.crossfade(0)
+    expect(paint.at(-1)).toEqual([TRACE_BEFORE_LAYER_ID, "line-opacity", traceOpacity(RUN_PAGE_TRACE_K)])
+    beat.crossfade(0.5)
+    expect(paint.at(-2)).toEqual([TRACE_LAYER_ID, "line-opacity", traceOpacity(0.5 * RUN_PAGE_TRACE_K)])
+    beat.remove()
+    expect(paint.at(-1)).toEqual([TRACE_LAYER_ID, "line-opacity", traceOpacity(RUN_PAGE_TRACE_K)])
+  })
+
+  it("a steady layer that arrives mid-beat is added held out, at 0", () => {
+    const { host, stack } = fakeMap(BASEMAP)
+    setTraceK(host, RUN_PAGE_TRACE_K)
+    const beat = installWebBeat(host, EMPTY_WEB, COLOR)
+    setTraceWeb(host, EMPTY_WEB, COLOR)
+    const web = stack.find((l) => l.id === TRACE_LAYER_ID) as unknown as { paint: Record<string, unknown> }
+    expect(web.paint["line-opacity"]).toEqual(traceOpacity(0))
+    beat.remove()
   })
 })
 

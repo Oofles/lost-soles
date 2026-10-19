@@ -17,6 +17,7 @@ import {
   type ChronicleSet,
   type RouteTraceGeometry,
   type RunFeatureCollection,
+  type RunFacts,
   type RunListItem,
   type RunSummary,
 } from "./wire"
@@ -324,6 +325,46 @@ export async function runById(
     route,
     reveal,
   }
+}
+
+/**
+ * `0101`. THE FACTS FOR A CLICK ON THE MAP — date, distance, new cells — for the runs it hit.
+ * `06` §4.5's chip and card.
+ *
+ * One base-table `Query` per id, as `runById` reads one (the SSR role holds `dynamodb:Query` on T3
+ * and nothing else), and the same ownership rule: a row that is not the caller's is LEFT OUT, the
+ * same as an id that does not exist, so the answer cannot tell them apart. No S3 read: the facts
+ * are columns. A tombstoned run is answered, because its line stays in the web (`isTombstoned`).
+ *
+ * The caller (`parseSummaryIds`) has already capped the count; this does not re-check it.
+ */
+export async function runFacts(userId: string, ids: readonly string[], deps: RunReadDeps): Promise<RunFacts[]> {
+  const rows = await Promise.all(
+    ids.map(async (id) => {
+      const out = await deps.ddb.send(
+        new QueryCommand({
+          TableName: deps.activityTable,
+          KeyConditionExpression: "#id = :id",
+          ExpressionAttributeNames: { "#id": "id" },
+          ExpressionAttributeValues: { ":id": id },
+          Limit: 1,
+        }),
+      )
+      return (out.Items ?? [])[0] as FullActivityRow | undefined
+    }),
+  )
+  const facts: RunFacts[] = []
+  for (const row of rows) {
+    if (!row?.id || row.userId !== userId || !row.startedAt) continue
+    facts.push({
+      activityId: row.id,
+      startedAt: row.startedAt,
+      startedAtLocal: row.startedAtLocal ?? row.startedAt,
+      distanceM: typeof row.distanceM === "number" ? row.distanceM : null,
+      newCellCount: typeof row.newCellCount === "number" ? row.newCellCount : 0,
+    })
+  }
+  return facts
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { WebFeatureCollection } from "./web"
+import { WEAR, type WebFeatureCollection } from "./web"
 
 /**
  * THE PERMANENT TRACE LAYER ON THE MAP. Ticket `0085`, D-299. `06-ui-ux.md` §3.5 rule 2.
@@ -34,6 +34,42 @@ export const TRACE_WIDTH = 2
 export const TRACE_LAYOUT = { "line-cap": "round", "line-join": "round" } as const
 
 export const traceOpacity = (k: number) => ["*", k, ["get", "wear"]]
+
+/**
+ * `0101`. THE SETTLED k, PER MAP. `1` on `/`; on `/run/:id` the web dims beneath the selected run
+ * so a path run once reads 0.18 (`06` §4.5): `k = 0.18 / WEAR[0]`, a proportional dim, so ground
+ * run more often stays proportionally darker (D-299's steps survive the dim).
+ *
+ * Held here, per host, rather than passed to each call, because two callers write the web's
+ * opacity — the steady layer (`use-trace-web`) and beat 1 (`installWebBeat`) — and both must land
+ * on the same number. Beat 1 cross-fades within it and its `remove()` restores it, never `1`.
+ */
+export const RUN_PAGE_ONCE_OPACITY = 0.18
+export const RUN_PAGE_TRACE_K = RUN_PAGE_ONCE_OPACITY / WEAR[0]
+
+const settled = new WeakMap<object, { k: number; beats: number }>()
+
+function stateOf(host: object): { k: number; beats: number } {
+  let s = settled.get(host)
+  if (!s) settled.set(host, (s = { k: 1, beats: 0 }))
+  return s
+}
+
+/** The settled k for this map: `1` unless `setTraceK` said otherwise. */
+export function traceK(host: object): number {
+  return settled.get(host)?.k ?? 1
+}
+
+/**
+ * Set the settled k. Applied to the steady layer at once when it exists and no beat is running; a
+ * running beat reads it on its next frame and restores it when it ends.
+ */
+export function setTraceK(host: TraceHost, k: number): void {
+  const s = stateOf(host)
+  if (s.k === k) return
+  s.k = k
+  if (s.beats === 0 && host.getLayer(TRACE_LAYER_ID)) host.setPaintProperty(TRACE_LAYER_ID, "line-opacity", traceOpacity(k))
+}
 
 export function tracePaint(color: string, k = 1) {
   return { "line-color": color, "line-width": TRACE_WIDTH, "line-opacity": traceOpacity(k) }
@@ -87,7 +123,9 @@ export function setTraceWeb(host: TraceHost, data: WebFeatureCollection, color: 
     return
   }
   host.addSource(TRACE_SOURCE_ID, { type: "geojson", data })
-  host.addLayer(lineLayer(TRACE_LAYER_ID, TRACE_SOURCE_ID, color), traceBeforeId(host))
+  // `0101`: added at the settled k — or at 0 while a beat holds it, which the beat's next frame sets.
+  const s = stateOf(host)
+  host.addLayer(lineLayer(TRACE_LAYER_ID, TRACE_SOURCE_ID, color, s.beats > 0 ? 0 : s.k), traceBeforeId(host))
 }
 
 /** Criterion 1 as a predicate over a style's layer list. */
@@ -112,13 +150,17 @@ export interface WebBeat {
 }
 
 export function installWebBeat(host: TraceHost, before: WebFeatureCollection, color: string): WebBeat {
+  const state = stateOf(host)
   host.addSource(TRACE_BEFORE_SOURCE_ID, { type: "geojson", data: before })
-  host.addLayer(lineLayer(TRACE_BEFORE_LAYER_ID, TRACE_BEFORE_SOURCE_ID, color), traceBeforeId(host))
+  host.addLayer(lineLayer(TRACE_BEFORE_LAYER_ID, TRACE_BEFORE_SOURCE_ID, color, state.k), traceBeforeId(host))
+  state.beats++
   let last = -1
   let removed = false
+  // `0101`: both halves within the settled k, so the run page's beat fades between dimmed webs.
   const apply = (s: number) => {
-    if (host.getLayer(TRACE_LAYER_ID)) host.setPaintProperty(TRACE_LAYER_ID, "line-opacity", traceOpacity(s))
-    host.setPaintProperty(TRACE_BEFORE_LAYER_ID, "line-opacity", traceOpacity(1 - s))
+    const k = state.k
+    if (host.getLayer(TRACE_LAYER_ID)) host.setPaintProperty(TRACE_LAYER_ID, "line-opacity", traceOpacity(s * k))
+    host.setPaintProperty(TRACE_BEFORE_LAYER_ID, "line-opacity", traceOpacity((1 - s) * k))
   }
   return {
     crossfade(s) {
@@ -131,10 +173,12 @@ export function installWebBeat(host: TraceHost, before: WebFeatureCollection, co
     remove() {
       if (removed) return
       removed = true
+      state.beats = Math.max(0, state.beats - 1)
       try {
         if (host.getLayer(TRACE_BEFORE_LAYER_ID)) host.removeLayer(TRACE_BEFORE_LAYER_ID)
         if (host.getSource(TRACE_BEFORE_SOURCE_ID)) host.removeSource(TRACE_BEFORE_SOURCE_ID)
-        if (host.getLayer(TRACE_LAYER_ID)) host.setPaintProperty(TRACE_LAYER_ID, "line-opacity", traceOpacity(1))
+        // `0101`: back to the SETTLED k — 0.18-for-once on the run page — never a hard 1.
+        if (host.getLayer(TRACE_LAYER_ID)) host.setPaintProperty(TRACE_LAYER_ID, "line-opacity", traceOpacity(state.k))
       } catch {
         // The map is already gone.
       }

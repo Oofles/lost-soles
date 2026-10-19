@@ -82,6 +82,41 @@ export const RUNS_LATEST_PATH = "/api/runs/latest"
 export const RUNS_WEB_PATH = "/api/runs/web"
 
 /**
+ * `0101`. THE FACTS A CLICK ON A ROUTE LINE SHOWS (`06` §4.5): date · distance · new cells, for the
+ * runs the click hit. `GET /api/runs/summary?ids=a,b,c`, session-gated, `no-store, private`.
+ */
+export const RUNS_SUMMARY_PATH = "/api/runs/summary"
+export const RUNS_SUMMARY_IDS_PARAM = "ids"
+/**
+ * At most this many ids per request — one base-table `Query` each. The card shows five rows and
+ * scrolls; a street run a hundred times asks in several requests (`fetchRunFacts` chunks), so a
+ * single request can never fan out into an unbounded number of reads.
+ */
+export const RUNS_SUMMARY_MAX_IDS = 25
+/** An activity id as the query string may carry one: I-5's hex digest, or any id-safe string. */
+export const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
+export interface RunFacts {
+  activityId: string
+  startedAt: string
+  /** The naive wall clock (I-13), which the date is read from. */
+  startedAtLocal: string
+  distanceM: number | null
+  newCellCount: number
+}
+
+/**
+ * The `ids` parameter, parsed: unique, each well-formed, between one and `RUNS_SUMMARY_MAX_IDS`.
+ * `null` for anything else, which the route answers with a 400.
+ */
+export function parseSummaryIds(raw: string | null): string[] | null {
+  if (raw === null) return null
+  const ids = [...new Set(raw.split(",").filter((id) => id.length > 0))]
+  if (ids.length === 0 || ids.length > RUNS_SUMMARY_MAX_IDS) return null
+  return ids.every((id) => RUN_ID_PATTERN.test(id)) ? ids : null
+}
+
+/**
  * ONE RUN, AS `/run/:activityId` RENDERS IT. Ticket `0078`. `06-ui-ux.md` §3.3.
  *
  * The facts the end state's route stats and ledger summary read, plus the run's own geometry for

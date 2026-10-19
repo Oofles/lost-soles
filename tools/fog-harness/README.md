@@ -9,7 +9,18 @@ node tools/fog-harness/run-cull.mjs       # the zoom buckets and the cull, drive
 node tools/fog-harness/run-mode-swap.mjs  # 0098: atlas/adventure swaps keep the camera and every layer
                                           # 0099: ... and the coverage mask, bit for bit
 node tools/fog-harness/mode-parity-shots.mjs # 0099: ghost grid + street-name contrast, real tiles
+node tools/fog-harness/run-map-controls.mjs # 0101: no rotate or tilt, the zoom rubber band, route opacities
 ```
+
+**`run-map-controls.mjs`** (ticket `0101`) builds a real Map with the shipped `MAP_INPUT_OPTIONS`
+and drives it with real DOM events. A right-drag and a Ctrl-drag must leave `getBearing()` and
+`getPitch()` at 0, and the same events must rotate a control Map built on MapLibre's defaults, which
+proves the events count as real input. A wheel over-zoom past z18 and past z10 must overshoot and
+then settle back inside [10, 18] through the shipped `settleZoom`. In both variants the route must
+be topmost above the fog, with the glow at 0.35 in adventure and 0 in atlas, and the trace web must
+sit at the run page's settled k. Frames are pumped with `redraw()` rather than awaited on
+`requestAnimationFrame`: under a virtual-time budget headless Chromium hands out rAF unreliably. On
+WSL, pass `CHROMIUM=/snap/bin/chromium`.
 
 **`run-mode-swap.mjs`** (ticket `0098`) builds a real Map on the shipped `basemapStyle`, adds the trace
 web, landmarks, the shipped `FogMaskLayer` and the route through the app's own helpers, then swaps the
