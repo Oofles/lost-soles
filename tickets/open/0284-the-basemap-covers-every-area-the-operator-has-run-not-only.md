@@ -70,6 +70,24 @@ against the same archive.
 - (operator) On the desktop browser, pan to each out-of-Florida area and judge whether the streets
   under the revealed ground read as a real, legible map (D-051).
 
+**Result, 2026-10-19 (operator, desktop browser, deployed Amplify build 416).** *"Maps in Arkansas
+and other areas are good too with the underlying maps."*
+
+**Smoke test (orchestrator), against the deployed archive.**
+- Uploaded by the orchestrator after verifying sha256 `97a4572f…2090`: S3 `head-object` reads
+  1,200,756,660 bytes, `public, max-age=31536000, immutable`.
+- CloudFront `d1wk224yi6fnfe.cloudfront.net/basemap-20261018.pmtiles`: HEAD 200 with the same
+  length and cache header; `Range: bytes=0-126` → `206 127`. The old `basemap-fl-20260908.pmtiles`
+  still answers 200.
+- `pmtiles show`: bounds (-94, 24.4)–(-77, 38), z0–15.
+- z10 tiles at each 1° tile's centre, through CloudFront: NW Arkansas `10/246/400` 13,975 B, central
+  Arkansas `10/248/407` 12,588 B, south-central Kentucky `10/268/396` 10,155 B, Grand Bahama
+  `10/291/433` 6,366 B; Orlando `10/280/427` 149,156 B; a control outside every region (New York
+  `10/301/385`) 0 B. (The agent's suggested check used `10/249/404`, which lies outside every
+  region; it returned 0 B and is corrected here.)
+- The deployed bundle references `basemap-20261018` (1 chunk) and no longer references
+  `basemap-fl-20260908` (0 chunks).
+
 ## Resolution
 
 **One widened archive** (operator, 2026-10-19, settling the Notes' D-152 question): Florida plus a

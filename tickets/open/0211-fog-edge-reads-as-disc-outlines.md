@@ -40,7 +40,8 @@ step, which the operator likes, and must re-check `SEAM_FLOOR`.
 - [x] If the shader changes: the neighbour seam stays invisible (the `run.mjs` T3 probe stays green),
       the noise stays ground-anchored under a pan (D-233), and the per-level step survives (D-243).
 - [x] Rendered at z16 with `tools/fog-harness/tune.mjs` next to `0119`'s `z16-after-0119.png`.
-- [ ] Labels inside revealed ground at the frontier are no less readable than with the fog off (D-051).
+- [x] Labels inside revealed ground at the frontier are no less readable than with the fog off (D-051).
+      — verified 2026-10-19: operator, desktop browser, deployed build 416: edge, pan and labels all good.
       *(Left for the operator. It is a perceptual call. The warp moves the edge both ways, so some
       frontier labels gain room and others lose it; see Resolution.)*
 
@@ -54,6 +55,17 @@ step, which the operator likes, and must re-check `SEAM_FLOOR`.
 
 Desktop browser (D-240). Look at a frontier at z16 and at z14: does the edge read as drifting mist
 or as a chain of circles? Pan for 20 s: no crawl, no boiling. A perceptual call (D-229).
+
+**Result, 2026-10-19 (operator, desktop browser, deployed Amplify build 416, commit `1d10b02`).**
+- Chosen from renders before implementation: variant F/H (warp sized to the disc) with a frozen
+  edge, over A (keep circles), D (mask-pass noise), E/I (subtle) and G (torn paper). D-372.
+- On the deployed map: the frontier at z16 and z14, a 20 s pan, and frontier labels against
+  `?fog=off` — *"All other notes are good."* No crawl, no boiling reported.
+
+**Smoke test (orchestrator).** The deployed client bundle carries the warp: `u_warpOrigin` is present
+in 1 of the 20 public `/_next/static/chunks/*.js` served by `soles.devaultsecurity.com`. §6.4 item 2
+(GPU composite time) is still unmeasured on a real GPU; the SwiftShader harness reads 0.70 → 0.71
+ms/frame with the warp.
 
 ## Resolution
 
