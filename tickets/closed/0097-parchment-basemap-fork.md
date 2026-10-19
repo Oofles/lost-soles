@@ -4,7 +4,7 @@ slug: parchment-basemap-fork
 title: Fork @protomaps/basemaps light into the parchment style, in two variants
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [52]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-19T13:08:21Z
+closed: 2026-10-19T15:40:59Z
 ---
 
 ## Description
