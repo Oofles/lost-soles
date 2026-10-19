@@ -2269,7 +2269,7 @@
     "title": "Event validation, replay idempotency, deauthorization, and cost-DoS defence",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "14-webhook-and-automatic-sync",
     "depends_on": [
@@ -2279,8 +2279,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-18T01:23:55Z",
-    "path": "tickets/open/0093-webhook-validation-replay-and-cost-dos-defence.md",
-    "ready": true,
+    "closed": "2026-10-19T03:33:04Z",
+    "path": "tickets/closed/0093-webhook-validation-replay-and-cost-dos-defence.md",
+    "ready": false,
     "acceptance": {
       "checked": 15,
       "total": 15

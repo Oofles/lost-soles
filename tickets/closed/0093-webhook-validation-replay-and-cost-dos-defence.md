@@ -4,7 +4,7 @@ slug: webhook-validation-replay-and-cost-dos-defence
 title: Event validation, replay idempotency, deauthorization, and cost-DoS defence
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 14-webhook-and-automatic-sync
 depends_on: [91]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-18T01:23:55Z
+closed: 2026-10-19T03:33:04Z
 ---
 
 ## Description
