@@ -31,7 +31,7 @@ Deploying the change deletes the budget.
       (the existing assertion inverted to expect none).
 - [x] The `aws-budgets` import and the comment block above `MonthlyCostBudget` are gone from
       `amplify/backend.ts`.
-- [ ] After deploy, `aws budgets describe-budgets --account-id 286588821906 --profile devault`
+- [x] After deploy, `aws budgets describe-budgets --account-id 286588821906 --profile devault`
       no longer lists "Lost Soles monthly cost".
 
 ## Notes
@@ -43,6 +43,11 @@ the webhook's reserved concurrency (0093), which stays.
 ## Operator validation
 
 None expected. Smoke test: `describe-budgets` after deploy, as in the last criterion.
+
+**Result, 2026-10-19 (orchestrator, Amplify job 414; smoke test).** After the deploy,
+`aws budgets describe-budgets --account-id 286588821906 --profile devault` lists no budgets, so
+"Lost Soles monthly cost" was deleted with the stack change. The test budget was deleted by hand
+at 0093's close. **Perceptual:** none.
 
 ## Resolution
 

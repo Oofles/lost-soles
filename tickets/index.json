@@ -6666,7 +6666,7 @@
     "path": "tickets/open/0289-remove-the-account-wide-budgets-resource-from-the-backend.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }
