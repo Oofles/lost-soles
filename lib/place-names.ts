@@ -3,6 +3,7 @@ import { PbfReader } from "pbf"
 import { PMTiles } from "pmtiles"
 
 import { BASEMAP_ARCHIVE, basemapTilesUrl } from "@/lib/basemap"
+import type { LngLatBounds } from "@/lib/regions"
 import type { Located } from "@/src/domain/geo"
 
 /**
@@ -51,6 +52,72 @@ export interface NamedFeature {
   name: string
   kind: string
   lines: [number, number][][]
+  /** `0285`. The archive's `population`, when it carries one — how a region's name is chosen. */
+  population?: number
+}
+
+/**
+ * `0285`. A region's bounds are widened by this before its most prominent place is chosen, so a
+ * region of one short run on a town's edge still finds the town whose label point is just outside.
+ */
+export const PROMINENT_PAD_M = 5000
+/** The most tiles one region's name may read. The zoom drops until the box fits in this many. */
+export const PROMINENT_MAX_TILES = 4
+/** The zoom range a region's name is read in: high enough for villages, low enough for a metro. */
+const PROMINENT_ZOOMS = [12, 11, 10, 9, 8, 7, 6] as const
+
+/** `[[west, south], [east, north]]`, as MapLibre's `fitBounds` takes it. */
+type Bounds = LngLatBounds
+
+/** Every tile at `z` that a box touches. */
+export function tilesCovering(b: Bounds, z: number): Tile[] {
+  const lo = tileFloat({ lng: b[0][0], lat: b[1][1] }, z)
+  const hi = tileFloat({ lng: b[1][0], lat: b[0][1] }, z)
+  const n = 2 ** z
+  const out: Tile[] = []
+  for (let x = Math.floor(lo.x); x <= Math.floor(hi.x); x++) {
+    for (let y = Math.max(0, Math.floor(lo.y)); y <= Math.min(n - 1, Math.floor(hi.y)); y++) {
+      out.push({ z, x: ((x % n) + n) % n, y })
+    }
+  }
+  return out
+}
+
+/** A box widened by `m` metres on every side. */
+export function padBounds(b: Bounds, m: number): Bounds {
+  const dLat = m / 111_320
+  const midLat = ((b[0][1] + b[1][1]) / 2) * D2R
+  const dLng = m / (111_320 * Math.max(0.01, Math.cos(midLat)))
+  return [
+    [b[0][0] - dLng, b[0][1] - dLat],
+    [b[1][0] + dLng, b[1][1] + dLat],
+  ]
+}
+
+const PROMINENCE: Record<string, number> = { locality: 0, neighbourhood: 1 }
+
+/**
+ * `0285`. THE MOST PROMINENT NAMED PLACE INSIDE A BOX, or `null`: a town before a neighbourhood,
+ * then the larger population, then the name, so the answer never depends on tile order.
+ */
+export function prominentNamed(features: Iterable<NamedFeature>, b: Bounds): string | null {
+  let best: NamedFeature | null = null
+  const inside = (f: NamedFeature) =>
+    f.lines.some((line) => line.some(([lng, lat]) => lng >= b[0][0] && lng <= b[1][0] && lat >= b[0][1] && lat <= b[1][1]))
+  const rank = (f: NamedFeature) => PROMINENCE[f.kind] ?? 2
+  for (const f of features) {
+    if (!inside(f)) continue
+    if (
+      !best ||
+      rank(f) < rank(best) ||
+      (rank(f) === rank(best) &&
+        ((f.population ?? 0) > (best.population ?? 0) ||
+          ((f.population ?? 0) === (best.population ?? 0) && f.name < best.name)))
+    ) {
+      best = f
+    }
+  }
+  return best?.name ?? null
 }
 
 const D2R = Math.PI / 180
@@ -147,7 +214,15 @@ export function decodeLayer(data: ArrayBuffer, tile: Tile, layer: string, keep: 
       : g.type === "MultiPoint" || g.type === "LineString" ? [g.coordinates as number[][]]
       : g.type === "MultiLineString" ? (g.coordinates as number[][][])
       : []
-    if (lines.length) out.push({ name, kind, lines: lines as [number, number][][] })
+    const population = Number(f.properties.population)
+    if (lines.length) {
+      out.push({
+        name,
+        kind,
+        lines: lines as [number, number][][],
+        ...(Number.isFinite(population) && population > 0 ? { population } : {}),
+      })
+    }
   }
   return out
 }
@@ -186,6 +261,24 @@ export class PlaceNames {
   /** The named road or path nearest `at`, within `ROAD_MAX_M`. */
   street(at: Located): Promise<string | null> {
     return this.near(at, ROAD_ZOOM, "roads", (k) => !ROAD_EXCLUDED_KINDS.has(k), ROAD_MAX_M)
+  }
+
+  /**
+   * `0285`. The most prominent town or neighbourhood inside a region's box (widened by
+   * `PROMINENT_PAD_M`) — the jump-to control's label. Read at the highest zoom whose tiles over the
+   * box number at most `PROMINENT_MAX_TILES`: a low zoom still carries every large town (a place's
+   * `min_zoom` falls with its size), and a small region gets its villages too. The same `places`
+   * filter as `place()`, so the two share the tile cache without one poisoning the other.
+   */
+  async prominent(b: Bounds): Promise<string | null> {
+    const box = padBounds(b, PROMINENT_PAD_M)
+    let tiles: Tile[] = []
+    for (const z of PROMINENT_ZOOMS) {
+      tiles = tilesCovering(box, z)
+      if (tiles.length <= PROMINENT_MAX_TILES) break
+    }
+    const features = await Promise.all(tiles.map((t) => this.layer(t, "places", (k) => PLACE_KINDS.has(k))))
+    return prominentNamed(features.flat(), box)
   }
 }
 

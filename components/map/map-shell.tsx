@@ -27,6 +27,7 @@ import type { RunFeatureCollection } from "@/lib/runs/wire"
 
 import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
+import { RegionJump } from "./region-jump"
 import { RevealScrub } from "./reveal-scrub"
 import { useFogMask } from "./use-fog-mask"
 import { useLandmarks } from "./use-landmarks"
@@ -641,6 +642,19 @@ export function MapShell({
 
   return (
     <>
+      {/*
+        Ticket 0285. Home only: the jump-to control, under `⚙`. Before the map in the DOM, so the
+        focus order is `⚙` → jump-to → the map (§2.2). A jump marks the camera as placed, so the
+        first-load run centring cannot land on top of it if the latest run arrives after.
+      */}
+      {framed ? null : (
+        <RegionJump
+          map={loaded}
+          onJump={() => {
+            centredOnRun.current = true
+          }}
+        />
+      )}
       <div
         ref={container}
         style={framed ? framedShell : paneClassName ? undefined : shell}

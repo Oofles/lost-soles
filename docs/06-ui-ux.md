@@ -256,8 +256,9 @@ starts, and the plinth's position is fixed at every desktop size.
 | 10 | **Attribution** | Bottom-right **of the map pane**, MapLibre's own control, uncompacted | A licence requirement (`0052`). Nothing may cover it. |
 | 11 | **Skills quick-view** | Fifth row, below the Sync line, the reconnect line when present, and a `--line` rule; ≥1024px only | `0270`. A glance, not a second skills panel: one 32px row per TRAINED skill — sigil, name, a 3px bar to the next level in `/skills`' fills, the level; no XP. `ACTIVITY` then `META` headings, registry order; an untrained skill has no row and an empty group no heading. Each row links to `/skills/<id>`'s sheet, which dismisses back to `/`. Below 1024px it is omitted: the bottom card only must not break (D-251). |
 | 12 | **Reconnect line** | Own caption-size line directly below the Sync line; present only when a token is broken | `<source> needs reconnecting`, named by the connector's display name, one ink link to `/settings` *(D-337, D-318)*. The only failure `/` ever shows. Replacing row 7 would hide the last run, which §2.3 says the plinth still shows. |
+| 13 | **Jump to a region** | Right edge of the map pane, directly under `⚙`, 40 × 40px, 8px gap | `0285`. Closed by default; opens a short list under itself of the regions the operator has run in — runs whose starts chain within 50 km, most recently run first — each labelled with the most prominent place the basemap names inside it (D-302), else its coordinate area. Choosing one frames that region's ground; the mode is untouched, and the stored camera follows (D-249). Arrows, Enter and Esc in the list (D-253). Absent entirely with fewer than two regions. |
 
-**All map chrome lives on the map pane** — the toggle, `⚙`, fit, `⌖` and the attribution are
+**All map chrome lives on the map pane** — the toggle, `⚙`, jump-to, fit, `⌖` and the attribution are
 positioned against the pane, never against the window, so none of them ever sits under the rail.
 
 **No drag handle** (D-313). The phone wireframe carried a `▁▁▁` handle on the plinth that a
@@ -278,7 +279,7 @@ latest run in the visible map with no `padding` at all. The pane is narrower tha
 not occluded by anything.
 
 **Focus and keyboard order** follows reading order, left to right: the last-run line →
-`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the reconnect line when present (D-337) → the quick-view's rows (`0270`) → mode toggle → `⚙` → the map (arrow keys
+`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the reconnect line when present (D-337) → the quick-view's rows (`0270`) → mode toggle → `⚙` → jump-to (`0285`) → the map (arrow keys
 and `+`/`−` act on it while it holds focus, D-253) → fit → `⌖`. `M` toggles the mode from
 anywhere on `/` except while a text field has focus. Every focusable element shows the §9.4
 focus ring.

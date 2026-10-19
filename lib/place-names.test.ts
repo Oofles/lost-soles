@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   decodeLayer,
+  padBounds,
+  prominentNamed,
+  PROMINENT_MAX_TILES,
+  PROMINENT_PAD_M,
+  tilesCovering,
   nearestNamed,
   PLACE_ZOOM,
   PlaceNames,
@@ -29,6 +34,8 @@ interface Draft {
   name?: string
   points: { lat: number; lng: number }[]
   line?: boolean
+  /** `0285`. Encoded as an integer value, as the real archive carries it. */
+  population?: number
 }
 
 function tileXY(p: { lat: number; lng: number }, t: Tile): [number, number] {
@@ -45,11 +52,11 @@ function encode(t: Tile, layers: Record<string, Draft[]>): ArrayBuffer {
   const pbf = new PbfWriter()
   for (const [name, drafts] of Object.entries(layers)) {
     const keys: string[] = []
-    const values: string[] = []
-    const idx = (arr: string[], v: string) => (arr.includes(v) ? arr.indexOf(v) : arr.push(v) - 1)
+    const values: (string | number)[] = []
+    const idx = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.indexOf(v) : arr.push(v) - 1)
     const feats = drafts.map((d) => {
       const tags: number[] = []
-      for (const [k, v] of Object.entries({ kind: d.kind, name: d.name })) {
+      for (const [k, v] of Object.entries({ kind: d.kind, name: d.name, population: d.population })) {
         if (v !== undefined) tags.push(idx(keys, k), idx(values, v))
       }
       const xy = d.points.map((p) => tileXY(p, t))
@@ -71,7 +78,9 @@ function encode(t: Tile, layers: Record<string, Draft[]>): ArrayBuffer {
         }, null)
       }
       for (const k of keys) w.writeStringField(3, k)
-      for (const v of values) w.writeMessage(4, (_: unknown, vw: PbfWriter) => vw.writeStringField(1, v), null)
+      for (const v of values) {
+        w.writeMessage(4, (_: unknown, vw: PbfWriter) => (typeof v === "number" ? vw.writeVarintField(5, v) : vw.writeStringField(1, v)), null)
+      }
       w.writeVarintField(5, EXTENT)
     }, null)
   }
@@ -192,5 +201,64 @@ describe("PlaceNames", () => {
     await expect(names.street(AT)).rejects.toThrow("offline")
     fail = false
     expect(await names.street(AT)).toBe("Kelp Street")
+  })
+})
+
+describe("prominent — a region's label (0285)", () => {
+  /** A box of ~2 km around Nemo. */
+  const BOX: [[number, number], [number, number]] = [[east(-1000).lng, north(-1000).lat], [east(1000).lng, north(1000).lat]]
+  const place = (kind: string, name: string, p: { lat: number; lng: number }, population?: number): Draft => ({
+    kind,
+    name,
+    points: [p],
+    ...(population === undefined ? {} : { population }),
+  })
+
+  it("decodes a place's population from the tile's integer value", () => {
+    const t = tilesAround(AT, PLACE_ZOOM)[0]
+    const out = decodeLayer(encode(t, { places: [place("locality", "Millbrook", AT, 12000)] }), t, "places", () => true)
+    expect(out[0]).toMatchObject({ name: "Millbrook", population: 12000 })
+  })
+
+  it("prefers a town to a neighbourhood, then the larger population, then the name, inside the box only", () => {
+    const f = (kind: string, name: string, p: { lat: number; lng: number }, population?: number): NamedFeature => ({
+      name,
+      kind,
+      lines: [[[p.lng, p.lat]]],
+      ...(population === undefined ? {} : { population }),
+    })
+    expect(
+      prominentNamed(
+        [
+          f("neighbourhood", "Saltmarsh", AT, 90000),
+          f("locality", "Millbrook", north(500), 4000),
+          f("locality", "Kelpton", north(-500), 9000),
+          f("locality", "Far City", north(5000), 900000),
+        ],
+        BOX,
+      ),
+    ).toBe("Kelpton")
+    expect(prominentNamed([f("locality", "Bravo", AT), f("locality", "Alpha", north(10))], BOX)).toBe("Alpha")
+    expect(prominentNamed([f("neighbourhood", "Saltmarsh", AT)], BOX)).toBe("Saltmarsh")
+    expect(prominentNamed([f("locality", "Far City", north(5000))], BOX)).toBeNull()
+  })
+
+  it("widens the box so a town just off a short run's edge still names it", async () => {
+    // Served at every zoom: which one the lookup reads is the next test's business.
+    const layers = { places: [place("locality", "Millbrook", north(1000 + PROMINENT_PAD_M / 2), 5000)] }
+    const names = new PlaceNames(source(Object.fromEntries([6, 7, 8, 9, 10, 11, 12].map((z) => [z, layers]))))
+    expect(await names.prominent(BOX)).toBe("Millbrook")
+  })
+
+  it("drops the zoom until the box needs at most four tiles, and is null where nothing is named", async () => {
+    const wide = padBounds(BOX, 60_000)
+    const src = source({})
+    const names = new PlaceNames(src)
+    expect(await names.prominent(wide)).toBeNull()
+    expect(src.asked.length).toBeGreaterThan(0)
+    expect(src.asked.length).toBeLessThanOrEqual(PROMINENT_MAX_TILES)
+    const z = Number(src.asked[0]!.split("/")[0])
+    expect(z).toBeLessThan(PLACE_ZOOM)
+    expect(tilesCovering(padBounds(wide, PROMINENT_PAD_M), z + 1).length).toBeGreaterThan(PROMINENT_MAX_TILES)
   })
 })
