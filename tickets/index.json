@@ -6769,7 +6769,7 @@
     "title": "Retune the trace web's ink apart from the parchment water wash",
     "type": "design",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -6778,7 +6778,8 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-19T13:44:46Z",
-    "path": "tickets/open/0294-retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa.md",
+    "closed": "2026-10-19T14:35:37Z",
+    "path": "tickets/closed/0294-retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa.md",
     "ready": false,
     "acceptance": {
       "checked": 1,

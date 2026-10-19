@@ -4,13 +4,14 @@ slug: retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa
 title: Retune the trace web's ink apart from the parchment water wash
 type: design
 priority: med
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [97]
 blocked_by: []
 source: agent
 created: 2026-10-19T13:44:46Z
+closed: 2026-10-19T14:35:37Z
 ---
 
 ## Description
