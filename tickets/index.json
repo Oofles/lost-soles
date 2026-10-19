@@ -6781,5 +6781,25 @@
       "checked": 0,
       "total": 1
     }
+  },
+  {
+    "id": 295,
+    "slug": "a-repo-walking-test-sees-agent-worktrees-and-fails-the-wave",
+    "title": "A repo-walking test sees agent worktrees and fails the wave gate",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T13:47:44Z",
+    "path": "tickets/open/0295-a-repo-walking-test-sees-agent-worktrees-and-fails-the-wave.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
   }
 ]
