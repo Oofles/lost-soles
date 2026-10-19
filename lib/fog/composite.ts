@@ -49,6 +49,11 @@ import {
   OCTAVE_JITTER,
   REVEAL_HI,
   REVEAL_LO,
+  WARP_FREQ_MAX,
+  WARP_GAIN_R,
+  WARP_JITTER_X,
+  WARP_JITTER_Y,
+  WARP_WAVELENGTH_R,
   type FogPalette,
   type Rgb,
 } from "./fog-uniforms"
@@ -113,6 +118,9 @@ export const TIME_WRAP_S = 86_400
  *     is cheaper than `sin` on most mobile GPUs besides.
  *  3. **Lacunarity 2.0 with a per-octave integer jitter**, rather than 2.03. `FBM_LACUNARITY`
  *     explains why: the integer origin has to survive being multiplied by it.
+ *  4. **The mask is sampled at a warped point** (`0211`, D-NEW-a). This is now §4.3's own text:
+ *     the edge warp in `fog-uniforms.ts` and `edgeWarp` below. Without a warp (`u_warp.x == 0`) the
+ *     shader reads `v_uv`, the same as the sketch.
  *
  * Everything else — the two drifting fields, the mix, the reveal ramp, the rim's
  * `reveal * (1 - reveal) * 4`, the premultiplied output — is §4.3 unchanged.
@@ -135,6 +143,8 @@ uniform float u_rimAmt;
 uniform vec3  u_bloomGold;     // 0080: --gold-300, linear 0..1. Read only where the mask's GREEN is lit.
 uniform vec3  u_bloomFrost;    // 0080: --frost-400. Read only where the mask's BLUE is lit.
 uniform vec3  u_bloomGlint;    // 0080: --route-core, the warm near-white gold leans to at its peak.
+uniform vec2  u_warp;          // 0211: (amplitude in noise cells, integer frequency). x = 0 is no warp.
+uniform vec2  u_warpOrigin;    // 0211: the warp lattice's integer origin, (origin x freq) mod modulus
 
 in  vec2 v_uv;
 in  vec3 v_noiseH;
@@ -171,11 +181,27 @@ float fbm(vec2 p, vec2 o) {
 }
 
 void main() {
-    vec3  mask = texture(u_mask, v_uv).rgb;
-    float coverage = mask.r;
-
     // The projective divide. Ground coordinates in noise cells, local to this frame's origin.
     vec2 q = v_noiseH.xy / v_noiseH.z;
+
+    // 0211, D-NEW-a. THE EDGE WARP: read the mask at a ground-anchored, noise-displaced point, so the
+    // boundary itself moves and the chain of disc outlines breaks up. FROZEN: no u_time term, so only
+    // the wisps below animate. The offset is in noise cells, so the inverse of q's screen Jacobian
+    // turns it into pixels, which is correct under pitch as well. All of RGB is read at the moved
+    // point, so 0080's bloom follows the same edge as the coverage.
+    vec2 maskUv = v_uv;
+    if (u_warp.x > 0.0) {
+        vec2 qw = q * u_warp.y;
+        vec2 w = vec2(fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_X[0]}.0, ${WARP_JITTER_X[1]}.0)),
+                      fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_Y[0]}.0, ${WARP_JITTER_Y[1]}.0))) - 0.5;
+        mat2 J = mat2(dFdx(q), dFdy(q));          // noise cells per pixel
+        if (abs(determinant(J)) > 0.0) {
+            maskUv += (inverse(J) * (w * u_warp.x)) * vec2(dFdx(v_uv).x, dFdy(v_uv).y);
+        }
+    }
+
+    vec3  mask = texture(u_mask, maskUv).rgb;
+    float coverage = mask.r;
 
     // Two fields drifting at different speeds and scales: the slow one shapes the boundary, the
     // fast one animates wisps. The drift is added to the LOCAL coordinate, so the field slides
@@ -226,6 +252,8 @@ export interface NoiseFrame {
   scale: number
   /** Mercator units per drawing-buffer pixel at the screen centre. Diagnostic. */
   mercPerPixel: number
+  /** The mercator point at the screen centre. `0211`: the latitude the edge warp sizes discs at. */
+  centre: [number, number]
   /** True when `mainMatrix` was singular and the screen-space fallback was used. */
   degenerate: boolean
 }
@@ -355,6 +383,7 @@ export function noiseFrame(
       origin: [0, 0],
       scale: 0,
       mercPerPixel: 0,
+      centre: [NaN, NaN],
       degenerate: true,
     }
   }
@@ -400,6 +429,7 @@ export function noiseFrame(
     origin,
     scale,
     mercPerPixel,
+    centre: [cx, cy],
     degenerate: false,
   }
 }
@@ -413,6 +443,79 @@ export function noiseFrame(
  */
 export function groundNoiseCoord(frame: NoiseFrame, mercX: number, mercY: number): [number, number] {
   return [mercX * frame.scale, mercY * frame.scale]
+}
+
+/* ─── The edge warp (0211, D-NEW-a) ─────────────────────────────────────────── */
+
+/** One frame's edge warp, as `u_warp` and `u_warpOrigin` carry it. */
+export interface EdgeWarp {
+  /** How far the warp may move the sample point, in NOISE cells per unit of `fbm - 0.5`. 0 = off. */
+  amp: number
+  /** The integer multiplier from D-233's lattice to the warp's lattice. A power of two. */
+  freq: number
+  /** `(frame.origin x freq) mod NOISE_ORIGIN_MODULUS`, reduced here in double precision. */
+  origin: [number, number]
+}
+
+/** No warp: the composite reads the mask at `v_uv`, exactly as before `0211`. Harnesses use it. */
+export const NO_EDGE_WARP: EdgeWarp = { amp: 0, freq: 1, origin: [0, 0] }
+
+/** The latitude, in degrees, of a mercator y in MapLibre's 0..1 convention (0 = north). */
+export function latOfMercY(y: number): number {
+  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI
+}
+
+/**
+ * SIZE THE EDGE WARP FROM THE DISC, NOT FROM THE SCREEN. `0211`, D-NEW-a.
+ *
+ * `equatorRadiusMerc` is the current bucket's disc radius, `discRadiusM(res)`, converted to mercator
+ * AT THE EQUATOR. The amplitude divides it by `cos(latitude)` at the screen centre, so the warp is a
+ * fixed fraction of a disc on the ground, at every zoom and in every bucket. A warp sized in screen
+ * pixels was rendered and rejected: at z14 it bent a corridor about 75 m off its true shape.
+ *
+ * THE FREQUENCY DELIBERATELY IGNORES LATITUDE. It is chosen from the equatorial radius, so it
+ * depends on `scale` and the bucket resolution and nothing else. If it followed the camera's
+ * latitude, a north-south pan near a rounding boundary would flip it, and the whole edge would
+ * re-randomise in mid-pan. With the default constants that boundary sits around 52°N. The price is
+ * that the warp's wavelength, measured in disc radii, shrinks by `cos(latitude)`: about 1.5 at the
+ * operator's 30°N and 1.1 at 50°N. Both are inside the √2 that power-of-two rounding already allows.
+ *
+ * WHY THE FREQUENCY IS A POWER OF TWO. The warp lattice index of a ground point is
+ * `merc x scale x freq`. `scale` is a power of two already (D-243), so making `freq` one as well
+ * keeps `scale x freq` exactly constant when `scale` doubles and `freq` halves. That happens at every
+ * zoom-level step inside one bucket resolution. So from z14 to z18 the warp field is the SAME field
+ * at every zoom: D-243's per-level step happens in the wisps and not in the edge. The amplitude is
+ * `WARP_GAIN_R x radius` in ground terms, and that is constant over the same range. Both change
+ * only where the bucket's resolution changes, which already redraws the whole mask.
+ *
+ * Off (`NO_EDGE_WARP`) on a degenerate frame. There is no ground to anchor to, and a screen-space
+ * warp would crawl.
+ */
+export function edgeWarp(frame: NoiseFrame, equatorRadiusMerc: number): EdgeWarp {
+  if (frame.degenerate || !(frame.scale > 0) || !(equatorRadiusMerc > 0)) return NO_EDGE_WARP
+  const cosLat = Math.cos((latOfMercY(frame.centre[1]) * Math.PI) / 180)
+  if (!(cosLat > 0)) return NO_EDGE_WARP
+  const ideal = 1 / (frame.scale * WARP_WAVELENGTH_R * equatorRadiusMerc)
+  const freq = Math.min(WARP_FREQ_MAX, Math.max(1, 2 ** Math.round(Math.log2(ideal))))
+  const wrap = (v: number) => ((v % NOISE_ORIGIN_MODULUS) + NOISE_ORIGIN_MODULUS) % NOISE_ORIGIN_MODULUS
+  return {
+    amp: (WARP_GAIN_R * equatorRadiusMerc * frame.scale) / cosLat,
+    freq,
+    origin: [wrap(frame.origin[0] * freq), wrap(frame.origin[1] * freq)],
+  }
+}
+
+/**
+ * The absolute warp-lattice coordinate of one mercator point. TEST-ONLY, `groundNoiseCoord`'s
+ * counterpart: two frames related by a pan, or by a pinch inside one bucket, must agree on it.
+ */
+export function groundWarpCoord(
+  frame: NoiseFrame,
+  warp: EdgeWarp,
+  mercX: number,
+  mercY: number,
+): [number, number] {
+  return [mercX * frame.scale * warp.freq, mercY * frame.scale * warp.freq]
 }
 
 /* ─── GL resources ──────────────────────────────────────────────────────────── */
@@ -453,6 +556,8 @@ const UNIFORM_NAMES = [
   "u_bloomGold",
   "u_bloomFrost",
   "u_bloomGlint",
+  "u_warp",
+  "u_warpOrigin",
 ] as const
 
 export function createCompositeResources(
@@ -519,6 +624,8 @@ export interface CompositeFrame {
   palette: FogPalette
   /** `0080`. The bloom's two colours. Irrelevant outside a reveal — the mask carries no bloom then. */
   bloom: BloomPalette
+  /** `0211`. The edge warp, from `edgeWarp`. Omitted means `NO_EDGE_WARP`, which the GPU harnesses rely on. */
+  warp?: EdgeWarp
 }
 
 /**
@@ -585,6 +692,9 @@ export function runCompositePass(
   if (u.u_bloomGold) gl.uniform3f(u.u_bloomGold, b.gold[0], b.gold[1], b.gold[2])
   if (u.u_bloomFrost) gl.uniform3f(u.u_bloomFrost, b.frost[0], b.frost[1], b.frost[2])
   if (u.u_bloomGlint) gl.uniform3f(u.u_bloomGlint, b.glint[0], b.glint[1], b.glint[2])
+  const w = frame.warp ?? NO_EDGE_WARP
+  if (u.u_warp) gl.uniform2f(u.u_warp, w.amp, w.freq)
+  if (u.u_warpOrigin) gl.uniform2f(u.u_warpOrigin, w.origin[0], w.origin[1])
 
   gl.disable(gl.DEPTH_TEST)
   gl.enable(gl.BLEND)

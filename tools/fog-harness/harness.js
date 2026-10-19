@@ -755,23 +755,29 @@ function compositeProbes(gl, res) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.viewport(0, 0, CANVAS_W, CANVAS_H)
 
-    const run = (n) => {
+    // 0211: the edge warp, sized as the layer sizes it: this harness's disc radius, at the equator.
+    const warp = edgeWarp(noise, metresToMercator(DISC_R_M, 0))
+    const run = (n, w) => {
       for (let i = 0; i < n; i++) {
-        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1, bloom: NO_BLOOM_PALETTE })
+        runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: i / 30, palette: V1, bloom: NO_BLOOM_PALETTE, warp: w })
       }
       gl.finish()
     }
-    run(10) // warm the pipeline; the first draw carries the program switch
-    const started = performance.now()
-    const frames = 60
-    run(frames)
-    const per = (performance.now() - started) / frames
+    const measure = (w) => {
+      run(10, w) // warm the pipeline; the first draw carries the program switch
+      const started = performance.now()
+      const frames = 60
+      run(frames, w)
+      return (performance.now() - started) / frames
+    }
+    const per = measure(undefined)
+    const perWarp = measure(warp)
 
     record(
       "C4 composite cost",
       gl.getError() === gl.NO_ERROR,
-      `${per.toFixed(2)} ms/frame at ${CANVAS_W}x${CANVAS_H} on THIS software rasteriser — ` +
-        `not the 2 ms phone budget, which is 0059's gate`,
+      `${per.toFixed(2)} ms/frame without the edge warp, ${perWarp.toFixed(2)} with it (freq ${warp.freq}), ` +
+        `at ${CANVAS_W}x${CANVAS_H} on THIS software rasteriser — not the 2 ms phone budget, which is 0059's gate`,
     )
   }
 

@@ -7,9 +7,13 @@ import {
   compositeRestoreOk,
   createCompositeResources,
   disposeCompositeResources,
+  edgeWarp,
   groundNoiseCoord,
+  groundWarpCoord,
+  latOfMercY,
   noiseFrame,
   NO_BLOOM_PALETTE,
+  NO_EDGE_WARP,
   runCompositePass,
   TIME_WRAP_S,
   type NoiseFrame,
@@ -24,7 +28,11 @@ import {
   REVEAL_HI,
   REVEAL_LO,
   V1,
+  WARP_FREQ_MAX,
+  WARP_GAIN_R,
 } from "./fog-uniforms"
+import { discRadiusM, metresToMercator } from "./instances"
+import { resForZoom } from "./zoom-buckets"
 
 /**
  * A MapLibre-shaped mercator projection matrix, column-major, exactly as `mainMatrix` arrives.
@@ -440,6 +448,165 @@ describe("the composite shader source", () => {
 
   it("interpolates the noise coordinate homogeneously, so pitch stays correct", () => {
     expect(COMPOSITE_VERTEX_SOURCE).toContain("v_noiseH = u_noiseMatrix * vec3(p, 1.0)")
+  })
+})
+
+/**
+ * `0211`, D-NEW-a. THE EDGE WARP. These are the ticket's second criterion, restated for the warp:
+ * the warp stays still under a pan (D-233), it steps no more than once per zoom level (D-243; inside
+ * res 11 it does not step at all), it is frozen in time, and it is sized from the disc rather than
+ * the screen.
+ */
+describe("edgeWarp — the ragged edge is ground-anchored and frozen (0211)", () => {
+  const view = { width: 1600, height: 1000 }
+  const equatorR = (res: number): number => metresToMercator(discRadiusM(res), 0)
+
+  /**
+   * What the SHADER computes as the warp lattice coordinate of a ground point: `q x freq`, with `q`
+   * taken through the inverted matrix, plus `u_warpOrigin`. This is `shaderNoiseCoord`'s path, kept
+   * local to the frame, and it is what has to stay still.
+   */
+  function shaderWarpCoord(frame: NoiseFrame, m: ArrayLike<number>, x: number, y: number): [number, number] {
+    const [gx, gy] = shaderNoiseCoord(frame, m, x, y)
+    const warp = edgeWarp(frame, equatorR(11))
+    const local = [gx - frame.origin[0], gy - frame.origin[1]] as const
+    return [local[0] * warp.freq + warp.origin[0], local[1] * warp.freq + warp.origin[1]]
+  }
+
+  it("a PAN does not move the warp: the same ground point keeps its warp coordinate", () => {
+    const ground = { x: HOME.x + 3e-6, y: HOME.y - 2e-6 }
+    let previous: [number, number] | null = null
+    let worst = 0
+    // Small steps over many origin boundaries. At z16 the warp lattice is ~64 px, so 40 px per frame
+    // crosses an origin cell every few frames.
+    for (let i = 0; i < 120; i++) {
+      const centreX = HOME.x + (i * 40) / (512 * 2 ** 16)
+      const centreY = HOME.y + (i * 15) / (512 * 2 ** 16)
+      const m = mercatorMatrix({ centreX, centreY, zoom: 16, ...view })
+      const frame = noiseFrame(m, view.width, view.height)
+      const w = shaderWarpCoord(frame, m, ground.x, ground.y)
+      if (previous) worst = Math.max(worst, Math.abs(w[0] - previous[0]), Math.abs(w[1] - previous[1]))
+      previous = w
+    }
+    expect(worst).toBeLessThan(1e-3)
+  })
+
+  it("and agrees with merc x scale x freq, the absolute lattice index", () => {
+    const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom: 16, ...view })
+    const frame = noiseFrame(m, view.width, view.height)
+    const warp = edgeWarp(frame, equatorR(11))
+    const viaShader = shaderWarpCoord(frame, m, HOME.x + 1e-5, HOME.y)
+    const absolute = groundWarpCoord(frame, warp, HOME.x + 1e-5, HOME.y)
+    expect(viaShader[0]).toBeCloseTo(absolute[0] % NOISE_ORIGIN_MODULUS, 2)
+    expect(viaShader[1]).toBeCloseTo(absolute[1] % NOISE_ORIGIN_MODULUS, 2)
+  })
+
+  /** The sabotage: a warp computed in screen space, which is what a `gl_FragCoord` warp would be. */
+  it("SABOTAGE: a screen-space warp moves the same ground point by many warp cells under that pan", () => {
+    const at = (centreX: number): number => {
+      const m = mercatorMatrix({ centreX, centreY: HOME.y, zoom: 16, ...view })
+      const [nx] = toNdc(m, HOME.x, HOME.y)
+      return ((nx + 1) / 2) * view.width / 64 // pixels / warp-cell size
+    }
+    expect(Math.abs(at(HOME.x + 400 / (512 * 2 ** 16)) - at(HOME.x))).toBeGreaterThan(5)
+  })
+
+  /**
+   * D-243 for the warp. A pinch from z17 to z10, 0.2 levels per frame, with the bucket resolution
+   * the real controller would pick. Within res 11 (z14 and up) `scale x freq` and the ground
+   * amplitude do not change AT ALL, so the edge does not re-randomise. Below that the warp may step
+   * only where the bucket changes, which is at most once per level.
+   */
+  it("a PINCH: no step at all inside res 11, at most one per level below it (D-243)", () => {
+    const ground = HOME
+    const key = (zoom: number): string => {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      const frame = noiseFrame(m, view.width, view.height)
+      const warp = edgeWarp(frame, equatorR(resForZoom(zoom)))
+      const index = groundWarpCoord(frame, warp, ground.x, ground.y).map(Math.floor).join(",")
+      // Ground amplitude, in mercator, rounded far below anything visible.
+      return `${index}|${(warp.amp / frame.scale).toExponential(6)}`
+    }
+
+    let stepsInRes11 = 0
+    const stepsPerLevel = new Map<number, number>()
+    for (let zoom = 17; zoom > 10.01; zoom -= 0.2) {
+      if (key(zoom - 0.2) === key(zoom)) continue
+      if (zoom - 0.2 >= 14) stepsInRes11++
+      const level = Math.floor(zoom - 0.2)
+      stepsPerLevel.set(level, (stepsPerLevel.get(level) ?? 0) + 1)
+    }
+
+    expect(stepsInRes11).toBe(0)
+    for (const steps of stepsPerLevel.values()) expect(steps).toBeLessThanOrEqual(1)
+    // Guard against the sweep becoming trivial: the buckets below z14 DO change the warp.
+    expect([...stepsPerLevel.values()].reduce((a, b) => a + b, 0)).toBeGreaterThan(0)
+  })
+
+  it("is sized from the disc: ~±0.45 radius on the ground, and a power-of-two frequency", () => {
+    for (const zoom of [10, 12, 14, 16, 18]) {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      const frame = noiseFrame(m, view.width, view.height)
+      const res = resForZoom(zoom)
+      const warp = edgeWarp(frame, equatorR(res))
+      const cosLat = Math.cos((latOfMercY(HOME.y) * Math.PI) / 180)
+      // Amplitude in ground mercator == WARP_GAIN_R x the disc radius at this latitude.
+      expect(warp.amp / frame.scale).toBeCloseTo((WARP_GAIN_R * equatorR(res)) / cosLat, 12)
+      expect(Number.isInteger(Math.log2(warp.freq))).toBe(true)
+      expect(warp.freq).toBeGreaterThanOrEqual(1)
+      expect(warp.freq).toBeLessThanOrEqual(WARP_FREQ_MAX)
+      for (const o of warp.origin) {
+        expect(Number.isInteger(o)).toBe(true)
+        expect(o).toBeGreaterThanOrEqual(0)
+        expect(o).toBeLessThan(NOISE_ORIGIN_MODULUS)
+      }
+    }
+  })
+
+  /** The values the operator picked by eye: F at z16, H at z14. */
+  it("lands on the rendered variants: freq 4 at z16 and 16 at z14", () => {
+    const freqAt = (zoom: number) => {
+      const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom, ...view })
+      return edgeWarp(noiseFrame(m, view.width, view.height), equatorR(11)).freq
+    }
+    expect(freqAt(16)).toBe(4)
+    expect(freqAt(14)).toBe(16)
+  })
+
+  it("is off on a degenerate frame rather than warping in screen space", () => {
+    const frame = noiseFrame(new Float64Array(16), 800, 600)
+    expect(frame.degenerate).toBe(true)
+    expect(edgeWarp(frame, equatorR(11))).toBe(NO_EDGE_WARP)
+  })
+
+  it("the shader's warp is FROZEN: no u_time between the warp and the mask read", () => {
+    const src = compositeFragmentSource()
+    const block = src.slice(src.indexOf("vec2 maskUv = v_uv;"), src.indexOf("texture(u_mask, maskUv)"))
+    expect(block).toContain("fbm(qw, u_warpOrigin")
+    expect(block).not.toContain("u_time")
+  })
+
+  it("reads ALL of the mask at the warped point, so the bloom follows the same edge", () => {
+    const src = compositeFragmentSource()
+    expect(src).toContain("vec3  mask = texture(u_mask, maskUv).rgb;")
+    expect(src).not.toContain("texture(u_mask, v_uv)")
+  })
+
+  it("reaches the GPU as u_warp (amp, freq) and u_warpOrigin, and is off when omitted", () => {
+    const m = mercatorMatrix({ centreX: HOME.x, centreY: HOME.y, zoom: 16, width: 800, height: 600 })
+    const noise = noiseFrame(m, 800, 600)
+    const warp = edgeWarp(noise, equatorR(11))
+    const base = { mask: {} as WebGLTexture, noise, time: 0, palette: V1, bloom: NO_BLOOM_PALETTE }
+
+    const on = fakeGl()
+    runCompositePass(on.gl, createCompositeResources(on.gl), { ...base, warp })
+    const vec2s = on.of("uniform2f").map((c) => c.args.slice(1))
+    expect(vec2s).toContainEqual([warp.amp, warp.freq])
+    expect(vec2s).toContainEqual(warp.origin)
+
+    const off = fakeGl()
+    runCompositePass(off.gl, createCompositeResources(off.gl), base)
+    expect(off.of("uniform2f").map((c) => c.args.slice(1))).toContainEqual([0, 1])
   })
 })
 

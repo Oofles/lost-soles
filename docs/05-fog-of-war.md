@@ -995,6 +995,8 @@ void main() {
 
     // Perturb the reveal threshold with noise => a ragged, organic mist edge
     // instead of a smooth blurred blob.
+    // AMENDED BY D-NEW-a (ticket 0211): this alone does NOT make the edge ragged.
+    // `coverage` is read at a ground-anchored, warped UV ("The edge is warped" below).
     float reveal = smoothstep(0.30, 0.72, coverage + (n - 0.5) * u_noiseAmp);
 
     float alpha = (1.0 - reveal) * u_maxOpacity;
@@ -1076,6 +1078,47 @@ it changes the octave structure that `0119`'s deferred tuning findings were reco
 The cost is that the noise field drifts smoothly during a *zoom*, since its frequency tracks the
 screen scale while the ground does not. That is accepted: a zoom already scales everything on
 screen, and a pan does not.
+
+#### The edge is warped, not only thresholded (ticket `0211`, D-NEW-a)
+
+**The sketch's promise of a ragged edge was not kept by the threshold.** Perturbing the cut point
+moves the boundary by `noiseAmp/2 × (1 − FALLOFF_INNER) × radius`, about 5 m at the 0.25 that
+`0119` ships. The reveal ramp is about 17 m wide, so over the real basemap the edge still read as a
+chain of disc outlines at every `noiseAmp` in §5.2's range. Pushing `noiseAmp` to 0.60 barely
+changed it and would break `SEAM_FLOOR`. Lowering `FALLOFF_INNER` to 0.35 only blurred the edge and
+brought back the seam D-231 removed. Both were rendered and rejected.
+
+So the composite **reads the mask at a displaced point**. `maskUv = v_uv + offset`, where the
+offset is two fBm fields (`fbm − 0.5`) on D-233's own ground lattice. It is converted from noise
+cells to screen UV through the inverse of `q`'s screen Jacobian (`dFdx`/`dFdy`), which stays
+correct under pitch. All of RGB is read at that point, so `0080`'s bloom follows the same edge. The
+mask pass is untouched: the `run.mjs` T3 seam probe, `SEAM_FLOOR`, D-231's `FALLOFF_INNER` 0.60 and
+`0079`'s R1/R2 zero-pixel diffs are not affected, and **D-231 is not superseded.**
+
+| | Value | Why |
+|---|---|---|
+| Amplitude | `WARP_GAIN_R` = 1.25 disc radii × (`fbm − 0.5`), so about ±0.45 r | Breaks the circles. It stays under the ~0.7 r where a single-disc corridor's coverage is still ≥ `SEAM_FLOOR`, so it cannot tear holes |
+| Wavelength | `WARP_WAVELENGTH_R` = 1.75 disc radii, rounded to a power-of-two frequency on the lattice | Close to the disc spacing. A much coarser warp only shifts the whole chain of circles sideways |
+| Time | **none: the warp is frozen** | The operator's call. Only the wisps (`noiseAmp`) animate, and the boundary itself never crawls |
+
+**Sized from the disc, not the screen.** A warp held constant in screen pixels was rendered and
+rejected: it was right at z16 and bent a z14 corridor about 75 m off its true shape, because a
+res-11 disc there is about 9 px. `edgeWarp` (`lib/fog/composite.ts`) takes the bucket's
+`discRadiusM` and sets the amplitude at the screen centre's latitude. It chooses the frequency from
+the *equatorial* radius, so the choice never depends on where the camera is. Otherwise a
+north-south pan near a rounding boundary would flip it, and the whole edge would re-randomise in
+mid-pan.
+
+**D-243's step, for the warp.** The frequency is a power of two and `scale` is one too, so
+`scale × freq` is exactly constant across zoom levels that share a bucket resolution. From z14 to
+z18 (all res 11) the warp is **the same field at every zoom**, with no step at all. It changes only
+where the bucket resolution changes, which already redraws the whole mask. `composite.test.ts`
+sweeps a pan and a pinch to prove both. The wisps keep their per-level step, which the operator
+likes.
+
+**Cost.** Two more 3-octave fBm per fragment. `run.mjs`'s C4 on SwiftShader measured 0.70 → 0.71
+ms/frame at 1280×800, inside the noise. §6.4 item 2's GPU timer needs a real GPU (`?fog=perf`).
+Renders: `docs/capabilities/assets/0211/`.
 
 Two constants worth defending:
 
@@ -1405,7 +1448,7 @@ Further reductions, in order of value:
 | Pass | Work per frame | Mid-range phone |
 |---|---|---|
 | Mask FBO | 1 instanced draw call, ~1.5–6k quads, 0.5× resolution, ~2–4× overdraw | **< 1 ms** |
-| Composite | 1 full-screen triangle, 3-octave fBm, ~40 ALU/fragment, DPR ≤ 2 | **1–2 ms** |
+| Composite | 1 full-screen triangle, 3-octave fBm (×4 since D-NEW-a: two wisp fields + a two-axis edge warp), ~40 ALU/fragment before the warp, DPR ≤ 2 | **1–2 ms** |
 | CPU per frame (camera still, or inside padded region) | none — nothing projected in JS | **~0 ms** |
 | CPU on padded-region exit / bucket change | two-level cull + VBO upload | 1–5 ms, off the frame path |
 | Bucket derivation (new zoom bucket, cold) | group index up front; ids, fractions, projection, bridges per group on first sight | index ~3.2 ms (151k cells), then ~10 ms per group; debounced |

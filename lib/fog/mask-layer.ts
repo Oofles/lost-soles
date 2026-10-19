@@ -9,6 +9,7 @@ import { log } from "@/lib/log"
 import {
   createCompositeResources,
   disposeCompositeResources,
+  edgeWarp,
   NO_BLOOM_PALETTE,
   type BloomPalette,
   noiseFrame,
@@ -34,7 +35,7 @@ import {
 } from "./mask"
 import { RES } from "@/src/domain/fog"
 
-import type { PackedBucket } from "./instances"
+import { discRadiusM, metresToMercator, type PackedBucket } from "./instances"
 import { tagReveal, type RevealPoint, type TagStats } from "./reveal-tag"
 import { EMPTY_CORRIDOR, type CorridorPack } from "./route-corridor"
 
@@ -197,6 +198,11 @@ export class FogMaskLayer implements CustomLayerInterface {
   #compositeRestore: CompositeRestore | null = null
   #composites = 0
   #noise: NoiseFrame | null = null
+  /**
+   * `0211`. The bucket's disc radius in EQUATORIAL mercator, which is what `edgeWarp` wants. Cached
+   * per resolution because `discRadiusM` asks h3-js, and `render` runs every frame.
+   */
+  #warpRadius: { res: number; merc: number } | null = null
   #fogTime = 0
 
   constructor(
@@ -600,6 +606,11 @@ export class FogMaskLayer implements CustomLayerInterface {
       gl.drawingBufferWidth,
       gl.drawingBufferHeight,
     )
+    let warpRadius = this.#warpRadius
+    if (warpRadius?.res !== this.#res) {
+      warpRadius = { res: this.#res, merc: metresToMercator(discRadiusM(this.#res), 0) }
+      this.#warpRadius = warpRadius
+    }
     this.#fogTime = this.options.timeSource?.() ?? 0
     this.options.timer?.attach(gl)
     this.options.timer?.begin("composite")
@@ -609,6 +620,7 @@ export class FogMaskLayer implements CustomLayerInterface {
       time: this.#fogTime,
       palette: this.options.palette ?? V1,
       bloom: this.#bloomPalette,
+      warp: edgeWarp(this.#noise, warpRadius.merc),
     })
     this.options.timer?.end()
     this.#composites++

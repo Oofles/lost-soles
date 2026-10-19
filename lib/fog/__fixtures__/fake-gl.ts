@@ -87,6 +87,8 @@ const COMPOSITE_UNIFORMS = new Set([
   "u_bloomGold",
   "u_bloomFrost",
   "u_bloomGlint",
+  "u_warp",
+  "u_warpOrigin",
 ])
 
 export interface GlCall {

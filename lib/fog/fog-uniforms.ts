@@ -102,8 +102,8 @@ export const V1_RIM_GLOW: Rgb = ADVENTURE.rimGlow
 export const V1_MAX_OPACITY = 0.9
 /**
  * 0.25, up from 0.10. It displaces the boundary only ~5 m (D-231's formula), which costs no
- * legibility and buys what little raggedness this lever can buy — see `0119`'s follow-up on
- * `FALLOFF_INNER` for why the edge still reads as disc outlines.
+ * legibility and buys what little raggedness this lever can buy. That is not enough to make the
+ * edge ragged, so since `0211` (D-NEW-a) the edge warp below does that and this only animates wisps.
  */
 export const V1_NOISE_AMP = 0.25
 /**
@@ -248,6 +248,58 @@ export const NOISE_DRIFT_2: readonly [number, number] = [-0.021, 0.017]
  * paragraph.
  */
 export const NOISE_ORIGIN_MODULUS = 1 << 20
+
+/* ─── The edge warp (ticket 0211, D-NEW-a) ─────────────────────────────────── */
+
+/*
+ * WHY THE EDGE HAS ITS OWN NOISE. §4.3's threshold perturbation cannot make the edge ragged, and
+ * no value of `noiseAmp` changes that. It moves the boundary by `amp/2 x (1 - FALLOFF_INNER) x radius`,
+ * about 5 m against a 17 m ramp, so the union of discs still reads as a chain of circles (`0119`,
+ * `0211`). Lowering `FALLOFF_INNER` would buy back the seam that D-231 removed. So the composite
+ * moves the point where it SAMPLES the coverage mask instead. That moves the edge itself, by a
+ * distance that does not depend on the ramp, and leaves every mask pixel as it was. The `run.mjs`
+ * T3 seam probe, `SEAM_FLOOR` and `0079`'s R1/R2 zero-pixel diffs all measure the mask pass, so
+ * none of them is touched.
+ *
+ * Both numbers below are in DISC RADII. That ties the warp to the ground and keeps the shape of the
+ * revealed area accurate at every zoom. A warp held constant in screen pixels looked right at z16
+ * and pushed a z14 corridor about 75 m off true, because a res-11 disc there is only about 9 px. The
+ * operator picked these values by eye at z16 and z14 (`0211`'s variants F and H).
+ */
+
+/**
+ * The warp's amplitude per unit of noise, in disc radii. The warp vector is `fbm - 0.5`, two fields,
+ * and in practice spans roughly ±0.35. So the edge moves by up to about **±0.45 radius**, around
+ * 17 m for a res-11 disc. That is under the 0.7 radius where a single-disc corridor's coverage is
+ * still at least `SEAM_FLOOR`, so a lone corridor cannot be torn into holes.
+ */
+export const WARP_GAIN_R = 1.25
+
+/**
+ * The size of one warp lattice cell, as a target in disc radii, which sets the warp's base
+ * wavelength. It is close to the 1.28-radius spacing between disc centres, which is what breaks up
+ * the scallops: a much coarser warp only shifts a whole chain of circles sideways. The frequency is
+ * rounded to a power of two (see `WARP_FREQ_MAX`), so the size actually used falls within √2 of this.
+ */
+export const WARP_WAVELENGTH_R = 1.75
+
+/**
+ * The frequency multiplier on D-233's lattice. It must be an integer, so that the lattice origin
+ * stays integral when it is multiplied, and it is a power of two, so that `noiseScale x freq` (warp
+ * cells per mercator unit) is the same at every zoom level that shares a bucket resolution. That is
+ * what keeps the warp still through a pinch from z14 to z18: the warp field does not re-randomise at
+ * all there, and re-randomises only where the bucket itself changes. The warp's origin is reduced
+ * modulo `NOISE_ORIGIN_MODULUS` on the CPU, so the frequency never threatens the origin's exactness.
+ * What 64 bounds is the LOCAL coordinate. At most about 10 noise cells x 64 x 4 (the lacunarity
+ * over three octaves) is roughly 2,600, well inside what `fract` resolves. Below 1 the frequency is
+ * clamped, so past about z18 the warp cell grows instead.
+ */
+export const WARP_FREQ_MAX = 64
+
+/** Integer translations decorrelating the warp's two axes from each other and from the wisps. */
+export const WARP_JITTER_X: readonly [number, number] = [101, 7]
+/** See `WARP_JITTER_X`. */
+export const WARP_JITTER_Y: readonly [number, number] = [29, 211]
 
 /* ─── Animation (§4.5) ──────────────────────────────────────────────────────── */
 
