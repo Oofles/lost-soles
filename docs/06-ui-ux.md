@@ -444,7 +444,8 @@ toast.
   saved mode. This is the one moment where atmosphere outranks planning, because you are not
   planning — you are looking at what you did. On completion it cross-fades back to the
   saved mode, with the toggle's own 320 ms fade (§4.3) *(was 300 ms; one fade for every mode
-  change, operator, `0098`)*. This is legal under D-051: legibility is a *task* guarantee, and there is no
+  change, operator, `0098`)*. A skip (§3.4) hands back with no fade: the saved mode arrives with
+  the end state, in one frame (`0254`). This is legal under D-051: legibility is a *task* guarantee, and there is no
   wayfinding task inside the reveal. The cross-fade back is what keeps the promise.
 - **The lantern.** A point of warm light (`--lantern-500 #FFB347`, 18dp soft radius, additive)
   travels the actual `latlng` stream — the full stream, never `summary_polyline` (D-121

@@ -1,4 +1,5 @@
 import { DEFAULT_MAP_MODE, MODE_CROSSFADE_MS as CROSSFADE_MS, mapModeStore, type MapMode } from "@/lib/map-mode"
+import type { ExitCause } from "./exit"
 
 /**
  * THE RENDERING MODE AROUND THE SEQUENCE. Ticket `0080`, `06-ui-ux.md` §3.2: *"The sequence always
@@ -30,9 +31,32 @@ export interface ModeCrossFade {
   ms: number
 }
 
-/** The fade to run when the beat ends — `null` when the saved mode is the one already showing. */
-export function modeCrossFade(saved: RenderMode): ModeCrossFade | null {
-  return saved === SEQUENCE_MODE ? null : { from: SEQUENCE_MODE, to: saved, ms: MODE_CROSSFADE_MS }
+/**
+ * `0254`. THE HAND-BACK. How the sequence ended decides how the map leaves adventure (06 §3.2): a
+ * sequence that ran to its end (or aborted — both `complete`) cross-fades to the saved mode over
+ * the toggle's 320 ms (D-378); a skip — click, Esc or Back (`0084`) — is *"instantly, no fade"*, so
+ * the saved mode arrives in one frame. `null` when the saved mode is adventure: nothing changes.
+ *
+ * `saved` is the user's saved mode, never the run page's frontier override: the frontier click
+ * does not change the preference (D-378), and `onRelive` clears it before the next play.
+ */
+export function modeCrossFade(saved: RenderMode, cause: ExitCause = "complete"): ModeCrossFade | null {
+  if (saved === SEQUENCE_MODE) return null
+  return { from: SEQUENCE_MODE, to: saved, ms: handBackFadeMs(cause) }
+}
+
+/** The hand-back's fade, in ms, after an exit of this cause: 0 for a skip, 320 otherwise. */
+export function handBackFadeMs(cause: ExitCause | null): number {
+  return cause === null || cause === "complete" ? MODE_CROSSFADE_MS : 0
+}
+
+/**
+ * The fade `MapShell` uses for the run page's NEXT mode change. A frontier click always fades (a
+ * toggle-like change, `0098`); otherwise it is the hand-back's, set by how the last play ended —
+ * `null` while none has, so the change into a Relive keeps the 320 ms fade it had.
+ */
+export function runPageFadeMs(state: { frontierClicked: boolean; endCause: ExitCause | null }): number {
+  return state.frontierClicked ? MODE_CROSSFADE_MS : handBackFadeMs(state.endCause)
 }
 
 /**

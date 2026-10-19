@@ -14,7 +14,17 @@ import { BEAT1_MS, CAMERA_MS, FROST_MS, GOLD_MS, SETTLE_MS, TRAVERSAL_MS, beat1A
 import { flyToRun, runInView, type Box, type CameraMap } from "./camera"
 import { INK_CORE_ID, INK_GLOW_ID, INK_SOURCE_ID, installInk, type InkMap } from "./ink"
 import { inkGradient, lanternPath } from "./lantern-path"
-import { FRONTIER_MODE, modeCrossFade, runPageMode, savedRenderMode, SEQUENCE_MODE } from "./mode"
+import { MODE_FRAMES, startModeTransition, type ModeFrame } from "@/lib/map-mode"
+
+import {
+  FRONTIER_MODE,
+  handBackFadeMs,
+  modeCrossFade,
+  runPageFadeMs,
+  runPageMode,
+  savedRenderMode,
+  SEQUENCE_MODE,
+} from "./mode"
 import { bloomPaletteFrom, clearOf, hexToRgb } from "./palette"
 
 /**
@@ -476,6 +486,50 @@ describe("the mode around the sequence — criterion 5 (0098 made it real)", () 
       expect(runPageMode({ sequencePlaying: false, frontierClicked: false, saved })).toBe(saved)
       expect(runPageMode({ sequencePlaying: false, frontierClicked: true, saved })).toBe(FRONTIER_MODE)
     }
+  })
+})
+
+/* ─── 0254: the hand-back — a finish fades, a skip cuts ─────────────────────── */
+
+describe("the hand-back to the saved mode (0254, 06 §3.2, D-378)", () => {
+  it("a finished (or aborted) sequence fades over the toggle's 320 ms; a skip has no fade", () => {
+    expect(modeCrossFade("atlas", "complete")).toEqual({ from: "adventure", to: "atlas", ms: 320 })
+    for (const skip of ["click", "escape", "back"] as const) {
+      expect(modeCrossFade("atlas", skip)).toEqual({ from: "adventure", to: "atlas", ms: 0 })
+      expect(handBackFadeMs(skip)).toBe(0)
+    }
+  })
+
+  it("a saved adventure sees no fade and no change at the hand-back, however the sequence ended", () => {
+    for (const cause of ["complete", "click", "escape", "back"] as const) {
+      expect(modeCrossFade("adventure", cause)).toBeNull()
+      expect(runPageMode({ sequencePlaying: false, frontierClicked: false, saved: "adventure" })).toBe(SEQUENCE_MODE)
+    }
+  })
+
+  it("the run page's next fade: 0 after a skip, 320 after a finish, a Relive or a frontier click", () => {
+    expect(runPageFadeMs({ frontierClicked: false, endCause: "escape" })).toBe(0)
+    expect(runPageFadeMs({ frontierClicked: false, endCause: "complete" })).toBe(320)
+    expect(runPageFadeMs({ frontierClicked: false, endCause: null })).toBe(320)
+    // A frontier click after a skip is a fresh change and fades like the toggle.
+    expect(runPageFadeMs({ frontierClicked: true, endCause: "click" })).toBe(320)
+  })
+
+  it("the skip's 0 ms reaches the map as a hard cut: the saved frame in one call, no animation frame asked for", () => {
+    const applied: ModeFrame[] = []
+    let rafs = 0
+    const clock = {
+      now: () => 0,
+      requestAnimationFrame: () => ++rafs,
+      cancelAnimationFrame: () => {},
+    }
+    const ms = runPageFadeMs({ frontierClicked: false, endCause: "back" })
+    startModeTransition({ from: MODE_FRAMES.adventure, to: MODE_FRAMES.atlas, reduced: false, clock, ms, apply: (f) => applied.push(f) })
+    expect(applied).toEqual([MODE_FRAMES.atlas])
+    expect(rafs).toBe(0)
+    // And a finish does animate.
+    startModeTransition({ from: MODE_FRAMES.adventure, to: MODE_FRAMES.atlas, reduced: false, clock, ms: runPageFadeMs({ frontierClicked: false, endCause: "complete" }), apply: () => {} })
+    expect(rafs).toBe(1)
   })
 })
 

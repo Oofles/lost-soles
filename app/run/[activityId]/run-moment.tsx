@@ -12,8 +12,8 @@ import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
 import { basemapPlaceNames } from "@/lib/place-names"
 import { frontierOrigin, frontierText, pickFrontier } from "@/lib/run-moment/frontier-line"
-import { browserSequenceHistory, wireSequenceExit, type SequenceExit } from "@/lib/run-moment/exit"
-import { runPageMode } from "@/lib/run-moment/mode"
+import { browserSequenceHistory, wireSequenceExit, type ExitCause, type SequenceExit } from "@/lib/run-moment/exit"
+import { runPageFadeMs, runPageMode } from "@/lib/run-moment/mode"
 import { routeStill } from "@/lib/run-moment/route-still"
 import { markSeen } from "@/lib/run-moment/seen"
 import { runDate, runDistance, runDuration, sourceLabel } from "@/lib/runs/format"
@@ -221,6 +221,12 @@ export function RunMoment({
   chronicle: string
 }) {
   const [state, dispatch] = useReducer(momentReducer, autoplay, initialMoment)
+  /**
+   * `0254`. How the last play ended — a skip hands back to the saved mode with no fade, a finish
+   * with the 320 ms one (`runPageFadeMs`). Set in the same handler as `done`, so the mode change
+   * and its fade reach `MapShell` in one render. `null` until a play ends, and again on Relive.
+   */
+  const [endCause, setEndCause] = useState<ExitCause | null>(null)
   // Read once, here, so beat 2 and the end state draw the same tally (`0081`).
   const tally = useRunTally(summary, xpBefore)
 
@@ -247,7 +253,8 @@ export function RunMoment({
     const x = wireSequenceExit({
       host: window,
       history: browserSequenceHistory(),
-      onExit: () => {
+      onExit: (cause) => {
+        setEndCause(cause)
         dispatch({ type: "done" })
         markSeen(activityId)
       },
@@ -265,6 +272,7 @@ export function RunMoment({
   const onDone = useCallback(() => {
     if (phase.current !== "sequence") return
     if (exit.current) return exit.current.complete()
+    setEndCause("complete")
     dispatch({ type: "done" })
     markSeen(activityId)
   }, [activityId])
@@ -298,6 +306,8 @@ export function RunMoment({
   const savedMode = useMapMode()
   const [frontierClicked, setFrontierClicked] = useState(false)
   const mapMode = runPageMode({ sequencePlaying: state.phase === "sequence", frontierClicked, saved: savedMode })
+  /** `0254`. The fade for the next mode change: none after a skip (`0084`, *"instantly, no fade"*). */
+  const mapModeFadeMs = runPageFadeMs({ frontierClicked, endCause })
 
   /**
    * `0084`. WEBGL LOST: abort to the end state, and hold the still until a rebuilt map is ready. The
@@ -370,6 +380,7 @@ export function RunMoment({
   const onRelive = () => {
     window.scrollTo({ top: 0 })
     setFrontierClicked(false)
+    setEndCause(null)
     dispatch({ type: "relive" })
   }
 
@@ -385,6 +396,7 @@ export function RunMoment({
               reveal={state.phase === "sequence" ? reveal : null}
               onStage={setStage}
               mode={mapMode}
+              modeFadeMs={mapModeFadeMs}
             />
             {still ? <RouteStill summary={summary} /> : null}
           </div>

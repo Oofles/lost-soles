@@ -279,7 +279,8 @@ function Beat1({
         )
       }
       // §3.2's cross-fade back to the saved mode is `MapShell`'s (`0098`): the run page hands it
-      // `runPageMode`, which leaves adventure when the sequence's phase ends.
+      // `runPageMode`, which leaves adventure when the sequence's phase ends, and `runPageFadeMs`
+      // (`0254`): 320 ms after a finish like this one, none after a skip.
       onDone(t0 !== null && now - t0 >= BEAT1_MS ? t0 + BEAT1_MS : now)
     }
 

@@ -158,6 +158,7 @@ export function MapShell({
   onLatestRun,
   held = null,
   mode: modeProp,
+  modeFadeMs,
 }: {
   home: Camera | null
   /**
@@ -207,6 +208,12 @@ export function MapShell({
    * frontier click (`06` §3.2). A change cross-fades in 320 ms; the camera never moves.
    */
   mode?: MapMode
+  /**
+   * `0254`. The fade, in ms, for the NEXT change of `mode` — read when the change lands. Absent:
+   * the toggle's 320 ms. The run page passes 0 after a skip, whose hand-back to the saved mode is
+   * *"instantly, no fade"* (`06` §3.2, `0084`). Reduced motion is a hard cut whatever this says.
+   */
+  modeFadeMs?: number
 }) {
   const framed = run !== undefined
   const fixedRun = useRef(run)
@@ -244,6 +251,9 @@ export function MapShell({
   const wanted: MapMode = modeProp ?? savedMode
   const wantedRef = useRef(wanted)
   wantedRef.current = wanted
+  /** `0254`. A ref: a change of the fade alone is not a mode change and must not start one. */
+  const fadeMsRef = useRef(modeFadeMs)
+  fadeMsRef.current = modeFadeMs
   const shown = useRef<MapMode | null>(null)
   const frame = useRef<ModeFrame>(MODE_FRAMES[wanted])
   const transition = useRef<ModeTransition | null>(null)
@@ -514,6 +524,7 @@ export function MapShell({
       from: frame.current,
       to: MODE_FRAMES[to],
       reduced: prefersReducedMotion(),
+      ms: fadeMsRef.current,
       clock: {
         now: () => performance.now(),
         requestAnimationFrame: (cb) => window.requestAnimationFrame(cb),
