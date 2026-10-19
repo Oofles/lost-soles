@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
@@ -57,6 +60,47 @@ describe("camera restore (0053)", () => {
   it("falls back to the extract, at a zoom that shows the extract", () => {
     expect(EXTRACT_FALLBACK.zoom).toBeLessThan(HOME_ZOOM)
     expect(parseCamera(JSON.stringify(EXTRACT_FALLBACK))).toStrictEqual(EXTRACT_FALLBACK)
+  })
+})
+
+/**
+ * 0284: the archive is Florida plus a 1° tile around each area run outside it, cut from one
+ * committed region file. Its header bounds are the union of the regions, whose centre is the
+ * empty gap between them, so the fallback must stay inside Florida's own polygon.
+ */
+describe("the basemap region file (0284)", () => {
+  type Feature = { properties: { area: string; tile?: string }; geometry: { type: string; coordinates: number[][][] } }
+  const region = JSON.parse(
+    readFileSync(join(process.cwd(), "docs/capabilities/assets/0284/basemap-region.geojson"), "utf8"),
+  ) as { features: Feature[] }
+  const ring = (f: Feature) => f.geometry.coordinates[0]!
+  const box = (f: Feature) => {
+    const xs = ring(f).map((p) => p[0]!)
+    const ys = ring(f).map((p) => p[1]!)
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const
+  }
+
+  it("keeps the extract fallback inside the Florida region", () => {
+    const florida = region.features.find((f) => f.properties.area === "Florida")!
+    const [w, s, e, n] = box(florida)
+    expect(EXTRACT_FALLBACK.lng).toBeGreaterThan(w)
+    expect(EXTRACT_FALLBACK.lng).toBeLessThan(e)
+    expect(EXTRACT_FALLBACK.lat).toBeGreaterThan(s)
+    expect(EXTRACT_FALLBACK.lat).toBeLessThan(n)
+  })
+
+  /**
+   * D-199 / 08 §7.2: the repository is public. A box padded around a run is a location; a whole
+   * 1° tile (~100 km) is not. Every region other than Florida's 0052 bbox must be exactly one.
+   */
+  it("commits no region finer than a whole 1° tile", () => {
+    for (const f of region.features.filter((x) => x.properties.area !== "Florida")) {
+      expect(f.geometry.type).toBe("Polygon")
+      const [w, s, e, n] = box(f)
+      expect([w, s, e, n].every(Number.isInteger), f.properties.area).toBe(true)
+      expect([e - w, n - s], f.properties.area).toStrictEqual([1, 1])
+      expect(f.properties.tile).toBe(`${s},${w}`)
+    }
   })
 })
 

@@ -1,0 +1,45 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "area": "Florida", "note": "the 0052 bbox, unchanged" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-87.7, 24.4], [-79.9, 24.4], [-79.9, 31.1], [-87.7, 31.1], [-87.7, 24.4]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "area": "north-west Arkansas", "tile": "36,-94" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-94, 36], [-93, 36], [-93, 37], [-94, 37], [-94, 36]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "area": "central Arkansas", "tile": "34,-93" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-93, 34], [-92, 34], [-92, 35], [-93, 35], [-93, 34]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "area": "south-central Kentucky", "tile": "37,-86" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-86, 37], [-85, 37], [-85, 38], [-86, 38], [-86, 37]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "area": "Grand Bahama", "tile": "26,-78" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-78, 26], [-77, 26], [-77, 27], [-78, 27], [-78, 26]]]
+      }
+    }
+  ]
+}

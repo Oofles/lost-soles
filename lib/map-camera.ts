@@ -33,6 +33,12 @@ const STORAGE_KEY = "lost-soles.camera.v1"
  * What is left here is the centre of the Florida extract at a zoom that shows the state:
  * already public in `docs/capabilities/08-map-and-fog-renderer.md`, identifying nobody,
  * and — the practical part — guaranteed to have tiles under it.
+ *
+ * NOT THE ARCHIVE'S OWN CENTRE. Since 0284 the archive holds Florida plus a 1° tile around each
+ * area run outside it, and its header bounds are the union of all of them: their centre is
+ * inland Alabama at z6, mostly the empty gap between regions. Florida is still the region
+ * nearly every run is in, so the fallback stays on Florida's box, and `map-camera.test.ts`
+ * pins it inside the committed region file's Florida polygon.
  */
 export const EXTRACT_FALLBACK: Camera = { lng: -83.8, lat: 27.75, zoom: 6, bearing: 0 }
 

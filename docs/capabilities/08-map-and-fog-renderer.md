@@ -62,32 +62,42 @@ curl -sL -o pmtiles.tar.gz \
   https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
 tar xzf pmtiles.tar.gz
 
-# 2. Cut the region. --dry-run first if you are changing the bbox: it prints the
-#    resulting archive size without downloading anything, in about three seconds.
-./pmtiles extract https://build.protomaps.com/20260908.pmtiles basemap-fl-20260908.pmtiles \
-  --bbox=-87.7,24.4,-79.9,31.1 --maxzoom=15
+# 2. Cut the regions. --dry-run first if you are changing the region file: it prints the
+#    resulting archive size without downloading anything, in about five seconds.
+#    The region file is Florida's bbox plus one whole 1° tile per area run outside it (0284).
+./pmtiles extract https://build.protomaps.com/20261018.pmtiles basemap-20261018.pmtiles \
+  --region=docs/capabilities/assets/0284/basemap-region.geojson --maxzoom=15
 
 # 3. Upload under the dated key, immutable for its whole life (see below)
-aws s3 cp basemap-fl-20260908.pmtiles s3://lost-soles-tiles/tiles/ \
+aws s3 cp basemap-20261018.pmtiles s3://lost-soles-tiles/tiles/ \
   --cache-control "public, max-age=31536000, immutable" \
   --content-type application/octet-stream --profile devault
 
 # 4. Point the app at it — ONE line
-#    lib/basemap.ts: export const BASEMAP_ARCHIVE = "basemap-fl-YYYYMMDD.pmtiles"
+#    lib/basemap.ts: export const BASEMAP_ARCHIVE = "basemap-YYYYMMDD.pmtiles"
 ```
 
 | | |
 |---|---|
-| Source build | `https://build.protomaps.com/20260908.pmtiles` |
-| Region | Florida, bbox `-87.7,24.4,-79.9,31.1` |
-| Zoom | `0–15` (MapLibre overzooms past 15; the z14–17 legibility floor is met by overzoom) |
-| Archive size | **1.1 GB**, 1.2 GB transferred, 46 HTTP requests, ~40 s |
-| Storage cost | ~**$0.025/month** at S3's $0.023/GB-mo |
+| Archive | `basemap-20261018.pmtiles` (ticket `0284`; was `basemap-fl-20260908.pmtiles`, 1.1 GB, Florida only) |
+| Source build | `https://build.protomaps.com/20261018.pmtiles` (Protomaps basemap schema 4.15.2, as before) |
+| Region | `docs/capabilities/assets/0284/basemap-region.geojson`: Florida bbox `-87.7,24.4,-79.9,31.1`, plus the 1° tiles `36,-94`, `34,-93`, `37,-86` and `26,-78` (south-west corners) |
+| Zoom | `0–15`, the planet build's own max (MapLibre overzooms past 15 to D-253's z18; the z14–17 legibility floor is met by overzoom) |
+| Archive size | **1.2 GB** (1,200,756,660 bytes), 1.3 GB transferred, 155 HTTP requests, ~40 s |
+| Storage cost | ~**$0.028/month** at S3's $0.023/GB-mo |
+
+**Adding an area is a new 1° tile in the region file and a new dated archive.** Derive the tiles
+from the activities themselves (every traced activity's bounding box, padded slightly, floored to
+whole degrees), never from a list in a ticket. The region file is in a public repo, so it holds
+**whole 1° tiles and nothing finer** (D-199, `08-security-privacy.md` §7.2): a box padded around a
+run is a location. `lib/map-camera.test.ts` enforces that. The archive's header bounds are the
+union of the regions, so no camera reads them; the extract fallback is `EXTRACT_FALLBACK`, pinned
+inside Florida.
 
 **Why Florida and not a box around Nocatee.** A 100 km box around the operator's actual running
 area (`-81.9,29.6,-80.9,30.6`) is only 62 MB, so the statewide extract costs about two extra cents
 a month. It buys every in-state travel run a real street map with no regeneration. Out-of-state
-travel is the four steps above — but note that **nothing about ingest, H3 cells, fog reveal or XP
+travel is the four steps above, with a 1° tile added to the region file (`0284` did this for four) — but note that **nothing about ingest, H3 cells, fog reveal or XP
 is region-scoped**: a run anywhere in the world imports, scores and reveals correctly, and the only
 thing missing outside the extract is the ground underneath. Tickets `0113` and `0087` already
 specify what that looks like — *missing tiles render flat parchment, never a checkerboard, never a

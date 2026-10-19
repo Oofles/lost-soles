@@ -27,7 +27,16 @@ import {
  * than an error. A dated key makes that unrepresentable; the cost is this one line
  * changing whenever the extract is regenerated, which the capability doc records.
  */
-export const BASEMAP_ARCHIVE = "basemap-fl-20260908.pmtiles"
+/*
+ * ONE ARCHIVE, MORE THAN ONE REGION (ticket 0284). Florida's 0052 bbox, unchanged, plus the 1°
+ * tile around each out-of-Florida area holding a traced activity, cut in one multi-region
+ * `pmtiles extract` from `docs/capabilities/assets/0284/basemap-region.geojson`. One archive keeps
+ * one MapLibre source and one name-lookup reader (`lib/place-names.ts`, D-302); a gap between the
+ * regions has no tiles and renders as the background, exactly as everywhere off the map did before.
+ * Its header bounds are the union of the regions, so nothing here reads them for a camera: the
+ * extract fallback is `EXTRACT_FALLBACK` in `lib/map-camera.ts`, inside the Florida region.
+ */
+export const BASEMAP_ARCHIVE = "basemap-20261018.pmtiles"
 
 /** The MapLibre source id. Referenced by every layer the flavour generates. */
 export const BASEMAP_SOURCE = "protomaps"
@@ -64,7 +73,7 @@ export function basemapTilesUrl(): string {
   return url
 }
 
-/** `pmtiles://https://d….cloudfront.net/basemap-fl-YYYYMMDD.pmtiles` */
+/** `pmtiles://https://d….cloudfront.net/basemap-YYYYMMDD.pmtiles` */
 export function basemapArchiveUrl(): string {
   return `pmtiles://${basemapTilesUrl()}/${BASEMAP_ARCHIVE}`
 }
