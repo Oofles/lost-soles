@@ -1658,7 +1658,7 @@ ground by a malformed payload.
 
 Trigger, in preference order:
 
-1. **AppSync subscription** (Amplify Gen 2 Data, already in the stack per D-080) on the user's
+1. ~~**AppSync subscription**~~ *(Dropped by D-364, never built; trigger 2 is the trigger.)* (Amplify Gen 2 Data, already in the stack per D-080) on the user's
    generation counter. Push, no polling, no VPC (D-081 — nothing here needs a NAT gateway).
 2. **Fallback: revalidate `manifest.json` on `visibilitychange` → visible and on `window.focus`.**
    Cheap (a 304), and it covers the common real case — the user finishes a run, opens the app,

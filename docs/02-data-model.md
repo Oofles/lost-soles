@@ -568,6 +568,10 @@ access to sourceAccount."* Both cannot hold. The resolution, which satisfies the
 index projected `KEYS_ONLY`.** The webhook learns `userId` and nothing else; the token attributes
 are not present in the index, so a fully compromised webhook Lambda cannot read a credential even
 with a valid IAM grant. `process-activity` and `token-refresh` keep base-table read/write.
+*(Superseded in practice by D-343 and D-365: the webhook resolves owners through a static owner map
+and holds **no** grant on T7. The index is kept and still written, reserved for a multi-user
+lookup; nothing queries it. If anything ever does, the KEYS_ONLY and index-only rules above
+apply unchanged.)*
 
 5-year count: 6 users × ≤4 adapters = **≤ 24**.
 
@@ -1369,8 +1373,8 @@ same way:
 
 | Path | What happens | Result |
 |---|---|---|
-| **Strava sends `aspect_type: delete`** (D-121 territory: the source can retract) | `Activity.status = TOMBSTONED`. Its ledger rows are **kept**, not deleted. The activity leaves the activity list; the XP does not leave the total. Cells are never removed (D-020, §2 T3). | XP unchanged |
-| **Source-side edit** (distance corrected downward, `revision` bumped) | re-score, and write the *difference* only if positive. A negative difference writes nothing. | XP never falls |
+| **Strava sends `aspect_type: delete`** (D-121 territory: the source can retract) | Once Strava confirms the activity is gone (`confirmRetracted`, D-355; a `present` answer writes nothing and releases the key, D-360), `Activity.status = TOMBSTONED`. Its ledger rows are **kept**, not deleted. The activity leaves the activity list; the XP does not leave the total. Cells are never removed (D-020, §2 T3). | XP unchanged |
+| **Source-side edit** (distance corrected downward, `revision` bumped) | ~~re-score, and write the *difference* only if positive. A negative difference writes nothing.~~ **Amended by D-278 / D-356 (14 audit, 2026-10-19):** no rescore. The edit is re-fetched and re-archived through the ordinary ingest path, and the revised geometry reaches the map. The first version's XP and discovery award stand until an XP replay is run by hand. | XP never falls |
 | **A scoring bug found in production** | fix the rules, run a replay. §4.6 handles it. | XP never falls |
 
 **There is no un-award code path in this design.** 05 §3.5's un-award machinery is retained only
@@ -1615,7 +1619,7 @@ array. What the fog retains at 500k is 15 MB, most of it the render buckets' ids
 
 **`generation` is the only cache key.** It is a monotonic per-user counter, allocated by an
 atomic `ADD` on T6's item type C (§2 T6, D-218) and mirrored to
-`Profile.exploredGeneration` (T1) purely so the AppSync subscription has something to push
+`Profile.exploredGeneration` (T1) purely so the AppSync subscription has something to push *(The subscription was dropped by D-364; the mirror stays harmless.)*
 (AP-14). **The manifest is authoritative; the Profile attribute is a notification channel.** If
 they ever disagree, the manifest wins and the mirror is repaired — which is why T1 documents it as
 a mirror rather than a source. **The repair only raises the mirror** (D-264): a mirror behind the
@@ -1698,7 +1702,7 @@ stays small, not to save bandwidth.
   One run touches a handful of parents, so the update is sub-millisecond and one VBO upload. This is
   the third distinct use of the parent grouping already chosen for the T6 partition key and the client's
   viewport bucketing (§2 T6) — one decision, three payoffs.
-- **Trigger order:** AppSync subscription on the generation counter (push, no polling, no VPC —
+- **Trigger order:** ~~AppSync subscription on the generation counter~~ *(dropped, D-364)* (push, no polling, no VPC —
   D-081) → revalidate the manifest on `visibilitychange`/`focus` → a manual sync affordance.
   **Never a timer.** Background polling is exactly the upkeep D-013 rejects.
 - `persistToIndexedDB` runs in an idle callback, never on the frame path.

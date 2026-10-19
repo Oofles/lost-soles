@@ -448,8 +448,11 @@ const oauthStateTable = new Table(sourcesStack, "OAuthStateTable", {
  *
  * `01-architecture.md` §2 says both "on POST an `owner_id` → `SourceAccount` lookup
  * that discards events for unknown athletes" AND "strava-webhook gets NO access to
- * sourceAccount". Both cannot hold. This index is the resolution: the webhook is
+ * sourceAccount". Both cannot hold. This index was the resolution: the webhook would be
  * granted `dynamodb:Query` on the INDEX alone, and the index carries KEYS_ONLY.
+ *
+ * AS BUILT (D-343, D-365): the webhook resolves owners through a static owner map and holds NO
+ * grant here. Nothing queries this index; it is kept, still written, for a multi-user lookup.
  *
  * KEYS_ONLY IS THE WHOLE POINT AND IS NOT AN OPTIMISATION. A projection is not an
  * access rule — it is an absence. The token attributes are not stored in this index,

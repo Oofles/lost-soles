@@ -635,6 +635,12 @@ The end state is the *canonical* view of a run. The sequence is a decorated way 
   (`users/<uid>/backfill/batch.json`: window, imported ids, standing before and after). Every
   imported activity is not-new on every device. The burn clears outward from the map's centre;
   the ledger rises at 4 s, the card plays at 5.0–6.4 s, and home returns at 8.4 s.)*
+  *(D-354, as built: until home knows whether a reveal is due, the fog holds its last frame; the
+  import's cells are held back and the plinth is veiled while the reveal is ready or playing.
+  Reduced motion is a 400 ms cross-fade on the same phase boundaries. The failure bullet below
+  differs here: a lost WebGL context aborts the aggregate reveal **to home**, not to a run's end
+  state, and with no WebGL2 at all the numbers still play. Zero prior territory still gets a fog
+  layer.)*
 - **Failure mid-sequence.** If WebGL context is lost (05 §4.5 says this genuinely happens under
   GPU memory pressure), abort to the end state with a static map image (D-298: the route drawn from its geometry, until
   the rebuilt map is ready). The ledger is

@@ -6670,5 +6670,65 @@
       "checked": 3,
       "total": 3
     }
+  },
+  {
+    "id": 290,
+    "slug": "delete-the-secret-smoke-test-function-now-the-backend-s-last",
+    "title": "Delete the secret-smoke-test function, now the backend's last secret() user",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T05:14:32Z",
+    "path": "tickets/open/0290-delete-the-secret-smoke-test-function-now-the-backend-s-last.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 291,
+    "slug": "lambda-log-groups-never-expire-08-3-1-requires-30-day-retent",
+    "title": "Lambda log groups never expire; 08 §3.1 requires 30-day retention",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T05:19:38Z",
+    "path": "tickets/open/0291-lambda-log-groups-never-expire-08-3-1-requires-30-day-retent.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 292,
+    "slug": "a-failed-sqs-send-strands-an-update-or-delete-receipt-that-n",
+    "title": "A failed SQS send strands an update or delete receipt that no retry or sweep reopens",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "14-webhook-and-automatic-sync",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T05:23:49Z",
+    "path": "tickets/open/0292-a-failed-sqs-send-strands-an-update-or-delete-receipt-that-n.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
   }
 ]

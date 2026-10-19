@@ -198,7 +198,8 @@ not move (D-135). *(Corrected by ticket `0282`. This paragraph used to say the a
 totals and that each cell's `lastRunAt` was recomputed from the surviving activities. The first
 contradicts D-135. The second contradicts D-020's append-only cells, whose `lastRunAt` is written
 with `max` and never lowered. Both followed `02` §4.7. Hiding a tombstoned activity from the
-activity list and the Chronicle is the readers' job, and a separate ticket.)* This is deliberate
+activity list and the Chronicle is the readers' job: done by ticket `0287` (D-358) — the list
+readers skip it; `/run/:id`, the lifetime facts and the permanent trace web keep it.)* This is deliberate
 and it is what makes §2.8's legal exposure survivable.
 
 ---
@@ -395,7 +396,8 @@ handshake succeeds does the POST return `{"id": 120475}`, the subscription id.
 Management: `GET /push_subscriptions` (with `client_id`/`client_secret`) to inspect,
 `DELETE /push_subscriptions/{id}` to remove. Because there is one subscription per app and its
 `callback_url` is fixed at creation, **the callback URL is permanent infrastructure**. Choose a
-stable path behind a stable custom domain now; changing it later means delete + recreate, and
+stable path now — as built, the `ingest-webhook` Function URL, stable for the function's logical
+id (D-343; the "custom domain" advice is superseded by the amendment above); changing it later means delete + recreate, and
 there is a window with no events during which reconciliation is the only ingestion path.
 
 **Event payload (POST):**
@@ -416,7 +418,12 @@ there is a window with no events during which reconciliation is the only ingesti
   privacy changes**. There is no event for "the user fixed the GPS trace" or "distance changed".
 - `object_type: "athlete"` has exactly one meaningful form: deauthorization, carrying
   `updates: {"authorized": "false"}`. **Wire this up** — it is the §7.4 trigger and the
-  `disconnect` IngestCommand.
+  `disconnect` IngestCommand. *(As built, D-348: the event is unsigned, so it is never believed
+  on arrival. The webhook forwards a `DisconnectMessage`; the worker forces a token refresh and
+  disconnects only if the provider rejects the credential.)*
+- *(As built, D-355/D-356.)* An activity `update` re-fetches the whole activity (`reingest`
+  wrapping an ordinary fetch job); a `delete` becomes `retract`, confirmed with
+  `GET /activities/{id}` before anything is tombstoned. See §2.7.
 - **The payload contains no activity data.** It is a pointer. Getting anything useful costs
   API calls against the rate limit (§2.5).
 
@@ -430,6 +437,16 @@ Return 200 **before doing any work**. The handler does exactly this, in order:
    keyed `(object_id, aspect_type, event_time)`.
 3. Return `200` with an empty body.
 
+> **As built (tickets `0091`, `0093`, `0282`).** Step 1 is the adapter's `accept()`: exact field
+> set, `subscription_id` against the committed `STRAVA_SUBSCRIPTION_ID`, `owner_id` through a
+> static in-memory owner map — no `GetItem` (D-343). Every rejected POST is a 200 with no body
+> (D-349). Step 2 is a per-user flood counter (`UpdateItem` on a `rate#` key, D-349), then a
+> conditional `PutItem` on `LostSolesIngestReceipt` **and** a `SendMessage` to the ingest queue —
+> both, not either. The receipt carries no raw event and is keyed `ingestKey`, a hash:
+> `sha256(strava:<owner>:<object>:create)` with **no** `event_time` (so it collides with the
+> sweep's key on purpose), `…:update:<event_time>` for an edit (D-356), and `…:delete` for a
+> deletion (D-355). A deauthorization takes no receipt (D-348).
+
 Everything else — token refresh, `GET /activities/{id}`, `GET /streams`, S3 archive,
 normalization, H3 projection — happens in an **async consumer** triggered off that queue.
 Never call Strava from inside the webhook request.
@@ -438,10 +455,14 @@ Practical notes for the Amplify Gen 2 / Lambda deployment (D-080, D-081):
 - A cold-start Lambda behind API Gateway can and does blow the 2-second budget. Keep the
   handler's bundle tiny (no AWS SDK v2, no ORM, no heavy validation library) and consider
   provisioned concurrency of 1 if cold starts prove marginal. At ~1 event/day the function is
-  *always* cold — this is not a hypothetical.
+  *always* cold — this is not a hypothetical. *(As built: a Lambda Function URL, not API
+  Gateway (D-343). Provisioned concurrency was rejected; the SDK clients are warmed during init
+  instead (D-346), and the verify token is read from SSM lazily, on GET only (D-357). Reserved
+  concurrency of 5 is the cost-DoS bound (D-361).)*
 - **Do not attach this Lambda to a VPC** (D-081). It needs internet and would force a NAT
   Gateway at ~$33/mo, ~10x the entire target budget (D-083).
-- HTTPS on 443 with a valid full certificate chain. API Gateway + ACM is fine. Strava publishes
+- HTTPS on 443 with a valid full certificate chain. API Gateway + ACM is fine (the Function
+  URL's AWS-managed certificate is what is used, D-343). Strava publishes
   no source IP range, so IP allowlisting is unavailable — `verify_token` and payload shape are
   the whole authentication story for the GET, and for the POST it is payload validation plus
   the fact that the pointer is useless without our own OAuth token.
@@ -460,6 +481,15 @@ runs on EventBridge:
   and enqueue an `ingest` for any `id` not already in the activity ledger. The 48-hour overlap
   absorbs clock skew and late edits.
 - Nightly: the same sweep with a 14-day window, as a slower net.
+
+> **As built (ticket `0095`, D-350, D-351).** The sweep is `syncSource` with an opt-in window.
+> "Not already present" means no `IngestReceipt` for the activity's create key — the receipt
+> gate, not the activity ledger — so the overlap absorbs late *creates* only: an edit to an
+> already-receipted activity is **not** caught (D-350); edits arrive only through the webhook's
+> `update` (D-356). The stored watermark already has the 48 h subtracted. The nightly run is
+> `min(watermark, now − 14d)` at 08:00 UTC on a CDK `Schedule` carrying `{mode:"nightly"}`;
+> the six-hourly one is Amplify-native. An alarm fires
+> when the sweep enqueues anything on 2 of the last 3 days (D-351).
 - Cost: 1–2 calls per sweep (§2.5). Negligible.
 
 ## 2.4 Fetching the trace
@@ -577,6 +607,11 @@ Exceeding a limit returns **HTTP 429**.
 - Reconciliation: 4 sweeps/day × ~1 page = **4 calls**.
 - Token refresh: not a read-bucket call, but count it — ~4/day at 6h TTL.
 - **Total ≈ 6–10 reads/day against 1,000.** Under 1% of quota. The steady state is free.
+- *(As built, `0095`/`0282`/`0093`: five sweeps a day, not four — four six-hourly plus the
+  nightly 14-day run (D-350). An activity edit costs the same 2 reads as a create (D-356), a
+  deletion 1 confirming `GET /activities/{id}` (D-355), a deauthorization one forced token
+  refresh (D-348). Token refresh runs every 4 h and exchanges ~4 times a day (D-341). Still well
+  under 1%.)*
 
 *Backfill.* 8 years at ~200 runs/year ≈ 1,600 activities.
 - Activity list: 1,600 ÷ 200 per page = **8 calls**.
@@ -640,6 +675,8 @@ on 5xx / network:
 on 401:
   refresh the token once (transactionally, §2.2) and retry once. A second 401 means the
   authorization is dead — emit `disconnect` and stop; do not loop.
+  (As built: the connection is marked NEEDS_REAUTH, not disconnected, and the error is terminal
+  — D-210, D-341. Only a provider-confirmed deauthorization disconnects — D-348.)
 
 on 404 for /streams:
   this is NOT an error. It means the activity has no streams (manual activity). §2.6.
@@ -673,6 +710,18 @@ single value `Workout`.
 | `Walk`, `Hike` | `wayfaring` | yes | **Policy call, flagged:** these reveal fog and grant Wayfaring XP. D-012's motivator is novelty of *place*; ground covered on foot is ground explored. If the user disagrees, this is a one-line change in the adapter's map — nowhere else. |
 | `Workout`, `WeightTraining`, `Crossfit`, `HighIntensityIntervalTraining` | *(ignored)* | no | See below. |
 | everything else (`Ride`, `Swim`, `Yoga`, …) | *(ignored)* | — | Archived to S3 (§3) but not ingested. Cheap to enable later; the raw payload is already kept. |
+
+> **Superseded as a skill table (D-132, D-141, D-189, D-193).** The adapter does not pick a skill.
+> `src/adapters/strava/normalize.ts` maps `sport_type` to an `ActivityKind` (`Run`/`TrailRun`/
+> `VirtualRun` → `run`, `Walk` → `walk`, `Hike` → `hike`, the `Ride` family → `ride`,
+> `WeightTraining`/`Crossfit`/`HighIntensityIntervalTraining` → `strength`, `Workout` and any
+> unknown type → `other`), and `rules/xp-rules-vN.yaml` decides which skill each kind trains.
+> Three rows above are wrong against that file: a `VirtualRun` has no trace, so it trains Vigil,
+> not Wayfaring (D-132); rides are ingested and train the cycling skills, without revealing
+> ground (D-189, D-197); and strength-shaped activities are ingested as `strength`/`other`
+> activities rather than dropped — they earn nothing only because no Strava payload carries the
+> reps the rep-measured rows need (D-060). Read the rules file for the current mapping; do not
+> restate it here (D-193).
 
 **Unknown `sport_type` values must not crash the adapter.** Strava adds sport types. Default to
 "ignored", log the raw string in `sourceTypeRaw`, and archive the payload anyway. A new sport
@@ -720,7 +769,8 @@ activity with a free-text `name`, an `elapsed_time`, `distance: 0`, and nothing 
 wrong data in a permanent, append-only ledger (D-020).
 
 So: **Might, Fortitude and Endurance (D-031) are fed only by in-app manual entry** (§4.3,
-D-061). Strength-shaped Strava activities are archived and ignored. If a user logs the same
+D-061). Strength-shaped Strava activities are archived and ignored *(as built: ingested as
+`strength`/`other` activities that score nothing, see the note under the table above)*. If a user logs the same
 session both in Strava and in Lost Soles, only the Lost Soles one counts — which is the correct
 outcome and requires no dedupe logic, because the Strava one never enters the ledger.
 
@@ -1665,9 +1715,11 @@ D+30   Post-migration review. Delete the `source=strava` archive prefix only if 
 | `adapters/suunto/` (or `polar/`) | **new** — `client.ts` + `parse.ts`, ~2 files |
 | `SourceId` union (§1.1) | one member added, one possibly removed |
 | Source-priority list in the dedupe rule (§2.7) | one line |
-| The webhook route for Strava | removed; the vendor's added |
-| Secrets: Strava client id/secret | removed; vendor credentials added |
-| Config: `ENABLED_ADAPTERS` | edited |
+| The webhook route for Strava | removed; the vendor's added — as built, one entry in `WEBHOOK_ADAPTERS` in `src/adapters/registry.ts`; the route `/api/webhooks/<source>` and the `ingest-webhook` function are generic (D-345) |
+| Secrets: Strava client id/secret | removed; vendor credentials added — plus the webhook verify-token SSM parameter and its grant in `amplify/backend.ts` (D-347, D-357) |
+| Config: ~~`ENABLED_ADAPTERS`~~ `src/adapters/registry.ts` | edited — no `ENABLED_ADAPTERS` exists; the registry's one line per adapter is the switch (D-188) |
+| `scripts/strava-subscription.mjs` | the subscription's operator CLI (D-347); retired with the adapter, after `delete` |
+| `tools/backfill/`, `tools/fog-harness/res-compare.ts` | Strava-bound operator tools, outside the D-100 deletion boundary by D-366: deleted or rewritten in the same change that removes the adapter. No check covers them |
 
 **Does not change — and this list is the whole point of D-100:**
 

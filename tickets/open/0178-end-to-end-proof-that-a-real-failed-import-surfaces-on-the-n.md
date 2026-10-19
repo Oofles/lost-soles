@@ -61,7 +61,11 @@ fi
 
 - [ ] (operator) On the next real failed import: the alarm email arrives, and its subject alone
       identifies the app when read on the phone.
-- [ ] (operator) Pressing Sync afterwards reports the failure, rather than "nothing new".
+- [ ] (operator) ~~Pressing Sync afterwards reports the failure, rather than "nothing new".~~
+      *(Amended at capability `14`'s audit, 2026-10-19: false by design since D-318, under which
+      the plinth never shows a failed import (D-013), and false in code since `0281` removed the
+      failed-receipt query. The criterion now reads:)* Pressing Sync afterwards shows no failure
+      state on the plinth; the alarm email is the only signal.
 - [ ] (operator) The runbook's steps work as written, in order, without needing a step nobody
       wrote down. Any step that was wrong is corrected in the doc as part of closing this.
 - [ ] A redrive clears the `FAILED` state and the activity lands on the map exactly once —

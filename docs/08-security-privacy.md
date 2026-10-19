@@ -289,16 +289,17 @@ That is the whole enforcement mechanism. It costs one line in a template and one
 ## 3. Secrets inventory
 
 Every credential the system holds. Two stores, chosen by rotation frequency and ownership
-(`01-architecture.md` §7): **static application config in SSM Parameter Store** via Amplify's
-`secret()`; **per-user rotating credentials in DynamoDB**. AWS Secrets Manager is deliberately
+(`01-architecture.md` §7): **static application config in SSM Parameter Store** — via Amplify's
+`secret()` where planned, but as built every value in use is read at runtime through an explicit
+`ssm:GetParameter` grant (D-362, D-357); **per-user rotating credentials in DynamoDB**. AWS Secrets Manager is deliberately
 unused at $0.40/secret/month (§9).
 
 | # | Credential | Lives in | Read by | Blast radius if leaked | Rotation |
 |---|---|---|---|---|---|
-| S1 | `STRAVA_CLIENT_ID` | SSM, via `secret()` | callback route, `process-activity`, `token-refresh` | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
-| S2 | `STRAVA_CLIENT_SECRET` | SSM, via `secret()` | callback + token refresh Lambdas only. **Never leaves a Lambda** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
-| S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `strava-webhook` GET handshake only | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
-| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly three principals | `process-activity`, `token-refresh`, `/api/auth/strava/callback` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/deauthorize`, then delete the row. Rotation is a *feature* here, not a chore |
+| S1 | `STRAVA_CLIENT_ID` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | SSR compute role (callback, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` (D-362) | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
+| S2 | `STRAVA_CLIENT_SECRET` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | the same four principals as S1 (D-362). **Never reaches a browser** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
+| S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
+| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/deauthorize`, then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM, via `secret()` | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
@@ -355,7 +356,7 @@ sensitive.
 
 ## 4. The webhook endpoint
 
-`strava-webhook`, a dedicated 128 MB Lambda behind a **Function URL with `authType: NONE`**
+`ingest-webhook` (named `strava-webhook` before `0091`; D-345 routes it on its path segment through `registry.ts`'s `WEBHOOK_ADAPTERS` allowlist), a dedicated 128 MB Lambda behind a **Function URL with `authType: NONE`**
 (`01-architecture.md` §2). This is the only unauthenticated, internet-facing surface in the
 system, and it exists because **Strava cannot sign requests, cannot present IAM credentials, and
 publishes no source IP range to allowlist** (`03-integrations.md` §2.3). The endpoint is public;
@@ -434,6 +435,15 @@ ConditionalPut IngestReceipt {ingestKey, status:"QUEUED"}  if attribute_not_exis
   → else SendMessage to ActivityIngestQueue → 200
 ```
 
+*(As built, D-355, D-356, D-360, D-348: the key is per aspect. `create` and `delete` are
+`sha256(strava:<owner>:<object>:<aspect>)` as above; an `update` is
+`sha256(strava:<owner>:<object>:update:<event_time>)`, so one edit's redeliveries share a receipt
+and two edits are two, and an update without a positive integer `event_time` is dropped. A
+`delete`'s conditional put also accepts over a `RECLAIMABLE` receipt, the state a forged delete
+leaves behind (D-360). A deauthorization takes no receipt at all: it is metered (§4.4 item 6) and
+forwarded as a `DisconnectMessage`, and the worker's confirmation with Strava makes a duplicate
+harmless.)*
+
 The `IngestReceipt` ledger is the replay defence *and* the flood defence: a replayed or forged
 duplicate costs one conditional write and terminates. Downstream, `activityId` is
 `sha256(user, source, externalId)` (D-140) precisely so replay is deterministic and cannot
@@ -448,7 +458,7 @@ way because cell set-semantics and the deterministic ledger `id` are the permane
 An attacker cannot read anything here. They can try to **spend our money** — which against a
 $3–5/month budget is a real threat, if an unexciting one. Layered, cheapest first:
 
-1. **Lambda reserved concurrency on `strava-webhook`: set it, low — 5 is generous.** This is the
+1. **Lambda reserved concurrency on `ingest-webhook` (D-345): set it, low — 5 is generous.** This is the
    single most important control in this section. It bounds the blast radius of any flood to a
    fixed, small number of concurrent 128 MB invocations, and it protects the *rest of the
    account*: without it, a flood can exhaust regional concurrency and starve `process-activity`
@@ -456,7 +466,11 @@ $3–5/month budget is a real threat, if an unexciting one. Layered, cheapest fi
 2. **A hard payload cap.** Reject any request with `Content-Length` > **8 KB**, before parsing —
    Strava's events are a few hundred bytes. Reject `Content-Type` that is not JSON. Reject any
    body that fails to parse, with a 200 and no detail (a 400 is a free oracle; Strava does not
-   care either way).
+   care either way). *(As built, D-349: every POST the adapter rejects, oversize included, gets a 200 with
+   no body. Two answers sit outside that rule, both decided before or after the adapter: a POST
+   to an unknown path or a source off the `WEBHOOK_ADAPTERS` allowlist gets a 404 at routing
+   (D-345), and an infrastructure failure in the receipt write or the send gets a 500 so Strava
+   retries.)*
 3. **Reject unknown fields rather than ignore them**, matching the ticket endpoint's rule
    (`07-ticketsmith.md` §6.4). A payload with 10,000 keys is a parser-cost attack.
 4. **Method allowlist: GET and POST only.** Everything else 405 without a body.
@@ -468,7 +482,9 @@ $3–5/month budget is a real threat, if an unexciting one. Layered, cheapest fi
    owner map resolves — one-to-one with the athlete — so no athlete id sits in a table key. The
    role's `UpdateItem` is held to `rate#` keys by `dynamodb:LeadingKeys`. Only events that passed
    every cheap filter are counted; the sweep never passes through the webhook and is never
-   counted.)*
+   counted.)* *(Two tighter budgets sit beside it, because each such event costs the worker a
+   provider call to confirm: 4 deauthorizations an hour (D-349) and 4 activity deletes an hour
+   (D-355), each counted after the general 50-an-hour budget.)*
 7. **AWS Budgets alarm at $10/month and $25/month, notifying by email.** This is the real
    backstop and it takes five minutes. Cost-DoS is only dangerous when it is *silent*; an alarm
    converts an unbounded bill into a bounded one.
@@ -495,6 +511,10 @@ function is, the less there is to attack.
   grant on `LostSolesSourceAccount`** — the public endpoint can never read a token, by policy,
   not by discipline.
 - **No writes outside `IngestReceipt` and the SQS queue.** Two grants, both narrow.
+  *(As built, four statements, all narrow: `PutItem` on the receipt table (the accept gate),
+  `UpdateItem` on it held to `rate#*` keys by `dynamodb:LeadingKeys` (the flood counter, D-349),
+  `sqs:SendMessage` on the ingest queue, and `ssm:GetParameter` on the verify token's one
+  parameter ARN (D-357). The only writes are still to `IngestReceipt` and the queue.)*
 - **It is not a Next.js route handler.** Restating `01-architecture.md` §2: the SSR bundle's cold
   start risks the deadline, and it redeploys on every frontend change, meaning a UI tweak could
   silently drop webhooks.
@@ -502,7 +522,9 @@ function is, the less there is to attack.
   `owner_id` at INFO and never a body. Webhook payloads are the thin end of the GPS-data wedge
   ending up in CloudWatch.
 - **Target p99 well under 500 ms.** If it creeps toward a second, something was added that
-  belongs in `process-activity`.
+  belongs in `process-activity`. *(Measured against the handler's own duration, D-346: a
+  client-measured cold call cannot go below the sandbox-plus-init floor of about 0.7 s at 128 MB.
+  The SDK clients are warmed during init by two requests that cannot have an effect.)*
 
 
 ---
@@ -677,7 +699,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
 | `ExploredCell` (+ `lastRunAt`, D-120) | DynamoDB | **Forever, by decision** | D-020: the map only ever grows |
 | `explored/explored-r11.<gen>.bin` | S3 | Regenerated, not retained | A materialized view of `ExploredCell` |
 | `SourceAccount` (Strava tokens, S4) | DynamoDB | Until deauthorization | Deleted the moment the connection is removed (§6.5) |
-| `IngestReceipt` | DynamoDB | **TTL ~30 days** (§4.3) | A replay ledger, not a record |
+| `IngestReceipt` | DynamoDB | **TTL 90 days** (§4.3; was "~30 days", corrected by D-349 to match T8) | A replay ledger, not a record |
 | CloudWatch logs | CloudWatch | **30-day retention** (§3.1) | Logs are where coordinates and secrets leak by accident; an unbounded log group is a liability and a bill |
 | Cognito user | Cognito | Until account deletion | — |
 
@@ -1082,7 +1104,7 @@ compute within minutes.
 Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5)
 — but it can spend money, and a $3–5/month budget notices.
 
-- **Detect** — the operator's account-level cost alerts (D-361); a spike in `strava-webhook` invocations or throttles in
+- **Detect** — the operator's account-level cost alerts (D-361); a spike in `ingest-webhook` invocations or throttles in
   CloudWatch; the §4.4(6) per-`owner_id` counter alarming; SQS queue depth or DLQ messages;
   `IngestReceipt` writes far exceeding real activity.
 - **Contain** — **set the Lambda's reserved concurrency to 0.** That is the kill switch: it

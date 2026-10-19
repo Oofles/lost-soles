@@ -420,22 +420,28 @@ dismiss on swipe-down, and five fixes — `0273` unseen-run flash, `0274` Run pa
 
 ### PHASE 3 — Trustworthy and Complete
 
-#### `14-webhook-and-automatic-sync` — 6 tickets
+#### `14-webhook-and-automatic-sync` — 14 tickets
 *This is where D-013 is actually satisfied. Until it ships, the app has upkeep.*
 
 | # | Ticket | Description |
 |---|---|---|
-| 1 | ▸ **`strava-webhook` Lambda + Function URL (`authType: NONE`), 128 MB / 3 s** | The 2-second deadline design (`01-architecture.md` §2). CDK escape hatch — no API Gateway. |
+| 1 | ▸ **`strava-webhook` Lambda + Function URL (`authType: NONE`), 128 MB / 3 s** | The 2-second deadline design (`01-architecture.md` §2). CDK escape hatch — no API Gateway. Built as `ingest-webhook`, routed by path through a webhook allowlist (D-345). |
 | 2 | ▸ **`hub.challenge` handshake and subscription management** | `08-security-privacy.md` §4.2. |
 | 3 | ▸ **Verification, replay protection, rate limiting and cost-DoS defence** | §4.1, §4.3, §4.4. The endpoint must never do the work inline (§4.5) — it enqueues. |
 | 4 | ▸ **`token-refresh` scheduled Lambda (every 4 h)** | Refresh before expiry, not on failure. |
-| 5 | ▸ **`nightly-reconcile` — `listSince` backstop** | Covers silently dropped webhooks. This is *why* `listSince` is mandatory (D-140). |
+| 5 | ▸ **`nightly-reconcile` — `listSince` backstop** | Covers silently dropped webhooks. This is *why* `listSince` is mandatory (D-140). Built as `reconcile-sweep`: six-hourly plus a nightly 14-day window, alarmed when it enqueues on 2 of 3 days (D-350, D-351). |
 | 6 | ~~**Push/plinth notification "your run is on the map"**~~ | **DECLINED 2026-09-03, D-185.** Web push was the last MVP item needing the phone *configured* rather than opened. `0087`'s plinth line `1 new run — open it` carries the signal; the ticket's own criterion 10 already required the app to work identically with push denied. |
 
 **Depends on:** `06`, `12`. **Done when:** a run finished on the phone appears on the map with no
 user action *(unchanged — D-185 dropped the push, not the automatic path; you learn about the run
 from the plinth on next open)*; killing the webhook for a day and running the reconcile recovers the
 missed runs.
+
+*Added during the capability (eight more):* `0177` the paced historical backfill (D-342), `0257`
+its aggregate reveal (D-352–D-354), `0282` update and delete aspects reach reingest and retract
+(D-355, D-356), `0286` the verify-token read off the POST path (D-357), `0287` readers hide
+tombstoned activities (D-358, D-359), `0288` a forged delete releases its key (D-360), `0281` Sync
+stops querying failed receipts, and `0289` the account-wide Budget removed (D-361).
 
 #### `15-two-map-modes-and-cold-territory` — 5 tickets
 

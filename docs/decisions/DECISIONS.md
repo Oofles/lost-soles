@@ -5371,3 +5371,47 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   by cost-allocation tag was rejected: the operator manages the account's cost separately. The
   cost-DoS bound is the webhook's reserved concurrency of 5, proven by 0093's flood test (1,000
   requests, about $0.002). The `CfnBudget` that 0093 deployed is removed by a follow-up ticket.
+- **D-362** **The Strava credentials reach four principals, and none of them through `secret()`.**
+  *(Agent, 2026-10-19, capability `14` audit. Corrects `08` §3 S1/S2/S4 and `01` §7.)* T7
+  `LostSolesSourceAccount`, its CMK, and `STRAVA_CLIENT_ID`/`STRAVA_CLIENT_SECRET` are granted to
+  exactly four principals: the SSR compute role (the OAuth callback and the manual Sync, which share
+  one role), `process-activity`, `token-refresh`, and `reconcile-sweep`. The fourth is new in `0095`:
+  the sweep runs `syncSource` (D-350), which refreshes a token inline, so the grant cannot be
+  avoided without a second sync path. The two SSM values are read at runtime through explicit
+  `ssm:GetParameter` grants on their shared-path ARNs. They are not `secret()`, because the SSR
+  compute role cannot take one (the `0018` precedent). The docs said "three principals, via
+  `secret()`"; both were written before the code and neither was true by this capability's close.
+  The webhook still holds no grant on T7 (D-343).
+- **D-363** **`SourceAdapter.accept` takes an optional `AcceptContext` whose `webhookSecret` is a
+  getter.** *(Agent, 2026-10-19, capability `14` audit. Records the contract change `0286` shipped
+  under D-357.)* The signature is `accept(req, ctx?: AcceptContext)`, and
+  `AcceptContext = { webhookSecret?: () => Promise<string | undefined> }`. It is a getter, not a value, so
+  the endpoint reads SSM only when an adapter calls it (Strava: on the GET handshake), which keeps
+  the vendor-blind handler free of any source-specific secret logic and every POST free of the
+  read. An adapter that gets `undefined` must fail closed. `ingestion-contract.md` §3 is amended.
+- **D-364** **The live AppSync notify path (`01` §4 steps 17–18) is dropped.** *(Operator,
+  2026-10-19, capability `14` audit. Follows D-185.)* `process-activity` calls no mutation, and the
+  browser holds no `onCreateActivity`/`onUpdateProfile` subscription. Neither was ever built, and
+  nothing missed them. What carries a webhook-delivered run to the screen is `05` §7.4's trigger 2,
+  which is built (`components/map/explored-provider.tsx`): the manifest is revalidated when the
+  tab becomes visible or gains focus, and on the next open the plinth's new-run line (`0087`) shows
+  it. That is the signal D-185 already chose over push. A tab watched continuously while a run
+  lands updates on its next focus, not live. This also settles `0138`'s open question 1 ("how is the
+  browser's real-time path authorized?"): there is no real-time path to authorize. Rejected:
+  filing a ticket to build it, which would add a WebSocket and an AppSync principal for the case of
+  a tab left open across a run.
+- **D-365** **The `byExternalOwner` GSI is kept, reserved for a multi-user owner lookup; nothing
+  queries it.** *(Operator, 2026-10-19, capability `14` audit. Follows D-343.)* The webhook resolves
+  owners through the static owner map and holds no grant on T7. `resolveUserByExternalOwner` has no
+  production caller. The index costs nothing at this size, and `putConnectedAccount` keeps writing
+  `gsi1pk`, so it is ready if the static map is ever outgrown. If a webhook ever queries it, the
+  KEYS_ONLY projection and Query-on-index-only grant in `02` T7 still apply. Comments and docs that
+  said the webhook queries it are corrected.
+- **D-366** **Vendor-specific operator tools under `tools/` sit outside the D-100 deletion
+  boundary and are retired with their adapter.** *(Operator, 2026-10-19, capability `14` audit.)*
+  `tools/backfill` (D-342) imports `src/adapters/strava/rate-limit` and names its source, and
+  `tools/fog-harness/res-compare.ts` imports the adapter too. Both are one-off operator CLIs, not
+  application code. `check-boundaries` and `check-adapter-deletion` do not cover `tools/`, and
+  that is deliberate. Removing an adapter means deleting or rewriting its tools in the same
+  change, and `03` §6.3 lists them. Rejected: extending `check-adapter-deletion` to copy `tools/`
+  with an expected-break list, which would be ceremony for two scripts.

@@ -3,8 +3,8 @@
   "fog": {
     "users": {
       "9ec8069a18c7209a": {
-        "cellCount": 1352,
-        "generation": 135
+        "cellCount": 5211,
+        "generation": 269
       }
     }
   },
@@ -16,12 +16,12 @@
           "level": 1
         },
         "cartography": {
-          "displayedXp": 16439,
-          "level": 23
+          "displayedXp": 26678,
+          "level": 27
         },
         "constitution": {
-          "displayedXp": 1745,
-          "level": 11
+          "displayedXp": 11077,
+          "level": 20
         },
         "endurance": {
           "displayedXp": 0,
@@ -36,20 +36,20 @@
           "level": 4
         },
         "roving": {
-          "displayedXp": 0,
-          "level": 1
+          "displayedXp": 1017,
+          "level": 9
         },
         "slayer": {
           "displayedXp": 0,
           "level": 1
         },
         "vigil": {
-          "displayedXp": 0,
-          "level": 1
+          "displayedXp": 660,
+          "level": 8
         },
         "wayfaring": {
-          "displayedXp": 5159,
-          "level": 16
+          "displayedXp": 31482,
+          "level": 29
         }
       }
     }

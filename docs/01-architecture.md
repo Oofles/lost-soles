@@ -64,7 +64,7 @@ Amplify's Next.js support has three gaps worth knowing up front, none blocking:
 
 - **No on-demand ISR** (`revalidatePath` / `revalidateTag` do not work). This matters here:
   a Strava webhook cannot invalidate a cached page. §4 and §5 design around it with an
-  AppSync subscription plus client refetch.
+  AppSync subscription plus client refetch. *(Dropped by D-364: never built; `05` §7.4's visibility/focus revalidation is the trigger.)*
 - **No edge API routes.** Not needed.
 - **No streaming / `unstable_after`.** Not needed.
 
@@ -130,7 +130,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
                        ┌──────────────────┐
    Strava ────POST────▶│ Lambda Function  │   authType: NONE, 128 MB, 3 s timeout
    (webhook)  <2 s ack │ URL              │   GET  = hub.challenge echo
-                       │ strava-webhook   │   POST = verify → dedupe → SQS → 200
+                       │ ingest-webhook   │   POST = verify → dedupe → SQS → 200
                        └────────┬─────────┘
                                 │ SendMessage
                                 ▼
@@ -174,8 +174,17 @@ hosted zone, different subdomains. That is explicitly supported (§6).
 
   Scheduled (EventBridge, no VPC):
     token-refresh     every 4 h   → refresh Strava tokens nearing expiry
-    nightly-reconcile every day   → poll for activities the webhook dropped
+    reconcile-sweep   every 6 h + nightly 08:00 UTC → poll for activities the webhook dropped
 ```
+
+**Amended by D-345 / D-350 / D-361 (14 audit, 2026-10-19):** the webhook function is
+`ingest-webhook`, not `strava-webhook` — a vendor-named function fails `check-boundaries` (D-100).
+It reads its source from its path, `/api/webhooks/<source>`, through `registry.ts`'s
+`WEBHOOK_ADAPTERS` allowlist (which excludes `manual`), and its reserved concurrency is **5** — the
+cost-DoS bound (D-361). `nightly-reconcile` shipped as **`reconcile-sweep`**: a six-hourly run over
+the stored watermark (Amplify `schedule`) plus a nightly 14-day window at 08:00 UTC, which is a CDK
+`Schedule` carrying `{mode:"nightly"}` because Amplify schedules all send the same empty input
+(D-350).
 
 **Amended by D-228 / D-235 / D-237 (08 audit, 2026-09-28):** the diagram originally showed
 `users/<uid>/explored-r10.bin` handed to the browser by **presigned GET**. None of that shipped. The
@@ -198,15 +207,15 @@ Every resource, what it does, and what would make it cost money.
 | 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
 | 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
-| 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d | Negligible |
+| 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d. Also holds the webhook's per-user flood counters, `rate#<source>#<userId>#<UTC hour>`, TTL 2 h (D-349) | Negligible |
 | 9 | S3 bucket | `defineStorage` → `lostSolesUserData` | `amplify/storage/resource.ts` | Raw trace archive (D-101, D-121.2), `explored/explored-r11.<gen>.bin`, aggregates | $0.023/GB-mo; PUT $0.005/1k |
 | 10 | SQS queue + DLQ | `ActivityIngestQueue`, `ActivityIngestDLQ` | `backend.createStack` | Decouples the 2-second webhook ack from a multi-second fetch+normalize | 1M requests/mo free |
-| 11 | Lambda | `strava-webhook` | `defineFunction` + CDK Function URL | GET handshake, POST enqueue. 128 MB, 3 s | 1M req + 400k GB-s free |
+| 11 | Lambda | `ingest-webhook` (D-345; was `strava-webhook`) | `defineFunction` + CDK Function URL | GET handshake, POST enqueue. 128 MB, 3 s, reserved concurrency 5 (the cost-DoS bound, D-361) | 1M req + 400k GB-s free |
 | 12 | Lambda Function URL | on #11 | **CDK escape hatch** | Public HTTPS endpoint, `authType: NONE` | Free (no API Gateway) |
 | 13 | Lambda | `process-activity` | `defineFunction` | The pipeline. 2048 MB, 900 s, SQS event source | GB-seconds |
 | 14 | Lambda | `token-refresh` | `defineFunction`, `schedule: 'every 4h'` | Refresh Strava tokens before expiry | Negligible |
-| 15 | Lambda | `nightly-reconcile` | `defineFunction`, `schedule: 'every day'` | Backstop poll — catches anything the webhook lost | Negligible |
-| 16 | EventBridge rules | auto | `schedule` on #14/#15 | Cron | Free at this volume |
+| 15 | Lambda | `reconcile-sweep` (D-350; was `nightly-reconcile`) | `defineFunction`, `schedule: 'every 6h'`, plus a CDK `Schedule` nightly at 08:00 UTC with `{mode:"nightly"}` (escape hatch five) | Backstop poll — catches anything the webhook lost. 60 s, 256 MB | Negligible |
+| 16 | EventBridge Scheduler schedules | auto + CDK | `schedule` on #14/#15; #15's nightly one in `backend.ts` (D-350) | Cron | Free at this volume |
 | 17 | SSM Parameter Store | `/amplify/<app-id>/<branch>-branch-<hash>/*` | `secret()` | Static secrets (§7) | Standard params free |
 | 18 | ACM certificate | Amplify-managed | Domain association | TLS for `soles.devaultsecurity.com` | Free |
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
@@ -238,7 +247,8 @@ cost.
 Amplify Gen 2 backends are AWS CDK. `defineBackend()` returns an object exposing every
 generated construct, and `backend.createStack(name)` creates an arbitrary nested
 CloudFormation stack. AWS is explicit that **you own the correctness and security of
-anything added this way** — Amplify will not validate it. Keep it to these four uses:
+anything added this way** — Amplify will not validate it. Keep it to these four uses
+*(five since D-350: the reconcile sweep's nightly `Schedule`; see the note below the grants)*:
 
 ```ts
 // amplify/backend.ts
@@ -305,8 +315,17 @@ ingestReceipt.grantReadWriteData(backend.processActivity.resources.lambda)
 ingestReceipt.grantReadWriteData(backend.stravaWebhook.resources.lambda)
 sourceAccount.grantReadWriteData(backend.processActivity.resources.lambda)
 sourceAccount.grantReadWriteData(backend.tokenRefresh.resources.lambda)
-// strava-webhook gets NO access to sourceAccount or exploredCell. It only enqueues.
+// ingest-webhook (D-345) gets NO access to sourceAccount or exploredCell. It only enqueues.
 ```
+
+> **As built (14 audit, 2026-10-19).** The sketch above predates capability `14`. The function is
+> `backend.ingestWebhook` (D-345). Its grants are explicit action lists, not `grantReadWriteData`:
+> `dynamodb:PutItem` on `IngestReceipt` (the accept gate), `dynamodb:UpdateItem` on the same table
+> held to `rate#*` keys by `dynamodb:LeadingKeys` so it can count floods but never modify a receipt
+> (D-349), `sqs:SendMessage` on the ingest queue, and `ssm:GetParameter` on the one shared
+> verify-token parameter (D-357). It still has no grant on `SourceAccount` or `ExploredCell`. Its
+> callback URL is the `IngestWebhookUrl` stack output plus `api/webhooks/<source>` (D-343). A fifth
+> escape-hatch use exists: `reconcile-sweep`'s nightly CDK `Schedule` (D-350).
 
 ### Strava's 2-second deadline — the precise design
 
@@ -346,6 +365,26 @@ POST { object_type, object_id, aspect_type, owner_id, event_time, subscription_i
 
 No Strava API call, no token refresh, no S3, no h3 import. The handler bundle should be
 a few kilobytes. **All slow work happens after the ack, in `process-activity`.**
+
+> **As built (14 audit, 2026-10-19).** The shape above held; the details moved:
+> - **Owner lookup** is a static owner map in the adapter (`src/adapters/strava/owner-map.ts`),
+>   not a `SourceAccount` lookup, so the webhook has no grant on that table; an unknown owner gets
+>   a 200 and is dropped (D-343). Events whose `subscription_id` is not ours drop too.
+> - **GET.** The handshake lives in the adapter. The token is read **lazily, on GET only**, by a
+>   hand-signed SSM `GetParameter`, not `secret()` (D-357, superseding D-347's `secret()`). Both
+>   sides are sha256-hashed and compared with `timingSafeEqual`; the challenge must match
+>   `^[A-Za-z0-9]{1,256}$`; every other GET gets the same bare 400 (D-347).
+> - **POST.** A strict field check drops any unknown key, and a per-user flood counter (50 events,
+>   4 deauthorizations and 4 deletes an hour) runs before the receipt gate (D-349, D-355). The
+>   key is per aspect: `…:create`; `…:update:<event_time>` (D-356); `…:delete` (D-355).
+>   `update` becomes a plain re-fetch job (D-356). `delete` becomes a **retract** confirmed with
+>   Strava by the worker before it tombstones anything (D-355, D-360). An athlete
+>   `authorized:"false"` becomes a **disconnect** that the worker also confirms (D-348).
+> - **Bundle.** About 582 KB (the SDK v3 DynamoDB and SQS clients), held under a 700 KB ceiling
+>   (D-357), not "a few kilobytes". Init warms both clients with two requests that have no
+>   effect (D-346).
+> - **Latency.** The 500 ms target applies to the handler's own duration. A client-measured cold
+>   call cannot go below the ~0.7 s floor of sandbox plus init at 128 MB (D-346).
 
 ### The 15-minute wall
 
@@ -782,12 +821,12 @@ The user finishes a run. Strava's app uploads it. Then:
 | # | Hop | AWS service | Detail |
 |---|---|---|---|
 | 1 | Strava POSTs the event | — | `{object_type:"activity", object_id, aspect_type:"create", owner_id, event_time}`. **Must be acked in <2 s.** |
-| 2 | Endpoint receives | **Lambda Function URL** → `strava-webhook` (128 MB) | `authType: NONE`. `accept()` validates shape, ignores non-activity objects. |
-| 3 | Dedupe | **DynamoDB** `IngestReceipt` | `ingestKey = sha256("strava:<owner_id>:<object_id>:<aspect_type>")`. `PutItem` with `ConditionExpression: attribute_not_exists(ingestKey)`. On `ConditionalCheckFailedException` → return 200 and stop. **This is the replay gate.** |
+| 2 | Endpoint receives | **Lambda Function URL** → `ingest-webhook` (128 MB; D-345) | `authType: NONE`. `accept()` validates shape, ignores non-activity objects (except an athlete deauthorization, which becomes a confirmed `disconnect`, D-348). A per-user flood counter runs before step 3 (D-349). |
+| 3 | Dedupe | **DynamoDB** `IngestReceipt` | `ingestKey = sha256("strava:<owner_id>:<object_id>:<aspect_type>")` — for `update`, `…:update:<event_time>`, so two edits are two receipts (D-356); a `delete` key may be re-claimed from `RECLAIMABLE` (D-360). `PutItem` with `ConditionExpression: attribute_not_exists(ingestKey)`. On `ConditionalCheckFailedException` → return 200 and stop. **This is the replay gate.** |
 | 4 | Enqueue | **SQS** `ActivityIngestQueue` | `SendMessage` carrying the `IngestJob`. |
-| 5 | Ack | — | `200` returned. Steps 2–5 target **p99 < 500 ms**. Nothing above touches Strava's API. |
+| 5 | Ack | — | `200` returned. Steps 2–5 target **p99 < 500 ms** of the handler's own duration (D-346). Nothing above touches Strava's API. |
 | 6 | Dequeue | **SQS → Lambda** `process-activity` (2048 MB, 900 s, `batchSize: 1`) | Standard SQS is at-least-once, so step 12 re-checks the receipt. |
-| 7 | Credentials | **DynamoDB** `SourceAccount` | Read `{accessToken, refreshToken, expiresAt}` for `owner_id`. If `expiresAt` is within 5 min, refresh inline via `refreshCredentials()` and write back. |
+| 7 | Credentials | **DynamoDB** `SourceAccount` | Read `{accessToken, refreshToken, expiresAt}` for the job's `userId` (through `accessTokenFor`; the webhook resolved `owner_id` to `userId` already, D-343). If `expiresAt` is within 5 min, refresh inline via `refreshCredentials()` and write back. |
 | 8 | Fetch raw | **Internet → Strava API v3** (no VPC — D-081) | `GET /activities/{id}` + `GET /activities/{id}/streams?keys=latlng,time,altitude&key_by_type=true`, scope `activity:read_all` (D-121.3). Never `summary_polyline` (D-121.4). |
 | 9 | **Archive raw** | **S3** `raw/<uid>/strava/<id>/<sha256>.json` | **D-121.2. Happens before any parsing.** Verbatim bytes, content-addressed, versioned, delete-denied. If this PUT fails, the message goes back to the queue — we never normalize data we have not archived. |
 | 10 | Normalize | in-process, **pure** | `stravaAdapter.normalize(raw, ref, job)` → `{ activity, trace }`. First and last point where a Strava wire type exists. **Then cross-source dedupe** (contract §4 step 3, `0179`, D-263): GSI2 `byUserAndDedupe` plus a tolerance comparison. If another source already committed this run, stop here: the receipt goes `DONE` with `duplicateOf`, and nothing is scored. |
@@ -797,8 +836,8 @@ The user finishes a run. Strava's app uploads it. Then:
 | 14 | Score XP | in-process, `src/domain/xp.ts` | Deterministic pure function of `(cells, distanceM, kind, now)`. Server-side only: **never let the client claim XP.** |
 | 15 | Persist | **DynamoDB** `TransactWriteItems` | Atomic: `Activity` record + `Skill` XP increments + `IngestReceipt` → `status="DONE"` guarded by `status = "PROCESSING"`. Cell upserts follow via `BatchWriteItem` (idempotent by construction). |
 | 16 | Regenerate the blob | **S3** `users/<uid>/explored/explored-r11.<gen>.bin` + `explored-agg.<gen>.json` | Delta-varint-encoded sorted cell IDs. <100 ms even at the 5-year worst case. **Amended (08 audit, 2026-09-28):** objects are generation-named and immutable, with `manifest.json` the only mutable object (D-228, `02` §6.4); res 11 per D-237. |
-| 17 | Notify | **AppSync mutation → subscription over WebSocket** | `process-activity` calls an IAM-authed mutation on `Activity`; the browser holds `onCreateActivity` / `onUpdateProfile` subscriptions and refetches. **This exists because Amplify does not support on-demand ISR** — there is no `revalidatePath` to call from a webhook. |
-| 18 | Client updates | Browser | Revalidate `GET /api/fog?since=<generation>` (a `304` when current), apply the delta or the full set, redraw the fog. Served from the app's own origin, not S3 (D-228). |
+| 17 | ~~Notify~~ **Dropped (D-364)** | ~~**AppSync mutation → subscription over WebSocket**~~ | `process-activity` calls an IAM-authed mutation on `Activity`; the browser holds `onCreateActivity` / `onUpdateProfile` subscriptions and refetches. **This exists because Amplify does not support on-demand ISR** — there is no `revalidatePath` to call from a webhook. **Never built; dropped by D-364:** the manifest revalidates when the tab becomes visible or gains focus (`05` §7.4 trigger 2, built), and the plinth's new-run line (D-185) shows the run. |
+| 18 | Client updates | Browser | *(On visibility/focus or the next load, not pushed — D-364.)* Revalidate `GET /api/fog?since=<generation>` (a `304` when current), apply the delta or the full set, redraw the fog. Served from the app's own origin, not S3 (D-228). |
 
 ### Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit
 
@@ -875,7 +914,11 @@ Two more properties worth stating because they are easy to get wrong:
 - **`aspect_type: "delete"` never deletes cells.** D-020 makes revealed territory permanent.
   A delete event tombstones the `Activity` record (hidden from the activity list, XP
   reversed only if the receipt shows it was awarded) and leaves `ExploredCell` untouched.
-  Ground that was genuinely run stays run.
+  Ground that was genuinely run stays run. **Amended by D-355 / D-358 (14 audit, 2026-10-19):**
+  ~~"XP reversed only if the receipt shows it was awarded"~~ — XP is never reversed (D-135); the
+  ledger, cells, `lastRunAt` and blobs all stay. The worker first asks Strava whether the activity
+  is gone (`confirmRetracted`); only an authenticated 404 sets T3 `status = TOMBSTONED`, and the
+  list readers skip it while `/run/:id` still resolves (D-358).
 
 ### Failure handling
 
@@ -896,6 +939,9 @@ Two more properties worth stating because they are easy to get wrong:
 - **`nightly-reconcile`** is the backstop for events that never arrived at all (subscription
   disabled, Lambda cold, network): it lists activities since the last successful ingest and
   enqueues anything missing; via the receipt table, a re-enqueue costs one conditional write.
+  *(As built, D-350: `reconcile-sweep`, six-hourly over the stored `listSince` watermark plus a
+  nightly `min(watermark, now − 14d)` window, reusing `syncSource`; only the scheduled sweep holds
+  the watermark when a listing dies partway.)*
   Its alarm (0095): the sweep enqueued activities the webhook missed on 2 of the last 3 days.
 
 ---
@@ -1091,7 +1137,7 @@ const pct = polygonToCells(region, 11).filter(c => explored.has(c)).length / den
 const unexplored = gridDisk(latLngToCell(lat, lng, 11), k).filter(c => !explored.has(c))
 ```
 
-**Live updates.** When `process-activity` finishes, the AppSync subscription fires (step 17).
+**Live updates.** When `process-activity` finishes, the AppSync subscription fires (step 17). *(Dropped by D-364: never built; `05` §7.4's visibility/focus revalidation is the trigger.)*
 The client revalidates and applies the **delta** for the generations it is behind, rebuilding only
 the touched parent buckets (`05` §7.4) rather than refetching and re-decoding the whole set. Until
 that subscription exists (capability `14`), the trigger is `visibilitychange`/`focus` — never a
@@ -1314,9 +1360,9 @@ the correct one per environment automatically. **Standard parameters are free.**
 
 | Key | Used by | Notes |
 |---|---|---|
-| `STRAVA_CLIENT_ID` | `/api/auth/strava/callback`, `process-activity`, `token-refresh` | Semi-public (it appears in the OAuth authorize URL) but kept server-side anyway — no reason to build the habit of leaking it |
+| `STRAVA_CLIENT_ID` | `/api/auth/strava/callback`, `process-activity`, `token-refresh`, `reconcile-sweep` (D-350) | Semi-public (it appears in the OAuth authorize URL) but kept server-side anyway — no reason to build the habit of leaking it |
 | `STRAVA_CLIENT_SECRET` | callback + token refresh | **Never leaves a Lambda.** |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN` | `strava-webhook` GET handshake | Compared in constant time |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN` | `ingest-webhook` GET handshake (D-345) | Compared in constant time (sha256 both sides, `timingSafeEqual`, D-347). **Not a `secret()`**: read lazily on GET only by a hand-signed `ssm:GetParameter` on the shared path `/amplify/shared/<app-id>/STRAVA_WEBHOOK_VERIFY_TOKEN`, so an event POST's cold start touches no SSM (D-357) |
 | `INGEST_BEARER_TOKEN` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
 | `TILES_BASE_URL` | client build | Not a secret; listed here because it is environment-varying config. Use an env var, not `secret()` |
 
@@ -1352,20 +1398,27 @@ SK: SOURCE#strava                        (SOURCE#health-connect, SOURCE#polar, .
     expiresAt        epoch seconds
     scopes           ["activity:read_all"]     -- D-121.3
     connectedAt / lastRefreshedAt / lastSyncAt
-    status           "active" | "revoked" | "error"
+    status           "ACTIVE" | "NEEDS_REAUTH" | "DISCONNECTED"   -- 02 T7; D-341, D-348
 ```
 
 - The table is **created in CDK and is not an Amplify Data model** — it is not exposed
   through AppSync at all, so no auth rule can be misconfigured into leaking it. Access is by
   IAM grant to exactly three principals: `process-activity`, `token-refresh`, and the
-  `/api/auth/strava/callback` route handler's execution role.
+  `/api/auth/strava/callback` route handler's execution role. *(Amended by D-362: four. `reconcile-sweep`
+  also holds `GetItem`/`UpdateItem` and the CMK, because it runs `syncSource`, which refreshes
+  tokens inline (D-350); and the callback's role is the SSR compute role, shared with the manual
+  Sync.)*
 - Encryption at rest with an AWS-managed key is the default and is sufficient here. If the
   user later wants defence in depth, a customer-managed KMS key adds ~$1/month — note it,
-  do not build it.
+  do not build it. *(Superseded by `02` T7, which specifies a CMK, built by ticket `0033` for
+  its audit trail and one-action revocability; `amplify/backend.ts` `SourceAccountKey` gives the
+  reasoning. Noted at capability `14`'s audit.)*
 - A **GSI on `externalUserId`** lets the webhook map Strava's `owner_id` to a user without a
-  scan. (`strava-webhook` itself gets **no** grant on this table — it only needs to enqueue,
+  scan. (`ingest-webhook` (D-345) itself gets **no** grant on this table — it only needs to enqueue,
   and the lookup happens in `process-activity`. Keep the public endpoint's IAM surface as
-  close to empty as possible.)
+  close to empty as possible.) **Amended by D-343 (14 audit, 2026-10-19):** the lookup happens
+  in the webhook, through a static owner map (`src/adapters/strava/owner-map.ts`), with no grant
+  on this table. The `byExternalOwner` index exists, but nothing in production queries it.
 - `token-refresh` runs `every 4h`, scans for `expiresAt < now + 4h + 300s AND status = "ACTIVE"`
   (the next run plus the §2.2 skew — ticket 0094; `now + 6h` would refresh every token on
   every run), refreshes through the same lease and conditional rotation write-back as the
@@ -1603,7 +1656,7 @@ the street metric later does not silently redefine a number the user has been wa
 
 **3. No on-demand ISR means the server cannot tell a page it is stale.** Amplify does not
 support `revalidatePath` / `revalidateTag`, so a webhook landing at 06:40 cannot invalidate
-a cached dashboard. The workaround (an AppSync subscription plus client refetch, §4 step 17)
+a cached dashboard. The workaround (an AppSync subscription plus client refetch, §4 step 17 — dropped by D-364)
 is fine and arguably better UX, but it means **the dashboard must be a live client
 component, not a cached server-rendered page** — a structural constraint on §5, not a
 detail. Do not design a page whose freshness depends on server-side invalidation.

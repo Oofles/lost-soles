@@ -103,6 +103,13 @@ Cognito principal is gone:
 
 ## Notes
 
+**2026-10-19, capability `14` audit (D-364):** the browser's AppSync subscriptions (item 4, open
+question 1) were never built, and D-364 drops them. A run reaches an open tab when it becomes visible or
+gains focus (`05` §7.4 trigger 2, a same-origin fetch), and the plinth shows it (D-185). There is no
+real-time path to authorize, so the answer this ticket's criterion asks for is now "replaced by
+visibility/focus revalidation, which a session cookie already authorizes". Re-read item 4 and open question 1 in
+that light before writing the capability doc.
+
 **Three constraints D-175 puts on every capability built before this one.** If they have held, this
 migration is mechanical in items 1 and 2; if they have drifted, it is not. Check them first:
 

@@ -237,12 +237,18 @@ export interface AckResult {
   commands: IngestCommand[]
 }
 
+export interface AcceptContext {
+  webhookSecret?: () => Promise<string | undefined>   // D-363
+}
+
 export interface SourceAdapter<TCreds = unknown> {
   readonly id: SourceId
 
   /** PHASE 1 — runs in the public endpoint. LATENCY-CRITICAL (Strava: <2s hard deadline).
-   *  MUST NOT call the source API, refresh tokens, or touch S3. Validation + job construction. */
-  accept(req: InboundRequest): Promise<AckResult>
+   *  MUST NOT call the source API, refresh tokens, or touch S3. Validation + job construction.
+   *  `ctx.webhookSecret` is a GETTER the endpoint resolves from SSM only when called (D-363,
+   *  D-357), so a handshake-only read keeps every POST off SSM; `undefined` → fail closed. */
+  accept(req: InboundRequest, ctx?: AcceptContext): Promise<AckResult>
 
   /** PHASE 2 — runs in the worker. May use the network.
    *  Returns raw bytes EXACTLY as the source gave them. No transformation.
