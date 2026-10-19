@@ -4,7 +4,7 @@ slug: a-quiet-jump-to-control-lists-the-regions-the-operator-has-r
 title: A quiet jump-to control lists the regions the operator has run in
 type: feature
 priority: low
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [284]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-16T15:35:14Z
 started: 2026-10-19T15:53:10Z
+closed: 2026-10-19T20:37:40Z
 ---
 
 ## Description
