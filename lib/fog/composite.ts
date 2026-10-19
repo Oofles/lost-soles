@@ -118,7 +118,7 @@ export const TIME_WRAP_S = 86_400
  *     is cheaper than `sin` on most mobile GPUs besides.
  *  3. **Lacunarity 2.0 with a per-octave integer jitter**, rather than 2.03. `FBM_LACUNARITY`
  *     explains why: the integer origin has to survive being multiplied by it.
- *  4. **The mask is sampled at a warped point** (`0211`, D-NEW-a). This is now §4.3's own text:
+ *  4. **The mask is sampled at a warped point** (`0211`, D-372). This is now §4.3's own text:
  *     the edge warp in `fog-uniforms.ts` and `edgeWarp` below. Without a warp (`u_warp.x == 0`) the
  *     shader reads `v_uv`, the same as the sketch.
  *
@@ -184,7 +184,7 @@ void main() {
     // The projective divide. Ground coordinates in noise cells, local to this frame's origin.
     vec2 q = v_noiseH.xy / v_noiseH.z;
 
-    // 0211, D-NEW-a. THE EDGE WARP: read the mask at a ground-anchored, noise-displaced point, so the
+    // 0211, D-372. THE EDGE WARP: read the mask at a ground-anchored, noise-displaced point, so the
     // boundary itself moves and the chain of disc outlines breaks up. FROZEN: no u_time term, so only
     // the wisps below animate. The offset is in noise cells, so the inverse of q's screen Jacobian
     // turns it into pixels, which is correct under pitch as well. All of RGB is read at the moved
@@ -445,7 +445,7 @@ export function groundNoiseCoord(frame: NoiseFrame, mercX: number, mercY: number
   return [mercX * frame.scale, mercY * frame.scale]
 }
 
-/* ─── The edge warp (0211, D-NEW-a) ─────────────────────────────────────────── */
+/* ─── The edge warp (0211, D-372) ─────────────────────────────────────────── */
 
 /** One frame's edge warp, as `u_warp` and `u_warpOrigin` carry it. */
 export interface EdgeWarp {
@@ -466,7 +466,7 @@ export function latOfMercY(y: number): number {
 }
 
 /**
- * SIZE THE EDGE WARP FROM THE DISC, NOT FROM THE SCREEN. `0211`, D-NEW-a.
+ * SIZE THE EDGE WARP FROM THE DISC, NOT FROM THE SCREEN. `0211`, D-372.
  *
  * `equatorRadiusMerc` is the current bucket's disc radius, `discRadiusM(res)`, converted to mercator
  * AT THE EQUATOR. The amplitude divides it by `cos(latitude)` at the screen centre, so the warp is a

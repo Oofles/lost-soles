@@ -2381,7 +2381,7 @@
     "path": "tickets/open/0097-parchment-basemap-fork.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -4943,7 +4943,7 @@
     "path": "tickets/open/0211-fog-edge-reads-as-disc-outlines.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 4
     }
   },
@@ -6564,7 +6564,7 @@
     "path": "tickets/open/0284-the-basemap-covers-every-area-the-operator-has-run-not-only.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -6736,6 +6736,50 @@
     "acceptance": {
       "checked": 0,
       "total": 6
+    }
+  },
+  {
+    "id": 293,
+    "slug": "self-host-the-basemap-glyphs-and-sprite",
+    "title": "Self-host the basemap glyphs and sprite",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [
+      97
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T13:44:41Z",
+    "path": "tickets/open/0293-self-host-the-basemap-glyphs-and-sprite.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
+    }
+  },
+  {
+    "id": 294,
+    "slug": "retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa",
+    "title": "Retune the trace web's ink apart from the parchment water wash",
+    "type": "design",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [
+      97
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-19T13:44:46Z",
+    "path": "tickets/open/0294-retune-the-trace-web-s-ink-apart-from-the-parchment-water-wa.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

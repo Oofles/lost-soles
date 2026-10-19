@@ -5415,3 +5415,63 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   that is deliberate. Removing an adapter means deleting or rewriting its tools in the same
   change, and `03` §6.3 lists them. Rejected: extending `check-adapter-deletion` to copy `tools/`
   with an expected-break list, which would be ceremony for two scripts.
+- **D-367** **The basemap is one widened, multi-region archive.** *(Operator, 2026-10-19, ticket
+  `0284`, settling its D-152 question.)* `basemap-20261018.pmtiles` is cut with one
+  `pmtiles extract --region` from `docs/capabilities/assets/0284/basemap-region.geojson`: Florida's
+  bbox from `0052`, plus one whole 1° tile around each area holding a traced activity. That keeps one
+  MapLibre source, a single-valued `BASEMAP_ARCHIVE`, and one reader in `lib/place-names.ts` (D-302).
+  Adding an area means adding a 1° tile, derived from activity bboxes and never typed from a list,
+  and cutting a new dated archive (D-226). Because the repo is public (D-165, D-199), the region file
+  holds whole integer-aligned 1° tiles and nothing finer; a test enforces it. The archive header's
+  bounds are the union of the regions and nothing reads them: D-249's "extract bounds" step stays the
+  hard-coded `EXTRACT_FALLBACK` on Florida. Rejected: one archive per region, which would teach every
+  reader of `BASEMAP_ARCHIVE` about several sources. The old Florida archive stays in the bucket until
+  it is deleted deliberately; nothing references it.
+- **D-368** **In atlas, labels and a 0.5-opacity copy of the road fills sit above the fog, and so
+  does the permanent trace web.** *(Operator, 2026-10-19, ticket `0097`, Q1 = B. Amends D-299 and
+  D-307 for atlas only.)* Atlas's above-fog layers carry `metadata["lost-soles:above-fog"]`, and
+  `fogBeforeId` (`lib/map-layers.ts`) puts the fog under the first tagged layer, so the module never
+  names an upstream layer id. The trace web keeps its rule, "before the first label", which in atlas
+  lands it between the road copy and the labels, above the fog. A road copy under the trace would have
+  washed every old route to half strength, since runs follow streets. On explored ground the copy is
+  invisible (fill colour at 0.5 over the same opaque fill). In adventure nothing is tagged and D-299/
+  D-307 hold unchanged. Landmarks stay above the fog and the route stays topmost in both (D-303).
+  Consequence for `0254`: in atlas, beat 1's trace ink and the web cross-fade happen over the fog,
+  not under it. Consequence for `0098`: a mode swap must rebuild the style or move the tagged layers,
+  because placement is decided when the fog is added.
+- **D-369** **The parchment basemap is drawn from the parchment and ink ramps only, through
+  `--map-*` semantic tokens.** *(Operator, 2026-10-19, ticket `0097`, Q3 = A.)* 06 §8.2's "six
+  ramps" is not amended. Water is an `--ink-300` wash (0.70 atlas, 0.50 adventure); atlas casings are
+  `--ink-400`, adventure's `--parch-400`; adventure ages every fill and line 30% toward `--parch-300`,
+  never text. A variant weakens a token with `over()`, laying it on the ground at an opacity and
+  making the result opaque, so overlapping lines do not compound. No gold anywhere (D-148). Known
+  cost: a worn trace (`--trace-line`, D-299) is nearly the same ink as water (ΔE 1.6–3.0 at wear ≥
+  0.44), filed as its own ticket. Rejected: a seventh map ramp for blue water and green parks.
+- **D-370** **The default basemap variant is adventure; `?basemap=atlas|adventure` force-loads
+  one.** *(Operator, 2026-10-19, ticket `0097`, Q2.)* 05 §5.3's default, and the ground D-234's 0.90
+  fog was tuned against. The flag is read once when the map is created, in
+  `lib/fog/debug-flags.ts`'s convention (D-293), and is separate from `?fog=` because it picks the
+  ground, not a view of the fog. `0098`'s saved mode replaces the default, not the flag.
+- **D-371** **Basemap "saturation" is CIELAB saturation, C\*/√(C\*²+L\*²), with HSV beside it; HSL
+  is not used.** *(Operator, 2026-10-19, ticket `0097`, Q4.)* HSL inflates near white: the design's
+  own `--parch-100` measures 58% under HSL against ~12% CIELAB. `0097`'s "≥ 0.80 L\*" reads as L\* 80
+  on the 0–100 scale. Shipped grounds: atlas L\* 93.9 / 11.3%, adventure L\* 91.1 / 14.6%
+  (`docs/capabilities/15-two-map-modes-and-cold-territory.md`).
+- **D-372** **The fog edge is ragged because the coverage lookup is warped, not because of the
+  threshold; the warp is frozen in time.** *(Operator, 2026-10-19, ticket `0211`, chose variant F/H
+  and a frozen edge from renders. Amends `05` §4.3; does not supersede D-231.)*
+  - **How.** The composite reads `u_mask` (all of RGB, so the `0080` bloom follows the same edge) at
+    `v_uv` plus an offset from two fBm fields on D-233's ground lattice and integer origin, converted
+    to screen space through the inverse of the noise coordinate's screen Jacobian (correct under
+    pitch).
+  - **Sized from the disc, not the screen.** Amplitude ≈ ±0.45 of the current bucket's disc radius;
+    base wavelength ≈ 1.75 radii, rounded to a power-of-two lattice multiple, so the field is
+    identical at every zoom within a bucket resolution and steps only where the bucket changes
+    (D-243's per-level character is kept). A warp fixed in screen pixels bent the territory by ~75 m
+    at z14 and was rejected.
+  - **Frozen.** No time term; only `noiseAmp`'s wisps animate. The boundary of explored ground does
+    not move.
+  - **D-231 stands.** The mask pass, `FALLOFF_INNER` 0.60 and `SEAM_FLOOR` 0.87 are untouched; ±0.45 r
+    stays inside the 0.7 r a lone corridor holds saturated, so no hole opens. T3 seam 0.980; `0079`
+    R1/R2 diff 0 pixels.
+  - **Rejected, all rendered:** a higher `noiseAmp`, a lower `FALLOFF_INNER`, noise in the mask pass.

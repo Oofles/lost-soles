@@ -103,7 +103,7 @@ export const V1_MAX_OPACITY = 0.9
 /**
  * 0.25, up from 0.10. It displaces the boundary only ~5 m (D-231's formula), which costs no
  * legibility and buys what little raggedness this lever can buy. That is not enough to make the
- * edge ragged, so since `0211` (D-NEW-a) the edge warp below does that and this only animates wisps.
+ * edge ragged, so since `0211` (D-372) the edge warp below does that and this only animates wisps.
  */
 export const V1_NOISE_AMP = 0.25
 /**
@@ -249,7 +249,7 @@ export const NOISE_DRIFT_2: readonly [number, number] = [-0.021, 0.017]
  */
 export const NOISE_ORIGIN_MODULUS = 1 << 20
 
-/* ─── The edge warp (ticket 0211, D-NEW-a) ─────────────────────────────────── */
+/* ─── The edge warp (ticket 0211, D-372) ─────────────────────────────────── */
 
 /*
  * WHY THE EDGE HAS ITS OWN NOISE. §4.3's threshold perturbation cannot make the edge ragged, and

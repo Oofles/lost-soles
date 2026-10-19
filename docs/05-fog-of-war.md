@@ -995,7 +995,7 @@ void main() {
 
     // Perturb the reveal threshold with noise => a ragged, organic mist edge
     // instead of a smooth blurred blob.
-    // AMENDED BY D-NEW-a (ticket 0211): this alone does NOT make the edge ragged.
+    // AMENDED BY D-372 (ticket 0211): this alone does NOT make the edge ragged.
     // `coverage` is read at a ground-anchored, warped UV ("The edge is warped" below).
     float reveal = smoothstep(0.30, 0.72, coverage + (n - 0.5) * u_noiseAmp);
 
@@ -1079,7 +1079,7 @@ The cost is that the noise field drifts smoothly during a *zoom*, since its freq
 screen scale while the ground does not. That is accepted: a zoom already scales everything on
 screen, and a pan does not.
 
-#### The edge is warped, not only thresholded (ticket `0211`, D-NEW-a)
+#### The edge is warped, not only thresholded (ticket `0211`, D-372)
 
 **The sketch's promise of a ragged edge was not kept by the threshold.** Perturbing the cut point
 moves the boundary by `noiseAmp/2 × (1 − FALLOFF_INNER) × radius`, about 5 m at the 0.25 that
@@ -1448,7 +1448,7 @@ Further reductions, in order of value:
 | Pass | Work per frame | Mid-range phone |
 |---|---|---|
 | Mask FBO | 1 instanced draw call, ~1.5–6k quads, 0.5× resolution, ~2–4× overdraw | **< 1 ms** |
-| Composite | 1 full-screen triangle, 3-octave fBm (×4 since D-NEW-a: two wisp fields + a two-axis edge warp), ~40 ALU/fragment before the warp, DPR ≤ 2 | **1–2 ms** |
+| Composite | 1 full-screen triangle, 3-octave fBm (×4 since D-372: two wisp fields + a two-axis edge warp), ~40 ALU/fragment before the warp, DPR ≤ 2 | **1–2 ms** |
 | CPU per frame (camera still, or inside padded region) | none — nothing projected in JS | **~0 ms** |
 | CPU on padded-region exit / bucket change | two-level cull + VBO upload | 1–5 ms, off the frame path |
 | Bucket derivation (new zoom bucket, cold) | group index up front; ids, fractions, projection, bridges per group on first sight | index ~3.2 ms (151k cells), then ~10 ms per group; debounced |

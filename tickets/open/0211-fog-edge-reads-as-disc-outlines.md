@@ -35,9 +35,8 @@ step, which the operator likes, and must re-check `SEAM_FLOOR`.
 ## Acceptance criteria
 
 - [x] A decision on the edge treatment is recorded as a `D-xxx`, including whether it supersedes any
-      part of D-231. *(Proposed to the orchestrator as D-NEW-a, which allocates the number. It does
-      not supersede D-231. The placeholder `D-NEW-a` in the code and in `05` §4.3 is to be replaced
-      with the allocated id.)*
+      part of D-231. *(Recorded as **D-372** by the orchestrator at merge. It does not supersede
+      D-231.)*
 - [x] If the shader changes: the neighbour seam stays invisible (the `run.mjs` T3 probe stays green),
       the noise stays ground-anchored under a pan (D-233), and the per-level step survives (D-243).
 - [x] Rendered at z16 with `tools/fog-harness/tune.mjs` next to `0119`'s `z16-after-0119.png`.

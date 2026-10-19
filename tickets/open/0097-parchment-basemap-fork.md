@@ -119,7 +119,7 @@ ticket is not done. ~~cupping a hand over the screen~~ *(D-251, 0215)*
 - `docs/capabilities/15-two-map-modes-and-cold-territory.md` — sampled L\*/C\*/saturation, why
   not HSL, the water-vs-trace ΔE table, and what was not built.
 
-**Decisions (operator, 2026-10-19, relayed; proposed as D-xxx in the wave report)**
+**Decisions (operator, 2026-10-19, relayed; recorded at merge as D-368 to D-371)**
 - Q1 = B: in atlas the trace web sits above the fog, between the 0.5 road copy and the labels
   (amends D-307 for atlas). Q2: default adventure, `?basemap=` debug flag. Q3: parchment and ink
   ramps only, through `--map-*` tokens; water is an ink wash; no §8.2 amendment. Q4: CIELAB

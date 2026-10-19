@@ -452,7 +452,7 @@ describe("the composite shader source", () => {
 })
 
 /**
- * `0211`, D-NEW-a. THE EDGE WARP. These are the ticket's second criterion, restated for the warp:
+ * `0211`, D-372. THE EDGE WARP. These are the ticket's second criterion, restated for the warp:
  * the warp stays still under a pan (D-233), it steps no more than once per zoom level (D-243; inside
  * res 11 it does not step at all), it is frozen in time, and it is sized from the disc rather than
  * the screen.

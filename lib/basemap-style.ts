@@ -272,7 +272,7 @@ const aboveFog = <T extends StyleLayer>(l: T): T => ({ ...l, metadata: { ...ABOV
  * `fogBeforeId` knows to put the fog under them. On explored ground a copy is invisible — the fill
  * colour at 0.5 over the identical opaque fill — and over the fog it is the street grid's pale
  * ghost, traceable into unexplored ground. The trace web goes between the copies and the labels
- * (D-NEW, amending D-307 for atlas), so the copies never wash it out.
+ * (D-368, amending D-307 for atlas), so the copies never wash it out.
  *
  * ADVENTURE: nothing is tagged; the fog goes over the whole basemap and its labels (05 §4.4 rule 1).
  */
