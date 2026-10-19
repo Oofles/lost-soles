@@ -4943,7 +4943,7 @@
     "path": "tickets/open/0211-fog-edge-reads-as-disc-outlines.md",
     "ready": true,
     "acceptance": {
-      "checked": 3,
+      "checked": 4,
       "total": 4
     }
   },
@@ -6553,7 +6553,7 @@
     "title": "The basemap covers every area the operator has run, not only Florida",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [],
@@ -6561,8 +6561,9 @@
     "source": "agent",
     "created": "2026-10-16T15:35:14Z",
     "started": "2026-10-19T13:08:21Z",
-    "path": "tickets/open/0284-the-basemap-covers-every-area-the-operator-has-run-not-only.md",
-    "ready": true,
+    "closed": "2026-10-19T14:34:31Z",
+    "path": "tickets/closed/0284-the-basemap-covers-every-area-the-operator-has-run-not-only.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
@@ -6584,7 +6585,7 @@
     "source": "agent",
     "created": "2026-10-16T15:35:14Z",
     "path": "tickets/open/0285-a-quiet-jump-to-control-lists-the-regions-the-operator-has-r.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5

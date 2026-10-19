@@ -4,7 +4,7 @@ slug: the-basemap-covers-every-area-the-operator-has-run-not-only
 title: The basemap covers every area the operator has run, not only Florida
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-16T15:35:14Z
 started: 2026-10-19T13:08:21Z
+closed: 2026-10-19T14:34:31Z
 ---
 
 ## Description
