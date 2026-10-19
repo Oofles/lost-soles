@@ -2426,6 +2426,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-19T20:41:49Z",
     "path": "tickets/open/0099-mode-parity-invariant-tests.md",
     "ready": true,
     "acceptance": {
@@ -2472,6 +2473,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-19T20:41:49Z",
     "path": "tickets/open/0101-map-controls-and-run-inspection.md",
     "ready": true,
     "acceptance": {
@@ -5906,6 +5908,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-13T15:53:19Z",
+    "started": "2026-10-19T20:41:49Z",
     "path": "tickets/open/0254-beat-1-mode-crossfade.md",
     "ready": true,
     "acceptance": {
