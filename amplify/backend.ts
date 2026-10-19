@@ -34,7 +34,6 @@ import {
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront"
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins"
-import { CfnBudget } from "aws-cdk-lib/aws-budgets"
 import { Key } from "aws-cdk-lib/aws-kms"
 import { FilterPattern, LogGroup, MetricFilter } from "aws-cdk-lib/aws-logs"
 import { FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda"
@@ -2075,37 +2074,6 @@ const webhookFlood = new Alarm(backend.ingestWebhook.stack, "WebhookOwnerFlood",
   treatMissingData: TreatMissingData.NOT_BREACHING,
 })
 webhookFlood.addAlarmAction(new SnsAction(ingestAlarms))
-
-/**
- * AWS BUDGETS AT $10 AND $25 A MONTH (§4.4 item 7) — "the real backstop". Cost-DoS is only
- * dangerous when it is silent, and these turn an unbounded bill into an email. ACTUAL spend, not
- * forecast: a forecast alarms on day 2 of any month with a one-off spike, which is noise.
- *
- * EMAIL SUBSCRIBERS DIRECTLY, not the SNS topic: a Budgets → SNS route needs a topic policy for
- * `budgets.amazonaws.com`, and a direct email subscriber needs no confirmation click, so it
- * cannot sit silently unconfirmed. The address is the operator's, in source for the reason the
- * topic subscription above gives.
- *
- * ACCOUNT-WIDE, and named, so a second deploy of this backend (an `ampx sandbox`) would collide on
- * the name — the same cost `LostSolesIngestReceipt` already imposes.
- */
-new CfnBudget(ingestStack, "MonthlyCostBudget", {
-  budget: {
-    budgetName: "Lost Soles monthly cost",
-    budgetType: "COST",
-    timeUnit: "MONTHLY",
-    budgetLimit: { amount: 25, unit: "USD" },
-  },
-  notificationsWithSubscribers: [10, 25].map((dollars) => ({
-    notification: {
-      notificationType: "ACTUAL",
-      comparisonOperator: "GREATER_THAN",
-      threshold: dollars,
-      thresholdType: "ABSOLUTE_VALUE",
-    },
-    subscribers: [{ subscriptionType: "EMAIL", address: "amazingbrandon@gmail.com" }],
-  })),
-})
 
 /**
  * SURFACED TWICE, for two readers. `amplify_outputs.json` (`custom.ingestWebhookUrl`) for

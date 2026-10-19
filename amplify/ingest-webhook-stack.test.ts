@@ -214,22 +214,8 @@ describe("cost-DoS defence (ticket 0093)", () => {
     expect(JSON.stringify(flood.AlarmActions)).toMatch(/IngestAlarms/)
   })
 
-  it("has a monthly Budget emailing at $10 and $25 actual spend (§4.4 item 7)", () => {
-    const budgets = everyStack.flatMap((t) =>
-      Object.values(t.findResources("AWS::Budgets::Budget")).map((b) => (b as Resource).Properties),
-    )
-    expect(budgets).toHaveLength(1)
-    const [b] = budgets as Array<{
-      Budget: Record<string, unknown>
-      NotificationsWithSubscribers: Array<{ Notification: Record<string, unknown>; Subscribers: unknown[] }>
-    }>
-    expect(b.Budget).toMatchObject({ BudgetType: "COST", TimeUnit: "MONTHLY" })
-    expect(b.NotificationsWithSubscribers.map((n) => n.Notification)).toEqual([
-      expect.objectContaining({ NotificationType: "ACTUAL", Threshold: 10, ThresholdType: "ABSOLUTE_VALUE", ComparisonOperator: "GREATER_THAN" }),
-      expect.objectContaining({ NotificationType: "ACTUAL", Threshold: 25, ThresholdType: "ABSOLUTE_VALUE", ComparisonOperator: "GREATER_THAN" }),
-    ])
-    for (const n of b.NotificationsWithSubscribers) {
-      expect(n.Subscribers).toEqual([{ SubscriptionType: "EMAIL", Address: expect.stringContaining("@") }])
-    }
+  it("synthesizes no AWS Budget: cost alerting is the operator's, outside this project (D-361)", () => {
+    const budgets = everyStack.flatMap((t) => Object.keys(t.findResources("AWS::Budgets::Budget")))
+    expect(budgets).toEqual([])
   })
 })

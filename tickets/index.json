@@ -6662,6 +6662,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-19T03:32:39Z",
+    "started": "2026-10-19T03:36:42Z",
     "path": "tickets/open/0289-remove-the-account-wide-budgets-resource-from-the-backend.md",
     "ready": true,
     "acceptance": {

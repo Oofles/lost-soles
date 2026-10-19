@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-19T03:32:39Z
+started: 2026-10-19T03:36:42Z
 ---
 
 ## Description
@@ -26,9 +27,9 @@ Deploying the change deletes the budget.
 
 ## Acceptance criteria
 
-- [ ] No `AWS::Budgets::Budget` resource is synthesized by any stack, asserted by a synth test
+- [x] No `AWS::Budgets::Budget` resource is synthesized by any stack, asserted by a synth test
       (the existing assertion inverted to expect none).
-- [ ] The `aws-budgets` import and the comment block above `MonthlyCostBudget` are gone from
+- [x] The `aws-budgets` import and the comment block above `MonthlyCostBudget` are gone from
       `amplify/backend.ts`.
 - [ ] After deploy, `aws budgets describe-budgets --account-id 286588821906 --profile devault`
       no longer lists "Lost Soles monthly cost".
@@ -42,3 +43,13 @@ the webhook's reserved concurrency (0093), which stays.
 ## Operator validation
 
 None expected. Smoke test: `describe-budgets` after deploy, as in the last criterion.
+
+## Resolution
+
+- `amplify/backend.ts`: removed `new CfnBudget(ingestStack, "MonthlyCostBudget", …)`, its comment
+  block and the `aws-cdk-lib/aws-budgets` import. The cost-DoS section's other layers (reserved
+  concurrency, flood counter and alarm) are untouched.
+- `amplify/ingest-webhook-stack.test.ts`: the "$10 and $25" budget assertion is replaced by one that
+  every synthesized stack has **no** `AWS::Budgets::Budget` (D-361).
+- No doc changes: D-361's commit already amended `08` and `01`.
+- Built in the main session, not by a wave agent: one small ticket, so a wave of one.
