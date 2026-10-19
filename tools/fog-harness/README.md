@@ -7,6 +7,8 @@ node tools/fog-harness/run.mjs            # the mask shader on a real GPU
 node tools/fog-harness/run-maplibre.mjs   # the same layer inside a real MapLibre Map
 node tools/fog-harness/run-cull.mjs       # the zoom buckets and the cull, driven by a real camera
 node tools/fog-harness/run-mode-swap.mjs  # 0098: atlas/adventure swaps keep the camera and every layer
+                                          # 0099: ... and the coverage mask, bit for bit
+node tools/fog-harness/mode-parity-shots.mjs # 0099: ghost grid + street-name contrast, real tiles
 ```
 
 **`run-mode-swap.mjs`** (ticket `0098`) builds a real Map on the shipped `basemapStyle`, adds the trace
@@ -15,6 +17,13 @@ variant twelve times at three zooms with `swapBasemap`. It fails if any of centr
 pitch differs by a single bit across a swap, if MapLibre falls back to rebuilding the style from
 scratch (which drops every app layer), or if any layer leaves its D-368 slot. No tiles are fetched;
 a diff is about the style, not the tiles.
+
+Since `0099` it also proves **mask parity** (05 §5.4). A real `ExploredSet` → `ZoomBucketStore` →
+`FogViewportController` feeds the fog. At each of the three zooms the harness shows adventure,
+atlas, an atlas/adventure mid-fade palette, and adventure again, each through `swapBasemap` +
+`setPalette`. It redraws the mask fresh in each mode, which the pass count confirms. It then reads
+the mask FBO's texture back and requires every byte to match. The sabotage: a ⅛-mask-pixel camera
+move must change the mask. A mask that is all revealed or all fogged fails as trivial.
 
 **`run.mjs`** compiles `lib/fog/mask.ts` **alone** — which is why that module has zero imports —
 inlines it into one `file://` page with `harness.js`, and runs it in headless Chromium. Exit 0 on
@@ -109,3 +118,24 @@ Three things differ from the other harnesses, and each cost a round to find:
   states, and nothing runs.
 
 Only commit screenshots of the synthetic loop, never of the operator's own cells (D-199).
+
+## `mode-parity-shots.mjs` — the ghost grid and street-name contrast, measured (ticket `0099`)
+
+```
+node tools/fog-harness/mode-parity-shots.mjs [--out tmp/0099] [--reuse]
+```
+
+This drives `tune.mjs` at z15 and z16, using the five `0099` variant keys (`_swapFrom`, `_cells`,
+`_muteLabels`, `_bareLabels`, `_noSymbols`, documented in `tune.mjs`'s header). It decodes the PNGs
+with `pngjs` and measures them:
+
+- **The ghost grid.** Nothing is explored and no labels are drawn. The measure is road-minus-ground
+  luminance (high-passed) at atlas, adventure, the 0.94 ceiling and a 1.0 sabotage. It fails if the
+  shipped or ceiling Δ is under 1 grey level, or if the sabotage is not ≈ 0.
+- **Street-name contrast.** Each mode is measured over no fog, all-revealed and all-unexplored
+  ground. It fails if revealed ground reads differently from the stock map in either mode, or if
+  atlas loses its street names over unexplored ground.
+- **The two screenshots** for the capability doc: one per mode at z16, each reached through the swap.
+
+`--reuse` re-measures the PNGs already in `--out` without the network. The numbers are recorded in
+`docs/capabilities/15-two-map-modes-and-cold-territory.md`.

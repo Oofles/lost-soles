@@ -13,6 +13,16 @@
 //   "_off":     true                    no fog layer, but on the chosen basemap (null cannot say which)
 // `--dpr 2` captures at device scale 2, which is what a desktop retina screen and the phone show.
 //
+// `0099` added five more, for the mode-parity measurements (`mode-parity-shots.mjs` drives them):
+//   "_swapFrom":   "atlas" | "adventure"   build the map in this variant, then reach `_basemap` through
+//                                          the toggle's own `swapBasemap` + `setPalette`
+//   "_cells":      "loop" | "all" | "none" the explored set: the synthetic run (default), the whole
+//                                          frame revealed, or nothing revealed
+//   "_muteLabels": "<regex>"               symbol layers whose id matches draw at text/icon opacity 0
+//                                          (collision unchanged, so a diff isolates their glyphs)
+//   "_noSymbols":  true                    every symbol layer hidden: road geometry with nothing on it
+//   "_bareLabels": "<regex>"               matching symbol layers draw with no text halo
+//
 // WHERE IT STANDS: a synthetic loop through downtown Orlando. The legibility check needs real
 // streets with real names under it, so Point Nemo will not do — but it must not be anywhere the
 // operator runs (D-199). A public downtown, synthetic geometry, a trace nobody ran. That is also
@@ -119,8 +129,22 @@ const cdp = (method, params = {}) => new Promise((r) => { const id = ++seq; pend
 await cdp("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: DPR, mobile: false })
 
 for (const [name, variant] of Object.entries(VARIANTS)) {
-  const { _basemap: basemap, _base: base, _off: off, ...overrides } = variant ?? {}
-  const cfg = { variant: variant && !off ? overrides : null, basemap, base, workerSrc, centre, zoom: ZOOM, route, trace }
+  const {
+    _basemap: basemap,
+    _base: base,
+    _off: off,
+    _swapFrom: swapFrom,
+    _cells: cells,
+    _muteLabels: muteLabels,
+    _noSymbols: noSymbols,
+    _bareLabels: bareLabels,
+    ...overrides
+  } = variant ?? {}
+  const cfg = {
+    variant: variant && !off ? overrides : null,
+    basemap, base, swapFrom, cells, muteLabels, noSymbols, bareLabels,
+    workerSrc, centre, zoom: ZOOM, route, trace,
+  }
   // Separate classic scripts rather than inline: a 2 MB bundle inlined into HTML contains `<!--` and
   // `<script` sequences that throw the tokenizer into script-escaped states, and nothing runs.
   writeFileSync(join(work, `${name}.cfg.js`), `window.__TUNE=${JSON.stringify(cfg)}`)

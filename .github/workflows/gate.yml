@@ -130,6 +130,16 @@ jobs:
       - name: the render radius never reaches the domain that owns REVEAL_R_M
         run: node scripts/check-fog-render-boundary.mjs
 
+      # 05 §5.4 / ticket 0099. Atlas and adventure are a uniform and style-layer switch;
+      # neither may change what is revealed or scored. The mode's identifiers may be named
+      # only in the renderer, the toggle and the run-moment seam — an allowlist, so a new
+      # Lambda or XP module is covered without anyone remembering to add it.
+      - name: mode boundary check self-test
+        run: node scripts/check-mode-boundary.mjs --self-test
+
+      - name: the map mode never leaves the renderer and the toggle
+        run: node scripts/check-mode-boundary.mjs
+
       # 02 §5.6 / ticket 0049. AP-16's full-table Query is ~1,000-3,000 RRU against
       # AP-15's ~3-10, and §5.6 calls reaching it from `process-activity` a
       # review-blocking bug. A transitive import walk, because a grep is satisfied by

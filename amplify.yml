@@ -59,6 +59,7 @@ frontend:
         - node scripts/check-contrast.mjs      # D-148 — every skills-panel pair at WCAG AA
         - node scripts/check-fixture-geography.mjs # 08 §7.2 / D-199 — no real GPS in a public repo
         - node scripts/check-fog-render-boundary.mjs # 05 §2.3 — REVEAL_R_M is scoring, revealScale is a look
+        - node scripts/check-mode-boundary.mjs # 05 §5.4 — the map mode is a look; it never reaches scoring
         - node scripts/check-fog-hot-path.mjs  # 02 §5.6 — AP-16 must not reach the ingest hot path
         - node scripts/check-no-deckgl.mjs     # 05 §4.6 — the ruled-out renderer stays ruled out
         - node scripts/check-private-method-update.mjs --self-test
