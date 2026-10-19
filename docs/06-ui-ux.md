@@ -802,7 +802,7 @@ wrong even if it looks good:
    the app has lied about the one thing it promises never to lie about (D-020).
 3. **The transition is a 320 ms cross-fade of the fog's uniforms and the route glow**, on one
    `ease-in-out` curve, and never a reload. ~~not a style swap~~ *(Amended by `0098`, operator,
-   D-NEW-c.)* The basemap variant **is** swapped — a diffed `setStyle` at the start of the fade —
+   D-374.)* The basemap variant **is** swapped — a diffed `setStyle` at the start of the fade —
    because atlas's labels and road-fill copies sit on the other side of the fog (D-368), and no
    opacity animation moves a layer across another. So the road copies appear in one frame and the
    labels change on MapLibre's own ~300 ms symbol fade, not on the shared curve. The camera is

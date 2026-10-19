@@ -251,7 +251,7 @@ describe("reduced motion — criterion 7", () => {
   })
 })
 
-describe("atlas freezes the mist where it is (D-NEW-a)", () => {
+describe("atlas freezes the mist where it is (D-375)", () => {
   function host(reduced = false) {
     let cb: ((t: number) => void) | null = null
     const h: AnimationHost & { fire(t: number): void; raf: ReturnType<typeof vi.fn> } = {

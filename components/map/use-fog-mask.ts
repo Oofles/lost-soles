@@ -87,7 +87,7 @@ export function useFogMask(
    * `0098`. THE MODE'S LOOK. `palette` is READ ONCE, when the layer is created, so a layer built
    * mid-session (a context-loss rebuild, a fogless home gaining territory) draws its first frame in
    * the mode on screen; after that the shell moves it imperatively, every frame of a cross-fade.
-   * `animated` is the settled mode's clock: `false` freezes the mist in place (atlas, D-NEW-a).
+   * `animated` is the settled mode's clock: `false` freezes the mist in place (atlas, D-375).
    */
   look: { palette: () => FogPalette; animated: boolean } | null = null,
 ): FogMaskLayer | null {

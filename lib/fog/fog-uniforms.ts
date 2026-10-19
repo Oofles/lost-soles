@@ -192,7 +192,7 @@ const lerpRgb = (a: Rgb, b: Rgb, t: number): Rgb => [lerp(a[0], b[0], t), lerp(a
 /**
  * `0098`. One palette between two, at progress `t` (0 = `from`, 1 = `to`). Every scalar and every
  * channel moves by the same `t`, which is the cross-fade's "one timeline". `animated` is not
- * interpolated: freezing the clock is the toggle's to schedule (D-NEW-a, `map-mode.ts`).
+ * interpolated: freezing the clock is the toggle's to schedule (D-375, `map-mode.ts`).
  */
 export function lerpPalette(from: FogPalette, to: FogPalette, t: number): FogPalette {
   return {

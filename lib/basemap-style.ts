@@ -61,7 +61,7 @@ export const ROAD_GHOST_PREFIX = "atlas_road_ghost_"
 
 /**
  * Prefix of atlas's labels. `0098`: atlas's labels carry ids of their own, never upstream's, because
- * the toggle swaps variants with a DIFFED `setStyle` (D-NEW-c) and MapLibre's style diff ignores
+ * the toggle swaps variants with a DIFFED `setStyle` (D-374) and MapLibre's style diff ignores
  * `metadata`. Under a shared id, the label would keep atlas's above-fog tag after a swap to adventure
  * — `fogBeforeId` would then put the fog under adventure's labels. A different id makes the diff
  * remove one layer and add the other, so the tag always belongs to the variant on screen.

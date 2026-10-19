@@ -15,7 +15,7 @@ import { RUN_GLOW_METRICS } from "@/lib/map-layers"
  *      all of it.
  *   3. **The 320 ms timeline** — one eased progress per animation frame, applied to the whole frame.
  *
- * WHAT IS *NOT* ON THE TIMELINE (operator, `0098` Q1 = B; D-NEW-c). The basemap variant swaps with a
+ * WHAT IS *NOT* ON THE TIMELINE (operator, `0098` Q1 = B; D-374). The basemap variant swaps with a
  * diffed `setStyle` at the START of the fade (`swapBasemap`, `lib/basemap.ts`): atlas's road-fill
  * copies appear in one frame and labels change on MapLibre's own ~300 ms symbol fade. Labels and the
  * road copies move layer position across the fog (D-368), and no opacity animation of one layer
@@ -179,7 +179,7 @@ export interface ModeTransition {
 /**
  * Run one cross-fade from `from` to `to`, calling `apply` with every frame and `done` once at the end.
  *
- * `reduced` (`prefers-reduced-motion`): a HARD CUT (06 §4.3 #3, D-NEW-b). `apply(to)` and `done()`
+ * `reduced` (`prefers-reduced-motion`): a HARD CUT (06 §4.3 #3, D-376). `apply(to)` and `done()`
  * run synchronously and no animation frame is ever requested — `0098` criterion 7's spy.
  *
  * Elapsed time is measured from `clock.now()` at the call, against rAF timestamps — the same clock

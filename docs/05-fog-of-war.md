@@ -1124,7 +1124,7 @@ likes.
 ms/frame at 1280×800, inside the noise. §6.4 item 2's GPU timer needs a real GPU (`?fog=perf`).
 Renders: `docs/capabilities/assets/0211/`.
 
-#### The rim is lit mist (ticket `0210`)
+#### The rim is lit mist (ticket `0210`, D-379)
 
 **The sketch's rim could not be seen at any `u_rimAmt` in §5.2's range.** It added `u_rimGlow`
 to the fog colour *before* the premultiply, so it was scaled by the boundary's own alpha, about
@@ -1299,7 +1299,7 @@ the mask at 0.5×. The per-mode uniforms live in one constant map, `FOG_MODES` i
 | **Purpose** | Deciding where to run tomorrow | Looking at what you've done |
 | `u_maxOpacity` | **0.55** | ~~0.94~~ **0.90** *(`0119`'s tuning, `0098`; 0.94 stays the ceiling, §5.3)* |
 | `u_noiseAmp` (threshold perturbation) | **0.10** — edge stays close to true coverage | ~~0.30~~ **0.25** — wisps; raggedness is the edge warp's (D-372). 0.30 stays the ceiling `SEAM_FLOOR` was measured for |
-| Noise animation | **Off.** `u_time` frozen where it stood *(was "at 0"; a jump re-rolls the wisps, D-NEW-a, `0098`)* | **On**, 30 fps drift |
+| Noise animation | **Off.** `u_time` frozen where it stood *(was "at 0"; a jump re-rolls the wisps, D-375, `0098`)* | **On**, 30 fps drift |
 | `u_rimAmt` (rim: lit mist, §4.3) | ~~0.08 — a hairline~~ **0.90**, the same as adventure *(`0210`: the old rim was invisible at any value in range; range now 0..1)* | ~~0.30 — full lantern-light~~ **0.90** *(`0210`)*. Both modes share `u_rimGlow` (1.00, 0.78, 0.40) and the band width |
 | `u_fogDeep` / `u_fogEdge` | Desaturated, lighter: `(0.10,0.11,0.14)` / `(0.30,0.32,0.36)` | `(0.035,0.045,0.075)` / ~~`(0.22,0.24,0.30)`~~ `(0.27,0.29,0.35)` *(`0119`, `0098`)* |
 | Mask FBO scale | ~~0.75×~~ **0.5×**, as adventure *(`0098`: a resolution cannot be cross-faded, and changing it moves the edge, which §5.4 forbids)* | **0.5×** — softer, cheaper |

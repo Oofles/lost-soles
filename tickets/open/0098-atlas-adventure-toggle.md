@@ -27,7 +27,7 @@ palette opinion:
 |---|---|---|
 | `u_maxOpacity` | 0.55 | ~~0.94~~ 0.90 (never above 0.94, never 1.0) |
 | `u_noiseAmp` | 0.10 | ~~0.30~~ 0.25 |
-| `u_time` | frozen ~~at 0~~ where it stood (noise animation off, D-NEW-a) | 30 fps drift |
+| `u_time` | frozen ~~at 0~~ where it stood (noise animation off, D-375) | 30 fps drift |
 | `u_rimAmt` | 0.08 | 0.30 |
 | `u_fogDeep` / `u_fogEdge` | (0.10,0.11,0.14) / (0.30,0.32,0.36) | (0.035,0.045,0.075) / ~~(0.22,0.24,0.30)~~ (0.27,0.29,0.35) |
 | Mask FBO scale | ~~0.75×~~ 0.5× | 0.5× |
@@ -41,7 +41,7 @@ because a resolution cannot be cross-faded and changing it moves the edge (05 §
 and pitch are byte-identical before and after the toggle. ~~The two renders are cross-faded over
 320 ms with a single shared easing curve — every uniform, every layer, one timeline — so nothing
 in the frame appears to arrive before anything else.~~ *(Amended 2026-10-19, operator Q1 = B,
-D-NEW-c.)* Every fog uniform and the route glow cross-fade over 320 ms on one shared easing curve.
+D-374.)* Every fog uniform and the route glow cross-fade over 320 ms on one shared easing curve.
 The basemap variant swaps with a diffed `setStyle` at the start of the fade: atlas's labels and
 road-fill copies sit on the other side of the fog (D-368), and an opacity animation cannot move a
 layer across another, so the road copies appear in one frame and labels change on MapLibre's own
@@ -74,7 +74,7 @@ definition-of-done box, checked again in 0112.
       uniform and the route glow's opacity animates on the same timeline — asserted by sampling
       interpolation progress at t=160 ms across all animated values and requiring a single shared
       value. *(Amended 2026-10-19, operator Q1 = B: basemap layers swap with the style and fade on
-      MapLibre's own symbol fade, D-NEW-c.)*
+      MapLibre's own symbol fade, D-374.)*
 - [x] Every uniform in the §5.2 table takes exactly the tabled value in each mode; the values live
       in one exported constant map, asserted by a snapshot test against the table. *(Amended
       2026-10-19, operator Q2: the table is the amended one above — adventure = `0119`'s `V1`.)*
@@ -118,7 +118,7 @@ Built after a D-152 stop. The operator answered five questions on 2026-10-19:
 - **Q4:** atlas fades the route glow to 0, and the core is unchanged.
 - **Q5:** 0080's fade becomes 320 ms.
 
-D-NEW-a and D-NEW-b were accepted. D-NEW-c, which records Q1, is proposed to the orchestrator.
+D-375 and D-376 were accepted; Q1 is recorded as D-374, Q2/Q3 as D-377, the frontier click and 320 ms as D-378.
 
 ### How it works
 
@@ -137,7 +137,7 @@ D-NEW-a and D-NEW-b were accepted. D-NEW-c, which records Q1, is proposed to the
   - `lerpPalette` interpolates between two palettes.
   - Rim values are untouched (0210).
 - **`lib/fog/mask-layer.ts`:** `setPalette()` and `palette()`. The composite reads the live palette.
-- **`lib/fog/animation.ts`:** `setFrozen()` stops the loop and holds `u_time` where it stood (D-NEW-a). Reduced motion still means `u_time = 0`.
+- **`lib/fog/animation.ts`:** `setFrozen()` stops the loop and holds `u_time` where it stood (D-375). Reduced motion still means `u_time = 0`.
 - **`lib/basemap.ts`:**
   - `carryAppLayers` is the `transformStyle` for the swap. It carries every non-basemap layer and source into the next style. App layers that sat below the first label (the trace web) go below the next variant's first label; the rest go on top, in their existing order.
   - `swapBasemap` = a diffed `setStyle`, then the fog is moved to `fogBeforeId`.

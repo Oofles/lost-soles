@@ -108,3 +108,5 @@ home region's name is a neighbourhood.
 **Decisions made here, beyond the operator's two:** the 5 km label pad, the z12→z6 / 4-tile read,
 the town-then-population ranking, the 0.1° fallback, `maxZoom` 15, the `⚑` glyph, and placement
 under `⚙`. All are local and tunable constants.
+
+**Decisions recorded at merge (orchestrator):** granularity as D-381, order and labels as D-382.

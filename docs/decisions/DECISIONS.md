@@ -5497,3 +5497,57 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Consequences:** `0294` (trace ink vs parchment water) and `0197` (route re-judged against
     parchment) are declined, since the ground they were filed against will not ship. The route
     pairing is recorded as held in `05` §4.4.
+- **D-374** **The atlas/adventure toggle swaps the basemap variant with a diffed `setStyle`, and
+  cross-fades only the fog uniforms and the route glow.** *(Operator, 2026-10-19, ticket `0098`,
+  Q1 = B.)* Supersedes 06 §4.3 #3's "not a style swap" and the ticket's "every layer, one timeline".
+  - The swap runs at the start of the 320 ms fade. App layers (fog, trace web, landmarks, route) are
+    carried into the new style through `transformStyle` (`carryAppLayers`, `lib/basemap.ts`) and
+    re-placed with D-368's `fogBeforeId`; a plain diffed `setStyle` drops them.
+  - Atlas labels carry ids of their own (`atlas_label_*`), because MapLibre's style diff ignores
+    `metadata` and would otherwise leave adventure's labels tagged above the fog.
+  - Atlas's road copies appear in one frame and labels change on MapLibre's own symbol fade. The
+    operator accepted that over the alternative (both label sets in one style, opacities only),
+    whose cost was a ~0.6 s label dip on every toggle.
+  - The camera is byte-identical across the swap (`tools/fog-harness/run-mode-swap.mjs`).
+- **D-375** **Atlas freezes `u_time` where it stands, not at 0.** *(Operator, 2026-10-19, `0098`.)*
+  A jump to 0 re-rolls the wisp field in one frame, which reads as the fog changing; the frozen and
+  zeroed fields are equally static. Reduced motion still holds `u_time = 0`.
+- **D-376** **Under `prefers-reduced-motion` the mode toggle is a hard cut.** *(Operator, 2026-10-19,
+  `0098`, per 06 §4.3 #3.)*
+- **D-377** **Adventure's fog uniforms are `0119`'s V1, and both modes draw the mask at 0.5×.**
+  *(Operator, 2026-10-19, `0098` Q2/Q3.)* 05 §5.2's 0.94/0.30 adventure column is replaced by the
+  shipped, approved V1 (0.90, 0.25, fogEdge (0.27,0.29,0.35)); 0.94 remains the `u_maxOpacity`
+  ceiling and `SEAM_FLOOR` stays derived from a 0.30 noise ceiling. A per-mode mask scale cannot be
+  cross-faded and nudges the revealed edge (§5.4), so atlas's 0.75× is dropped.
+- **D-378** **The run page's frontier click shows atlas on that page only, and every mode fade is
+  320 ms.** *(Operator, 2026-10-19, `0098` Q5.)* It does not change the saved preference. `0080`'s
+  fade back to the saved mode uses the toggle's 320 ms constant (06 §3.2 amended from 300 ms). The
+  "suggest atlas once" clause waits for a route-planning surface (follow-up ticket).
+- **D-379** **The frontier rim is lit mist.** *(Operator, 2026-10-19, ticket `0210`, option B.)*
+  Supersedes 05 §4.3's additive rim and §5.1's "picks up the parchment hue" (retired by D-373).
+  - Fog near revealed ground is mixed toward warm lamplight (1.00, 0.78, 0.40) by `lit` and thinned to
+    `alpha × (1 − lit × 2/3)`, where `lit = clamp(near × 1.5) × (1 − reveal) × u_rimAmt` and `near`
+    is a ground-placed ring blur of the reveal ramp (2 rings × 8 taps, unrolled).
+  - It recolours and thins the fog itself rather than riding the boundary's alpha, never raises
+    alpha, and is exactly zero on revealed ground (D-051). The old `max(alpha, rim × 0.10)` floor is
+    gone.
+  - Band 0.55 disc radii (~21 m), sized on the ground as D-372 sizes the warp. `u_rimAmt` 0.90 in
+    both modes; range now 0..1.
+  - Rejected, rendered: an additive glow (A) and a crisp amber line (C); both crossed adventure's
+    label glyphs harder and read as a second route beside the amber route glow.
+  - Cost on SwiftShader ≈ +6.5 ms/frame at 1280×800 worst case; `0059`'s real-GPU check is the gate,
+    and a pre-blurred low-res mask is the next lever.
+- **D-380** **Harness GPU timing ends each batch with a 1-pixel `readPixels`.** *(Agent, 2026-10-19,
+  `0210`.)* In Chromium `gl.finish()` returns before the GPU process runs the draws, so earlier C4
+  figures (including `0211`'s "0.70 → 0.71 ms" warp cost) were not frame times. On SwiftShader the
+  warp costs ~+5.5 ms.
+- **D-381** **The jump-to control's regions are 50 km single-linkage clusters of run starts.**
+  *(Operator, 2026-10-19, ticket `0285`.)* Starts within 50 km chain into one region, so a sprawling
+  metro stays one entry; a region frames the box of its runs' traced points. Source: the trace web the
+  map already fetches. On real data every threshold from 25 to 100 km gives the same five regions,
+  with Arkansas's two areas separate. Rejected: per-state lists (hard-coded, merge Arkansas) and
+  clustering the explored set (no time per cell, so no recency order).
+- **D-382** **Regions are listed most recent run first, labelled with the most prominent place the
+  basemap names inside them.** *(Operator, 2026-10-19, `0285`.)* `PlaceNames.prominent` (D-302)
+  pads the box 5 km and ranks locality over neighbourhood, then population, then name. With no name
+  or on any failure the label is the box centre to 0.1°, never an error.

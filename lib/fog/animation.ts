@@ -100,7 +100,7 @@ export class FogAnimator {
   }
 
   /**
-   * `0098`. ATLAS: the mist stops WHERE IT IS (D-NEW-a), rather than at `u_time = 0`.
+   * `0098`. ATLAS: the mist stops WHERE IT IS (D-375), rather than at `u_time = 0`.
    *
    * Different from `isStatic` on purpose. Reduced motion asks for *the* static frame, the same one
    * every time (criterion 7 above). Atlas only asks for no motion, and jumping `u_time` from wherever

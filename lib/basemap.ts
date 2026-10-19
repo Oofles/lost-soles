@@ -171,7 +171,7 @@ export interface SwapHost {
 }
 
 /**
- * SWAP THE VARIANT IN PLACE. `0098`, operator Q1 = B, D-NEW-c.
+ * SWAP THE VARIANT IN PLACE. `0098`, operator Q1 = B, D-374.
  *
  * A DIFFED `setStyle`: MapLibre adds, removes and re-filters only the layers that differ, keeps the
  * one source and its loaded tiles, keeps the custom fog layer (which no serialisation contains, so

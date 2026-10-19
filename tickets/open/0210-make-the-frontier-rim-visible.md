@@ -35,10 +35,9 @@ wider band, a different colour), and does it wait for the parchment basemap?
 
 ## Acceptance criteria
 
-- [ ] A rim design is chosen and recorded as a `D-xxx`: how its contribution relates to fog alpha, and
-      its band width and colour. *(Chosen by the operator on 2026-10-19: option B, lit mist. The
-      `D-xxx` is proposed as D-NEW-a in the wave report, because WAVES §3 leaves allocating it to
-      the orchestrator. Tick this when it is recorded.)*
+- [x] A rim design is chosen and recorded as a `D-xxx`: how its contribution relates to fog alpha, and
+      its band width and colour. *(Chosen by the operator on 2026-10-19: option B, lit mist.
+      Recorded as **D-379** by the orchestrator; timing-harness finding as D-380.)*
 - [x] §4.3 and §5.2 of `05-fog-of-war.md` are amended to match, including the `u_rimAmt` range if it
       changes.
 - [x] Rendered over the parchment basemap (or the stock one, if the decision is not to wait) with
