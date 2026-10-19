@@ -4911,7 +4911,7 @@
     "title": "Make the frontier rim visible — it cannot read at any rimAmt in range",
     "type": "feature",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -4922,8 +4922,9 @@
     "source": "agent",
     "created": "2026-09-28T12:27:56Z",
     "started": "2026-10-19T15:55:38Z",
-    "path": "tickets/open/0210-make-the-frontier-rim-visible.md",
-    "ready": true,
+    "closed": "2026-10-19T20:37:40Z",
+    "path": "tickets/closed/0210-make-the-frontier-rim-visible.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4

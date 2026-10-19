@@ -4,7 +4,7 @@ slug: make-the-frontier-rim-visible
 title: Make the frontier rim visible — it cannot read at any rimAmt in range
 type: feature
 priority: low
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [119, 97]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-28T12:27:56Z
 started: 2026-10-19T15:55:38Z
+closed: 2026-10-19T20:37:40Z
 ---
 
 ## Description
