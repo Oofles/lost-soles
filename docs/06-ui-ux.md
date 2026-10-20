@@ -945,7 +945,11 @@ ramps with `now - lastRunAt` (D-120 gives every cell that timestamp):
 The ramp starting at month 5 is the useful part: **you can see ground coming back into season
 before it arrives**, which is exactly the information that changes a Saturday's route, and it is
 the visual twin of the chronicle line *"Ashgrove Lane comes back into season in nineteen days"*
-(§3.5). It costs one uniform and no extra data.
+(§3.5). It costs one uniform on the GPU and one lazy fetch: the per-cell `lastRunDay` sidecar
+(`explored-lastrun-r11.<gen>.bin`, 05 §7.2) was not delivered to the browser before ticket `0100`,
+which added `GET /api/fog/lastrun/<gen>` and fetches it the first time atlas is shown (D-389).
+The mask carries it as warmth in its alpha channel; a coarse disc takes its most recent child's
+day (D-390).
 
 **Colour.** `--cold-wash` `#7E93AD`, multiplied over the lit basemap, plus a −18% saturation
 shift. Never a stipple, never a hatch, never a hex outline — patterns read as *information about

@@ -1,4 +1,4 @@
-import { ARC_ALWAYS, ARC_FROST_OFFSET, ARC_GOLD_OFFSET, ARC_OUT_OFFSET, INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, ARC_FROST_OFFSET, ARC_GOLD_OFFSET, ARC_INDEX, ARC_OUT_OFFSET, INSTANCE_FLOATS } from "./mask"
 
 /**
  * THE REVEAL, AS ONE INSTANCE STREAM. Ticket `0079`. `06-ui-ux.md` §3.2 beat 1.
@@ -132,7 +132,9 @@ export function tagReveal(
    * THE IDENTITY OF AN INSTANCE IS ITS FOUR GEOMETRY FLOATS, BY BIT PATTERN. Both streams come out of
    * one deterministic derivation, so the same disc is the same 16 bytes in both — and anything that
    * is not byte-identical genuinely draws something different and must be treated as such. The arc
-   * slot is excluded: it is what this function writes.
+   * slot is excluded: it is what this function writes. So is `0100`'s day slot, which is carried
+   * through from whichever stream the instance is taken from — it colours the mask's ALPHA (cold
+   * territory), never its coverage, so it is not part of what an instance draws as fog.
    */
   const postBits = new Uint32Array(post.buffer, post.byteOffset, postCount * F)
   const preBits = new Uint32Array(pre.buffer, pre.byteOffset, preCount * F)
@@ -156,16 +158,16 @@ export function tagReveal(
 
   for (let i = 0; i < postCount; i++) {
     const at = i * F
-    out.set(post.subarray(at, at + F - 1), n * F)
+    out.set(post.subarray(at, at + F), n * F)
     const k = key(postBits, i)
     const left = unmatched.get(k) ?? 0
     if (left > 0) {
       unmatched.set(k, left - 1)
-      out[n * F + F - 1] = ARC_ALWAYS
+      out[n * F + ARC_INDEX] = ARC_ALWAYS
       inBoth++
     } else {
       // `0080`: a bridge or a coarse parent blooms as the reveal cell it is nearest to does.
-      out[n * F + F - 1] = fadeInArc(nearest(quantised, post[at]!, post[at + 1]!))
+      out[n * F + ARC_INDEX] = fadeInArc(nearest(quantised, post[at]!, post[at + 1]!))
       postOnly++
     }
     n++
@@ -178,8 +180,8 @@ export function tagReveal(
     if (left === 0) continue
     unmatched.set(k, left - 1)
     const at = i * F
-    out.set(pre.subarray(at, at + F - 1), n * F)
-    out[n * F + F - 1] =
+    out.set(pre.subarray(at, at + F), n * F)
+    out[n * F + ARC_INDEX] =
       ARC_OUT_OFFSET + latestArcNear(quantised, pre[at]!, pre[at + 1]!, OUT_REACH * pre[at + 2]!)
     n++
     preOnly++
@@ -188,8 +190,8 @@ export function tagReveal(
   // Corridor discs never bloom: they are `0057`'s optimistic guess, not a cell anyone classified.
   for (let i = 0; i < corridorCount; i++) {
     const at = i * F
-    out.set(corridor!.instances.subarray(at, at + F - 1), n * F)
-    out[n * F + F - 1] = quantiseArc(corridor!.arcs[i] ?? 0)
+    out.set(corridor!.instances.subarray(at, at + F), n * F)
+    out[n * F + ARC_INDEX] = quantiseArc(corridor!.arcs[i] ?? 0)
     n++
   }
 

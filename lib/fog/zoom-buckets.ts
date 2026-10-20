@@ -12,6 +12,7 @@ import { RES, RES_PARENT } from "@/src/domain/fog"
 import { discRadiusM, mercatorX, mercatorY, metresToMercator, packBucket } from "./instances"
 import { INSTANCE_FLOATS } from "./mask"
 import type { BucketInvalidator, ExploredSet } from "./explored-set"
+import type { LastRunDays } from "./last-run"
 
 /**
  * ZOOM BUCKETING. Ticket `0058`. `05-fog-of-war.md` §6.1, §6.2; D-237, D-238.
@@ -195,6 +196,12 @@ export function childrenPerGroup(res: number, groupRes: number): number {
  * One group of the bucket: a contiguous run of the explored set's ascending cells, everything
  * derived from them, and a mercator bbox to cull it by.
  */
+/**
+ * `0100`. A group's day map stores this where a cell's (or any child's) `lastRunDay` is not known —
+ * kept distinct from "not in the map" so a coarse parent with one unknown child stays unknown.
+ */
+const DAY_UNKNOWN_IN_GROUP = Number.POSITIVE_INFINITY
+
 interface Group {
   /** The group's own H3 id, at `groupRes`. */
   id: H3Index
@@ -207,6 +214,11 @@ interface Group {
   members: Set<H3Index> | null
   /** Explored fraction per id. `null` at the canonical resolution, where every cell is 1.0. */
   fractions: Map<H3Index, number> | null
+  /**
+   * `0100`. `lastRunDay` per id, or `DAY_UNKNOWN_IN_GROUP` where any child's is unknown. `null` when
+   * the store has no sidecar. At a coarse bucket, the MOST RECENT child's day (D-390).
+   */
+  days: Map<H3Index, number> | null
   /** Packed instance floats, cells then bridges. `null` until materialised. */
   discs: Float32Array | null
   cells: number
@@ -235,16 +247,36 @@ export class ZoomBucket {
 
   #set: ExploredSet
   #groups: Group[] = []
+  /** `0100`. The sidecar, when the store has one. See `setLastRun`. */
+  #lastRun: LastRunDays | null = null
   /** 4 floats per group: `minX, minY, maxX, maxY`, mercator, padded. §6.2's `parentBounds`. */
   #bounds = new Float64Array(0)
   #onDerive: ((event: DeriveEvent) => void) | undefined
 
-  constructor(set: ExploredSet, res: number, onDerive?: (event: DeriveEvent) => void) {
+  constructor(
+    set: ExploredSet,
+    res: number,
+    onDerive?: (event: DeriveEvent) => void,
+    lastRun: LastRunDays | null = null,
+  ) {
     this.#set = set
     this.res = res
     this.groupRes = groupResFor(res)
     this.#onDerive = onDerive
+    this.#lastRun = lastRun
     this.#reindex(null)
+  }
+
+  /**
+   * `0100`. THE SIDECAR ARRIVED (or went). Every group's geometry is dropped, because the day is
+   * baked into the packed instances the same way the fraction is, and re-derived on the next cull —
+   * once, when atlas is first shown, for the groups on screen. The index is untouched in substance:
+   * the cells have not changed, only what is known about them.
+   */
+  setLastRun(lastRun: LastRunDays | null): void {
+    if (lastRun === this.#lastRun) return
+    this.#lastRun = lastRun
+    this.#reindex(new Set(this.#groups.map((group) => group.id)))
   }
 
   get groupCount(): number {
@@ -290,6 +322,8 @@ export class ZoomBucket {
        */
       member: (cell) => this.#isMember(cell),
       fractionOf: this.res === RES ? undefined : (cell) => this.#fractionOf(cell),
+      // `0100`. Only with a sidecar; without one every disc is DAY_UNKNOWN, i.e. never cold.
+      dayOf: this.#lastRun ? (cell) => this.#dayOf(cell) : undefined,
     })
     group.discs = packed.instances
     group.cells = packed.cells
@@ -396,6 +430,7 @@ export class ZoomBucket {
               ids: null,
               members: null,
               fractions: null,
+              days: null,
               discs: null,
               cells: 0,
               bridges: 0,
@@ -540,9 +575,15 @@ export class ZoomBucket {
 
     const cells = this.#set.cells
     const ids: H3Index[] = []
+    const lastRun = this.#lastRun
+    const days = lastRun ? new Map<H3Index, number>() : null
 
     if (this.res === RES) {
-      for (let i = group.lo; i < group.hi; i++) ids.push(bigToCell(cells[i]!))
+      for (let i = group.lo; i < group.hi; i++) {
+        const id = bigToCell(cells[i]!)
+        ids.push(id)
+        if (days) days.set(id, lastRun!.dayAt(cells, i) ?? DAY_UNKNOWN_IN_GROUP)
+      }
     } else {
       const total = childrenPerGroup(RES, this.res)
       const fractions = new Map<H3Index, number>()
@@ -558,11 +599,17 @@ export class ZoomBucket {
       let currentHi = -1
       let currentLo = -1
       let seen = 0
+      /**
+       * `0100`, D-390. THE MOST RECENT CHILD WINS: a coarse disc is cold only if every explored
+       * child under it is. An unknown child (a mid-session delta's) is fresh, so it wins outright.
+       */
+      let recent = DAY_UNKNOWN_IN_GROUP
       const flush = () => {
         if (currentHi >= 0) {
           const id = wordsToCell(currentHi, currentLo)
           ids.push(id)
           fractions.set(id, seen / total)
+          if (days) days.set(id, recent)
         }
       }
       for (let i = group.lo; i < group.hi; i++) {
@@ -573,8 +620,13 @@ export class ZoomBucket {
           currentHi = hi
           currentLo = lo
           seen = 0
+          recent = -Infinity
         }
         seen++
+        if (days && recent !== DAY_UNKNOWN_IN_GROUP) {
+          const day = lastRun!.dayAt(cells, i)
+          recent = day === undefined ? DAY_UNKNOWN_IN_GROUP : Math.max(recent, day)
+        }
       }
       flush()
       group.fractions = fractions
@@ -582,6 +634,7 @@ export class ZoomBucket {
 
     group.ids = ids
     group.members = new Set(ids)
+    group.days = days
     return { ids, members: group.members }
   }
 
@@ -612,6 +665,15 @@ export class ZoomBucket {
     const index = this.#indexOfGroup(cellToParent(cell, this.groupRes))
     if (index < 0) return false
     return this.#materialiseIds(index).members.has(cell)
+  }
+
+  /** `0100`. The day `packBucket` bakes into a disc; `undefined` (never cold) when unknown. */
+  #dayOf(cell: H3Index): number | undefined {
+    const index = this.#indexOfGroup(cellToParent(cell, this.groupRes))
+    if (index < 0) return undefined
+    this.#materialiseIds(index)
+    const day = this.#groups[index]!.days?.get(cell)
+    return day === undefined || day === DAY_UNKNOWN_IN_GROUP ? undefined : day
   }
 
   #fractionOf(cell: H3Index): number | undefined {
@@ -712,6 +774,8 @@ export function wordParent(cell: bigint, res: number): H3Index {
 export class ZoomBucketStore implements BucketInvalidator {
   #set: ExploredSet
   #byRes = new Map<number, ZoomBucket>()
+  /** `0100`. Handed to every bucket, including ones built after it arrived. */
+  #lastRun: LastRunDays | null = null
   #onDerive: ((event: DeriveEvent) => void) | undefined
   #onRequest: ((hit: boolean) => void) | undefined
   #indexDerivations = 0
@@ -774,7 +838,7 @@ export class ZoomBucketStore implements BucketInvalidator {
       return cached
     }
     this.#onRequest?.(false)
-    const bucket = new ZoomBucket(this.#set, res, (event) => this.#record(event))
+    const bucket = new ZoomBucket(this.#set, res, (event) => this.#record(event), this.#lastRun)
     this.#byRes.set(res, bucket)
     return bucket
   }
@@ -782,6 +846,20 @@ export class ZoomBucketStore implements BucketInvalidator {
   /** The bucket for this map zoom. `resForZoom` picks it; §6.1's table decides. */
   bucketForZoom(zoom: number): ZoomBucket {
     return this.bucketFor(resForZoom(zoom))
+  }
+
+  /**
+   * `0100`. The `lastRunDay` sidecar (`last-run.ts`), or `null`. Drops every cached group's geometry
+   * so the next cull re-packs with days; the caller re-culls (`useFogMask`). Same-object is a no-op.
+   */
+  setLastRun(lastRun: LastRunDays | null): void {
+    if (lastRun === this.#lastRun) return
+    this.#lastRun = lastRun
+    for (const bucket of this.#byRes.values()) bucket.setLastRun(lastRun)
+  }
+
+  get lastRun(): LastRunDays | null {
+    return this.#lastRun
   }
 
   invalidateParents(parents: readonly H3Index[]): void {

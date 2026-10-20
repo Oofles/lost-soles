@@ -73,6 +73,7 @@ describe("FOG_MODES — the one constant map of per-mode uniforms (0098)", () =>
         maxOpacity: 0.55,
         noiseAmp: 0.1,
         rimAmt: 0.9,
+        coldWash: 1,
         animated: false,
       },
       adventure: {
@@ -82,6 +83,7 @@ describe("FOG_MODES — the one constant map of per-mode uniforms (0098)", () =>
         maxOpacity: 0.9,
         noiseAmp: 0.25,
         rimAmt: 0.9,
+        coldWash: 0,
         animated: true,
       },
     })

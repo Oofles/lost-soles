@@ -512,7 +512,12 @@ export function MapShell({
    * (`lib/fog/home-territory.ts`). `null` on a run's page, which plays its reveal over any set.
    */
   const homeFog = useMemo(() => (framed ? null : { hold: held ?? NO_CELLS }), [framed, held])
-  const look = useMemo(() => ({ palette: () => frame.current.fog, animated: fogAnimated }), [fogAnimated])
+  /** `0100`: `coldTerritory` asks for the lastRun sidecar the first time the wanted mode draws cold ground. */
+  const coldTerritory = MODE_FRAMES[wanted].fog.coldWash > 0
+  const look = useMemo(
+    () => ({ palette: () => frame.current.fog, animated: fogAnimated, coldTerritory }),
+    [fogAnimated, coldTerritory],
+  )
   const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog, look)
   const fogLayerRef = useRef(fogLayer)
   fogLayerRef.current = fogLayer

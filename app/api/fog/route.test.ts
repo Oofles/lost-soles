@@ -31,6 +31,7 @@ vi.mock("@/lib/fog/server", () => ({
 
 const { GET } = await import("./route")
 const { GET: GET_BLOB } = await import("./blob/[gen]/route")
+const { GET: GET_LASTRUN } = await import("./lastrun/[gen]/route")
 
 const update = (over: Partial<FogUpdate> = {}): FogUpdate => ({
   generation: 42,
@@ -179,6 +180,57 @@ describe("GET /api/fog/blob/<generation>", () => {
     // A normal outcome: the client's remedy is to re-read the manifest.
     getObject.mockResolvedValue(undefined)
     const response = await GET_BLOB(request("https://example.test/api/fog/blob/43"), params("43"))
+
+    expect(response.status).toBe(404)
+  })
+})
+
+/**
+ * `0100`. The lastRunDay sidecar, for the cold-territory wash. Every property the blob route has, on
+ * the `LSFL` key — and on THAT key: a sidecar served from the cell blob's key would decode as a
+ * format error at best.
+ */
+describe("GET /api/fog/lastrun/<generation>", () => {
+  const params = (gen: string) => ({ params: Promise.resolve({ gen }) })
+
+  it("404s a signed-out caller before touching S3", async () => {
+    signedInAs = undefined
+    const response = await GET_LASTRUN(request("https://example.test/api/fog/lastrun/42"), params("42"))
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: "not found" })
+    expect(getObject).not.toHaveBeenCalled()
+  })
+
+  it("serves the sidecar under the caller's own key, immutable and private", async () => {
+    const bytes = Uint8Array.from([5, 6, 7, 8])
+    getObject.mockResolvedValue(bytes)
+
+    const response = await GET_LASTRUN(request("https://example.test/api/fog/lastrun/42"), params("42"))
+
+    expect(response.status).toBe(200)
+    expect(getObject).toHaveBeenCalledWith(
+      `users/sub-under-test/explored/explored-lastrun-r${RES}.42.bin`,
+      expect.anything(),
+    )
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes)
+    expect(response.headers.get("Content-Type")).toBe("application/octet-stream")
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable")
+  })
+
+  it.each(["0", "-1", "abc", "1.5", "../../raw/secrets", "42; DROP"])(
+    "404s the generation %s without building a key from it",
+    async (gen) => {
+      const response = await GET_LASTRUN(request(`https://example.test/api/fog/lastrun/${gen}`), params(gen))
+
+      expect(response.status).toBe(404)
+      expect(getObject).not.toHaveBeenCalled()
+    },
+  )
+
+  it("404s a generation with no sidecar", async () => {
+    getObject.mockResolvedValue(undefined)
+    const response = await GET_LASTRUN(request("https://example.test/api/fog/lastrun/43"), params("43"))
 
     expect(response.status).toBe(404)
   })

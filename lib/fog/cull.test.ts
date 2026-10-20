@@ -16,7 +16,7 @@ import {
 } from "./cull"
 import { ExploredSet } from "./explored-set"
 import { mercatorX, mercatorY } from "./instances"
-import { ARC_ALWAYS, INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, DAY_INDEX, DAY_UNKNOWN, INSTANCE_FLOATS } from "./mask"
 import { resForZoom, ZoomBucketStore } from "./zoom-buckets"
 
 /**
@@ -74,9 +74,10 @@ function fakeBucket(groups: Array<{ bounds: [number, number, number, number]; di
 } {
   const bounds = new Float64Array(groups.length * 4)
   groups.forEach((group, i) => bounds.set(group.bounds, i * 4))
+  // `0100`: and the day slot, unknown — a cull copies it through untouched.
   const withArc = (discs: number[]) => {
     const out: number[] = []
-    for (let i = 0; i < discs.length; i += 4) out.push(...discs.slice(i, i + 4), ARC_ALWAYS)
+    for (let i = 0; i < discs.length; i += 4) out.push(...discs.slice(i, i + 4), ARC_ALWAYS, DAY_UNKNOWN)
     return out
   }
   const discsFor = vi.fn((g: number) => Float32Array.from(withArc(groups[g]!.discs)))
@@ -162,6 +163,15 @@ describe("the two levels — criterion 4", () => {
     const straddling = cullBucket(bucket, { minX: 0.4, minY: 0.4, maxX: 0.51, maxY: 0.6 })
     expect(straddling.discsTested).toBe(2)
     expect(straddling.count).toBe(1)
+  })
+
+  it("copies 0100's day slot through the per-disc path, so cold territory survives a cull", () => {
+    const discs = Float32Array.from([0.5, 0.5, 0.01, 1, ARC_ALWAYS, 1234, 0.9, 0.9, 0.01, 1, ARC_ALWAYS, 77])
+    const bucket = { res: RES, groupCount: 1, groupBounds: Float64Array.from([0, 0, 1, 1]), discsFor: () => discs }
+    // Straddling the group's bounds, so the per-disc copy runs rather than the whole-group set().
+    const result = cullBucket(bucket, { minX: 0.4, minY: 0.4, maxX: 0.6, maxY: 0.6 })
+    expect(result.count).toBe(1)
+    expect(result.instances[DAY_INDEX]).toBe(1234)
   })
 
   it("keeps a disc whose centre is outside the box but whose edge is not", () => {

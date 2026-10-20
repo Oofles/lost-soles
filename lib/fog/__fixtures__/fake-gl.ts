@@ -61,6 +61,10 @@ const ENUM = {
   TRIANGLE_STRIP: 5,
   TRIANGLES: 4,
   TEXTURE0: 0x84c0,
+  TEXTURE1: 0x84c1,
+  RGB: 0x1907,
+  RGB8: 0x8051,
+  NEAREST: 0x2600,
   NO_ERROR: 0,
   MAX_TEXTURE_SIZE: 0x0d33,
 } as const
@@ -91,6 +95,9 @@ const COMPOSITE_UNIFORMS = new Set([
   "u_warpOrigin",
   "u_rimBand",
 ])
+
+/** `0100`. The cold pass's own uniforms; the rest it shares with the composite. */
+const COLD_UNIFORMS = new Set(["u_ground", "u_coldWash", "u_featherUv", "u_washColor", "u_ageSpan"])
 
 export interface GlCall {
   name: string
@@ -203,7 +210,7 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
     // Distinct locations per name, so a VAO that pointed two attributes at the same slot would show
     // up in `vertexAttribPointer`'s recorded arguments rather than look identical.
     getAttribLocation: (_p: object, name: string) =>
-      ["a_quad", "a_center", "a_radius", "a_fraction", "a_arc"].indexOf(name),
+      ["a_quad", "a_center", "a_radius", "a_fraction", "a_arc", "a_day"].indexOf(name),
     enableVertexAttribArray: (loc: number) => record("enableVertexAttribArray", loc),
     vertexAttribPointer: (...args: unknown[]) => record("vertexAttribPointer", ...args),
     vertexAttribDivisor: (loc: number, divisor: number) =>
@@ -216,6 +223,8 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
     bindTexture: (target: number, t: object | null) => record("bindTexture", target, t),
     texImage2D: (...args: unknown[]) => record("texImage2D", ...args),
     texParameteri: (...args: unknown[]) => record("texParameteri", ...args),
+    // `0100`: the cold pass copies the frame under the fog.
+    copyTexSubImage2D: (...args: unknown[]) => record("copyTexSubImage2D", ...args),
     activeTexture: (unit: number) => record("activeTexture", unit),
     deleteTexture: (t: object) => record("deleteTexture", t),
 
@@ -241,7 +250,9 @@ export function fakeGl(size: { width?: number; height?: number } = {}): FakeGl {
       name === "u_origin" ||
       name === "u_reveal" ||
       name === "u_bloom" ||
-      COMPOSITE_UNIFORMS.has(name)
+      name === "u_today" ||
+      COMPOSITE_UNIFORMS.has(name) ||
+      COLD_UNIFORMS.has(name)
         ? handle(name)
         : null,
     uniformMatrix4fv: (...args: unknown[]) => record("uniformMatrix4fv", ...args),

@@ -103,15 +103,56 @@ export const SEAM_FLOOR = 0.87
 export const MASK_SCALE = 0.5
 
 /**
- * Floats per instance: `centerMercX`, `centerMercY`, `radiusMerc`, `fraction`, `arc`. Criterion 5,
- * plus `0079`'s fifth.
+ * Floats per instance: `centerMercX`, `centerMercY`, `radiusMerc`, `fraction`, `arc`, `day`.
+ * Criterion 5, plus `0079`'s fifth and `0100`'s sixth.
  *
  * `arc` is the REVEAL SEAM (`0079`, `06-ui-ux.md` §3.2 beat 1). Every producer outside a reveal
  * writes `ARC_ALWAYS`, and an `ARC_ALWAYS` instance is weighted by exactly `1.0` — so the steady
  * state draws the same bytes it drew when the layout had four floats. Only `reveal-tag.ts` writes
  * anything else.
+ *
+ * `day` is the cell's `lastRunDay` (`0100`, D-120: days since 2020-01-01, the `LSFL` sidecar's
+ * unit), or `DAY_UNKNOWN`. It reaches the mask's ALPHA channel as warmth and nothing else: RED —
+ * the coverage, i.e. what is revealed — does not read it, so it cannot move the fog edge.
  */
-export const INSTANCE_FLOATS = 5
+export const INSTANCE_FLOATS = 6
+
+/** `0079`. Where `arc` sits in an instance. */
+export const ARC_INDEX = 4
+
+/** `0100`. Where `day` sits in an instance. */
+export const DAY_INDEX = 5
+
+/**
+ * `0100`. "No `lastRunDay` known for this disc" — the sidecar is not loaded, the cell arrived in a
+ * mid-session delta after it was (05 §7.2's fallback: *"no lastRun data loaded → assume recent"*),
+ * or the disc is not a cell at all (the optimistic corridor). Drawn as fully WARM: never cold.
+ */
+export const DAY_UNKNOWN = -1
+
+/**
+ * `0100`. THE MASK'S ALPHA IS WARMTH: `1 - age / COLD_AGE_SPAN_DAYS`, clamped, where age is today
+ * minus the disc's `day`; 1 for `DAY_UNKNOWN`; 0 where no disc was drawn (the pass clears alpha to 0).
+ *
+ * WARMTH AND NOT COLDNESS, because the pass blends with `MAX`: where discs overlap, the most
+ * RECENTLY run one wins, so ground is only drawn cold where every disc over it is cold — the
+ * conservative side, which never shows freshly run ground as rediscoverable (D-390, the same rule
+ * coarse buckets use for their children).
+ *
+ * The span only has to reach past where the ramp (`coldWashOpacity`, `fog-uniforms.ts`) flattens:
+ * 0.1789 of 0.18 at 9 months, 0.17999 at 12. 12 months in 8 bits is 1.4 days a step — finer than
+ * anything the ramp can show. Older ground saturates at the asymptote, which is what it is.
+ */
+export const COLD_AGE_SPAN_DAYS = 366
+
+/**
+ * `0100`. The warmth one disc writes, in JavaScript — the vertex shader's `v_warmth`, for the tests.
+ * `today < 0` is "no clock", and like `DAY_UNKNOWN` it is warm.
+ */
+export function discWarmth(day: number, today: number): number {
+  if (day < 0 || today < 0) return 1
+  return Math.min(1, Math.max(0, 1 - (today - day) / COLD_AGE_SPAN_DAYS))
+}
 
 /** `arc` for an instance that is not part of a reveal: always drawn, at full weight. */
 export const ARC_ALWAYS = -1
@@ -248,13 +289,16 @@ in vec2  a_center;    // cell centre, RELATIVE to MaskResources.origin (per-inst
 in float a_radius;    // disc radius, mercator units       (per-instance)
 in float a_fraction;  // 0..1 coverage weight              (per-instance)
 in float a_arc;       // 0079: reveal position, ARC_ALWAYS outside a reveal (per-instance)
+in float a_day;       // 0100: lastRunDay, DAY_UNKNOWN (-1) when not known (per-instance)
 
 uniform float u_reveal; // 0079: revealProgress, 0..1. Exactly 1.0 whenever no reveal is running.
 uniform vec4  u_bloom;  // 0080: (clock, fade, goldSpan, frostSpan). A negative clock is no bloom.
+uniform float u_today;  // 0100: today, in lastRunDay units. Negative = no clock: every disc is warm.
 
 out vec2  v_uv;
 out float v_fraction;
 out vec2  v_bloom;     // 0080: (gold, frost), before the disc falloff. 0 outside a reveal.
+out float v_warmth;    // 0100: discWarmth — ALPHA only, never coverage.
 // 0079. The reveal weight for a cell at route position arc. See REVEAL_RAMP for why both ends are exact.
 float revealed(float arc) {
     if (u_reveal >= 1.0) return 1.0;
@@ -271,6 +315,10 @@ float bloomed(float arc, float span) {
 void main() {
     float w = 1.0;
     v_bloom = vec2(0.0);
+    // 0100. See discWarmth. Not a branch on the mode: the mask is the same in both (05 §5.4).
+    v_warmth = (a_day < 0.0 || u_today < 0.0)
+        ? 1.0
+        : clamp(1.0 - (u_today - a_day) / ${COLD_AGE_SPAN_DAYS.toFixed(1)}, 0.0, 1.0);
     if (a_arc >= 0.0) {
         if (a_arc < ${(ARC_OUT_OFFSET - 0.5).toFixed(1)}) {
             w = revealed(a_arc);
@@ -326,6 +374,7 @@ precision mediump float;
 in  vec2  v_uv;
 in  float v_fraction;
 in  vec2  v_bloom;
+in  float v_warmth;
 out vec4  fragColor;
 
 void main() {
@@ -333,7 +382,9 @@ void main() {
     if (d > 1.0) discard;                        // square quad, round disc
     float c = (1.0 - smoothstep(${FALLOFF_INNER.toFixed(2)}, 1.0, d)) * v_fraction;
     // 0080: the bloom takes the disc's own falloff, so it is as soft-edged as the clearing it marks.
-    fragColor = vec4(c, c * v_bloom, 1.0);
+    // 0100: ALPHA is warmth, flat across the disc; the composite weights it by coverage, so a
+    // disc's faint rim cannot pass its warmth onto ground it barely covers.
+    fragColor = vec4(c, c * v_bloom, v_warmth);
 }`
 
 /** A full-screen triangle from `gl_VertexID` alone — no buffer, no attributes. */
@@ -496,6 +547,8 @@ export type MaskResources = {
   revealProgress: number
   /** `0080`. Beat 1's bloom, read as `u_bloom`. `NO_BLOOM` whenever none is running. */
   bloom: BloomUniform
+  /** `0100`. Today in `lastRunDay` units, read as `u_today`. Negative: no clock, every disc warm. */
+  today: number
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -540,6 +593,7 @@ const ATTRIBUTES = [
   ["a_radius", 1, 8],
   ["a_fraction", 1, 12],
   ["a_arc", 1, 16],
+  ["a_day", 1, 20],
 ] as const
 
 function buildMaskVAO(
@@ -661,6 +715,7 @@ export function createMaskResources(
     foldOrigin: !options.define.includes("GLOBE"),
     revealProgress: 1,
     bloom: NO_BLOOM,
+    today: -1,
   }
 }
 
@@ -790,7 +845,9 @@ export function runMaskPass(
   gl.viewport(0, 0, res.maskW, res.maskH)
   // Cleared to 0 every prerender (criterion 2). The mask is screen-space and the camera moves;
   // a stale frame's coverage left in it would smear the fog across a pan.
-  gl.clearColor(0, 0, 0, 1)
+  // 0100: ALPHA TOO. It was cleared to 1 and written as a constant 1 that nothing read; it now holds
+  // warmth under MAX, so a cleared 1 would make every pixel "freshly run" and hide all cold ground.
+  gl.clearColor(0, 0, 0, 0)
   gl.clear(gl.COLOR_BUFFER_BIT)
   gl.disable(gl.DEPTH_TEST)
 
@@ -812,6 +869,8 @@ export function runMaskPass(
   if (reveal) gl.uniform1f(reveal, res.revealProgress)
   const bloom = gl.getUniformLocation(res.maskProgram, "u_bloom")
   if (bloom) gl.uniform4f(bloom, res.bloom.clock, res.bloom.fade, res.bloom.goldSpan, res.bloom.frostSpan)
+  const today = gl.getUniformLocation(res.maskProgram, "u_today")
+  if (today) gl.uniform1f(today, res.today)
   gl.bindVertexArray(res.maskVAO)
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, res.instanceCount)
   gl.bindVertexArray(null)

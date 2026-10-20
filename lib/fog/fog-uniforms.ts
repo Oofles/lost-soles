@@ -44,6 +44,13 @@ export interface FogPalette {
    * `rimGlow`, and (times `RIM_THIN`) how much it thins. 0 is no rim. `0210`: 0..1, ships 0.9.
    */
   readonly rimAmt: number
+  /**
+   * `0100`. THE COLD WASH'S WEIGHT, 0..1 — how much of `coldWashOpacity` is drawn. Atlas 1,
+   * adventure **0**, and that 0 is D-133 with no exceptions: at 0 the layer does not run the cold
+   * pass at all, so adventure is byte-for-byte what it was. It is a palette entry so the mode
+   * cross-fade (D-374, 320 ms) moves it on the same curve as everything else.
+   */
+  readonly coldWash: number
   /** §4.5 / §5.2. Atlas freezes `u_time` at 0; adventure drifts at 30 fps. */
   readonly animated: boolean
 }
@@ -111,6 +118,7 @@ export const ATLAS: FogPalette = {
   maxOpacity: 0.55,
   noiseAmp: 0.1,
   rimAmt: RIM_AMT,
+  coldWash: 1,
   animated: false,
 }
 
@@ -158,6 +166,7 @@ export const ADVENTURE: FogPalette = {
   maxOpacity: V1_MAX_OPACITY,
   noiseAmp: V1_NOISE_AMP,
   rimAmt: V1_RIM_AMT,
+  coldWash: 0,
   animated: true,
 }
 
@@ -202,6 +211,7 @@ export function lerpPalette(from: FogPalette, to: FogPalette, t: number): FogPal
     maxOpacity: lerp(from.maxOpacity, to.maxOpacity, t),
     noiseAmp: lerp(from.noiseAmp, to.noiseAmp, t),
     rimAmt: lerp(from.rimAmt, to.rimAmt, t),
+    coldWash: lerp(from.coldWash, to.coldWash, t),
     animated: t < 1 ? from.animated : to.animated,
   }
 }
@@ -390,3 +400,80 @@ export const FOG_FPS = 30
 
 /** Derived, so nothing computes `1000 / 30` in three places and rounds it differently. */
 export const FOG_FRAME_MS = 1000 / FOG_FPS
+
+/* ─── Cold territory (ticket 0100) ──────────────────────────────────────────── */
+
+/*
+ * COLD GROUND IS NOT A THIRD FOG STATE. `06-ui-ux.md` §4.6, D-133, D-147. It is a wash painted only
+ * INSIDE revealed ground, on a different perceptual channel from the frontier: the frontier is warm
+ * luminance (D-379's lit mist, on the FOG side of the edge), cold ground is a cool multiply plus a
+ * desaturation, two cell-widths inside the edge (the clip below). Atlas only — `coldWash` above.
+ *
+ * Driven from each cell's `lastRunDay` (D-120: a timestamp, never a presence bit), which the mask
+ * pass writes into its ALPHA channel as warmth — see `mask.ts`'s `COLD_AGE_SPAN_DAYS`.
+ */
+
+/** `--cold-wash` `#7E93AD`, as the shader's 0..1 RGB. Multiplied over the lit basemap (06 §4.6). */
+export const COLD_WASH_RGB: Rgb = [0x7e / 255, 0x93 / 255, 0xad / 255]
+
+/** The ramp's asymptote: the most opaque the wash ever gets. Never raised to fix a look (0100 Notes). */
+export const COLD_WASH_MAX = 0.18
+
+/**
+ * The saturation shift at the asymptote: CIELAB chroma (a*, b*) scaled by `1 - 0.18`, which is the
+ * D-371 saturation C* ÷ √(C*² + L*²) lowered by ~18% on ground as unsaturated as the stock basemap's.
+ * Scales with the wash, so it is 0 wherever the wash is 0.
+ */
+export const COLD_DESATURATE = 0.18
+
+/** 6 months is 183 days (`SIX_MONTHS_MS`, `src/domain/discovery.ts`), so a month here is 30.5. */
+export const COLD_DAYS_PER_MONTH = 183 / 6
+
+/** The ramp is exactly 0 up to here (0100 criterion 3: "0.0 at ≤4 months"). */
+export const COLD_RAMP_START_MONTHS = 4
+
+/** The tabled value at the 6-month line, where D-120 re-arms ground for 50% discovery credit. */
+export const COLD_WASH_AT_COOLDOWN = 0.1
+
+/**
+ * The ramp's width, DERIVED so the curve passes through `COLD_WASH_AT_COOLDOWN` at 6 months:
+ * `0.18 × (1 − exp(−(2/τ)²)) = 0.10`, τ ≈ 2.221 months.
+ */
+export const COLD_RAMP_TAU_MONTHS =
+  (6 - COLD_RAMP_START_MONTHS) / Math.sqrt(-Math.log(1 - COLD_WASH_AT_COOLDOWN / COLD_WASH_MAX))
+
+/**
+ * THE RAMP. `06` §4.6's chart: 0 until month 4, rising through month 5 (≈0.03, ground "coming back
+ * into season"), 0.10 at month 6, ≈0.179 by month 9, asymptotic to 0.18.
+ *
+ *     opacity(m) = 0.18 × (1 − exp(−((m − 4) / τ)²))   for m > 4, else 0
+ *
+ * A Gaussian-CDF-like shoulder rather than a straight line or a step: it is continuous everywhere
+ * AND its derivative is (0 on both sides of month 4, finite everywhere else), so there is no
+ * visible onset line on the map, and no discontinuity at the 6-month boundary (criterion 4). The
+ * composite shader computes exactly this; `composite.test.ts` holds the two together.
+ */
+export function coldWashOpacity(ageDays: number): number {
+  if (!(ageDays > 0)) return 0
+  const m = ageDays / COLD_DAYS_PER_MONTH - COLD_RAMP_START_MONTHS
+  if (m <= 0) return 0
+  const x = m / COLD_RAMP_TAU_MONTHS
+  return COLD_WASH_MAX * (1 - Math.exp(-x * x))
+}
+
+/**
+ * THE CLIP RULE, `06` §4.6 — the whole trick, in one line: `smoothstep(0.0, 0.25, coverage − 0.75)`.
+ * Exactly 0 wherever the (warped, D-372) coverage is ≤ 0.75, so a band of plain revealed ground
+ * always separates cold ground from the frontier. TS mirror of the shader's line, for the tests.
+ */
+export function coldClip(coverage: number): number {
+  const t = Math.min(1, Math.max(0, (coverage - 0.75) / 0.25))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * 06 §4.6's "soft, 40 px feather, no defined edge": a ring blur of the cold field whose reach is half
+ * the feather (a blur of radius R turns a step into a ramp 2R wide). CSS pixels; the layer scales it
+ * by the device pixel ratio. The taps are `0210`'s ring pattern (`rimTaps`), reused.
+ */
+export const COLD_FEATHER_PX = 40

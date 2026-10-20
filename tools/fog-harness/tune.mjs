@@ -23,6 +23,10 @@
 //   "_noSymbols":  true                    every symbol layer hidden: road geometry with nothing on it
 //   "_bareLabels": "<regex>"               matching symbol layers draw with no text halo
 //
+// `0100` added one:
+//   "_coldDays":   <number>                every explored cell was last run this many days ago, so
+//                                          atlas draws the cold-territory wash over all of it
+//
 // WHERE IT STANDS: a synthetic loop through downtown Orlando. The legibility check needs real
 // streets with real names under it, so Point Nemo will not do — but it must not be anywhere the
 // operator runs (D-199). A public downtown, synthetic geometry, a trace nobody ran. That is also
@@ -138,11 +142,12 @@ for (const [name, variant] of Object.entries(VARIANTS)) {
     _muteLabels: muteLabels,
     _noSymbols: noSymbols,
     _bareLabels: bareLabels,
+    _coldDays: coldDays,
     ...overrides
   } = variant ?? {}
   const cfg = {
     variant: variant && !off ? overrides : null,
-    basemap, base, swapFrom, cells, muteLabels, noSymbols, bareLabels,
+    basemap, base, swapFrom, cells, muteLabels, noSymbols, bareLabels, coldDays,
     workerSrc, centre, zoom: ZOOM, route, trace,
   }
   // Separate classic scripts rather than inline: a 2 MB bundle inlined into HTML contains `<!--` and

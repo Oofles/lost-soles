@@ -35,8 +35,8 @@ const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args.
 const OUT = resolve(ROOT, flag("out", "tmp/0099"))
 const ZOOMS = [15, 16]
 const MODES = ["atlas", "adventure"]
-const GROUNDS = ["off", "all", "none"]
-const GROUND_NAME = { off: "no fog", all: "revealed", none: "unexplored" }
+const GROUNDS = ["off", "all", "none", "cold"]
+const GROUND_NAME = { off: "no fog", all: "revealed", none: "unexplored", cold: "cold (1 y)" }
 const STREET_LABELS = "roads_labels"
 // tune.mjs's loop and frame — kept in step by hand; the route buffer below is all it is used for.
 const CENTRE = { lat: 28.5433, lng: -81.3765 }
@@ -54,7 +54,13 @@ function variants() {
     v[`shot-${m}`] = { _basemap: m, _base: m, _swapFrom: other }
     for (const g of GROUNDS) {
       // "off" is the same basemap with no fog layer at all: the stock map's own legibility.
-      const ground = g === "off" ? { _basemap: m, _off: true } : { _basemap: m, _base: m, _cells: g }
+      // `0100`: "cold" is "all" with every cell last run a year ago — atlas draws the wash over it.
+      const ground =
+        g === "off"
+          ? { _basemap: m, _off: true }
+          : g === "cold"
+            ? { _basemap: m, _base: m, _cells: "all", _coldDays: 365 }
+            : { _basemap: m, _base: m, _cells: g }
       v[`lbl-${m}-${g}`] = ground
       v[`mute-${m}-${g}`] = { ...ground, _muteLabels: STREET_LABELS }
       v[`bare-${m}-${g}`] = { ...ground, _bareLabels: STREET_LABELS }
@@ -261,8 +267,22 @@ for (const zoom of ZOOMS) {
        * Adventure's are under the fog by design (05 §5.3: adventure hides names, not geometry — the
        * ghost grid above is its D-051 guarantee).
        */
-      const judged = g === "all" || (g === "none" && m === "atlas")
-      const ok = !judged || (g === "all" ? r.n > 0 && r.median >= stock.median * 0.99 : r.n >= stock.n * 0.8)
+      /**
+       * `0100`. Cold ground (every cell a year old). ADVENTURE must read exactly as revealed ground —
+       * no cold territory there, D-133. ATLAS draws the names above the wash (D-368), so every name is
+       * present; the wash darkens the ground just past the halo, which the 2 px ring includes, so the
+       * ratio is RECORDED against stock, and judged only to be no worse than the fog's own (06 §4.6:
+       * cold ground is never darker than the fog).
+       */
+      const unexplored = summary.labels[`z${zoom} ${m} ${GROUND_NAME.none}`]
+      const judged = g === "all" || (g === "none" && m === "atlas") || g === "cold"
+      const ok = !judged
+        ? true
+        : g === "all" || (g === "cold" && m === "adventure")
+          ? r.n > 0 && r.median >= stock.median * 0.99
+          : g === "cold"
+            ? r.n >= stock.n * 0.8 && r.median > unexplored.median
+            : r.n >= stock.n * 0.8
       if (!ok) failed++
       console.log(
         `${judged ? (ok ? "ok  " : "FAIL") : "    "} labels z${zoom} ${m.padEnd(9)} ${GROUND_NAME[g].padEnd(10)} ` +

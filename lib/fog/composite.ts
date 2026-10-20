@@ -38,6 +38,11 @@
  */
 
 import {
+  COLD_DAYS_PER_MONTH,
+  COLD_DESATURATE,
+  COLD_RAMP_START_MONTHS,
+  COLD_RAMP_TAU_MONTHS,
+  COLD_WASH_MAX,
   FBM_LACUNARITY,
   FBM_OCTAVES,
   NOISE_DRIFT_1,
@@ -129,6 +134,64 @@ export function rimTaps(): { x: number; y: number; w: number }[] {
 }
 
 /**
+ * The value-noise fBm both full-screen passes share — the composite's wisps and edge warp, and
+ * `0100`'s cold pass, which must read the mask at the SAME warped point the composite does. One
+ * string, so the two cannot drift. Needs `FBM_OCTAVES` defined.
+ */
+function noiseFunctionsGlsl(): string {
+  return `// A bit-mix over the EXACT integer lattice cell. See divergence 2 in this function's doc comment.
+float hashCell(vec2 cell) {
+    uvec2 c = uvec2(cell + ${CELL_BIAS}.0);
+    uint h = c.x * 0x27d4eb2du ^ (c.y + 0x9e3779b9u) * 0x85ebca6bu;
+    h ^= h >> 15; h *= 0x2545f491u; h ^= h >> 13; h *= 0x27d4eb2du; h ^= h >> 16;
+    return float(h) * (1.0 / 4294967296.0);
+}
+
+// \`p\` is small and local; \`o\` is the large integer origin and is added AFTER the floor, so the
+// fractional interpolant never loses precision to the magnitude of the world coordinate.
+float vnoise(vec2 p, vec2 o) {
+    vec2 i = floor(p) + o;
+    vec2 f = fract(p);
+    vec2 w = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hashCell(i + vec2(0.0, 0.0)), hashCell(i + vec2(1.0, 0.0)), w.x),
+               mix(hashCell(i + vec2(0.0, 1.0)), hashCell(i + vec2(1.0, 1.0)), w.x), w.y);
+}
+
+float fbm(vec2 p, vec2 o) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int k = 0; k < FBM_OCTAVES; k++) {
+        v += a * vnoise(p, o + vec2(${OCTAVE_JITTER[0]}.0, ${OCTAVE_JITTER[1]}.0) * float(k));
+        p *= ${FBM_LACUNARITY.toFixed(1)};
+        o *= ${FBM_LACUNARITY.toFixed(1)};
+        a *= 0.5;
+    }
+    return v;
+}
+
+`
+}
+
+/**
+ * `0211`, D-372: the frozen, ground-anchored edge warp — declares `J`, `groundToPx`, `pxUv` and
+ * `maskUv` in the caller's `main`, from `q` and `v_uv`. Shared with `0100`'s cold pass so its clip
+ * rule reads the coverage of the edge that is actually DRAWN, not of the unwarped disc union.
+ */
+function edgeWarpGlsl(): string {
+  return `    mat2 J = mat2(dFdx(q), dFdy(q));
+    mat2 groundToPx = abs(determinant(J)) > 0.0 ? inverse(J) : mat2(0.0);
+    vec2 pxUv = vec2(dFdx(v_uv).x, dFdy(v_uv).y);
+    vec2 maskUv = v_uv;
+    if (u_warp.x > 0.0) {
+        vec2 qw = q * u_warp.y;
+        vec2 w = vec2(fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_X[0]}.0, ${WARP_JITTER_X[1]}.0)),
+                      fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_Y[0]}.0, ${WARP_JITTER_Y[1]}.0))) - 0.5;
+        maskUv += (groundToPx * (w * u_warp.x)) * pxUv;
+    }
+`
+}
+
+/**
  * §4.3's composite, with three deliberate divergences from the sketch, all of them D-233:
  *
  *  1. **The noise coordinate is ground-anchored** (see this module's header). `u_screen` is gone
@@ -177,37 +240,7 @@ in  vec2 v_uv;
 in  vec3 v_noiseH;
 out vec4 fragColor;
 
-// A bit-mix over the EXACT integer lattice cell. See divergence 2 in this function's doc comment.
-float hashCell(vec2 cell) {
-    uvec2 c = uvec2(cell + ${CELL_BIAS}.0);
-    uint h = c.x * 0x27d4eb2du ^ (c.y + 0x9e3779b9u) * 0x85ebca6bu;
-    h ^= h >> 15; h *= 0x2545f491u; h ^= h >> 13; h *= 0x27d4eb2du; h ^= h >> 16;
-    return float(h) * (1.0 / 4294967296.0);
-}
-
-// \`p\` is small and local; \`o\` is the large integer origin and is added AFTER the floor, so the
-// fractional interpolant never loses precision to the magnitude of the world coordinate.
-float vnoise(vec2 p, vec2 o) {
-    vec2 i = floor(p) + o;
-    vec2 f = fract(p);
-    vec2 w = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hashCell(i + vec2(0.0, 0.0)), hashCell(i + vec2(1.0, 0.0)), w.x),
-               mix(hashCell(i + vec2(0.0, 1.0)), hashCell(i + vec2(1.0, 1.0)), w.x), w.y);
-}
-
-float fbm(vec2 p, vec2 o) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int k = 0; k < FBM_OCTAVES; k++) {
-        v += a * vnoise(p, o + vec2(${OCTAVE_JITTER[0]}.0, ${OCTAVE_JITTER[1]}.0) * float(k));
-        p *= ${FBM_LACUNARITY.toFixed(1)};
-        o *= ${FBM_LACUNARITY.toFixed(1)};
-        a *= 0.5;
-    }
-    return v;
-}
-
-void main() {
+${noiseFunctionsGlsl()}void main() {
     // The projective divide. Ground coordinates in noise cells, local to this frame's origin.
     vec2 q = v_noiseH.xy / v_noiseH.z;
 
@@ -220,17 +253,7 @@ void main() {
     // Ground -> screen: q's screen Jacobian is noise cells per pixel, so its inverse times a ground
     // offset in noise cells is pixels, and \`pxUv\` turns pixels into mask UV. Shared by the warp and
     // by 0210's rim taps. A degenerate frame gets a zero matrix: no warp and no rim, never a NaN.
-    mat2 J = mat2(dFdx(q), dFdy(q));
-    mat2 groundToPx = abs(determinant(J)) > 0.0 ? inverse(J) : mat2(0.0);
-    vec2 pxUv = vec2(dFdx(v_uv).x, dFdy(v_uv).y);
-    vec2 maskUv = v_uv;
-    if (u_warp.x > 0.0) {
-        vec2 qw = q * u_warp.y;
-        vec2 w = vec2(fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_X[0]}.0, ${WARP_JITTER_X[1]}.0)),
-                      fbm(qw, u_warpOrigin + vec2(${WARP_JITTER_Y[0]}.0, ${WARP_JITTER_Y[1]}.0))) - 0.5;
-        maskUv += (groundToPx * (w * u_warp.x)) * pxUv;
-    }
-
+${edgeWarpGlsl()}
     vec3  mask = texture(u_mask, maskUv).rgb;
     float coverage = mask.r;
 
@@ -781,4 +804,304 @@ export function runCompositePass(
     blendDstRGB: gl.getParameter(gl.BLEND_DST_RGB) as number,
     framebufferUnbound: gl.getParameter(gl.FRAMEBUFFER_BINDING) === null,
   }
+}
+
+/* ─── Cold territory: pass 3, atlas only (ticket 0100) ──────────────────────── */
+
+/**
+ * D65 white and the sRGB → XYZ matrix, for the CIELAB round trip the saturation shift needs. D-371
+ * measures basemap saturation in CIELAB, so the shift is made there: L* is kept, a* and b* scale.
+ */
+const D65: Rgb = [0.95047, 1.0, 1.08883]
+
+function srgbToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+}
+
+function linearToSrgb(c: number): number {
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055
+}
+
+/** sRGB 0..1 → CIELAB (L* 0..100). The shader's `toLab`, for the tests. */
+export function srgbToLab(rgb: Rgb): [number, number, number] {
+  const [r, g, b] = rgb.map(srgbToLinear) as [number, number, number]
+  const x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / D65[0]
+  const y = (0.2126729 * r + 0.7151522 * g + 0.072175 * b) / D65[1]
+  const z = (0.0193339 * r + 0.119192 * g + 0.9503041 * b) / D65[2]
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116)
+  const fx = f(x)
+  const fy = f(y)
+  const fz = f(z)
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
+}
+
+/** CIELAB → sRGB 0..1, clamped. The shader's `fromLab`. */
+export function labToSrgb(lab: readonly [number, number, number]): [number, number, number] {
+  const fy = (lab[0] + 16) / 116
+  const fx = fy + lab[1] / 500
+  const fz = fy - lab[2] / 200
+  const inv = (t: number) => (t * t * t > 216 / 24389 ? t * t * t : (116 * t - 16) / (24389 / 27))
+  const x = inv(fx) * D65[0]
+  const y = inv(fy) * D65[1]
+  const z = inv(fz) * D65[2]
+  const r = 3.2404542 * x - 1.5371385 * y - 0.4985314 * z
+  const g = -0.969266 * x + 1.8760108 * y + 0.041556 * z
+  const b = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z
+  const c = (v: number) => Math.min(1, Math.max(0, linearToSrgb(Math.min(1, Math.max(0, v)))))
+  return [c(r), c(g), c(b)]
+}
+
+/** D-371's saturation, C* ÷ √(C*² + L*²), of an sRGB colour. */
+export function labSaturation(rgb: Rgb): number {
+  const [l, a, b] = srgbToLab(rgb)
+  const c = Math.hypot(a, b)
+  return c === 0 ? 0 : c / Math.hypot(c, l)
+}
+
+/**
+ * ONE PIXEL OF COLD GROUND, in JavaScript — the cold pass's arithmetic for the tests and the harness.
+ * `amount` is the wash's strength 0..1 (normalised ramp × clip × mode weight). The saturation shift
+ * (a*, b* scaled by `1 − COLD_DESATURATE × amount`) and THEN the multiply by `mix(1, wash, opacity)`
+ * with `opacity = COLD_WASH_MAX × amount`. At amount 0 it is the ground unchanged — but the pass
+ * never even draws there; it discards.
+ */
+export function coldPixel(ground: Rgb, wash: Rgb, amount: number): [number, number, number] {
+  const [l, a, b] = srgbToLab(ground)
+  const keep = 1 - COLD_DESATURATE * amount
+  const shifted = labToSrgb([l, a * keep, b * keep])
+  const op = COLD_WASH_MAX * amount
+  return [
+    shifted[0] * (1 - op + wash[0] * op),
+    shifted[1] * (1 - op + wash[1] * op),
+    shifted[2] * (1 - op + wash[2] * op),
+  ]
+}
+
+/** The centre tap's weight in the cold feather, against `rimTaps`' ring weights (2 inner, 1 outer). */
+export const COLD_CENTRE_WEIGHT = 3
+
+/**
+ * PASS 3 — COLD GROUND. `06-ui-ux.md` §4.6, D-133, D-147. Atlas only: the layer does not run it at
+ * all while `coldWash` is 0, so adventure is the same frame it always was.
+ *
+ * ─── WHY A PASS OF ITS OWN, AND WHY IT READS A COPY OF THE FRAME ────────────
+ *
+ * The composite blends `ONE, ONE_MINUS_SRC_ALPHA` over MapLibre's frame, and with that a shader can
+ * lay a colour OVER the ground but cannot see it. §4.6's wash is a MULTIPLY plus a SATURATION shift,
+ * and a saturation shift mixes the ground's own channels, which no blend equation can express. So
+ * the layer copies the frame under the fog into `u_ground` (one `copyTexSubImage2D`, only on frames
+ * where atlas has cold ground in the buffer) and this pass writes the finished colour, opaque,
+ * discarding every pixel it does not change. The composite then draws over it exactly as before.
+ *
+ * ─── THE CLIP AND THE FEATHER ───────────────────────────────────────────────
+ *
+ * `coverage` is RED at the WARPED point (D-372) — the edge the composite actually draws — and the
+ * clip `smoothstep(0.0, 0.25, coverage − 0.75)` is exactly 0 at or below 0.75, so cold ground can
+ * never reach the frontier (D-147). The feather is a ring blur of the cold field in SCREEN space
+ * (§4.6's "40 px"), `rimTaps`' pattern at `u_featherUv`, each tap weighted by its own coverage: ground
+ * with no disc on it has no warmth to report and must not read as cold.
+ *
+ * The cold field is ALPHA: warmth `1 − age / u_ageSpan` (`mask.ts`), turned back into an age here and
+ * through §4.6's ramp — `coldWashOpacity`, normalised.
+ */
+export function coldFragmentSource(octaves: number = FBM_OCTAVES): string {
+  const taps = rimTaps()
+  const lines = taps
+    .map(
+      (t) =>
+        `    { vec4 s = texture(u_mask, maskUv + u_featherUv * vec2(${t.x.toFixed(6)}, ${t.y.toFixed(6)})); ` +
+        `float w = ${t.w.toFixed(1)} * s.r; wsum += w; ksum += w * coldness(s.a); }`,
+    )
+    .join("\n")
+  return `#version 300 es
+precision highp float;
+
+#define FBM_OCTAVES ${Math.max(1, Math.floor(octaves))}
+
+uniform sampler2D u_mask;
+uniform sampler2D u_ground;    // 0100: a copy of the frame under the fog layer
+uniform vec2  u_warp;          // 0211: the composite's edge warp, so the clip reads the DRAWN edge
+uniform vec2  u_warpOrigin;
+uniform float u_coldWash;      // 0100: the mode's weight, 0..1 — rides the 320 ms fade
+uniform vec2  u_featherUv;     // 0100: the feather's reach, in uv
+uniform vec3  u_washColor;     // 0100: --cold-wash
+uniform float u_ageSpan;       // 0100: mask.ts COLD_AGE_SPAN_DAYS
+
+in  vec2 v_uv;
+in  vec3 v_noiseH;
+out vec4 fragColor;
+
+${noiseFunctionsGlsl()}
+// 0100. coldWashOpacity / COLD_WASH_MAX, from the mask's warmth. 0 up to month ${COLD_RAMP_START_MONTHS}.
+float coldness(float warmth) {
+    float m = (1.0 - warmth) * u_ageSpan / ${COLD_DAYS_PER_MONTH.toFixed(6)} - ${COLD_RAMP_START_MONTHS.toFixed(1)};
+    if (m <= 0.0) return 0.0;
+    float x = m / ${COLD_RAMP_TAU_MONTHS.toFixed(6)};
+    return 1.0 - exp(-x * x);
+}
+
+vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
+vec3 toSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
+vec3 labF(vec3 t) { return mix((t * ${(24389 / 27).toFixed(6)} + 16.0) / 116.0, pow(t, vec3(1.0 / 3.0)), step(vec3(${(216 / 24389).toFixed(8)}), t)); }
+vec3 labFInv(vec3 t) { vec3 t3 = t * t * t; return mix((116.0 * t - 16.0) / ${(24389 / 27).toFixed(6)}, t3, step(vec3(${(216 / 24389).toFixed(8)}), t3)); }
+
+vec3 toLab(vec3 srgb) {
+    vec3 l = toLinear(srgb);
+    vec3 xyz = vec3(dot(l, vec3(0.4124564, 0.3575761, 0.1804375)),
+                    dot(l, vec3(0.2126729, 0.7151522, 0.0721750)),
+                    dot(l, vec3(0.0193339, 0.1191920, 0.9503041))) / vec3(${D65.join(", ")});
+    vec3 f = labF(xyz);
+    return vec3(116.0 * f.y - 16.0, 500.0 * (f.x - f.y), 200.0 * (f.y - f.z));
+}
+
+vec3 fromLab(vec3 lab) {
+    float fy = (lab.x + 16.0) / 116.0;
+    vec3 xyz = labFInv(vec3(fy + lab.y / 500.0, fy, fy - lab.z / 200.0)) * vec3(${D65.join(", ")});
+    vec3 l = vec3(dot(xyz, vec3(3.2404542, -1.5371385, -0.4985314)),
+                  dot(xyz, vec3(-0.9692660, 1.8760108, 0.0415560)),
+                  dot(xyz, vec3(0.0556434, -0.2040259, 1.0572252)));
+    return clamp(toSrgb(clamp(l, 0.0, 1.0)), 0.0, 1.0);
+}
+
+void main() {
+    vec2 q = v_noiseH.xy / v_noiseH.z;
+${edgeWarpGlsl()}
+    vec4 m = texture(u_mask, maskUv);
+    // THE CLIP RULE (06 §4.6). Exactly 0 at coverage <= 0.75: no cold pixel within two cell-widths
+    // of the frontier, ever.
+    float coverage = m.r;
+    float clip = smoothstep(0.0, 0.25, coverage - 0.75);
+    if (clip <= 0.0 || u_coldWash <= 0.0) discard;
+
+    // THE FEATHER: a coverage-weighted ring blur of coldness, in screen space.
+    float wsum = ${COLD_CENTRE_WEIGHT.toFixed(1)} * m.r;
+    float ksum = wsum * coldness(m.a);
+${lines}
+    float amount = (ksum / wsum) * clip * u_coldWash;
+    if (amount <= 0.0) discard;
+
+    vec3 ground = texture(u_ground, v_uv).rgb;
+    vec3 lab = toLab(ground);
+    lab.yz *= 1.0 - ${COLD_DESATURATE.toFixed(4)} * amount;
+    float op = ${COLD_WASH_MAX.toFixed(4)} * amount;
+    fragColor = vec4(fromLab(lab) * mix(vec3(1.0), u_washColor, op), 1.0);
+}`
+}
+
+export interface ColdResources {
+  program: WebGLProgram
+  vao: WebGLVertexArrayObject
+  uniforms: Record<string, WebGLUniformLocation | null>
+  /** The copy of the frame under the fog. `RGB8`, sized to the drawing buffer on demand. */
+  ground: WebGLTexture
+  groundW: number
+  groundH: number
+}
+
+const COLD_UNIFORMS = [
+  "u_mask",
+  "u_ground",
+  "u_noiseMatrix",
+  "u_warp",
+  "u_warpOrigin",
+  "u_coldWash",
+  "u_featherUv",
+  "u_washColor",
+  "u_ageSpan",
+] as const
+
+export function createColdResources(gl: WebGL2RenderingContext, options: { octaves?: number } = {}): ColdResources {
+  const vs = compile(gl, gl.VERTEX_SHADER, COMPOSITE_VERTEX_SOURCE)
+  const fs = compile(gl, gl.FRAGMENT_SHADER, coldFragmentSource(options.octaves ?? FBM_OCTAVES))
+  const program = gl.createProgram()
+  if (!program) throw new Error("createProgram returned null")
+  gl.attachShader(program, vs)
+  gl.attachShader(program, fs)
+  gl.linkProgram(program)
+  gl.deleteShader(vs)
+  gl.deleteShader(fs)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program) ?? "(no log)"
+    gl.deleteProgram(program)
+    throw new Error(`cold program link: ${info}`)
+  }
+  const vao = gl.createVertexArray()
+  const ground = gl.createTexture()
+  if (!vao || !ground) throw new Error("createVertexArray/createTexture returned null")
+  const uniforms: Record<string, WebGLUniformLocation | null> = {}
+  for (const name of COLD_UNIFORMS) uniforms[name] = gl.getUniformLocation(program, name)
+  return { program, vao, uniforms, ground, groundW: 0, groundH: 0 }
+}
+
+export function disposeColdResources(gl: WebGL2RenderingContext, res: ColdResources): void {
+  gl.deleteProgram(res.program)
+  gl.deleteVertexArray(res.vao)
+  gl.deleteTexture(res.ground)
+}
+
+export interface ColdFrame {
+  mask: WebGLTexture
+  noise: NoiseFrame
+  warp?: EdgeWarp
+  /** The mode's weight, 0..1 (`FogPalette.coldWash`). The layer skips the pass at 0. */
+  coldWash: number
+  /** The feather's reach in DRAWING-BUFFER pixels: half of `COLD_FEATHER_PX`, times the pixel ratio. */
+  featherPx: number
+  wash: Rgb
+  /** `mask.ts`'s `COLD_AGE_SPAN_DAYS`, passed in so this module keeps its one import. */
+  ageSpan: number
+}
+
+/**
+ * Copy the frame under the fog and draw cold ground over it. Leaves MapLibre's translucent-pass blend
+ * state (`ONE, ONE_MINUS_SRC_ALPHA`) and texture unit 0 active, as the composite after it expects.
+ */
+export function runColdPass(gl: WebGL2RenderingContext, res: ColdResources, frame: ColdFrame): void {
+  const w = gl.drawingBufferWidth
+  const h = gl.drawingBufferHeight
+
+  gl.activeTexture(gl.TEXTURE1)
+  gl.bindTexture(gl.TEXTURE_2D, res.ground)
+  if (res.groundW !== w || res.groundH !== h) {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, w, h, 0, gl.RGB, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    res.groundW = w
+    res.groundH = h
+  }
+  // The frame as MapLibre has drawn it so far: the basemap below the fog's slot, nothing above it.
+  gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, w, h)
+
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, frame.mask)
+
+  const u = res.uniforms
+  gl.useProgram(res.program)
+  if (u.u_mask) gl.uniform1i(u.u_mask, 0)
+  if (u.u_ground) gl.uniform1i(u.u_ground, 1)
+  if (u.u_noiseMatrix) gl.uniformMatrix3fv(u.u_noiseMatrix, false, frame.noise.matrix)
+  const warp = frame.warp ?? NO_EDGE_WARP
+  if (u.u_warp) gl.uniform2f(u.u_warp, warp.amp, warp.freq)
+  if (u.u_warpOrigin) gl.uniform2f(u.u_warpOrigin, warp.origin[0], warp.origin[1])
+  if (u.u_coldWash) gl.uniform1f(u.u_coldWash, frame.coldWash)
+  if (u.u_featherUv) gl.uniform2f(u.u_featherUv, frame.featherPx / w, frame.featherPx / h)
+  if (u.u_washColor) gl.uniform3f(u.u_washColor, frame.wash[0], frame.wash[1], frame.wash[2])
+  if (u.u_ageSpan) gl.uniform1f(u.u_ageSpan, frame.ageSpan)
+
+  gl.disable(gl.DEPTH_TEST)
+  // Opaque: the pass writes the finished ground colour, or discards.
+  gl.disable(gl.BLEND)
+  gl.bindVertexArray(res.vao)
+  gl.drawArrays(gl.TRIANGLES, 0, 3)
+  gl.bindVertexArray(null)
+
+  gl.enable(gl.BLEND)
+  gl.blendEquation(gl.FUNC_ADD)
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  gl.activeTexture(gl.TEXTURE1)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, null)
 }

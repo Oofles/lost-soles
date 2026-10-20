@@ -10,6 +10,7 @@ import { gridDisk, latLngToCell } from "h3-js"
 
 import { basemapStyle, registerPmtilesProtocol, swapBasemap } from "../../lib/basemap.ts"
 import { packBucket } from "../../lib/fog/instances.ts"
+import { todayDay } from "../../lib/fog/last-run.ts"
 import { FogMaskLayer } from "../../lib/fog/mask-layer.ts"
 import { FOG_MODES, V1 } from "../../lib/fog/fog-uniforms.ts"
 import { RUN_SOURCE_ID, fogBeforeId, runCoreSpec, runGlowSpec, runSourceSpec } from "../../lib/map-layers.ts"
@@ -69,7 +70,8 @@ const cells =
     : CFG.cells === "none"
       ? []
       : [...traceToCells({ points, gaps: [] })]
-const bucket = packBucket(cells)
+// `0100`: `coldDays` ages every cell, so atlas draws cold territory over the whole revealed frame.
+const bucket = packBucket(cells, CFG.coldDays ? { dayOf: () => todayDay(Date.now()) - CFG.coldDays } : {})
 
 /**
  * `0099`. `muteLabels` (a regex on layer ids) sets those symbol layers' text and icon opacity to 0 —

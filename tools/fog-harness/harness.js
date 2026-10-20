@@ -108,6 +108,8 @@ function pack(discs) {
     out[i * INSTANCE_FLOATS + 2] = d.r
     out[i * INSTANCE_FLOATS + 3] = d.fraction
     out[i * INSTANCE_FLOATS + 4] = ARC_ALWAYS
+    // `0100`: the disc's lastRunDay; unknown (never cold) unless a probe says otherwise.
+    out[i * INSTANCE_FLOATS + DAY_INDEX] = d.day === undefined ? DAY_UNKNOWN : d.day
   })
   return out
 }
@@ -460,6 +462,14 @@ function main() {
   //     for everything.
   bloomProbes(gl, res)
 
+  /* ══ 0100 — COLD TERRITORY, ATLAS ONLY ══════════════════════════════════ */
+  //
+  // K1  12-month-old ground in atlas: a measurable cool shift and saturation drop     criterion 1
+  // K2  the same ground in adventure: ZERO delta — byte for byte                     criterion 1
+  // K3  no cold pixel where the mask's coverage is <= 0.75 (the clip rule)          criterion 2
+  // K4  SABOTAGE: ground run today, in atlas, reads exactly as plain ground           (ramp is 0)
+  coldProbes(gl, res)
+
   disposeMaskResources(gl, res)
   results.unshift({ id: "renderer", pass: true, detail: renderer })
 }
@@ -795,6 +805,134 @@ function compositeProbes(gl, res) {
   disposeCompositeResources(gl, compositeRes)
 }
 
+/* ─── 0100's probes ───────────────────────────────────────────────────────── */
+
+/** A park-green stand-in for the ground: saturated enough that a saturation drop can be measured. */
+const COLD_GROUND = [0.78, 0.87, 0.66]
+
+function coldProbes(gl, res) {
+  let compositeRes
+  let coldRes
+  try {
+    compositeRes = createCompositeResources(gl)
+    coldRes = createColdResources(gl)
+  } catch (error) {
+    record("K0 cold pass compiles", false, String((error && error.message) || error))
+    return
+  }
+  record("K0 cold pass compiles", true, `${Object.values(coldRes.uniforms).filter(Boolean).length}/${Object.keys(coldRes.uniforms).length} uniforms live`)
+
+  const TODAY = 2000
+  const pixels = new Uint8Array(CANVAS_W * CANVAS_H * 4)
+  const bigR = RADIUS * 3
+  /**
+   * One frame as the layer draws it: mask, ground, the cold pass when the palette's `coldWash` is
+   * above 0 (exactly the layer's gate; `forceCold` runs it anyway, to prove the shader itself is
+   * inert at 0), then the composite.
+   */
+  function frame(day, palette, forceCold) {
+    uploadInstances(gl, res, pack([{ x: CX, y: CY, r: bigR, fraction: 1, day }]))
+    res.today = TODAY
+    runMaskPass(gl, res, PROJECTION)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, CANVAS_W, CANVAS_H)
+    gl.clearColor(COLD_GROUND[0], COLD_GROUND[1], COLD_GROUND[2], 1)
+    gl.clear(gl.COLOR_BUFFER_BIT)
+    const noise = noiseFrame(PROJECTION.mainMatrix, CANVAS_W, CANVAS_H)
+    if (palette.coldWash > 0 || forceCold) {
+      runColdPass(gl, coldRes, {
+        mask: res.texture,
+        noise,
+        coldWash: palette.coldWash,
+        featherPx: COLD_FEATHER_PX / 2,
+        wash: COLD_WASH_RGB,
+        ageSpan: COLD_AGE_SPAN_DAYS,
+      })
+    }
+    runCompositePass(gl, compositeRes, { mask: res.texture, noise, time: 0, palette, bloom: NO_BLOOM_PALETTE })
+    gl.readPixels(0, 0, CANVAS_W, CANVAS_H, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+    res.today = -1
+    return pixels.slice()
+  }
+
+  const year = TODAY - 365
+  const atlasOld = frame(year, ATLAS)
+  const atlasFresh = frame(TODAY, ATLAS)
+  const advOld = frame(year, ADVENTURE)
+  const advFresh = frame(TODAY, ADVENTURE)
+  const advForced = frame(year, ADVENTURE, true)
+  const { red: coverage } = readMaskRed(gl, res)
+
+  const at = screenIndex(CX, CY, CX, CY)
+  const rgb = (px) => [px[at] / 255, px[at + 1] / 255, px[at + 2] / 255]
+  const old = rgb(atlasOld)
+  const fresh = rgb(atlasFresh)
+  const satOld = labSaturation(old)
+  const satFresh = labSaturation(fresh)
+  const blueShift = old[2] / old[0] - fresh[2] / fresh[0]
+  const expected = coldPixel(fresh, COLD_WASH_RGB, 1)
+  const offBy = Math.max(...[0, 1, 2].map((c) => Math.abs(expected[c] * 255 - atlasOld[at + c])))
+  record(
+    "K1 cold in atlas",
+    satOld < satFresh * 0.9 && blueShift > 0.02 && offBy <= 3,
+    `centre saturation ${satFresh.toFixed(3)} -> ${satOld.toFixed(3)} (want a drop > 10%), B/R +${blueShift.toFixed(3)} ` +
+      `(want > 0.02); off coldPixel() by ${offBy.toFixed(1)}/255 (want <= 3)`,
+  )
+
+  let advDiff = 0
+  let forcedDiff = 0
+  for (let i = 0; i < advOld.length; i++) {
+    if (advOld[i] !== advFresh[i]) advDiff++
+    if (advForced[i] !== advFresh[i]) forcedDiff++
+  }
+  record(
+    "K2 no cold in adventure",
+    advDiff === 0 && forcedDiff === 0,
+    `12-month vs fresh ground: ${advDiff} bytes differ (want 0); the cold shader itself at coldWash 0: ${forcedDiff} (want 0)`,
+  )
+
+  // Every pixel the wash changed must sit where the mask's coverage is above 0.75. The screen pixel
+  // is mapped to the mask texel under it; a texel's neighbours can differ by a bilinear step, hence
+  // the one-byte slack. Population guard: the frame must also have pixels at or below 0.75 that the
+  // wash left alone, or "no cold near the frontier" was never tested.
+  let changed = 0
+  let violations = 0
+  let worst = 255
+  let edgeChecked = 0
+  for (let row = 0; row < CANVAS_H; row += 2) {
+    for (let col = 0; col < CANVAS_W; col += 2) {
+      const i = (row * CANVAS_W + col) * 4
+      const mx = Math.min(MASK_W - 1, Math.floor((col / CANVAS_W) * MASK_W))
+      const my = Math.min(MASK_H - 1, Math.floor((row / CANVAS_H) * MASK_H))
+      const cover = coverage[my * MASK_W + mx]
+      const differs = atlasOld[i] !== atlasFresh[i] || atlasOld[i + 1] !== atlasFresh[i + 1] || atlasOld[i + 2] !== atlasFresh[i + 2]
+      if (cover > 0 && cover <= 191) edgeChecked++
+      if (!differs) continue
+      changed++
+      worst = Math.min(worst, cover)
+      if (cover < 191) violations++
+    }
+  }
+  record(
+    "K3 the clip rule",
+    changed > 0 && violations === 0 && edgeChecked > 50,
+    `${changed} pixels washed, lowest coverage under one ${worst}/255 (want > 191 = 0.75); ` +
+      `${violations} below it (want 0); ${edgeChecked} frontier-band pixels checked`,
+  )
+
+  let freshDiff = 0
+  const plain = frame(TODAY, { ...ATLAS, coldWash: 0 })
+  for (let i = 0; i < plain.length; i++) if (plain[i] !== atlasFresh[i]) freshDiff++
+  record(
+    "K4 sabotage: fresh ground",
+    freshDiff === 0 && changed > 0,
+    `ground run today, atlas with and without the pass: ${freshDiff} bytes differ (want 0)`,
+  )
+
+  disposeColdResources(gl, coldRes)
+  disposeCompositeResources(gl, compositeRes)
+}
+
 try {
   main()
 } catch (error) {
@@ -804,5 +942,5 @@ try {
 const failed = results.filter((r) => !r.pass)
 const lines = results.map((r) => `${r.pass ? "  ok  " : " FAIL "} ${r.id.padEnd(28)} ${r.detail}`)
 document.getElementById("out").textContent =
-  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass + 0056 composite + 0079 reveal\n${lines.join("\n")}`
+  `${failed.length === 0 ? "HARNESS PASS" : "HARNESS FAIL"} — 0055 mask pass + 0056 composite + 0079 reveal + 0100 cold territory\n${lines.join("\n")}`
 document.title = failed.length === 0 ? "PASS" : "FAIL"

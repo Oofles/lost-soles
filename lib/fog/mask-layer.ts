@@ -7,8 +7,12 @@ import type {
 import { log } from "@/lib/log"
 
 import {
+  createColdResources,
   createCompositeResources,
+  disposeColdResources,
   disposeCompositeResources,
+  runColdPass,
+  type ColdResources,
   edgeWarp,
   rimBand,
   NO_BLOOM_PALETTE,
@@ -19,7 +23,15 @@ import {
   type CompositeRestore,
   type NoiseFrame,
 } from "./composite"
-import { V1, type FogPalette } from "./fog-uniforms"
+import {
+  COLD_DAYS_PER_MONTH,
+  COLD_FEATHER_PX,
+  COLD_RAMP_START_MONTHS,
+  COLD_WASH_RGB,
+  V1,
+  type FogPalette,
+} from "./fog-uniforms"
+import { todayDay } from "./last-run"
 import {
   createMaskResources,
   disposeMaskResources,
@@ -27,6 +39,8 @@ import {
   runDebugBlit,
   runMaskPass,
   uploadInstances,
+  COLD_AGE_SPAN_DAYS,
+  DAY_INDEX,
   INSTANCE_FLOATS,
   NO_BLOOM,
   type BloomUniform,
@@ -125,6 +139,10 @@ export interface MaskStats {
    * upload's instances split between always-drawn, fading-in and switching-off. `null` otherwise.
    */
   reveal: ({ cells: number; progress: number } & TagStats) | null
+  /** `0100`. How many times `render` has run the cold-territory pass. 0 in adventure, always. */
+  coldPasses: number
+  /** `0100`. A cold-pass compile or link failure. The fog still draws; only cold ground is missing. */
+  coldError: string | null
 }
 
 /**
@@ -207,6 +225,16 @@ export class FogMaskLayer implements CustomLayerInterface {
   #fogTime = 0
   /** `0098`. The per-mode uniforms in force; moved every frame of a mode cross-fade. */
   #palette: FogPalette
+  /* ─── 0100, cold territory ─────────────────────────────────────────────────── */
+  #cold: ColdResources | null = null
+  #coldError: string | null = null
+  #coldPasses = 0
+  /**
+   * The oldest known `lastRunDay` in the uploaded instances, or `Infinity` when none is known. The
+   * cold pass — and its frame copy — runs only when this is old enough for the ramp to have started,
+   * so an account with no cold ground on screen pays nothing for the feature, even in atlas.
+   */
+  #oldestDay = Number.POSITIVE_INFINITY
 
   constructor(
     private readonly options: {
@@ -225,6 +253,8 @@ export class FogMaskLayer implements CustomLayerInterface {
       octaves?: number
       /** `0059`, §6.4 item 2. Only `?fog=perf` passes one. */
       timer?: PassTimer
+      /** `0100`. The display clock for cold territory, in ms. Defaults to `Date.now`. */
+      now?: () => number
     } = {},
   ) {
     this.#palette = options.palette ?? V1
@@ -417,6 +447,8 @@ export class FogMaskLayer implements CustomLayerInterface {
       reveal: this.#revealCells
         ? { cells: this.#revealCells.length, progress: this.#revealProgress, ...this.#tagStats }
         : null,
+      coldPasses: this.#coldPasses,
+      coldError: this.#coldError,
     }
   }
 
@@ -444,6 +476,9 @@ export class FogMaskLayer implements CustomLayerInterface {
     if (this.#composite) disposeCompositeResources(gl, this.#composite)
     this.#composite = null
     this.#compositeError = null
+    if (this.#cold) disposeColdResources(gl, this.#cold)
+    this.#cold = null
+    this.#coldError = null
     this.#maskDirty = true
     this.#lastMatrix = new Float64Array(16)
     // The instances and the corridor are not dropped, they are marked for re-upload. A style change
@@ -529,6 +564,7 @@ export class FogMaskLayer implements CustomLayerInterface {
        * finding. An empty upload over a non-empty buffer is a different thing and must happen:
        * it is how an emptied set clears a stale mask rather than leaving the last one on screen.
        */
+      this.#oldestDay = oldestDay(floats)
       if (floats.length > 0 || this.#resources.instanceCount > 0) {
         uploadInstances(gl, this.#resources, floats)
         // New instances mean the FBO's contents are stale even if the camera has not moved — the
@@ -536,6 +572,16 @@ export class FogMaskLayer implements CustomLayerInterface {
         this.#maskDirty = true
         this.#report()
       }
+    }
+
+    /**
+     * `0100`. Today, for the warmth the mask writes into ALPHA. It changes once a day, and a change
+     * is the one non-camera, non-data reason to redraw the mask.
+     */
+    const today = todayDay(this.options.now?.() ?? Date.now())
+    if (today !== this.#resources.today) {
+      this.#resources.today = today
+      this.#maskDirty = true
     }
 
     const projection = options.defaultProjectionData as unknown as ProjectionLike
@@ -630,6 +676,19 @@ export class FogMaskLayer implements CustomLayerInterface {
       this.#warpRadius = warpRadius
     }
     this.#fogTime = this.options.timeSource?.() ?? 0
+    const warp = edgeWarp(this.#noise, warpRadius.merc)
+    /**
+     * `0100`. COLD GROUND, BEFORE THE FOG. Only while the palette's `coldWash` is above 0 — atlas, and
+     * the frames of a fade to or from it (D-374) — and only when some uploaded disc is old enough for
+     * the ramp to have started. In adventure this is skipped outright: nothing is copied, nothing is
+     * drawn, and the frame is the frame it was before cold territory existed (D-133).
+     */
+    if (
+      this.#palette.coldWash > 0 &&
+      this.#resources.today - this.#oldestDay > COLD_RAMP_START_MONTHS * COLD_DAYS_PER_MONTH
+    ) {
+      this.#runCold(gl, warp)
+    }
     this.options.timer?.attach(gl)
     this.options.timer?.begin("composite")
     this.#compositeRestore = runCompositePass(gl, this.#composite, {
@@ -638,12 +697,40 @@ export class FogMaskLayer implements CustomLayerInterface {
       time: this.#fogTime,
       palette: this.#palette,
       bloom: this.#bloomPalette,
-      warp: edgeWarp(this.#noise, warpRadius.merc),
+      warp,
       // 0210: the rim's reach, sized from the same disc as the warp.
       rimBand: rimBand(this.#noise, warpRadius.merc),
     })
     this.options.timer?.end()
     this.#composites++
+  }
+
+  /** `0100`. Pass 3. One build attempt, for the composite's reason; a failure costs cold ground only. */
+  #runCold(gl: WebGL2RenderingContext, warp: ReturnType<typeof edgeWarp>): void {
+    if (!this.#resources || !this.#noise) return
+    if (!this.#cold) {
+      if (this.#coldError !== null) return
+      try {
+        this.#cold = createColdResources(gl, { octaves: this.options.octaves })
+      } catch (error) {
+        this.#coldError = error instanceof Error ? error.message : String(error)
+        log.error("fog cold territory: shader build failed", this.#coldError)
+        return
+      }
+    }
+    this.options.timer?.attach(gl)
+    this.options.timer?.begin("cold")
+    runColdPass(gl, this.#cold, {
+      mask: this.#resources.texture,
+      noise: this.#noise,
+      warp,
+      coldWash: Math.min(1, this.#palette.coldWash),
+      featherPx: (COLD_FEATHER_PX / 2) * pixelRatio(gl),
+      wash: COLD_WASH_RGB,
+      ageSpan: COLD_AGE_SPAN_DAYS,
+    })
+    this.options.timer?.end()
+    this.#coldPasses++
   }
 
   /**
@@ -709,4 +796,21 @@ export class FogMaskLayer implements CustomLayerInterface {
           : ""),
     )
   }
+}
+
+/** `0100`. The oldest known day among `INSTANCE_FLOATS`-strided instances; `Infinity` when none is known. */
+export function oldestDay(instances: Float32Array): number {
+  let oldest = Number.POSITIVE_INFINITY
+  for (let i = DAY_INDEX; i < instances.length; i += INSTANCE_FLOATS) {
+    const day = instances[i]!
+    if (day >= 0 && day < oldest) oldest = day
+  }
+  return oldest
+}
+
+/** Drawing-buffer pixels per CSS pixel, from the canvas itself. 1 where that cannot be read. */
+function pixelRatio(gl: WebGL2RenderingContext): number {
+  const canvas = gl.canvas as { clientWidth?: number } | undefined
+  const css = canvas?.clientWidth ?? 0
+  return css > 0 ? gl.drawingBufferWidth / css : 1
 }

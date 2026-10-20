@@ -3,7 +3,7 @@ import { cellToBoundary, cellToLatLng, getHexagonEdgeLengthAvg, gridDisk, type H
 import { bigToCell } from "@/src/domain/explored-blob"
 import { RES } from "@/src/domain/fog"
 
-import { ARC_ALWAYS, FALLOFF_INNER, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
+import { ARC_ALWAYS, DAY_UNKNOWN, FALLOFF_INNER, INSTANCE_FLOATS, REVEAL_SCALE } from "./mask"
 
 /**
  * CELLS → INSTANCE ATTRIBUTES. Ticket `0055`. `05-fog-of-war.md` §4.1, §4.2, §6.1.
@@ -213,6 +213,13 @@ export interface PackOptions {
    * silhouette — the string-of-pearls pinch D-232 removed, reintroduced on a grid of its own.
    */
   member?: (cell: H3Index) => boolean
+  /**
+   * `0100`. The cell's `lastRunDay` (days since 2020-01-01, the `LSFL` sidecar's unit), or
+   * `undefined` when it is not known — which draws as fresh ground, never cold (05 §7.2's fallback).
+   * At a coarse bucket it is the most RECENT child's day (D-390), which `zoom-buckets.ts` derives.
+   * A callback for `fractionOf`'s reason: the bridge pass reaches outside the cells it was given.
+   */
+  dayOf?: (cell: H3Index) => number | undefined
 }
 
 /** One disc, before it is flattened into the instance array. */
@@ -221,6 +228,16 @@ interface Disc {
   y: number
   r: number
   fraction: number
+  /** `0100`. `lastRunDay`, or `DAY_UNKNOWN`. */
+  day: number
+}
+
+/**
+ * `0100`. A bridge's day: the MORE RECENT endpoint's, and unknown beats both — a bridge is ground
+ * between two cells, and it is only cold if both of them are (D-390's rule, applied to an edge).
+ */
+function recentDay(a: number, b: number): number {
+  return a < 0 || b < 0 ? DAY_UNKNOWN : Math.max(a, b)
 }
 
 /**
@@ -255,6 +272,7 @@ export function packBucket(cells: readonly H3Index[], options: PackOptions = {})
       y: mercatorY(lat),
       r: metresToMercator(radiusM, lat),
       fraction: clamp(options.fractionOf?.(cell) ?? 1),
+      day: options.dayOf?.(cell) ?? DAY_UNKNOWN,
     }
     byCell.set(cell, disc)
     return disc
@@ -352,6 +370,7 @@ export function packBucket(cells: readonly H3Index[], options: PackOptions = {})
            * a no-op; it matters for `0058`'s coarse buckets, where two parents can differ sharply.
            */
           fraction: Math.min(here.fraction, there.fraction),
+          day: recentDay(here.day, there.day),
         })
         bridges++
       }
@@ -378,6 +397,7 @@ function flattenDiscs(discs: readonly Disc[]): Float32Array {
     instances[at + 2] = d.r
     instances[at + 3] = d.fraction
     instances[at + 4] = ARC_ALWAYS
+    instances[at + 5] = d.day
   }
   return instances
 }

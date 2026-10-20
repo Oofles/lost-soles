@@ -164,7 +164,8 @@ describe("the shaders", () => {
     expect(source).toContain(`a_arc < ${(ARC_FROST_OFFSET - 0.5).toFixed(1)}`)
     expect(source).toContain(`v_bloom.x = bloomed(a_arc - ${ARC_GOLD_OFFSET.toFixed(1)}, u_bloom.z)`)
     expect(source).toContain(`v_bloom.y = bloomed(a_arc - ${ARC_FROST_OFFSET.toFixed(1)}, u_bloom.w)`)
-    expect(MASK_FRAGMENT_SOURCE).toContain("fragColor = vec4(c, c * v_bloom, 1.0)")
+    // `0100`: ALPHA is warmth (cold territory), never coverage.
+    expect(MASK_FRAGMENT_SOURCE).toContain("fragColor = vec4(c, c * v_bloom, v_warmth)")
   })
 })
 
@@ -282,22 +283,23 @@ describe("ground-relative instances — 0200", () => {
     uploadInstances(
       fake.gl,
       res,
-      new Float32Array([0.5, 0.25, 0.001, 1, -1, 0.5001, 0.2499, 0.002, 0.5, 0.25]),
+      new Float32Array([0.5, 0.25, 0.001, 1, -1, 2000, 0.5001, 0.2499, 0.002, 0.5, 0.25, -1]),
     )
     expect(res.origin).toEqual([f(0.5), f(0.25)])
     const sent = fake.uploads.at(-1)!
     expect(sent[0]).toBe(0)
     expect(sent[1]).toBe(0)
-    expect(sent[5]).toBe(f(f(0.5001) - f(0.5)))
-    expect(sent[6]).toBe(f(f(0.2499) - f(0.25)))
-    expect([sent[2], sent[3], sent[4], sent[7], sent[8], sent[9]]).toEqual([
-      f(0.001), 1, -1, f(0.002), 0.5, 0.25,
+    expect(sent[6]).toBe(f(f(0.5001) - f(0.5)))
+    expect(sent[7]).toBe(f(f(0.2499) - f(0.25)))
+    // `0100`'s day slot (5 and 11) is carried untouched, like radius, fraction and arc.
+    expect([sent[2], sent[3], sent[4], sent[5], sent[8], sent[9], sent[10], sent[11]]).toEqual([
+      f(0.001), 1, -1, 2000, f(0.002), 0.5, 0.25, -1,
     ])
   })
 
   it("folds the origin into the matrix under mercator, and zeroes u_origin", () => {
     const { fake, res } = resourcesOn()
-    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1]))
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1, -1]))
     runMaskPass(fake.gl, res, PROJECTION)
     const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
     expect([sent[12], sent[13]]).toEqual([0.5, 0.25]) // identity x (0.5, 0.25, 0, 1)
@@ -312,7 +314,7 @@ describe("ground-relative instances — 0200", () => {
       width: fake.gl.drawingBufferWidth,
       height: fake.gl.drawingBufferHeight,
     })
-    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1]))
+    uploadInstances(fake.gl, res, new Float32Array([0.5, 0.25, 0.001, 1, -1, -1]))
     runMaskPass(fake.gl, res, PROJECTION)
     const sent = fake.of("uniformMatrix4fv")[0]!.args[2] as Float32Array
     expect(Array.from(sent)).toEqual(Array.from(PROJECTION.mainMatrix))
@@ -392,6 +394,7 @@ describe("the instance buffer", () => {
       [2, 1], // a_radius
       [3, 1], // a_fraction
       [4, 1], // a_arc (0079)
+      [5, 1], // a_day (0100)
     ])
   })
 
@@ -407,6 +410,7 @@ describe("the instance buffer", () => {
       [2, 1, stride, 8], // a_radius  — 1 float  at byte 8
       [3, 1, stride, 12], // a_fraction — 1 float  at byte 12
       [4, 1, stride, 16], // a_arc     — 1 float  at byte 16 (0079)
+      [5, 1, stride, 20], // a_day     — 1 float  at byte 20 (0100)
     ])
   })
 })
@@ -421,7 +425,8 @@ describe("runMaskPass — §4.2", () => {
 
     const names = fake.calls.map((c) => c.name)
     expect(names.indexOf("bindFramebuffer")).toBeLessThan(names.indexOf("clear"))
-    expect(fake.of("clearColor")[0]!.args).toEqual([0, 0, 0, 1])
+    // `0100`: alpha cleared to 0 too — it is warmth under MAX, and a cleared 1 would hide all cold ground.
+    expect(fake.of("clearColor")[0]!.args).toEqual([0, 0, 0, 0])
     expect(fake.of("clear")[0]!.args).toEqual([GL.COLOR_BUFFER_BIT])
     // Union, not sum (§4.1). The one call this whole ticket rests on.
     expect(fake.of("blendEquation")[0]!.args).toEqual([GL.MAX])

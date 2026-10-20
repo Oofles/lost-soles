@@ -5,7 +5,7 @@ import { metresBetween } from "@/src/domain/geo"
 import type { RouteTraceGeometry } from "@/lib/runs/wire"
 
 import { discRadiusM, mercatorX, mercatorY, metresToMercator } from "./instances"
-import { ARC_ALWAYS, INSTANCE_FLOATS } from "./mask"
+import { ARC_ALWAYS, DAY_UNKNOWN, INSTANCE_FLOATS } from "./mask"
 
 /**
  * THE OPTIMISTIC CORRIDOR. Ticket `0057`. `05-fog-of-war.md` §4.4's *"optimisation worth taking"*,
@@ -202,6 +202,8 @@ export function packRouteCorridor(
     // a partial-coverage estimate. `0058`'s coarse buckets are where `a_fraction` earns its keep.
     instances[at + 3] = 1
     instances[at + 4] = ARC_ALWAYS
+    // `0100`. A guess at where the operator just ran — fresh ground by definition, so never cold.
+    instances[at + 5] = DAY_UNKNOWN
   }
 
   return { instances, count: discs.length, truncated, arcs }

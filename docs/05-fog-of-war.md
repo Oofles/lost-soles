@@ -1664,7 +1664,7 @@ offset  size  field
 |---|---|---|
 | `explored-r11.<gen>.bin` | the set above | app load, always |
 | `explored-agg.<gen>.json` | res 6/7/8 parent → `{exploredChildren, totalChildren, fraction}` | ~~app load; small (a few KB); powers zoom-out opacity (§6.1)~~ **never, by the browser** (D-238): written by the pipeline as the server-side artifact for §8; zoom-out `fraction` is computed client-side from the set (§6.1) |
-| `explored-lastrun-r11.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array**, same order | **lazily, only when a view needs it** |
+| `explored-lastrun-r11.<gen>.bin` | `u16` days-since-2020-01-01, **parallel to the cell array**, same order | **lazily, only when a view needs it** — `GET /api/fog/lastrun/<gen>`, first fetched when atlas is shown (`0100`) |
 
 `lastRunAt` is deliberately a *separate* object. It roughly doubles the payload (~2 bytes/cell)
 and **the fog itself does not need it** — revealed is permanent (D-020), so rendering depends on

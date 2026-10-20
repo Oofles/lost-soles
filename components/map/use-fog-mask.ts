@@ -6,6 +6,8 @@ import { FogAnimator, browserAnimationHost, type AnimationHost } from "@/lib/fog
 import { fogDisabled, maskDebugEnabled } from "@/lib/fog/debug-flags"
 import type { FogPalette } from "@/lib/fog/fog-uniforms"
 import { FogMaskLayer } from "@/lib/fog/mask-layer"
+import { httpLastRunFetch, loadLastRun, type LastRunDays } from "@/lib/fog/last-run"
+import { log } from "@/lib/log"
 import type { FogHarness } from "@/lib/fog/perf/harness"
 import { postRunCells, preRunCells, type RevealCell } from "@/lib/fog/reveal"
 import {
@@ -88,8 +90,12 @@ export function useFogMask(
    * mid-session (a context-loss rebuild, a fogless home gaining territory) draws its first frame in
    * the mode on screen; after that the shell moves it imperatively, every frame of a cross-fade.
    * `animated` is the settled mode's clock: `false` freezes the mist in place (atlas, D-375).
+   *
+   * `0100`. `coldTerritory`: the mode on screen (or fading in) draws cold ground, so the `lastRunDay`
+   * sidecar is wanted. It is fetched the first time this is true, never before — 05 §7.2's "lazily,
+   * only when a view needs it" — and kept for the rest of the session.
    */
-  look: { palette: () => FogPalette; animated: boolean } | null = null,
+  look: { palette: () => FogPalette; animated: boolean; coldTerritory?: boolean } | null = null,
 ): FogMaskLayer | null {
   const explored = useExplored()
   const [layer, setLayer] = useState<FogMaskLayer | null>(null)
@@ -306,6 +312,37 @@ export function useFogMask(
     drawn.current = generation
     controller.current?.refresh(`generation ${generation}`)
   }, [layer, store, generation])
+
+  /**
+   * `0100`. THE `lastRunDay` SIDECAR, fetched the first time cold territory is wanted, for the
+   * account's own set (not home's held view of it: the sidecar is parallel to the generation the
+   * server published). Once per set identity — a new identity is a full refetch of the cells, so its
+   * generation has a sidecar of its own. A failure costs the cold wash and nothing else: the map, the
+   * fog and the mode toggle do not depend on it.
+   */
+  const coldWanted = look?.coldTerritory === true
+  const [lastRun, setLastRun] = useState<{ set: ExploredSet; days: LastRunDays } | null>(null)
+  const lastRunAsked = useRef<ExploredSet | null>(null)
+  const accountSet = explored.source === "synthetic" ? null : explored.set
+  useEffect(() => {
+    if (!coldWanted || !accountSet || accountSet.generation < 1) return
+    if (lastRunAsked.current === accountSet) return
+    lastRunAsked.current = accountSet
+    loadLastRun(accountSet, httpLastRunFetch())
+      .then((days) => setLastRun({ set: accountSet, days }))
+      .catch((error: unknown) => {
+        log.warn(`cold territory: no lastRun sidecar for generation ${accountSet.generation}: ${String(error)}`)
+      })
+  }, [coldWanted, accountSet])
+
+  /** `0100`. Hand the sidecar to the store and re-cull, so the discs on screen are re-packed with days. */
+  useEffect(() => {
+    if (!store) return
+    const days = lastRun && lastRun.set === accountSet ? lastRun.days : null
+    if (store.lastRun === days) return
+    store.setLastRun(days)
+    controller.current?.refresh("lastrun sidecar")
+  }, [store, lastRun, accountSet, layer])
 
   /**
    * `0079`. THE REVEAL'S TWO STORES — the explored set without the run's cells and with them.

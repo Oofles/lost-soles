@@ -30,6 +30,7 @@ import { resForZoom, ZoomBucketStore } from "../../lib/fog/zoom-buckets.ts"
 import { cellToBig } from "../../src/domain/explored-blob.ts"
 import { RES } from "../../src/domain/fog.ts"
 import { FogMaskLayer } from "../../lib/fog/mask-layer.ts"
+import { LastRunDays, todayDay } from "../../lib/fog/last-run.ts"
 import { landmarkLayerSpec } from "../../lib/landmarks/markers.ts"
 import {
   FOG_LAYER_ID,
@@ -209,7 +210,16 @@ function renderIn(variant, palette, zoom, nudge = 0) {
   map.redraw()
   const passes = fog.stats().passes
   map.jumpTo({ center: [PARITY_CAMERA.lng + nudge, PARITY_CAMERA.lat], zoom })
+  const cold = fog.stats().coldPasses
   map.redraw()
+  // `0100`. Every cell is a year old, so atlas — and only atlas — runs the cold pass, inside
+  // MapLibre's real frame (the copy of the frame under the fog is the part a fake cannot prove).
+  const ran = fog.stats().coldPasses > cold
+  if (palette.coldWash > 0 && !ran) fail.push(`cold z${zoom} ${variant}: coldWash ${palette.coldWash} but the cold pass did not run`)
+  if (palette.coldWash === 0 && ran) fail.push(`cold z${zoom} ${variant}: the cold pass ran at coldWash 0`)
+  if (fog.stats().coldError) fail.push(`cold: ${fog.stats().coldError}`)
+  const glError = map.getCanvas().getContext("webgl2").getError()
+  if (glError !== 0) fail.push(`cold z${zoom} ${variant}: gl error 0x${glError.toString(16)} after the frame`)
   if (fog.stats().passes <= passes) fail.push(`parity z${zoom} ${variant}: the mask pass did not re-run, the read would be stale`)
   if (fog.stats().res !== resForZoom(zoom)) fail.push(`parity z${zoom} ${variant}: bucket res ${fog.stats().res}, expected ${resForZoom(zoom)}`)
   return readMask(map.getCanvas().getContext("webgl2"))
@@ -228,9 +238,15 @@ function parity() {
     now: () => performance.now(),
     requestIdle: () => () => {},
   }
+  /**
+   * `0100`. Every cell last run a year ago, so the mask's ALPHA is cold in every disc. Parity below
+   * now covers it: the mask — warmth included — must be the same bytes in both modes.
+   */
+  const store = new ZoomBucketStore(set)
+  store.setLastRun(new LastRunDays(set.cells, new Uint16Array(set.cells.length).fill(todayDay(Date.now()) - 365), 1))
   const controller = new FogViewportController({
     map,
-    store: new ZoomBucketStore(set),
+    store,
     host: syncHost,
     debounceMs: 0,
     onInstances: (instances, _result, res, fromData) => fog.setInstances(instances, res, { supersedesRoute: fromData }),

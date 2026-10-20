@@ -42,6 +42,12 @@ export const FOG_UPDATE_PATH = "/api/fog"
 export const fogBlobPath = (generation: number): string => `/api/fog/blob/${generation}`
 
 /**
+ * `0100`. The `LSFL` lastRunDay sidecar for one generation (05 §7.2). Generation-named for the blob
+ * route's reason; fetched lazily, only when cold territory is first wanted (atlas).
+ */
+export const fogLastRunPath = (generation: number): string => `/api/fog/lastrun/${generation}`
+
+/**
  * What the client must do next. Resolved on the server because the server is what holds
  * the manifest — the client sends its cached generation and is told the answer, rather
  * than fetching a manifest and re-deriving the same three-way branch.
