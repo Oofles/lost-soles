@@ -81,6 +81,16 @@ in adventure mode, then toggle and read the same three in atlas. Both must be re
 zooming. Then find the edge of your territory and toggle repeatedly while watching one specific
 fogged block — if any block flickers between revealed and unrevealed, stop and reopen this ticket.
 
+**Result (operator, 2026-10-20, desktop browser, `/` on the deployed site, build 419):** all checks good. They read three
+street names at z15 in adventure and the same three in atlas without zooming, and toggling at the edge of their
+territory flickered no fogged block. They judged atlas's names over fogged ground (measured 0.73–0.77× stock
+contrast, D-384) readable, so no halo ticket was filed.
+**Agent smoke (2026-10-19, deployed `main` 41a5d9c):** build 419's log shows `Mode boundary: 535 files scanned —
+the map mode is named only in the renderer, the toggle and the run-moment seam.` On the merged tree,
+`run-mode-swap.mjs` printed MODE SWAP HARNESS PASS, with the mask byte-identical across adventure, atlas,
+mid-fade and back: z12 `ceff5b97`, z15.25 `7d8bfde6`, z17.75 `a9ac8d89`. The ⅛-pixel sabotage differed in
+4,763 / 7,741 / 23,107 bytes.
+
 ## Resolution
 
 05 §5.4 is now enforced in four layers. Each layer has a sabotage case that must fail. The numbers

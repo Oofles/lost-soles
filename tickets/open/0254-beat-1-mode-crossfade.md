@@ -51,6 +51,12 @@ Desktop browser, with the saved mode set to atlas: open a run with `⟲ Relive`.
 in adventure and settle into atlas with a soft 320 ms fade (D-378), not a cut. With the saved mode set to
 adventure, the hand-back should show no change at all.
 
+**Result (operator, 2026-10-20, desktop browser, `/run/:id` on the deployed site, build 419):** all checks good.
+With saved mode atlas, Relive played in adventure and settled into atlas with a soft 320 ms fade. A click or Esc
+mid-sequence landed already in atlas with no fade. With saved mode adventure, the hand-back changed nothing.
+**Agent smoke (2026-10-19):** signed out, `/run/<id>` returned 307 to `/?next=…`; the route serves behind auth.
+There is no new server surface; fade timings are covered by `lib/run-moment/beat1.test.ts`.
+
 ## Resolution
 
 Most of this ticket was already built by `0098`. That ticket replaced the D-295 stub with

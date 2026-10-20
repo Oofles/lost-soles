@@ -111,6 +111,19 @@ fit-territory control (confirm the whole territory fits). Try to rotate or tilt 
 Ctrl-drag) — it must not budge. Click where several runs overlap: the card appears above the
 cursor with all three dates readable; repeat at the top edge and confirm it flips below.
 
+**Result (operator, 2026-10-20, desktop browser, `/` and `/run/:id` on the deployed site, build 419):** all checks good.
+Pan, wheel, double-click and keys work; right-drag and Ctrl-drag do not rotate or tilt; the `⤢`/`⌖` stack reads
+and clears the attribution; the overlap card reads above the cursor at 32 px rows and flips below at the top
+edge; a single-line click visibly moves the selection; on `/run/:id` the dimmed web (k ≈ 0.64) sits beneath the
+selected run; fit framing the region in view (D-388) felt right.
+**Agent smoke (2026-10-19, deployed site):** signed out, `/api/runs/summary?ids=x` returned 404. A throwaway Cognito
+user (`smoke-0101-…`) signed in through the real Authenticator in headless Chromium, and all 11 checks passed:
+400 for no ids, empty ids, `a,../b` and 26 ids; `own,foreign,unknown` returned 200 `no-store, private` with only the
+own seeded run (date, distanceM 8400, newCellCount 21); unknown alone returned `{"runs":[]}`. Cleanup confirmed:
+both seeded T3 rows deleted, user `UserNotFoundException`, no S3 objects, 0 rows for the sub in all six tables,
+Activity back to 116. `run-map-controls.mjs` printed MAP CONTROLS HARNESS PASS: bearing and pitch stayed 0 under
+right-drag and Ctrl-drag, zoom settled 18.5→18 and 9.5→10, glow was 0.35 in adventure and 0 in atlas, web k 0.643.
+
 ## Resolution
 
 Built after a D-152 stop. The operator answered four questions on 2026-10-19:
