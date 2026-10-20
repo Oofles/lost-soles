@@ -4,7 +4,7 @@ slug: account-deletion-runbook-executed
 title: Account-deletion runbook, executed once against a throwaway account
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 16-rebuild-drill
 depends_on: [17, 44]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-20T17:10:35Z
+closed: 2026-10-20T18:07:19Z
 ---
 
 ## Description

@@ -2585,7 +2585,7 @@
     "title": "Account-deletion runbook, executed once against a throwaway account",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "16-rebuild-drill",
     "depends_on": [
@@ -2596,8 +2596,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-20T17:10:35Z",
-    "path": "tickets/open/0106-account-deletion-runbook-executed.md",
-    "ready": true,
+    "closed": "2026-10-20T18:07:19Z",
+    "path": "tickets/closed/0106-account-deletion-runbook-executed.md",
+    "ready": false,
     "acceptance": {
       "checked": 8,
       "total": 8
