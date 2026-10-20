@@ -4,7 +4,7 @@ slug: cold-territory-atlas-only
 title: Cold territory wash, atlas mode only, on a different perceptual channel
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [98, 99]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-20T12:52:28Z
+closed: 2026-10-20T14:55:49Z
 ---
 
 ## Description
@@ -114,17 +115,19 @@ opacity above the asymptote, and it is never a reason to show cold ground in adv
 
 ## Operator validation
 
-In the desktop browser, atlas mode, over ground you last ran 5–7 months ago (the chronicle can tell
-you where). Look for a cool, edgeless dimming in the middle of your own territory, with a clear
-band of warm parchment between it and the fog edge. Then toggle to adventure: the cool wash
-must vanish completely while the fog and rim are unchanged. Finally, confirm
-you can still tell the warm frontier from the cool ground at a glance — if you have to think about
-which is which, D-147's channel separation has failed and the wash is too strong.
+**Perceptual — passed, 2026-10-20, operator, desktop browser**, against Amplify build of commit
+`2e60964` (which carries `c2dbb66`). The check asked: in atlas, over ground last run 5–7 months ago,
+a cool edgeless dimming inside the territory with a warm parchment band before the fog edge; toggled
+to adventure, the wash gone with fog and rim unchanged; warm frontier and cool ground told apart at
+a glance (D-147's channel separation). Operator reported: "validation is good" — all three hold.
+
+Automated evidence (SwiftShader pixel tests K1–K4, mode-swap harness, label contrast on real tiles)
+is in `## Resolution` → *Evidence* and was not re-run by hand (D-229).
 
 ## Resolution
 
-**Built, not yet closed** — the orchestrator closes it after deploy. Operator validation below is
-still to be done (perception only).
+Built in wave 15.3, deployed with commit `2e60964`, closed after the operator's perceptual check
+passed (see `## Operator validation`).
 
 ### What it does
 

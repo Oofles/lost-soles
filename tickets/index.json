@@ -2441,7 +2441,7 @@
     "title": "Cold territory wash, atlas mode only, on a different perceptual channel",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -2452,8 +2452,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-20T12:52:28Z",
-    "path": "tickets/open/0100-cold-territory-atlas-only.md",
-    "ready": true,
+    "closed": "2026-10-20T14:55:49Z",
+    "path": "tickets/closed/0100-cold-territory-atlas-only.md",
+    "ready": false,
     "acceptance": {
       "checked": 10,
       "total": 10
@@ -3344,7 +3345,7 @@
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
