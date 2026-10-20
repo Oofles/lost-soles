@@ -371,12 +371,15 @@ export async function verifyArchiveGuard(env: DeletionEnv): Promise<GuardEvidenc
  * THE SAME FACT, FROM S3 ITSELF. `DeleteObject` with a `VersionId` on a key that does not exist:
  * if permitted it removes nothing and writes no delete marker (markers are only written WITHOUT a
  * version id), so the request is harmless either way. Anything but AccessDenied aborts.
+ * The id is the literal `"null"`, the one version id S3 accepts without having issued it: a made-up
+ * id fails S3's format check (`InvalidArgument`) before authorisation is evaluated, which proves
+ * nothing (first live run, 2026-10-20).
  */
 export async function probeArchiveGuard(env: DeletionEnv): Promise<string> {
   const id = env.probeId?.() ?? Math.random().toString(36).slice(2)
   const Key = `${RAW(env.uid)}.deletion-guard-probe-${id}`
   try {
-    await env.s3.send(new DeleteObjectCommand({ Bucket: env.bucket, Key, VersionId: `probe${id}`.padEnd(32, "0") }))
+    await env.s3.send(new DeleteObjectCommand({ Bucket: env.bucket, Key, VersionId: "null" }))
   } catch (error) {
     const name = (error as { name?: string; Code?: string }).name ?? (error as { Code?: string }).Code
     if (name === "AccessDenied") return `AccessDenied for the default credentials on ${Key}`

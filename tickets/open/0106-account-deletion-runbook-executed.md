@@ -74,18 +74,25 @@ belong to the user, not to Strava (D-101).
       (so the deny is the bucket policy's). The script then asks S3 itself with a delete of a
       nonexistent version under a nonexistent key, which must return AccessDenied; that probe runs
       in the live execution.)*
-- [ ] Step 6 enumerates and deletes noncurrent versions and delete markers; after a real run,
+- [x] Step 6 enumerates and deletes noncurrent versions and delete markers; after a real run,
       `aws s3api list-object-versions --prefix raw/<uid>/` returns **zero** versions and zero
       delete markers. *(Agent 2026-10-20: the enumeration and purge are built and tested; the
       after-check is the live run's. That CLI command is broken in this environment — the SDK's
       `ListObjectVersions` is the equivalent, and the script's own after-inventory is exactly that.)*
-- [ ] The lifecycle rule aborting incomplete multipart uploads exists on the bucket. *(Agent
+      — verified 2026-10-20 (orchestrator, live run): SDK `ListObjectVersions` on `raw/<sub>/`,
+      `users/<sub>/` and `snapshots/skillstate/<sub>/` each returned 0 versions, 0 delete markers.
+- [x] The lifecycle rule aborting incomplete multipart uploads exists on the bucket. *(Agent
       2026-10-20: it did NOT exist live — `NoSuchLifecycleConfiguration`. Added as infrastructure in
       `amplify/backend.ts`, synth-tested; it exists once this deploys, and the script checks it.)*
-- [ ] **Executed once against a throwaway Cognito account** that had at least one real ingested
+      — verified 2026-10-20 after build 421: `get-bucket-lifecycle-configuration` shows exactly
+      `AbortIncompleteMultipartUploads`, 7 days, prefix "".
+- [x] **Executed once against a throwaway Cognito account** that had at least one real ingested
       activity — so raw objects, cells, ledger rows and explored cells all existed before the run
       — and the before/after object and item counts are pasted into
-      `docs/capabilities/16-rebuild-drill.md`.
+      `docs/capabilities/16-rebuild-drill.md`. — verified 2026-10-20 (orchestrator): throwaway
+      sub `f4183488-…`, seeded through the real worker (receipt `DONE`), deleted 18:05:31–38Z;
+      before ExploredCell 10, Activity 1, XpLedgerEntry 3, SkillState 3, Profile 1, IngestReceipt 1,
+      raw 1, users 9, snapshots 1 → all 0. Counts pasted.
 - [x] The written confirmation produced by the run states explicitly that PITR holds rows for up
       to 35 days and the deletion completes at the end of that window. *(It reads each table's PITR
       status live: as deployed only `LostSolesExploredCell` has PITR on, and the confirmation says
@@ -113,20 +120,25 @@ test, the Trigger A gate opens and 0114 applies.
 
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Smoke test, orchestrator, 2026-10-20, laptop, `AWS_PROFILE=devault`**, after Amplify build 421
+(`c446905`) deployed the lifecycle rule. No perceptual check: every item the original text asked to
+see in the console is a query, run below (D-229). The throwaway account had no Strava connection, so
+the "authorised applications" check has nothing to show; step 1 recorded `strava no-connection`.
 
-From the laptop with the AWS console open: before the run, note the throwaway account's raw object
-count and `ExploredCell` item count. Run the script. Afterwards check, in the console, that (a)
-`raw/<uid>/` shows nothing with "Show versions" **enabled** — not just with it off, which is where
-the missed step hides; (b) the Cognito user is gone from the pool; (c) the Strava app's authorised
-applications list no longer shows the connection. Then sign in as the owner in the desktop browser and
-confirm your own map is completely untouched.
+- Lifecycle: `get-bucket-lifecycle-configuration` → one rule, `AbortIncompleteMultipartUploads`, 7 days.
+- Throwaway `drill-0106@example.invalid` created 18:04:29Z, seeded with one synthetic run (receipt
+  `DONE`), deleted by `delete-account.ts` 18:05:31–18:05:38Z. Trigger A open ~70 s, now closed.
+- **First attempt aborted with zero side effects** — the live S3 probe got `InvalidArgument`, not
+  `AccessDenied` (see Resolution addendum). Fixed; second attempt recorded.
+- Guard: IAM simulation `cli-user` → `explicitDeny` (DeleteObject, DeleteObjectVersion); break-glass →
+  `allowed`. Live probe → `AccessDenied`.
+- After: all owner-scoped tables 0 for the sub; SDK `ListObjectVersions` 0 versions / 0 delete
+  markers on all three prefixes; `cognito-idp list-users --filter 'sub = "<sub>"'` → `[]`;
+  confirmation "What could not be deleted: Nothing." with the PITR 35-day statement.
+- **Owner untouched:** all eleven tables' item counts and the bucket's 1,436 objects identical before
+  the seed and after the deletion.
+
+Full record: `docs/capabilities/16-rebuild-drill.md` → *Account deletion, executed*.
 
 ## Resolution
 
@@ -202,3 +214,15 @@ orchestrator's, after deploy: criteria 4–6 stay open until it has run and
 - The read-only preflight was smoke-run against live AWS with a nonexistent uid and an answer of
   `nope`. Every table and index query resolved, the guard simulation returned
   `explicitDeny`/`allowed`, and the run exited 3 with "Nothing was changed."
+
+### Addendum — the live run (orchestrator, 2026-10-20)
+
+- **The S3 probe was wrong, and the live run is what caught it** (the agent had flagged exactly
+  this as an open question). A made-up `VersionId` fails S3's format check with `InvalidArgument`
+  before the bucket policy is evaluated, so the probe aborted the first run, before any mutation.
+  `probeArchiveGuard` in `tools/account-deletion/deletion.ts` now sends `VersionId: "null"`, the one
+  id S3 accepts without having issued it; on a nonexistent key it would delete nothing and write no
+  marker even if permitted. It returned `AccessDenied`. The unit tests stub S3, so they could not see
+  this; they still pass (17).
+- Owner gate: `--delete-owner` added at the operator's request (D-403).
+- Decisions recorded as D-400–D-404; ticket `0300` filed for the PITR policy.

@@ -87,18 +87,20 @@ parallel fold is a silently wrong map.
 
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Smoke test, agent, 2026-10-20, laptop, `AWS_PROFILE=devault`**, against `main` at `c446905`
+(Amplify build 421 green). No perceptual check: this ticket has no UI, and the drill only lists and
+reads S3 (D-229).
 
-From the laptop, run the enumerate phase against the live bucket with `--dry-run` and read the
-printed object count against `aws s3 ls --summarize`. They must match exactly. In the desktop browser,
-nothing changes — this ticket has no UI and must have no effect on the running app; confirm the
-map on `/` is unchanged after the run.
+- `npm run drill -- --phase=enumerate --uid=<owner> --expect-objects=123 --dry-run` → exit 0,
+  `refused: false`, all four preconditions ok (123 objects expected 123; rules v1–v3 in git;
+  adapters `manual`, `strava` registered; newest snapshot `2026-10-18T13:23:30.035Z-269.json`
+  downloaded). `aws s3 ls … raw/<owner>/ --recursive --summarize` → Total Objects: 123. **Match.**
+- `--phase=normalize --dry-run` → exit 0: 118 payloads, 5 kind-override objects (all on one
+  activity, so `kindOverridesApplied` 1), 0 duplicate pointers, 0 unrecognised keys, 2 superseded
+  objects (D-396), **116 activities, 0 normalize failures**. Live `Activity` table scan → 116. **Match.**
+- Step 0: generation 269, cellCount 5,211 recorded as the 0103 verification target.
+- The map is unaffected by construction: nothing in the drill writes, and the owner's table and
+  bucket counts were identical across the session (recorded in `16-rebuild-drill.md` under `0106`).
 
 ## Resolution
 

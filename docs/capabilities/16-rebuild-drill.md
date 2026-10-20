@@ -22,24 +22,50 @@ The runbook is [`../runbooks/account-deletion.md`](../runbooks/account-deletion.
 `tools/account-deletion/delete-account.ts`. Gate item **A-5** of D-123 Trigger A (`08` §2.4) needs it
 executed once against a throwaway account with genuinely ingested data. That execution:
 
-_PENDING — filled in by the orchestrator after deploy._
+Executed 2026-10-20 by the orchestrator (wave 16.1), from the laptop, `AWS_PROFILE=devault`.
 
-- Throwaway account created / seeded / deleted: _timestamps_ (Trigger A open for _N_ minutes)
-- Seed: `tools/account-deletion/seed-throwaway.ts`, receipt reached `DONE` at _time_
-- Archive guard (preflight): _simulation decisions_, probe: _result_
+- Throwaway account `drill-0106@example.invalid`, sub `f4183488-a0a1-702e-5354-3f957fe2e8f6`:
+  created 18:04:29Z, seeded 18:04:41Z, deleted by the run 18:05:31Z → 18:05:38Z. **Trigger A was
+  open for about 70 seconds** and is closed: the account no longer exists.
+- Seed: `tools/account-deletion/seed-throwaway.ts` archived the synthetic `run-continuous.json`
+  (Point Nemo) under `raw/<sub>/strava/18736594040/` and enqueued one job; the real
+  `process-activity` worker took the receipt to `DONE` within seconds.
+- Archive guard (preflight, IAM simulation against the live bucket policy): `cli-user` →
+  `explicitDeny` for `s3:DeleteObject` and `s3:DeleteObjectVersion`; `LostSolesArchiveDeletion` →
+  `allowed` for both. Live probe: `AccessDenied` for the default credentials.
+  - **The first attempt aborted with zero side effects**: the probe's made-up `VersionId` got
+    `InvalidArgument`, because S3 checks the id's format before authorisation. The probe now uses
+    the literal `"null"` version id, which S3 accepts; the second attempt is the one recorded here.
+- Upstream: `strava no-connection` (no `SourceAccount` row — recorded no-op, D-348).
 
 | Table | Before | After |
 |---|---|---|
-| _paste from the confirmation_ | | |
+| SourceAccount | 0 | 0 |
+| ExploredCell | 10 | 0 |
+| Activity | 1 | 0 |
+| XpLedgerEntry | 3 | 0 |
+| SkillState | 3 | 0 |
+| Landmark | 0 | 0 |
+| Profile | 1 | 0 |
+| IngestReceipt | 1 | 0 |
+| OAuthState | 0 | 0 |
 
 | S3 prefix (current / noncurrent / delete markers) | Before | After |
 |---|---|---|
-| _paste from the confirmation_ | | |
+| `raw/<sub>/` | 1 / 0 / 0 | 0 / 0 / 0 |
+| `users/<sub>/` | 9 / 0 / 0 | 0 / 0 / 0 |
+| `snapshots/skillstate/<sub>/` | 1 / 0 / 0 | 0 / 0 / 0 |
 
-- `list-object-versions --prefix raw/<uid>/` afterwards (SDK `ListObjectVersions`; the CLI command is
-  broken in this environment): _0 versions, 0 delete markers_
-- Cognito user gone from the pool: _yes/no_
-- Owner's counts unchanged (T6 items, `raw/<owner>/` objects): _before → after_
+- "What could not be deleted": **Nothing.** The confirmation states PITR's 35-day window for
+  `LostSolesExploredCell` (complete 2026-11-24T18:05:38Z) and lists the eight tables without PITR
+  (D-404, `0300`).
+- Independent check afterwards, SDK `ListObjectVersions` (the CLI command is broken in this
+  environment): `raw/<sub>/`, `users/<sub>/` and `snapshots/skillstate/<sub>/` each 0 versions,
+  0 delete markers.
+- Cognito user gone: `list-users --filter 'sub = "<sub>"'` returns `[]`.
+- Owner untouched: item counts of all eleven tables (ExploredCell 6,491, Activity 116,
+  XpLedgerEntry 368, IngestReceipt 123, …) and the bucket's total (1,436 objects) are identical
+  before the seed and after the deletion.
 
 ## Audit
 

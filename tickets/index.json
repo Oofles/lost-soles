@@ -2598,7 +2598,7 @@
     "path": "tickets/open/0106-account-deletion-runbook-executed.md",
     "ready": true,
     "acceptance": {
-      "checked": 5,
+      "checked": 8,
       "total": 8
     }
   },
