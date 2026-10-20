@@ -4,7 +4,7 @@ slug: map-controls-and-run-inspection
 title: Map controls, gestures, and inspecting a past run over the fog
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [98, 90]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-19T20:41:49Z
+closed: 2026-10-20T12:46:49Z
 ---
 
 ## Description
