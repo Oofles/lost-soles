@@ -92,6 +92,15 @@ that promise permanently, because after cutover the old table is what gets delet
 The `fogAlgoVersion` bump path is this ticket's steps 4, 5 and 7 only — no `normalize()`, no XP
 replay. Building the drill properly means that path is already built and already exercised.
 
+- **2026-10-20, from `0102` (orchestrator, wave 16.1):** build on `runDrillFrontHalf()` in
+  `src/pipeline/rebuild-drill.ts`, which returns `{summary, sorted: DrillEntry[], duplicatePointers}`.
+  Step 0 writes **no** snapshot (D-399). An activity with several payloads emits only the newest, and
+  step 8 check 2 reconciles against `payloadCount − supersededObjects − duplicate pointers` (D-396).
+  **Open for this ticket:** D-263 duplicate losers are returned in `duplicatePointers` but are *not*
+  removed from `sorted` — decide whether to drop them before step 4 or subtract them at step 8
+  (there are none in the live bucket today). Verification target from the live run: generation
+  269, cellCount 5,211, 116 activities.
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**
