@@ -4,7 +4,7 @@ slug: beat-1-mode-crossfade
 title: Beat 1 cross-fades from adventure to the saved map mode over 300 ms
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [80, 98]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-13T15:53:19Z
 started: 2026-10-19T20:41:49Z
+closed: 2026-10-20T12:46:49Z
 ---
 
 ## Description
