@@ -5587,3 +5587,41 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   runs span states, so the whole territory never fits above the z10 floor, and the floor wins
   (§4.4: below z10 the fog misrepresents what was explored). Jump-to reaches the other regions.
   Rejected: clamping a whole-territory fit at z10, and lifting the floor for fit only.
+- **D-389** **The per-cell lastRun sidecar is served by `GET /api/fog/lastrun/[gen]` and loaded
+  lazily, the first time atlas draws cold ground.** *(Operator, 2026-10-20, ticket `0100` Q1 = A.)*
+  06 §4.6's "no extra data" was wrong: ingest wrote `explored-lastrun-r11.<gen>.bin` but nothing
+  served it, and `0054` had left the fetch to this overlay. The route copies the blob route: uid
+  from the session only, generation parsed to a number before it reaches a key, gunzipped,
+  `private, max-age=31536000, immutable`, 404 for a signed-out caller, a bad generation or a missing
+  object. `useFogMask` fetches it once per set identity, for the account's own set at its current
+  generation only (never home's held view or `?fog=perf`); `LastRunDays` refuses a generation or
+  count mismatch. Cells a delta added mid-session are unknown and draw as recent (05 §7.2's
+  fallback). **Known gap:** ground re-run during a session keeps its old day until the next full
+  generation fetch. Rejected: a separate prerequisite ticket (costs a wave), and a shader fed by
+  nothing until delivery landed.
+- **D-390** **On coarse zoom buckets, the most recent child wins.** *(Operator, 2026-10-20, `0100`
+  Q2 = a.)* A coarse disc takes the max of its children's days and any unknown child makes it
+  unknown, so it is cold only if every explored child is. Bridges take the more recent endpoint;
+  the optimistic corridor is always unknown. Never shows freshly run ground as cold. Rejected: mean
+  age, and cold at the res-11 bucket only.
+- **D-391** **The mask's alpha holds warmth; cold ground is its own pass over a copy of the frame.**
+  *(Agent, 2026-10-20, `0100`.)* Alpha was a constant 1 nothing read; it is now cleared to 0 and
+  holds `1 − age/366 d` under the existing `MAX` blend, so overlapping discs take the most recent.
+  A saturation shift mixes the ground's own channels, which no blend function can, so the layer
+  copies the frame under the fog (`copyTexSubImage2D`) and draws the finished colour, discarding
+  untouched pixels. It runs only when the palette's cold weight is above 0 and some uploaded disc is
+  past month 4; adventure never copies or draws. The clip reads the warped coverage (D-372); the
+  40 px feather reuses D-379's ring taps, each weighted by its own coverage. Saturation is shifted
+  in CIELAB (D-371): a\*/b\* scaled by `1 − 0.18k`, L\* kept, then the multiply by `#7E93AD` at
+  `0.18k`. The colour is a shader constant a test holds equal to `--cold-wash` in `tokens.css`, not
+  resolved at runtime *(operator, same day)*. Real-GPU cost is `0059`'s gate.
+- **D-392** **The cold ramp is `0.18·(1 − exp(−((m−4)/τ)²))` for m > 4, τ ≈ 2.221 months, a month
+  being 183/6 days.** *(Agent, 2026-10-20, `0100`.)* The ticket's chart fixed only three points; this
+  curve passes through them exactly (0 at month 4, 0.10 at 6, asymptote 0.18) and gives 0.033 at 5,
+  0.179 at 9, 0.18 at 24. No step, finite slope everywhere. Display age is `now − lastRunDay`;
+  display, not scoring.
+- **D-393** **Atlas street names over cold ground at 0.92× stock contrast satisfy `0100`'s label
+  criterion.** *(Operator, 2026-10-20, `0100`.)* Labels sit above the wash, so no glyph or halo is
+  darkened; by D-384's method the ring past the halo makes it 0.92× (1.00× over plain revealed
+  ground, 0.73× over fog). The harness judges "beats the fog's own". A wash that reads poorly is a
+  value change to `--cold-wash` in its own ticket, never a reason to lift the wash in adventure.

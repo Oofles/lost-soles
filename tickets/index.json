@@ -2455,8 +2455,8 @@
     "path": "tickets/open/0100-cold-territory-atlas-only.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 7
+      "checked": 10,
+      "total": 10
     }
   },
   {
@@ -6837,8 +6837,48 @@
     "path": "tickets/open/0296-drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 4
+    }
+  },
+  {
+    "id": 297,
+    "slug": "cold-territory-at-coarse-zooms",
+    "title": "Show cold territory at coarse zooms",
+    "type": "design",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-20T13:32:52Z",
+    "path": "tickets/open/0297-cold-territory-at-coarse-zooms.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 298,
+    "slug": "real-gpu-cost-of-the-cold-pass",
+    "title": "Real-GPU cost of the cold pass and its frame copy",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-20T13:32:55Z",
+    "path": "tickets/open/0298-real-gpu-cost-of-the-cold-pass.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]
