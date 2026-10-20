@@ -62,6 +62,8 @@ Last updated: 2026-10-16
   "adventure" (full atmosphere, for admiring the map). A toggle.
 - **D-053** Research independently converged on a **parchment basemap with dark fog** rather than
   dark-on-dark, because dark basemap + dark fog destroys reveal contrast. Consistent with D-051.
+  → **The parchment ground is superseded by D-373 (2026-10-19):** the basemap paints stock `light`
+  colours. The refusal of a *dark* basemap stands.
 
 ## Workout logging  (Round 2)
 
@@ -334,6 +336,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - Adventure mode stays pure known/unknown for atmosphere.
   - Atlas mode renders explored ground past the 6-month cooldown differently (cooler/dimmer/
     faintly misted) so rediscovery-eligible ground is visible when planning.
+  → **Onset refined by D-392 (2026-10-20):** the wash ramps in after month 4, so ground shows
+  before the 6-month line. There is no toggle (D-395).
   - Rationale: the information is only useful while deciding where to run, so it earns its place
     only in the planning view. Avoids a third visual state competing with the reveal edge.
 
@@ -408,6 +412,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   edge — frontier = warm luminance, cold ground = cool desaturation — and the cold wash is clipped
   two cell-widths *inside* the coverage mask so the two can never touch. This is how D-050
   atmosphere and D-051 legibility are both satisfied. Continuous from month 5.
+  → **"From month 5" refined by D-392 (2026-10-20):** exactly 0 up to month 4, 0.033 at month 5,
+  0.10 at month 6. It is first *visible* around month 5; the curve starts at 4.
 - **D-148** Gold leaf is a FILL and a RULE, never body text (2.1:1 on parchment). Gold type only
   at >=24sp or on navy. All floating chrome is OPAQUE — translucent chrome is illegible against a
   surface that swings from #F5EDD9 to #0B1020 within one screen.
@@ -5625,3 +5631,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   darkened; by D-384's method the ring past the halo makes it 0.92× (1.00× over plain revealed
   ground, 0.73× over fog). The harness judges "beats the fog's own". A wash that reads poorly is a
   value change to `--cold-wash` in its own ticket, never a reason to lift the wash in adventure.
+- **D-394** **Atlas has no cold-territory coach mark.** *(Operator, 2026-10-20, capability 15's
+  audit.)* 06 §4.6 specified a 6 s first-open legend with three swatches (explored /
+  rediscoverable / unexplored). It was never ticketed or built. The operator judged the deployed
+  wash readable unaided (`0100`'s validation), and a one-user app has no newcomer to teach. 06 §4.6
+  is amended. If the wash ever stops reading, the fix is the wash's value (D-393), not a legend.
+- **D-395** **Cold ground is always on in atlas; there is no toggle, and `Profile.showColdTerritory`
+  is dropped.** *(Operator, 2026-10-20, capability 15's audit.)* D-133 makes cold ground a property
+  of atlas, and `0100` shipped it that way (`coldWash` is 1 in atlas and 0 in adventure). 05 §8.5's
+  "opt-in overlay" and 02 T1's preference column are what D-133 replaced. The column is dead
+  in the same way `mapMode` was (`0296`), and `0299` removes it. Closes 05 §9.7.

@@ -122,5 +122,101 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+*Written at the capability audit, 2026-10-20.*
 
+**Thirteen tickets against five planned.** All five planned tickets shipped. The other eight came
+from two sources:
+
+- **The operator's verdicts on the deployed map (six).**
+  - `0210`: the rim could not be seen at any value in its range.
+  - `0211`: the edge read as disc outlines.
+  - `0284`: the basemap covered only Florida.
+  - `0285`: a jump-to control.
+  - `0254`: beat 1 hands back to the saved mode.
+  - `0296`: the dead `mapMode` column.
+- **Declined before work (two).** `0197` and `0294` were tuning tickets against the parchment
+  basemap, and D-373 retired their premise.
+
+Work ran 2026-10-18 to 2026-10-20. Three tickets ran serially (`0097`, `0211`, `0284`), then three
+waves of two or three tickets each: about six sessions, against the two or three that D-151's pace
+implies for five tickets. The overrun is almost entirely the perception loop. This capability is
+judged by eye, and three of its designs (the parchment ground, the rim, the edge) were only found
+wrong once they were deployed and looked at.
+
+**What the design got right, non-obviously.**
+- **05 §5.4's parity rule.** Neither mode may change what is revealed. Because it was made
+  bit-checkable (`0099`'s mask hash), `0100` could add a whole channel and a third pass to the mask
+  and prove in one harness run that coverage did not move.
+- **D-147's channel split.** The frontier is warm luminance and cold ground is cool desaturation,
+  clipped apart. The operator told them apart at a glance on the first deployed version, with no
+  tuning ticket.
+- **The modes differ only in uniforms (§5.2).** That made the 320 ms cross-fade a lerp, with no
+  second render path to keep in sync.
+
+**What it got wrong.**
+- **The parchment basemap (D-053).** The operator rejected it on sight: it read as a filter over
+  the map. The fog alone carries the atmosphere (D-373).
+- **The rim values.** The 0.08/0.30 rim was invisible at every value in its range (`0210`).
+- **The edge.** `u_noiseAmp` alone cannot make a ragged edge; it needed a warp (`0211`, D-372).
+- **The cost of the cold wash.** "One uniform on the GPU" was wrong. A saturation shift needs a
+  frame copy (D-391).
+- **Two preferences nobody needed.** 02 T1 planned `mapMode` and `showColdTerritory` as Profile
+  columns. The mode is per-device localStorage and the wash is always on in atlas, so both columns
+  are dead (`0296`, `0299`).
+- **The coach mark.** 06 §4.6 specified one that a one-user app does not need (D-394).
+
+**§2 divergences.** Three readers re-read the 18 cited sections in parallel. As in `10`–`14`, most
+of the drift was decisions taken in the capability that had not reached every section they
+changed:
+- D-391's `RGBA8` mask and frame copy against 05 §4, §4.2, §5.1 and 06 §4.6.
+- D-392's month-4 onset against 06 §4.6, D-133 and D-147.
+- D-373's stock colours against 06 §3.2 and §4.6, and D-053.
+- `0210`'s rim against 06 §4.6 and the 09 roadmap row.
+- D-389's route against 08 §2.4 C-3 and 02 S-5.
+- 05 §1.1, §8.5 and §9.7, which still called cold territory an unsettled, opt-in proposal.
+
+The DESIGN pass in this audit amended all of them, with supersede markers on D-053, D-133 and
+D-147. Two findings were not covered by any decision:
+- **design-was-wrong:** the coach mark was never built and is dropped (D-394, operator).
+- **code-was-wrong:** `Profile.showColdTerritory` is a dead column (D-395, operator). Filed as
+  `0299`.
+
+**§3.** Every shipped ticket has the operator's dated desktop report, and the infrastructure
+tickets also have a smoke test. `0197` and `0294` are honestly *none*, because they were declined.
+
+**§4 and §5.** No cell re-fogged (5211 → 5211) and no XP fell. The project's own AWS spend for
+October is about $1.90 to date, $1.23 of it the planned KMS key. Amplify's $15.87 is account-wide,
+across ten apps, and outside this project (D-361). There is no NAT gateway.
+
+**What the next capability should do differently.** When a ticket records a decision that changes
+a design claim, grep every doc for the claim's distinctive term (`R8`, `parchment`, `opt-in`,
+`one uniform`), not only the sections the ticket cites. `0100` amended the two sections it cited
+and missed six others that said the opposite. This is a habit, not tooling: a close-time
+doc-drift check was declined (the audit's DESIGN pass is that check), and this audit shows the
+pass still catches the misses.
+
+## Audit — 2026-10-20 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 12 passed, 0 failed, 0 n/a. See AUDIT.md §1, §4, §5.
+
+**Filed by this audit, and therefore excluded from `capability-tickets-closed`:** `0299` Drop the dead Profile.showColdTerritory column. This capability passed with work outstanding — its own code-was-wrong findings, filed as AUDIT.md §2 directs and listed under Divergences below, not forgotten.
+
+**Divergences (2 of a budget of 3):**
+
+1. **design-was-wrong** — `D-394` — 06 §4.6's first-open atlas coach mark was never built; dropped — the wash reads unaided
+2. **code-was-wrong** — `0299` — Profile.showColdTerritory is a dead column; atlas always paints the wash (D-395)
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 18/30 invariants cited by a test name, none lost. Ratchet only: the remaining 12 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts, app/skills/vigil-peer.test.tsx
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **pass** — 1 baselined user(s): cells 5211 → 5211, gen 269 → 269 — none lower (docs/capabilities/regression-baseline.json)
+- `xp-not-lower` — **pass** — 1 baselined user(s), 10 skill(s): cartography 26678/L27, constitution 11077/L20, might 80/L4, roving 1017/L9, vigil 660/L8, wayfaring 31482/L29 — none lower (docs/capabilities/regression-baseline.json)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 13 closed; 1 filed by this audit (0299)
+
+<!-- audit-record {"capability":"15-two-map-modes-and-cold-territory","audited":"2026-10-20T17:03:12Z","verdict":"pass","mechanical":{"pass":12,"fail":0,"na":0},"divergences":2,"filed":["0299"]} -->

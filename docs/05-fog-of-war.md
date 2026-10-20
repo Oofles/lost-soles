@@ -63,9 +63,12 @@ Restated as rules:
 - **Discovered is an event with a cooldown.** Running ground you last touched within 6 months
   scores **zero** discovery credit. Running ground you last touched more than 6 months ago
   re-arms it for **50%** credit. Genuinely never-seen ground scores **100%** (D-120).
-- **The user cannot see the cooldown on the map**, because seeing it would mean re-fogging, which
+- ~~**The user cannot see the cooldown on the map**, because seeing it would mean re-fogging, which
   D-120 forbids. If we want to surface it, it goes in a *separate, opt-in* overlay — see §8.5
-  and the open question in §9.7.
+  and the open question in §9.7.~~ **Atlas shows cold ground; adventure never does** (D-133,
+  D-147, built in `0100`). It is a cool desaturating wash on *revealed* ground, clipped inside the
+  fog edge, and never a re-fog. It is always on in atlas, with no toggle (D-395). See §8.5.
+  *(Amended by capability 15's audit, 2026-10-20.)*
 
 ### 1.2 Worked example
 
@@ -719,9 +722,9 @@ Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation.
 | Decision | Choice |
 |---|---|
 | Map library | **MapLibre GL JS 6.x** (`maplibre-gl@6.6.0`, BSD-3, ESM-only). Plain — no deck.gl. |
-| Fog technique | **Custom WebGL2 layer**, two passes: coverage-mask FBO → noisy composite |
+| Fog technique | **Custom WebGL2 layer**, two passes: coverage-mask FBO → noisy composite. Atlas adds a third, conditional pass for cold ground: a copy of the frame, then a wash drawn over it (D-391, §8.5) |
 | Mask primitive | **Instanced soft radial discs**, unioned with `gl.blendEquation(gl.MAX)` |
-| Mask target | Half-resolution, single-channel `R8` framebuffer |
+| Mask target | Half-resolution ~~single-channel `R8`~~ **`RGBA8`** framebuffer: R holds coverage, G/B the beat-1 blooms (`0080`), A the warmth of the most recent disc (D-391) |
 | Composite | One full-screen triangle, `smoothstep` threshold perturbed by animated 3-octave fBm, plus a band of warm "lit mist" on the fog side of the boundary (`0210`) |
 | Basemap | Protomaps PMTiles on S3 + CloudFront; `@protomaps/basemaps` `light` flavour, forked for label density and layer order; colours stock (D-373, superseding the parchment of R4 §5.1, §6.2) |
 | DPR | Capped at 2 (`pixelRatio: Math.min(devicePixelRatio, 2)`) |
@@ -791,8 +794,8 @@ ground, at high zoom only — kept strictly out of the mask (R4 §4.4).
 
 ### 4.2 Pass 1 — `prerender`: the coverage mask
 
-MapLibre calls `prerender` during its offscreen pass. We bind our own half-resolution `R8`
-framebuffer, clear it to 0, and draw the visible explored cells as one instanced draw call.
+MapLibre calls `prerender` during its offscreen pass. We bind our own half-resolution ~~`R8`~~
+`RGBA8` framebuffer (see the §4 table for what each channel holds), clear it to 0, and draw the visible explored cells as one instanced draw call.
 
 ```glsl
 // ---------- MASK PASS: vertex ----------
@@ -915,7 +918,7 @@ gl.blendEquation(gl.FUNC_ADD);   // restore
 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 ```
 
-The FBO is allocated at **0.5× the drawing buffer**, `R8`, `LINEAR` filtering, `CLAMP_TO_EDGE`.
+The FBO is allocated at **0.5× the drawing buffer**, ~~`R8`~~ `RGBA8`, `LINEAR` filtering, `CLAMP_TO_EDGE`.
 Half resolution is both cheaper and *better*: the bilinear upsample in the composite pass
 contributes a free extra feather (R4 §7.2).
 
@@ -943,7 +946,7 @@ uniform vec3  u_fogEdge;     // e.g. vec3(0.22,  0.24,  0.30)   lit mist
 uniform vec3  u_rimGlow;     // vec3(1.00, 0.78, 0.40)  warm lamplight (0210; was parchment 0.85,0.70,0.42)
 uniform float u_maxOpacity;  // 0.94 — never fully 1.0; a hint of the world
                              // showing through reads as mist, not as a hole.
-uniform float u_noiseAmp;    // 0.30 adventure / 0.10 atlas   (§5)
+uniform float u_noiseAmp;    // 0.25 adventure / 0.10 atlas   (§5.2; 0.30 is the ceiling)
 uniform float u_rimAmt;      // 0.90 both modes, range 0..1   (§5, 0210)
 uniform float u_rimBand;     // the lit band's reach on the ground, in noise cells (0210)
 
@@ -1274,7 +1277,9 @@ The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-ligh
 navy) is a dark basemap. Do not. With a dark basemap, dark fog has almost no contrast against
 unexplored ground and **the reveal does not read at all**. The only fix would be to *brighten*
 explored ground instead, which means reading back the framebuffer — expensive, awkward, and it
-throws away the additive-only shader in §4.3.
+throws away the additive-only shader in §4.3. *(The fog itself still never reads back. Atlas's
+cold-ground pass does copy the frame, because a saturation shift cannot be made with a blend
+function. It runs only in atlas, only over cold ground, and is separate from the fog (D-391).)*
 
 Warm parchment + near-black-blue fog gives us maximum known/unknown contrast on a phone screen,
 the correct emotional metaphor (an old map being uncovered), a purely additive fog shader with no
@@ -1310,6 +1315,7 @@ the mask at 0.5×. The per-mode uniforms live in one constant map, `FOG_MODES` i
 | Decorative hex grid | Optional, off by default; if on, at z≥15 only | Off |
 | "Unexplored zones near me" overlay (§8.4) | **Available** — this is its home | Hidden |
 | Route polyline | Thin, precise, above everything | Glow + core (§4.4) |
+| Cold ground (`coldWash`, §8.5) | **1**: a cool wash on ground not run for more than 4 months (D-147, D-392) | **0**: the pass is skipped, so adventure frames are byte-identical to the frames before `0100` |
 | Reduced-motion / battery saver | Already static | Falls back to atlas's static fog, keeps adventure colours |
 
 ### 5.3 How this satisfies D-051
@@ -1668,7 +1674,8 @@ offset  size  field
 
 `lastRunAt` is deliberately a *separate* object. It roughly doubles the payload (~2 bytes/cell)
 and **the fog itself does not need it** — revealed is permanent (D-020), so rendering depends on
-presence alone. Only the optional "stale territory" surface (§8.5) needs it. Fetch it on demand,
+presence alone. Only atlas's cold ground (§8.5) needs it, served by `GET /api/fog/lastrun/[gen]`
+(D-389). Fetch it on demand,
 cache it separately, and never block first paint on it.
 
 **It carries a 20-byte header, and this paragraph originally said it did not** (ticket `0049`,
@@ -1950,7 +1957,13 @@ function cellNovelty(cell, exploredSet, lastRunAt, now) {
   loop-constrained arc-orienteering heuristic in a Lambda (R3 §4c). It keeps this function's
   signature and its `cellNovelty` weighting.
 
-### 8.5 Optional: stale territory
+### 8.5 Cold territory, in atlas (was "Optional: stale territory"; built in `0100`)
+
+> **Settled and built** (capability 15's audit, 2026-10-20). D-133 puts it in atlas only.
+> D-147 makes it a **cool** desaturation, not the warm tint proposed below, and clips it two
+> cell-widths inside the coverage. D-391 is the pass, D-392 is the ramp (0 up to month 4, 0.10 at
+> month 6, asymptote 0.18), and D-389 is the lazy fetch. It is always on in atlas, with no opt-in
+> (D-395). The proposal below is kept as history.
 
 Ground whose `lastRunAt` is approaching or past 6 months is *re-armed for discovery* and the user
 has no way to know. An opt-in atlas overlay tinting those cells warm ("neglected ground — worth
@@ -2035,7 +2048,7 @@ implementation**, before the rest of the layer is built on the assumption.
 > ANGLE `MAX`-into-`R8` risk is still unverified and is **accepted into ordinary use**: its failure
 > is loud and local, and the fix is a mask-pass change, not a data-model one.
 
-### 9.7 Surfacing the cooldown without breaking D-020 — **NEEDS DECISION**
+### 9.7 Surfacing the cooldown without breaking D-020 — **RESOLVED** (D-133, D-147, D-395; §8.5)
 The 6-month re-arm is invisible on the map by design. §8.5 proposes an opt-in atlas overlay. The
 risk is that any visual treatment of "stale" ground reads as the map taking something back, which
 is exactly what D-020 promises never happens. **Ask the user whether they want to see it at all.**

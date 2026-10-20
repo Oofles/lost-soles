@@ -465,7 +465,7 @@ toast.
 
   | Ground | Visual | Duration |
   |---|---|---|
-  | **New** (never run) | Gold-white bloom at the reveal edge, `--gold-300 #E8C87A` (§8.1's value; this row said `#E3C766` until D-295) → fades to bare parchment over 600 ms | The loud one |
+  | **New** (never run) | Gold-white bloom at the reveal edge, `--gold-300 #E8C87A` (§8.1's value; this row said `#E3C766` until D-295) → fades to bare ~~parchment~~ ground (D-373) over 600 ms | The loud one |
   | **Remembered** (>6mo, re-armed, 50% credit — D-120) | Cool flush, `--frost-400 #7FA8C9`, dimmer and slower, 900 ms, like breath clearing off glass | The quiet, nostalgic one |
   | **Familiar** (<6mo) | No bloom. The route ink simply lays down over already-clear ground | Silent |
 
@@ -918,10 +918,10 @@ perceptual channel.
 
 | | The frontier | Cold ground |
 |---|---|---|
-| Channel | **Luminance + warm glow** — a bright warm rim against dark fog | **Temperature + saturation** — a cool, desaturating wash on lit parchment |
+| Channel | **Luminance + warm glow** — a bright warm rim against dark fog | **Temperature + saturation** — a cool, desaturating wash on lit ~~parchment~~ ground (stock `light`, D-373) |
 | Where it lives | The boundary between explored and unexplored | The interior of explored territory only |
-| Edge | A hairline, sharp by design in atlas | Soft, 40 px feather, no defined edge at all |
-| Can they touch? | **No.** The wash is clipped 2 cell-widths inside the coverage mask, so there is always a band of plain warm parchment between cold ground and the frontier |
+| Edge | ~~A hairline, sharp by design in atlas~~ The same lit-mist rim and warped edge in both modes (§4.3; `0210`, D-372) | Soft, 40 px feather, no defined edge at all |
+| Can they touch? | **No.** The wash is clipped 2 cell-widths inside the coverage mask, so there is always a band of plain ~~warm parchment~~ revealed ground between cold ground and the frontier |
 
 That clipping rule is the whole trick, and it is a one-line change to the mask sample: cold
 opacity is multiplied by `smoothstep(0.0, 0.25, coverage - 0.75)`. Cold ground can never render
@@ -942,10 +942,10 @@ ramps with `now - lastRunAt` (D-120 gives every cell that timestamp):
              4        5        6        9
 ```
 
-The ramp starting at month 5 is the useful part: **you can see ground coming back into season
+The ramp, which is visible from month 5 (it starts after month 4: 0.033 at month 5, 0.10 at month 6, D-392), is the useful part: **you can see ground coming back into season
 before it arrives**, which is exactly the information that changes a Saturday's route, and it is
 the visual twin of the chronicle line *"Ashgrove Lane comes back into season in nineteen days"*
-(§3.5). It costs one uniform on the GPU and one lazy fetch: the per-cell `lastRunDay` sidecar
+(§3.5). ~~It costs one uniform on the GPU and one lazy fetch:~~ It costs one lazy fetch, a sixth float per disc instance, and in atlas only a frame copy plus one feathered pass (D-391; a saturation shift cannot be made with a blend function): the per-cell `lastRunDay` sidecar
 (`explored-lastrun-r11.<gen>.bin`, 05 §7.2) was not delivered to the browser before ticket `0100`,
 which added `GET /api/fog/lastrun/<gen>` and fetches it the first time atlas is shown (D-389).
 The mask carries it as warmth in its alpha channel; a coarse disc takes its most recent child's
@@ -964,10 +964,12 @@ this specific cell* and invite tapping, and there is nothing to tap (§4.4).
 - Never darker than the fog. If cold ground ever reads as *less* explored than unexplored ground,
   the whole metaphor inverts.
 
-**Discoverability, exactly once.** The first time atlas mode is opened, a small coach mark sits
+~~**Discoverability, exactly once.** The first time atlas mode is opened, a small coach mark sits
 above the plinth for 6 seconds with three swatches — `explored` / `rediscoverable` / `unexplored`
 — and a single line of text. It is dismissible, it never returns, and it is not stored as
-"onboarding progress." One flag in localStorage. (D-013: a legend you must re-dismiss is upkeep.)
+"onboarding progress." One flag in localStorage. (D-013: a legend you must re-dismiss is upkeep.)~~
+**No coach mark (D-394).** It was never built. The operator judged the wash readable without a
+legend on the deployed `0100` (2026-10-20). The app has one user, who knows the map.
 
 ### 4.7 The two modes, drawn
 

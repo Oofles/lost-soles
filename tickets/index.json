@@ -6882,5 +6882,25 @@
       "checked": 0,
       "total": 2
     }
+  },
+  {
+    "id": 299,
+    "slug": "drop-the-dead-profile-showcoldterritory-column",
+    "title": "Drop the dead Profile.showColdTerritory column",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "15-two-map-modes-and-cold-territory",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-20T16:12:39Z",
+    "path": "tickets/open/0299-drop-the-dead-profile-showcoldterritory-column.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
   }
 ]

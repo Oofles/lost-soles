@@ -184,7 +184,7 @@ the atomic ingest commit in 01 §4 step 15 works unchanged. Nothing is lost.
 
 | # | Table | Managed by | In AppSync? | Items @ 5 y | Purpose |
 |---|---|---|---|---|---|
-| T1 | `Profile` | `defineData` | yes, `allow.owner()` | ≤ 6 | identity, display prefs, map mode, generation mirror |
+| T1 | `Profile` | `defineData` | yes, `allow.owner()` | ≤ 6 | identity, display prefs, generation mirror *(map mode is per-device localStorage, 05 §5.3; `mapMode` dropped by `0296`. `showColdTerritory` is dead and goes in `0299`, D-395)* |
 | T2 | `SkillState` | `defineData` | yes, owner-read only | ~36–60 | materialised per-skill XP + level + D-135 floors |
 | T3 | `Activity` | `defineData` | yes, owner | 2,000–5,000 | the fact row; canonical shape from the contract |
 | T4 | `XpLedgerEntry` | `defineData` | yes, owner-read only | 9,000–25,000 | append-only XP events with rule version |
@@ -1430,7 +1430,7 @@ them entirely:
 | **S-2** | Viewport render, pan, zoom | in-memory `BigUint64Array` + `RES_PARENT` (res-7) buckets (05 §6.1) | **zero** |
 | **S-3** | "% explored" of a region | in-memory `Set.has()` over `region.cellsRes10` (05 §8.1) | **zero**; ~13k lookups, milliseconds |
 | **S-4** | "Unexplored near me" | in-memory `frontier()` (05 §8.4) | **zero** |
-| **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy GET of `explored-lastrun-r11.<gen>.bin` | one GET, on demand only |
+| **S-5** | Cold-territory overlay, atlas mode only (D-133) | lazy `GET /api/fog/lastrun/<gen>`, which serves `explored-lastrun-r11.<gen>.bin` through the compute role (D-228, D-389) | one GET, the first time atlas draws cold ground |
 | **S-6** | Mid-session run landing | AppSync subscription (AP-14) + one `deltas/<toGen>.bin` GET | ~1 KB (05 §7.4) |
 | **S-7** | Route geometry on activity detail | `users/<uid>/traces/<activityId>.segments.json.gz` | one GET, `no-cache` |
 | **S-8** | The permanent trace layer (06 §3.5 rule 2) | `GET /api/runs/web` → `users/<uid>/traces/web.json.gz`, every traced run's simplified geometry keyed by activity id, upserted by the worker under `IfMatch` (**D-299**, ticket `0085`) | one GET per explored generation, `no-store, private` |
@@ -1460,7 +1460,7 @@ activity-detail read, and the permanent web of every past route, arrive with cap
 | Screen | Patterns | Total |
 |---|---|---|
 | **Dashboard load** | AP-1 (profile, Total Level) + AP-2 (six skill bars) + AP-3 `Limit=5` (recent activity) + AP-8 (registry, cached) + S-1 (map) | **~2.5 RRU + 1 conditional S3 GET.** Three independent small reads — the case §2.1 made against single-table design. |
-| **Map load** | S-1 only, plus S-5 if the atlas cold overlay is on | **zero DynamoDB.** The client already holds the set. |
+| **Map load** | S-1 only, plus S-5 once atlas is shown (always on in atlas, D-395) | **zero DynamoDB.** The client already holds the set. |
 | **Activity list** (paging) | AP-3 per page of 20 | ~3.5 RRU/page |
 | **Activity detail** | AP-4 + AP-7 (itemisation) + S-7 (polyline) | **1 RRU + 1 S3 GET** |
 | **Skill panel** | AP-2 + AP-8; AP-9 only when a skill is expanded | 1 RRU, +13 for a history chart |

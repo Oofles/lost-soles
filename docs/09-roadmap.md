@@ -448,7 +448,7 @@ stops querying failed receipts, and `0289` the account-wide Budget removed (D-36
 | # | Ticket | Description |
 |---|---|---|
 | 1 | ▸ **Fork `@protomaps/basemaps` `light` to parchment** | D-050/D-053. Parchment basemap with dark fog — never dark-on-dark, which destroys reveal contrast. *(D-373: shipped, then the colours reverted to stock `light`; the fork keeps the two variants' label density and layer order.)* |
-| 2 | ▸ **The atlas / adventure toggle** | D-052. `u_noiseAmp` 0.10/0.30, `u_rimAmt` 0.08/0.30, different label placement. |
+| 2 | ▸ **The atlas / adventure toggle** | D-052. `u_noiseAmp` 0.10/~~0.30~~ 0.25, `u_rimAmt` ~~0.08/0.30~~ 0.90 in both (`0210`), different label placement. *(Shipped values: 05 §5.2.)* |
 | 3 | ▸ **What the modes may NOT differ in** | `05-fog-of-war.md` §5.4 — same revealed set, same geometry. Atmosphere may never cost legibility (D-051). |
 | 4 | ▸ **Cold territory, atlas mode only** | D-133. Cool desaturation on a **different perceptual channel** from the warm-luminance frontier, clipped two cell-widths inside the coverage mask so the two can never touch (D-147). |
 | 5 | **Controls, gestures, and inspecting a past run over the fog** | `06-ui-ux.md` §4.4, §4.5. |
