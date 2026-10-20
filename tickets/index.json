@@ -2451,6 +2451,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-20T12:52:28Z",
     "path": "tickets/open/0100-cold-territory-atlas-only.md",
     "ready": true,
     "acceptance": {
@@ -6832,6 +6833,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-19T23:33:11Z",
+    "started": "2026-10-20T12:52:28Z",
     "path": "tickets/open/0296-drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e.md",
     "ready": true,
     "acceptance": {
