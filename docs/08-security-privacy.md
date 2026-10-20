@@ -300,7 +300,7 @@ unused at $0.40/secret/month (§9).
 | S1 | `STRAVA_CLIENT_ID` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | SSR compute role (callback, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` (D-362) | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
 | S2 | `STRAVA_CLIENT_SECRET` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | the same four principals as S1 (D-362). **Never reaches a browser** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
-| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/deauthorize`, then delete the row. Rotation is a *feature* here, not a chore |
+| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM, via `secret()` | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
@@ -785,19 +785,21 @@ not paperwork, it is the only way to know the S3 prefix delete actually works).
 
 In order, and the order matters:
 
-1. **Revoke upstream first.** `POST https://www.strava.com/oauth/deauthorize` with the user's
-   access token, so the third party stops being able to send us their data mid-deletion.
+1. **Revoke upstream first.** `POST https://www.strava.com/oauth/revoke` through the connector's
+   `revoke` (D-404); a user with no connection is a recorded no-op, so the third party stops being able to send us their data mid-deletion.
 2. **Delete the `SourceAccount` row** (S4 — tokens gone; §3).
 3. **Disable the Cognito user, sign it out globally, then delete it.** Disable first: it stops
    sessions immediately while the slower deletes run. `AdminUserGlobalSignOut` next, to kill
    outstanding refresh tokens (§5.3); it fails on a user that no longer exists, so delete comes
-   last.
+   last — after step 6, not inside step 3 (D-400), so a failed run can resume against the disabled
+   user.
 4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, `Trace`, and any
    `IngestReceipt` rows not yet TTL'd. *Amended by D-307 (`12` audit, 2026-10-15):* this list is
    every owner-scoped table, not just these four — `XpLedgerEntry`, `SkillState`, `Profile`, and
    **`Landmark`**, whose rows are coordinates near home (D-301). The writers hold `UpdateItem`
    only, so this delete is an operator action under an operator's credentials. Partition-key scoping (§5.5) is what makes this a query
-   rather than a scan, which is a second, quieter reason every model is owner-scoped.
+   rather than a scan, which is a second, quieter reason every model is owner-scoped — except
+   `ExploredCell` and `IngestReceipt`, found by a filtered scan (D-402).
 5. **Delete `raw/<uid>/` and the user's `entity('identity')` prefix — under the break-glass
    role** (§6.2). This is the one step that requires deliberately assuming a role, and that
    friction is intentional: it is the difference between a bug deleting the archive and a person
@@ -805,7 +807,9 @@ In order, and the order matters:
 6. **Purge versions.** Versioning is on (§6.2), so an object "deleted" in step 5 is a delete
    marker over live bytes. A deletion that leaves the previous versions in place is not a
    deletion. Enumerate and remove noncurrent versions for that prefix explicitly, and set a
-   lifecycle rule to abort incomplete multipart uploads while you are there.
+   lifecycle rule to abort incomplete multipart uploads while you are there — in the CDK stack,
+   never by the script, and never with an expiration action (D-401). Deleting the owner needs
+   `--delete-owner` as well as the typed uid (D-403).
 7. **Let the logs age out.** CloudWatch entries mentioning the user expire under the 30-day
    retention (§6.1). Do not hand-scrub log groups; the retention *is* the answer, and it is one
    of the reasons it is set.
@@ -813,7 +817,8 @@ In order, and the order matters:
    second category). If this ever runs for someone other than the owner, they get told it is
    done — the requester is a friend, not a ticket.
 
-**Backups:** there are none beyond S3 versioning and DynamoDB point-in-time recovery. If PITR is
+**Backups:** there are none beyond S3 versioning and DynamoDB point-in-time recovery, which is on
+for `ExploredCell` only (D-404, `0300`). Where PITR is
 enabled, note that it holds deleted rows for up to 35 days — so a deletion is *complete* at the
 end of the PITR window, not the moment the script finishes. Say that to the requester rather
 than overstating; and be aware that the same window is what would let a wrong-user deletion be

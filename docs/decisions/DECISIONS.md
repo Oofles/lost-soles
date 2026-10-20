@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-20
 
 ---
 
@@ -5641,3 +5641,60 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   of atlas, and `0100` shipped it that way (`coldWash` is 1 in atlas and 0 in adventure). 05 §8.5's
   "opt-in overlay" and 02 T1's preference column are what D-133 replaced. The column is dead
   in the same way `mapMode` was (`0296`), and `0299` removes it. Closes 05 §9.7.
+
+## Capability `16` — rebuild drill front half and account deletion  (2026-10-20, wave 16.1)
+
+- **D-396** **When an activity has more than one payload object under `raw/`, the drill verifies
+  all of them and emits only the newest.** *(Agent, 2026-10-20, `0102`.)* Two live activities have
+  two payloads each, from re-fetches that returned different bytes; §8.3 step 2 ("for each object")
+  and step 8 check 2 both assumed one object per activity. Every object is sha-checked and
+  normalized; the winner is the greatest `LastModified`, key as tie-break — `tools/replay`'s
+  existing rule. The winner is picked *before* normalizing, so a failing newest payload fails its
+  activity rather than silently falling back to older bytes. The losers are reported as
+  `supersededObjects`, and step 8 check 2 reconciles activity count against payloads minus
+  superseded objects minus known collisions. `02` §8.3 amended.
+- **D-397** **Precondition 1's "last known figure" is the operator's `--expect-objects=<n>`.**
+  *(Agent, 2026-10-20, `0102`.)* Nothing in the bucket records the figure. Given the flag, the
+  count must match exactly; without it the drill checks only that the count is non-zero, and its
+  precondition detail says so.
+- **D-398** **The drill rebuilds `ref` and `job` from the key and the listing alone.** *(Agent,
+  2026-10-20, `0102`; applies D-196.)* `ref.archivedAt` is the object's `LastModified` — the value
+  `archiveRaw`'s HEAD path already returns. `job.meta` is null, so `revision` is 1, as in
+  `tools/replay`. `job.ingestKey` is `drill:<key>` and `job.enqueuedAt` the archive instant; no
+  normalizer reads either. Every object passes through `assertNormalizeIsPure` inside the drill,
+  which also asserts the returned `activityId` equals the one the key implies.
+- **D-399** **Rebuild-drill step 0 writes no snapshot.** *(Operator, 2026-10-20, `0102`'s D-152
+  question.)* §8.3 step 0 said "write a fresh SkillState snapshot"; `0102`'s Notes said steps 0–3
+  write nothing. D-259 already writes one after every ingest, so the newest snapshot *is* the
+  waterline, and the drill writes into a parallel stack, never live SkillState. Step 0 reads
+  `manifest.json` and precondition 4 downloads the newest snapshot. `02` §8.3 amended.
+- **D-400** **Account deletion deletes the Cognito user last, after the data deletes.** *(Agent,
+  2026-10-20, `0106`.)* Disable and `AdminUserGlobalSignOut` stay at step 3; the delete moves after
+  step 6. This reconciles `02` §8.5 (delete listed last), `08` §6.4 ("delete comes last") and
+  `0106` (disable first "while the slower deletes run"), and keeps a failed run resumable, because a
+  disabled user still exists to resume against. `08` §6.4 amended.
+- **D-401** **The multipart-abort lifecycle rule lives in the CDK stack; the deletion script only
+  checks it. No lifecycle rule on the user-data bucket may ever carry an expiration action.**
+  *(Agent, 2026-10-20, `0106`.)* A script calling `PutBucketLifecycleConfiguration` would drift
+  from CloudFormation. Lifecycle actions are not evaluated against the bucket policy, so an
+  expiration rule would bypass the `raw/*` deny — the archive's only protection.
+  `amplify/raw-archive-immutability.test.ts` holds the configuration to exactly one rule,
+  `AbortIncompleteMultipartUploads` (7 days). The bucket had no lifecycle configuration at all
+  before this.
+- **D-402** **Deletion finds `ExploredCell` and `IngestReceipt` rows by scan, not query; the
+  break-glass role holds no list permission.** *(Agent, 2026-10-20, `0106`.)* Cells span many
+  `U#<uid>#C#…` and `#AGG#` partitions, and receipts have no per-user index; at today's sizes
+  (~6.5k and ~123 rows) a filtered scan cannot miss a row. Listing runs as the operator; only the
+  `raw/` deletes run as the assumed role. Amends `08` §6.4's "a query rather than a scan" for
+  these two tables.
+- **D-403** **Deleting the owner's account needs `--delete-owner` as well as the typed uid.**
+  *(Operator, 2026-10-20, `0106`.)* A uid in `OWNER_USER_IDS` without the flag is refused with zero
+  side effects. One wrong paste would otherwise erase the permanent map, which D-020 promises
+  never happens by accident.
+- **D-404** **PITR is on `ExploredCell` only; the docs said otherwise.** *(Agent finding,
+  2026-10-20, `0106`.)* `02` §8.1 listed `Activity`, `XpLedgerEntry` and `SkillState` as "PITR on"
+  and D-143's waterline argument leans on PITR's 35-day window; the deployed tables have it off on
+  all eight tables but T6. The docs are corrected to the truth; whether to turn it on is ticket
+  `0300`. The deletion confirmation reads PITR per table and states the 35-day caveat only where
+  it applies. Also: upstream revocation is `POST /oauth/revoke` (the connector chosen in `0089`),
+  not `/oauth/deauthorize`; `08` §3 and §6.4 amended.

@@ -2505,7 +2505,7 @@
     "path": "tickets/open/0102-rebuild-drill-enumerate-normalize-sort.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -2598,7 +2598,7 @@
     "path": "tickets/open/0106-account-deletion-runbook-executed.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 8
     }
   },
@@ -6903,6 +6903,26 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 300,
+    "slug": "enable-pitr-on-the-owner-scoped-tables-or-record-that-it-sta",
+    "title": "Enable PITR on the owner-scoped tables, or record that it stays off",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "16-rebuild-drill",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-20T17:50:34Z",
+    "path": "tickets/open/0300-enable-pitr-on-the-owner-scoped-tables-or-record-that-it-sta.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]

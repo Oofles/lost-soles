@@ -1885,7 +1885,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
 | `users/<uid>/cells/<activityId>.classes.json` | forever in practice, **purgeable** | derived; the run's own new/re-armed verdicts (§4.4, D-294). Step 6 rewrites it from the fold (D-307). |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
-| T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny; PITR on |
+| T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever | derived; tiny. PITR is **off** (D-404; `0300` decides) |
 | `Landmark` (place-bound milestones) | forever | derived from the ledger and the stored routes by `tools/landmarks/backfill-landmarks.ts` (D-301). Rebuilt in step 6; under a changed ruleset a rebuilt landmark may stand somewhere else (D-307). |
 | `explored-*.<gen>.bin`, `explored-agg.<gen>.json` | **keep current + 1 previous** | regenerable in <100 ms (§2.10). Older generations are garbage. |
 | `deltas/<toGen>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
@@ -1926,7 +1926,7 @@ empty. Replay must run against the rebuilt tables before ingest resumes on them.
 an empty T2 would write a low snapshot, and that snapshot would then be the newest one. §8.3
 already avoids this by rebuilding into a parallel stack. **The drill's step 6 reads
 the newest snapshot as its waterline.** With it, D-135 survives losing every table. Without it,
-D-135 is only as durable as DynamoDB PITR's 35-day window.
+D-135 is only as durable as DynamoDB PITR's 35-day window — and PITR is currently off on T2 (D-404, `0300`), so today it is only as durable as the newest snapshot.
 
 This is recorded as an awkwardness rather than hidden: **D-135 is the one decision in this document
 that forces a fact to be stored that is not derivable from the system of record.** (`Landmark` is
@@ -1941,7 +1941,8 @@ Rebuild the entire application state from `raw/` alone. Concrete, ordered, execu
 **Preconditions (verify all four before starting):**
 
 1. `aws s3 ls s3://lost-soles-storage/raw/<uid>/ --recursive --summarize` returns a non-zero
-   object count matching the last known figure (~2,000–5,000 at five years).
+   object count matching the last known figure (~2,000–5,000 at five years), passed as
+   `--expect-objects` (D-397).
 2. `rules/xp-rules-v*.yaml` present in git at the target commit.
 3. The adapter code that can `normalize()` every `<source>` present in the raw prefix is
    deployed — **including adapters for sources no longer in use.** An adapter is deleted only
@@ -1949,7 +1950,8 @@ Rebuild the entire application state from `raw/` alone. Concrete, ordered, execu
    boundary, and the reason it is worth paying.)*
 4. The newest `snapshots/skillstate/<uid>/*.json` is downloaded (§8.2).
 
-**Step 0 — snapshot, then decide the scope.** Write a fresh SkillState snapshot. Read
+**Step 0 — decide the scope.** No snapshot is written here (D-399): D-259 already writes one after
+every ingest, so the newest, downloaded in precondition 4, is the waterline. Read
 `manifest.json` and record `generation` and `cellCount` as the verification target. Rebuild into
 **new, empty tables** (a parallel CDK stack) rather than truncating live ones; cut over by
 pointing the app at them only after step 8 passes. Nothing destructive happens until then.
@@ -1971,7 +1973,10 @@ content, then call `registry.get(source).normalize(raw, ref, job)` — **pure, n
 (`applyKindOverride`, `src/pipeline/kind-override.ts`; D-284). It replaces `activity.kind` and
 records `derivedKind` beside it, and it never touches the trace: the outlier gate already ran
 inside `normalize()` against the derived kind, which is how a rebuild and live ingest agree. A
-rebuild that skipped this would silently revert every correction. Emit `{activity, trace}`. A `normalize()` failure is logged with the key and does
+rebuild that skipped this would silently revert every correction. Emit `{activity, trace}`. **An activity with several payload objects** (re-fetches that returned
+different bytes) has every one verified and normalized, but only the newest — greatest
+`LastModified`, key as tie-break — is emitted; the rest are counted as `supersededObjects`
+(D-396). A `normalize()` failure is logged with the key and does
 not stop the run; the count of failures is a step-8 assertion. ~2,000–5,000 invocations at ~20 ms
 is **under two minutes** and embarrassingly parallel.
 
