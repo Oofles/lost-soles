@@ -21,11 +21,10 @@
 // allowlist rather than a denylist because the question is not "did it reach projection, XP or
 // ingest" (three names someone can forget to add a fourth to) but "did it leave the renderer".
 //
-// ONE PRE-EXISTING EXCEPTION, BY LINE, NOT BY FILE. `Profile.mapMode` is a preference column `02` T1
-// declared before 05 §5.3 made the mode a per-device localStorage setting. No code reads it. The
-// schema line and the test that pins its owner-write grant are allowed EXACTLY; any other line of
-// those two files naming the mode fails like anywhere else. (Whether the column should exist at all
-// is ticket 0099's open question, not this gate's.)
+// NO EXCEPTIONS. The one this gate shipped with — a by-line exemption for the dead `Profile.mapMode`
+// column `02` T1 declared before 05 §5.3 made the mode a per-device localStorage setting, and its
+// grant test — went when ticket 0296 dropped the column (D-383). A schema column or a Lambda that
+// names the mode now fails like anything else; if one is ever needed, that is a design change.
 //
 // WHAT IS MATCHED: code lines only — a `//`, `*` or `/*` line is prose, and a scoring module must
 // stay free to explain that the mode cannot reach it. Matched case-insensitively where the name has
@@ -75,12 +74,6 @@ const ALLOW = [
   /^app\/run\/\[activityId\]\//,
 ]
 
-/** Exact lines allowed in an otherwise policed file. See the header: one column, one test. */
-const ALLOW_LINES = {
-  "amplify/data/resource.ts": [/^\s*mapMode: a\.string\(\),\s*$/],
-  "amplify/profile-model.test.ts": [/^\s*it\.each\(\["displayName", "mapMode", "showColdTerritory", "rulesVersionPinned"\]\)\($/],
-}
-
 const SKIP_DIRS = new Set(["node_modules", ".next", ".amplify", ".git", "dist", "build", "cdk.out"])
 const EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 const COMMENT = /^\s*(\/\/|\*|\/\*)/
@@ -107,13 +100,11 @@ function scan(base = ROOT) {
   for (const file of files(base)) {
     const rel = relative(base, file).split(sep).join("/")
     if (ALLOW.some((a) => a.test(rel))) continue
-    const okLines = ALLOW_LINES[rel] ?? []
     const lines = readFileSync(file, "utf8").split("\n")
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       if (COMMENT.test(line)) continue
       if (!PATTERNS.some((p) => p.test(line))) continue
-      if (okLines.some((p) => p.test(line))) continue
       hits.push({ rel, n: i + 1, line: line.trim() })
     }
   }
@@ -146,12 +137,9 @@ if (process.argv.includes("--self-test")) {
     "src/domain/prose.ts": ["// the atlas/adventure MapMode never reaches scoring (05 §5.4)", false],
     // Words that merely contain a mode's letters.
     "src/domain/near-miss.ts": ["const atlasCount = adventureLog.length // not quoted, not an identifier", false],
-    // The one column, exactly — and only that line.
-    "amplify/data/resource.ts": ["      mapMode: a.string(),", false],
-    "amplify/data/resource-2.ts": ["      mapMode: a.string(),", true],
+    // The schema is policed like everything else — the dropped column may not come back (0296).
+    "amplify/data/resource.ts": ["      mapMode: a.string(),", true],
   }
-  // The same file must still fire on any OTHER line naming the mode.
-  const EXTRA = { "amplify/data/resource.ts": ['const m: MapMode = "atlas"'] }
 
   const base = mkdtempSync(join(tmpdir(), "modeboundary-"))
   try {
@@ -167,13 +155,6 @@ if (process.argv.includes("--self-test")) {
       if (!ok) failed++
       console.log(`  ${ok ? "ok" : "FAIL"}  ${shouldFire ? "must fire " : "must pass"}  ${rel}`)
     }
-    for (const [rel, extra] of Object.entries(EXTRA)) {
-      writeFileSync(join(base, rel), `${FIXTURE[rel][0]}\n${extra.join("\n")}\n`)
-    }
-    const allowedLineFile = scan(base).filter((h) => h.rel === "amplify/data/resource.ts")
-    const extraOk = allowedLineFile.length === 1 && allowedLineFile[0].n === 2
-    if (!extraOk) failed++
-    console.log(`  ${extraOk ? "ok" : "FAIL"}  must fire   amplify/data/resource.ts on a line other than the allowed column`)
     if (files(base).length === 0) {
       failed++
       console.log("  FAIL  the self-test fixture was not scanned at all")
@@ -183,7 +164,7 @@ if (process.argv.includes("--self-test")) {
       process.exit(1)
     }
     console.log(
-      `\nself-test: ${Object.keys(FIXTURE).length + 1} cases passed — the gate fires on the mode reaching scoring, ingest or a Lambda, and stays quiet in the renderer, the toggle and prose.`,
+      `\nself-test: ${Object.keys(FIXTURE).length} cases passed — the gate fires on the mode reaching scoring, ingest or a Lambda, and stays quiet in the renderer, the toggle and prose.`,
     )
   } finally {
     rmSync(base, { recursive: true, force: true })

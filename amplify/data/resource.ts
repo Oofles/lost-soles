@@ -252,8 +252,8 @@ const schema = a.schema({
    *
    * ─── THE CLIENT MAY EDIT ITS PREFERENCES, NEVER ITS NUMBERS ─────────────────
    *
-   * `02` T1 says `allow.owner()`, and the preferences (`displayName`, `mapMode`,
-   * `showColdTerritory`, `rulesVersionPinned`) are the owner's to write. The four attributes the
+   * `02` T1 says `allow.owner()`, and the preferences (`displayName`, `showColdTerritory`,
+   * `rulesVersionPinned`) are the owner's to write. The four attributes the
    * pipeline owns are narrowed to owner READ at the field (D-258): the XP trust boundary
    * (`01` §5, I-20) does not stop being true because a total is denormalised onto a row the
    * client can otherwise edit. A client that could write `totalLevel` could forge the headline.
@@ -263,8 +263,6 @@ const schema = a.schema({
       displayName: a.string(),
       /** Mirror of the manifest's generation (`02` §6.4). Wired by `0182`. */
       exploredGeneration: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
-      /** `"atlas" | "adventure"` (D-052). */
-      mapMode: a.string(),
       /** Atlas-only overlay (D-133). */
       showColdTerritory: a.boolean(),
       rulesVersionPinned: a.integer(),

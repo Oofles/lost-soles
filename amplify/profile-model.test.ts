@@ -59,7 +59,7 @@ describe("T1 Profile", () => {
     },
   )
 
-  it.each(["displayName", "mapMode", "showColdTerritory", "rulesVersionPinned"])(
+  it.each(["displayName", "showColdTerritory", "rulesVersionPinned"])(
     "%s stays the owner's to write",
     (field) => {
       const line = profileType()

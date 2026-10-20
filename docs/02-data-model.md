@@ -211,7 +211,6 @@ PK   id                = <userId>    (the Cognito sub; Amplify's default identif
 | `id` | S | `= userId`. Also the `<uid>` in every S3 key and every other table's partition key. |
 | `displayName` | S | free text |
 | `exploredGeneration` | N | **mirror** of `manifest.json`'s `generation` (05 §7.3). Lives here so the AppSync subscription in 01 §4 step 17 has something to push. Authoritative copy is the manifest. |
-| `mapMode` | S | `"atlas" \| "adventure"` (D-052) |
 | `showColdTerritory` | BOOL | atlas-only overlay (D-133) |
 | `rulesVersionPinned` | N | which `RuleSkill` version the UI renders. Normally the newest. |
 | `totalLevel`, `totalXp` | N | denormalised from `SkillState` in the same transaction as an XP write; D-033's headline number, so it must not cost six reads. |
@@ -222,6 +221,9 @@ PK   id                = <userId>    (the Cognito sub; Amplify's default identif
 Auth: `allow.owner()`, with `totalXp`, `totalLevel`, `exploredGeneration`, `replayInProgress` and
 `ledgerRulesVersion` narrowed to owner **read** at the field (D-258) — the client edits its preferences, never its
 numbers. Access patterns: **AP-1**, **AP-14**.
+There is no `mapMode` attribute: atlas/adventure (D-052) is a per-device localStorage setting
+(05 §5.3), not a profile preference, and the map mode may not be named outside the renderer, the
+toggle and the run-moment seam (D-383). The column first declared here was dropped by `0296`.
 5-year count: ≤ 6 (D-014). No GSIs.
 
 ---

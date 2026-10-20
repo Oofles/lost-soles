@@ -56,7 +56,7 @@ parts. Each one has a sabotage case that must fail.
 | Mask parity | The coverage mask (the 0.5× offscreen buffer that decides what is revealed) is **bit-identical** in atlas, adventure, mid-fade and back. Checked at z12, z15.25 and z17.75, through the real `swapBasemap` + `setPalette` on a real Map, with the mask redrawn fresh in each mode. | `tools/fog-harness/run-mode-swap.mjs` | A ⅛-mask-pixel camera move changes 4,763 / 7,741 / 23,107 bytes |
 | Same GL calls | The mask pass makes the same calls in every mode. A mode change never re-runs it; only the composite redraws. | `lib/fog/mode-parity.test.ts` (`npm test`) | A 0.01-zoom camera change gives a different call stream |
 | No mode argument | No parameter of the cell-selection or `revealScale` paths is, or contains, a mode, a palette or `"atlas"`/`"adventure"`, per the TypeScript checker. None of those modules imports anything that defines one. | `lib/fog/mode-parity.test.ts` | A `look: "atlas" \| "adventure"` parameter added to `cullBucket` fails it. `FogMaskLayer`'s constructor is caught by the same walker. |
-| Name boundary | The mode's identifiers appear only in the renderer, the toggle and the run-moment seam. A hit in `src/`, `amplify/` or the rest of `app/` and `lib/` fails the build. | `scripts/check-mode-boundary.mjs` (Amplify + gate) | 19 self-test cases |
+| Name boundary | The mode's identifiers appear only in the renderer, the toggle and the run-moment seam. A hit in `src/`, `amplify/` or the rest of `app/` and `lib/` fails the build. | `scripts/check-mode-boundary.mjs` (Amplify + gate) | 17 self-test cases; no exemptions (`0296`) |
 
 Mask hashes from the harness run (FNV-1a over RGBA, 640×400). Each row was equal across adventure,
 atlas, mid-fade and back to adventure:
