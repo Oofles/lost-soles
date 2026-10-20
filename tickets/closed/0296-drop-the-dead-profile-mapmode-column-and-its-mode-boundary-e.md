@@ -4,7 +4,7 @@ slug: drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e
 title: Drop the dead Profile.mapMode column and its mode-boundary exemption
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T23:33:11Z
 started: 2026-10-20T12:52:28Z
+closed: 2026-10-20T13:47:29Z
 ---
 
 ## Description
@@ -33,11 +34,13 @@ the exemption, so the gate has no exceptions.
       that read it — an empty exemption mechanism is an invitation. The gate passes over 535 files;
       the self-test passes 17 cases, the schema line now among the must-fire ones.)*
 - [x] `02-data-model.md`'s T1 `Profile` row no longer lists `mapMode`, citing D-383 and 05 §5.3.
-- [ ] After deploy, the Amplify data schema no longer exposes the field (introspect the AppSync
+- [x] After deploy, the Amplify data schema no longer exposes the field (introspect the AppSync
       schema or check the generated `amplify_outputs` model).
       *(Not tickable before deploy. Locally the generated schema no longer has it — the grant test
       reads the built schema and passes without it. The post-deploy introspection is in the
       Resolution's smoke test, for the orchestrator.)*
+      — verified 2026-10-20: after build 420, the `main` AppSync introspection's `type Profile` has 0
+      `mapMode` (1 before deploy); `showColdTerritory` still present.
 
 ## Notes
 
@@ -88,3 +91,16 @@ aws appsync get-introspection-schema --api-id nog4xy2l7baqlhghpndh2565qe --forma
 awk '/^type Profile /,/^}/' /tmp/profile-schema.graphql | grep -c mapMode   # expect 0
 ```
 Then on `/`, toggle to adventure, reload: it stays adventure (localStorage, untouched).
+
+## Operator validation
+
+None perceptual — a schema field nobody reads. Smoke test, run by the orchestrator after Amplify
+build 420 (commit `2e60964`) succeeded, 2026-10-20:
+
+- `aws appsync get-introspection-schema --api-id nog4xy2l7baqlhghpndh2565qe --format SDL` →
+  `type Profile` contains `mapMode` 0 times (it was 1 before the deploy) and `showColdTerritory` once.
+- `check-mode-boundary.mjs` passes with no exemption table on the merged `main`, and its
+  `--self-test` passes 17 cases (full local gate: 249 test files, 4207 passed).
+- The mode toggle's localStorage persistence is untouched code with passing tests; not re-run by hand
+  (D-229).
+

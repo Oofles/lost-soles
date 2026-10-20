@@ -6826,7 +6826,7 @@
     "title": "Drop the dead Profile.mapMode column and its mode-boundary exemption",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [],
@@ -6834,10 +6834,11 @@
     "source": "agent",
     "created": "2026-10-19T23:33:11Z",
     "started": "2026-10-20T12:52:28Z",
-    "path": "tickets/open/0296-drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e.md",
-    "ready": true,
+    "closed": "2026-10-20T13:47:29Z",
+    "path": "tickets/closed/0296-drop-the-dead-profile-mapmode-column-and-its-mode-boundary-e.md",
+    "ready": false,
     "acceptance": {
-      "checked": 3,
+      "checked": 4,
       "total": 4
     }
   },
