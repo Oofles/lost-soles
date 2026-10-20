@@ -158,4 +158,27 @@ describe("the raw archive is undeletable (I-3)", () => {
   it("has no auto-delete-objects custom resource", () => {
     expect(Object.keys(template.findResources("Custom::S3AutoDeleteObjects"))).toEqual([])
   })
+
+  /**
+   * `0106`, `08` §6.4 step 6. The multipart-abort rule — and NOTHING ELSE. S3 lifecycle actions are
+   * performed by S3 itself and are not subject to the bucket policy, so an `expiration` or
+   * `noncurrentVersionExpiration` here would be a deletion path for `raw/` around the Deny.
+   */
+  it("aborts incomplete multipart uploads, and its lifecycle expires nothing", () => {
+    expect(bucket.lifecycleConfiguration).toEqual({
+      rules: [
+        {
+          id: "AbortIncompleteMultipartUploads",
+          status: "Enabled",
+          abortIncompleteMultipartUpload: { daysAfterInitiation: 7 },
+        },
+      ],
+    })
+    const synthesized = Object.values(template.findResources("AWS::S3::Bucket"))[0]!.Properties as {
+      LifecycleConfiguration: { Rules: Array<Record<string, unknown>> }
+    }
+    expect(synthesized.LifecycleConfiguration.Rules).toEqual([
+      { Id: "AbortIncompleteMultipartUploads", Status: "Enabled", AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 } },
+    ])
+  })
 })

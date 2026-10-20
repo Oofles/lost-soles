@@ -16,6 +16,31 @@
 
 _Filled in at the DESIGN step, before TICKET-WRITE._
 
+## Account deletion, executed (`0106`)
+
+The runbook is [`../runbooks/account-deletion.md`](../runbooks/account-deletion.md); the script is
+`tools/account-deletion/delete-account.ts`. Gate item **A-5** of D-123 Trigger A (`08` §2.4) needs it
+executed once against a throwaway account with genuinely ingested data. That execution:
+
+_PENDING — filled in by the orchestrator after deploy._
+
+- Throwaway account created / seeded / deleted: _timestamps_ (Trigger A open for _N_ minutes)
+- Seed: `tools/account-deletion/seed-throwaway.ts`, receipt reached `DONE` at _time_
+- Archive guard (preflight): _simulation decisions_, probe: _result_
+
+| Table | Before | After |
+|---|---|---|
+| _paste from the confirmation_ | | |
+
+| S3 prefix (current / noncurrent / delete markers) | Before | After |
+|---|---|---|
+| _paste from the confirmation_ | | |
+
+- `list-object-versions --prefix raw/<uid>/` afterwards (SDK `ListObjectVersions`; the CLI command is
+  broken in this environment): _0 versions, 0 delete markers_
+- Cognito user gone from the pool: _yes/no_
+- Owner's counts unchanged (T6 items, `raw/<owner>/` objects): _before → after_
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

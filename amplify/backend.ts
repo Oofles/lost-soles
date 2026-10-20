@@ -641,6 +641,33 @@ backend.storage.resources.bucket.addToResourcePolicy(
   }),
 )
 
+/**
+ * ABORT INCOMPLETE MULTIPART UPLOADS. Ticket `0106`, `08-security-privacy.md` §6.4 step 6: "set a
+ * lifecycle rule to abort incomplete multipart uploads while you are there."
+ *
+ * The parts of an upload that never completed are invisible to `ListObjectVersions`, so the
+ * account-deletion purge cannot see them, and they are billed and kept forever. This rule is what
+ * removes them. It is infrastructure, not a step the deletion script performs: a script that
+ * `PutBucketLifecycleConfiguration`s would drift from this stack and be silently reverted by the
+ * next deploy, and the script only CHECKS that the rule is present.
+ *
+ * THIS IS THE ONLY LIFECYCLE RULE, AND IT EXPIRES NOTHING. No `expiration`, no
+ * `noncurrentVersionExpiration`, no transition. A rule that expired objects or old versions would
+ * be a deletion path for `raw/` that walks straight around the bucket policy's Deny, because S3
+ * lifecycle actions are not evaluated against it — `raw-archive-immutability.test.ts` holds this
+ * to exactly one rule with exactly this one action. Seven days: an interrupted upload worth
+ * resuming is resumed within the hour, and nothing here uploads in parts at all today.
+ */
+backend.storage.resources.cfnResources.cfnBucket.lifecycleConfiguration = {
+  rules: [
+    {
+      id: "AbortIncompleteMultipartUploads",
+      status: "Enabled",
+      abortIncompleteMultipartUpload: { daysAfterInitiation: 7 },
+    },
+  ],
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────
  * THE INGEST RECEIPT  (ticket 0040, 02-data-model.md T8, 01-architecture.md §4)
