@@ -2417,7 +2417,7 @@
     "title": "What the modes may NOT differ in — revealed set and geometry parity, enforced",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "15-two-map-modes-and-cold-territory",
     "depends_on": [
@@ -2427,8 +2427,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-19T20:41:49Z",
-    "path": "tickets/open/0099-mode-parity-invariant-tests.md",
-    "ready": true,
+    "closed": "2026-10-20T12:46:38Z",
+    "path": "tickets/closed/0099-mode-parity-invariant-tests.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6
@@ -2451,7 +2452,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0100-cold-territory-atlas-only.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7

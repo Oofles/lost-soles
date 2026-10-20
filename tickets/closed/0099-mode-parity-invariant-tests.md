@@ -4,7 +4,7 @@ slug: mode-parity-invariant-tests
 title: What the modes may NOT differ in — revealed set and geometry parity, enforced
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 15-two-map-modes-and-cold-territory
 depends_on: [98]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-19T20:41:49Z
+closed: 2026-10-20T12:46:38Z
 ---
 
 ## Description
