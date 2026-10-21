@@ -6939,7 +6939,7 @@
     "title": "Rebuild drill resurrects retracted activities",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "16-rebuild-drill",
     "depends_on": [],
@@ -6947,8 +6947,9 @@
     "source": "agent",
     "created": "2026-10-21T03:53:20Z",
     "started": "2026-10-21T19:31:21Z",
-    "path": "tickets/open/0301-rebuild-drill-resurrects-retracted-activities.md",
-    "ready": true,
+    "closed": "2026-10-21T20:06:17Z",
+    "path": "tickets/closed/0301-rebuild-drill-resurrects-retracted-activities.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

@@ -4,7 +4,7 @@ slug: rebuild-drill-resurrects-retracted-activities
 title: Rebuild drill resurrects retracted activities
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 16-rebuild-drill
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-21T03:53:20Z
 started: 2026-10-21T19:31:21Z
+closed: 2026-10-21T20:06:17Z
 ---
 
 ## Description
