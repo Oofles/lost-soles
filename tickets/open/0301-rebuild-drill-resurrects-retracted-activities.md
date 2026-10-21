@@ -49,6 +49,21 @@ Found by `0103` (wave 16.2). No tombstoned activities exist live today, so the l
 
 Smoke test, agent's to run: the fixture test above, and a drill into a scratch target after a synthetic retraction. No perceptual check.
 
+
+**Smoke tests at close (orchestrator, 2026-10-21, after Amplify job 424 `f0f3f0e`, SUCCEED).** No
+perceptual check.
+- **Not run: a live synthetic retraction.** A retraction record is undeletable by design (I-3), so
+  a smoke retraction would leave a permanent junk object under `raw/`. A `gone` also needs the
+  source to really return 404. The record → tombstone path and the drill's synthetic-retraction
+  rebuild are covered by the fixture tests (`retract.test.ts`, `rebuild-drill-back.test.ts`). The
+  first real retraction exercises the live path.
+- Deployed wiring: `processactivitylambda` (LastModified 2026-10-21T19:52Z, this deploy) has
+  `RAW_ARCHIVE_BUCKET` set to the user-data bucket. `iam simulate-principal-policy` on its role for
+  `raw/smoke-uid/strava/123.retracted.json`: `s3:PutObject` **allowed**, `s3:DeleteObject`
+  **implicitDeny**. The bucket policy carries the explicit `raw/*` delete deny.
+- `npm run drill -- --phase=normalize --uid=<owner> --dry-run` → `retractionCount: 0`,
+  `unrecognisedKeys: []`. This matches the ticket's note that no live activity is tombstoned.
+
 ## Resolution
 
 **Where the record lives.** `raw/<uid>/<source>/<externalId>.retracted.json`, a sibling of the

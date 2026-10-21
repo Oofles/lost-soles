@@ -85,6 +85,22 @@ Then, in a scratch branch, break one field in the Strava adapter's `normalize()`
 confirm CI goes red on a drill assertion, not on a type error. That red build is the entire point
 of this ticket.
 
+
+**Smoke tests at close (orchestrator, 2026-10-21, after Amplify job 424 `f0f3f0e`, SUCCEED).** No
+perceptual check: the original "watch CI go red" step is proven by the two mutation tests in the
+suite, so it needs no operator.
+- GitHub gate run `39664899405` (success): the `drill:ci` log shows `normalize manual 4 ok`,
+  `normalize strava 10 ok`, six `step 8 check n PASS` rows, and `PASS — six assertions and 6
+  expectations in 264 ms`. Amplify job 424's BUILD log shows the same per-source counts and PASS
+  line (219 ms).
+- Locally on merged `main`: `npm run drill:ci` → exit 0. `npm run drill:ci -- --with-corrupt` →
+  exit 11, `ASSERT_1_NORMALIZE_FAILURES`, with the truncated envelope logged and counted
+  (`strava 10 ok, 1 failed`) and the run not aborted. `CI=true npm run drill:ci --
+  --write-expected` → exit 2, refused.
+- Merge note: after `0302` and `0301` landed, `MemoryDrillStore` gained `putLandmarks` and
+  `tombstoneActivities` and `CI_TARGET` gained a `landmark` table (D-418). `expected.json` was
+  unchanged, and `drill:ci` still matches it exactly.
+
 ## Resolution
 
 **Built on `0103`'s code path, not beside it.** `npm run drill:ci` calls `runDrillFrontHalf` and

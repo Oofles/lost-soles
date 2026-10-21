@@ -93,3 +93,14 @@ Smoke test, agent's to run: the in-memory rehearsal from `0103`, with the landma
   50 yet (the highest XP sits far below the 161,700 that level 50 needs). The non-empty case is
   proven by the criterion-3 test.
 - Guards from `amplify.yml`, `typecheck`, `lint`, `vitest` (4,293 passed) and `build` all green.
+
+**Smoke tests at close (orchestrator, 2026-10-21, merged `main` `f0f3f0e`).**
+- `npm run drill -- --phase=rebuild --uid=<owner> --target=<json with landmark = live Landmark
+  table> --dry-run` → exit 4, `REFUSED — TARGET_IS_LIVE: target landmark table
+  "Landmark-nog4xy2l7baqlhghpndh2565qe-NONE" is a live table`.
+- `backfill-landmarks.ts --user <owner> --target <same json>` → exit 4, same refusal, before any
+  client exists.
+- Same tool with a five-table target file (no `landmark`) → exit 4, `target landmark table is
+  empty` (D-418).
+- Rehearsal rerun on merged `main` (its scratch store needed `0301`'s `tombstoneActivities`):
+  116 activities, total XP 70,994, rebuilt landmarks 0 == live `Landmark` rows 0.
