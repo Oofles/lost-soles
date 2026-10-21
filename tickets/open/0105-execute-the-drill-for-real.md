@@ -83,6 +83,12 @@ exists to produce. File it as a new ticket against the adapter, fix it, re-run. 
 object from the enumeration to make the numbers match — that converts a real gap into a clean
 report, which is the specific failure this whole capability is designed to prevent.
 
+
+**2026-10-21 (orchestrator, wave 16.3):** the drill target now has **six** table roles (D-418): the
+parallel stack must include a `Landmark` table (`userId` + `skillLevel`), named as `landmark` in the
+target JSON, or the drill refuses it. The rebuild also backfills landmarks at the end of step 6
+(D-420) and tombstones retracted activities from `raw/…retracted.json` records (D-421, D-422).
+
 ## Operator validation
 
 > **D-181 — most of what follows is the AGENT's to run, not the operator's.**

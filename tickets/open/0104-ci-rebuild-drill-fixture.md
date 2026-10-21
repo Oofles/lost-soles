@@ -148,3 +148,4 @@ vite-node startup. Whole suite: 4,300 tests pass.
 No design doc changed: §8.4 describes this exactly. No new decision is needed beyond the ones
 proposed in the wave report.
 
+**Decisions recorded at merge (orchestrator, wave 16.3):** D-415, D-416, D-417.

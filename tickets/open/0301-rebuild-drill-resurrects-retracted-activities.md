@@ -103,3 +103,4 @@ drill, the default, is exact.
 **Not done here.** `tools/drill/rebuild-drill.ts` (the CLI) needed no change: the new summary
 fields reach its JSON output through `rebuild`. No backfill: no tombstoned activities exist live.
 
+**Decisions recorded at merge (orchestrator, wave 16.3):** D-421, D-422.

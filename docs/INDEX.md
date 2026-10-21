@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,568 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,579 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -120,7 +120,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,207 lines
+**02 — Data Model & Persistence** — 2,218 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -180,21 +180,21 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1765-1780` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
 | &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1781-1855` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
 | &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1856-1870` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1871-2111` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| 8. Retention, deletion, and the rebuild drill | `1871-2122` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
 | &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1877-1901` |  |
 | &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1902-1936` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1937-2074` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2075-2089` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `2090-2111` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `2112-2207` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2128-2138` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2139-2148` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `2149-2156` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2157-2167` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2168-2175` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2176-2184` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2185-2192` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2193-2207` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1937-2085` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2086-2100` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `2101-2122` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `2123-2218` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2139-2149` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2150-2159` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `2160-2167` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2168-2178` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2179-2186` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2187-2195` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2196-2203` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2204-2218` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 

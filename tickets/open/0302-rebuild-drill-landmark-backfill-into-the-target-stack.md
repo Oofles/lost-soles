@@ -79,6 +79,9 @@ ledger rows from step 6's memory (check 5 then proves they persisted) and routes
 target. One `backfillLandmarks` keeps the drill and the tool from ever placing a landmark
 differently, as D-413 does for the fold.
 
+
+**Decisions recorded at merge (orchestrator, wave 16.3):** D-418, D-419, D-420.
+
 ## Operator validation
 
 Smoke test, agent's to run: the in-memory rehearsal from `0103`, with the landmark count compared against the live `Landmark` table. No perceptual check.

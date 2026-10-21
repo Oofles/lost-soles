@@ -5749,3 +5749,52 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   `LostSolesCaptureGuard`. `amplify/pitr-tables.test.ts` pins both sets. The 35-day window opens
   at the `0300` deploy; before it, and beyond 35 days, the D-259 snapshot is the only waterline
   backstop. `02` §8.1–§8.2 and `08` §6.4 amended.
+
+## Capability `16` — CI drill, landmark backfill, durable retractions  (2026-10-21, wave 16.3)
+
+- **D-415** **`drill:ci`'s `expected.json` is its step 0.** *(Agent, 2026-10-21, `0104`.)* The
+  in-memory fixture bucket serves `manifest.json` (generation, `cellCount` for check 3), the
+  precondition-4 snapshot (check 4's waterline), the `--expect-objects` count and check 6's
+  pre-drill rows from that one reviewed file, so the six assertions are made against it, not
+  beside it. It is regenerated only by `npm run drill:ci -- --write-expected`, which runs with no
+  step 0, refuses to write if checks 1–5 fail, warns that the diff must be reviewed, and is refused
+  when `CI`, `GITHUB_ACTIONS`, `AWS_APP_ID` or `CODEBUILD_BUILD_ID` is set.
+- **D-416** **`drill:ci` asserts exact expectations beside the six checks.** *(Agent, 2026-10-21,
+  `0104`.)* Check 4 is `≥` and D-135 floors absorb an XP drop by design, so a `≥` alone would let a
+  scoring regression through. The harness also requires exact per-skill XP, ledger row count and
+  sum, activity and cell counts, per-source normalize counts, and no `retained_floor` rows. Exit
+  codes keep `npm run drill`'s meanings (0, 3, 4, 5, 10+n); 20 is an expectation mismatch, 21 a
+  registered `SourceId` with no fixture payload.
+- **D-417** **`drill:ci` runs on both CI surfaces.** *(Agent, 2026-10-21, `0104`.)* `amplify.yml`'s
+  build phase (the lock, D-163) and `.github/workflows/gate.yml` (the alarm) both run it after
+  `check-drill-no-delete`. It needs no AWS and no `amplify_outputs.json`.
+- **D-418** **The drill target has six table roles; `landmark` is the sixth.** *(Agent, 2026-10-21,
+  `0302`; amends D-406's "five tables", which stays as written.)* A rebuilt stack with nowhere to
+  write landmarks would silently lack them (D-307). `targetCollisions` checks a fixed role list, so
+  a five-table target file is refused ("target landmark table is empty") rather than writing to
+  `undefined`. `0105`'s parallel stack needs a `Landmark` table (`userId` + `skillLevel`).
+- **D-419** **Drill landmark writes are conditioned creates; the live backfill keeps
+  `if_not_exists`.** *(Agent, 2026-10-21, `0302`; applies D-408.)* `landmarkPutItem` writes the
+  attributes `landmarkUpdateItem` leaves on a fresh key, guarded by `attribute_not_exists(userId)`.
+  The live tool coexists with landmarks ingest already wrote, so it cannot be create-only.
+  `backfill-landmarks.ts --target` uses the drill's write and refuses live names with the drill's
+  own `targetCollisions`.
+- **D-420** **One walk-and-place function serves the live backfill and the drill, run in-process at
+  the end of step 6.** *(Agent, 2026-10-21, `0302`; same reasoning as D-413.)* `backfillLandmarks`
+  takes step 6's ledger rows from memory (check 5 proves they persisted) and reads routes back from
+  the target, as D-409 does for cells files; a route missing at read-back yields an unplaced
+  landmark, as the live tool's `NoSuchKey` path does.
+- **D-421** **A confirmed D-355 retraction is recorded under `raw/`, beside the archive, before T3
+  is tombstoned.** *(Agent, 2026-10-21, `0301`; makes D-101 true for retractions.)* The record is
+  `raw/<uid>/<source>/<externalId>.retracted.json`, written `IfNoneMatch: "*"` (a 412 on
+  redelivery is success), following D-263's and D-284's sibling pattern and protected by I-3 and
+  D-401. The worker already holds `s3:PutObject` on `raw/*`; no IAM change. Writing it first means a
+  failed write leaves the row ACTIVE and SQS redelivers. A `gone` for a never-imported run still
+  writes a record; the drill reports it as `retractionsWithoutActivity` and it changes nothing.
+- **D-422** **The drill rebuilds a retracted activity ACTIVE, scores it, then tombstones it.**
+  *(Agent, 2026-10-21, `0301`.)* `activityScoreItem` updates only ACTIVE rows, and skipping the
+  score would zero `xpAwarded` where live kept it (D-135). Under the same rules this re-derives
+  exactly the ledger rows live kept, and its cells stay (D-020); step 8 check 2's count is
+  unchanged. Known divergence: under a changed `--rules` the drill re-scores it under the new rules
+  where a live rebalance keeps the old rows; check 4's snapshot floor still prevents displayed XP
+  from falling.

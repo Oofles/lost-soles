@@ -2555,7 +2555,7 @@
     "path": "tickets/open/0104-ci-rebuild-drill-fixture.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -6949,7 +6949,7 @@
     "path": "tickets/open/0301-rebuild-drill-resurrects-retracted-activities.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -6970,7 +6970,7 @@
     "path": "tickets/open/0302-rebuild-drill-landmark-backfill-into-the-target-stack.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }
