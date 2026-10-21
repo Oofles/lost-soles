@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,555 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,568 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 559 sections · regenerated 2026-10-20
+13 documents · 559 sections · regenerated 2026-10-21
 
 
 ## `docs/00-vision.md`
@@ -120,7 +120,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,196 lines
+**02 — Data Model & Persistence** — 2,207 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -180,21 +180,21 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1765-1780` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
 | &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1781-1855` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
 | &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1856-1870` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1871-2100` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| 8. Retention, deletion, and the rebuild drill | `1871-2111` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
 | &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1877-1901` |  |
 | &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1902-1936` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1937-2063` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2064-2078` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `2079-2100` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `2101-2196` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2117-2127` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2128-2137` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `2138-2145` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2146-2156` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2157-2164` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2165-2173` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2174-2181` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2182-2196` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1937-2074` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2075-2089` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `2090-2111` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `2112-2207` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2128-2138` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2139-2148` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `2149-2156` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2157-2167` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2168-2175` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2176-2184` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2185-2192` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2193-2207` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 
@@ -510,7 +510,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,171 lines
+**08 — Security & Privacy** — 1,173 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -539,24 +539,24 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 5.3 Session handling | `616-632` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
 | &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `633-672` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
 | &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `673-691` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
-| 6. Data lifecycle, retention, and deletion | `692-840` |  |
+| 6. Data lifecycle, retention, and deletion | `692-842` |  |
 | &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `694-710` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
 | &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `711-740` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
 | &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `741-778` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
-| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `779-826` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
-| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `827-840` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `841-1020` | The repository is the most likely place a secret in this project actually escapes. |
-| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `848-889` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `890-912` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `913-944` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `945-1003` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `1004-1020` | control, not a convenience. |
-| 8. Incident playbook | `1021-1134` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1039-1064` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1065-1082` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1083-1107` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1108-1134` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1135-1171` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `779-828` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
+| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `829-842` | Removing the Strava connection deletes SourceAccount and stops ingest. |
+| 7. Repo hygiene — and one live finding (O-005) | `843-1022` | The repository is the most likely place a secret in this project actually escapes. |
+| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `850-891` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `892-914` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `915-946` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `947-1005` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `1006-1022` | control, not a convenience. |
+| 8. Incident playbook | `1023-1136` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1041-1066` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1067-1084` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1085-1109` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1110-1136` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1137-1173` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 

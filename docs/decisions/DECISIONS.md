@@ -5698,3 +5698,54 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   `0300`. The deletion confirmation reads PITR per table and states the 35-day caveat only where
   it applies. Also: upstream revocation is `POST /oauth/revoke` (the connector chosen in `0089`),
   not `/oauth/deauthorize`; `08` §3 and §6.4 amended.
+- **D-405** **The rebuild drill drops D-263 duplicate losers before step 4.** *(Operator,
+  2026-10-20, `0103`'s D-152 question, wave 16.2.)* An activity carrying a `duplicateOf` pointer is
+  filtered out of `sorted`, so it never becomes an Activity row, a cells file, fold input or XP
+  replay input, exactly as live ingest treated it. Step 8 check 2 reconciles against
+  `payloadCount − supersededObjects − duplicatePointerCount` (D-396). `02` §8.3 amended.
+- **D-406** **`0103` defines no CDK stack; the drill's target is a parameter, refused when it names
+  anything live.** *(Operator, 2026-10-20, wave 16.2.)* The target is JSON: five tables, a bucket
+  and a prefix. It is refused before any write if a table equals a live name (every `defineData`
+  table under the live apiId from `amplify_outputs.json`, plus the five literal CDK tables), if a
+  table name contains the live apiId, if two roles share a table, or if it uses the live bucket
+  with no prefix or one under `raw/`, `users/` or `snapshots/`. Stored references (`traceRef`,
+  `cellsRef`, manifest keys) stay canonical. Creating, timing and tearing down a real parallel
+  stack is `0105`'s; `0103`'s live-volume wall-clock criterion moved there.
+- **D-407** **The drill writes T6 one conditional `PutItem` per item, not `BatchWriteItem`.**
+  *(Agent, 2026-10-20, `0103`.)* `check-fog-hot-path.mjs` (I-7) forbids batch writes in any file
+  that knows T6, because a batch can carry a removal and the map never re-fogs (D-020). Write units
+  are the same; the `attribute_not_exists` condition doubles as proof the target is new and empty.
+  `02` §8.3 step 5 amended.
+- **D-408** **Every drill create is conditioned on absence, so the drill never resumes into a
+  half-written target.** *(Agent, 2026-10-20, `0103`.)* DynamoDB puts use `attribute_not_exists`,
+  S3 puts `IfNoneMatch: "*"`, and the target's generation counter is set only if absent — a taken
+  counter aborts as `TARGET_GENERATION_TAKEN` before any step-7 PUT. A failed run is rerun into
+  fresh tables. `scripts/check-drill-no-delete.mjs` enforces the no-removal rule in CI.
+- **D-409** **Step 5 folds the cells files read back from the target, and check 3 is asserted at
+  the end of step 5.** *(Agent, 2026-10-20, `0103`.)* Folding what was persisted, not step 4's
+  memory, means a lost or corrupt file is caught: `CELLS_FILE_UNREADABLE`, or check 3 if it decodes
+  but lost a cell. Either aborts before T6, XP, the blobs and the manifest. Check 3 is never a
+  warning (D-020).
+- **D-410** **Drill step 7 publishes no delta.** *(Agent, 2026-10-20, `0103`.)* `deltasFrom =
+  generation`, so every cached client takes the full blob; the manifest is written uncompressed as
+  `regenerateExplored` writes it, and only the Profile `exploredGeneration` mirror follows it. The
+  trace web (`web.json.gz`) is rebuilt in-process from step 4's routes (D-299/D-307).
+- **D-411** **Step 8 check 6 is `n/a`, counted as a pass, when the target rules version differs
+  from the pre-drill rows'.** *(Agent, 2026-10-20, `0103`.)* The assertion is defined "under the
+  same rules version"; a changed ruleset is exactly when itemisation should move. `--rules`
+  defaults to the snapshot's version, so the default run is a same-rules rebuild and check 6 runs.
+- **D-412** **Drill `retained_floor` rows use run key `DRILL-G<generation>`.** *(Agent, 2026-10-20,
+  `0103`.)* Floor ids are deterministic and cannot collide with a rebalance's.
+- **D-413** **One fold/score/thaw implementation serves both `replayUser` and the drill.**
+  *(Agent, 2026-10-20, `0103`.)* `xp-replay.ts` exports `foldHistory`, `scoreHistory`, `thawWrites`
+  and `profileTotals`; `replayUser`'s behaviour is unchanged (its 67 tests untouched). Two replay
+  implementations would be two waterline semantics.
+- **D-414** **PITR is on every `defineData` model table, and stays off on the CDK tables that hold
+  no restorable user history.** *(Operator, 2026-10-20, `0300`; supersedes D-404's interim state,
+  which stays as written.)* `amplify/backend.ts` loops over every model table (`Activity`,
+  `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, `DeploySmokeTest`), so a new model inherits
+  it; T6 already had it. Off on T7 `LostSolesSourceAccount` (credentials must not be backed up,
+  `02` §1.1), `LostSolesOAuthState` (ten-minute nonces), `LostSolesIngestReceipt` (90-day TTL) and
+  `LostSolesCaptureGuard`. `amplify/pitr-tables.test.ts` pins both sets. The 35-day window opens
+  at the `0300` deploy; before it, and beyond 35 days, the D-259 snapshot is the only waterline
+  backstop. `02` §8.1–§8.2 and `08` §6.4 amended.

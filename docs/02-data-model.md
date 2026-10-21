@@ -1885,7 +1885,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
 | `users/<uid>/cells/<activityId>.classes.json` | forever in practice, **purgeable** | derived; the run's own new/re-armed verdicts (§4.4, D-294). Step 6 rewrites it from the fold (D-307). |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
-| T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever, **PITR** | derived; tiny. PITR on every `defineData` model table (T1 `Profile` included) since `0300` (replacing D-404's interim "off"); the 35-day window starts at that deploy, so nothing earlier is restorable |
+| T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever, **PITR** | derived; tiny. PITR on every `defineData` model table (T1 `Profile` included) since `0300` (D-414, replacing D-404's interim "off"); the 35-day window starts at that deploy, so nothing earlier is restorable |
 | `Landmark` (place-bound milestones) | forever, **PITR** | derived from the ledger and the stored routes by `tools/landmarks/backfill-landmarks.ts` (D-301). Rebuilt in step 6; under a changed ruleset a rebuilt landmark may stand somewhere else (D-307). |
 | `explored-*.<gen>.bin`, `explored-agg.<gen>.json` | **keep current + 1 previous** | regenerable in <100 ms (§2.10). Older generations are garbage. |
 | `deltas/<toGen>.bin` | **~20 generations** | `manifest.deltasFrom` tells the client when the chain no longer reaches it (§6.5) |
@@ -1926,7 +1926,7 @@ empty. Replay must run against the rebuilt tables before ingest resumes on them.
 an empty T2 would write a low snapshot, and that snapshot would then be the newest one. §8.3
 already avoids this by rebuilding into a parallel stack. **The drill's step 6 reads
 the newest snapshot as its waterline.** With it, D-135 survives losing every table. Without it,
-D-135 is only as durable as DynamoDB PITR's 35-day window. PITR is on T2 and T4 since `0300` (it was off until then, D-404); the window opens at that deploy, so for anything earlier, and for anything older than 35 days, the newest snapshot is the only backstop.
+D-135 is only as durable as DynamoDB PITR's 35-day window. PITR is on T2 and T4 since `0300` (D-414) (it was off until then, D-404); the window opens at that deploy, so for anything earlier, and for anything older than 35 days, the newest snapshot is the only backstop.
 
 This is recorded as an awkwardness rather than hidden: **D-135 is the one decision in this document
 that forces a fact to be stored that is not derivable from the system of record.** (`Landmark` is

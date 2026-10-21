@@ -81,7 +81,7 @@ is a correct starting state.
       its own exit reason string; assertion 3 aborts the run rather than warning.
 - [x] The script never calls `DeleteObject`, `DeleteItem`, or `DeleteTable` — asserted by a grep
       over the drill package that fails the build.
-- [ ] ~~Wall-clock for a full live-volume run is recorded in the summary; the §8.3 budget is under
+- [x] ~~Wall-clock for a full live-volume run is recorded in the summary; the §8.3 budget is under
       30 minutes including verification.~~ **Amended 2026-10-20 (operator decision, wave 16.2):
       moved to `0105`.** `0103` defines no CDK stack and creates no AWS resources, so there is no
       live-volume target to time here. The summary carries `wallClockMs` for the whole run (front
@@ -164,7 +164,7 @@ names the caller supplies. It creates nothing in AWS itself. `0105` creates the 
   covers the target's GEN counter, `deltasFrom`, and check 3 asserted at the end of step 5. Check 6
   can be `n/a`. `docs/INDEX.md` line ranges need regenerating (orchestrator).
 
-**Decisions (proposed as D-NEW in the wave report)**
+**Decisions (recorded at merge as D-405–D-413; see DECISIONS.md for the mapping)**
 
 - D-263 losers are dropped from `sorted` before step 4 (operator, 2026-10-20). Check 2 compares
   against `payloadCount − supersededObjects − duplicatePointerCount`.

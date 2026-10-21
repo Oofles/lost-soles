@@ -818,7 +818,7 @@ In order, and the order matters:
    done — the requester is a friend, not a ticket.
 
 **Backups:** there are none beyond S3 versioning and DynamoDB point-in-time recovery, which is on
-for `ExploredCell` and, since `0300`, every `defineData` model table (`Activity`, `Profile`,
+for `ExploredCell` and, since `0300` (D-414), every `defineData` model table (`Activity`, `Profile`,
 `SkillState`, `XpLedgerEntry`, `Landmark`), whose 35-day window opened at the `0300` deploy and
 reaches no further back. It is off on T7 `SourceAccount` by design (`02` §1.1: no backup of live
 credentials), on `OAuthState` and on `IngestReceipt`. Where PITR is enabled, note that it holds deleted rows for up to 35 days — so a deletion is *complete* at the

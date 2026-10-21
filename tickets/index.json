@@ -2531,7 +2531,7 @@
     "path": "tickets/open/0103-rebuild-drill-fold-replay-verify.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -6925,8 +6925,48 @@
     "path": "tickets/open/0300-enable-pitr-on-the-owner-scoped-tables-or-record-that-it-sta.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 301,
+    "slug": "rebuild-drill-resurrects-retracted-activities",
+    "title": "Rebuild drill resurrects retracted activities",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "16-rebuild-drill",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-21T03:53:20Z",
+    "path": "tickets/open/0301-rebuild-drill-resurrects-retracted-activities.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 302,
+    "slug": "rebuild-drill-landmark-backfill-into-the-target-stack",
+    "title": "Rebuild drill: landmark backfill into the target stack",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "16-rebuild-drill",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-21T03:53:25Z",
+    "path": "tickets/open/0302-rebuild-drill-landmark-backfill-into-the-target-stack.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]

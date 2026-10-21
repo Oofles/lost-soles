@@ -32,7 +32,7 @@ every owner-scoped table (cost is pennies at this size), or keep it off and reco
 - [x] The operator has chosen: enable PITR on the owner-scoped tables, or leave it off. — operator chose enable, 2026-10-20
 - [x] If enabled: the CDK stack sets it on every owner-scoped table, and a synth test fails if any
       owner-scoped table lacks it.
-- [ ] ~~If left off: a `D-xxx` records why, and `02` §8.1–§8.2 no longer claim otherwise.~~ n/a — the
+- [x] ~~If left off: a `D-xxx` records why, and `02` §8.1–§8.2 no longer claim otherwise.~~ n/a — the
       operator chose enable. `02` §8.1–§8.2 were amended to state the enabled state instead.
 - [x] `08` §6.4's backup paragraph matches what is deployed.
 
@@ -43,7 +43,7 @@ The deletion confirmation (`0106`) reads PITR per table, so it stays truthful ei
 
 ## Resolution
 
-**Decision (operator, 2026-10-20): enable PITR on every owner-scoped table.** Supersedes D-404's
+**Decision D-414 (operator, 2026-10-20): enable PITR on every owner-scoped table.** Supersedes D-404's
 interim "off" state; D-404 stays as written. The orchestrator allocates the `D-xxx`.
 
 **What "every owner-scoped table" means here.** Every `defineData` model is owner-scoped
