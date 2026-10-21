@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { loadRuleSet } from "@/src/rules/load"
 import { cumulativeXp, FLOOR_ACTIVITY_ID, ledgerSeq, stepCoefficient } from "@/src/scoring"
 
-import { landmarksFromLedger, type WalkRow } from "./landmarks"
+import { landmarkPutItem, landmarksFromLedger, landmarkUpdateItem, type LandmarkRecord, type WalkRow } from "./landmarks"
 
 /** Ticket `0248` — the backfill's ledger walk. Skill ids are named because this is a test (I-25). */
 
@@ -43,5 +43,29 @@ describe("landmarksFromLedger", () => {
 
   it("a skill short of 50 has none", () => {
     expect(landmarksFromLedger([row("wayfaring", "a-1", 1, AT50 - 1)], CURVE)).toEqual([])
+  })
+})
+
+describe("landmarkPutItem (0302)", () => {
+  const L: LandmarkRecord = {
+    userId: "u-1",
+    skillId: "wayfaring",
+    level: 50,
+    place: "landmark",
+    activityId: "a-2",
+    earnedAt: "2026-01-02T08:00:00.000Z",
+    lng: -123.39,
+    lat: -48.87,
+  }
+
+  it("is the row landmarkUpdateItem leaves on a fresh key, created only if absent (D-408)", () => {
+    const put = landmarkPutItem(L, "2026-10-20T12:00:00.000Z", "Landmark-x-NONE")
+    const update = landmarkUpdateItem(L, "2026-10-20T12:00:00.000Z", "Landmark-x-NONE").Update!
+    const fromUpdate = Object.fromEntries(
+      Object.entries(update.ExpressionAttributeNames!).map(([alias, name]) => [name, update.ExpressionAttributeValues![`:v${alias.slice(2)}`]]),
+    )
+    expect(put.TableName).toBe("Landmark-x-NONE")
+    expect(put.ConditionExpression).toBe("attribute_not_exists(userId)")
+    expect(put.Item).toEqual({ ...update.Key, ...fromUpdate })
   })
 })

@@ -2036,7 +2036,12 @@ requires (§4.6). §4.4 step 3e also rewrites each scored run's `classes.json` f
 against the rebuilt ledger. Replay writes no landmarks (D-301), so without this the rebuilt stack
 has none. Under the same `xpRulesVersion` every landmark lands where it stood. Under a changed one
 a crossing can move to another activity or point, and the rebuilt landmark follows it — accepted,
-not snapshotted (D-307).
+not snapshotted (D-307). *(`0302`: the drill runs the backfill's walk-and-place
+(`backfillLandmarks`) in-process at the end of step 6, over the rebuilt ledger rows and the routes
+read back from the target, into the target's sixth table role, `landmark`. Each landmark is a
+`PutItem` on `attribute_not_exists(userId)` (D-408), not the live tool's `if_not_exists` update.
+`backfill-landmarks.ts --target <target.json>` points the standalone tool at the same target,
+refused by the drill's own check.)*
 
 **Step 7 — regenerate the delivery layer.** Encode `explored-r11.bin`, `explored-agg.json` and
 `explored-lastrun-r11.bin` from the step-5 map; PUT them; PUT `manifest.json` last (§6.4).

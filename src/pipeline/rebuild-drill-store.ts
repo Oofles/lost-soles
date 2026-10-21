@@ -2,6 +2,7 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { BatchGetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 
 import { generationKey } from "./explored-generation"
+import { landmarkPutItem } from "./landmarks"
 import { amplifyMetadata } from "./persist"
 import type { DrillStore, DrillTarget } from "./rebuild-drill-back"
 import { ledgerPutItem } from "./xp-ledger"
@@ -150,6 +151,12 @@ export function dynamoDrillStore(deps: DrillStoreDeps): DrillStore {
           ConditionExpression: "attribute_not_exists(id)",
         }),
       )
+    },
+
+    async putLandmarks(records, at) {
+      await pool(records, n, async (l) => {
+        await ddb(new PutCommand(landmarkPutItem(l, at, t.landmark)))
+      })
     },
 
     async raiseGeneration(userId, generation) {

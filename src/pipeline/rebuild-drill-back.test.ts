@@ -13,6 +13,8 @@ import type { XpLedgerEntry } from "@/src/scoring"
 
 import { objectKeys } from "./explored-blob-store"
 import type { KindCorrected } from "./kind-override"
+import { readStoredRoute, readWalkRows } from "./landmark-backfill"
+import { backfillLandmarks, landmarkKey, type LandmarkRecord } from "./landmarks"
 import type { DrillEntry, DrillSummary, FrontHalf } from "./rebuild-drill"
 import {
   assertGenerationAdvances,
@@ -63,6 +65,7 @@ const TARGET: DrillTarget = {
     skillState: "SkillState-drillapi-NONE",
     profile: "Profile-drillapi-NONE",
     exploredCell: "DrillExploredCell",
+    landmark: "Landmark-drillapi-NONE",
   },
   bucket: "drill-bucket",
   prefix: "",
@@ -233,6 +236,15 @@ class MemoryStore implements DrillStore {
   async putProfile(_u: string, totals: Item) {
     this.profile = { ...totals }
     this.log.push("t1")
+  }
+  landmarks = new Map<string, LandmarkRecord>()
+  async putLandmarks(records: readonly LandmarkRecord[]) {
+    for (const l of records) {
+      const k = landmarkKey(l.skillId, l.level)
+      if (this.landmarks.has(k)) throw new Error(`ConditionalCheckFailed: landmark ${k}`)
+      this.landmarks.set(k, l)
+    }
+    this.log.push(`landmarks ${records.length}`)
   }
   async raiseGeneration(_u: string, g: number) {
     if (this.generation !== undefined) return false
@@ -704,5 +716,114 @@ describe("dynamoDrillStore", () => {
     await store.readSkillStates(UID, ["running"])
     const get = ddbSent[0] as BatchGetCommand
     expect(get.input.RequestItems![TARGET.tables.skillState]).toEqual({ Keys: [{ userId: UID, skillId: "running" }], ConsistentRead: true })
+  })
+})
+
+// ─── Ticket 0302: the landmark backfill into the target ─────────────────────
+
+describe("0302 — step 6 backfills landmarks into the target", () => {
+  /** V1 paying 10,000× per unit, so the fixture's sub-kilometre lines carry skills past 50 and 99. */
+  const RICH: RuleSet = { ...V1, skills: V1.skills.map((s) => (s.kind === "activity" ? { ...s, xpPerUnit: s.xpPerUnit * 10_000 } : s)) }
+
+  const sortByKey = (ls: Iterable<LandmarkRecord>) =>
+    [...ls].sort((a, b) => (landmarkKey(a.skillId, a.level) < landmarkKey(b.skillId, b.level) ? -1 : 1))
+
+  async function drill(rules = RICH, spotCheck?: SpotCheck) {
+    const store = new MemoryStore()
+    const summary = await runDrillBackHalf(front(), { target: TARGET, live: LIVE, store, rules, now: NOW, spotCheck })
+    return { store, summary }
+  }
+
+  /**
+   * THE LIVE BACKFILL, over the live stack for the same history under the same rules. The live
+   * ledger and routes are a clean run's (as `liveState` stands in for the live ledger above), read
+   * through the tool's own reads — `byUserAndSeq` a page at a time, routes from S3 — by stubbed
+   * clients. Only the placing is shared with the drill; the inputs come by the live path.
+   */
+  async function liveBackfill(live: MemoryStore): Promise<LandmarkRecord[]> {
+    const items = [...live.ledger.values()].reverse() // the walk orders by seq, not by arrival
+    const ddb = {
+      async send(c: unknown) {
+        const q = c as QueryCommand
+        expect(q).toBeInstanceOf(QueryCommand)
+        expect(q.input).toMatchObject({ TableName: "XpLedgerEntry-liveapi123-NONE", IndexName: "byUserAndSeq" })
+        const from = Number((q.input.ExclusiveStartKey as { i?: number } | undefined)?.i ?? 0)
+        const page = items.slice(from, from + 3)
+        return { Items: page, ...(from + 3 < items.length ? { LastEvaluatedKey: { i: from + 3 } } : {}) }
+      },
+    }
+    const s3 = {
+      async send(c: unknown) {
+        const g = c as GetObjectCommand
+        const o = live.objects.get(g.input.Key!)
+        if (!o) throw Object.assign(new Error("no such key"), { name: "NoSuchKey" })
+        return { Body: { transformToByteArray: async () => o.body } }
+      },
+    }
+    const rows = await readWalkRows(ddb, "XpLedgerEntry-liveapi123-NONE", UID)
+    expect(rows).toHaveLength(items.length)
+    return backfillLandmarks({ userId: UID, rows, curve: RICH.curve, route: (id) => readStoredRoute(s3, { bucket: "live-bucket" }, UID, id) })
+  }
+
+  it("criterion 3 — a drill into an in-memory target produces the live backfill's landmark set", async () => {
+    const { store: live } = await drill()
+    const { store, summary } = await drill(RICH, spotOf(live, "b-fresh"))
+    const expected = await liveBackfill(live)
+
+    expect(summary.failed).toBeNull()
+    expect(expected.length).toBeGreaterThan(1)
+    expect(expected.some((l) => l.level === 99)).toBe(true)
+    expect(expected.some((l) => l.lng !== null && l.lat !== null)).toBe(true)
+    expect(sortByKey(store.landmarks.values())).toEqual(sortByKey(expected))
+    expect(summary.landmarks).toEqual({ written: expected.length, placed: expected.filter((l) => l.lng !== null).length })
+  })
+
+  it("criterion 2 — after step 6's writes, before step 7 and step 8", async () => {
+    const { store } = await drill()
+    const at = store.log.findIndex((l) => l.startsWith("landmarks "))
+    expect(at).toBeGreaterThan(store.log.indexOf("t1"))
+    expect(at).toBeLessThan(store.log.findIndex((l) => l.startsWith("gen ")))
+  })
+
+  it("writes none when no skill reached 50", async () => {
+    const { store, summary } = await drill(V1)
+    expect(summary.landmarks).toEqual({ written: 0, placed: 0 })
+    expect(store.landmarks.size).toBe(0)
+  })
+
+  it("a target with no landmark table, or a live one, is refused before the first write", async () => {
+    const five: Partial<DrillTarget["tables"]> = { ...TARGET.tables }
+    delete five.landmark
+    const old = { ...TARGET, tables: five } as unknown as DrillTarget
+    expect(targetCollisions(old, LIVE)).toEqual(["target landmark table is empty"])
+    expect(targetCollisions({ ...TARGET, tables: { ...TARGET.tables, landmark: "Landmark-liveapi123-NONE" } }, LIVE)).toEqual([
+      'target landmark table "Landmark-liveapi123-NONE" is a live table',
+    ])
+    const store = new MemoryStore()
+    const summary = await runDrillBackHalf(front(), { target: old, live: LIVE, store, rules: RICH, now: NOW })
+    expect(summary.failed).toMatchObject({ reason: "TARGET_IS_LIVE", exitCode: 4 })
+    expect(store.log).toEqual([])
+  })
+
+  it("dynamoDrillStore creates each landmark conditioned on absence, in the target's landmark table", async () => {
+    const sent: PutCommand[] = []
+    const store = dynamoDrillStore({
+      ddb: {
+        async send(c: unknown) {
+          sent.push(c as PutCommand)
+          return {}
+        },
+      },
+      s3: { send: async () => ({}) },
+      target: TARGET,
+    })
+    const { store: mem } = await drill()
+    await store.putLandmarks([...mem.landmarks.values()], NOW().toISOString())
+    expect(sent.length).toBe(mem.landmarks.size)
+    for (const p of sent) {
+      expect(p).toBeInstanceOf(PutCommand)
+      expect(p.input).toMatchObject({ TableName: TARGET.tables.landmark, ConditionExpression: "attribute_not_exists(userId)" })
+      expect(p.input.Item).toMatchObject({ userId: UID, __typename: "Landmark" })
+    }
   })
 })

@@ -14,6 +14,7 @@ import { reconcile, xpBySkill, type XpLedgerEntry } from "@/src/scoring"
 
 import { IMMUTABLE_CACHE_CONTROL, MANIFEST_CACHE_CONTROL, objectKeys, type ExploredManifest } from "./explored-blob-store"
 import { cellKey, EXPLORED_CELL_TABLE, lastRunDay } from "./explored-cells"
+import { backfillLandmarks, type LandmarkRecord } from "./landmarks"
 import { activityItem } from "./persist"
 import type { DrillEntry, FrontHalf } from "./rebuild-drill"
 import { routeTraceKey, segmentsToGeometry, type RouteTraceGeometry } from "./route-trace-store"
@@ -45,7 +46,8 @@ import {
  *   5 FOLD      read the cells files BACK, fold them (`foldHistory`, the one fold), and assert
  *               check 3 before writing anything else — then put the T6 cell and AGG items.
  *   6 REPLAY    score the fold under the target rules, against the precondition-4 snapshot as the
- *               D-135 waterline (no `SkillState` read: the tables are new). Floors, T2, T1 totals.
+ *               D-135 waterline (no `SkillState` read: the tables are new). Floors, T2, T1 totals,
+ *               then the landmark backfill over the rebuilt ledger and routes (`0302`, D-307).
  *   7 PUBLISH   generation = step 0's + 1, the three blobs and the trace web, manifest LAST.
  *   8 VERIFY    the six assertions, from what the target now holds.
  *
@@ -75,6 +77,8 @@ export interface DrillTarget {
     skillState: string
     profile: string
     exploredCell: string
+    /** `0302`: step 6's landmark backfill writes here (D-307). */
+    landmark: string
   }
   bucket: string
   /**
@@ -118,6 +122,11 @@ export function liveNamesFromOutputs(outputs: {
   return { bucket, apiId, tables: [...LIVE_MODELS.map((model) => `${model}-${apiId}-NONE`), ...LIVE_CDK_TABLES] }
 }
 
+/** The target's table roles, in the order a refusal lists them. */
+export const TARGET_TABLE_ROLES = ["activity", "ledger", "skillState", "profile", "exploredCell", "landmark"] as const satisfies ReadonlyArray<
+  keyof DrillTarget["tables"]
+>
+
 /** Top-level prefixes the live bucket keeps its state under. A staging prefix may not start with one. */
 const LIVE_KEY_ROOTS = ["raw/", "users/", "snapshots/"]
 
@@ -129,7 +138,10 @@ export function targetCollisions(target: DrillTarget, live: LiveNames): string[]
   const out: string[] = []
   const liveTables = new Set(live.tables)
   const seen = new Map<string, string>()
-  for (const [role, name] of Object.entries(target.tables)) {
+  // Every role, not `Object.entries`: a target file that omits one (a pre-`0302` file with no
+  // `landmark`) is refused, rather than letting that step write to `undefined`.
+  for (const role of TARGET_TABLE_ROLES) {
+    const name = target.tables[role]
     if (!name) out.push(`target ${role} table is empty`)
     else if (liveTables.has(name)) out.push(`target ${role} table "${name}" is a live table`)
     else if (live.apiId && name.includes(live.apiId)) out.push(`target ${role} table "${name}" belongs to the live API ${live.apiId}`)
@@ -181,6 +193,8 @@ export interface DrillStore {
     totals: { totalXp: number; totalLevel: number; ledgerRulesVersion: number },
     at: string,
   ): Promise<void>
+  /** Step 6's landmark backfill (`0302`, D-307): each created, conditioned on absence. */
+  putLandmarks(records: readonly LandmarkRecord[], at: string): Promise<void>
   /** T6's generation counter, set to exactly `generation`. `false` when it already stood at or above. */
   raiseGeneration(userId: string, generation: number): Promise<boolean>
   /** `Profile.exploredGeneration`, after the manifest (the mirror follows the commit point). */
@@ -487,6 +501,38 @@ export async function replayXp(args: {
   return { entries, floors, writes, totals }
 }
 
+/**
+ * Step 6, last (`0302`, D-307): the landmark backfill against the REBUILT ledger and routes. The
+ * same `backfillLandmarks` `tools/landmarks/backfill-landmarks.ts` runs over the live tables, so
+ * under the same rules every landmark lands where it stood. Routes are read back from the target
+ * (as step 5 reads its cells files back), and only for an activity whose XP crossed something.
+ * Replay writes no landmarks (D-301): without this the rebuilt stack would have no cairns.
+ */
+export async function backfillTargetLandmarks(args: {
+  userId: string
+  persisted: readonly PersistedActivity[]
+  replay: Pick<ReplayOutput, "entries" | "floors">
+  rules: RuleSet
+  at: string
+  store: DrillStore
+}): Promise<LandmarkRecord[]> {
+  const { userId, store } = args
+  const traceRefs = new Map(args.persisted.map((p) => [p.activity.activityId, p.activity.traceRef] as const))
+  const records = await backfillLandmarks({
+    userId,
+    rows: [...args.replay.entries, ...args.replay.floors],
+    curve: args.rules.curve,
+    route: async (activityId) => {
+      const key = traceRefs.get(activityId)
+      if (!key) return null
+      const bytes = await store.getObject(key)
+      return bytes === undefined ? null : (JSON.parse(gunzipSync(bytes).toString("utf8")) as RouteTraceGeometry)
+    },
+  })
+  await store.putLandmarks(records, args.at)
+  return records
+}
+
 // ─── Step 7: the delivery layer ─────────────────────────────────────────────
 
 /** Criterion 5, pure: a generation that does not move forward never reaches a PUT. */
@@ -705,6 +751,8 @@ export interface BackHalfSummary {
   skillStates: number
   totalXp: number | null
   totalLevel: number | null
+  /** Step 6's landmark backfill (`0302`): rows written, and how many stand on a route. */
+  landmarks: { written: number; placed: number } | null
   generation: number | null
   step8: Step8Check[]
   /** The first failure's reason, or the abort's; `null` when the drill passed and may be cut over. */
@@ -735,6 +783,7 @@ export async function runDrillBackHalf(front: FrontHalf, o: BackHalfOptions): Pr
     skillStates: 0,
     totalXp: null,
     totalLevel: null,
+    landmarks: null,
     generation: null,
     step8: [],
     failed: null,
@@ -787,6 +836,9 @@ export async function runDrillBackHalf(front: FrontHalf, o: BackHalfOptions): Pr
     summary.totalXp = replay.totals.totalXp
     summary.totalLevel = replay.totals.totalLevel
     log(`step 6: ${replay.entries.length} rows, ${replay.floors.length} floors, Total Level ${replay.totals.totalLevel}`)
+    const landmarks = await backfillTargetLandmarks({ userId, persisted, replay, rules: o.rules, at, store: o.store })
+    summary.landmarks = { written: landmarks.length, placed: landmarks.filter((l) => l.lng !== null).length }
+    log(`step 6: ${landmarks.length} landmarks backfilled, ${summary.landmarks.placed} on a route`)
 
     // ── 7 ──
     const published = await publishDelivery({

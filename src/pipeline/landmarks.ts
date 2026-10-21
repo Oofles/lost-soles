@@ -96,8 +96,41 @@ export async function landmarksCrossed(args: {
  * `ingestedAt` (or the backfill's run), for Amplify's `createdAt` — audit only.
  */
 export function landmarkUpdateItem(landmark: LandmarkRecord, recordedAt: string, table: string): TransactItems[number] {
+  const fields = landmarkFields(landmark, recordedAt)
+  const names = Object.keys(fields)
+  return {
+    Update: {
+      TableName: table,
+      Key: landmarkItemKey(landmark),
+      UpdateExpression: "SET " + names.map((_, i) => `#f${i} = if_not_exists(#f${i}, :v${i})`).join(", "),
+      ExpressionAttributeNames: Object.fromEntries(names.map((n, i) => [`#f${i}`, n])),
+      ExpressionAttributeValues: Object.fromEntries(names.map((n, i) => [`:v${i}`, fields[n]])),
+    },
+  }
+}
+
+/**
+ * The same row as a CREATE CONDITIONED ON ABSENCE, for a rebuild into a new, empty table (`0302`,
+ * D-408). Attribute for attribute what `landmarkUpdateItem` leaves on a fresh key, so a rebuilt
+ * landmark is the live one's twin; the condition makes a target that already holds the key refuse
+ * the write rather than keep an older row in silence.
+ */
+export function landmarkPutItem(landmark: LandmarkRecord, recordedAt: string, table: string) {
+  return {
+    TableName: table,
+    Item: { ...landmarkItemKey(landmark), ...landmarkFields(landmark, recordedAt) },
+    ConditionExpression: "attribute_not_exists(userId)",
+  }
+}
+
+const landmarkItemKey = (landmark: LandmarkRecord) => ({
+  userId: landmark.userId,
+  skillLevel: landmarkKey(landmark.skillId, landmark.level),
+})
+
+function landmarkFields(landmark: LandmarkRecord, recordedAt: string): Record<string, unknown> {
   const meta = amplifyMetadata(landmark.userId, recordedAt, LANDMARK_TYPENAME)
-  const fields: Record<string, unknown> = {
+  return {
     __typename: meta.__typename,
     owner: meta.owner,
     createdAt: meta.createdAt,
@@ -109,16 +142,6 @@ export function landmarkUpdateItem(landmark: LandmarkRecord, recordedAt: string,
     earnedAt: landmark.earnedAt,
     lng: landmark.lng,
     lat: landmark.lat,
-  }
-  const names = Object.keys(fields)
-  return {
-    Update: {
-      TableName: table,
-      Key: { userId: landmark.userId, skillLevel: landmarkKey(landmark.skillId, landmark.level) },
-      UpdateExpression: "SET " + names.map((_, i) => `#f${i} = if_not_exists(#f${i}, :v${i})`).join(", "),
-      ExpressionAttributeNames: Object.fromEntries(names.map((n, i) => [`#f${i}`, n])),
-      ExpressionAttributeValues: Object.fromEntries(names.map((n, i) => [`:v${i}`, fields[n]])),
-    },
   }
 }
 
@@ -175,6 +198,36 @@ export function landmarksFromLedger(
       }
       sum += s.xp
     }
+  }
+  return out
+}
+
+/**
+ * THE BACKFILL, END TO END BUT FOR THE I/O (`0302`). The ledger walk, then each crossing placed on
+ * its activity's stored route at the threshold's arc. `route` is asked only for an activity that
+ * crossed something. One function, so `tools/landmarks/backfill-landmarks.ts` (live, or a drill
+ * target) and the drill's step 6 (`rebuild-drill-back.ts`) cannot place a landmark differently.
+ */
+export async function backfillLandmarks(args: {
+  userId: string
+  rows: readonly WalkRow[]
+  curve: Pick<RuleCurve, "maxLevel" | "stepFormula">
+  route: (activityId: string) => Promise<RouteTraceGeometry | null>
+}): Promise<LandmarkRecord[]> {
+  const out: LandmarkRecord[] = []
+  for (const c of landmarksFromLedger(args.rows, args.curve)) {
+    const path = lanternPath(await args.route(c.activityId))
+    const at = path ? path.at(c.arc) : null
+    out.push({
+      userId: args.userId,
+      skillId: c.skillId,
+      level: c.level,
+      place: c.place,
+      activityId: c.activityId,
+      earnedAt: c.earnedAt,
+      lng: at ? at[0] : null,
+      lat: at ? at[1] : null,
+    })
   }
   return out
 }

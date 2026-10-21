@@ -34,7 +34,7 @@ import { loadRuleSet } from "../../src/rules/load"
  * `rebuild` runs the front half and then steps 4–8 INTO THE TARGET, which is a JSON file:
  *
  *   { "tables": { "activity": "...", "ledger": "...", "skillState": "...", "profile": "...",
- *                 "exploredCell": "..." },
+ *                 "exploredCell": "...", "landmark": "..." },
  *     "bucket": "...", "prefix": "" }
  *
  * — the parallel stack (`0105` creates it). The drill refuses, before any write, a target that names
