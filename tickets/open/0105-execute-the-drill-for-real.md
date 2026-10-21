@@ -55,20 +55,20 @@ Constraints on the run itself:
 
 ## Acceptance criteria
 
-- [ ] The drill has been executed against the live archive, into a parallel stack, and the stack
+- [x] The drill has been executed against the live archive, into a parallel stack, and the stack
       has been torn down; the CloudFormation stack name and deletion time are recorded.
-- [ ] All six step-8 assertions passed; the assertion table as printed by the run is pasted into
+- [x] All six step-8 assertions passed; the assertion table as printed by the run is pasted into
       `docs/capabilities/16-rebuild-drill.md` verbatim.
-- [ ] The **four numbers** above are pasted into that doc with the run date and commit sha, and
+- [x] The **four numbers** above are pasted into that doc with the run date and commit sha, and
       each is the value the run printed — not a value typed from memory.
-- [ ] `normalize()` failure count is **0**. Any non-zero count means investigating the specific
+- [x] `normalize()` failure count is **0**. Any non-zero count means investigating the specific
       key and re-running; it does not mean lowering the bar.
-- [ ] Final `cellCount` **equals** the step-0 `cellCount` (`fogAlgoVersion` unchanged). A `≥` is
+- [x] Final `cellCount` **equals** the step-0 `cellCount` (`fogAlgoVersion` unchanged). A `≥` is
       only acceptable with a recorded `fogAlgoVersion` change and its reason.
-- [ ] Every skill's rebuilt `displayedXp` ≥ the snapshot's, and the per-skill comparison table is
+- [x] Every skill's rebuilt `displayedXp` ≥ the snapshot's, and the per-skill comparison table is
       pasted alongside the four numbers.
-- [ ] Measured wall-clock and cost are recorded next to the §8.3 estimates.
-- [ ] The live map was untouched: the live `manifest.json` `generation` is identical before and
+- [x] Measured wall-clock and cost are recorded next to the §8.3 estimates.
+- [x] The live map was untouched: the live `manifest.json` `generation` is identical before and
       after, recorded as two values in the doc.
 
 ## Notes
@@ -91,16 +91,64 @@ target JSON, or the drill refuses it. The rebuild also backfills landmarks at th
 
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Smoke test, orchestrator, 2026-10-21, laptop, `AWS_PROFILE=devault`.** There is no perceptual
+check (D-229). The original text asked the operator to compare two figures by eye: the `/` map
+against "as it was", and `/skills` Total XP against the pasted number. Both are queries, run below.
 
-On the laptop, open `docs/capabilities/16-rebuild-drill.md` and read the four numbers. Then, in
-the desktop browser, open `/` and check the map is exactly as it was — same territory, same last run — and
-open `/skills` and check Total XP matches the number pasted as "final Total XP". Two sources, the
-same figure, one of them rebuilt from nothing but a bucket of files: that agreement is the proof.
-If the numbers in the doc are round, hand-typed, or absent, the ticket is not done.
+- **The map is untouched.** Live `users/<uid>/manifest.json` before and after the drill is
+  byte-identical (`cmp`): `generation` 269, `cellCount` 5,211, ETag `861cb104…`, `LastModified`
+  2026-10-18T13:23:30Z. `/` renders from that manifest (S-1), so it draws the same map.
+- **Total XP agrees from both sources.** The live `SkillState` rows, which `/skills` reads (AP-2),
+  sum to **70,994**. The target `SkillState` rebuilt from nothing but `raw/` sums to **70,994**.
+  So does the snapshot. Every skill agrees, per skill, across all three (table in
+  `docs/capabilities/16-rebuild-drill.md`).
+- **The four numbers are in the doc, as printed by the run:** 123 objects · 0 normalize failures ·
+  cellCount 5,211 == 5,211 · Total XP 70,994 vs 70,994. Run 2026-10-21, drill code at `dfb844a`.
+- **Teardown verified:** `LostSolesRebuildDrill-20261021` is `DELETE_COMPLETE` (deleted
+  20:21:00Z), `list-tables` shows no `LostSolesDrill-*` table, and the drill bucket's `HeadBucket`
+  returns 404.
+
+## Resolution
+
+The drill ran once, for real, and every check passed on the first attempt: 123 raw objects, 0
+normalize failures, 5,211 cells against step 0's 5,211, and Total XP 70,994 against the
+snapshot's 70,994. The full record is in `docs/capabilities/16-rebuild-drill.md` under *The drill,
+executed for real*: the four numbers, the step-8 output verbatim, the per-skill table, the live
+manifest before and after, wall-clock and cost, and the teardown.
+
+**Files**
+
+- `tools/drill/target-stack.ts` (new). The parallel stack, as a CDK app:
+  `npx tsx tools/drill/target-stack.ts <tag> <outDir>`. It writes a CloudFormation template and the
+  drill's `target.json`. The six table roles mirror the live key schemas and GSIs, including
+  `byUserAndDay`'s INCLUDE projection, read from `describe-table`. The stack also holds its own
+  bucket. Everything is DESTROY. The template is deployed with `aws cloudformation deploy`. No CDK
+  CLI is installed, and the template carries no assets, so `generateBootstrapVersionRule: false`
+  and no bootstrap is needed. It is committed so the pre-D-121 re-run (§8.4) is one command, not a
+  re-derivation.
+- `docs/capabilities/16-rebuild-drill.md`. The result section.
+
+**How it went**
+
+- The `enumerate` phase (read-only) and a `--dry-run` of `rebuild` against the target came first.
+  The dry run confirmed the target was accepted and that nothing was written. Then the stack was
+  deployed (66 s) and the drill ran (64 s, exit 0). The rebuilt `SkillState` was read back, the
+  live manifest was re-read, and the bucket was emptied (337 objects) and the stack deleted (32 s).
+- The drill's own code is unchanged. It ran at `dfb844a`. Only the stack definition is new.
+- **Wall-clock and cost are both more than 10× under §8.3's estimate** (64 s vs 30 min, about $0.01
+  vs $0.50). This is written down, not rounded away. The cause is volume: §8.3 assumed five years
+  of archive, 2,000–5,000 objects, while today there are 123. Taking all 64 s as scaling with cell
+  count, 150k cells would land at about the 30-minute ceiling. That is plausible, but unproven at
+  volume.
+- The cost is an estimate from counted requests, not a billed figure. Cost Explorer lags by about a
+  day, and the stack's tags (`purpose=rebuild-drill-0105`) are not activated for cost allocation.
+  The doc says so.
+- Two figures looked odd and were checked. **0 landmarks:** the live `Landmark` table holds 0
+  items, so 0 is correct. **1 kind override applied of 5 objects:** all five are overrides of one
+  activity, `strava/20076758956`, and only the newest applies.
+- The bucket was emptied with `aws s3 rm`, outside `tools/drill/`. `check-drill-no-delete` forbids
+  any delete in the drill's code, and the teardown is not the drill.
+
+**Decisions:** none new. The stack-as-parameter split was settled by `0103` (D-405–D-413).
+
+**Not done, by design:** no cutover, no step 9 (the live stack was never touched).
