@@ -2551,6 +2551,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-21T19:31:20Z",
     "path": "tickets/open/0104-ci-rebuild-drill-fixture.md",
     "ready": true,
     "acceptance": {
@@ -6944,6 +6945,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-21T03:53:20Z",
+    "started": "2026-10-21T19:31:21Z",
     "path": "tickets/open/0301-rebuild-drill-resurrects-retracted-activities.md",
     "ready": true,
     "acceptance": {
@@ -6964,6 +6966,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-21T03:53:25Z",
+    "started": "2026-10-21T19:31:20Z",
     "path": "tickets/open/0302-rebuild-drill-landmark-backfill-into-the-target-stack.md",
     "ready": true,
     "acceptance": {
