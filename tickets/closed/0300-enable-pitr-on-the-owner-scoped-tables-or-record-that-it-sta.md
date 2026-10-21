@@ -4,7 +4,7 @@ slug: enable-pitr-on-the-owner-scoped-tables-or-record-that-it-sta
 title: Enable PITR on the owner-scoped tables, or record that it stays off
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 16-rebuild-drill
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-20T17:50:34Z
 started: 2026-10-21T03:32:09Z
+closed: 2026-10-21T04:11:21Z
 ---
 
 ## Description
