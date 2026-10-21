@@ -9,7 +9,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 import { foldOrder } from "@/src/domain/fold"
 import { objectKeys } from "@/src/pipeline/explored-blob-store"
 import { applyKindOverride, type KindCorrected, type KindOverride } from "@/src/pipeline/kind-override"
-import { snapshotPrefix } from "@/src/pipeline/skillstate-snapshot"
+import { snapshotPrefix, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
 
 /**
  * THE REBUILD DRILL, FRONT HALF: PRECONDITIONS, STEP 0, AND STEPS 1–3. Ticket `0102`.
@@ -18,7 +18,8 @@ import { snapshotPrefix } from "@/src/pipeline/skillstate-snapshot"
  * D-101 says `raw/` is the system of record and everything else is reconstructible. This module is
  * the first half of the procedure that proves it: list the bucket, normalize every archived payload
  * through the shipped adapter, and put the result in fold order. Nothing here writes to AWS. The
- * back half (steps 4–8, ticket `0103`) takes `FrontHalf.sorted` and does the order-dependent work.
+ * back half (steps 4–8, ticket `0103`, `rebuild-drill-back.ts`) takes `FrontHalf.sorted` and does
+ * the order-dependent work.
  *
  * ─── STEP 1 NEEDS NOTHING BUT THE BUCKET ───────────────────────────────────
  *
@@ -569,6 +570,11 @@ export interface FrontHalf {
   sorted: DrillEntry[]
   /** `activityId` → D-263 pointer key, for `0103`'s step 8 check 2. */
   duplicatePointers: Map<string, string>
+  /**
+   * `0103`. Precondition 4's snapshot, parsed: step 6's D-135 waterline (D-399). `null` until the
+   * preconditions pass. The same bytes `saveSnapshot` wrote to disk, so the file IS the waterline.
+   */
+  snapshot: SkillStateSnapshot | null
 }
 
 export interface RunDrillOptions extends DrillS3Deps {
@@ -624,7 +630,7 @@ export async function runDrillFrontHalf(o: RunDrillOptions): Promise<FrontHalf> 
     lastStartedAt: null,
     sortedActivityIds: null,
   }
-  const result: FrontHalf = { summary, sorted: [], duplicatePointers: enumeration.duplicatePointers }
+  const result: FrontHalf = { summary, sorted: [], duplicatePointers: enumeration.duplicatePointers, snapshot: null }
   if (refused) return result
 
   const target = await readVerificationTarget(o.userId, o)
@@ -635,6 +641,7 @@ export async function runDrillFrontHalf(o: RunDrillOptions): Promise<FrontHalf> 
     snapshotKey: snapshot!.key,
     snapshotPath: o.saveSnapshot(snapshot!.key, snapshot!.body),
   }
+  result.snapshot = JSON.parse(snapshot!.body.toString("utf8")) as SkillStateSnapshot
   if (o.phase === "enumerate") return result
 
   const normalized = await normalizeAll(enumeration, o)

@@ -1986,7 +1986,11 @@ is **under two minutes** and embarrassingly parallel.
 **Step 4 — persist facts and per-activity derivations.** In sorted order, for each activity:
 `PutItem` the `Activity` row (T3); write `users/<uid>/traces/<activityId>.segments.json.gz`; sanitise the trace and
 project to H3 res 11 (D-237, superseding D-115; 05 §2.2) at the **current** `fogAlgoVersion`; write
-`cells/<uid>/<activityId>.cells.bin`. **No XP and no `ExploredCell` writes yet.**
+`users/<uid>/cells/<activityId>.bin` (`objectKeys.runCells`; the projection runs only where the
+target rules say the activity reveals ground, D-189, as ingest gates it). **No XP and no
+`ExploredCell` writes yet.** *(`0103`: a D-263 duplicate loser is dropped from the sorted list
+before this step — it never becomes a row, a cell, fold input or replay input, as in live ingest.
+Step 5 folds the cells files read **back** from the target, not step 4's memory.)*
 
 **Step 5 — the fold. This is the heart of the drill** (and the operation §2.9 promised).
 Walk the activities in the same sorted order, maintaining an in-memory map
@@ -2013,7 +2017,10 @@ for activity in sorted:
     record per-activity {newCellCount, rearmedCellCount, cooledCellCount}   # feeds step 6
 ```
 
-Then bulk-write the map to T6 (`BatchWriteItem`, 25/request, ~20k–150k items ≈ 1–6 minutes) with
+Then bulk-write the map to T6 (one `PutItem` per item conditioned on `attribute_not_exists(pk)`, in
+parallel — *`0103`: not `BatchWriteItem`, which `check-fog-hot-path.mjs` forbids in any file that
+knows T6 because a batch write can carry a removal (I-7); the write units are the same, and the
+condition makes a non-empty target refuse the drill*; ~20k–150k items ≈ 1–6 minutes) with
 `lastRunDay` computed as u16 days since 2020-01-01, and derive the `AGG#{6,7,8}` items by counting
 children per parent. **This fold reproduces every `ExploredCell` attribute exactly, from facts, in
 history order — which is what makes the table honestly a cache** (§2.9) and what makes D-120
@@ -2037,7 +2044,11 @@ Rebuild `users/<uid>/traces/web.json.gz` with `tools/trace-web/rebuild-trace-web
 D-307) — an absent web reads as an empty one (D-306), so forgetting it fails silently.
 **Set `generation = <the step-0 generation> + 1`, never 1.** A generation that goes backwards
 would leave every cached client convinced it is already up to date, and the fog is the one thing
-that must never appear to regress.
+that must never appear to regress. *(`0103`: the target T6's `GEN` counter is set to it first, on
+`attribute_not_exists` — a counter already present means the target is not empty, and the run
+aborts before any step-7 PUT. No delta is written: `deltasFrom = generation`, so every cached
+client takes the full blob. Check 3 is asserted at the end of step 5, before anything else is
+written; it aborts, never warns.)*
 
 **Step 8 — verify before cutting over.** All six must pass:
 
@@ -2048,7 +2059,7 @@ that must never appear to regress.
 | 3 | rebuilt `cellCount` **== step-0 `cellCount`** when `fogAlgoVersion` is unchanged; **≥** it if the algorithm changed | a cell was lost — **stop; do not cut over** (D-020) |
 | 4 | every skill's rebuilt `displayedXp` ≥ the snapshot's | a D-135 violation; step 6's floors did not apply |
 | 5 | `SUM(XpLedgerEntry.xpAwarded)` per skill == `SkillState.xpLedgerSum` | the §4.1 invariant is broken |
-| 6 | a spot-check activity's XP itemisation (AP-7) matches its pre-drill values under the same rules version | a scoring regression |
+| 6 | a spot-check activity's XP itemisation (AP-7) matches its pre-drill values under the same rules version — *`n/a` (a pass) when the target version differs from the rows' (`0103`)* | a scoring regression |
 
 **Step 9 — reconnect sources.** T7 is **not** rebuilt: OAuth tokens are not derivable and must not
 be (§1.1). Re-authorise each adapter, then set `listSinceWatermark` to **the drill's start time
@@ -2057,7 +2068,7 @@ during the rebuild. Re-ingesting an activity already rebuilt is a `dedupeKey` no
 T8 is not rebuilt either — it is 90-day ephemera, and an empty receipt table is a correct
 starting state.
 
-**Budget:** ~2 min normalize + ~1–6 min of `BatchWriteItem` + seconds of XP replay + <1 s of blob
+**Budget:** ~2 min normalize + ~1–6 min of T6 `PutItem`s + seconds of XP replay + <1 s of blob
 encoding. **Call it under 30 minutes wall-clock including verification**, and roughly $0.50 of
 request charges, once. At six users this is not an operation that needs to be clever.
 

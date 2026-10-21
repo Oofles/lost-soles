@@ -12,7 +12,7 @@ import {
   type RunClasses,
 } from "@/src/domain/discovery"
 import { traceToSegments } from "@/src/domain/fog"
-import { foldActivities, type FoldedCell } from "@/src/domain/fold"
+import { foldActivities, type FoldActivity, type FoldedCell, type FoldResult } from "@/src/domain/fold"
 import { revealsGround } from "@/src/rules/reveals-ground"
 import type { RuleSet } from "@/src/rules/schema"
 import {
@@ -366,55 +366,17 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
       activities.map(async (a) => ({ a, cells: (await store.readRunCells(userId, a.activityId)) ?? [] })),
     )
     const byId = new Map(activities.map((a) => [a.activityId, a] as const))
-    const classifiedBy = new Map<string, readonly ClassifiedCell[]>()
-    // `0262`: the nearby ground coming back into season, read off the fold's map as it stood before
-    // each run — exact as of the run, which today's T6 no longer is.
-    const rearmSoonBy = new Map<string, RearmSoon | undefined>()
-    const fold = foldActivities(
+    const history = foldHistory(
       folded.map(({ a, cells }) => ({ activityId: a.activityId, startedAt: a.startedAt, cells })),
-      (id, classified, prior) => {
-        classifiedBy.set(id, classified)
-        rearmSoonBy.set(id, rearmSoonOf(nearCells(classified.map((c) => c.cell)), prior, byId.get(id)!.startedAt))
-      },
     )
-
-    const entries: XpLedgerEntry[] = []
-    const scores: ActivityScoreWrite[] = []
-    for (const activityId of fold.order) {
-      const activity = byId.get(activityId)!
-      if (activity.status !== ACTIVE) continue
-      const classified = classifiedBy.get(activityId) ?? []
-      let award: DiscoveryAward = NO_CELLS
-      let split = null
-      const groundScored = classified.length > 0 && revealsGround(activity, to)
-      if (groundScored) {
-        award = fold.awards.get(activityId)!
-        const trace = await store.loadTrace(activity)
-        if (trace === undefined) {
-          throw new Error(
-            `replayUser: ${activityId} has projected cells but its trace could not be loaded. ` +
-              "Refusing to score it as pathless — that would quietly change its XP.",
-          )
-        }
-        split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
-      }
-      const rows = scoreActivity(activity, to, split, award, activity.ingestedAt)
-      entries.push(...rows)
-      scores.push({
-        activityId,
-        xpAwarded: sumXp(rows),
-        xpRulesVersion: rows.length > 0 ? toVersion : null,
-        ...(groundScored ? { award } : {}),
-      })
-    }
+    const fold = history.fold
+    const { entries, scores, classes } = await scoreHistory(history, byId, to, (a) => store.loadTrace(a))
     await store.putLedger(entries)
     // After the ledger, so T3 never shows a number the ledger does not hold yet. A crash between
     // the two is healed by the re-run, which writes the same values.
     await store.writeActivityScores(userId, scores, at())
     // Beside the award it explains, from the same fold — never from ingest's older verdicts.
-    for (const { activityId } of scores.filter((w) => w.award)) {
-      await store.writeRunClasses(userId, activityId, runClassesOf(classifiedBy.get(activityId) ?? [], rearmSoonBy.get(activityId)))
-    }
+    for (const c of classes) await store.writeRunClasses(userId, c.activityId, c.classes)
     const recomputedXp = xpBySkill(entries)
     run = {
       ...run,
@@ -452,43 +414,19 @@ export async function replayUser(userId: string, toVersion: number, deps: Replay
     const ledger = await store.listLedger(userId)
     const xp = xpBySkill(ledger.filter((e) => e.activityId !== REPLAY_ACTIVITY_ID))
     const prior = new Map((await store.readSkillStates(userId)).map((s) => [s.skillId, s] as const))
-    const introducedIn = new Map(to.skills.map((s) => [s.id, s.introducedIn] as const))
-    const span = xpSpans(entries, byId)
-
-    const writes: SkillStateWrite[] = []
-    for (const skillId of [...new Set([...xp.keys(), ...Object.keys(run.waterline)])].sort()) {
-      const total = xp.get(skillId) ?? 0
-      const mark = run.waterline[skillId]
-      // Unreachable while step 5 is right. Checked anyway: a THAW that lowered a number would be
-      // the one bug this whole ticket exists to make impossible, so it refuses to write it.
-      if (mark !== undefined && total < mark.xp) {
-        throw new Error(`replayUser: ${skillId} would fall from ${mark.xp} to ${total} XP (D-135)`)
-      }
-      const level = levelForXp(total, to.curve)
-      const was = prior.get(skillId)
-      writes.push({
-        skillId,
-        xp: total,
-        level,
-        levelHighWater: ratchetLevel(mark?.level, level),
-        rulesVersion: toVersion,
-        firstXpAt: minOf(was?.firstXpAt, span.get(skillId)?.first),
-        lastXpAt: maxOf(was?.lastXpAt, span.get(skillId)?.last),
-        introducedIn: introducedIn.get(skillId) ?? run.fromRulesVersion,
-        firstSeenAt: span.get(skillId)?.first,
-      })
-    }
+    const writes = thawWrites({
+      xp,
+      waterline: run.waterline,
+      prior,
+      to,
+      fromVersion: run.fromRulesVersion,
+      entries,
+      byId,
+    })
     const thawedAt = at()
     await store.writeSkillStates(userId, writes, thawedAt)
 
-    const shown = new Map(writes.map((w) => [w.skillId, w] as const))
-    let totalXp = 0
-    let totalLevel = 0
-    for (const s of to.skills.filter((r) => r.enabled)) {
-      const w = shown.get(s.id)
-      totalXp += w?.xp ?? 0
-      totalLevel += w ? Math.max(w.level, w.levelHighWater) : 1
-    }
+    const { totalXp, totalLevel } = profileTotals(writes, to)
     await store.thaw(userId, { totalXp, totalLevel, ledgerRulesVersion: toVersion }, thawedAt)
 
     run = { ...run, status: "DONE", finishedAt: thawedAt }
@@ -518,3 +456,148 @@ function xpSpans(entries: readonly XpLedgerEntry[], byId: ReadonlyMap<string, Re
 
 const minOf = (a?: string, b?: string) => (a === undefined ? b : b === undefined ? a : a < b ? a : b)
 const maxOf = (a?: string, b?: string) => (a === undefined ? b : b === undefined ? a : a > b ? a : b)
+
+// ─── The shared core: `replayUser` steps 3 and 6, and the rebuild drill's steps 5 and 6 ─────
+
+/**
+ * The fold, and what each activity saw as it was applied. Ticket `0103` lifted this out of
+ * `replayUser` so the rebuild drill (`rebuild-drill-back.ts`) folds and scores with exactly the
+ * code a rebalance uses — two definitions of "the canonical score of a history" would be the
+ * failure `02` §2.9 cannot survive.
+ */
+export interface FoldedHistory {
+  fold: FoldResult
+  /** Per activity, its cells classified against the map as it stood before it (§4.4 step 3b). */
+  classifiedBy: ReadonlyMap<string, readonly ClassifiedCell[]>
+  /** `0262`: the nearby ground coming back into season, exact as of the run. */
+  rearmSoonBy: ReadonlyMap<string, RearmSoon | undefined>
+}
+
+export function foldHistory(activities: readonly FoldActivity[]): FoldedHistory {
+  const startedAt = new Map(activities.map((a) => [a.activityId, a.startedAt] as const))
+  const classifiedBy = new Map<string, readonly ClassifiedCell[]>()
+  const rearmSoonBy = new Map<string, RearmSoon | undefined>()
+  const fold = foldActivities(activities, (id, classified, prior) => {
+    classifiedBy.set(id, classified)
+    rearmSoonBy.set(id, rearmSoonOf(nearCells(classified.map((c) => c.cell)), prior, startedAt.get(id)!))
+  })
+  return { fold, classifiedBy, rearmSoonBy }
+}
+
+export interface ScoredHistory {
+  /** Rule-derived ledger rows, in fold order. No floors — those are `reconcile`'s. */
+  entries: XpLedgerEntry[]
+  /** One per ACTIVE activity: T3's copy of its score, and its award when ground was scored. */
+  scores: ActivityScoreWrite[]
+  /** `classes.json` for every activity whose award `scores` carries (`0253`, D-294). */
+  classes: Array<{ activityId: string; classes: RunClasses }>
+}
+
+/**
+ * §4.4 step 3: score every ACTIVE activity in fold order under `to`. Tombstoned ones were folded
+ * (their cells stay revealed) and are not scored (§4.7). The trace comes from `loadTrace` only for
+ * an activity whose ground is scored; one that has cells and no loadable trace is refused rather
+ * than scored as pathless, which would quietly change its XP.
+ */
+export async function scoreHistory(
+  history: FoldedHistory,
+  byId: ReadonlyMap<string, ReplayActivity>,
+  to: RuleSet,
+  loadTrace: (activity: ReplayActivity) => Promise<Trace | undefined>,
+): Promise<ScoredHistory> {
+  const { fold, classifiedBy, rearmSoonBy } = history
+  const entries: XpLedgerEntry[] = []
+  const scores: ActivityScoreWrite[] = []
+  const classes: ScoredHistory["classes"] = []
+  for (const activityId of fold.order) {
+    const activity = byId.get(activityId)!
+    if (activity.status !== ACTIVE) continue
+    const classified = classifiedBy.get(activityId) ?? []
+    let award: DiscoveryAward = NO_CELLS
+    let split = null
+    const groundScored = classified.length > 0 && revealsGround(activity, to)
+    if (groundScored) {
+      award = fold.awards.get(activityId)!
+      const trace = await loadTrace(activity)
+      if (trace === undefined) {
+        throw new Error(
+          `replayUser: ${activityId} has projected cells but its trace could not be loaded. ` +
+            "Refusing to score it as pathless — that would quietly change its XP.",
+        )
+      }
+      split = groundSplit(traceToSegments(trace).segments, lookupFromClassified(classified))
+    }
+    const rows = scoreActivity(activity, to, split, award, activity.ingestedAt)
+    entries.push(...rows)
+    scores.push({
+      activityId,
+      xpAwarded: sumXp(rows),
+      xpRulesVersion: rows.length > 0 ? to.version : null,
+      ...(groundScored ? { award } : {}),
+    })
+    if (groundScored) {
+      classes.push({ activityId, classes: runClassesOf(classified, rearmSoonBy.get(activityId)) })
+    }
+  }
+  return { entries, scores, classes }
+}
+
+/**
+ * §4.4 step 6: one T2 write per skill that has XP or a waterline mark. Refuses — throws — rather
+ * than write a number below the waterline (D-135): unreachable while `reconcile` is right, and the
+ * one bug a replay or a rebuild exists to make impossible.
+ *
+ * `xp` is the per-skill sum of every ledger row that will stand (rule-derived, kept and floors);
+ * `entries` are the rows this run derived, for the first/last-XP span (I-12).
+ */
+export function thawWrites(args: {
+  xp: ReadonlyMap<string, number>
+  waterline: Waterline
+  prior: ReadonlyMap<string, StoredSkillState>
+  to: RuleSet
+  fromVersion: number
+  entries: readonly XpLedgerEntry[]
+  byId: ReadonlyMap<string, ReplayActivity>
+}): SkillStateWrite[] {
+  const { xp, waterline, prior, to } = args
+  const introducedIn = new Map(to.skills.map((s) => [s.id, s.introducedIn] as const))
+  const span = xpSpans(args.entries, args.byId)
+  const writes: SkillStateWrite[] = []
+  for (const skillId of [...new Set([...xp.keys(), ...Object.keys(waterline)])].sort()) {
+    const total = xp.get(skillId) ?? 0
+    const mark = waterline[skillId]
+    if (mark !== undefined && total < mark.xp) {
+      throw new Error(`replayUser: ${skillId} would fall from ${mark.xp} to ${total} XP (D-135)`)
+    }
+    const level = levelForXp(total, to.curve)
+    const was = prior.get(skillId)
+    writes.push({
+      skillId,
+      xp: total,
+      level,
+      levelHighWater: ratchetLevel(mark?.level, level),
+      rulesVersion: to.version,
+      firstXpAt: minOf(was?.firstXpAt, span.get(skillId)?.first),
+      lastXpAt: maxOf(was?.lastXpAt, span.get(skillId)?.last),
+      introducedIn: introducedIn.get(skillId) ?? args.fromVersion,
+      firstSeenAt: span.get(skillId)?.first,
+    })
+  }
+  return writes
+}
+
+/** `Profile.totalXp` / `totalLevel` over the enabled skills (D-033). An untrained skill is level 1. */
+export function profileTotals(
+  writes: readonly SkillStateWrite[],
+  to: Pick<RuleSet, "skills">,
+): { totalXp: number; totalLevel: number } {
+  const shown = new Map(writes.map((w) => [w.skillId, w] as const))
+  let totalXp = 0
+  let totalLevel = 0
+  for (const s of to.skills.filter((r) => r.enabled)) {
+    const w = shown.get(s.id)
+    totalXp += w?.xp ?? 0
+    totalLevel += w ? Math.max(w.level, w.levelHighWater) : 1
+  }
+  return { totalXp, totalLevel }
+}

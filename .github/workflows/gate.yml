@@ -151,6 +151,14 @@ jobs:
       - name: the ingest worker cannot reach the full-table rebuild
         run: node scripts/check-fog-hot-path.mjs
 
+      # 02 §8.3 / ticket 0103. Nothing destructive happens before cutover, and cutover
+      # is not the drill's: the drill's own files may not name an S3 or DynamoDB removal.
+      - name: rebuild-drill removal check self-test
+        run: node scripts/check-drill-no-delete.mjs --self-test
+
+      - name: the rebuild drill never removes anything
+        run: node scripts/check-drill-no-delete.mjs
+
       # Ticket 0053. The gate has no LOST_SOLES_HOME_* values, so only the self-test
       # is meaningful here; the real scan runs in the Amplify build container, which
       # does. A self-test that passes proves the detector still bites.
