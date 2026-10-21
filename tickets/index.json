@@ -2566,7 +2566,7 @@
     "title": "EXECUTE THE DRILL FOR REAL, once, before MVP ship — four numbers pasted or it did not happen",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "16-rebuild-drill",
     "depends_on": [
@@ -2576,8 +2576,9 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
-    "path": "tickets/open/0105-execute-the-drill-for-real.md",
-    "ready": true,
+    "closed": "2026-10-21T20:24:45Z",
+    "path": "tickets/closed/0105-execute-the-drill-for-real.md",
+    "ready": false,
     "acceptance": {
       "checked": 8,
       "total": 8

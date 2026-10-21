@@ -4,13 +4,14 @@ slug: execute-the-drill-for-real
 title: EXECUTE THE DRILL FOR REAL, once, before MVP ship — four numbers pasted or it did not happen
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 16-rebuild-drill
 depends_on: [103, 104]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
+closed: 2026-10-21T20:24:45Z
 ---
 
 ## Description
