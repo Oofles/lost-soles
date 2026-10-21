@@ -287,6 +287,7 @@ async function handleRetract(record: SqsRecord, message: RetractMessage): Promis
         getAdapter(m.source).confirmRetracted(m.externalId, oauthCredentialsFor(m)),
       receipt: { ddb },
       persist: { ddb, activityTable: required("ACTIVITY_TABLE") },
+      archive: { s3, bucket: required("RAW_ARCHIVE_BUCKET") },
     })
     // The outcome, never the activity's name or anything the source returned.
     log.info({ ...base, outcome })

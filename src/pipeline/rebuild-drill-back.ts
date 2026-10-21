@@ -63,6 +63,16 @@ import {
  * An activity with a `duplicate-of` pointer is dropped from `sorted` before step 4. Live ingest
  * never writes a row, a cell or a ledger entry for a duplicate, so a rebuild that did would be a
  * different history. Check 2 reconciles against `payloadCount − supersededObjects − pointers`.
+ *
+ * ─── D-355 RETRACTIONS END TOMBSTONED, AND KEEP WHAT THEY EARNED ────────────
+ *
+ * `0301`. An activity with a `<externalId>.retracted.json` record under `raw/` is rebuilt the way
+ * live history made it: written `ACTIVE` at step 4, folded at step 5 and scored at step 6 like any
+ * other, then tombstoned with live's own `tombstoneActivity` update. Its cells stay (D-020) and its
+ * ledger rows exist (D-135): live KEPT them and the drill, with an empty target, has to re-derive
+ * them. Under the same rules that is the same XP. It is still one T3 row, so check 2's count is
+ * unchanged. A record with no payload (a delete for a run never imported) names no row: it is
+ * counted in `retractionsWithoutActivity` and changes nothing.
  */
 
 type Item = Record<string, unknown>
@@ -195,6 +205,11 @@ export interface DrillStore {
   ): Promise<void>
   /** Step 6's landmark backfill (`0302`, D-307): each created, conditioned on absence. */
   putLandmarks(records: readonly LandmarkRecord[], at: string): Promise<void>
+  /**
+   * `0301`. `status = TOMBSTONED` on rows step 4 wrote and step 6 scored: live's `tombstoneActivity`
+   * update, conditioned on the row existing. Throws if a row is missing.
+   */
+  tombstoneActivities(userId: string, activityIds: readonly string[], at: string): Promise<void>
   /** T6's generation counter, set to exactly `generation`. `false` when it already stood at or above. */
   raiseGeneration(userId: string, generation: number): Promise<boolean>
   /** `Profile.exploredGeneration`, after the manifest (the mirror follows the commit point). */
@@ -742,6 +757,10 @@ export interface BackHalfSummary {
   fogAlgoVersion: number
   duplicatesDropped: number
   activitiesWritten: number
+  /** `0301`. Rows ended `TOMBSTONED` from a D-355 retraction record. */
+  activitiesTombstoned: number
+  /** `0301`. Retraction records whose activity has no payload (or lost to D-263): no row to mark. */
+  retractionsWithoutActivity: number
   tracesWritten: number
   cellsFilesWritten: number
   t6Items: number
@@ -774,6 +793,8 @@ export async function runDrillBackHalf(front: FrontHalf, o: BackHalfOptions): Pr
     fogAlgoVersion: FOG_ALGO_VERSION,
     duplicatesDropped: 0,
     activitiesWritten: 0,
+    activitiesTombstoned: 0,
+    retractionsWithoutActivity: 0,
     tracesWritten: 0,
     cellsFilesWritten: 0,
     t6Items: 0,
@@ -839,6 +860,16 @@ export async function runDrillBackHalf(front: FrontHalf, o: BackHalfOptions): Pr
     const landmarks = await backfillTargetLandmarks({ userId, persisted, replay, rules: o.rules, at, store: o.store })
     summary.landmarks = { written: landmarks.length, placed: landmarks.filter((l) => l.lng !== null).length }
     log(`step 6: ${landmarks.length} landmarks backfilled, ${summary.landmarks.placed} on a route`)
+
+    // ── 6, last: D-355 retractions, after their score is on the row (`0301`) ──
+    const retractions = front.retractions ?? new Map<string, string>()
+    const tombstoned = persisted.map((p) => p.activity.activityId).filter((id) => retractions.has(id))
+    await o.store.tombstoneActivities(userId, tombstoned, at)
+    summary.activitiesTombstoned = tombstoned.length
+    summary.retractionsWithoutActivity = retractions.size - tombstoned.length
+    if (retractions.size > 0) {
+      log(`step 6: ${tombstoned.length} retracted activities tombstoned, ${summary.retractionsWithoutActivity} records with no row`)
+    }
 
     // ── 7 ──
     const published = await publishDelivery({

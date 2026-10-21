@@ -160,6 +160,7 @@ function world() {
       confirm: async () => "gone",
       receipt: { ddb: ddb as never },
       persist: { ddb: ddb as never, activityTable: ACTIVITY_TABLE },
+      archive: { s3: { send: async () => ({}) }, bucket: "raw" },
       now: () => new Date("2026-10-18T12:00:00.000Z"),
     })
   }

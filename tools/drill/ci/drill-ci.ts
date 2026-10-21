@@ -77,6 +77,7 @@ export const CI_TARGET: DrillTarget = {
     skillState: "SkillState-drillcitarget-NONE",
     profile: "Profile-drillcitarget-NONE",
     exploredCell: "DrillCiExploredCell",
+    landmark: "Landmark-drillcitarget-NONE",
   },
   bucket: "drill-ci-target-bucket",
   prefix: "",

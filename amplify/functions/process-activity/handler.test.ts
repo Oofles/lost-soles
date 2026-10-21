@@ -585,6 +585,8 @@ describe("the retract message (0282)", () => {
     const [message, deps] = retractActivity.mock.calls[0] as [unknown, { persist: { activityTable: string } }]
     expect(message).toEqual(MESSAGE)
     expect(deps.persist.activityTable).toBe("Activity-test")
+    // `0301`: the retraction record goes beside the raw archive, in the archive's bucket.
+    expect((deps as unknown as { archive: { bucket: string } }).archive.bucket).toBe("bucket-test")
     expect(runPipeline).not.toHaveBeenCalled()
     expect(recordFailure).not.toHaveBeenCalled()
   })

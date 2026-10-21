@@ -297,7 +297,7 @@ GSI3 byUserAndDay        PK userIdLocalDay  SK startedAtLocal   (INCLUDE: kind, 
 | `cellCount`, `newCellCount`, `rearmedCellCount`, `cooledCellCount` | N | | 05 §8.2. Written even when zero (treadmill) so the row shape never varies. |
 | `deferredCellCount` | N | | **Ticket `0050`, D-221.** Cells whose verdict could not be decided incrementally because this activity is EARLIER than their `lastRunAt` (05 §3.4). They earned zero, and a non-zero value here is the durable record that this activity's award is **provisional** until a replay folds the history. The user's replay marker says *when* to re-fold from; this says *which rows* the re-fold may change. |
 | `cellsRef` | S/NULL | | S3 key `users/<uid>/cells/<id>.bin` — the per-activity cell set, needed for un-award (05 §3.5) and by the fold. *Written as `cells/<uid>/<id>.cells.bin` until ticket `0050`: a top-level prefix no other per-user object uses, outside the `users/<uid>/` prefix the worker's S3 grant is scoped to (§6.1).* |
-| `status` | S | | `ACTIVE \| TOMBSTONED`. A Strava `aspect_type: delete` sets `TOMBSTONED`; **cells are never removed** (D-020, 01 §4). |
+| `status` | S | | `ACTIVE \| TOMBSTONED`. A Strava `aspect_type: delete` sets `TOMBSTONED`; **cells are never removed** (D-020, 01 §4). *(`0301`: the durable fact is `raw/<uid>/<source>/<externalId>.retracted.json`, written first; this column is its mirror, and the rebuild drill restores it from that record.)* |
 | `traceRejectCounts` | M | | `{accuracy, duplicate, nonFinite, segments}` — makes a silently-garbage GPS record visible (05 §3.6). Written even when every field is zero, so no reader distinguishes "absent" from "none". *Ticket `0180`, D-222: written here as `{speedGate, accuracy, duplicate}` before the distinction existed. These are the FOG PROJECTION's own per-sample drops; the teleport gate SPLITS rather than drops (D-212), so `segments` replaces a speed-gate count that does not exist in that layer. The per-sample count that does exist is the adapter sanitizer's and already reaches this row inside `source.meta`.* |
 
 Auth: `allow.owner()`, but **`to(['read'])` for every field the pipeline owns.** Client creates
@@ -1961,10 +1961,16 @@ self-describing** — `raw/<uid>/<source>/<externalId>/<sha256>.<ext>` — so `(
 externalId)` come from the path with no index and no database. That is the entire reason the key
 has that shape, and it is why the drill needs nothing but the bucket.
 
-**Not every object under `raw/<uid>/` is a payload.** Two kinds of correction sit beside an
+**Not every object under `raw/<uid>/` is a payload.** Three kinds of correction sit beside an
 activity's prefix, never inside it, and step 1 must not enumerate them as activities:
-`<externalId>.duplicate-of.json` (D-263) and `<externalId>.kind-override/<id>.json` (D-284). Both
-have the same path depth as a payload, so filter on the externalId segment, not on depth.
+`<externalId>.duplicate-of.json` (D-263), `<externalId>.kind-override/<id>.json` (D-284) and
+`<externalId>.retracted.json` (D-355; ticket `0301`). The override has the same path depth as a
+payload, so filter on the externalId segment, not on depth. *(`0301`: the retraction record is
+written by the worker's retract path, before the T3 tombstone, `IfNoneMatch: "*"`, under `raw/*`'s
+I-3 protection. Without it a rebuild brought a tombstoned activity back `ACTIVE`. The drill writes
+that activity's row `ACTIVE` at step 4, scores it at step 6 like any other, so its XP and cells
+stay (D-135, D-020), and then tombstones it with live's own update. It is still one row, so check 2
+is unchanged. A record with no payload names no row and changes nothing.)*
 
 **Step 2 — normalize, in parallel, order-independent.** For each object: reconstruct the
 `IngestJob` from the key, `GetObject` the bytes, verify the `sha256` in the key against the

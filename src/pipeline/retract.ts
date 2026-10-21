@@ -4,6 +4,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 import { closeRetractReceipt, recordDelivery, releaseRetractReceipt, type ReceiptDeps } from "./ingest-receipt"
 import { tombstoneActivity, type PersistDeps, type TombstoneResult } from "./persist"
 import type { RetractMessage } from "./retract-message"
+import { recordRetraction, type RetractionRecordDeps } from "./retraction-record"
 
 /**
  * A SOURCE-SIDE DELETION, CONFIRMED BEFORE IT IS BELIEVED. Ticket `0282`, D-355.
@@ -17,7 +18,9 @@ import type { RetractMessage } from "./retract-message"
  *      is unsigned on at least one source (`08-security-privacy.md` §4.1); believing it would let
  *      a stranger hide a real run. `present` → the claim was forged or stale: nothing is written
  *      beyond releasing the receipt, and the outcome is logged.
- *   3. TOMBSTONE — `status = TOMBSTONED` on the T3 row and nothing else (`02` §4.7). Its XP stays
+ *   3. RECORD, then TOMBSTONE (`0301`). First the retraction record beside the raw archive
+ *      (`retraction-record.ts`), so a rebuild from `raw/` alone keeps the tombstone (D-101). Then
+ *      `status = TOMBSTONED` on the T3 row and nothing else (`02` §4.7). Its XP stays
  *      in the total (D-135), its cells stay revealed with their timestamps untouched (D-020), and
  *      later deliveries of the activity keep the tombstone (`activityItem`'s `status`).
  *
@@ -38,6 +41,8 @@ export interface RetractDeps {
   confirm(message: RetractMessage): Promise<RetractConfirmation>
   receipt: ReceiptDeps
   persist: PersistDeps
+  /** `0301`. The raw archive bucket, where the retraction record is written. */
+  archive: RetractionRecordDeps
   now?: () => Date
 }
 
@@ -45,17 +50,17 @@ export async function retractActivity(message: RetractMessage, deps: RetractDeps
   await recordDelivery(message.ingestKey, deps.receipt)
 
   const confirmation = await deps.confirm(message)
-  const outcome: RetractOutcome =
-    confirmation === "gone"
-      ? await tombstoneActivity(
-          {
-            activityId: computeActivityId(message.userId, message.source, message.externalId),
-            userId: message.userId,
-            now: deps.now?.() ?? new Date(),
-          },
-          deps.persist,
-        )
-      : "forged-or-stale"
+  let outcome: RetractOutcome = "forged-or-stale"
+  if (confirmation === "gone") {
+    const now = deps.now?.() ?? new Date()
+    const activityId = computeActivityId(message.userId, message.source, message.externalId)
+    await recordRetraction(
+      { userId: message.userId, source: message.source, externalId: message.externalId, activityId },
+      deps.archive,
+      now,
+    )
+    outcome = await tombstoneActivity({ activityId, userId: message.userId, now }, deps.persist)
+  }
 
   if (outcome === "forged-or-stale") await releaseRetractReceipt(message.ingestKey, deps.receipt)
   else await closeRetractReceipt(message.ingestKey, deps.receipt)

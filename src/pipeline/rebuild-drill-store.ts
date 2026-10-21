@@ -3,7 +3,7 @@ import { BatchGetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamod
 
 import { generationKey } from "./explored-generation"
 import { landmarkPutItem } from "./landmarks"
-import { amplifyMetadata } from "./persist"
+import { amplifyMetadata, tombstoneActivity } from "./persist"
 import type { DrillStore, DrillTarget } from "./rebuild-drill-back"
 import { ledgerPutItem } from "./xp-ledger"
 import { activityScoreItem, PROFILE_TYPENAME, skillStateThawItem } from "./xp-replay-store"
@@ -110,6 +110,16 @@ export function dynamoDrillStore(deps: DrillStoreDeps): DrillStore {
 
     async putActivity(item) {
       await ddb(new PutCommand({ TableName: t.activity, Item: item, ConditionExpression: "attribute_not_exists(id)" }))
+    },
+
+    async tombstoneActivities(userId, activityIds, at) {
+      await pool(activityIds, n, async (activityId) => {
+        const result = await tombstoneActivity(
+          { activityId, userId, now: new Date(at) },
+          { ddb: deps.ddb as never, activityTable: t.activity },
+        )
+        if (result !== "tombstoned") throw new Error(`tombstone ${activityId}: ${result}, on a row step 4 wrote`)
+      })
     },
 
     async putCellItems(items) {

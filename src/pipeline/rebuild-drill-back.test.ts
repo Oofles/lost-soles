@@ -142,7 +142,9 @@ function liveCellCount(entries = history()): number {
   return cells.size
 }
 
-function front(over: { sorted?: DrillEntry[]; snapshot?: SkillStateSnapshot; summary?: Partial<DrillSummary> } = {}): FrontHalf {
+function front(
+  over: { sorted?: DrillEntry[]; snapshot?: SkillStateSnapshot; summary?: Partial<DrillSummary>; retractions?: Map<string, string> } = {},
+): FrontHalf {
   const sorted = over.sorted ?? history()
   const summary: DrillSummary = {
     phase: "normalize",
@@ -169,7 +171,13 @@ function front(over: { sorted?: DrillEntry[]; snapshot?: SkillStateSnapshot; sum
     sortedActivityIds: sorted.map((e) => e.activity.activityId),
     ...over.summary,
   }
-  return { summary, sorted, duplicatePointers: DUPLICATES, snapshot: over.snapshot ?? emptySnapshot() }
+  return {
+    summary,
+    sorted,
+    duplicatePointers: DUPLICATES,
+    ...(over.retractions ? { retractions: over.retractions } : {}),
+    snapshot: over.snapshot ?? emptySnapshot(),
+  }
 }
 
 const emptySnapshot = (): SkillStateSnapshot =>
@@ -217,6 +225,14 @@ class MemoryStore implements DrillStore {
     this.t3.set(String(item.id), { ...item })
     this.log.push(`t3 ${String(item.id)}`)
   }
+  async tombstoneActivities(_u: string, ids: readonly string[], at: string) {
+    for (const id of ids) {
+      const row = this.t3.get(id)
+      if (!row || row.status === "TOMBSTONED") throw new Error(`ConditionalCheckFailed: ${id}`)
+      Object.assign(row, { status: "TOMBSTONED", updatedAt: at })
+    }
+    this.log.push(`t3-tombstone ${ids.length}`)
+  }
   async putCellItems(items: readonly Item[]) {
     this.t6.push(...items)
     this.log.push(`t6 ${items.length}`)
@@ -226,6 +242,8 @@ class MemoryStore implements DrillStore {
     this.log.push(`t4 ${entries.length}`)
   }
   async writeActivityScores(rows: readonly ActivityScoreWrite[]) {
+    // As `activityScoreItem` conditions it: an ACTIVE row only.
+    for (const w of rows) if (this.t3.get(w.activityId)?.status !== "ACTIVE") throw new Error(`ConditionalCheckFailed: ${w.activityId}`)
     for (const w of rows) Object.assign(this.t3.get(w.activityId)!, { xpAwarded: w.xpAwarded, xpRulesVersion: w.xpRulesVersion, ...(w.award ?? {}) })
     this.log.push(`t3-scores ${rows.length}`)
   }
@@ -418,6 +436,56 @@ describe("a clean drill", () => {
       runs: Record<string, unknown>
     }
     expect(Object.keys(web.runs).sort()).toEqual(["a-again", "a-first", "a-rearm", "b-fresh"])
+  })
+})
+
+// ─── 0301: a D-355 retraction survives the rebuild ──────────────────────────
+
+describe("0301 — a retracted activity is rebuilt TOMBSTONED, and keeps its XP and cells", () => {
+  const RETRACTED = new Map([["b-fresh", `raw/${UID}/manual/b-fresh.retracted.json`]])
+
+  it("ends TOMBSTONED, after its score is on the row", async () => {
+    const { live, store, summary } = await cleanRun({ retractions: RETRACTED })
+    expect(summary.failed).toBeNull()
+    expect(summary.activitiesTombstoned).toBe(1)
+    expect(summary.retractionsWithoutActivity).toBe(0)
+    expect(store.t3.get("b-fresh")).toMatchObject({ status: "TOMBSTONED", updatedAt: NOW().toISOString() })
+    expect(store.t3.get("b-fresh")!.xpAwarded).toBe(live.store.t3.get("b-fresh")!.xpAwarded)
+    expect(store.t3.get("b-fresh")!.newCellCount).toBe(live.store.t3.get("b-fresh")!.newCellCount)
+    expect(store.log.indexOf("t3-tombstone 1")).toBeGreaterThan(store.log.findIndex((l) => l.startsWith("t3-scores")))
+    // Every other row is untouched by it.
+    for (const id of ["a-first", "a-again", "treadmill", "a-rearm"]) expect(store.t3.get(id)!.status).toBe("ACTIVE")
+  })
+
+  it("keeps its ledger rows (D-135) and its cells (D-020): XP and the map match a run with no retraction", async () => {
+    const { live, store, summary } = await cleanRun({ retractions: RETRACTED })
+    const rowsOf = (m: Map<string, XpLedgerEntry>, id: string) =>
+      [...m.values()].filter((e) => e.activityId === id).map((e) => [e.id, e.xpAwarded])
+    expect(rowsOf(store.ledger, "b-fresh").length).toBeGreaterThan(0)
+    expect(rowsOf(store.ledger, "b-fresh")).toEqual(rowsOf(live.store.ledger, "b-fresh"))
+    expect(summary.totalXp).toBe(live.summary.totalXp)
+    expect(summary.floors).toEqual([])
+    expect(summary.cellCount).toBe(liveCellCount())
+    expect(store.t6.some((i) => i.firstRunId === "b-fresh")).toBe(true)
+    expect(store.objects.has(objectKeys.runCells(UID, "b-fresh"))).toBe(true)
+  })
+
+  it("check 2's count is unchanged: a tombstoned activity is still a row", async () => {
+    const { summary } = await cleanRun({ retractions: RETRACTED })
+    expect(summary.activitiesWritten).toBe(5)
+    expect(summary.step8.find((c) => c.n === 2)!.status).toBe("pass")
+  })
+
+  it("a record with no row (never imported, or a D-263 loser) is counted and changes nothing", async () => {
+    const orphans = new Map([
+      ["never-imported", `raw/${UID}/manual/never-imported.retracted.json`],
+      ["dup-loser", `raw/${UID}/manual/dup-loser.retracted.json`],
+    ])
+    const { store, summary } = await cleanRun({ retractions: orphans })
+    expect(summary.failed).toBeNull()
+    expect(summary.activitiesTombstoned).toBe(0)
+    expect(summary.retractionsWithoutActivity).toBe(2)
+    expect([...store.t3.values()].every((r) => r.status === "ACTIVE")).toBe(true)
   })
 })
 
@@ -696,6 +764,33 @@ describe("dynamoDrillStore", () => {
       [TARGET.tables.exploredCell, "attribute_not_exists(pk)"],
       [TARGET.tables.profile, "attribute_not_exists(id)"],
     ])
+  })
+
+  it("0301: tombstones with live's update, conditioned on the row existing and the user owning it", async () => {
+    const { store, ddbSent } = rig()
+    await store.tombstoneActivities(UID, ["a"], "2026-10-20T12:00:00.000Z")
+    const u = ddbSent[0] as UpdateCommand
+    expect(u.input).toMatchObject({
+      TableName: TARGET.tables.activity,
+      Key: { id: "a" },
+      UpdateExpression: "SET #status = :tombstoned, updatedAt = :now",
+      ConditionExpression: "attribute_exists(id) AND userId = :uid AND #status <> :tombstoned",
+    })
+    expect(u.input.ExpressionAttributeValues).toMatchObject({ ":uid": UID, ":now": "2026-10-20T12:00:00.000Z" })
+  })
+
+  it("0301: a tombstone that finds no row is a failure, not a no-op", async () => {
+    const store = dynamoDrillStore({
+      ddb: {
+        async send(c: unknown) {
+          if (c instanceof UpdateCommand) throw Object.assign(new Error("x"), { name: "ConditionalCheckFailedException" })
+          return {}
+        },
+      },
+      s3: { send: async () => ({}) },
+      target: TARGET,
+    })
+    await expect(store.tombstoneActivities(UID, ["missing"], "2026-10-20T12:00:00.000Z")).rejects.toThrow("no-activity")
   })
 
   it("reports a taken generation counter as false, not a throw", async () => {

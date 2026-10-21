@@ -9,6 +9,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 import { foldOrder } from "@/src/domain/fold"
 import { objectKeys } from "@/src/pipeline/explored-blob-store"
 import { applyKindOverride, type KindCorrected, type KindOverride } from "@/src/pipeline/kind-override"
+import { RETRACTION_RECORD_SUFFIX } from "@/src/pipeline/retraction-record"
 import { snapshotPrefix, type SkillStateSnapshot } from "@/src/pipeline/skillstate-snapshot"
 
 /**
@@ -29,9 +30,10 @@ import { snapshotPrefix, type SkillStateSnapshot } from "@/src/pipeline/skillsta
  *
  * ─── NOT EVERY KEY IS A PAYLOAD ─────────────────────────────────────────────
  *
- * Two kinds of correction sit beside an activity's prefix (§8.3 step 1):
- * `<externalId>.duplicate-of.json` (D-263, `dedupe.ts`) and `<externalId>.kind-override/<id>.json`
- * (D-284, `kind-override.ts`). The override has the same depth as a payload, so keys are classified
+ * Three kinds of correction sit beside an activity's prefix (§8.3 step 1):
+ * `<externalId>.duplicate-of.json` (D-263, `dedupe.ts`), `<externalId>.kind-override/<id>.json`
+ * (D-284, `kind-override.ts`) and `<externalId>.retracted.json` (D-355, `0301`,
+ * `retraction-record.ts`), which makes the rebuilt row `TOMBSTONED`. The override has the same depth as a payload, so keys are classified
  * on the shape of the externalId and file segments, never on depth. Anything else is reported as
  * unrecognised and kept away from `normalize()`.
  *
@@ -57,6 +59,7 @@ export type RawKey =
   | (ActivityAddress & { kind: "payload"; key: string; sha256: string; ext: string })
   | (ActivityAddress & { kind: "kind-override"; key: string; id: string })
   | (ActivityAddress & { kind: "duplicate-pointer"; key: string })
+  | (ActivityAddress & { kind: "retraction"; key: string })
   | { kind: "unrecognised"; key: string; reason: string }
 
 const SHA256_FILE = /^([0-9a-f]{64})\.([A-Za-z0-9]+)$/
@@ -83,7 +86,10 @@ export function classifyRawKey(key: string, userId: string): RawKey {
         externalId: file.slice(0, -DUPLICATE_POINTER.length),
       }
     }
-    return { kind: "unrecognised", key, reason: "four segments, not a duplicate-of pointer" }
+    if (file.endsWith(RETRACTION_RECORD_SUFFIX) && file.length > RETRACTION_RECORD_SUFFIX.length) {
+      return { kind: "retraction", key, userId, source, externalId: file.slice(0, -RETRACTION_RECORD_SUFFIX.length) }
+    }
+    return { kind: "unrecognised", key, reason: "four segments, not a duplicate-of pointer or retraction record" }
   }
 
   if (parts.length === 5) {
@@ -130,6 +136,8 @@ export interface Enumeration {
   kindOverrideObjectCount: number
   /** `activityId` → pointer key. Carried to `0103`; step 8 check 2 subtracts these. */
   duplicatePointers: Map<string, string>
+  /** `0301`. `activityId` → D-355 retraction record key. The rebuilt row is `TOMBSTONED`. */
+  retractions: Map<string, string>
   unrecognised: Array<{ key: string; reason: string }>
   /** Distinct sources, from payload key paths only, sorted. */
   sourceIds: SourceId[]
@@ -143,6 +151,7 @@ export function enumerationFromListing(
   const payloads: PayloadObject[] = []
   const kindOverrides = new Map<string, string>()
   const duplicatePointers = new Map<string, string>()
+  const retractions = new Map<string, string>()
   const unrecognised: Array<{ key: string; reason: string }> = []
   const sources = new Set<SourceId>()
   let kindOverrideObjectCount = 0
@@ -174,6 +183,9 @@ export function enumerationFromListing(
       case "duplicate-pointer":
         duplicatePointers.set(computeActivityId(userId, c.source, c.externalId), key)
         break
+      case "retraction":
+        retractions.set(computeActivityId(userId, c.source, c.externalId), key)
+        break
       case "unrecognised":
         unrecognised.push({ key, reason: c.reason })
         break
@@ -188,6 +200,7 @@ export function enumerationFromListing(
     kindOverrides,
     kindOverrideObjectCount,
     duplicatePointers,
+    retractions,
     unrecognised,
     sourceIds: [...sources].sort(),
   }
@@ -550,6 +563,8 @@ export interface DrillSummary {
   payloadCount: number
   kindOverrideObjectCount: number
   duplicatePointerCount: number
+  /** `0301`. D-355 retraction records under `raw/` (set by `runDrillFrontHalf`). */
+  retractionCount?: number
   unrecognisedKeys: Array<{ key: string; reason: string }>
   sourceIds: SourceId[]
   /** Below: `null` in the enumerate phase, which does not normalize. */
@@ -570,6 +585,11 @@ export interface FrontHalf {
   sorted: DrillEntry[]
   /** `activityId` → D-263 pointer key, for `0103`'s step 8 check 2. */
   duplicatePointers: Map<string, string>
+  /**
+   * `0301`. `activityId` → D-355 retraction record key. Step 4 writes these rows `TOMBSTONED`
+   * after step 6 scores them, so their XP and cells stay (D-135, D-020). Absent means none.
+   */
+  retractions?: Map<string, string>
   /**
    * `0103`. Precondition 4's snapshot, parsed: step 6's D-135 waterline (D-399). `null` until the
    * preconditions pass. The same bytes `saveSnapshot` wrote to disk, so the file IS the waterline.
@@ -619,6 +639,7 @@ export async function runDrillFrontHalf(o: RunDrillOptions): Promise<FrontHalf> 
     payloadCount: enumeration.payloads.length,
     kindOverrideObjectCount: enumeration.kindOverrideObjectCount,
     duplicatePointerCount: enumeration.duplicatePointers.size,
+    retractionCount: enumeration.retractions.size,
     unrecognisedKeys: enumeration.unrecognised,
     sourceIds: enumeration.sourceIds,
     activityCount: null,
@@ -630,7 +651,13 @@ export async function runDrillFrontHalf(o: RunDrillOptions): Promise<FrontHalf> 
     lastStartedAt: null,
     sortedActivityIds: null,
   }
-  const result: FrontHalf = { summary, sorted: [], duplicatePointers: enumeration.duplicatePointers, snapshot: null }
+  const result: FrontHalf = {
+    summary,
+    sorted: [],
+    duplicatePointers: enumeration.duplicatePointers,
+    retractions: enumeration.retractions,
+    snapshot: null,
+  }
   if (refused) return result
 
   const target = await readVerificationTarget(o.userId, o)

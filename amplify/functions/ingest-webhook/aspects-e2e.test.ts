@@ -110,6 +110,9 @@ function world() {
   return { receipts, activities, ddb, sent, webhook }
 }
 
+/** `0301`. The raw archive the retraction record goes to; its own behaviour is `retract.test.ts`. */
+const RAW_ARCHIVE = { s3: { send: async () => ({}) }, bucket: "raw" }
+
 describe("a delete, webhook to tombstone", () => {
   it("a confirmed deletion tombstones the run and keeps its XP and cells; the receipt ends DONE", async () => {
     const w = world()
@@ -123,6 +126,7 @@ describe("a delete, webhook to tombstone", () => {
       confirm,
       receipt: { ddb: w.ddb as never },
       persist: { ddb: w.ddb as never, activityTable: ACTIVITY_TABLE },
+      archive: RAW_ARCHIVE,
     })
     expect(outcome).toBe("tombstoned")
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ externalId: "1360128428", userId: OWNER_SUB }))
@@ -138,6 +142,7 @@ describe("a delete, webhook to tombstone", () => {
       confirm: async () => "present",
       receipt: { ddb: w.ddb as never },
       persist: { ddb: w.ddb as never, activityTable: ACTIVITY_TABLE },
+      archive: RAW_ARCHIVE,
     })
     expect(outcome).toBe("forged-or-stale")
     expect(w.activities.get(ACTIVITY_ID)!.status).toBe("ACTIVE")
@@ -153,6 +158,7 @@ describe("a delete, webhook to tombstone", () => {
         confirm: async () => answer,
         receipt: { ddb: w.ddb as never },
         persist: { ddb: w.ddb as never, activityTable: ACTIVITY_TABLE },
+        archive: RAW_ARCHIVE,
       })
     }
 

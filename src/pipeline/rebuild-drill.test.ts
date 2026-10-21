@@ -18,6 +18,7 @@ import {
   type DrillS3,
   type RunDrillOptions,
 } from "./rebuild-drill"
+import { retractionRecordKey } from "./retraction-record"
 
 /**
  * Ticket `0102`. The drill's front half against an in-memory bucket and the REAL manual adapter —
@@ -132,6 +133,12 @@ describe("classifyRawKey — step 1 reads the key, and not every key is a payloa
       externalId: "x1",
     })
   })
+  it("a D-355 retraction record is a correction, not a run (0301) — the key the live retract path writes", () => {
+    const key = retractionRecordKey({ userId: UID, source: "manual", externalId: "x1" })
+    expect(key).toBe(`raw/${UID}/manual/x1.retracted.json`)
+    expect(classifyRawKey(key, UID)).toMatchObject({ kind: "retraction", source: "manual", externalId: "x1" })
+    expect(classifyRawKey(`raw/${UID}/manual/.retracted.json`, UID).kind).toBe("unrecognised")
+  })
   it("anything else is unrecognised and kept away from normalize()", () => {
     for (const key of [`raw/${UID}/manual/x1/notahash.json`, `raw/${UID}/manual/x1/${h}.json/extra`, `raw/other/manual/x1/${h}.json`]) {
       expect(classifyRawKey(key, UID).kind).toBe("unrecognised")
@@ -167,6 +174,24 @@ describe("enumerate phase", () => {
     expect(sorted).toEqual([])
     // Nothing under raw/ was read: enumeration is a listing, not a download.
     expect(s3.gets.filter((k) => k.startsWith("raw/"))).toEqual([])
+  })
+
+  it("0301: carries each retraction record to the back half by activityId, and never normalizes it", async () => {
+    const record = retractionRecordKey({ userId: UID, source: "manual", externalId: "m1" })
+    const s3 = bucket([
+      payload("m1", entry("m1", "2026-09-01T10:00:00Z")),
+      { key: record, body: Buffer.from("{}"), lastModified: new Date() },
+      SNAPSHOT,
+      MANIFEST,
+    ])
+    const front = await runDrillFrontHalf(options(s3, { expectObjects: 2 }))
+    expect(front.summary.refused).toBe(false)
+    expect(front.summary.retractionCount).toBe(1)
+    expect(front.summary.payloadCount).toBe(1)
+    expect(front.summary.unrecognisedKeys).toEqual([])
+    expect(front.summary.normalizeFailures).toBe(0)
+    expect(front.retractions).toEqual(new Map([[computeActivityId(UID, "manual", "m1"), record]]))
+    expect(s3.gets).not.toContain(record)
   })
 })
 

@@ -1,4 +1,5 @@
 import type { DrillStore, ObjectMeta } from "../../../src/pipeline/rebuild-drill-back"
+import { landmarkKey, type LandmarkRecord } from "../../../src/pipeline/landmarks"
 import type { XpLedgerEntry } from "../../../src/scoring"
 import type { ActivityScoreWrite, SkillStateWrite } from "../../../src/pipeline/xp-replay"
 
@@ -24,6 +25,7 @@ export class MemoryDrillStore implements DrillStore {
   readonly cellItems = new Map<string, Item>()
   readonly ledger = new Map<string, XpLedgerEntry>()
   readonly skillStates = new Map<string, SkillStateWrite>()
+  readonly landmarks = new Map<string, LandmarkRecord>()
   profile: Item | undefined
   generation: number | undefined
   mirroredGeneration: number | undefined
@@ -73,6 +75,22 @@ export class MemoryDrillStore implements DrillStore {
   async putProfile(userId: string, totals: { totalXp: number; totalLevel: number; ledgerRulesVersion: number }): Promise<void> {
     if (this.profile) throw new Error(`ConditionalCheckFailed: profile ${userId} already exists`)
     this.profile = { id: userId, ...totals }
+  }
+
+  async putLandmarks(records: readonly LandmarkRecord[]): Promise<void> {
+    for (const l of records) {
+      const k = landmarkKey(l.skillId, l.level)
+      if (this.landmarks.has(k)) throw new Error(`ConditionalCheckFailed: landmark ${k} already exists`)
+      this.landmarks.set(k, { ...l })
+    }
+  }
+
+  async tombstoneActivities(_userId: string, activityIds: readonly string[], at: string): Promise<void> {
+    for (const id of activityIds) {
+      const item = this.activities.get(id)
+      if (!item || item.status === "TOMBSTONED") throw new Error(`ConditionalCheckFailed: no ACTIVE activity ${id} to tombstone`)
+      Object.assign(item, { status: "TOMBSTONED", updatedAt: at })
+    }
   }
 
   async raiseGeneration(_userId: string, generation: number): Promise<boolean> {

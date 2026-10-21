@@ -1,3 +1,4 @@
+import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
 import { describe, expect, it, vi } from "vitest"
 
@@ -7,6 +8,7 @@ import { computeActivityId } from "@/src/domain/activity-id"
 import { acceptIngest, INGEST_RECEIPT_TABLE } from "./ingest-receipt"
 import { retractActivity } from "./retract"
 import { retractMessage, isRetractMessage, type RetractMessage } from "./retract-message"
+import { retractionRecordKey } from "./retraction-record"
 
 /**
  * Ticket 0282 — the worker half of a source-side deletion: receipt, confirmation, tombstone.
@@ -22,6 +24,8 @@ const SOURCE = "gpslogger"
 const EXTERNAL = "9001"
 const KEY = "k-delete"
 const ACTIVITY_ID = computeActivityId(USER, SOURCE, EXTERNAL)
+const BUCKET = "raw-bucket"
+const RECORD_KEY = retractionRecordKey({ userId: USER, source: SOURCE, externalId: EXTERNAL })
 
 type Row = Record<string, unknown>
 
@@ -80,7 +84,22 @@ function store() {
       throw new Error(`fake: unsupported update ${expr}`)
     },
   }
-  return { tables, writes, ddb }
+  /** `0301`. The raw archive, as I-3 makes it: `IfNoneMatch: "*"` or nothing. */
+  const objects = new Map<string, string>()
+  const s3 = {
+    fail: undefined as Error | undefined,
+    async send(command: PutObjectCommand): Promise<Record<string, unknown>> {
+      if (!(command instanceof PutObjectCommand)) throw new Error("fake: only PutObject")
+      if (s3.fail) throw s3.fail
+      const { Bucket, Key, IfNoneMatch, Body } = command.input
+      if (Bucket !== BUCKET || IfNoneMatch !== "*") throw new Error("fake: an unconditioned or misdirected put")
+      if (objects.has(Key!)) throw Object.assign(new Error("precondition"), { name: "PreconditionFailed", $metadata: { httpStatusCode: 412 } })
+      objects.set(Key!, String(Body))
+      writes.push(`put s3 ${Key}`)
+      return {}
+    },
+  }
+  return { tables, writes, ddb, s3, objects }
 }
 
 /** An ACTIVE row as `persist` writes it, trimmed to what a retract could plausibly touch. */
@@ -108,6 +127,7 @@ async function world(opts: { row?: Row | null; answer?: RetractConfirmation | Er
     confirm,
     receipt: { ddb: s.ddb as never },
     persist: { ddb: s.ddb as never, activityTable: ACTIVITY_TABLE },
+    archive: { s3: s.s3, bucket: BUCKET },
     now: () => new Date("2026-10-18T12:00:00.000Z"),
   }
   const message: RetractMessage = retractMessage({
@@ -131,12 +151,13 @@ describe("a confirmed deletion (gone)", () => {
     })
   })
 
-  it("writes only the receipt and the one T3 update: no ledger, cell, blob or other table", async () => {
+  it("writes only the receipt, the raw retraction record and the one T3 update: no ledger, cell, blob or other table", async () => {
     const w = await world()
     w.writes.length = 0
     await retractActivity(w.message, w.deps)
     expect(w.writes).toEqual([
       `update ${INGEST_RECEIPT_TABLE} ADD attempts :one`,
+      `put s3 ${RECORD_KEY}`,
       `update ${ACTIVITY_TABLE} SET #status = :tombstoned, updatedAt = :now`,
       expect.stringMatching(new RegExp(`^update ${INGEST_RECEIPT_TABLE} SET #status = :done`)),
     ])
@@ -172,6 +193,44 @@ describe("a confirmed deletion (gone)", () => {
     const w = await world({ row: { ...ACTIVE_ROW, userId: "someone-else" } })
     expect(await retractActivity(w.message, w.deps)).toBe("no-activity")
     expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)!.status).toBe("ACTIVE")
+  })
+})
+
+/**
+ * Ticket 0301. The tombstone's durable twin, so a rebuild from `raw/` alone keeps it (D-101).
+ */
+describe("the retraction record beside the raw archive (0301)", () => {
+  it("is written as a sibling of the activity's archive prefix, never inside it", async () => {
+    const w = await world()
+    await retractActivity(w.message, w.deps)
+    expect(RECORD_KEY).toBe(`raw/${USER}/${SOURCE}/${EXTERNAL}.retracted.json`)
+    expect(JSON.parse(w.objects.get(RECORD_KEY)!)).toEqual({
+      retracted: true,
+      activityId: ACTIVITY_ID,
+      source: SOURCE,
+      externalId: EXTERNAL,
+      confirmedAt: "2026-10-18T12:00:00.000Z",
+    })
+  })
+
+  it("a redelivery meets the record already there and counts the refusal as success", async () => {
+    const w = await world()
+    await retractActivity(w.message, w.deps)
+    expect(await retractActivity(w.message, w.deps)).toBe("already-tombstoned")
+    expect(w.objects.size).toBe(1)
+  })
+
+  it("comes before the T3 tombstone: a failed write leaves the row ACTIVE and throws for redelivery", async () => {
+    const w = await world()
+    w.s3.fail = Object.assign(new Error("boom"), { name: "InternalError" })
+    await expect(retractActivity(w.message, w.deps)).rejects.toThrow("boom")
+    expect(w.tables.get(ACTIVITY_TABLE)!.get(ACTIVITY_ID)!.status).toBe("ACTIVE")
+  })
+
+  it("is never written for a `present` answer", async () => {
+    const w = await world({ answer: "present" })
+    await retractActivity(w.message, w.deps)
+    expect(w.objects.size).toBe(0)
   })
 })
 
