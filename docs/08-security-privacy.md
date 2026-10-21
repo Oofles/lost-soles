@@ -818,8 +818,10 @@ In order, and the order matters:
    done — the requester is a friend, not a ticket.
 
 **Backups:** there are none beyond S3 versioning and DynamoDB point-in-time recovery, which is on
-for `ExploredCell` only (D-404, `0300`). Where PITR is
-enabled, note that it holds deleted rows for up to 35 days — so a deletion is *complete* at the
+for `ExploredCell` and, since `0300`, every `defineData` model table (`Activity`, `Profile`,
+`SkillState`, `XpLedgerEntry`, `Landmark`), whose 35-day window opened at the `0300` deploy and
+reaches no further back. It is off on T7 `SourceAccount` by design (`02` §1.1: no backup of live
+credentials), on `OAuthState` and on `IngestReceipt`. Where PITR is enabled, note that it holds deleted rows for up to 35 days — so a deletion is *complete* at the
 end of the PITR window, not the moment the script finishes. Say that to the requester rather
 than overstating; and be aware that the same window is what would let a wrong-user deletion be
 undone, which is the correct trade at this scale.

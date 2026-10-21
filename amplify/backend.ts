@@ -828,8 +828,9 @@ const exploredCellTable = new Table(ingestStack, "ExploredCellTable", {
    */
   removalPolicy: RemovalPolicy.RETAIN,
   /**
-   * PITR. The only table in this system that carries it, and the reason is that its
-   * contents cannot be re-derived from anywhere cheap: the raw traces in S3 CAN rebuild it
+   * PITR. The first table in this system to carry it (the `defineData` model tables have
+   * it too since `0300`), and the reason is that its contents cannot be re-derived from
+   * anywhere cheap: the raw traces in S3 CAN rebuild it
    * (§2.9, ticket 0103), but that is a drill measured in hours, and 35 days of
    * point-in-time restore turns "the map is wrong" from an incident into an afternoon.
    */
@@ -1039,6 +1040,27 @@ sourceAccountTable.grant(processActivityLambda, "dynamodb:GetItem", "dynamodb:Up
  * exists.
  */
 sourceAccountKey.grantEncryptDecrypt(processActivityLambda)
+
+/**
+ * PITR ON EVERY `defineData` MODEL TABLE — ticket `0300`. Every model in
+ * `data/resource.ts` is owner-scoped, so this loop IS "every owner-scoped table": `Activity`,
+ * `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark` (and `DeploySmokeTest`, which costs
+ * nothing). A loop rather than a list so a model added later inherits it; `pitr-tables.test.ts`
+ * fails the build if any model table lacks it.
+ *
+ * Why: `02` §8.2. D-135's waterline lives in `SkillState.displayedXp`/`levelHighWater` and the
+ * `isFloor` ledger rows, and is not in `raw/`. The D-259 snapshots cover it, but only up to the
+ * newest one; 35 days of point-in-time restore covers a bad write or a mistaken delete without
+ * the hours-long §8.3 drill. Cost at this size is pennies (PITR bills on table bytes).
+ *
+ * NOT T7 `LostSolesSourceAccount` (a backup of live credentials, §1.1 — see its own comment),
+ * nor `LostSolesOAuthState` (ten-minute nonces), `LostSolesIngestReceipt` (TTL 90 days; an
+ * optimisation over permanent backstops) or `LostSolesCaptureGuard` (not owner data). T6
+ * `ExploredCell` already carries it.
+ */
+for (const table of Object.values(backend.data.resources.cfnResources.amplifyDynamoDbTables)) {
+  table.pointInTimeRecoveryEnabled = true
+}
 
 /**
  * T3, the Amplify-generated `Activity` table. Reached through `backend.data`, because
