@@ -6960,7 +6960,7 @@
     "title": "Rebuild drill: landmark backfill into the target stack",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "16-rebuild-drill",
     "depends_on": [],
@@ -6968,8 +6968,9 @@
     "source": "agent",
     "created": "2026-10-21T03:53:25Z",
     "started": "2026-10-21T19:31:20Z",
-    "path": "tickets/open/0302-rebuild-drill-landmark-backfill-into-the-target-stack.md",
-    "ready": true,
+    "closed": "2026-10-21T20:06:16Z",
+    "path": "tickets/closed/0302-rebuild-drill-landmark-backfill-into-the-target-stack.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

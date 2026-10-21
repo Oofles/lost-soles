@@ -4,7 +4,7 @@ slug: rebuild-drill-landmark-backfill-into-the-target-stack
 title: Rebuild drill: landmark backfill into the target stack
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 16-rebuild-drill
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-21T03:53:25Z
 started: 2026-10-21T19:31:20Z
+closed: 2026-10-21T20:06:16Z
 ---
 
 ## Description
