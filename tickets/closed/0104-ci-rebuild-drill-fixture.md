@@ -4,7 +4,7 @@ slug: ci-rebuild-drill-fixture
 title: CI rebuild drill on every build against a ~20-object fixture spanning every SourceId
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 16-rebuild-drill
 depends_on: [103]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-21T19:31:20Z
+closed: 2026-10-21T20:06:10Z
 ---
 
 ## Description

@@ -2542,7 +2542,7 @@
     "title": "CI rebuild drill on every build against a ~20-object fixture spanning every SourceId",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "16-rebuild-drill",
     "depends_on": [
@@ -2552,8 +2552,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-21T19:31:20Z",
-    "path": "tickets/open/0104-ci-rebuild-drill-fixture.md",
-    "ready": true,
+    "closed": "2026-10-21T20:06:10Z",
+    "path": "tickets/closed/0104-ci-rebuild-drill-fixture.md",
+    "ready": false,
     "acceptance": {
       "checked": 7,
       "total": 7
@@ -2576,7 +2577,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0105-execute-the-drill-for-real.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
