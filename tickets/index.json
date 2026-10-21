@@ -2527,6 +2527,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-21T03:32:09Z",
     "path": "tickets/open/0103-rebuild-drill-fold-replay-verify.md",
     "ready": true,
     "acceptance": {
@@ -6920,6 +6921,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-20T17:50:34Z",
+    "started": "2026-10-21T03:32:09Z",
     "path": "tickets/open/0300-enable-pitr-on-the-owner-scoped-tables-or-record-that-it-sta.md",
     "ready": true,
     "acceptance": {
