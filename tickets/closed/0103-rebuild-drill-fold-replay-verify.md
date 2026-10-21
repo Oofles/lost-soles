@@ -4,7 +4,7 @@ slug: rebuild-drill-fold-replay-verify
 title: Rebuild drill steps 4-8 — re-project cells, fold, replay XP, verify, cut over never
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 16-rebuild-drill
 depends_on: [102, 51, 67]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-21T03:32:09Z
+closed: 2026-10-21T04:11:15Z
 ---
 
 ## Description
