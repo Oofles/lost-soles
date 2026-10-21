@@ -123,6 +123,27 @@ re-run — assertion 3 must fail and the run must stop before step 7 writes `man
 desktop browser, open `/` during and after the run: the live map must be completely unaffected, and the fog
 `generation` served to the app must be unchanged, because nothing was cut over.
 
+**Done 2026-10-21, orchestrator, from the laptop. No perceptual check:** nothing is cut over, so
+there is nothing on `/` to look at. The live generation is read directly instead.
+
+- **Live-target refusal.** `npm run drill -- --phase=rebuild --uid=<owner> --target=<json>
+  --dry-run` with the `activity` table set to `Activity-nog4xy2l7baqlhghpndh2565qe-NONE` exited 4,
+  printing `REFUSED — TARGET_IS_LIVE … is a live table`. Run again with the live user-data bucket
+  and an empty prefix, it exited 4: `… is the live bucket and no prefix separates the rebuild from it`.
+- **Scratch target dry run.** It exited 0 with `--expect-objects=123`. The front half completed
+  and nothing was written.
+- **Live rehearsal.** The real front half ran against the live `raw/` archive, then steps 4–8 ran
+  into an in-memory target; no AWS writes. Results: 118 payloads − 2 superseded − 0 duplicate
+  pointers = 116 activities; 5,211 cells rebuilt against step 0's 5,211; generation 270, which is
+  step 0's 269 + 1. All six step-8 checks passed: 0 normalize failures; 10 skills at or above the
+  2026-10-18 snapshot; 363 ledger rows sum-matched over 6 skills; the spot check matched 5 rows of
+  `d4e7ac35…`. Wall-clock was 6.9 s.
+- **Corrupted cells file.** Not run by hand. Unit tests in `rebuild-drill-back.test.ts` cover it:
+  "a cells file that lost a cell between write and fold", "3: a lost cell ABORTS — no T6, no XP,
+  no manifest", and "manifest.json is the last object written". These are green in the full suite.
+- **Live map unaffected.** After all of the above, `users/<owner>/manifest.json` still reads
+  `generation 269`, `cellCount 5211`.
+
 ## Resolution
 
 Steps 4–8 of §8.3, on top of `0102`'s `runDrillFrontHalf()`. The drill now runs end to end as

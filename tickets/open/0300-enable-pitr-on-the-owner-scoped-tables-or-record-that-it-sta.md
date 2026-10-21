@@ -85,4 +85,10 @@ No perceptual check. Smoke test, after deploy, agent's to run:
 `aws --profile devault --region us-east-1 dynamodb describe-continuous-backups --table-name <t>`
 for each table. Expected `ENABLED` on the six `*-nog4xy2l7baqlhghpndh2565qe-NONE` model tables and
 `LostSolesExploredCell`; `DISABLED` on `LostSolesSourceAccount`, `LostSolesOAuthState`,
-`LostSolesIngestReceipt`, `LostSolesCaptureGuard`. Result: pending deploy (orchestrator).
+`LostSolesIngestReceipt`, `LostSolesCaptureGuard`.
+
+**Result, 2026-10-21, after Amplify job 423 (`0d3fd7a`) succeeded (orchestrator, from the laptop):**
+`ENABLED` on `Activity`, `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark` and `DeploySmokeTest`
+(each `EarliestRestorableDateTime` 2026-10-21T00:01:41–42-04:00, i.e. the deploy, as D-414 says)
+and on `LostSolesExploredCell`; `DISABLED` on `LostSolesSourceAccount`, `LostSolesOAuthState`,
+`LostSolesIngestReceipt` and `LostSolesCaptureGuard`. Matches the decision exactly.
