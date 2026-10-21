@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sandbox": "ampx sandbox",
-    "drill": "vite-node --config vitest.config.ts tools/drill/rebuild-drill.ts --"
+    "drill": "vite-node --config vitest.config.ts tools/drill/rebuild-drill.ts --",
+    "drill:ci": "vite-node --config vitest.config.ts tools/drill/ci/cli.ts --"
   },
   "dependencies": {
     "@aws-amplify/adapter-nextjs": "^1.7.3",

@@ -45,20 +45,20 @@ a recorder of whatever the code currently does.
 
 ## Acceptance criteria
 
-- [ ] `npm run drill:ci` runs steps 1–8 against the fixture and exits non-zero on any of the six
+- [x] `npm run drill:ci` runs steps 1–8 against the fixture and exits non-zero on any of the six
       assertions; it is wired into the default CI workflow on every build, not nightly.
-- [ ] A test enumerates the adapter registry's `SourceId` values and fails if any has no fixture
+- [x] A test enumerates the adapter registry's `SourceId` values and fails if any has no fixture
       object — so adding an adapter without fixture coverage **fails the build**.
-- [ ] The fixture contains the five shapes listed above; each has a named test asserting the
+- [x] The fixture contains the five shapes listed above; each has a named test asserting the
       branch it exists to cover.
-- [ ] Expected outputs live in a checked-in file; there is no `--update-snapshots` path in CI, and
+- [x] Expected outputs live in a checked-in file; there is no `--update-snapshots` path in CI, and
       the local regeneration command prints a warning that the diff must be reviewed.
-- [ ] A negative test proves the drill catches breakage: mutating one adapter's `normalize()`
+- [x] A negative test proves the drill catches breakage: mutating one adapter's `normalize()`
       output field makes `drill:ci` fail with a named assertion, and this is asserted in CI itself
       (a mutation test, not a comment).
-- [ ] The corrupt fixture object causes a **logged, counted** normalize failure that does not
+- [x] The corrupt fixture object causes a **logged, counted** normalize failure that does not
       abort the run, and step-8 assertion 1 then fails the build.
-- [ ] `drill:ci` runs in under 60 s so nobody is tempted to move it off the default build.
+- [x] `drill:ci` runs in under 60 s so nobody is tempted to move it off the default build.
 
 ## Notes
 
@@ -84,3 +84,67 @@ report six passing assertions and a per-source normalize count with every `Sourc
 Then, in a scratch branch, break one field in the Strava adapter's `normalize()` and push —
 confirm CI goes red on a drill assertion, not on a type error. That red build is the entire point
 of this ticket.
+
+## Resolution
+
+**Built on `0103`'s code path, not beside it.** `npm run drill:ci` calls `runDrillFrontHalf` and
+`runDrillBackHalf` — the two functions `tools/drill/rebuild-drill.ts` (`npm run drill`) calls — with
+the shipped adapter registry. The CI harness supplies only what the AWS CLI supplies there: a bucket
+to read (an in-memory `DrillS3` over the committed bytes) and a target to write (`MemoryDrillStore`,
+a `DrillStore`, per D-406). `tools/drill/rebuild-drill.ts` is **unchanged** (it is the AWS CLI and
+has top-level side effects, so it is not importable; the reusable path is the pipeline modules),
+which keeps the merge with `0301`/`0302` mechanical.
+
+Files:
+
+- `tools/drill/ci/drill-ci.ts` — the harness: `loadFixture`, `fixtureBucket`, `runDrillCi`,
+  `expectations`, `expectedFromRun`, `trackedRulesFiles`.
+- `tools/drill/ci/memory-store.ts` — `MemoryDrillStore`. Every create refuses an existing key, as
+  D-408's conditions do; read-backs return what was stored, so step 5 folds the files and checks 4–5
+  read T2/T4 back.
+- `tools/drill/ci/cli.ts` — `npm run drill:ci` entry. Prints a per-source normalize count, the six
+  step-8 rows and the expectations. `--with-corrupt` lists the corrupt object (exits 11).
+  `--write-expected` regenerates `expected.json` locally, prints a must-review warning, and is
+  refused when `CI`, `GITHUB_ACTIONS`, `AWS_APP_ID` or `CODEBUILD_BUILD_ID` is set.
+- `tools/drill/ci/drill-ci.test.ts` — 13 tests, all in `npm test`: the pass and the 60 s budget;
+  determinism; registry coverage; the five named shape tests; two mutation tests; CI wiring and the
+  regeneration refusal.
+- `tools/drill/__fixtures__/ci/` — 17 raw objects for one synthetic user, `objects.json` (key,
+  `LastModified`, content type) and `expected.json`. Strava (10 payloads: a run, an overlapping
+  run, the same ground seven months on, a run archived twice, its re-upload as a D-263 loser with a
+  `.duplicate-of.json` pointer, a treadmill run with no streams, a walk with a D-284 kind override,
+  a ride, a hike, weights) and manual (pushups, situps, plank, a hand-logged treadmill distance).
+  All geometry is synthetic straight lines within the Point Nemo box. The directory is named
+  `__fixtures__`, so `check-fixture-geography.mjs` covers it.
+- `tools/drill/__fixtures__/ci-corrupt/` — one truncated Strava envelope. Its key carries its own
+  sha256, so it passes the integrity check and fails inside `normalize()`, where an adapter
+  regression would.
+- `package.json` — `drill:ci` script (vite-node, like `drill`).
+- `amplify.yml` (build phase) and `.github/workflows/gate.yml` — `npm run drill:ci` step.
+
+**Which CI.** Both exist. `amplify.yml`'s build phase is the lock (D-163: it is what stops a deploy)
+and says to keep its list in step with `gate.yml`, the alarm. So the step goes in both, right after
+`check-drill-no-delete.mjs`. It needs no AWS and no `amplify_outputs.json`, so it runs in the gate
+unchanged.
+
+**The expected file is step 0, not a side comparison.** The fake bucket serves step 0's
+`manifest.json` from `expected.json`'s `step0.generation` and `cellCount` (check 3), the
+precondition-4 snapshot from its `xpBySkill` (check 4's waterline), precondition 1's
+`--expect-objects` from its `objectCount`, and check 6's pre-drill rows from its `spotCheck`
+(the overlapping Strava run, which itemises both new and recent ground). So the six assertions are
+made against the reviewed file. On top of them, `expectations()` checks what the six cannot see:
+exact per-skill XP, ledger rows and sum, activity and cell counts, per-source normalize counts, and
+**no `retained_floor` rows**. Check 4 is `≥`, and D-135 floors absorb a drop, so a regression that
+lowers XP passes check 4 by design. Expectation failures exit 20. A registered source with no
+fixture payload exits 21.
+
+**Mutation tests.** Truncating every Strava trace in `normalize()` fails `ASSERT_3_CELL_COUNT`
+(exit 13) before any manifest is written. Halving Strava's `distanceM` is floored past check 4 and
+fails `ASSERT_6_SPOT_CHECK` (exit 16). Both run in `npm test` on both CI surfaces.
+
+**Measured:** the drill itself takes ~120 ms; `npm run drill:ci` takes ~5 s wall clock, most of it
+vite-node startup. Whole suite: 4,300 tests pass.
+
+No design doc changed: §8.4 describes this exactly. No new decision is needed beyond the ones
+proposed in the wave report.
+

@@ -63,6 +63,10 @@ frontend:
         - node scripts/check-fog-hot-path.mjs  # 02 §5.6 — AP-16 must not reach the ingest hot path
         - node scripts/check-drill-no-delete.mjs --self-test
         - node scripts/check-drill-no-delete.mjs # 02 §8.3 / 0103 — the rebuild drill never removes anything
+        # 02 §8.4 / 0104. The rebuild drill, steps 0-8, against the committed ~20-object fixture: the
+        # same front and back half `npm run drill` runs, an in-memory bucket and target. No AWS. A
+        # red here is an adapter or fold change that would break recovery from raw/ (~5s).
+        - npm run drill:ci
         - node scripts/check-no-deckgl.mjs     # 05 §4.6 — the ruled-out renderer stays ruled out
         - node scripts/check-private-method-update.mjs --self-test
         - node scripts/check-private-method-update.mjs # 0206 — SWC crashes `this.#m().n++` in prod only

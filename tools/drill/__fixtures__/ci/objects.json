@@ -1,0 +1,90 @@
+{
+  "userId": "drill-ci-0104-synthetic-user",
+  "objects": [
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/manual/fx0104-plank/c09b20c91ccfa6574086b6299cf5d6e5c6bf95fe4cb964cfe9f9e0ca964ea65e.json",
+      "lastModified": "2025-02-03T18:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/manual/fx0104-pushups/2b104ecdb412bca2f99ad2e57aca570a020898952e693cd68973f1f6b63f7529.json",
+      "lastModified": "2025-02-01T18:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/manual/fx0104-situps/ee4eecaa6fa081c461cc51789ced81512e61e07ea88abdfe08fa160559a81ab4.json",
+      "lastModified": "2025-02-02T18:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/manual/fx0104-treadmill/331e1bb9ecad950941c5ca9f91492d8dd72540f7317a3c3bcb6eee9fc6f60657.json",
+      "lastModified": "2025-07-01T18:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000001/7c3446d9d9172b0666644ec55cd5ee8a85c9323c466531089e92819424fd89eb.json",
+      "lastModified": "2025-01-05T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000002/0efac034aaf17a2b58101c23ca08d982e0142c1219524fcbf6f7fa93fc9c133f.json",
+      "lastModified": "2025-01-19T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000003/f5d0d4475ce04cc87a89527c5f4d6619820b5a2947b28c1228e9780ebac4ed0b.json",
+      "lastModified": "2025-09-01T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000004/62f260e3983ea8b56b24f1de9fd89e8bd31afa828d6c54c3f8970dcac8a877da.json",
+      "lastModified": "2025-03-03T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000004/eb6754dcf60bde0fb1108a09751f7425005dd87c3c181a6e8ed54aa27c2abecb.json",
+      "lastModified": "2025-03-02T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000005.duplicate-of.json",
+      "lastModified": "2025-03-02T08:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000005/ee0620626faaab233d0356909fd917ef6432a1bbae2349b740f7c43ae2b5f8c0.json",
+      "lastModified": "2025-03-02T08:01:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000006/e251c3621f736c78aefd30bb11b75e098d46a25898a7dba2ea10282cf66aadbf.json",
+      "lastModified": "2025-04-10T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000007.kind-override/20250502T080000000Z-fx0104.json",
+      "lastModified": "2025-05-02T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000007/df557d0fb3a2e45c2a607604efd1ef4be423578cfb34c5ef868a065a7e377b6b.json",
+      "lastModified": "2025-05-01T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000008/e9f2ee8174b10a2adc35807ffdd710477516313c0ff55f4d81cc46df3636294f.json",
+      "lastModified": "2025-05-15T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000009/c677b414c40414ce3e63f4a4c1c084cb724b3c0a49d6f1439cbfa1a5d3a4e63b.json",
+      "lastModified": "2025-06-01T08:00:00.000Z",
+      "contentType": "application/json"
+    },
+    {
+      "key": "raw/drill-ci-0104-synthetic-user/strava/17000000010/6c5c586d251c6b51c2def58f923fce181771021f2842a1c4bb3caa60afa08277.json",
+      "lastModified": "2025-06-05T08:00:00.000Z",
+      "contentType": "application/json"
+    }
+  ]
+}

@@ -159,6 +159,13 @@ jobs:
       - name: the rebuild drill never removes anything
         run: node scripts/check-drill-no-delete.mjs
 
+      # 02 §8.4 / ticket 0104. The drill end to end against tools/drill/__fixtures__/ci — the same
+      # runDrillFrontHalf/runDrillBackHalf as `npm run drill`, with the bucket and the target in
+      # memory, so it needs no AWS and no amplify_outputs.json. Prints the six step-8 checks and a
+      # per-source normalize count. `npm test` above also runs its branch and mutation tests.
+      - name: rebuild drill against the CI fixture (steps 0-8, the six assertions)
+        run: npm run drill:ci
+
       # Ticket 0053. The gate has no LOST_SOLES_HOME_* values, so only the self-test
       # is meaningful here; the real scan runs in the Amplify build container, which
       # does. A self-test that passes proves the detector still bites.
