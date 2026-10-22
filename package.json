@@ -35,7 +35,7 @@
     "aws-jwt-verify": "^5.2.1",
     "h3-js": "^4.5.0",
     "maplibre-gl": "6.6.0",
-    "next": "^15.5.24",
+    "next": "^15.5.28",
     "pbf": "5.1.2",
     "pmtiles": "4.5.0",
     "react": "^19.2.8",
@@ -57,5 +57,10 @@
     "typescript": "^5.9.3",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.31"
+    }
   }
 }

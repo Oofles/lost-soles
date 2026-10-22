@@ -226,3 +226,60 @@ describe("credentials are redacted by the name of the field carrying them", () =
     expect(line).not.toContain('"s"')
   })
 })
+
+/**
+ * Ticket 0115, criterion 5: one fake token of EACH shape, through the real sink.
+ *
+ * In a Lambda, and in Amplify's SSR compute, the console IS CloudWatch: the runtime ships
+ * every `console.log/warn/error` line to the function's log group verbatim, so the string
+ * handed to the console is the CloudWatch line. Each shape goes through each level,
+ * because a level that skipped `render()` would be a hole only on that level.
+ *
+ * Shapes are 08 §3.1's list: the GitHub prefixes (S5), AWS key ids (S8), `Bearer`
+ * values (S7, and any Authorization header), the Slack and private-key shapes from §7.3,
+ * and the field names that a bare-hex credential (S2, S3, S4) can only be caught by.
+ */
+describe("every secret shape is masked in the line CloudWatch receives", () => {
+  afterEach(() => vi.restoreAllMocks())
+  const hex40 = "c0ffee12".repeat(5)
+  const APP_TOKEN = fx("ghs", "_0123456789abcdefghijABCDEFGHIJ")
+  const SHAPES: Array<[string, unknown[], string]> = [
+    ["a fine-grained PAT (S5)", ["api call failed", PAT], PAT],
+    ["a classic PAT (S5)", [`token=${CLASSIC}`], CLASSIC],
+    ["an app installation token", [APP_TOKEN], APP_TOKEN],
+    ["an AWS access key id (S8)", [new Error(`signed with ${AKIA}`)], AKIA],
+    ["a Slack token", [{ note: `x ${SLACK}` }], SLACK],
+    ["a Bearer header value (S7)", ["headers", { h: `Bearer ${hex40}` }], hex40],
+    ["an Authorization header by name", [{ Authorization: hex40 }], hex40],
+    ["a Strava accessToken by name (S4)", [{ accessToken: hex40 }], hex40],
+    ["a Strava refresh_token by name (S4)", [{ body: { refresh_token: hex40 } }], hex40],
+    ["the client_secret by name (S2)", [{ client_secret: hex40 }], hex40],
+    ["a webhook verify token by name (S3)", [{ verifyToken: hex40 }], hex40],
+  ]
+  const LEVELS = [
+    ["info", "log"],
+    ["warn", "warn"],
+    ["error", "error"],
+  ] as const
+
+  for (const [level, sink] of LEVELS) {
+    it.each(SHAPES)(`log.${level} masks %s`, (_what, parts, raw) => {
+      const spy = vi.spyOn(console, sink).mockImplementation(() => {})
+      log[level](...parts)
+      expect(spy).toHaveBeenCalledTimes(1)
+      const line = spy.mock.calls[0].join(" ")
+      expect(line).not.toContain(raw)
+      expect(line).toContain("redacted")
+    })
+  }
+
+  it("a private key header is masked on every level", () => {
+    const pem = fx("-----BEGIN RSA ", "PRIVATE KEY-----")
+    for (const [level, sink] of LEVELS) {
+      const spy = vi.spyOn(console, sink).mockImplementation(() => {})
+      log[level](`loaded ${pem} from disk`)
+      expect(spy.mock.calls[0][0] as string).not.toContain(pem)
+      spy.mockRestore()
+    }
+  })
+})

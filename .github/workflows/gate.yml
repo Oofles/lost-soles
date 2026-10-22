@@ -51,6 +51,14 @@ jobs:
       - name: package-lock.json is unchanged by the install
         run: git diff --exit-code package-lock.json
 
+      # 08 §7.5 / ticket 0115. The RUNTIME tree only, high and critical only: what ships in the
+      # SSR bundle and the Lambdas. The dev tree's advisories (Amplify backend CLI, codegen,
+      # vitest) are a separate ticket; gating on them would fail every build today, and a build
+      # that cries wolf is a build people bypass. A registry it cannot reach exits non-zero, so
+      # this fails closed (D-176). Mirrored in amplify.yml (D-163).
+      - name: npm audit — no high/critical advisory in the runtime tree
+        run: npm audit --omit=dev --audit-level=high
+
       # amplify_outputs.json is GITIGNORED — generated per-environment by the
       # backend deploy (0004: ignored because it is environment-specific, not
       # because it is sensitive). So it exists locally and in the Amplify build,
@@ -282,6 +290,11 @@ jobs:
 
       - name: C-2 — no prerendered page or static asset carries cell or trace data
         run: node scripts/check-prerender-no-cell-data.mjs
+      # Ticket 0115. The live half reads the DEPLOYED account and runs in amplify.yml's
+      # backend phase, which holds credentials; this job holds none (0017), so only the
+      # self-test is meaningful here. It proves the assertions still fire.
+      - name: deployed secret-storage check self-test
+        run: node scripts/check-secret-storage.mjs --self-test
 
       # ── hygiene, and it runs LAST on purpose (D-177, ticket 0140) ────────────
       #

@@ -298,7 +298,7 @@ unused at $0.40/secret/month (§9).
 | # | Credential | Lives in | Read by | Blast radius if leaked | Rotation |
 |---|---|---|---|---|---|
 | S1 | `STRAVA_CLIENT_ID` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | SSR compute role (callback, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` (D-362) | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
-| S2 | `STRAVA_CLIENT_SECRET` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | the same four principals as S1 (D-362). **Never reaches a browser** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `ampx sandbox secret set` / Amplify console → redeploy. **Existing refresh tokens survive**, so this is a low-drama rotation |
+| S2 | `STRAVA_CLIENT_SECRET` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | the same four principals as S1 (D-362). **Never reaches a browser** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `aws ssm put-parameter --overwrite` at the shared path (not `ampx sandbox secret set`, which writes a `secret()` this value no longer is; §8.1, `0115`). **Existing refresh tokens survive**, so this is a low-drama rotation |
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
 | S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
@@ -330,6 +330,13 @@ KEY-----` — so it also catches secrets it was never told about.
 (`07-ticketsmith.md` §6.2), `Bearer ` values, and the field names `refreshToken` / `accessToken`
 / `client_secret`. CloudWatch log groups get a **30-day retention** — logs are the other place
 secrets and coordinates leak, and an unbounded log group is both a liability and a bill.
+
+> **Not true as built (finding, ticket `0115`, 2026-10-22).** All 14 Lambda log groups and the SSR
+> group `/aws/amplify/d14fhvl4rp79nn` read `retentionInDays: None`, which is *never expire*. The
+> redaction half holds: a scan of every event in those groups (23,197) found no raw credential
+> shape, and the one line carrying `<redacted>` is the logger working. The retention half is a
+> follow-up ticket, and the account-deletion runbook's step 7 ("lines expire under the 30-day
+> retention") depends on it.
 
 **Not secrets, and must not be mistaken for leaks:** `amplify_outputs.json` (Cognito pool ID,
 app client ID, identity pool ID, AppSync endpoint, **and the `custom` block**) and
@@ -923,7 +930,10 @@ Two of these deserve a note:
 2. **In CI, on the built output**, which already exists: §3.1's grep of `.next/static` and every
    Lambda bundle for the literal values of S1–S7 plus the generic patterns, **failing the
    build on a hit**. Extend it to a full-history `gitleaks detect` on the initial run so the
-   repo starts from a known-clean state.
+   repo starts from a known-clean state. *(As built, `0115`: on every run, not the initial one.
+   `scripts/check-history-secrets.mjs` runs `gitleaks detect --log-opts=--all` with a pinned,
+   checksummed binary in `secret-scan.yml` and `amplify.yml`, and refuses a shallow clone. The
+   `gitleaks-action` it replaced scanned only each push's commit range.)*
 3. **GitHub push protection + secret scanning** on the repo — free on public repos, and worth
    the click on a private one. `07-ticketsmith.md` §6.5 already flags it: the capture endpoint
    commits arbitrary prose from a phone into `tickets/inbox/`, so the repo has a path by which
@@ -1013,7 +1023,10 @@ by definition, in the wrong place.
   do not justify a patching SLA; a transitive RCE in an SSR dependency still does. Read the
   changelog on anything that touches auth, `h3`, or the Strava adapter.
 - **`npm audit` in CI, failing on `high`/`critical` only.** Anything stricter on a hobby project
-  becomes noise, and a build that cries wolf is a build people bypass.
+  becomes noise, and a build that cries wolf is a build people bypass. *(As built, `0115`:
+  `npm audit --omit=dev --audit-level=high` in `gate.yml` and `amplify.yml`, so the gate covers
+  the runtime tree only. The dev tree carried 56 advisories at landing, mostly through the Amplify
+  backend CLI and codegen, and is a separate ticket.)*
 - **Fewest dependencies that get the job done.** Every package added to the SSR bundle or a
   Lambda is code with the same IAM grants as ours, and cold-start weight against §4's 2-second
   budget. `h3`, the AWS SDK, and Next.js are unavoidable; a date library is not.
@@ -1040,6 +1053,22 @@ history.** History rewriting is slow, often incomplete (forks, PR refs, GitHub's
 anyone's local clone), and irrelevant once the secret is dead. Rotation is the fix; the rewrite
 is tidying.
 
+**The facts every step below needs** (dry-read against the live account, ticket `0115`; the
+physical names are CDK-generated and change only if a resource is replaced, so each has the
+command that finds it again). Every command takes `--profile devault --region us-east-1`.
+
+| | |
+|---|---|
+| Amplify app / branch | `lost-soles`, `d14fhvl4rp79nn`, `main` |
+| SSM secrets (all `SecureString`, `alias/aws/ssm`) | `/amplify/shared/d14fhvl4rp79nn/{STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_WEBHOOK_VERIFY_TOKEN,GITHUB_TICKETS_PAT}` |
+| Strava tokens (S4) | DynamoDB `LostSolesSourceAccount` |
+| Lambdas | `aws lambda list-functions --query "Functions[?contains(FunctionName,'d14fhvl4rp79nn')].FunctionName"`: `ingestwebhook…`, `processactivity…`, `tokenrefresh…`, `reconcilesweep…` |
+| Logs | `/aws/lambda/<function>` and, for SSR routes (`/api/auth/*`, `/api/tickets/capture`), `/aws/amplify/d14fhvl4rp79nn` |
+| Alarms → email | three CloudWatch alarms named `Lost Soles — …` → SNS topic `…IngestAlarms…` → `amazingbrandon@gmail.com` (confirmed subscription). The only push channel there is (D-185) |
+| GPS archive | S3 `amplify-d14fhvl4rp79nn-ma-lostsolesuserdatabucket5-…` |
+| Posture checks | `node scripts/check-auth-posture.mjs`, `AWS_APP_ID=d14fhvl4rp79nn AWS_BRANCH=main node scripts/check-secret-storage.mjs` |
+| CloudTrail | **No trail.** Event history only: 90 days, management events, `aws cloudtrail lookup-events` |
+
 ### 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token)
 
 **The worst case in the system** (§3): a refresh token plus the client secret yields the user's
@@ -1050,25 +1079,40 @@ disclosure, not a service outage.
   out from under us); unfamiliar activity in Strava's *My Apps* / authorized-apps view;
   `token-refresh` errors in CloudWatch; or the mundane real case: the value appeared in a log,
   a commit, or a pasted terminal buffer.
-- **Contain** — `POST /oauth/deauthorize` with the user's access token **immediately**. This
-  kills that refresh token at Strava, which is the only place that can honour it. Ingest stops;
+- **Contain** — **`/settings` → Disconnect Strava, immediately.** It calls `POST
+  /oauth/revoke` with the client credentials (the current form of the legacy `/oauth/deauthorize`,
+  D-404) and deletes the `SourceAccount` row. This kills that refresh token at Strava, which is
+  the only place that can honour it. Ingest stops;
   the map is unaffected (§6.5), so the cost of over-reacting here is close to zero. *If the
-  client secret (S2) is the leak, revoke it in the Strava developer console* — note that
+  client secret (S2) is the leak, regenerate it in the Strava developer console
+  (<https://www.strava.com/settings/api>)* — note that
   existing refresh tokens survive a client-secret rotation, so a secret rotation alone does
   **not** contain a leaked refresh token, and vice versa. Work out which one leaked, and if
   unsure, do both.
-- **Rotate** — regenerate `STRAVA_CLIENT_SECRET` in the Strava console, `ampx sandbox secret
-  set` / Amplify console, redeploy (§3, S2). Have the user re-run the OAuth connect flow to mint
-  a fresh refresh token; delete the old `SourceAccount` row rather than updating it.
+- **Rotate** — regenerate `STRAVA_CLIENT_SECRET` in the Strava console, then `aws ssm
+  put-parameter --name /amplify/shared/d14fhvl4rp79nn/STRAVA_CLIENT_SECRET --type SecureString
+  --overwrite --value …` (it is read through an explicit grant, not `secret()`, D-362, so neither
+  `ampx sandbox secret set` nor the Amplify console's secret page touches it). Every reader caches
+  it per execution environment, so warm Lambdas keep the old value until their next cold start:
+  expect refresh failures for that window, which are an outage, not a leak. "Redeploy this
+  version" in the Amplify console recycles the SSR compute. Have the user re-run the OAuth connect
+  flow from `/settings` to mint a fresh refresh token; the disconnect above already deleted the old
+  `SourceAccount` row, which is the point — a new row, not an updated one.
 - **Verify** — a test activity ingests end to end; the old token returns 401 from Strava
-  (actually try it); Strava's authorized-apps list shows only our app; `SourceAccount` holds
+  (actually try it); Strava's authorized-apps list (<https://www.strava.com/settings/apps>)
+  shows only our app; `SourceAccount` holds
   exactly one row per user. Then ask the harder question: **what did the holder see?** If the
   token was live and used, assume the user's full trace history was readable, and say so — to a
   friend (§5.4) that is a disclosure they are owed.
 
 ### 8.2 GitHub PAT leaked (S5)
 
-- **Detect** — GitHub's own secret scanning emails on a push (it detects its own token formats,
+**The procedure is `docs/runbooks/github-pat-rotation.md`** (ticket `0024`), which has the exact
+PAT settings, the SSM write and the verification commands. The bullets below are the order of
+operations; follow the runbook for the keystrokes.
+
+- **Detect** — GitHub's own secret scanning emails on a push (enabled, with push protection, since
+  the repo went public: D-165; verified live by `0115`) (it detects its own token formats,
   which is most of the value); unexpected commits or a changed default branch; the `git log`
   showing an author you did not expect; or the token appearing in a build log.
 - **Contain** — **revoke the PAT in GitHub settings. One click, do it first.** Then check
@@ -1080,9 +1124,12 @@ disclosure, not a service outage.
   §6.3 of that document instead** — the GitHub App with 1-hour installation tokens is the
   structural fix, and an incident is the moment its cost stops looking theoretical.
 - **Verify** — the old token 401s against the API; `/api/tickets/capture` still commits a test
-  capture; review the full commit log since the leak, not just the tip; confirm branch
-  protection and push protection are on. If anything was committed by the attacker, the repo is
-  the source of a deployment — treat 8.3 as also in scope.
+  capture; review the full commit log since the leak, not just the tip
+  (`node scripts/check-history-secrets.mjs` scans all of it); confirm push protection is still on
+  (`gh api repos/Oofles/lost-soles -q .security_and_analysis`). **There is no branch protection to
+  confirm** — it is declined, not forgotten (D-163) — so an attacker's push to `main` deploys.
+  If anything was committed by the attacker, the repo is the source of a deployment — treat 8.3
+  as also in scope.
 
 ### 8.3 AWS credentials leaked (S8) — the O-005 shape
 
@@ -1099,33 +1146,46 @@ compute within minutes.
   look for what was created: **check every region** for EC2 instances, and check for new IAM
   users, roles, and access keys — persistence is the first thing a competent intruder
   establishes, and rotating your own key does nothing about a role they made.
-- **Rotate** — new credentials, verify, delete the old key. Then remove the reason it existed:
-  move the machine to **IAM Identity Center / SSO short-lived credentials** (§3, S8; §7.4). A
-  long-lived `AKIA…` on a laptop is the root cause every time, and rotating one for another is
-  fixing the symptom.
-- **Verify** — CloudTrail shows no use of the old key ID after deactivation; no unexpected IAM
-  principals; **the S3 bucket's Block Public Access is still on and versioning is still enabled**
-  (§6.2) — an attacker who wanted the GPS archive would flip exactly those; DynamoDB row counts
-  are sane; the Cognito pool still has **self-signup off** and exactly the users expected (§5.1).
-  Read the bill for the next two cycles.
+- **Rotate** — new credentials, verify, delete the old key. The O-005 rotation (ticket `0002`) is
+  the worked example: IAM console → create key on `cli-user` → write it to profile `devault` in
+  `~/.aws/credentials` (`0600`) → `aws sts get-caller-identity --profile devault` → delete the old
+  key the same day. `cli-user` keeps exactly one standing key (D-168): two keys on it at any other
+  time is itself a finding. **IAM Identity Center is declined for now (D-168)**, so this is
+  a key-for-key swap. An incident is the moment to reopen D-168, not to adopt SSO mid-incident.
+- **Verify** — CloudTrail shows no use of the old key ID after deactivation (`aws cloudtrail
+  lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=<id>`: event history
+  only, 90 days, there is no trail); no unexpected IAM principals (`aws iam list-users`, `list-roles`);
+  **the S3 bucket's Block Public Access is still on and versioning is still enabled**
+  (§6.2; `aws s3api get-public-access-block` / `get-bucket-versioning` on the archive bucket) — an
+  attacker who wanted the GPS archive would flip exactly those; DynamoDB row counts
+  are sane; the Cognito pool still has **self-signup off** and exactly the users expected (§5.1;
+  `node scripts/check-auth-posture.mjs`, `aws cognito-idp list-users`); no secret moved into a
+  Lambda's environment (`scripts/check-secret-storage.mjs`). Read the bill for the next two
+  cycles in Cost Explorer.
 
 ### 8.4 Webhook abused (§4)
 
 Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5)
-— but it can spend money, and a $3–5/month budget notices.
+— but it can spend money. Reserved concurrency of 5 bounds that spend (D-361; 0093's flood test:
+1,000 requests, about $0.002), and no project budget alarm exists to notice it (D-361).
 
 - **Detect** — the operator's account-level cost alerts (D-361); a spike in `ingest-webhook` invocations or throttles in
-  CloudWatch; the §4.4(6) per-`owner_id` counter alarming; SQS queue depth or DLQ messages;
-  `IngestReceipt` writes far exceeding real activity.
+  CloudWatch; the alarm **`Lost Soles — the webhook is being flooded`** (the §4.4(6) per-`owner_id`
+  counter, emailed through the same SNS topic as the DLQ alarm); the alarm **`Lost Soles — an
+  activity failed to import`** (DLQ depth > 0); `IngestReceipt` writes far exceeding real activity.
 - **Contain** — **set the Lambda's reserved concurrency to 0.** That is the kill switch: it
   hard-stops all execution and costs nothing, and because Strava retries, legitimate events are
-  mostly recoverable afterwards. The real risk of this move is the subscription being disabled
+  mostly recoverable afterwards. `aws lambda put-function-concurrency --function-name <the
+  ingestwebhook… name from the table above> --reserved-concurrent-executions 0`. The real risk of
+  this move is the subscription being disabled
   after sustained failures (there is exactly one subscription, per app, ever — §4), so use it
-  decisively and briefly, then restore to 5 (§4.4, item 1). If concurrency was never set, set it
-  now; that is the same fix.
+  decisively and briefly, then restore to 5 (§4.4, item 1; it read 5 at the `0115` dry-read).
+  **A backend deploy restores 5 on its own**, because CDK owns the value, so do not push to
+  `main` while the switch is meant to be off.
 - **Rotate** — usually **nothing to rotate**: the verify token (S3) does not authenticate POSTs
   (§4.1), so a flood proves nothing about it. Rotate S3 only if the *handshake* itself was
-  abused, and remember it means deleting and recreating the subscription (§3, S3). If the
+  abused, and remember it means deleting and recreating the subscription (§3, S3;
+  `node scripts/strava-subscription.mjs`). If the
   attacker had a valid `subscription_id`, they observed it somewhere — find where.
 - **Verify** — a real activity ingests end to end (this is the only proof the subscription is
   alive); no duplicate activities or double-awarded XP, which `ingestKey` and D-140's

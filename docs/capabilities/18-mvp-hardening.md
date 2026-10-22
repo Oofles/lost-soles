@@ -45,6 +45,46 @@ those authed routes with `sub` re-derived server-side (D-228). An anonymous GET 
 key answers **403**: the bucket blocks public access and no bucket policy allows an anonymous
 principal (`amplify/explored-set-not-public.test.ts`). No signed URL exists (D-228).
 
+## 0115 — secrets, dependencies and the playbook dry-read (2026-10-22)
+
+Read-only, `--profile devault`, account `286588821906`, `us-east-1`, app `d14fhvl4rp79nn`/`main`.
+
+| Check | Result | How |
+|---|---|---|
+| Built client bundle carries no secret | **pass**, CI build failure on a hit since `0017` | `scripts/check-bundle-leak.mjs` over `.next/static`, `.next/server`, `cdk.out`: patterns in the gate, literals from SSM under `--require-literals` in `amplify.yml` |
+| gitleaks over full history | **pass**, 807 commits, all refs | `gitleaks detect --log-opts=--all --redact` via `scripts/check-history-secrets.mjs`, gitleaks 8.30.1 pinned by sha256. `secret-scan.yml` used to scan only each push's commit range |
+| O-005 key rotated, file ignored | **holds** | `cli-user` has exactly one key, `Active`, created `2026-08-31T01:50Z` (D-168). The old key is not in IAM. `Oofles/devaultsecurity`'s `.gitignore` has `.claude/` and `*.local.json`, and its tree has 0 paths under `.claude/`. That checkout is no longer on this machine. Here, `git check-ignore` matches `.claude/settings.local.json` and `.claude/settings.json` |
+| Every secret a `SecureString` | **pass**, 4 of 4 | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_WEBHOOK_VERIFY_TOKEN`, `GITHUB_TICKETS_PAT` at `/amplify/shared/d14fhvl4rp79nn/`. `INGEST_BEARER_TOKEN` is not set (post-MVP) |
+| No plaintext secret in deployed config | **pass**: 18 stacks, 14 Lambdas, 37 env vars, 87 outputs, the app's env vars | `scripts/check-secret-storage.mjs`, now in `amplify.yml`'s backend phase. `secret-smoke-test`'s `STRAVA_WEBHOOK_VERIFY_TOKEN` holds Amplify's runtime placeholder, not the value |
+| Log redaction | **pass**, per shape and per level | `lib/log.test.ts`. Live: 23,197 events across all 15 log groups, 0 raw credential shapes, 1 line carrying `<redacted>` |
+| Log retention (§3.1 says 30 days) | **FAIL**: every group never expires | finding, follow-up ticket proposed |
+| Cognito self-signup | **OFF** | `describe-user-pool us-east-1_3lreDA1d1`: `AllowAdminCreateUserOnly: true` |
+| Cognito unauthenticated identities | **OFF** | `describe-identity-pool us-east-1:8738715f-…`: `AllowUnauthenticatedIdentities: false`. Both re-asserted on every deploy by `check-auth-posture.mjs` (D-425: Cognito stays through MVP) |
+| GitHub secret scanning, push protection | **enabled** | `security_and_analysis` on `Oofles/lost-soles` (public, D-165). Dependabot security updates: **disabled** |
+| Dependency surface | 21 runtime and 14 dev direct; 1,861 installed (231 prod, 1,594 dev, 171 optional, 18 peer) | `package.json`, `npm audit` metadata |
+| Advisories, 2026-10-22, before | **Full tree 60**: 6 critical, 49 high, 5 moderate. **Prod tree 4**: 3 high (`postcss` 8.4.31, `sharp` 0.35.4, `source-map-js` 1.2.1, all under `next`) and 1 moderate (`next` 15.5.24) | `npm audit`, `npm audit --omit=dev` |
+| Advisories, 2026-10-22, after | **Full tree 56**: 6 critical, 46 high, 4 moderate, all in the dev tree (follow-up ticket). **Prod tree 0** | `next` ^15.5.24 → ^15.5.28 (a patch; brings `sharp` 0.35.5). `next` 15.5.28 still pins `postcss` 8.4.31 exactly, so `overrides.next.postcss: ^8.5.31` (8.5.31, which brings `source-map-js` 1.2.2). `next` 16 was not needed. Lockfile: `npm install --no-save` from a clean copy leaves it byte-identical (D-162) |
+| Advisory gate | `npm audit --omit=dev --audit-level=high` in `gate.yml` and `amplify.yml` (D-163). An unreachable registry exits non-zero, so it fails closed | operator answer to the `0115` D-152 question: option A |
+| DLQ → a human | alarm `Lost Soles — an activity failed to import` → SNS `…IngestAlarms…` → email `amazingbrandon@gmail.com`, confirmed | live test through the real queue: the ticket's post-deploy smoke |
+| Billing alarm | **none, by decision** (D-361). `0289` removed 0093's `CfnBudget`; `describe-budgets` returns none | — |
+| One month of billing (Sept 2026), against D-083 | **Meets D-083**, which covers runtime only (D-NEW, `0115`). Lost Soles' own runtime ≈ **$1.1**: its one tagged CMK $1.00, DynamoDB $0.008, CloudWatch $0.005, S3 ≤ $0.10 (shared line), Lambda/SQS/SNS/Cognito/CloudFront $0. Build minutes are outside D-083: 236 Amplify jobs, 2,016 minutes in September (1,585 to 2026-10-21). The skip-token work (`0214`, `0268`) bounds them, and D-361 puts the account's cost in the operator's hands. The account's whole Amplify line was $18.73 across 10 apps | Cost Explorer by service; `amplify list-jobs`. No cost-allocation tag is active, so the Amplify line cannot be split exactly |
+
+**Playbook dry-read (§8), what it found wrong, all fixed in `08`:**
+
+1. §8.1 *Contain* named the legacy `POST /oauth/deauthorize`. D-404 moved revocation to `/oauth/revoke` and amended §3 and §6.4, but not §8. The step is now *`/settings` → Disconnect*, which calls revoke and deletes the row.
+2. §8.1 *Rotate*, and §3 S2's rotation cell, said `ampx sandbox secret set` / Amplify console. The secret is read through an explicit grant (D-362), so neither touches it. It is now `aws ssm put-parameter` at the shared path, with the per-environment cache noted.
+3. §8.2 *Verify* said "confirm branch protection … on". There is none, by decision (D-163). It now says so, and what that implies.
+4. §8.2 did not point at its own runbook, `docs/runbooks/github-pat-rotation.md`. It does now. *Separately: that runbook dates the PAT's expiry to ~2026-11-29, about five weeks out.*
+5. §8.3 *Rotate* said move to IAM Identity Center. That is declined (D-168). It now gives the O-005 key-for-key procedure.
+6. §8.3 *Verify* named checks and gave no commands, and implied a CloudTrail trail exists. There is no trail, only 90-day event history. The commands are now there.
+7. §8.4's lead still said "a $3–5/month budget notices" (D-361). It also named the per-owner counter and the DLQ without saying they are the two emailed alarms. And it did not say that a backend deploy silently restores reserved concurrency to 5, undoing the kill switch.
+8. §8 had no table of concrete names. It does now, so no step starts with "find the X".
+
+Reachable and correct as written: reserved concurrency is 5. The archive bucket has Block Public
+Access on all four settings and versioning `Enabled`. `LostSolesSourceAccount` and
+`scripts/strava-subscription.mjs` exist. All three `Lost Soles — …` alarms email the confirmed
+subscription. Cost Explorer and CloudTrail event history answer.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

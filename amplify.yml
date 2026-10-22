@@ -22,6 +22,12 @@ backend:
         # build role (LostSolesAuthPostureCheckReadOnly). Prints subs only, never usernames or emails.
         - node scripts/check-d123-trigger-a.mjs --self-test
         - node scripts/check-d123-trigger-a.mjs
+        # Ticket 0115, 08 §3. The same reasoning one level over: what is DEPLOYED, not
+        # what was built. Every registry key in SSM is a SecureString, and no Lambda env
+        # var, stack output or Amplify app variable carries a secret name, value or
+        # credential shape. Uses only grants the build role already holds. Fails closed.
+        - node scripts/check-secret-storage.mjs --self-test
+        - node scripts/check-secret-storage.mjs --require-literals
 # Docs/tickets-only pushes never reach this file: the commit-msg hook tags them
 # [skip-cd] and Amplify does not start a build (D-311, ticket 0214).
 frontend:
@@ -63,6 +69,13 @@ frontend:
         - node scripts/check-design-tokens.mjs # 06 §8 — the palette does not leak
         - node scripts/check-contrast.mjs      # D-148 — every skills-panel pair at WCAG AA
         - node scripts/check-fixture-geography.mjs # 08 §7.2 / D-199 — no real GPS in a public repo
+        # 08 §7.3 layer 2 / 0115. gitleaks over EVERY commit, not the tip: a removed secret is
+        # still in a public repo's history. Pinned binary, sha256-verified; refuses a shallow clone.
+        - node scripts/check-history-secrets.mjs --install --self-test
+        - node scripts/check-history-secrets.mjs --install --unshallow
+        # 08 §7.5 / 0115. Runtime tree, high/critical only; the dev tree is its own ticket.
+        # Unreachable registry = non-zero exit = failed build (D-176). Mirrors gate.yml.
+        - npm audit --omit=dev --audit-level=high
         - node scripts/check-fog-render-boundary.mjs # 05 §2.3 — REVEAL_R_M is scoring, revealScale is a look
         - node scripts/check-mode-boundary.mjs # 05 §5.4 — the map mode is a look; it never reaches scoring
         - node scripts/check-fog-hot-path.mjs  # 02 §5.6 — AP-16 must not reach the ingest hot path
