@@ -130,6 +130,16 @@ carries cell data. In the desktop browser, sign out completely and try to fetch 
 `CLAUDE.md` on GitHub in the desktop browser and confirm the standing note is visible in the first screenful — if an
 agent has to scroll to find it, it will not be read.
 
+**Result, 2026-10-22 (orchestrator, after Amplify job 426 deployed `88a6798`). All smoke tests, no perceptual check needed:**
+
+- Trigger A ran for real in Amplify's backend phase under the build role: *"Trigger A has not fired: every account in the pool is the owner…"*. The role gained `ListUsersForD123TriggerA` before the push (D-426). `simulate-principal-policy` returns `allowed` for `ListUsers` and `DescribeUserPool`.
+- Trigger B ran in both CI surfaces. The GitHub gate used the push's `before` sha `6801830` over 853 changed files: *"Trigger B has not fired"*. Its self-test passed in CI, including the case of citing a decision that only mentions D-123.
+- C-3: the Amplify log shows *"check-route-cache-control: 11 route files, every handler wrapped in withNoStore"*. Live, `curl -sI /` returns `cache-control: private, no-cache, no-store, max-age=0, must-revalidate`.
+- C-2: the Amplify log shows *"14 prerendered routes on the allowlist, none carries cell or trace data; 58 static files scanned"*.
+- C-4: an anonymous GET of the predictable S3 key `users/<owner sub>/manifest.json` returns **403**. A signed-out `/api/fog/blob/1` returns **404**, the middleware's answer.
+- CLAUDE.md: the standing note is at lines 9–15, above the first `---`, so it is in the first screenful. A line number settles this, so it was not sent to the operator (D-229).
+- D-123 trigger checked? A/B/C: this ticket builds the gates; none fires.
+
 ## Resolution
 
 The three D-123 triggers from `08-security-privacy.md` §2.4 are now checks that fail a build. They

@@ -130,6 +130,14 @@ browser, check the two invariants only the rendered app can show: open `/skills`
 ceiling reads 693 with seven skills, and open `/` and confirm territory you revealed months ago is
 still revealed — the D-020 check that no test can perform for you.
 
+**Result, 2026-10-22 (orchestrator, after Amplify job 426 deployed `88a6798`). No perceptual check (D-229):**
+
+- `tickets.mjs audit 18-mvp-hardening` on `main`: `ok invariant-sweep — all 30 invariants cited by a test name, and the set is declared complete`.
+- The full `amplify.yml` gate passed on a clean worktree of `main` (37 steps, including `drill:ci` and `npm test`) and in Amplify job 426.
+- The "/skills ceiling reads 693" step is wrong under D-192 and is covered by `levels.test.ts`. "Revealed ground is still revealed" is covered by audit §4's fog-no-refog row against live data (5211 → 5211 cells).
+- The two amendments the agent asked about are accepted by the orchestrator. Idempotency is value-idempotent outside the receipt TTL, and the open question is now `0310`. The Strava grep was proved with a scratch working-tree file, because the guard reads the tree.
+- D-123 trigger checked? none.
+
 ## Resolution
 
 **All thirty invariants (I-1…I-30) now have a citing test, each proven red by a mutation.** Most
