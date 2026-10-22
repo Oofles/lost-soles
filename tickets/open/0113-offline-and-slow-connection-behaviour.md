@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 18-mvp-hardening
-depends_on: [59, 90]
+depends_on: [59, 90, 293]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -68,6 +68,8 @@ Note the interaction with §9.2's cache rule from `08-security-privacy.md` §2.4
 responses are `private, no-store`. Offline resilience comes from **IndexedDB and the service
 worker's own cache of owner-scoped payloads**, never from a shared CDN cache of an authed
 response.
+
+**2026-10-22 — depends on `0293`** (operator, wave-18 planning): the zero-third-party-origins criterion cannot pass while the basemap glyphs and sprite still load from `protomaps.github.io`; `0293` self-hosts them.
 
 ## Operator validation
 

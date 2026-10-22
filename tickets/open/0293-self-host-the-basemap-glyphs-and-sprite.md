@@ -3,7 +3,7 @@ id: 293
 slug: self-host-the-basemap-glyphs-and-sprite
 title: Self-host the basemap glyphs and sprite
 type: chore
-priority: med
+priority: high
 status: open
 size: s
 capability: 18-mvp-hardening
@@ -11,6 +11,7 @@ depends_on: [97]
 blocked_by: []
 source: agent
 created: 2026-10-19T13:44:41Z
+started: 2026-10-22T05:00:54Z
 ---
 
 ## Description
@@ -30,6 +31,8 @@ predates `0097`. Without them, labels vanish on a cold cache or offline. Adventu
 
 Proposed by the `0097` agent (wave 1 of capability 15). Upstream: `@protomaps/basemaps` 5.7.2.
 Only the font stacks and sprite the fork actually uses need hosting.
+
+**2026-10-22 — raised to `high`** (wave-18 planning): `0113` (high) now depends on it, and `0112` (high) on `0113`.
 
 ## Operator validation
 

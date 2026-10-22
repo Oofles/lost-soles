@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-20
+Last updated: 2026-10-22
 
 ---
 
@@ -945,6 +945,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   cross-subdomain SSO across `devaultsecurity.com` — after `15-two-map-modes-and-cold-territory`
   and before `16-rebuild-drill`. Until then Cognito stays, unchanged, with no identity provider.**
   Decided by the operator on 2026-09-01, on the costing in 0129.
+  → **The ordering is superseded by D-425 (2026-10-22):** the migration follows the MVP ship
+  (`0117`), not capability `16`. The choice of Auth.js and every constraint below stand.
   - **This supersedes `08-security-privacy.md` §5.1's reasoning on social IdPs, and does not
     re-affirm it.** §5.1 ruled them out as adding "an external trust dependency to buy nothing for
     six known humans." The premise was wrong in one specific way: it never weighed **one sign-in
@@ -5812,3 +5814,14 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   `OAuthState`, which `delete-account.ts` sweeps. Both docs now match the script as executed in
   `0106`. §8.5 defers to §6.4 for order and the full list, so the next table added has one list to
   update.
+
+- **D-425** **The Auth.js migration (`0138`) follows the MVP ship; capability `18` hardens Cognito as
+  it stands.** *(Operator, 2026-10-22, planning capability `18`'s first wave. Supersedes D-175's
+  ordering only.)* D-175 slotted the migration after `15` and before `16`, because `16` and `18`
+  would harden a stack about to be replaced. Capability `16` closed with `0138` unstarted, so that
+  slot has already passed. The rework the ordering was meant to avoid is now small: `0114`'s Trigger A
+  pool enumeration and A-6 non-owner test, and `0115`'s self-signup and unauthenticated-identity
+  checks against the live pool. Re-running those after the migration costs less than holding the
+  MVP for a capability-sized design and build. D-175's choice of Auth.js with Google, its rejection of
+  Google-on-Cognito, the `AUTH_ALLOWED_EMAILS` allowlist mapping and its three interim constraints
+  all stand. `0138` now `depends_on` `0117`, so the ready set says this too, not only this decision.

@@ -7,7 +7,7 @@ priority: med
 status: open
 size: m
 capability: null
-depends_on: [100, 101, 197, 210, 211]
+depends_on: [100, 101, 197, 210, 211, 117]
 blocked_by: []
 source: agent
 created: 2026-09-01T21:31:18Z
@@ -131,6 +131,10 @@ gated. The operator asked for it to wait for the capabilities before it. Its slo
 0101 (the ends of the planned 0097→0098→0099 chain) plus 0197, 0210 and 0211. Not `deferred`
 (D-174 — the wait is on us) and not a priority change (the work is not less important, only later).
 If `15` generates more tickets before it closes, add them here too.
+
+**2026-10-22 — D-425: moved to after the MVP ship.** Capability `16` closed before this ticket started, so
+D-175's slot passed. It now depends on `0117`, the MVP definition-of-done sweep. When it builds,
+re-run `0114`'s Trigger A and A-6 checks and `0115`'s Cognito posture checks against the new auth.
 
 ## Operator validation
 

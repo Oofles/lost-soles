@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 18-mvp-hardening
-depends_on: [59, 85, 90, 101]
+depends_on: [59, 85, 90, 101, 113]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -72,6 +72,8 @@ The rows that are hardest to pass honestly are the ones asserting the app does *
 weeks away, phone died mid-run, token expired. Passing them means resisting the instinct to add a
 "welcome back" or a red badge. Check for their *absence* deliberately; nobody notices a modal that
 was never built until it is.
+
+**2026-10-22 — depends on `0113`** (operator, wave-18 planning): the §9.6 *Slow connection* and *Offline* rows evaluate the behaviour `0113` builds, so they cannot be graded before it lands.
 
 ## Operator validation
 
