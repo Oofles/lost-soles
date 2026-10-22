@@ -90,7 +90,7 @@ ticket.
 - [x] ~~A $10/month billing alarm exists and has been test-fired;~~ **Superseded by D-361:** AWS cost
       alerting is not this project's. `0289` removed `0093`'s `CfnBudget`, and `describe-budgets`
       returns none. One month of real billing is recorded against the D-083 target. September
-      2026 runtime was about $1.1, which meets D-083. **Per the operator (D-NEW), D-083 is runtime
+      2026 runtime was about $1.1, which meets D-083. **Per the operator (D-433), D-083 is runtime
       only.** Build minutes (2,016 in September) are outside it. The skip-token work
       (`0214`, `0268`) and D-361 cover them.
 - [x] The §8 incident playbook has been dry-read end to end; every step's named resource exists
@@ -164,7 +164,7 @@ the live account, and recorded in `docs/capabilities/18-mvp-hardening.md` § *01
 - **The audit gate covers the runtime tree, high and critical only** (the operator's answer A to
   the D-152 question). A patch bump of `next` was preferred over overrides. One override was still
   needed, because `next` 15.x pins `postcss` exactly. No `next` major was taken.
-- **D-083 covers runtime only** (operator, proposed as D-NEW). Build minutes are governed by the
+- **D-083 covers runtime only** (operator, D-433). Build minutes are governed by the
   skip-token work and D-361.
 - **Log retention not fixed here.** Fixing it is a CDK change on 14 functions plus an
   Amplify-owned SSR group. That widens scope, so it is a proposed ticket.

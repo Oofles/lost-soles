@@ -5825,3 +5825,76 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   MVP for a capability-sized design and build. D-175's choice of Auth.js with Google, its rejection of
   Google-on-Cognito, the `AUTH_ALLOWED_EMAILS` allowlist mapping and its three interim constraints
   all stand. `0138` now `depends_on` `0117`, so the ready set says this too, not only this decision.
+
+- **D-426** **Trigger A reads the live production pool in `amplify.yml`'s backend phase; the GitHub
+  gate runs only its self-test.** *(Operator, 2026-10-22, `0114` Q1 = a.)* `gate.yml` holds no AWS
+  credentials (0017). `scripts/check-d123-trigger-a.mjs` asks `ListUsers` for `sub` only and prints
+  subs, never usernames or emails. It refuses a pool not tagged `amplify:deployment-type = branch`.
+  An account passes when it is the owner, or is listed in `APPROVED_ACCOUNTS` under a decision that
+  supersedes or re-affirms D-123. The build role's hand-managed inline policy
+  `LostSolesAuthPostureCheckReadOnly` gained `ListUsersForD123TriggerA` (`cognito-idp:ListUsers` on
+  `userpool/*`) on 2026-10-22, before the first deploy that runs it. Rejected: a GitHub OIDC role,
+  which reverses 0017 for one check.
+- **D-427** **Trigger B scans only lines ADDED in the push range, in two parts, and passes only on a
+  decision that supersedes or re-affirms D-123.** *(Operator, 2026-10-22, `0114` Q2 = c.)* §2.5's
+  triage regex matches 464 of 620 code files, so it stays a triage flag and never a diff grep. Part
+  one checks changed `tickets/**.md` and `docs/**.md` against §2.4's own phrase list. A doc passes
+  by citing a qualifying decision; merely naming D-123 does not qualify, because existing entries
+  already do. Part two checks changed code for API signals (`navigator.share`, `toDataURL`/`toBlob`,
+  `opengraph-image`/`twitter-image`, `Content-Disposition: attachment`, `gpx+xml`, `geo+json`).
+  Code passes only through `scripts/d123-acknowledgements.json`. The check fails closed without a
+  base ref. Prose that merely describes the check trips it, as `0114`'s own first Resolution did,
+  and the remedy is rewording, never narrowing. `geo+json` in the route-trace store is a known
+  false-positive class.
+- **D-428** **A-6 is `POST /api/tickets/capture`, proven by its existing non-owner test.**
+  *(Operator, 2026-10-22, `0114` Q3 = a.)* `/api/dev/tickets` never existed (0154). The `/dev/tickets`
+  stub is out of scope because `0216` deletes it (D-252).
+- **D-429** **Every route handler is exported through `lib/http/no-store.ts` `withNoStore`.**
+  *(Agent, 2026-10-22, `0114`.)* It sets `Cache-Control: no-store, private` on every response,
+  including 404s, 304s, redirects and errors. Before this, only success paths set it. It leaves only
+  D-228's `IMMUTABLE_PRIVATE` alone. `scripts/check-route-cache-control.mjs` limits that value to
+  `/api/fog/blob/[gen]` and `/api/fog/lastrun/[gen]`. It also fails a bare handler export,
+  `public`, `s-maxage`, `revalidate`, `force-static` or a hand-spelled lifetime (C-3).
+- **D-430** **The set of prerendered routes is an allowlist with a reason per route.** *(Agent,
+  2026-10-22, `0114`.)* `scripts/check-prerender-no-cell-data.mjs` fails the build on a prerendered
+  route that is not listed, and scans every prerendered page and `.next/static` for cell and trace
+  shapes (C-2). A denylist would have to predict the page that leaks.
+- **D-431** **The full-history secret scan is a pinned-gitleaks script, not `gitleaks-action`.**
+  *(Agent, 2026-10-22, `0115`.)* On a push, the action scans only the pushed range whatever the
+  checkout depth, so `secret-scan.yml`'s "full history" was false. `scripts/check-history-secrets.mjs`
+  pins gitleaks 8.30.1 by sha256 for both CI surfaces (D-163), checks the scanner runs (D-176),
+  refuses a shallow clone, and proves itself by finding a secret planted and then deleted in history.
+- **D-432** **The deployed configuration is checked for secrets on every deploy, not just the build
+  output.** *(Agent, 2026-10-22, `0115`.)* `scripts/check-secret-storage.mjs` runs in the backend
+  phase. Every registry key in SSM must be a `SecureString`. No Lambda env var, stack output or
+  Amplify app variable may carry a secret's name, value or credential shape. Amplify's `secret()`
+  runtime placeholder is allowed under a secret's name, because it is not plaintext.
+- **D-433** **D-083 covers runtime cost only.** *(Operator, 2026-10-22, `0115`.)* September 2026
+  runtime was about $1.10 (the one CMK $1.00, DynamoDB $0.008, the rest about $0). Amplify build
+  minutes (236 jobs, 2,016 minutes in September) are outside D-083. The skip-token work (`0214`,
+  `0268`) bounds them, and D-361 leaves the account's overall cost to the operator.
+- **D-434** **The npm audit gate covers the runtime tree:
+  `npm audit --omit=dev --audit-level=high`, in both CI surfaces.** *(Operator, 2026-10-22, `0115`,
+  option A.)* The full tree had 60 advisories, almost all in dev tooling, so gating it would have
+  failed every build from the day it landed. The 3 production highs were fixed by a `next` patch bump
+  (15.5.28) and one override, `overrides.next.postcss`, because `next` 15.x pins `postcss` exactly.
+  Fix by patch/minor bump first, override second. The dev-tree advisories are a separate ticket.
+- **D-435** **I-6 is enforced on the files: `rules/shipped-rulesets.json` pins each shipped
+  `xp-rules-vN.yaml` by sha256.** *(Agent, 2026-10-22, `0116`.)* D-276 removed the seeder that
+  `02` §9 named. `src/rules/shipped-rulesets.test.ts` fails on any edit or deletion of a pinned file,
+  and on any bundled version other than the newest being unpinned. The pins are data under `rules/`,
+  so shipping a version stays a `rules/`-only change (D-031).
+- **D-436** **`drill:ci`'s fixture bucket throws on any read outside `raw/<uid>/`,
+  `snapshots/skillstate/<uid>/` and the step-0 manifest.** *(Agent, 2026-10-22, `0116`.)* This
+  makes I-2's "the harness denies reads" true. It throws rather than answering NoSuchKey, so a fourth
+  dependency cannot pass as "absent". It covers the CI drill only; the live `npm run drill` reads
+  real S3.
+- **D-437** **The basemap's glyphs and sprite are committed copies served from the app's own origin
+  under `/basemap-assets/`.** *(Agent, 2026-10-22, `0293`.)* They are copies of
+  `protomaps/basemaps-assets@028c18f7`, and the middleware does not apply to that path. All 256 ranges
+  of each of the three font stacks ship (~14 MB, 773 files): a browser fetches a range only when a
+  label needs it, and a missing range is a missing label (an en dash, a curly quote). The tiles
+  distribution was rejected because it fronts a private bucket (D-250) and would need an upload
+  outside the deploy. MapLibre requires absolute sprite URLs, so they are built from
+  `location.origin`.
+

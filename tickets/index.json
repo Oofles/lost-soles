@@ -2800,7 +2800,7 @@
     "path": "tickets/open/0114-d123-standing-conditions-wired.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -2825,7 +2825,7 @@
     "path": "tickets/open/0115-secrets-dependency-audit-incident-playbook.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 9,
       "total": 10
     }
   },
@@ -2851,7 +2851,7 @@
     "path": "tickets/open/0116-invariant-test-sweep-i1-i26.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 8,
       "total": 8
     }
   },
@@ -6790,7 +6790,7 @@
     "path": "tickets/open/0293-self-host-the-basemap-glyphs-and-sprite.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },
@@ -6999,6 +6999,186 @@
     "source": "agent",
     "created": "2026-10-22T00:44:19Z",
     "path": "tickets/open/0303-stale-storage-claims-02-1-2-facts-prefix-and-08-5-5-owner-au.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 304,
+    "slug": "make-the-user-data-bucket-s-public-access-block-explicit-in",
+    "title": "Make the user-data bucket's public-access block explicit in IaC",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:43Z",
+    "path": "tickets/open/0304-make-the-user-data-bucket-s-public-access-block-explicit-in.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 305,
+    "slug": "lost-soles-cloudwatch-log-groups-never-expire-08-3-1-says-30",
+    "title": "Lost Soles CloudWatch log groups never expire; 08 §3.1 says 30 days",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0305-lost-soles-cloudwatch-log-groups-never-expire-08-3-1-says-30.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 306,
+    "slug": "decide-dependabot-for-npm-under-the-no-pr-trunk-model",
+    "title": "Decide Dependabot for npm under the no-PR trunk model",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0306-decide-dependabot-for-npm-under-the-no-pr-trunk-model.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 307,
+    "slug": "rotate-the-github-tickets-pat-before-it-expires-around-2026",
+    "title": "Rotate the GitHub tickets PAT before it expires around 2026-11-29",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0307-rotate-the-github-tickets-pat-before-it-expires-around-2026.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 308,
+    "slug": "clear-the-dev-tree-npm-advisories-56-6-critical-46-high",
+    "title": "Clear the dev-tree npm advisories (56: 6 critical, 46 high)",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0308-clear-the-dev-tree-npm-advisories-56-6-critical-46-high.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 309,
+    "slug": "widen-the-invariant-sweep-s-app-roots-to-amplify-components",
+    "title": "Widen the invariant sweep's APP_ROOTS to amplify, components and tools",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0309-widen-the-invariant-sweep-s-app-roots-to-amplify-components.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 310,
+    "slug": "decide-whether-a-re-process-with-zero-new-cells-should-regen",
+    "title": "Decide whether a re-process with zero new cells should regenerate the explored blob",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0310-decide-whether-a-re-process-with-zero-new-cells-should-regen.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 311,
+    "slug": "beat3-test-tsx-title-still-says-693-for-seven-skills-contrad",
+    "title": "beat3.test.tsx title still says 693 for seven skills, contradicting D-192",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0311-beat3-test-tsx-title-still-says-693-for-seven-skills-contrad.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 312,
+    "slug": "tickets-mjs-waves-serializes-a-wide-layer-s-chunks-so-a-tick",
+    "title": "tickets.mjs waves serializes a wide layer's chunks, so a ticket unblocked early waits for the whole layer",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T19:51:44Z",
+    "path": "tickets/open/0312-tickets-mjs-waves-serializes-a-wide-layer-s-chunks-so-a-tick.md",
     "ready": true,
     "acceptance": {
       "checked": 0,
