@@ -32,14 +32,14 @@
 // operator runs (D-199). A public downtown, synthetic geometry, a trace nobody ran. That is also
 // what lets the screenshots be committed with the ticket.
 //
-// Network: the page fetches the real archive from CloudFront plus Protomaps' public glyphs and
-// sprites, from a throwaway 127.0.0.1 server. The distribution sends no CORS headers, so the
+// Network: the page fetches the real archive from CloudFront, and the app's own glyphs and sprite
+// (`public/basemap-assets/`, ticket 0293), from a throwaway 127.0.0.1 server. The distribution sends no CORS headers, so the
 // headless browser runs with web security off. This is a local screenshot tool, never a server.
 //
 // Output belongs in the gitignored `tmp/` by default. Only commit a screenshot of THIS synthetic
 // loop — never one rendered from the operator's own cells (D-199, `08` §7.2).
 import { execFileSync, spawn } from "node:child_process"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 import { harnessWorkdir } from "./workdir.mjs"
@@ -54,6 +54,10 @@ const VARIANTS = args[0] ? JSON.parse(readFileSync(args[0], "utf8")) : { off: nu
 mkdirSync(OUT, { recursive: true })
 
 const work = harnessWorkdir("fog-0119")
+// `0293`: the style's glyphs and sprite are the app's own `/basemap-assets/`, resolved against the
+// page origin, so this server must serve them too. A symlink, not a copy (~14 MB); the workdir's
+// cleanup removes the link, never what it points at.
+symlinkSync(join(ROOT, "public/basemap-assets"), join(work, "basemap-assets"))
 
 execFileSync(
   join(ROOT, "node_modules/.bin/esbuild"),

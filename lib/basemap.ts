@@ -93,16 +93,44 @@ export function registerPmtilesProtocol(maplibre: {
 }
 
 /**
+ * WHERE THE GLYPHS AND SPRITE LIVE: THE APP'S OWN ORIGIN. Ticket `0293`, 06 §9.5.
+ *
+ * `public/basemap-assets/` holds exactly what the fork references — Noto Sans Regular, Medium and
+ * Italic, and the v4 `light` sprite — copied byte-for-byte from `protomaps/basemaps-assets` at
+ * `028c18f7` (provenance and licences in its `NOTICE.txt`). Until `0293` they were fetched from
+ * Protomaps' public host on every cold load, so a cold cache or an outage there lost every label.
+ *
+ * WHY THE APP ORIGIN AND NOT THE TILES DISTRIBUTION. The distribution fronts a private bucket
+ * (D-250), so hosting there is an S3 upload outside the deploy; committed static files ship with
+ * the build and need no AWS step. They are small (~14 MB on disk, one glyph range per 256
+ * codepoints actually drawn) and HTTP-cached, so the Amplify egress D-226 keeps tiles off is noise.
+ * `middleware.ts` exempts the path, as it does `/maplibre/`.
+ */
+export const BASEMAP_ASSETS_PATH = "/basemap-assets"
+
+/**
+ * The asset base URL. ABSOLUTE in a browser, because MapLibre rejects a relative `sprite`
+ * ("must be absolute", `normalizeSpriteURL`). With no http(s) page origin — a unit test in node, a
+ * `file://` harness page — it is the root-relative path, which still names no third-party host.
+ */
+export function basemapAssetsBase(origin: string | undefined = globalThis.location?.origin): string {
+  return origin && /^https?:\/\//.test(origin) ? `${origin}${BASEMAP_ASSETS_PATH}` : BASEMAP_ASSETS_PATH
+}
+
+/**
  * The basemap style (ticket `0097`), in the variant asked for. Label density and the atlas
  * variant's above-fog layers are `lib/basemap-style.ts`'s; the colours are the stock `light`
  * flavour's (D-373). This function only binds them to the ONE source and the ONE archive. Both
- * variants share both (05 §5.2).
+ * variants share both (05 §5.2), and the same glyphs and sprite (`0293`).
+ *
+ * `origin` defaults to the page's; a test passes one to see the URLs the browser would request.
  */
-export function basemapStyle(variant: BasemapVariant) {
+export function basemapStyle(variant: BasemapVariant, origin?: string) {
+  const assets = basemapAssetsBase(origin)
   return {
     version: 8 as const,
-    glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-    sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
+    glyphs: `${assets}/fonts/{fontstack}/{range}.pbf`,
+    sprite: `${assets}/sprites/v4/light`,
     sources: {
       [BASEMAP_SOURCE]: {
         type: "vector" as const,

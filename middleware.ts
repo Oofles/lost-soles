@@ -107,8 +107,13 @@ export const config = {
    * text/html" — leaving a map that paints its background layer and no tiles. That is
    * the second half of the bug 0053 shipped: fixing only the worker URL would still
    * have failed here.
+   *
+   * `/basemap-assets/` is the same case (ticket 0293): the basemap's glyph PBFs and sprite,
+   * copied from Protomaps' OFL/MIT-licensed assets. MapLibre fetches them as subresources, so
+   * a 307 to `/` is an HTML body where a PBF should be and every label vanishes. The sprite's
+   * `.png` was already exempt by extension; its `.json` and every `.pbf` were not.
    */
   matcher: [
-    "/((?!_next/static|_next/image|maplibre/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|maplibre/|basemap-assets/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 }

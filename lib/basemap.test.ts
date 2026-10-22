@@ -1,6 +1,10 @@
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it, vi } from "vitest"
 
 import { basemapLayers } from "./basemap-style"
+import { thirdPartyRequestHosts } from "./style-requests"
 
 /**
  * `@/amplify_outputs.json` is gitignored and generated per environment, so its content
@@ -12,7 +16,7 @@ vi.mock("@/amplify_outputs.json", () => ({
   default: { custom: { basemapTilesUrl: "https://dexample123.cloudfront.net" } },
 }))
 
-const { BASEMAP_ARCHIVE, BASEMAP_SOURCE, basemapArchiveUrl, basemapStyle: styleFor, registerPmtilesProtocol } =
+const { BASEMAP_ARCHIVE, BASEMAP_ASSETS_PATH, BASEMAP_SOURCE, basemapArchiveUrl, basemapStyle: styleFor, registerPmtilesProtocol } =
   await import("./basemap")
 
 const basemapStyle = (variant: "atlas" | "adventure" = "adventure") => styleFor(variant)
@@ -81,5 +85,78 @@ describe("basemap style (0052, forked by 0097)", () => {
     expect(url).not.toContain("amplifyapp.com")
     expect(url).not.toContain("s3.amazonaws.com")
     expect(url).not.toContain("devaultsecurity.com")
+  })
+})
+
+describe("the basemap's glyphs and sprite are first-party (0293, 06 §9.5)", () => {
+  const APP = "https://soles.example"
+  const TILES = "https://dexample123.cloudfront.net"
+
+  /**
+   * THE BUILT STYLE, AS THE BROWSER WOULD REQUEST IT: every glyph, sprite and tile URL resolves to
+   * the app's own origin or the tiles distribution (D-226), and nothing else. `styleRequestUrls`
+   * reads the request-bearing fields only, so the attribution's `<a href>` credits — links, never
+   * fetched — are not mistaken for requests. `0113` widens this allowlist check to the whole app.
+   */
+  it.each(["atlas", "adventure"] as const)("%s names no third-party host", (variant) => {
+    const style = styleFor(variant, APP)
+    expect(thirdPartyRequestHosts(style, [APP, TILES])).toEqual([])
+    expect(JSON.stringify(style)).not.toContain("protomaps.github.io")
+  })
+
+  it("serves them from the app origin, at the path the middleware exempts", () => {
+    const style = styleFor("adventure", APP)
+    expect(style.glyphs).toBe(`${APP}${BASEMAP_ASSETS_PATH}/fonts/{fontstack}/{range}.pbf`)
+    expect(style.sprite).toBe(`${APP}${BASEMAP_ASSETS_PATH}/sprites/v4/light`)
+  })
+
+  it("is root-relative, never a foreign host, with no page origin (node, file://)", () => {
+    expect(styleFor("atlas").glyphs.startsWith(`${BASEMAP_ASSETS_PATH}/`)).toBe(true)
+    expect(styleFor("atlas", "null").sprite).toBe(`${BASEMAP_ASSETS_PATH}/sprites/v4/light`)
+  })
+
+  /** The check has teeth: the pre-0293 style, and each other request field, would fail it. */
+  it("flags a third-party glyph, sprite or tile host", () => {
+    expect(
+      thirdPartyRequestHosts(
+        {
+          glyphs: "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+          sprite: [{ id: "x", url: "https://sprites.example/x" }],
+          sources: {
+            a: { url: "pmtiles://https://tiles.example/a.pmtiles", attribution: '<a href="https://osm.example">c</a>' },
+            b: { tiles: ["//cdn.example/{z}/{x}/{y}.pbf"] },
+          },
+        },
+        [APP, TILES],
+      ).sort(),
+    ).toEqual(["cdn.example", "protomaps.github.io", "sprites.example", "tiles.example"])
+  })
+
+  /**
+   * EVERY FILE THE STYLE CAN ASK FOR EXISTS ON DISK: each font stack any layer names (every literal
+   * in `text-font`, expressions included) has all 256 glyph ranges, and the sprite has 1x and 2x
+   * sheets. An upstream upgrade that adds a stack fails here, not as a missing label in production.
+   */
+  it("ships every font stack and sprite sheet the style references", () => {
+    const stacks = new Set<string>()
+    const walk = (v: unknown): void => {
+      if (typeof v === "string" && v.startsWith("Noto ")) stacks.add(v)
+      else if (Array.isArray(v)) v.forEach(walk)
+    }
+    for (const variant of ["atlas", "adventure"] as const) {
+      for (const l of styleFor(variant, APP).layers as Array<{ layout?: Record<string, unknown> }>) {
+        walk(l.layout?.["text-font"])
+      }
+    }
+    expect([...stacks].sort()).toEqual(["Noto Sans Italic", "Noto Sans Medium", "Noto Sans Regular"])
+    const root = join(process.cwd(), "public", BASEMAP_ASSETS_PATH)
+    for (const stack of stacks) {
+      for (let r = 0; r < 256; r++) {
+        expect(existsSync(join(root, "fonts", stack, `${r * 256}-${r * 256 + 255}.pbf`))).toBe(true)
+      }
+    }
+    for (const f of ["light.json", "light.png", "light@2x.json", "light@2x.png"]) {
+      expect(existsSync(join(root, "sprites", "v4", f))).toBe(true)
+    }
   })
 })

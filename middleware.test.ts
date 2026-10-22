@@ -164,6 +164,12 @@ describe("the matcher (0053)", () => {
     "/maplibre/maplibre-gl-shared.js",
     "/_next/static/chunks/main.js",
     "/favicon.ico",
+    // 0293: the basemap's glyphs and sprite. A glyph range is fetched with its space unencoded
+    // by MapLibre and encoded by the browser; both spellings must pass.
+    "/basemap-assets/fonts/Noto%20Sans%20Regular/0-255.pbf",
+    "/basemap-assets/fonts/Noto Sans Medium/256-511.pbf",
+    "/basemap-assets/sprites/v4/light.json",
+    "/basemap-assets/sprites/v4/light@2x.json",
   ])("exempts %s — a static asset must not be redirected", (path) => {
     expect(pattern.test(path)).toBe(false)
   })
@@ -182,5 +188,6 @@ describe("the matcher (0053)", () => {
   it("does not exempt a path that only resembles the worker", () => {
     expect(pattern.test("/not-maplibre/secret.js")).toBe(true)
     expect(pattern.test("/dev/maplibre/worker.js")).toBe(true)
+    expect(pattern.test("/dev/basemap-assets/x.json")).toBe(true)
   })
 })
