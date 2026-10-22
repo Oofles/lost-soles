@@ -128,7 +128,7 @@ describe("writing the row on a successful connect", () => {
 })
 
 describe("reading", () => {
-  it("does not ask DynamoDB for the token attributes on the general read", async () => {
+  it("does not ask DynamoDB for the token attributes on the general read (I-28)", async () => {
     const { sent } = stubClient([
       {
         Item: {
@@ -207,7 +207,7 @@ const CONDITIONAL_FAILURE = () => {
 }
 
 /** Criterion 1. Not "protected by an auth rule" — ABSENT. */
-describe("T7 is absent from the AppSync schema, at any auth level", () => {
+describe("I-28 / I-29 — T7 is absent from the AppSync schema, at any auth level", () => {
   const dataResource = readFileSync(new URL("../../amplify/data/resource.ts", import.meta.url), "utf8")
 
   it("declares no model named after the credential table", () => {
@@ -215,7 +215,7 @@ describe("T7 is absent from the AppSync schema, at any auth level", () => {
     expect(dataResource).not.toContain(SOURCE_ACCOUNT_TABLE)
   })
 
-  it("exposes only models on an explicit allowlist", () => {
+  it("exposes only models on an explicit allowlist (I-20, I-28, I-29)", () => {
     /**
      * THE ASSERTION THAT ACTUALLY HOLDS THE LINE, rather than the two above.
      *
@@ -290,7 +290,7 @@ describe("the tokens are encrypted with a customer-managed key", () => {
 })
 
 /** Criterion 2. */
-describe("the byExternalOwner index", () => {
+describe("the byExternalOwner index (I-28)", () => {
   /**
    * The athlete id is stated ONCE and interpolated, never written into a composite
    * literal. `scripts/check-design-tokens.mjs` reads `"acme#134815"` as a raw hex

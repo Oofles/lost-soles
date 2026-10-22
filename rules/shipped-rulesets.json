@@ -1,0 +1,8 @@
+{
+  "note": "I-6 (02-data-model.md §9.1, §3.8): a shipped rules/xp-rules-vN.yaml is never edited. Each entry pins a shipped version's sha256 (LF-normalised bytes). src/rules/shipped-rulesets.test.ts fails if a pinned file changes, disappears, or if any bundled version other than the newest is unpinned. A rebalance is a NEW version (04 §7.6): add xp-rules-v<N+1>.yaml and pin vN here when it ships. Ticket 0116.",
+  "pinned": {
+    "1": "ef31b0ca5dc33c32ac5627c4e8376034b73f9ddf88c9ffae67b2b04ef520b4a5",
+    "2": "d9ed688ea887bbaf791809c4de60e488e3ea4d809b27b0febbc2f000c26857a1",
+    "3": "688302f90efc34b3eafe09bd52ec37b948570c805dfeafa5aba5b9e826f3973d"
+  }
+}

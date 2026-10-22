@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3"
 import { describe, expect, it } from "vitest"
 
 import { getAdapter, registeredSources } from "../../../src/adapters/registry"
@@ -14,8 +15,11 @@ import { CHECK_REASONS, exitCodeForCheck } from "../../../src/pipeline/rebuild-d
 
 import {
   CORRUPT_FIXTURE_DIR,
+  DrillReadDenied,
   FIXTURE_DIR,
   ROOT,
+  drillMayRead,
+  fixtureBucket,
   loadFixture,
   readExpected,
   runDrillCi,
@@ -49,7 +53,7 @@ function mutated(source: SourceId, mutate: (out: NormalizedIngest) => Normalized
   }
 }
 
-describe("drill:ci — the rebuild drill, steps 0–8, over the committed fixture", () => {
+describe("I-1 — drill:ci, the rebuild drill, steps 0–8, over the committed fixture", () => {
   it("passes all six step-8 assertions and every expectation, well inside 60 s", async () => {
     const r = await run()
     expect(r.failed).toBeNull()
@@ -197,6 +201,26 @@ describe("the drill catches breakage — mutation tests", () => {
     expect(r.back!.step8.find((c) => c.n === 4)!.status).toBe("pass")
     expect(r.back!.floors.length).toBeGreaterThan(0)
     expect(r.failed).toMatchObject({ reason: CHECK_REASONS[6], exitCode: exitCodeForCheck(6) })
+  })
+})
+
+describe("I-2 — the drill reads raw/, rules/ and the waterline snapshot, and nothing else", () => {
+  it("every key and prefix the drill asks the bucket for is inside the I-2 set", async () => {
+    const reads: string[] = []
+    const r = await run({ expected, reads })
+    expect(r.failed).toBeNull()
+    expect(reads.length).toBeGreaterThan(fixture.objects.length)
+    expect(reads.filter((k) => !drillMayRead(UID, k))).toEqual([])
+    // The waterline is genuinely read (D-143) — the set is not satisfied by reading only raw/.
+    expect(reads.some((k) => k.startsWith(`snapshots/skillstate/${UID}/`))).toBe(true)
+  })
+
+  it("a fourth dependency is refused with a throw, not answered as an absent object", async () => {
+    const bucket = fixtureBucket(fixture.objects, (k) => drillMayRead(UID, k))
+    for (const Key of [`users/${UID}/cells/x.bin`, `facts/${UID}/identity.json`, `raw/someone-else/strava/1/a.json`]) {
+      await expect(bucket.send(new GetObjectCommand({ Bucket: "b", Key }) as never)).rejects.toBeInstanceOf(DrillReadDenied)
+    }
+    await expect(bucket.send(new ListObjectsV2Command({ Bucket: "b", Prefix: "users/" }) as never)).rejects.toBeInstanceOf(DrillReadDenied)
   })
 })
 

@@ -182,7 +182,7 @@ describe("I-26 — the scorer is total over the ActivityKind × hasTrace grid", 
 })
 
 describe("determinism (04 §7.4)", () => {
-  it("scores with Date.now and Math.random stubbed to throw", () => {
+  it("scores with Date.now and Math.random stubbed to throw (I-12)", () => {
     const a = strength([
       { exercise: "pushup", reps: 25 },
       { exercise: "situp", reps: 30 },

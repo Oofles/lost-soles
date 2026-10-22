@@ -17,7 +17,7 @@ import {
   type DrillTarget,
   type SpotCheck,
 } from "../../../src/pipeline/rebuild-drill-back"
-import { buildSnapshot, snapshotKey } from "../../../src/pipeline/skillstate-snapshot"
+import { buildSnapshot, snapshotKey, SNAPSHOT_PREFIX } from "../../../src/pipeline/skillstate-snapshot"
 import { loadRuleSet } from "../../../src/rules/load"
 
 import { MemoryDrillStore } from "./memory-store"
@@ -113,10 +113,43 @@ export function loadFixture(dir: string): Fixture {
   }
 }
 
-/** `ListObjectsV2` and `GetObject` over objects in memory — the only two calls the front half makes. */
-export function fixtureBucket(objects: ReadonlyArray<FixtureObject & { body: Buffer }>): DrillS3 {
+/**
+ * I-2 — WHAT THE DRILL MAY READ. `02-data-model.md` §9.1: the store is rebuilt from `raw/` + `rules/`
+ * + the three non-reconstructible inputs **and nothing else**, and *"the drill harness denies reads
+ * outside that set, so a fourth dependency fails the build rather than passing quietly"* (ticket
+ * `0116`). `rules/` is read from the working tree, not the bucket; of the three, the drill reads only
+ * the displayed-XP waterline (`snapshots/skillstate/`, D-143) — identity and tokens it never needs.
+ *
+ * The step-0 manifest is the one other key, and it is a VERIFICATION TARGET, not an input: check 3
+ * compares the rebuilt cell count with it, and step 7 publishes `generation + 1` past it (I-11). No
+ * fact it holds reaches T3, T4, T6 or the ledger.
+ *
+ * A denial THROWS, as S3's 403 does, rather than answering `NoSuchKey`: an absent object is a state
+ * a reader may legitimately handle as "nothing there", and a fourth dependency must not be able to
+ * pass as one.
+ */
+export function drillMayRead(userId: string, key: string): boolean {
+  return key.startsWith(`raw/${userId}/`) || key.startsWith(`${SNAPSHOT_PREFIX}${userId}/`) || key === objectKeys.manifest(userId)
+}
+
+export class DrillReadDenied extends Error {
+  override readonly name = "AccessDenied"
+}
+
+/**
+ * `ListObjectsV2` and `GetObject` over objects in memory — the only two calls the front half makes.
+ * Every key and prefix asked for goes into `reads`, and anything `mayRead` refuses throws (I-2).
+ */
+export function fixtureBucket(
+  objects: ReadonlyArray<FixtureObject & { body: Buffer }>,
+  mayRead: (key: string) => boolean = () => true,
+  reads: string[] = [],
+): DrillS3 {
   const byKey = new Map(objects.map((o) => [o.key, o] as const))
   const send = async (command: ListObjectsV2Command | GetObjectCommand) => {
+    const asked = command instanceof ListObjectsV2Command ? (command.input.Prefix ?? "") : (command.input.Key ?? "")
+    reads.push(asked)
+    if (!mayRead(asked)) throw new DrillReadDenied(`I-2: the drill may not read ${asked || "(the whole bucket)"}`)
     if (command instanceof ListObjectsV2Command) {
       const prefix = command.input.Prefix ?? ""
       const keys = [...byKey.keys()].filter((k) => k.startsWith(prefix)).sort()
@@ -186,6 +219,8 @@ export interface DrillCiOptions {
   fixtureDirs?: readonly string[]
   /** Default: the shipped registry. The mutation test wraps it. */
   adapterFor?: (source: SourceId) => SourceAdapter
+  /** I-2. Every key and prefix the front half asked the bucket for, in order. */
+  reads?: string[]
   rulesFiles?: readonly string[]
   onFailure?: (f: DrillFailure) => void
   log?: (line: string) => void
@@ -249,7 +284,7 @@ export async function runDrillCi(o: DrillCiOptions): Promise<DrillCiResult> {
     dryRun: false,
     expectObjects: exp ? exp.objectCount + extraObjects : undefined,
     bucket: FIXTURE_BUCKET,
-    s3: fixtureBucket([...rawObjects, ...step0Objects]),
+    s3: fixtureBucket([...rawObjects, ...step0Objects], (key) => drillMayRead(userId, key), o.reads),
     rulesFiles,
     registeredSources: registeredSources(),
     adapterFor: o.adapterFor ?? getAdapter,

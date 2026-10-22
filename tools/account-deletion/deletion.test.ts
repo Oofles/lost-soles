@@ -239,7 +239,7 @@ const ownerSnapshot = (w: ReturnType<typeof world>) => ({
   s3: w.s3.filter((v) => v.Key.includes(OWNER)).length,
 })
 
-describe("typed confirmation", () => {
+describe("typed confirmation (I-30)", () => {
   it("a non-matching answer aborts with zero side effects", async () => {
     const w = world()
     await expect(runAccountDeletion(w.env(UID.slice(0, -1)))).rejects.toBeInstanceOf(ConfirmationMismatch)

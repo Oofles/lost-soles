@@ -133,6 +133,20 @@ describe("the guard is one named predicate, in one place (criterion 10)", () => 
     expect(hits.map((f) => relative(ROOT, f))).toEqual(["src/scoring/celebrate.ts"])
   })
 
+  /**
+   * `0116`, the roadmap's "including no queued card that fires on next open". There is no queue to
+   * fire later: cards are a pure function of ONE activity's XP (`cards.ts`), built when its tally
+   * plays, and nothing that builds or shows one can persist it. A deferred card would have to be
+   * written somewhere — storage, a cookie, a row — and every module that touches `LevelCard` is
+   * scanned for each of those.
+   */
+  it("no level-up card is persisted, so none can fire on a later open (D-146)", () => {
+    const touchesCards = files.filter((f) => /LevelCard|levelUpQueue|skillCards|totalCards/.test(readFileSync(f, "utf8")))
+    expect(touchesCards.length).toBeGreaterThanOrEqual(4)
+    const PERSIST = /localStorage|sessionStorage|indexedDB|document\.cookie|cookies\(\)|PutObjectCommand|PutCommand|UpdateCommand|models\.\w+\.(create|update)\(/
+    expect(touchesCards.filter((f) => PERSIST.test(readFileSync(f, "utf8"))).map((f) => relative(ROOT, f))).toEqual([])
+  })
+
   it("the card queue reaches the guard only through celebrate.ts", () => {
     const cards = readFileSync(join(ROOT, "lib/level-up/cards.ts"), "utf8")
     expect(cards).toMatch(/from "@\/src\/scoring\/celebrate"/)

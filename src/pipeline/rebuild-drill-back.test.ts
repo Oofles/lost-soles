@@ -375,7 +375,7 @@ describe("criterion 1 — the drill refuses the live stack", () => {
 
 // ─── Steps 4–8 end to end ───────────────────────────────────────────────────
 
-describe("a clean drill", () => {
+describe("a clean drill (I-1)", () => {
   it("passes all six and publishes generation step0 + 1", async () => {
     const { store, summary } = await cleanRun()
     expect(summary.failed).toBeNull()
@@ -528,7 +528,7 @@ describe("criterion 2 — step 5 is deterministic", () => {
 
 // ─── Criterion 3: the waterline is the snapshot ─────────────────────────────
 
-describe("criterion 3 — step 6 reads its waterline from the snapshot, never SkillState", () => {
+describe("criterion 3 — step 6 reads its waterline from the snapshot, never SkillState (I-2)", () => {
   it("runs to completion with every DynamoDB read stubbed to throw", async () => {
     const { snapshot } = await liveState()
     const sent: unknown[] = []

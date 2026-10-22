@@ -140,6 +140,13 @@ export interface Options {
   /** `0179`. The `duplicate-of.json` pointer PUT throws this. */
   pointerFails?: Error
   /**
+   * `0116`. A STATEFUL T6 in place of the answer-everything stub: cell reads, cell writes and
+   * aggregate writes are recorded as before and then handed to this client, which evaluates their
+   * conditions and keeps what applied. Pass the same table to two rigs to re-process an activity
+   * against the map its first delivery wrote. Overrides `known` and `cellsFail`.
+   */
+  cellsTable?: { send(command: UpdateCommand | BatchGetCommand): Promise<unknown> }
+  /**
    * `0179`. A real adapter in place of the stub — the cross-source fixture drives the pipeline
    * through two. Its `fetchRaw` and `normalize` are wrapped so `calls` still records the phases.
    */
@@ -280,6 +287,7 @@ export function rig(options: Options = {}) {
            */
           if (command instanceof BatchGetCommand) {
             calls.push("cellsRead")
+            if (options.cellsTable) return (await options.cellsTable.send(command)) as never
             const keys = (command.input.RequestItems?.[CELL_TABLE]?.Keys ?? []) as Array<{
               sk: string
             }>
@@ -310,11 +318,13 @@ export function rig(options: Options = {}) {
           if (String(command.input.Key?.pk).includes("#AGG#")) {
             if (!aggWrites.length) calls.push("cellsAgg")
             aggWrites.push(command.input)
+            if (options.cellsTable) return (await options.cellsTable.send(command)) as never
             if (options.cellsFail) throw options.cellsFail
             return {}
           }
           if (!cellWrites.length) calls.push("cells")
           cellWrites.push(command.input)
+          if (options.cellsTable) return (await options.cellsTable.send(command)) as never
           if (options.cellsFail) throw options.cellsFail
           return {}
         },

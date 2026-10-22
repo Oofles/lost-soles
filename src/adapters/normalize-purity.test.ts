@@ -94,7 +94,7 @@ function impure(reach: () => void): SourceAdapter {
   }
 }
 
-describe("T4 — the purity harness accepts a pure normalize()", () => {
+describe("T4 / I-4 — the purity harness accepts a pure normalize()", () => {
   it("returns what normalize() returned, so the caller can keep asserting", () => {
     const out = assertNormalizeIsPure(pure, ARGS)
     expect(out.activity.startedAt).toBe("2026-09-03T00:00:00.000Z")
@@ -105,7 +105,7 @@ describe("T4 — the purity harness accepts a pure normalize()", () => {
   })
 })
 
-describe("T4 — and rejects every impure one", () => {
+describe("T4 / I-4 — and rejects every impure one", () => {
   const cases: Array<[string, () => void]> = [
     ["globalThis.fetch", () => void fetch("https://example.invalid")],
     ["new Date()", () => void new Date()],

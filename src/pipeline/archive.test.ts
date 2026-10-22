@@ -171,7 +171,7 @@ describe("archiveRaw", () => {
   })
 
   /** The conditional write that makes a re-archive a no-op rather than a version. */
-  it("PUTs conditionally on the key not existing", async () => {
+  it("PUTs conditionally on the key not existing (I-3, D-205)", async () => {
     const { s3, sent } = stubS3(async () => ({}))
 
     await archiveRaw(INPUT, { s3, bucket: BUCKET })

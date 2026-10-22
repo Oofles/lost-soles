@@ -100,7 +100,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("disconnect leaves the map, the Chronicle and the archive exactly as they were", () => {
+describe("disconnect leaves the map, the Chronicle and the archive exactly as they were (I-7, I-30)", () => {
   it("ExploredCell, raw/ and Activity counts are unchanged, and only the tokens are gone", async () => {
     const before = count()
     expect(before).toEqual({ exploredCells: 3, activities: 2, raw: 2 })

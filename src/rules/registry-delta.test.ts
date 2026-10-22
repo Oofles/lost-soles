@@ -150,7 +150,7 @@ const POOL_SWIM: RuleSkill = {
   feeds: [{ skill: "constitution", rate: 0.3333 }],
 }
 
-describe("the Vigil delta — a skill added as DATA behaves as one that was always there", () => {
+describe("I-24 — the Vigil delta: a skill added as DATA behaves as one that was always there", () => {
   const baseline = without("vigil")
   const vigilRow = v1.skills.find((s) => s.id === "vigil")!
   const delta = withRow(baseline, vigilRow)
@@ -304,7 +304,7 @@ const DELTAS = [
   { name: "the pool-swim row", row: POOL_SWIM, baseline: withoutSameSelection(POOL_SWIM) },
 ]
 
-describe.each(DELTAS)("$name, end to end — real XP, real writes, real notifications (0159)", ({ row, baseline }) => {
+describe.each(DELTAS)("$name, end to end — real XP, real writes, real notifications (0159, I-24, I-27)", ({ row, baseline }) => {
   const delta = withRow(baseline, row)
   // The always-there comparators, found by DATA so nothing here hardcodes which row they are.
   // D-189: exactly one row reveals ground — the traced outdoor distance skill.

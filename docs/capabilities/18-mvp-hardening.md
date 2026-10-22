@@ -85,6 +85,79 @@ Access on all four settings and versioning `Enabled`. `LostSolesSourceAccount` a
 `scripts/strava-subscription.mjs` exist. All three `Lost Soles — …` alarms email the confirmed
 subscription. Cost Explorer and CloudTrail event history answer.
 
+## Invariant sweep — `02-data-model.md` §9, I-1 … I-30 (ticket `0116`)
+
+Every invariant has a test. None needed a written reason in place of one; I-2 and I-30 each have
+a clause no test reaches, stated in the notes column. A citation is an `I-n` in a test NAME
+(D-224). Every file listed runs in `npm test`, which is the default CI run in both `amplify.yml`
+and `gate.yml`. Nothing here is a manual or nightly suite.
+
+**How each test was proven to fail.** The mutation in the fourth column was applied to the code
+the test guards. The named test file(s) were then run with `npx vitest run`, and the file was
+restored byte-for-byte from a backup. The harness is a throwaway script, not committed. Each row's
+"red" is the vitest result under that mutation. A row is not complete without one.
+
+| # | Invariant (short) | Citing test(s) — file › name | Mutation → result |
+|---|---|---|---|
+| I-1 | rebuildable from raw/ + rules/ + the three | `tools/drill/ci/drill-ci.test.ts` › *I-1 — drill:ci, the rebuild drill, steps 0–8*; `src/pipeline/rebuild-drill-back.test.ts` › *a clean drill (I-1)* | `rebuild-drill-back.ts` skips the T3 put for every `kind: run` activity → **red**, 36 failed |
+| I-2 | the non-reconstructible set is exactly three, closed | `tools/drill/ci/drill-ci.test.ts` › *I-2 — the drill reads raw/, rules/ and the waterline snapshot, and nothing else* (new; `fixtureBucket` now **denies** any other key, `drillMayRead`); `src/pipeline/rebuild-drill-back.test.ts` › *criterion 3 — … never SkillState (I-2)* | `rebuild-drill.ts` lists `snapshots/` instead of the user's snapshot prefix → **red**, 11 failed. *Not reached:* the deny covers the bucket only. `rules/` is read from git, so no bucket key can stand in for it, and the live `npm run drill` reads real S3 with no deny. |
+| I-3 | raw/ immutable and undeletable | `amplify/raw-archive-immutability.test.ts` › *the raw archive is undeletable (I-3)*; `src/pipeline/archive.test.ts` › *PUTs conditionally on the key not existing (I-3, D-205)* | the deny statement drops `s3:DeleteObjectVersion` → **red**; `IfNoneMatch` removed from `archiveRaw` → **red** |
+| I-4 | `normalize()` is pure | `src/adapters/normalize-purity.test.ts` › *T4 / I-4 — …* | the `Date.now` trap in `src/purity/traps.ts` disabled → **red**, 2 failed |
+| I-5 | `activityId` deterministic | `src/domain/activity-id.test.ts`; `src/pipeline/persist.test.ts` › *… (I-5)*; `src/pipeline/ingest-receipt.test.ts` › *… (I-5)* | `Math.random()` appended to the hashed string → **red**, 6 failed |
+| I-6 | a shipped rulesVersion is never mutated | `src/rules/shipped-rulesets.test.ts` › *I-6 — a shipped rulesVersion is never mutated or deleted* (new; pins in `rules/shipped-rulesets.json`) | one newline appended to `rules/xp-rules-v1.yaml` → **red** |
+| I-7 | cells never re-fog | `src/pipeline/explored-cells.test.ts` › *no delete exists in this module (I-7)*; `app/api/auth/[source]/disconnect/disconnect-is-not-deletion.test.ts` › *… (I-7, I-30)*; `amplify/explored-cells-table.test.ts`; AUDIT §4 `fog-no-refog` against live data | `REMOVE firstRunAt` added to the primary cell write → **red**, 28 failed |
+| I-8 | `firstRunAt` min, `lastRunAt` max | `src/pipeline/explored-cells.test.ts` › *the write expressions (I-8, I-9)*, *writeCells — out-of-order arrival (I-8, …)* | condition `lastRunAt < :at` → `lastRunAt <> :at` → **red**, 20 failed |
+| I-9 | `lastRunAt` a timestamp, never a presence bit (D-120) | `src/pipeline/explored-cells.test.ts` › *writes lastRunAt as an ISO-8601 string, never a flag (I-9)*; `src/pipeline/no-presence-bit.test.ts` › *D-120 / I-9 — …* (new: type, every T6 writer run, grep) | `:at` sent as a boolean → **red**, 26 failed; `export const visited = true` added to `explored-cells.ts` → **red** (grep) |
+| I-10 | cells outside the transaction, map ahead of XP | `src/pipeline/process-activity.test.ts` › *cells are written BEFORE the transaction (I-10, D-144)* | a `writeCells` failure swallowed so the commit still runs → **red** |
+| I-11 | `generation` monotonic | `src/domain/explored-blob.test.ts` › *refuses toGen <= fromGen — I-11*; `src/pipeline/explored-blob-store.test.ts` › *… I-11* | `toGen <= fromGen` → `toGen < fromGen` → **red** |
+| I-12 | scoring never reads `now()` | `src/scoring/units.test.ts` › *scores with Date.now and Math.random stubbed to throw (I-12)*; `src/pipeline/process-activity.test.ts` › *… (I-12)* | `void Date.now()` added inside `scoreUnits` → **red** |
+| I-13 | game day from `startedAtLocal` | `src/pipeline/persist.test.ts` › *stores all three time fields (I-13)* + `userIdLocalDay`; `lib/plinth/model.test.ts` › *… (I-13)* | `userIdLocalDay` derived through `Date` with an offset → **red**, 2 failed |
+| I-14 | replay order ascending `startedAt`, ties by id | `src/domain/fold.test.ts` › *foldOrder — I-14*; `src/pipeline/xp-replay.test.ts` › *replay order and the ground fold (I-14)* | `foldOrder` sorted descending → **red**, 59 failed |
+| I-15 | `displayedXp == SUM(ledger)` | `src/pipeline/xp-ledger.test.ts` › *I-15 — …*; `src/pipeline/xp-replay.test.ts` › *I-15 after every replay*; `src/scoring/reconcile.test.ts` | SkillState `ADD displayedXp :hw` in place of `:xp` → **red**, 6 failed |
+| I-16 | XP never decreases, by `retained_floor` rows | `src/pipeline/xp-replay.test.ts` › *a stingier ruleset (I-16)*; `src/scoring/reconcile.test.ts` | `reconcile` skips every gap → **red**, 41 failed |
+| I-17 | `levelHighWater` ratchets | `src/scoring/levels.test.ts` › *… (I-17)*; `src/scoring/reconcile.test.ts`; `src/pipeline/skillstate-snapshot.test.ts` | `levelProgress` drops the `max` with `levelHighWater` → **red** |
+| I-18 | ledger append-only; floors never deleted | `src/pipeline/xp-replay.test.ts` › *step 2 deletes only isFloor = false rows … (I-18)*; `src/pipeline/xp-replay-store.test.ts` › *I-18 at the table*; `amplify/xp-ledger-tables.test.ts` | replay step 2's filter drops `!e.isFloor` → **red**, 8 failed |
+| I-19 | `xpRulesVersion` non-null; integer rounded once | `src/scoring/ledger.test.ts` › *I-19 — the property tests*; `src/scoring/ground.test.ts` › *… (I-19)* | `Math.round` removed from `ledgerEntries` → **red**, 13 failed |
+| I-20 | the client never writes XP, cells or activities | `amplify/xp-ledger-tables.test.ts` › *I-18 / I-20 — no client can write XP*; `lib/sources/source-account-store.test.ts` › *exposes only models on an explicit allowlist (I-20, I-28, I-29)* | `SkillState`'s `disableOperations` drops `"mutations"` → **red**, 2 failed |
+| I-21 | re-ingesting awards nothing further | `src/pipeline/idempotency.test.ts` › *I-21 — re-ingesting an activity awards nothing further* (new) | the DONE-duplicate branch in `processActivity` bypassed → **red** |
+| I-22 | one ACTIVE activity per dedupeKey across sources | `src/adapters/strava/cross-source-dedupe.test.ts` › *I-22 — …*; `src/pipeline/process-activity.test.ts` › *step 3 … (0179, I-22)* | `isSameActivity` short-circuited to false in `dedupe.ts` → **red** |
+| I-23 | receipt expiry never double-awards | `src/pipeline/idempotency.test.ts` › *I-21 / I-23 — after the receipt expired, …* (new; stateful T6) | `alreadyScored` forced `false` in `xp-ledger.ts` → **red**, 2 failed |
+| I-24 | adding a workout type is zero code | `src/rules/registry-delta.test.ts` › *I-24 — the Vigil delta …*, *… end to end (0159, I-24, I-27)*; `app/new-workout-type.test.tsx` | the matcher ignores rows with `introducedIn > 1` → **red**, 14 failed |
+| I-25 | no skill id in `src/` | `src/rules/no-skill-names.test.ts`; `src/scoring/units.test.ts` › *… (I-25)* | `export const FAVOURITE = "vigil"` in `src/scoring/units.ts` → **red**, 2 failed |
+| I-26 | matcher total and deterministic; ambiguity at seed time | `src/rules/validate.test.ts` › *02 §3.8 checks 3 and 4 — ambiguity and zero-match fail the BUILD*; `src/scoring/units.test.ts` › *I-26 — the scorer is total …* | ambiguity threshold `ids.length > 1` → `> 99` → **red**, 2 failed |
+| I-27 | no-discovery is expressed by no field | `src/adapters/manual/adapter.test.ts` › *… (I-27)*; `app/skills/vigil-peer.test.tsx`; `lib/log/log-workout.test.ts`; `registry-delta` clause (d) | manual adapter emits `hasTrace: true` → **red**, 3 failed |
+| I-28 | tokens unreachable from AppSync, never projected | `lib/sources/source-account-store.test.ts` › *I-28 / I-29 — T7 is absent …*, *the byExternalOwner index (I-28)*; `amplify/ingest-webhook-stack.test.ts` › *holds NO grant on LostSolesSourceAccount* | `byExternalOwner` projection `KEYS_ONLY` → `ALL` → **red** |
+| I-29 | client receives no cells, tokens or receipts | `lib/sources/source-account-store.test.ts` › *exposes only models on an explicit allowlist (I-20, I-28, I-29)* | an `IngestReceipt` model added to `amplify/data/resource.ts` → **red** |
+| I-30 | corrections add; deletion only by typed instruction | `tools/account-deletion/deletion.test.ts` › *typed confirmation (I-30)*; `app/api/auth/[source]/disconnect/disconnect-is-not-deletion.test.ts` › *… (I-7, I-30)*; `scripts/check-drill-no-delete.mjs --self-test` (CI guard) | an empty confirmation accepted → **red**. *Not reached:* "any procedure whose rollback plan is restore-from-PITR does not ship" is a review gate on procedures that have not been written. No test can see a document that does not exist yet. |
+
+### Roadmap §9.2 — the eleven mechanically-checked items
+
+| Item | Evidence | Proven red by |
+|---|---|---|
+| Strava grep fails the build (D-100, D-121.1) | `scripts/check-boundaries.mjs` in `amplify.yml` build and `gate.yml` (with `--self-test`, 39 cases) | Scratch files in the working tree. `lib/scratch-0116-leak.ts` with `export const stravaId = 1` → exit 1. `src/domain/…` with `s === "strava"` → exit 1. Removed → exit 0. A bare `// strava` comment passes **by design** (D-167). The rule is about dependency, not vocabulary. |
+| T1–T4 pass in CI | T1 `check-boundaries.mjs`; T2 `src/adapters/registry.test.ts` + `check-adapter-deletion.mjs` (`--self-test` 2 cases); T3 `src/adapters/strava/cross-adapter-equivalence.test.ts`; T4 `normalize-purity.test.ts` | T1 above; T3: Strava `lat` offset by 0.002° → **red**, 2 failed; T4 as I-4 |
+| Vigil test, zero diff outside `rules/` | I-24 row | I-24 row |
+| exactly one skill per measure; seed-time error | I-26 row. **Seed time** means `npm test` (build fails) plus `assertValidRuleSet` on every bundled version at worker cold start (`amplify/functions/process-activity/handler.ts`). It never runs per activity. | I-26 row |
+| `displayedXp == SUM(ledger)` after a full replay | I-15 row (`xp-replay.test.ts` › *I-15 after every replay*) | I-15 row |
+| lower ruleset → `retained_floor`, no visible decrease | I-16 row | I-16 row |
+| Total Level ceiling derived (D-192, not D-145's 693) | `src/scoring/levels.test.ts` › *the Total Level ceiling (D-145, D-192)*: Σ `maxLevel` over enabled rows, and **+`maxLevel` when a fixture gains an enabled row**; *no remembered numbers in source (D-192)* | `totalLevelCeiling` returns `10 * maxLevel` → **red**, 2 failed; a literal `891` in `src/scoring/levels.ts` → **red** |
+| adding a skill fires zero level-up cards (D-146) | `src/scoring/d146-guard.test.ts`; `registry-delta` › *D-146 — the free Total Level point*; new: *no level-up card is persisted, so none can fire on a later open* | `isMinted` returns `false` → **red**, 9 failed; a `localStorage` write added to `cards.ts` → **red** |
+| re-processing changes zero cells, timestamps, ledger rows | I-21 / I-23 rows. Counted as writes that **applied**, against a stateful T6 that evaluates the real conditions (`src/pipeline/__fixtures__/stateful-cell-table.ts`) | I-21 / I-23 rows |
+| every cell carries `lastRunAt`; no presence bit (D-120) | I-9 row. `no-presence-bit.test.ts` checks the type, runs every T6 writer, closes the set of key-building modules, and greps for boolean explored-ness | I-9 row |
+| the map has never re-fogged (D-020) | I-7 row, plus AUDIT §4 `fog-no-refog` (live: 5211 → 5211 cells) | I-7 row |
+
+**Re-processing after the receipt TTL is not literally write-free.** Within the receipt's 90
+days the pipeline sends nothing. After the receipt expires, and on `reingest`, it applies zero
+cell writes and zero ledger, SkillState or Profile writes. It still sends four kinds of write,
+and `idempotency.test.ts` names them:
+
+- the unconditional `writeAggregates` `ADD exploredChildren 0`. It applies and changes no attribute.
+- a regenerated explored blob under a new `generation`, over identical cells.
+- the T3 re-put with the first award (D-254, D-260).
+- the receipt's DONE.
+
+None of them moves XP or the map.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
