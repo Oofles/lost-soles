@@ -5,6 +5,7 @@ import { chroniclePage, decodeChronicleCursor, defaultRunReadDeps } from "@/lib/
 import { CHRONICLE_AFTER_PARAM } from "@/lib/runs/wire"
 import { chronicleWithBackfill } from "@/lib/backfill/batch"
 import { backfillBatchOrNull } from "@/lib/backfill/store"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * GET /api/runs/chronicle?after=<cursor> — ticket `0088`. `06-ui-ux.md` §2.5.
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic"
 
 const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 })
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function handleGet(request: NextRequest): Promise<NextResponse> {
   const userId = await currentUserId()
   if (!userId) return notFound()
 
@@ -36,3 +37,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const page = chronicleWithBackfill(unmarked, batch)
   return NextResponse.json(page, { headers: { "Cache-Control": "no-store, private" } })
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

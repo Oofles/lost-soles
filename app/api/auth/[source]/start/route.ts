@@ -5,6 +5,7 @@ import { getOAuthClientCredentials } from "@/lib/sources/oauth-credentials"
 import { issueState } from "@/lib/sources/oauth-state-store"
 
 import { callbackUri, NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * Starts an OAuth connect. Ticket 0032, `03-integrations.md` §2.2 step 1.
@@ -27,7 +28,7 @@ import { callbackUri, NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
 /** SSR, never statically evaluated: this reads SSM and writes DynamoDB. */
 export const dynamic = "force-dynamic"
 
-export async function GET(
+async function handleGet(
   request: NextRequest,
   { params }: { params: Promise<{ source: string }> },
 ) {
@@ -65,3 +66,6 @@ export async function GET(
     return NextResponse.redirect(settingsUrl({ connect: "failed", source: ctx.sourceId }), 302)
   }
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

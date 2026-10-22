@@ -419,7 +419,7 @@ describe("CORS is locked to the app origin (§6.4/8)", () => {
     // out. Confirmed against the deployed app. This asserts the handler is correct
     // for the day the gate changes; it is NOT evidence of production behaviour, and
     // the distinction is written here so nobody later reads it as such.
-    const res = OPTIONS()
+    const res = await OPTIONS()
     expect(res.status).toBe(204)
     expect(res.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
     expect(res.headers.get("access-control-allow-methods")).toBe("POST, OPTIONS")

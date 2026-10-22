@@ -1539,6 +1539,29 @@ function cmdIndex(flags) {
   else console.log(`tickets/index.json: ${data.length} tickets, ${data.filter((d) => d.ready).length} ready`);
 }
 
+/**
+ * D-123's standing conditions, ticket 0114 (`08-security-privacy.md` §2.5, placements 2 and 3).
+ *
+ * D-123 waives home-location masking on the premise "map shown only to the owner". §2.4 names
+ * three things that make the premise false — a second account (A), a share/export/screenshot
+ * feature (B), a public URL serving cell data (C) — and says the decision reopens when any of them
+ * is PROPOSED, not built. Proposals arrive through the inbox, so triage is where one is caught.
+ *
+ * The regex is §2.5's, verbatim. It is broad on purpose and it will flag plenty of harmless
+ * captures ("account" alone matches a lot): a flag is a prompt to read §2.4, not a refusal, and a
+ * false positive costs one sentence at triage while a miss costs an unmasked map in someone else's
+ * hands. Narrowing it is a change to §2.5, not to this line.
+ */
+const D123_TRIAGE_PATTERN = /share|export|screenshot|public|friend|invite|account|signup|poster|embed/i;
+const D123_TEMPLATE_LINE =
+  "D-123 trigger checked? A / B / C / none. *(Tickets touching auth, sharing, export or public " +
+  "routes — `08-security-privacy.md` §2.4. Anything but \"none\" reopens D-123 before merge.)*";
+
+/** True when a capture's title or body names a §2.4 trigger and needs D-123 review before numbering. */
+function needsD123Review(t) {
+  return D123_TRIAGE_PATTERN.test(`${t.fm?.title ?? ""}\n${t.body ?? ""}`);
+}
+
 function cmdList(flags) {
   let ts = load().filter((t) => t.fm);
   const index = byId(ts);
@@ -1550,12 +1573,14 @@ function cmdList(flags) {
   if (f.size) ts = ts.filter((t) => t.fm.size === f.size);
   if (f.ready) ts = ts.filter((t) => isReady(t, index));
   ts.sort((a, b) => (PRIO_RANK[a.fm.priority] ?? 9) - (PRIO_RANK[b.fm.priority] ?? 9) || (a.fm.id ?? 1e9) - (b.fm.id ?? 1e9));
-  if (f.json) return console.log(JSON.stringify(ts.map((t) => ({ ...t.fm, path: t.path, ready: isReady(t, index) })), null, 2));
+  // `d123Review` rides on every row, and is what `/tickets triage` reads (§2.5 placement 3).
+  if (f.json) return console.log(JSON.stringify(ts.map((t) => ({ ...t.fm, path: t.path, ready: isReady(t, index), d123Review: needsD123Review(t) })), null, 2));
   if (!ts.length) return console.log("no tickets match");
   const w = (s, n) => String(s ?? "").slice(0, n).padEnd(n);
   console.log(`  ${w("ID", 5)}${w("TYPE", 9)}${w("PRI", 5)}${w("SZ", 3)}${w("STATUS", 8)}${w("CAPABILITY", 30)}TITLE`);
   for (const t of ts) {
-    console.log(`  ${w(t.fm.id ? pad(t.fm.id) : "—", 5)}${w(t.fm.type, 9)}${w(t.fm.priority, 5)}${w(t.fm.size, 3)}${w(t.fm.status, 8)}${w(t.fm.capability, 30)}${t.fm.title}`);
+    const flag = t.fm.status === "inbox" && needsD123Review(t) ? "  [needs D-123 review]" : "";
+    console.log(`  ${w(t.fm.id ? pad(t.fm.id) : "—", 5)}${w(t.fm.type, 9)}${w(t.fm.priority, 5)}${w(t.fm.size, 3)}${w(t.fm.status, 8)}${w(t.fm.capability, 30)}${t.fm.title}${flag}`);
   }
   console.log(`\n  ${ts.length} ticket(s)`);
 }
@@ -1920,7 +1945,7 @@ function cmdCreate(flags) {
     : fm.type === "design"
     ? "\n## Options considered\n\nTODO\n\n## Open questions\n\n- TODO\n"
     : "";
-  const body = `\n## Description\n\n${flags.body ?? "TODO"}\n\n## Acceptance criteria\n\n- [ ] TODO\n${extra}\n## Notes\n\nTODO\n\n## Operator validation\n\nTODO\n`;
+  const body = `\n## Description\n\n${flags.body ?? "TODO"}\n\n## Acceptance criteria\n\n- [ ] TODO\n${extra}\n## Notes\n\nTODO\n\n## Operator validation\n\nTODO\n\n${D123_TEMPLATE_LINE}\n`;
   const path = `${DIRS.open}/${pad(id)}-${slug}.md`;
   writeFileSync(join(ROOT, path), serialize(fm, body));
   writeIndex();
@@ -2476,4 +2501,4 @@ if (isMain) try {
   die(err.message);
 }
 
-export { planWaves, compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER, ENUMS };
+export { needsD123Review, D123_TRIAGE_PATTERN, D123_TEMPLATE_LINE, planWaves, compareFog, compareXp, vigilTests, citedInvariants, deferral, insertAfterSection, closeDeferredSection, auditChecks, auditBlockers, latestAuditRecord, reflectSection, parse, serialize, acceptance, isReady, findCycles, readySet, validate, buildIndex, missingSections, duplicateSections, SECTION_RULES, slugify, FIELD_ORDER, ENUMS };

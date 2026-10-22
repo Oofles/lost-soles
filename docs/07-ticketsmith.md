@@ -570,6 +570,11 @@ So the section is still non-negotiable and still must not be empty. What it cont
 **evidence of verification, by whoever could actually perform it.** A close with neither an operator
 check nor a recorded smoke test is the thing this section exists to prevent.
 
+**One line for tickets touching auth, sharing, export or public routes** (`08-security-privacy.md`
+§2.5, ticket `0114`): *"D-123 trigger checked? A / B / C / none."* `tickets.mjs create` writes it
+into every new ticket's `## Operator validation`; delete it where none of those apply. Any answer
+but "none" reopens D-123 before the work merges (§2.4).
+
 The capability lifecycle's **USE** step fits this project unusually well: for Lost Soles, "USE"
 means *actually going for a run with the build on your phone.* That is a real, unskippable
 validation step rather than a chore.

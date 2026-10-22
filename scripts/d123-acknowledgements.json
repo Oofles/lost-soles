@@ -1,0 +1,4 @@
+{
+  "_comment": "D-123 Trigger B, part two (08-security-privacy.md §2.4, ticket 0114). Each entry admits one share/export API signal in one file, under a decision that supersedes or re-affirms D-123. Shape: { \"file\": \"src/x.ts\", \"signal\": \"navigator.share\", \"decision\": \"D-NNN\", \"why\": \"...\" }. Empty until such a decision exists. scripts/check-d123-trigger-b.mjs refuses an entry whose decision is not one.",
+  "acknowledgements": []
+}

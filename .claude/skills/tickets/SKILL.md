@@ -132,6 +132,14 @@ Work **oldest first** — `SCRIPT list --status inbox --json` is already in `cre
 oldest note is the one most likely to have gone stale, and triaging newest-first is how an inbox
 grows a permanent sediment at the bottom.
 
+**A capture marked `[needs D-123 review]`** (`d123Review: true` in `--json`; ticket `0114`) names a
+`08-security-privacy.md` §2.4 trigger word — share, export, screenshot, public, friend, invite,
+account, signup, poster, embed. Read §2.4 before choosing its outcome, and say in the batch which
+trigger (A / B / C) it proposes, or why it proposes none. A promoted share, export, screenshot or
+second-account idea reopens D-123 **at proposal time**: its body says so, and it cannot merge
+until a decision superseding or re-affirming D-123 is recorded. The flag is a prompt, not a
+refusal. The regex is §2.5's and is deliberately broad.
+
 **There are FOUR outcomes, and every one of them is a script command** (§4.5/7). A thought at mile
 six is a note; it becomes a ticket when someone decides it should:
 

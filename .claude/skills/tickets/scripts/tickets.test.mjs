@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const SCRIPT = new URL("./tickets.mjs", import.meta.url).pathname;
-const { planWaves, parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp, ENUMS } = await import("./tickets.mjs");
+const { needsD123Review, D123_TRIAGE_PATTERN, D123_TEMPLATE_LINE, planWaves, parse, serialize, acceptance, isReady, findCycles, validate, buildIndex, missingSections, duplicateSections, slugify, deferral, compareFog, compareXp, ENUMS } = await import("./tickets.mjs");
 
 // ───────────────────────────────────────────────────────────────── helpers ────
 
@@ -2670,6 +2670,51 @@ describe("0272 — a move fails before it writes, and an untracked ticket still 
       assert.equal(r.code, 0, r.out);
       assert.ok(!existsSync(join(d, "tickets/inbox/2026-10-15T1200-carried.md")));
       assert.equal(parse(readFileSync(join(d, "tickets/open/0001-carried.md"), "utf8")).fm.status, "open");
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+});
+
+// ──────────────────────────────────────────────── 0114 — D-123 placements ────
+
+describe("0114 — D-123 standing conditions in the ticket tooling (08 §2.5)", () => {
+  const capture = (title, body) => ({ fm: { status: "inbox", title }, body });
+
+  test("the triage pattern is §2.5's, verbatim — narrowing it is a design change, not an edit here", () => {
+    assert.equal(D123_TRIAGE_PATTERN.source, "share|export|screenshot|public|friend|invite|account|signup|poster|embed");
+    assert.equal(D123_TRIAGE_PATTERN.flags, "i");
+  });
+
+  test("a capture naming a trigger in its title OR its body is flagged; one naming none is not", () => {
+    assert.equal(needsD123Review(capture("Share my map with Dad", "x")), true);
+    assert.equal(needsD123Review(capture("fog idea", "maybe an OG image for links, as a POSTER")), true);
+    assert.equal(needsD123Review(capture("Let a FRIEND log in", "")), true);
+    assert.equal(needsD123Review(capture("fog flickers when panning", "only at dusk")), false);
+  });
+
+  test("`list --status inbox` marks a flagged capture, and --json carries d123Review", () => {
+    const d = repo();
+    try {
+      writeFileSync(join(d, "tickets/inbox/2026-10-22T0100-share.md"),
+        serialize({ status: "inbox", title: "export my map as a poster", type: "feature", priority: "med", source: "ui", created: "2026-10-22T01:00:00Z" }, "\nbody\n"));
+      writeFileSync(join(d, "tickets/inbox/2026-10-22T0200-fog.md"),
+        serialize({ status: "inbox", title: "fog flickers", type: "bug", priority: "med", source: "ui", created: "2026-10-22T02:00:00Z" }, "\nbody\n"));
+      const text = run(d, "list", "--status", "inbox").out;
+      assert.match(text, /export my map as a poster {2}\[needs D-123 review\]/);
+      assert.doesNotMatch(text, /fog flickers {2}\[needs D-123 review\]/);
+      const rows = JSON.parse(run(d, "list", "--status", "inbox", "--json").out);
+      assert.deepEqual(rows.map((r) => [r.title, r.d123Review]).sort(),
+        [["export my map as a poster", true], ["fog flickers", false]]);
+    } finally { rmSync(d, { recursive: true, force: true }); }
+  });
+
+  test("`create` writes the D-123 trigger line into ## Operator validation", () => {
+    const d = repo();
+    try {
+      const r = run(d, "create", "--title", "Something", "--type", "chore", "--priority", "low", "--slug", "something", "--capability", "00-x");
+      assert.equal(r.code, 0, r.out);
+      const validation = readFileSync(join(d, r.out.trim()), "utf8").split("## Operator validation")[1];
+      assert.ok(validation.includes(D123_TEMPLATE_LINE), validation);
+      assert.match(D123_TEMPLATE_LINE, /^D-123 trigger checked\? A \/ B \/ C \/ none\./);
     } finally { rmSync(d, { recursive: true, force: true }); }
   });
 });

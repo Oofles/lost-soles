@@ -6,6 +6,14 @@ proposing anything that changes what it is.**
 
 **This file is loaded into every session. Everything below is operating procedure, not background.**
 
+> **Standing rule: the D-123 trigger.** Read **`docs/08-security-privacy.md` §2.4, "THE D-123
+> TRIGGER — three conditions, each with a hard gate"**. If any of its three conditions becomes true,
+> or is *proposed* in a ticket, a design doc or a PR, D-123 is reopened before that work merges:
+> **(A)** a second Cognito account, **(B)** any share, export or screenshot feature, **(C)** any
+> public URL serving cell data. Reopening means a new decision in **`docs/decisions/DECISIONS.md`**
+> that supersedes or re-affirms D-123 with its new premise stated, and §2.4's gate checklist complete.
+> *"It's fine, it's still just me" is not a resolution. A recorded decision is.*
+
 ---
 
 ## Where things stand
@@ -161,6 +169,7 @@ to run checks on pushes, not to gate a review that has no second reviewer.
 |---|---|
 | Why it exists, and what it refuses to be | `docs/00-vision.md` |
 | Every decision + reasoning | `docs/decisions/DECISIONS.md` |
+| What reopens D-123 (second account, share/export, public cell data) | `docs/08-security-privacy.md` §2.4, "THE D-123 TRIGGER" |
 | What to build next | `tickets.mjs next` — or `/tickets next` once `0010` lands |
 | Which capability is next | `docs/capabilities/ROADMAP.md` |
 | Ticket format (short reference) | `docs/TICKET_FORMAT.md` — `07-ticketsmith.md` §3 is normative |

@@ -142,6 +142,8 @@ describe("GET /api/fog/blob/<generation>", () => {
 
     expect(response.status).toBe(404)
     expect(getObject).not.toHaveBeenCalled()
+    // C-3/C-4 (0114): the refusal is not cacheable either, so no shared cache can hold it.
+    expect(response.headers.get("cache-control")).toBe("no-store, private")
   })
 
   it("serves the bytes under the caller's own key, immutable and private", async () => {

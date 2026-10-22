@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/auth/owner"
 import { defaultRunReadDeps, latestRun } from "@/lib/runs/server"
 import { withBackfill } from "@/lib/backfill/batch"
 import { backfillBatchOrNull } from "@/lib/backfill/store"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * GET /api/runs/latest — ticket `0195`. `02-data-model.md` §5.1 (S-7);
@@ -36,7 +37,7 @@ export const dynamic = "force-dynamic"
 /** Byte-identical to what `middleware.ts` returns for a signed-out request. */
 const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 })
 
-export async function GET(): Promise<NextResponse> {
+async function handleGet(): Promise<NextResponse> {
   const userId = await currentUserId()
   if (!userId) return notFound()
 
@@ -62,3 +63,6 @@ export async function GET(): Promise<NextResponse> {
     },
   })
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

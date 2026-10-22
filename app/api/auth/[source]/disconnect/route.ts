@@ -6,6 +6,7 @@ import { getOAuthClientCredentials } from "@/lib/sources/oauth-credentials"
 import { markDisconnected, readAccessTokenForRevocation } from "@/lib/sources/source-account-store"
 
 import { NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * Disconnect. Ticket 0032 criterion 7; `02-data-model.md` §7 and
@@ -29,7 +30,7 @@ import { NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
 /** SSR, never statically evaluated. */
 export const dynamic = "force-dynamic"
 
-export async function POST(
+async function handlePost(
   request: NextRequest,
   { params }: { params: Promise<{ source: string }> },
 ) {
@@ -75,3 +76,6 @@ export async function POST(
     )
   }
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const POST = withNoStore(handlePost)

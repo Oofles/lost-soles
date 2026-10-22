@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { currentUserId } from "@/lib/auth/owner"
 import { defaultFogReadDeps, resolveFogUpdate } from "@/lib/fog/server"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * GET /api/fog?since=<generation> — ticket `0054`. `05-fog-of-war.md` §7.3;
@@ -46,7 +47,7 @@ function parseSince(raw: string | null): number {
   return value
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
+async function handleGet(request: Request): Promise<NextResponse> {
   const userId = await currentUserId()
   if (!userId) return notFound()
 
@@ -82,3 +83,6 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   return NextResponse.json(update, { headers })
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

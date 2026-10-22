@@ -26,6 +26,7 @@ import {
   releaseIdempotencyKey,
 } from "@/lib/tickets/capture-store"
 import { createFile, getToken, GithubApiError } from "@/lib/tickets/github"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * POST /api/tickets/capture — tickets 0018 (the plumbing) and 0019 (the hardening).
@@ -118,7 +119,7 @@ const notFound = () => json({ error: "not found" }, 404)
  * Kept, rather than deleted, for the day the gate changes: the correct preflight
  * response should exist in the route that owns the policy, not be re-derived then.
  */
-export function OPTIONS() {
+function handleOptions() {
   return new NextResponse(null, {
     status: 204,
     headers: { ...CORS_HEADERS, "Access-Control-Max-Age": "86400" },
@@ -203,7 +204,7 @@ function pathIsSafe(path: string): boolean {
   return true
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   // ── 1. Owner, before anything else (§6.4/1, §6.5 row 1) ──────────────────
   const userId = await currentUserId()
   if (!isOwner(userId)) return notFound()
@@ -328,3 +329,7 @@ async function commitWithCollisionRetry(path: string, content: string, token: st
     return await commit(retry)
   }
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const OPTIONS = withNoStore(handleOptions)
+export const POST = withNoStore(handlePost)

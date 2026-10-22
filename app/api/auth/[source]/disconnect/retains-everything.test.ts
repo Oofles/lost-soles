@@ -104,6 +104,8 @@ describe("disconnect touches the source account and nothing else", () => {
       [
         "next/server",
         "@/lib/app-origin",
+        // C-3 (0114): the Cache-Control wrapper. Pure; it reads only the response it is handed.
+        "@/lib/http/no-store",
         "@/lib/log",
         "@/lib/sources/oauth-credentials",
         "@/lib/sources/source-account-store",

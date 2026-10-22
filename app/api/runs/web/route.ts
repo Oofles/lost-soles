@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { currentUserId } from "@/lib/auth/owner"
 import { defaultFogReadDeps } from "@/lib/fog/server"
 import { traceWebRuns } from "@/lib/runs/server"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * GET /api/runs/web — ticket `0085`, D-299. `06-ui-ux.md` §3.5 rule 2.
@@ -17,10 +18,13 @@ export const dynamic = "force-dynamic"
 
 const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 })
 
-export async function GET(): Promise<NextResponse> {
+async function handleGet(): Promise<NextResponse> {
   const userId = await currentUserId()
   if (!userId) return notFound()
 
   const runs = await traceWebRuns(userId, defaultFogReadDeps())
   return NextResponse.json({ runs }, { headers: { "Cache-Control": "no-store, private" } })
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

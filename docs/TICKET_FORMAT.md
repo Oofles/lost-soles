@@ -220,6 +220,11 @@ is permitted but push back hard: TicketSmith's `WORKFLOW.md` lists "closing tick
 honest operator validation" as an anti-pattern — *"If the validation section is always 'None,'
 nobody is checking the work. That's not validation; that's hope."*
 
+**One line for tickets touching auth, sharing, export or public routes** (`08-security-privacy.md`
+§2.5, ticket `0114`): *"D-123 trigger checked? A / B / C / none."* `tickets.mjs create` writes it
+into every new ticket's `## Operator validation`; delete it where none of those apply. Any answer
+but "none" reopens D-123 before the work merges (§2.4).
+
 The capability lifecycle's **USE** step fits this project unusually well: for Lost Soles, "USE"
 means *actually going for a run with the build on your phone.* That is a real, unskippable
 validation step rather than a chore.

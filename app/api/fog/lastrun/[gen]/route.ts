@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { currentUserId } from "@/lib/auth/owner"
 import { defaultFogReadDeps, getObject } from "@/lib/fog/server"
 import { objectKeys } from "@/src/pipeline/explored-blob-store"
+import { IMMUTABLE_PRIVATE, withNoStore } from "@/lib/http/no-store"
 
 /**
  * GET /api/fog/lastrun/<generation> — ticket `0100`. `05-fog-of-war.md` §7.2, `06-ui-ux.md` §4.6.
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic"
 
 const notFound = () => NextResponse.json({ error: "not found" }, { status: 404 })
 
-export async function GET(
+async function handleGet(
   _request: Request,
   context: { params: Promise<{ gen: string }> },
 ): Promise<NextResponse> {
@@ -41,8 +42,14 @@ export async function GET(
   return new NextResponse(Buffer.from(bytes), {
     headers: {
       "Content-Type": "application/octet-stream",
-      "Cache-Control": "private, max-age=31536000, immutable",
+      "Cache-Control": IMMUTABLE_PRIVATE,
       "Content-Length": String(bytes.length),
     },
   }) as NextResponse
 }
+
+/**
+ * C-3 (`08` §2.4, ticket 0114): every response but the 200 carries `Cache-Control: private,
+ * no-store`. The 200 keeps D-228's `IMMUTABLE_PRIVATE` carve-out, which the wrapper leaves alone.
+ */
+export const GET = withNoStore(handleGet)

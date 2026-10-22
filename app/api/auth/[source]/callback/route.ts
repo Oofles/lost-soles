@@ -6,6 +6,7 @@ import { consumeState } from "@/lib/sources/oauth-state-store"
 import { putConnectedAccount } from "@/lib/sources/source-account-store"
 
 import { callbackUri, NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
+import { withNoStore } from "@/lib/http/no-store"
 
 /**
  * The callback. Ticket 0032, `03-integrations.md` §2.2 step 2.
@@ -34,7 +35,7 @@ import { callbackUri, NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
 /** SSR, never statically evaluated: this reads SSM, writes DynamoDB and calls a third party. */
 export const dynamic = "force-dynamic"
 
-export async function GET(
+async function handleGet(
   request: NextRequest,
   { params }: { params: Promise<{ source: string }> },
 ) {
@@ -166,3 +167,6 @@ export async function GET(
     return NextResponse.redirect(settings("failed"), 302)
   }
 }
+
+/** C-3, `08` §2.4 (ticket 0114): every response carries `Cache-Control: private, no-store`. */
+export const GET = withNoStore(handleGet)

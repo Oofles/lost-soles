@@ -17,6 +17,11 @@ backend:
         # see that (08-security-privacy.md §5.1, D-163). Both were live-WRONG
         # before 0014. Fails closed: an unreadable posture fails the deploy.
         - node scripts/check-auth-posture.mjs
+        # 08 §2.4 TRIGGER A / 0114: a second account in the production pool fails the deploy unless a
+        # decision superseding or re-affirming D-123 admits it. Needs cognito-idp:ListUsers on the
+        # build role (LostSolesAuthPostureCheckReadOnly). Prints subs only, never usernames or emails.
+        - node scripts/check-d123-trigger-a.mjs --self-test
+        - node scripts/check-d123-trigger-a.mjs
 # Docs/tickets-only pushes never reach this file: the commit-msg hook tags them
 # [skip-cd] and Amplify does not start a build (D-311, ticket 0214).
 frontend:
@@ -68,6 +73,13 @@ frontend:
         # red here is an adapter or fold change that would break recovery from raw/ (~5s).
         - npm run drill:ci
         - node scripts/check-no-deckgl.mjs     # 05 §4.6 — the ruled-out renderer stays ruled out
+        # 08 §2.4 TRIGGER B / 0114: share/export phrases in added ticket and doc lines, and API signals
+        # in added code lines, since HEAD^. Amplify has no `before` sha; the GitHub gate checks the
+        # whole push range.
+        - node scripts/check-d123-trigger-b.mjs --self-test
+        - node scripts/check-d123-trigger-b.mjs
+        - node scripts/check-route-cache-control.mjs --self-test
+        - node scripts/check-route-cache-control.mjs # 08 §2.4 C-3 / 0114 — every route handler is private, no-store
         - node scripts/check-private-method-update.mjs --self-test
         - node scripts/check-private-method-update.mjs # 0206 — SWC crashes `this.#m().n++` in prod only
         - node scripts/build-rules-json.mjs --check # D-217 — the .json the ingest Lambda imports
@@ -79,6 +91,10 @@ frontend:
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
         - npm run build
+        # 08 §2.4 C-2 / 0114. After the build, over what it produced: every prerendered route is
+        # on an allowlist, and no prerendered page or static asset carries cell or trace data.
+        - node scripts/check-prerender-no-cell-data.mjs --self-test
+        - node scripts/check-prerender-no-cell-data.mjs
         # AFTER the build, and the only place the LITERAL scan can run: this
         # container holds AWS credentials, so the real secret values come from
         # SSM. --require-literals makes it fail closed — if the SSM read breaks,

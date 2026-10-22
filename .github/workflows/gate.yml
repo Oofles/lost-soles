@@ -254,6 +254,35 @@ jobs:
       - name: no secret in built output (patterns; literals are the deploy path's job)
         run: node scripts/check-bundle-leak.mjs
 
+      # ── D-123 TRIGGERS (0114, 08 §2.4) ───────────────────────────────────────
+      # A reads the live Cognito pool. This job holds no AWS credentials (0017), so the real check
+      # runs in amplify.yml's backend phase and only its self-test runs here.
+      - name: D-123 Trigger A self-test (the live pool check runs in amplify.yml)
+        run: node scripts/check-d123-trigger-a.mjs --self-test
+
+      # B diffs the push range. checkout is shallow, so the script fetches `before` at depth 1;
+      # an all-zeros `before` (a first push) falls back to HEAD^, deepening by one.
+      - name: D-123 Trigger B self-test
+        run: node scripts/check-d123-trigger-b.mjs --self-test
+
+      - name: D-123 Trigger B — no share/export/screenshot proposal without a recorded decision
+        env:
+          D123_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/check-d123-trigger-b.mjs
+
+      # C-3 reads source; C-2 reads the build above. Both also run in amplify.yml (D-163).
+      - name: route cache-control check self-test
+        run: node scripts/check-route-cache-control.mjs --self-test
+
+      - name: C-3 — every route handler answers private, no-store
+        run: node scripts/check-route-cache-control.mjs
+
+      - name: prerender check self-test
+        run: node scripts/check-prerender-no-cell-data.mjs --self-test
+
+      - name: C-2 — no prerendered page or static asset carries cell or trace data
+        run: node scripts/check-prerender-no-cell-data.mjs
+
       # ── hygiene, and it runs LAST on purpose (D-177, ticket 0140) ────────────
       #
       # Folded in from docs-index.yml, per the note that file carried naming 0013
