@@ -4,7 +4,7 @@ slug: d123-standing-conditions-wired
 title: The D-123 standing conditions, wired as code and CI rather than caveated
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [17, 24]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-22T05:00:54Z
+closed: 2026-10-22T20:09:43Z
 ---
 
 ## Description
