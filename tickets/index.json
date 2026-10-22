@@ -6977,5 +6977,25 @@
       "checked": 3,
       "total": 3
     }
+  },
+  {
+    "id": 303,
+    "slug": "stale-storage-claims-02-1-2-facts-prefix-and-08-5-5-owner-au",
+    "title": "Stale storage claims: 02 §1.2 facts/ prefix and 08 §5.5 owner-auth model list",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-22T00:44:19Z",
+    "path": "tickets/open/0303-stale-storage-claims-02-1-2-facts-prefix-and-08-5-5-owner-au.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
   }
 ]

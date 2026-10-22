@@ -62,8 +62,9 @@ s3://lost-soles-storage/
                                                      by bucket policy, not just by convention.
   facts/<uid>/highwater.jsonl                        append-only D-135 floor decisions (§4.6)
   facts/<uid>/identity.json                          userId ↔ Cognito sub ↔ display name (§1.4)
-  traces/<uid>/<activityId>.trace.json.gz            normalized Trace (contract §2). DERIVED.
-  cells/<uid>/<activityId>.cells.bin                 res-11 cell set for one activity (D-237). DERIVED.
+  users/<uid>/traces/<activityId>.segments.json.gz   route trace (S-7, `routeTraceKey`). DERIVED.
+  users/<uid>/cells/<activityId>.bin                 res-11 cell set for one activity (D-237, `objectKeys.runCells`;
+                                                     D-423). DERIVED.
   users/<uid>/manifest.json                          mutable pointer, no-cache (05 §7.3)
   users/<uid>/explored/explored-r11.<gen>.bin        immutable, content-addressed by generation
   users/<uid>/explored/explored-agg.<gen>.json
@@ -641,13 +642,13 @@ does which job):
 {userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls
 `lastRunAt` "a cache". That is the right *layering* and the wrong *storage*. At 150k cells with a
 mean `visitCount` well above 1, a per-visit table is 500k–1M rows carrying no information that
-`cells/<uid>/<activityId>.cells.bin` in S3 does not already carry — and that S3 object is itself
+`users/<uid>/cells/<activityId>.bin` in S3 does not already carry — and that S3 object is itself
 derived from the raw trace, so the real fact is the trace (D-101).
 
 So: **the `CellVisit` fact stream exists; it is stored as one small immutable S3 object per
 activity, not as a DynamoDB table.** `ExploredCell` is exactly the cache 04 §7.2 says it is, and
 the recomputability property 04 §7.2 was protecting is preserved in full — folding
-`cells/*.cells.bin` in `startedAt` order regenerates every `ExploredCell` attribute. §8.3 step 5
+`users/<uid>/cells/*.bin` in `startedAt` order regenerates every `ExploredCell` attribute. §8.3 step 5
 is that fold. **This is a storage-medium change, not a semantic one.**
 
 **No per-run cell rows in DynamoDB.** The un-award path (05 §3.5) needs "which cells did this
@@ -1488,7 +1489,7 @@ thing is the thing the product is about.
 - **No "cells near a point" query.** S-4 answers it in memory. A server-side spatial query would
   need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold).
 - **No "which activities touched this cell".** It would need a GSI on a 150k-item table, doubling
-  its write cost forever (§2.9). The answer, when needed, is a fold of `cells/*.cells.bin`.
+  its write cost forever (§2.9). The answer, when needed, is a fold of `users/<uid>/cells/*.bin`.
 - **No cross-user anything.** D-011/D-014: no leaderboards, no comparison, no shared queries.
   Every partition key in the system starts with a user id.
 - **No full-text search over activity names.** `name` is display-only (contract §2).
@@ -1846,7 +1847,7 @@ table also carries `removalPolicy: RETAIN` and PITR precisely because it is the 
 would feel final.
 
 **What level (c) actually costs, stated honestly:** it breaks §1.1's layering for the affected
-activities. Raw is bedrock; `cells/<uid>/<activityId>.cells.bin` and the `Activity` row are
+activities. Raw is bedrock; `users/<uid>/cells/<activityId>.bin` and the `Activity` row are
 *derived* from it. Purge raw and those derived objects become bedrock for those years — still
 sufficient to rebuild `ExploredCell` and every blob (§8.3 step 5 is exactly that fold), and still
 sufficient for an XP replay of distance-based awards, but no longer sufficient to re-derive a
@@ -1882,7 +1883,7 @@ That is a claim, and a claim about recoverability that has never been executed i
 | `rules/xp-rules-vN.yaml` (git + S3 mirror) | **forever** | 04 §7.6. A `v1` ledger row is meaningless without `v1`. |
 | `users/<uid>/traces/<activityId>.segments.json.gz` | forever in practice, **purgeable** | derived from raw; kept because regenerating it costs a `normalize()` and it is served on every activity detail (S-7) |
 | `users/<uid>/traces/web.json.gz` | current only, **purgeable** | derived from the S-7 objects plus T3's `startedAt`; `tools/trace-web/rebuild-trace-web.ts` rebuilds it (S-8, D-299) |
-| `cells/<uid>/<activityId>.cells.bin` | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
+| `users/<uid>/cells/<activityId>.bin` (`objectKeys.runCells`, D-423) | forever in practice, **purgeable** | derived; ~200–300 B each, ~1.5 MB at five years. It is the `CellVisit` fact stream in its chosen storage medium (§2.9) and step 5 of the drill folds it. |
 | `users/<uid>/cells/<activityId>.classes.json` | forever in practice, **purgeable** | derived; the run's own new/re-armed verdicts (§4.4, D-294). Step 6 rewrites it from the fold (D-307). |
 | T6 `ExploredCell` | **forever, `RETAIN` + PITR** | D-020. Derived, but the one loss that would feel final. |
 | T3 `Activity`, T4 `XpLedgerEntry`, T2 `SkillState` | forever, **PITR** | derived; tiny. PITR on every `defineData` model table (T1 `Profile` included) since `0300` (D-414, replacing D-404's interim "off"); the 35-day window starts at that deploy, so nothing earlier is restorable |
@@ -2051,8 +2052,10 @@ refused by the drill's own check.)*
 
 **Step 7 — regenerate the delivery layer.** Encode `explored-r11.bin`, `explored-agg.json` and
 `explored-lastrun-r11.bin` from the step-5 map; PUT them; PUT `manifest.json` last (§6.4).
-Rebuild `users/<uid>/traces/web.json.gz` with `tools/trace-web/rebuild-trace-web.ts` (D-299,
-D-307) — an absent web reads as an empty one (D-306), so forgetting it fails silently.
+Rebuild `users/<uid>/traces/web.json.gz` (D-299, D-307) — an absent web reads as an empty one
+(D-306), so forgetting it fails silently. *(`0103`, D-410: the drill builds it in-process from
+step 4's routes with `trace-web-store`'s `webRunFrom`/`encodeTraceWeb`, the functions
+`tools/trace-web/rebuild-trace-web.ts` also uses; the standalone tool is not run.)*
 **Set `generation = <the step-0 generation> + 1`, never 1.** A generation that goes backwards
 would leave every cached client convinced it is already up to date, and the fog is the one thing
 that must never appear to regress. *(`0103`: the target T6's `GEN` counter is set to it first, on
@@ -2104,12 +2107,19 @@ D-014 permits up to ~6 users; D-123 declines special home-location handling **fo
 single-owner case only**, with an explicit revisit trigger if friends or sharing arrive. Deletion
 must therefore work per user, cleanly, today:
 
-1. Revoke and delete the T7 rows (tokens first — stop the inflow before deleting the outflow).
-2. Delete every item under `pk` prefix `U#<uid>#` in T6, every T2/T4 row for the user, the T3 rows
-   via GSI1, and the T1 row.
-3. Delete `s3://lost-soles-storage/**/<uid>/**` — `raw/`, `traces/`, `cells/`, `explored/`,
-   `deltas/`, `snapshots/`.
-4. Delete the Cognito user.
+1. Revoke upstream and delete the T7 rows (tokens first — stop the inflow before deleting the
+   outflow).
+2. Disable the Cognito user and sign it out globally; it is deleted last (D-400).
+3. Delete the user's rows in **every** owner-scoped table: T6 (`pk` prefix `U#<uid>#`), T3, T4, T2,
+   T1, `Landmark`, T8 and `OAuthState` (D-307, D-402).
+4. Delete the user's three S3 prefixes, `raw/<uid>/` (under the break-glass role),
+   `users/<uid>/` (traces, cells, `classes.json`, explored blobs, deltas, manifest, trace web) and
+   `snapshots/skillstate/<uid>/`, then purge their noncurrent versions.
+5. Delete the Cognito user.
+
+**`08-security-privacy.md` §6.4 is the runbook and is authoritative** for the order and the full
+list; `tools/account-deletion/delete-account.ts` executes it (`0106`). This list is its summary
+(D-424).
 
 **This is the one operation permitted to delete `ExploredCell` items and `raw/` objects**, and it
 is exempt from §7.5 because it is the user's own instruction about their own data. It is also

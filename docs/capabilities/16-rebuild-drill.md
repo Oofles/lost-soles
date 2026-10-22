@@ -190,5 +190,74 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+*Written at the audit, 2026-10-21.*
 
+**What the design got right that was non-obvious.** Three things. First, the self-describing raw
+key. Step 1 needed nothing but `ListObjectsV2`, and the three correction kinds (duplicate pointer,
+kind override, retraction) fit beside it without an index. Second, the snapshot waterline (§8.2,
+D-259): check 4 compared against an object that ingest had already written, so the drill needed no
+step-0 write (D-399). Third, "rebuild into a parallel stack, never cut over". It made the real run
+safe to do on the first attempt, and it was. The live manifest was byte-identical before and after.
+
+**What the design got wrong.** The §8.3 steps were right. What lagged was everything around them.
+Three tickets amended §8.3 in place (`0103`, `0301`, `0302`), and nothing went back to the
+sections that summarise it. §8.1 kept a cells key from before `0050`, and
+§8.5 kept a four-step deletion list from before D-307, D-400 and D-402. The budget was also sized
+for the five-year volume, and today's archive is 1/16 of it. 64 s against "under 30 minutes" proves
+the code works, not that the ceiling holds (see *What scales* above).
+
+**Divergences (§2), all design-was-wrong, all resolved in the audit commit:**
+
+1. `02` §1.2, §2.9, §7 and §8.1 named `cells/<uid>/<activityId>.cells.bin`. The code has written
+   `users/<uid>/cells/<activityId>.bin` since `0050`. The docs are amended (D-423).
+2. `02` §8.5 and `08` §6.4 described a deletion that the script does not do: they missed
+   `Landmark`, T8 and `OAuthState`, used the wrong Cognito order and non-existent prefixes, and
+   named a `Trace` table. Both now match `delete-account.ts` as executed. §8.5 defers to §6.4
+   (D-424).
+3. `02` §8.3 step 7 said to rebuild the trace web with `tools/trace-web/rebuild-trace-web.ts`. D-410
+   had already recorded that the drill builds it in-process from the same `trace-web-store`
+   functions, but the step text was never amended. It is now.
+
+Outside the cited sections the audit also found `02` §1.2's `facts/` prefix (never written) and
+`08` §5.5's owner-auth model list (names a `Trace` model and two CDK tables as Amplify models).
+Those were filed as `0303` rather than fixed here.
+
+**Estimate vs actual.** The roadmap planned 5 tickets. 8 shipped: `0300` (PITR: `0106` found it
+was on one table while §8.1 claimed all of them, D-404), `0301` (retractions were invisible to a rebuild, a
+real D-020/D-101 hole that the CI fixture could not see because it held no retraction) and `0302`
+(landmarks, which D-307 had already put into step 6). That took four waves (16.1–16.4) at width 2–3.
+`0301` is the one to remember: a correction stored only in T3 is a correction a rebuild loses. The
+rule it established, that every correction gets a record under `raw/`, should be checked whenever a
+new correction kind appears.
+
+**What the next capability should do differently.** When a ticket amends a section in place, grep
+for the summaries of that section, as well as for its terms (capability 15's habit). This time the
+drift was in the *tables and lists that restate a procedure* (§8.1's retention table, §8.5's
+deletion list), and a term-grep finds them only if the term changed. `18-mvp-hardening` also owns
+the `0303` cleanup and the pre-D-121 drill re-run, which is the run that will actually test the
+30-minute ceiling.
+
+## Audit — 2026-10-22 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 12 passed, 0 failed, 0 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `D-423` — 02 §1.2/§2.9/§7/§8.1 named the pre-0050 cells/<uid>/<id>.cells.bin key; code writes users/<uid>/cells/<id>.bin
+2. **design-was-wrong** — `D-424` — 02 §8.5 and 08 §6.4 deletion lists lagged delete-account.ts (Landmark, T8, OAuthState, Cognito order, phantom Trace table and prefixes)
+3. **design-was-wrong** — `D-410` — 02 §8.3 step 7 named rebuild-trace-web.ts; the drill builds the web in-process per D-410, never amended into the step
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — 18/30 invariants cited by a test name, none lost. Ratchet only: the remaining 12 are not due until 0116 sets "complete": true in docs/capabilities/invariant-citations.json, which makes this row all-or-nothing
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts, app/skills/vigil-peer.test.tsx
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **pass** — 1 baselined user(s): cells 5211 → 5211, gen 269 → 269 — none lower (docs/capabilities/regression-baseline.json)
+- `xp-not-lower` — **pass** — 1 baselined user(s), 10 skill(s): cartography 26678/L27, constitution 11077/L20, might 80/L4, roving 1017/L9, vigil 660/L8, wayfaring 31482/L29 — none lower (docs/capabilities/regression-baseline.json)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 8 closed
+
+<!-- audit-record {"capability":"16-rebuild-drill","audited":"2026-10-22T00:45:56Z","verdict":"pass","mechanical":{"pass":12,"fail":0,"na":0},"divergences":3} -->

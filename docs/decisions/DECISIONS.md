@@ -5798,3 +5798,17 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   unchanged. Known divergence: under a changed `--rules` the drill re-scores it under the new rules
   where a live rebalance keeps the old rows; check 4's snapshot floor still prevents displayed XP
   from falling.
+- **D-423** **The per-run cells file is `users/<uid>/cells/<activityId>.bin`, everywhere.**
+  *(Agent, 2026-10-21, `16` audit.)* `objectKeys.runCells` has written that key since `0050`, so
+  the object sits under the `users/<uid>/` prefix the worker's grant is scoped to. `02` §8.3 step 4
+  and T3's `cellsRef` row said so; §1.2's layout, §2.9, §7 and §8.1 still named the pre-`0050`
+  `cells/<uid>/<activityId>.cells.bin`. The doc was wrong, not the code. Those sections are amended,
+  and §1.2's route-trace line with them (`users/<uid>/traces/<activityId>.segments.json.gz`).
+- **D-424** **`08` §6.4 is the account-deletion runbook; `02` §8.5 summarises it.** *(Agent,
+  2026-10-21, `16` audit.)* `02` §8.5 still listed four steps from before D-307, D-400 and D-402: it
+  missed `Landmark`, T8 and `OAuthState`, deleted Cognito without disabling it first, and named
+  top-level `traces/`, `cells/`, `explored/` and `deltas/` prefixes that do not exist. `08` §6.4
+  named a `Trace` DynamoDB table that does not exist (the route trace is an S3 object) and omitted
+  `OAuthState`, which `delete-account.ts` sweeps. Both docs now match the script as executed in
+  `0106`. §8.5 defers to §6.4 for order and the full list, so the next table added has one list to
+  update.

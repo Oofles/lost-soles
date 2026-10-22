@@ -696,7 +696,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
 | Data | Store | Retention | Why |
 |---|---|---|---|
 | Raw trace archive, `raw/<uid>/<adapter>/<externalId>/<sha256>.json` | S3 | **Forever.** No lifecycle expiry, no transition to Glacier | D-101: the archive is the system of record. D-121.2: it is what makes migrating off Strava non-destructive. ~40 MB over five years, ~$0.001/month (`01-architecture.md` §3) — there is no cost argument for deleting it, only a privacy one, and that is §6.4's job |
-| `Activity`, `Trace` | DynamoDB | Forever | Derived, but cheap and re-derivable only via a full replay |
+| `Activity` (DynamoDB), route trace `users/<uid>/traces/<activityId>.segments.json.gz` (S3) | DynamoDB / S3 | Forever | Derived, but cheap and re-derivable only via a full replay |
 | `ExploredCell` (+ `lastRunAt`, D-120) | DynamoDB | **Forever, by decision** | D-020: the map only ever grows |
 | `explored/explored-r11.<gen>.bin` | S3 | Regenerated, not retained | A materialized view of `ExploredCell` |
 | `SourceAccount` (Strava tokens, S4) | DynamoDB | Until deauthorization | Deleted the moment the connection is removed (§6.5) |
@@ -793,10 +793,12 @@ In order, and the order matters:
    outstanding refresh tokens (§5.3); it fails on a user that no longer exists, so delete comes
    last — after step 6, not inside step 3 (D-400), so a failed run can resume against the disabled
    user.
-4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, `Trace`, and any
+4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, and any
    `IngestReceipt` rows not yet TTL'd. *Amended by D-307 (`12` audit, 2026-10-15):* this list is
-   every owner-scoped table, not just these four — `XpLedgerEntry`, `SkillState`, `Profile`, and
-   **`Landmark`**, whose rows are coordinates near home (D-301). The writers hold `UpdateItem`
+   every owner-scoped table, not just these — `XpLedgerEntry`, `SkillState`, `Profile`, and
+   **`Landmark`**, whose rows are coordinates near home (D-301). *Amended by D-424 (`16` audit):*
+   and `OAuthState`, swept although its rows TTL in minutes. There is no `Trace` table: the route
+   trace is an S3 object under `users/<uid>/traces/`, deleted in step 5. The writers hold `UpdateItem`
    only, so this delete is an operator action under an operator's credentials. Partition-key scoping (§5.5) is what makes this a query
    rather than a scan, which is a second, quieter reason every model is owner-scoped — except
    `ExploredCell` and `IngestReceipt`, found by a filtered scan (D-402).
