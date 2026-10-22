@@ -4,7 +4,7 @@ slug: invariant-test-sweep-i1-i26
 title: Invariant test sweep — 02-data-model.md §9 I-1 through I-26
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [51, 59, 67, 103]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-22T05:00:54Z
+closed: 2026-10-22T20:09:50Z
 ---
 
 ## Description
