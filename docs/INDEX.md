@@ -11,7 +11,7 @@ them end to end is most of a context window. Find the section here, then read on
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 559 sections · regenerated 2026-10-22
+13 documents · 559 sections · regenerated 2026-10-23
 
 
 ## `docs/00-vision.md`
