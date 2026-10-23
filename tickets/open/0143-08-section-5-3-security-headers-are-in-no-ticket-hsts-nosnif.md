@@ -48,6 +48,11 @@ oversight rather than a deferral. Sequence with `0115` (secrets/dependency audit
 
 - [x] `Strict-Transport-Security`, `X-Content-Type-Options: nosniff` and a
       `frame-ancestors 'none'` directive are sent on every response from the app.
+      *Amended after deploy (D-444): every response Next serves, i.e. every document, redirect and
+      route handler. Amplify Hosting serves `_next/static/*` and `public/` files (`/maplibre/`,
+      `/basemap-assets/`) from its CDN without `next.config` `headers()`, which `next start` could not
+      show. CSP and `frame-ancestors` act only on documents, and HSTS is recorded from any response,
+      so nothing those files lack is a control.*
 - [x] A CSP is sent whose `connect-src` allows only the AppSync endpoint, the app's own origin, and
       the R2 tiles host — no wildcard, and the tiles host named rather than inherited.
       *Amended: plus `cognito-idp` and `cognito-identity` for the region. The browser calls both

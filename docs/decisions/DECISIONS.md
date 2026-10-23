@@ -5954,3 +5954,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     drift unseen.
   - The check reads tables and a named list of sentences, never the design reasoning around them
     (`0162`'s scope rule).
+- **D-444** **On Amplify Hosting, the security headers reach every response Next serves, not the
+  static files its CDN serves (`_next/static/*`, `public/`).** *(Orchestrator, 2026-10-22, `0143`
+  smoke test. Corrects the "static assets included" premise in D-441's placement reasoning.)*
+  `next start` applies `next.config` `headers()` to static paths, so this could not be seen before
+  deploy. Nothing is added for those paths: CSP and `frame-ancestors` act only on documents, every
+  document carries them, and HSTS is recorded from any response. Amplify `customHeaders` were
+  rejected as a second place to keep the same policy in step, for files where it does nothing.
