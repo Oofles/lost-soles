@@ -33,7 +33,7 @@ All 14 Lost Soles Lambda log groups and `/aws/amplify/d14fhvl4rp79nn` have no re
 - [x] Every Lost Soles Lambda log group is created by IaC with 30-day retention, so a new function inherits it. *(Via a `LogRetention` custom resource per function, which creates the group if it is missing and sets retention on it if it exists, rather than a CloudFormation-owned `LogGroup`: see Resolution. The CDK provider Lambda that applies it keeps its own group at 1 day, by CDK design.)*
 - [x] The Amplify app log group is set to 30 days (in IaC if reachable, else recorded as a one-off with the command). *(In IaC: a `LogRetention` on `/aws/amplify/d14fhvl4rp79nn`, branch deploys only.)*
 - [x] A synth test fails on a Lost Soles function without 30-day retention.
-- [ ] The live read shows 30 on all of them after deploy. *(Post-deploy; the orchestrator's read. One orphaned group, `...CustomS3AutoDeleteObject-t69xFGfsdOn4`, belongs to no current function, so IaC cannot reach it and it needs a one-off `put-retention-policy`.)*
+- [x] The live read shows 30 on all of them after deploy. — verified 2026-10-22, Amplify build 427 (see Operator validation). *(Post-deploy; the orchestrator's read. One orphaned group, `...CustomS3AutoDeleteObject-t69xFGfsdOn4`, belongs to no current function, so IaC cannot reach it and it needs a one-off `put-retention-policy`.)*
 
 ## Notes
 
@@ -42,6 +42,14 @@ Check how Amplify Gen 2 functions create their log groups before choosing betwee
 ## Operator validation
 
 Smoke test: the describe-log-groups read above, all 30. No perceptual check.
+
+**Result, 2026-10-22 (orchestrator, after Amplify build 427 of `67e8d78`):** `aws logs
+describe-log-groups --profile devault` over every `d14fhvl4rp79nn` group read 30 on 15 groups,
+including `/aws/amplify/d14fhvl4rp79nn` (set by IaC, no one-off needed), and `None` on the one
+orphaned `…CustomS3AutoDeleteObject-t69xFGfsdOn4`. I set that one by hand with `aws logs
+put-retention-policy … --retention-in-days 30`, and a re-read gave **16 × 30 days and 5 × 1 day**.
+The five 1-day groups are the `LogRetention` provider Lambdas, which CDK sets to 1 day by design
+(D-440); the synth test exempts them.
 
 D-123 trigger checked? none.
 

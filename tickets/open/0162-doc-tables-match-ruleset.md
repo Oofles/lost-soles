@@ -70,6 +70,12 @@ None. A CI check with no rendered surface. Verify by agent: each failure mode ab
 go RED on a seeded disagreement before the check is trusted green — this project has twice been
 bitten by a gate that had only ever been seen passing.
 
+**Result, 2026-10-22 (orchestrator):** the agent's self-test turned all 17 seeded disagreements red,
+and four applied at once gave four or more reports. On merged `main`, the full local gate passed with
+`check-doc-ruleset.mjs --self-test` and the real run green. Amplify build 427's log shows
+`check-doc-ruleset: self-test passed` and `04 §1.1 §1.2 §3.2, 02 §3.2 agree with
+rules/xp-rules-v3.yaml`. No rendered surface, so no perceptual check.
+
 ## Resolution
 
 **`scripts/check-doc-ruleset.mjs`** is the check D-193 recorded as missing. It runs in
