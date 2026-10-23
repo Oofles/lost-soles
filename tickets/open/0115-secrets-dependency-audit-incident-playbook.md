@@ -126,6 +126,14 @@ deployed app, view source and search for `ghp_`, `client_secret`, and the Strava
 value by hand, in the desktop browser, so the grep's result is confirmed by a human on the real
 artifact.
 
+**DLQ smoke test, 2026-10-22 (orchestrator, against Amplify job 426's deploy):**
+
+- 20:07:24Z: message `d2e36d72-…` sent to `ActivityIngestQueue`, with a non-JSON body.
+- 20:56:30Z: the message is in the DLQ, after `ApproximateReceiveCount` 4.
+- 20:58:18Z: alarm *"Lost Soles — an activity failed to import"* goes to ALARM, and its history shows *"Successfully executed action …IngestAlarms6E24538D…"* (SNS).
+- 20:58:32Z: the test message is deleted, and the DLQ is back to 0.
+- **Pending:** the operator confirms the email `ALARM: "Lost Soles — an activity failed to import"` arrived. Criterion 8 stays unticked until then.
+
 ## Resolution
 
 **Open at hand-off: one post-deploy write (the DLQ test).** The npm audit question was put to the
