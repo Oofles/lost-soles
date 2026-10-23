@@ -4,7 +4,7 @@ slug: doc-tables-match-ruleset
 title: Extend the doc-vs-ruleset assertion from 04 §1.3's example to the prose tables that restate rows
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-04T17:05:22Z
 started: 2026-10-23T02:20:14Z
+closed: 2026-10-23T02:58:45Z
 ---
 
 ## Description
