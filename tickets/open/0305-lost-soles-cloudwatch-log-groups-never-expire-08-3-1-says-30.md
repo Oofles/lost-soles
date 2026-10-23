@@ -89,5 +89,5 @@ belongs to no current function (an earlier deploy's provider), so it needs a one
 `put-retention-policy`. The other Amplify app groups in the account (`/aws/amplify/d1at27…` etc.)
 and the `amplify-lostsoles-root-sandbox` groups are not this app's branch deploy and are untouched.
 
-**Decisions.** None recorded here (agent rule); proposed to the orchestrator: the approach above,
+**Decisions.** None recorded here (agent rule); proposed to the orchestrator (recorded at merge as D-440): the approach above,
 and that the escape-hatch list in `01` §2 grows to six.

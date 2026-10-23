@@ -80,7 +80,7 @@ const buildEnv = {
  * SECURITY HEADERS ON EVERY RESPONSE. Ticket 0143, 08 §5.3; the policy and its reasoning are in
  * `lib/security-headers.ts`. Set HERE rather than in `middleware.ts` because the middleware
  * matcher skips `_next/static`, `/maplibre/` and `/basemap-assets/`, and HSTS and nosniff belong
- * on those too; with no nonce (D-NEW-a) nothing varies per request.
+ * on those too; with no nonce (D-441) nothing varies per request.
  *
  * The CSP names the AppSync, tiles and Cognito origins from `amplify_outputs.json`, read at build
  * time like the home coordinate above. CI builds against the example file, so its CSP names the

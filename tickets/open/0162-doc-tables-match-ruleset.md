@@ -164,6 +164,6 @@ and the unit-column wording. Those are the findings above.
 - this ticket
 
 **Not done, and why.** D-193 itself still says "not enforceable by a script today". That needs a
-follow-up line in `DECISIONS.md`, which this agent may not edit; it is proposed in the wave report.
+follow-up line in `DECISIONS.md`, which this agent may not edit; it is proposed in the wave report (recorded at merge as D-443).
 `src/rules/doc-schema.test.ts` still compares §1.3 against v2. That is harmless, because v3's
 scoring fields are v2's byte for byte, and it was left alone as outside this ticket.

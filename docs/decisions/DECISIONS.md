@@ -5898,3 +5898,59 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   outside the deploy. MapLibre requires absolute sprite URLs, so they are built from
   `location.origin`.
 
+- **D-438** **A "first-party origin" (06 §9.5's "no third-party requests") is the app's own origin
+  plus this account's AWS endpoints: everything in `amplify_outputs.json` (AppSync, the tiles
+  CloudFront, the queue URLs) and Cognito's regional endpoints.** *(Agent, 2026-10-22, `0113`.)*
+  They are AWS hostnames but this account's own resources. `scripts/check-third-party-origins.mjs`
+  runs over the built app after `npm run build`. It allows a short, reasoned list of hosts that
+  appear only as links (library error-doc links, licence attribution, SVG namespaces); any of those
+  in a request position (CSS `url()`, script or link `src`, `fetch`, WebSocket) still fails.
+- **D-439** **On a warm start, the fog revalidation waits for the map's first paint (MapLibre
+  `load` plus two frames), with a 10 s ceiling. A cold start does not wait.** *(Agent, 2026-10-22,
+  `0113`.)* This puts 06 §9.5's "fog payload fetched after first paint, never before" into code
+  (`lib/fog/paint-gate.ts`). It supersedes the `boot.ts` note that the request is in flight before
+  the set reaches the renderer. The 10 s ceiling is the shared API timeout (`lib/http/timeout.ts`),
+  so a map that never paints cannot hold the fog back for ever. The gate is not disposed on unmount,
+  because React Strict Mode's double mount would open it early. An unchanged payload (304) emits
+  nothing, so it causes no flash and no mask re-upload.
+- **D-440** **CloudWatch log retention is 30 days, set by a `LogRetention` custom resource that a
+  CDK Aspect adds for every Lambda in every backend stack, and for the Amplify hosting group on a
+  branch deploy.** *(Agent, 2026-10-22, `0305`.)* Lambda created every existing group on first
+  invoke and no stack owns them, so a CloudFormation `LogGroup` of the same name fails the deploy
+  with `AlreadyExists`. Amplify's `logging.retention` was rejected for three reasons: it makes a
+  new, differently named group and leaves the old ones never expiring; it detaches the webhook-flood
+  metric filter, which reads `/aws/lambda/<fn>` by name; and it covers only the `defineFunction`s,
+  not the framework Lambdas. `LogRetention` sets the policy by name and keeps `RETAIN`, so a teardown
+  never deletes a group. It adds one provider Lambda per stack (it logs at 1 day, which the synth
+  test exempts). This is the sixth CDK escape hatch in `01` §2.
+- **D-441** **The CSP has no nonce: `script-src 'self' 'unsafe-inline'`. It limits third-party
+  script and exfiltration; it does not stop injected inline script.** *(Operator, 2026-10-22,
+  `0143`. Amends `08` §5.3's "a strict CSP".)* In Next 15 a nonce reaches only pages rendered per
+  request, and D-282 keeps `/log` and `/skills` static so that `/log` renders offline. A nonce
+  everywhere would supersede D-282 and break the prerender guard. A hybrid gives no more protection,
+  because the tokens sit in `localStorage`, which every page of the origin shares, so the weakest
+  page sets the bound. What the CSP does do: `connect-src` and `img-src` name their origins;
+  `frame-src`, `object-src` and `frame-ancestors` are `'none'`; `base-uri` and `form-action` are
+  `'self'`; and `worker-src` is `'self'`. `react/no-danger` is an ESLint error in every file. The
+  headers are set in `next.config.ts` `headers()` (`lib/security-headers.ts`), not in middleware,
+  because the middleware matcher skips static paths and nothing varies per request.
+- **D-442** **`style-src` allows `'unsafe-inline'`; HSTS carries no `preload`.** *(Agent,
+  2026-10-22, `0143`.)* Server-rendered `style="…"` attributes can carry neither a nonce nor a hash,
+  and both the app and Amplify UI render them. Style injection is not script execution, and the
+  `url()` fetches it could trigger are still bounded by `img-src`, `font-src` and `connect-src`.
+  HSTS preload is omitted because the preload list would bind all of `devaultsecurity.com`.
+  `'unsafe-eval'` is added under `next dev` only.
+- **D-443** **D-193 is now enforced by a script: `scripts/check-doc-ruleset.mjs` runs in
+  `amplify.yml` and `gate.yml`, with a `--self-test` of 17 seeded disagreements.** *(Agent,
+  2026-10-22, `0162`. Follows D-193, which said "not enforceable by a script today".)*
+  - The docs are checked against the **newest** `rules/xp-rules-vN.yaml` (D-279: the ruleset a user
+    is scored under today). A passage about an older version must name it, and is checked against
+    that version.
+  - **Dated snapshots are checked, never exempted.** A section marked
+    `> **Ruleset snapshot: \`vN\`, YYYY-MM-DD.**` is compared with vN, and vN must be the version in
+    effect on that date.
+  - Any table in a top-level design doc or `docs/contracts/` whose first column names five or more
+    skills must be registered in the check's `PASSAGES`, so a new skill-enumerating table cannot
+    drift unseen.
+  - The check reads tables and a named list of sentences, never the design reasoning around them
+    (`0162`'s scope rule).

@@ -5,12 +5,12 @@
  * documents, route handlers, `_next/static`, `/maplibre/` and `/basemap-assets/` alike. That is
  * why it lives in config and not in `middleware.ts`: the middleware matcher deliberately skips the
  * static paths (a worker or glyph PBF must never take the auth redirect), and with no per-request
- * nonce (D-NEW-a) nothing here varies by request, so middleware has no reason to own it.
+ * nonce (D-441) nothing here varies by request, so middleware has no reason to own it.
  *
  * Imported by RELATIVE path from `next.config.ts`, so it must not use the `@/` alias and must not
  * import anything that does.
  *
- * ─── WHAT THIS CSP IS, HONESTLY (D-NEW-a) ────────────────────────────────────
+ * ─── WHAT THIS CSP IS, HONESTLY (D-441) ────────────────────────────────────
  *
  * `script-src 'self' 'unsafe-inline'`, no nonce. A nonce reaches only pages rendered per request,
  * and `/log`, `/skills` and `/skills/[skillId]` are static on purpose (D-282: `/log` must render
@@ -21,7 +21,7 @@
  * or a `<base>` rewrite. The other half of §5.3's XSS mitigation, no `dangerouslySetInnerHTML`,
  * is an ESLint error (`eslint.config.mjs`).
  *
- * `style-src 'unsafe-inline'` (D-NEW-b): server-rendered `style="…"` attributes cannot carry a
+ * `style-src 'unsafe-inline'` (D-442): server-rendered `style="…"` attributes cannot carry a
  * nonce or a hash, and the app and Amplify UI both render them. Style injection is not script
  * execution; the exfiltration paths it could open (`url()` fetches) are closed by `img-src`,
  * `font-src` and `connect-src` regardless.

@@ -88,8 +88,19 @@ skeleton, or a spinner over the map area.
       app origin plus every endpoint `amplify_outputs.json` names (AppSync, the tiles distribution);
       Cognito's endpoint is built at runtime from the region and is the same kind of origin. The
       browser-trace half needs a signed-in desktop browser and is not done.
+      *Orchestrator, 2026-10-22:* the browser half is taken in the same sitting as `0143`'s signed-in
+      map check. D-441's CSP names only first-party origins in every fetch directive, so a
+      third-party request at runtime would show as a CSP violation in the Console, and the
+      Network panel's Domain column is read at the same time.
 
 ## Notes
+
+**2026-10-22 — orchestrator answers to the build's open questions.** (1) Criterion 8's browser half
+goes into the wave's single perceptual sitting, beside `0143`'s signed-in map check, rather than
+being amended away. (2) The Sync button's server action has no 10 s cut-off. That is accepted: a hung
+sweep holds only the button ("Syncing…"), never a screen, which is what the criterion protects, and
+capability `14` removes the button. Decisions recorded at merge: D-438 (first-party origin), D-439
+(fog revalidation waits for first paint).
 
 The "no offline banner" rule will feel wrong the first time a payload is stale and the map looks
 slightly behind. It is still right: the plinth date is a truer statement than a banner, and it is

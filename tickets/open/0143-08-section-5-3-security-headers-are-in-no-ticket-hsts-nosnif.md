@@ -103,7 +103,7 @@ reasons:
 - Its matcher deliberately skips `_next/static`, `/maplibre/` and `/basemap-assets/`, because a
   worker or a glyph PBF must never take the auth redirect. HSTS and `nosniff` belong on those
   responses too.
-- With no nonce (D-NEW-a), nothing in the headers varies per request, so middleware has no reason
+- With no nonce (D-441), nothing in the headers varies per request, so middleware has no reason
   to own them.
 
 Checked with `curl` against `next start`:
@@ -138,13 +138,13 @@ frame-ancestors 'none'`. `next dev` alone adds `'unsafe-eval'`.
   - the worker at `/maplibre/maplibre-gl-worker.js`.
 
 **Decisions (proposed; the orchestrator allocates the ids).**
-- **D-NEW-a (operator, via the orchestrator): no nonce.**
+- **D-441 (operator, via the orchestrator): no nonce.**
   - `script-src 'self' 'unsafe-inline'`. A nonce reaches only pages rendered per request, and
     D-282 keeps `/log` and `/skills` static so `/log` renders offline. The route table is unchanged
     by this ticket, and `check-prerender-no-cell-data` is untouched.
   - §5.3's "strict CSP" is amended to say what this CSP actually does. It limits third-party script
     and exfiltration. It does not stop injected inline script.
-- **D-NEW-b: `style-src 'unsafe-inline'`.** Server-rendered `style="…"` attributes can carry neither
+- **D-442: `style-src 'unsafe-inline'`.** Server-rendered `style="…"` attributes can carry neither
   a nonce nor a hash. Style injection is not script execution, and the `url()` fetches it could
   cause are bounded by `img-src`, `font-src` and `connect-src` anyway.
 
@@ -167,10 +167,10 @@ It also asserts the exact `connect-src` list with no `*`, no eval outside dev, a
 when a host is missing. `types/next-path-to-regexp.d.ts` declares the one untyped function used.
 
 **Doc finding, amended.** In `docs/08-security-privacy.md` §5.3:
-- the Token storage row: "strict CSP" becomes the honest description (D-NEW-a);
+- the Token storage row: "strict CSP" becomes the honest description (D-441);
 - the Headers row: `*.cloudfront.net` becomes "named, never wildcarded";
 - the same row now lists the two Cognito endpoints, which it lacked;
-- the same row now says where the headers are set, and points at D-NEW-b.
+- the same row now says where the headers are set, and points at D-442.
 
 Both rows were edited in place, so no line numbers moved.
 
