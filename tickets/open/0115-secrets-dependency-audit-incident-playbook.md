@@ -81,12 +81,13 @@ ticket.
       60 (6 critical, 49 high), prod tree 4 (3 high). The 3 prod highs were fixed here with a patch
       bump of `next` (15.5.24 → 15.5.28) plus `overrides.next.postcss`. After: full tree 56, all
       in dev; prod tree 0. The dev tree is a follow-up ticket.
-- [ ] A poisoned message is deliberately sent, lands in the DLQ, and produces a visible signal in
+- [x] A poisoned message is deliberately sent, lands in the DLQ, and produces a visible signal in
       the place the operator actually checks ~~— with a screenshot of that signal~~. **Amended
       (D-229, D-185):** that place is the operator's **email inbox** (SNS email,
       `amazingbrandon@gmail.com`, confirmed). It is read on the desktop, not the phone. The evidence
       is the alarm's action history plus the email itself. The test is a write, so it is the
       orchestrator's post-deploy smoke; tick this after it runs.
+      — verified 2026-10-22: operator saw the email `ALARM: "Lost Soles — an activity failed to import"` in their inbox.
 - [x] ~~A $10/month billing alarm exists and has been test-fired;~~ **Superseded by D-361:** AWS cost
       alerting is not this project's. `0289` removed `0093`'s `CfnBudget`, and `describe-budgets`
       returns none. One month of real billing is recorded against the D-083 target. September
@@ -132,7 +133,7 @@ artifact.
 - 20:56:30Z: the message is in the DLQ, after `ApproximateReceiveCount` 4.
 - 20:58:18Z: alarm *"Lost Soles — an activity failed to import"* goes to ALARM, and its history shows *"Successfully executed action …IngestAlarms6E24538D…"* (SNS).
 - 20:58:32Z: the test message is deleted, and the DLQ is back to 0.
-- **Pending:** the operator confirms the email `ALARM: "Lost Soles — an activity failed to import"` arrived. Criterion 8 stays unticked until then.
+- **Operator, 2026-10-22:** the alarm email arrived in the inbox. Criterion 8 ticked.
 
 ## Resolution
 
