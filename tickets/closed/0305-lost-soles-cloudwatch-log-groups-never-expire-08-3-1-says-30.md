@@ -4,7 +4,7 @@ slug: lost-soles-cloudwatch-log-groups-never-expire-08-3-1-says-30
 title: Lost Soles CloudWatch log groups never expire; 08 §3.1 says 30 days
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-23T02:20:14Z
+closed: 2026-10-23T02:58:41Z
 ---
 
 ## Description
