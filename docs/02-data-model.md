@@ -767,7 +767,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `sanityCeilingUnits` | N/NULL | J3 | flag-only; never blocks (D-123) |
 | `minUnitsForCredit` | N | J3 | gates discovery, never XP; inert when `revealsGround: false` (04 §3.5, D-269) |
 | `feeds` | L of M | J4 | `[{skill, rate}]`. Constitution's 1/3 is a row's attribute, not a constant in the scorer. |
-| `exercises` | L of M | J5 | for `logMode: reps\|duration` — `{id, label, entry, quickValues}`, what `(app)/log/page.tsx` renders (D-061). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
+| `exercises` | L of M | J5 | for `logMode: reps\|duration\|trace` — `{id, label, entry, kind, quickValues}`, what `(app)/log/page.tsx` renders (D-061). `kind` is optional: the `ActivityKind` a log asserts (D-286). It is why `trace` is in the list — `xp-rules-v3` gave Vigil one exercise, `treadmill`, `kind: run`. The list, the shape and the `kind`/`logMode`/`unit` vocabularies above are checked against the newest ruleset by `scripts/check-doc-ruleset.mjs` (ticket `0162`). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
 
 The curve (`stepFormula: "4 * L^2"`, `maxLevel`, `deepMaxLevel` — D-130) is not per-skill:
 **D-131 explicitly rejected per-skill curve constants**, so it is one `RuleCurve` item stored in

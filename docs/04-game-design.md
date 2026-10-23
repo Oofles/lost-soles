@@ -44,10 +44,10 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 
 | Skill | Trains on | Unit | Flavour |
 |---|---|---|---|
-| **Wayfaring** | Running / walking / hiking with a trace | kilometre | Ground covered. The distance skill. **The only skill that opens the map** (D-189). |
-| **Vigil** | Running without a trace — treadmill, track, dead watch | kilometre | Full Wayfaring XP, no ground (D-132). |
-| **Roving** | Cycling with a trace | kilometre | 60 XP/km (D-189, rescaled by `0158`). Earns no map. |
-| **Cadence** | Cycling without a trace — stationary bike | kilometre | The pedalling rate, and a rhythm that goes nowhere. |
+| **Wayfaring** | Running / walking / hiking with a trace | km | Ground covered. The distance skill. **The only skill that opens the map** (D-189). |
+| **Vigil** | Running without a trace — treadmill, track, dead watch | km | Full Wayfaring XP, no ground (D-132). |
+| **Roving** | Cycling with a trace | km | 60 XP/km (D-189, rescaled by `0158`). Earns no map. |
+| **Cadence** | Cycling without a trace — stationary bike | km | The pedalling rate, and a rhythm that goes nowhere. |
 | **Might** | Pushups | rep | Pressing strength. |
 | **Fortitude** | Situps | rep | The core. Endurance of the trunk. |
 | **Endurance** | Planks | second | Holding a position against time. |
@@ -63,8 +63,10 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 MVP ships **nine enabled skills**: seven activity skills — Wayfaring, Vigil, Roving, Cadence,
 Might, Fortitude, Endurance — plus Cartography and Constitution (**D-122** — Slayer ships
 `enabled: false` because combat is out). Six was the count before D-132 added Vigil (ticket
-`0028`) and D-189 added the cycling pair (ticket `0157`); `rules/xp-rules-v1.yaml` is the
-authority and this list follows it, never the other way round.
+`0028`) and D-189 added the cycling pair (ticket `0157`); the newest `rules/xp-rules-vN.yaml` is
+the authority and this list follows it, never the other way round. The tables and counts in this
+section, and in §3.2, are asserted against that file by `scripts/check-doc-ruleset.mjs` (D-193,
+ticket `0162`): a row added to the YAML fails the build until it is added here.
 
 **Only Wayfaring opens the map** (D-189). Vigil and Cadence have no trace to project; Roving has
 one and deliberately does not use it, so a bike ride earns full XP and leaves the fog intact for
@@ -84,6 +86,10 @@ It is the skill that never stalls, because every skill feeds it.
 ```
 ceiling = (number of enabled rows in rules/xp-rules-vN.yaml) × maxLevel
 ```
+
+> **Ruleset snapshot: `v1`, 2026-09-04.** Checked against `v1` — the version effective on that
+> date — by `scripts/check-doc-ruleset.mjs`, not against the newest. D-193 permits a dated
+> snapshot; this line is what makes it one, and the check refuses a date and version that disagree.
 
 At `v1` — **9 enabled rows** (Wayfaring, Vigil, Roving, Cadence, Might, Fortitude, Endurance,
 Cartography, Constitution) and `maxLevel: 99`:
@@ -698,15 +704,15 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 
 | Skill | Unit | XP per unit | A typical session |
 |---|---|---|---|
-| Wayfaring | km | **100** | 8.85 km fully new = 885 |
-| Vigil | km | **100** | identical to Wayfaring, deliberately — D-132 |
-| Roving | km | **60** | 15 km = 900 (`0158`) |
-| Cadence | km | **60** | identical to Roving, as Vigil is to Wayfaring |
-| Might | pushup | **4** | 75 = 300 |
-| Fortitude | situp | **3** | 90 = 270 |
-| Endurance | plank-second | **1.5** (90/min) | 180 s = 270 |
-| Cartography | new cell | **2.15** (D-279) | 411 cells = 884 |
-| Constitution | — | 1/3 of activity XP | run 295 / strength 280 |
+| Wayfaring | `km` | **100** | 8.85 km fully new = 885 |
+| Vigil | `km` | **100** | identical to Wayfaring, deliberately — D-132 |
+| Roving | `km` | **60** | 15 km = 900 (`0158`) |
+| Cadence | `km` | **60** | identical to Roving, as Vigil is to Wayfaring |
+| Might | `rep` (pushup) | **4** | 75 = 300 |
+| Fortitude | `rep` (situp) | **3** | 90 = 270 |
+| Endurance | `second` (plank) | **1.5** (90/min) | 180 s = 270 |
+| Cartography | `cell` (new) | **2.15** (D-279) | 411 cells = 884 |
+| Constitution | `share` | 1/3 of activity XP | run 295 / strength 280 |
 
 **100 XP/km is the anchor**, chosen to be legible: a kilometre is a hundred, a mile is 161,
 a 5-mile run is about 800. Every other rate is derived from it.

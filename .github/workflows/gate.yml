@@ -127,6 +127,16 @@ jobs:
       - name: generated rules JSON matches its YAML
         run: node scripts/build-rules-json.mjs --check
 
+      # D-193 / ticket 0162. The design docs' prose tables that restate ruleset rows (04 §1.1,
+      # §1.2's dated snapshot, §3.2; 02 §3.2's attribute vocabularies) agree with the newest
+      # rules/xp-rules-vN.yaml. A skill row added to the YAML fails here until the docs gain it —
+      # the 0157 case, which happened twice while this held by review alone.
+      - name: doc-vs-ruleset check self-test
+        run: node scripts/check-doc-ruleset.mjs --self-test
+
+      - name: design-doc tables agree with the ruleset
+        run: node scripts/check-doc-ruleset.mjs
+
       # 05 §2.3 / ticket 0046. REVEAL_R_M (65 m, scoring, permanent under D-020) and
       # revealScale (~102 m, a shader look) are different numbers for different jobs.
       # Landed while the renderer does not exist yet, for the same reason the D-100 grep

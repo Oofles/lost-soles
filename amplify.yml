@@ -96,6 +96,8 @@ frontend:
         - node scripts/check-private-method-update.mjs --self-test
         - node scripts/check-private-method-update.mjs # 0206 — SWC crashes `this.#m().n++` in prod only
         - node scripts/build-rules-json.mjs --check # D-217 — the .json the ingest Lambda imports
+        - node scripts/check-doc-ruleset.mjs --self-test
+        - node scripts/check-doc-ruleset.mjs # D-193 / 0162 — design-doc tables agree with rules/xp-rules-vN.yaml
         # The one expensive check here (~6s): it copies the tree to /tmp, stubs the
         # adapter, and runs tsc over the result. Worth it — it is the only thing
         # that can see a dependency which does not go through an import statement.
