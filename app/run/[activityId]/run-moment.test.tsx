@@ -45,14 +45,15 @@ const names: Record<string, string> = { wayfaring: "Wayfaring", cartography: "Ca
 const RULES = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
 const row = (skillId: string, reason: string, xpAwarded: number) => ({ skillId, reason, xpAwarded, xpRulesVersion: RULES.version, isFloor: false })
 
-function ledgerHtml() {
+function ledgerElement() {
   const tally = tallyFor([row("wayfaring", "new_ground", 840), row("cartography", "cells_new", 45)], { wayfaring: 1000 }, RULES)
-  return renderToStaticMarkup(<TallyView summary={SUMMARY} tally={tally} skillName={(id: string) => names[id] ?? id} />)
+  return <TallyView summary={SUMMARY} tally={tally} skillName={(id: string) => names[id] ?? id} />
 }
+const ledgerHtml = () => renderToStaticMarkup(ledgerElement())
 
 describe("the static end state (criterion 2)", () => {
   const html = renderToStaticMarkup(
-    <EndState summary={SUMMARY} map={<div data-testid="map-shell" />} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
+    <EndState summary={SUMMARY} map={<div data-testid="map-shell" />} ledger={<div>{ledgerElement()}</div>} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
   )
 
   it("has the map, the ledger, both lines, ⟲ Relive and the route stats", () => {
@@ -82,7 +83,7 @@ describe("the static end state (criterion 2)", () => {
 describe("the ledger never depends on the graphics (criterion 8)", () => {
   it("renders every row and both lines with the map absent entirely", () => {
     const html = renderToStaticMarkup(
-      <EndState summary={SUMMARY} map={null} ledger={<div dangerouslySetInnerHTML={{ __html: ledgerHtml() }} />} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
+      <EndState summary={SUMMARY} map={null} ledger={<div>{ledgerElement()}</div>} kind={null} onRelive={noop} chronicle={CHRONICLE} frontier={<FrontierLine text="Unclaimed ground 1.2 km north" />} />,
     )
     const t = text(html)
     expect(t).toContain("Wayfaring")

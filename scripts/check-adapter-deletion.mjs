@@ -56,6 +56,9 @@ const COPY = [
   // Without it every importer failed to resolve the module and this check reported them
   // as adapter leaks — a true failure with an entirely misleading name.
   "rules",
+  // `next.config.ts` joined in 0143 for the same reason: `lib/security-headers.test.ts` imports
+  // it to assert the headers Next actually sends, so its absence read as an adapter leak.
+  "next.config.ts",
   "tsconfig.json", "next-env.d.ts", "package.json", "amplify_outputs.json",
   "amplify_outputs.example.json",
 ]

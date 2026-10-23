@@ -54,6 +54,16 @@ const config = [
   },
 
   {
+    // Ticket 0143, 08 §5.3. The token-storage row accepts JWTs in localStorage on the strength of
+    // two controls: a CSP, and NO `dangerouslySetInnerHTML`. This is the second, asserted rather
+    // than read. Every file, tests included: a test that needs raw HTML can render the element.
+    // `react/no-danger` sees both the JSX attribute and a createElement props object.
+    rules: {
+      "react/no-danger": "error",
+    },
+  },
+
+  {
     // Ticket 0025. A compile-time assertion is a type alias whose ONLY consumer is
     // `tsc --noEmit`:
     //

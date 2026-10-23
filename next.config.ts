@@ -4,6 +4,8 @@ import { join } from "node:path"
 
 import type { NextConfig } from "next"
 
+import { ALL_PATHS, securityHeaders, type CspOutputs } from "./lib/security-headers"
+
 // Path aliases are declared in tsconfig.json and NOWHERE else (01-architecture.md §5).
 // The existing devaultsecurity repo declares them twice and they have drifted; do not
 // reintroduce that here.
@@ -74,9 +76,29 @@ const buildEnv = {
   LOST_SOLES_BUILD_SHA: commitSha(),
 }
 
+/**
+ * SECURITY HEADERS ON EVERY RESPONSE. Ticket 0143, 08 §5.3; the policy and its reasoning are in
+ * `lib/security-headers.ts`. Set HERE rather than in `middleware.ts` because the middleware
+ * matcher skips `_next/static`, `/maplibre/` and `/basemap-assets/`, and HSTS and nosniff belong
+ * on those too; with no nonce (D-NEW-a) nothing varies per request.
+ *
+ * The CSP names the AppSync, tiles and Cognito origins from `amplify_outputs.json`, read at build
+ * time like the home coordinate above. CI builds against the example file, so its CSP names the
+ * example hosts; a real deploy builds after `pipeline-deploy` has written the real one.
+ */
+const amplifyOutputs = JSON.parse(readFileSync(join(process.cwd(), "amplify_outputs.json"), "utf8")) as CspOutputs
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   env: { ...homeEnv, ...buildEnv },
+  async headers() {
+    return [
+      {
+        source: ALL_PATHS,
+        headers: securityHeaders(amplifyOutputs, { dev: process.env.NODE_ENV === "development" }),
+      },
+    ]
+  },
 }
 
 export default nextConfig
