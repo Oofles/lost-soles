@@ -2774,7 +2774,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0113-offline-and-slow-connection-behaviour.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -6779,7 +6779,7 @@
     "title": "Self-host the basemap glyphs and sprite",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -6789,10 +6789,11 @@
     "source": "agent",
     "created": "2026-10-19T13:44:41Z",
     "started": "2026-10-22T05:00:54Z",
-    "path": "tickets/open/0293-self-host-the-basemap-glyphs-and-sprite.md",
-    "ready": true,
+    "closed": "2026-10-23T02:15:14Z",
+    "path": "tickets/closed/0293-self-host-the-basemap-glyphs-and-sprite.md",
+    "ready": false,
     "acceptance": {
-      "checked": 2,
+      "checked": 3,
       "total": 3
     }
   },

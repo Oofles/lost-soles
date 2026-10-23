@@ -4,7 +4,7 @@ slug: self-host-the-basemap-glyphs-and-sprite
 title: Self-host the basemap glyphs and sprite
 type: chore
 priority: high
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: [97]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T13:44:41Z
 started: 2026-10-22T05:00:54Z
+closed: 2026-10-23T02:15:14Z
 ---
 
 ## Description
