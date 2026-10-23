@@ -5,14 +5,19 @@
  * `wire.ts`, as `lib/runs/client.ts` explains.
  */
 
+import { withApiTimeout } from "@/lib/http/timeout"
 import { CHRONICLE_AFTER_PARAM, RUNS_CHRONICLE_PATH, type ChroniclePage } from "@/lib/runs/wire"
 
 type Fetch = typeof globalThis.fetch
 
 /** The page after `after`. Throws on any non-2xx: a failed page is retried on the next scroll, never shown as an error. */
-export async function fetchChroniclePage(after: string, fetchImpl: Fetch = globalThis.fetch): Promise<ChroniclePage> {
+export function fetchChroniclePage(after: string, fetchImpl: Fetch = globalThis.fetch): Promise<ChroniclePage> {
+  return withApiTimeout(`GET ${RUNS_CHRONICLE_PATH}`, (signal) => chroniclePage(after, fetchImpl, signal))
+}
+
+async function chroniclePage(after: string, fetchImpl: Fetch, signal: AbortSignal): Promise<ChroniclePage> {
   const url = `${RUNS_CHRONICLE_PATH}?${CHRONICLE_AFTER_PARAM}=${encodeURIComponent(after)}`
-  const response = await fetchImpl(url, { credentials: "same-origin", cache: "no-store" })
+  const response = await fetchImpl(url, { credentials: "same-origin", cache: "no-store", signal })
   if (!response.ok) throw new Error(`GET ${RUNS_CHRONICLE_PATH} returned ${response.status}`)
   const body = (await response.json()) as Partial<ChroniclePage>
   return {

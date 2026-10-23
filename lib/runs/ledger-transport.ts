@@ -8,7 +8,8 @@
  */
 
 import type { Schema } from "@/amplify/data/resource"
-import { API_TIMEOUT_MS, errorFrom } from "@/lib/log/transport"
+import { withApiTimeout } from "@/lib/http/timeout"
+import { errorFrom } from "@/lib/log/transport"
 
 import type { ActivityLedgerRow } from "./ledger"
 
@@ -20,11 +21,9 @@ function dataClient(): Promise<DataClient> {
   return client
 }
 
+/** `06` §9.5's 10 s, the shared helper (0113). Amplify's data client takes no signal; the race is the timeout. */
 function timed<T>(p: Promise<T>, what: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${API_TIMEOUT_MS} ms`)), API_TIMEOUT_MS)),
-  ])
+  return withApiTimeout(what, () => p)
 }
 
 /** Every ledger row this activity earned. A run is a handful of rows (one per skill and reason). */

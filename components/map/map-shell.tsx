@@ -33,6 +33,7 @@ import { MaskHud } from "./mask-hud"
 import { PerfOverlay } from "./perf-overlay"
 import { RegionJump } from "./region-jump"
 import { RevealScrub } from "./reveal-scrub"
+import { useMarkMapPainted } from "./explored-provider"
 import { useFogMask } from "./use-fog-mask"
 import { useLandmarks } from "./use-landmarks"
 import { useLatestRun, type LatestAnswer } from "./use-latest-run"
@@ -521,6 +522,26 @@ export function MapShell({
   const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog, look)
   const fogLayerRef = useRef(fogLayer)
   fogLayerRef.current = fogLayer
+
+  /**
+   * `0113`, `06` §9.5: THE MAP HAS PAINTED, SO THE FOG MAY NOW ASK THE NETWORK. MapLibre's `load` is
+   * its first visually complete render; `useFogMask` (declared above, so its effect runs first) adds
+   * the fog layer on the same commit, and two frames later that layer has drawn the cached set. A map
+   * that cannot paint at all opens the gate at once — there is no paint to protect. The provider's
+   * ceiling covers a map that never reaches either (`lib/fog/paint-gate.ts`).
+   */
+  const markPainted = useMarkMapPainted()
+  useEffect(() => {
+    if (unsupported) {
+      markPainted()
+      return
+    }
+    if (!loaded) return
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => markPainted())
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [loaded, unsupported, markPainted])
 
   /**
    * `0098`. A MODE CHANGE: the basemap variant swaps at once (a diffed `setStyle`, `swapBasemap` —

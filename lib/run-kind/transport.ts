@@ -7,7 +7,7 @@
  */
 
 import type { Schema } from "@/amplify/data/resource"
-import { API_TIMEOUT_MS } from "@/lib/log/transport"
+import { withApiTimeout } from "@/lib/http/timeout"
 
 import type { ActivityKindRow, KindChangeResult } from "./kind"
 
@@ -19,11 +19,9 @@ function dataClient(): Promise<DataClient> {
   return client
 }
 
+/** `06` §9.5's 10 s, the shared helper (0113). Amplify's data client takes no signal; the race is the timeout. */
 function timed<T>(p: Promise<T>, what: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${API_TIMEOUT_MS} ms`)), API_TIMEOUT_MS)),
-  ])
+  return withApiTimeout(what, () => p)
 }
 
 /** `REFUSED:<CODE>: detail` and `BUSY: detail` → the detail, which is written for a person. */

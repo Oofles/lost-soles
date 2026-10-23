@@ -1,3 +1,5 @@
+import { withApiTimeout } from "@/lib/http/timeout"
+
 import { FOG_UPDATE_PATH, fogBlobPath, type FogUpdate, type FogUpdateResponse } from "./wire"
 
 /**
@@ -5,7 +7,9 @@ import { FOG_UPDATE_PATH, fogBlobPath, type FogUpdate, type FogUpdateResponse } 
  *
  * Two calls and nothing else, behind an interface so that `boot.ts` — which owns every
  * decision in `02-data-model.md` §6.4 — can be tested with no network, no `fetch` and no
- * Next.js. The seam is also where `0113`'s offline behaviour will attach.
+ * Next.js. The seam is also where `0113`'s offline behaviour attaches: both calls run inside
+ * `withApiTimeout` (`06` §9.5's 10 s), so a hung route is a failed revalidation — the cached set
+ * stays on screen (`boot.ts`) — rather than a request that holds the map forever.
  */
 export interface FogTransport {
   /**
@@ -32,7 +36,7 @@ type Fetch = typeof globalThis.fetch
 
 export function httpTransport(fetchImpl: Fetch = globalThis.fetch): FogTransport {
   return {
-    async update(since) {
+    update: (since) => withApiTimeout(`GET ${FOG_UPDATE_PATH}`, async (signal): Promise<FogUpdateResponse> => {
       /**
        * `?since` AND `If-None-Match`, which is not belt-and-braces.
        *
@@ -59,6 +63,7 @@ export function httpTransport(fetchImpl: Fetch = globalThis.fetch): FogTransport
          * make the answer older.
          */
         cache: "no-store",
+        signal,
       })
 
       if (response.status === 304) return { status: 304 }
@@ -66,9 +71,9 @@ export function httpTransport(fetchImpl: Fetch = globalThis.fetch): FogTransport
         throw new FogTransportError(response.status, `GET ${FOG_UPDATE_PATH} → ${response.status}`)
       }
       return { status: 200, update: (await response.json()) as FogUpdate }
-    },
+    }),
 
-    async blob(generation) {
+    blob: (generation) => withApiTimeout(`GET ${fogBlobPath(generation)}`, async (signal) => {
       /**
        * `cache: "default"`, deliberately, and it is the whole reason the route is named by
        * generation. The response carries `immutable`, a generation is never rewritten, so
@@ -78,6 +83,7 @@ export function httpTransport(fetchImpl: Fetch = globalThis.fetch): FogTransport
       const response = await fetchImpl(fogBlobPath(generation), {
         credentials: "same-origin",
         cache: "default",
+        signal,
       })
       if (!response.ok) {
         throw new FogTransportError(
@@ -86,6 +92,6 @@ export function httpTransport(fetchImpl: Fetch = globalThis.fetch): FogTransport
         )
       }
       return new Uint8Array(await response.arrayBuffer())
-    },
+    }),
   }
 }

@@ -1,3 +1,4 @@
+import { withApiTimeout } from "@/lib/http/timeout"
 import type { WebRunInput } from "@/lib/trace-web/web"
 
 import {
@@ -46,10 +47,13 @@ export class RunFetchError extends Error {
  * path through the app. Every other non-2xx IS a fault and throws, so a broken deploy does not
  * present as a permanently missing line.
  */
-export async function fetchLatestRun(
-  fetchImpl: Fetch = globalThis.fetch,
-): Promise<RunFeatureCollection> {
+export function fetchLatestRun(fetchImpl: Fetch = globalThis.fetch): Promise<RunFeatureCollection> {
+  return withApiTimeout(`GET ${RUNS_LATEST_PATH}`, (signal) => latestRun(fetchImpl, signal))
+}
+
+async function latestRun(fetchImpl: Fetch, signal: AbortSignal): Promise<RunFeatureCollection> {
   const response = await fetchImpl(RUNS_LATEST_PATH, {
+    signal,
     credentials: "same-origin",
     /**
      * `no-store`, matching the route's own `Cache-Control`. The body is a precise record of
@@ -77,8 +81,12 @@ export async function fetchLatestRun(
  * `0085`, D-299. The permanent web's inputs, for `lib/trace-web/web.ts`. Same contract as
  * `fetchLatestRun`: a 404 is a signed-out map and reads as "no routes"; any other failure throws.
  */
-export async function fetchTraceWebRuns(fetchImpl: Fetch = globalThis.fetch): Promise<WebRunInput[]> {
-  const response = await fetchImpl(RUNS_WEB_PATH, { credentials: "same-origin", cache: "no-store" })
+export function fetchTraceWebRuns(fetchImpl: Fetch = globalThis.fetch): Promise<WebRunInput[]> {
+  return withApiTimeout(`GET ${RUNS_WEB_PATH}`, (signal) => traceWebRuns(fetchImpl, signal))
+}
+
+async function traceWebRuns(fetchImpl: Fetch, signal: AbortSignal): Promise<WebRunInput[]> {
+  const response = await fetchImpl(RUNS_WEB_PATH, { credentials: "same-origin", cache: "no-store", signal })
   if (response.status === 404) return []
   if (!response.ok) {
     throw new RunFetchError(response.status, `GET ${RUNS_WEB_PATH} returned ${response.status}`)
@@ -96,14 +104,14 @@ export async function fetchRunFacts(ids: readonly string[], fetchImpl: Fetch = g
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += RUNS_SUMMARY_MAX_IDS) chunks.push(ids.slice(i, i + RUNS_SUMMARY_MAX_IDS))
   const answers = await Promise.all(
-    chunks.map(async (chunk) => {
+    chunks.map((chunk) => withApiTimeout(`GET ${RUNS_SUMMARY_PATH}`, async (signal) => {
       const url = `${RUNS_SUMMARY_PATH}?${RUNS_SUMMARY_IDS_PARAM}=${chunk.map(encodeURIComponent).join(",")}`
-      const response = await fetchImpl(url, { credentials: "same-origin", cache: "no-store" })
+      const response = await fetchImpl(url, { credentials: "same-origin", cache: "no-store", signal })
       if (response.status === 404) return []
       if (!response.ok) throw new RunFetchError(response.status, `GET ${RUNS_SUMMARY_PATH} returned ${response.status}`)
       const body = (await response.json()) as { runs?: unknown }
       return Array.isArray(body?.runs) ? (body.runs as RunFacts[]) : []
-    }),
+    })),
   )
   return answers.flat()
 }

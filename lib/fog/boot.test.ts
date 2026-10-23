@@ -17,7 +17,8 @@ import { startFogSession, type FogState } from "./boot"
 import { decodeStats, resetDecodeStats } from "./decode"
 import { indexedDbCache, type ExploredCache } from "./explored-cache"
 import type { BucketInvalidator } from "./explored-set"
-import type { FogTransport } from "./transport"
+import { httpTransport, type FogTransport } from "./transport"
+import { API_TIMEOUT_MS } from "@/lib/http/timeout"
 import type { FogUpdate, FogUpdateResponse } from "./wire"
 
 /**
@@ -474,5 +475,122 @@ describe("revalidation triggers (05 §7.4)", () => {
 
     // Boot's own revalidation and both manual ones are the same request.
     expect(updates).toHaveLength(1)
+  })
+})
+
+/**
+ * TICKET `0113`, `06-ui-ux.md` §9.5 — the network is never on the critical path to seeing the map.
+ *
+ * Criterion 2 asks for a performance-timeline test that no fog fetch precedes the map's first paint.
+ * There is no browser in this suite (and D-287 rules out the cold-load half), so the timeline is
+ * faked: one ordered list that the paint gate and the transport both write to. The claim is ORDER,
+ * which a fake timeline states exactly; a real one would only add a browser to the same assertion.
+ */
+describe("0113 — the cached map paints before the fog asks the network", () => {
+  beforeEach(async () => {
+    await cache.write(UID, 42, BigUint64Array.from(BASE))
+  })
+
+  it("a warm start issues no fog request until the map has painted", async () => {
+    const timeline: string[] = []
+    const { transport } = fakeTransport({
+      update: async () => {
+        timeline.push("fetch")
+        return { status: 304 }
+      },
+    })
+    let markPainted!: () => void
+    const painted = new Promise<void>((resolve) => {
+      markPainted = resolve
+    })
+    const session = start(transport, {
+      onChange: (state) => {
+        states.push(state)
+        if (state.source === "cache") timeline.push("cached set emitted")
+      },
+      firstPaint: () => painted,
+    })
+
+    // Long enough for the IndexedDB read and any number of microtasks: the map has not painted, so
+    // nothing has gone to the network.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(timeline).toEqual(["cached set emitted"])
+
+    timeline.push("map painted")
+    markPainted()
+    await session.ready
+    expect(timeline).toEqual(["cached set emitted", "map painted", "fetch"])
+  })
+
+  it("a cold start does not wait — there is nothing cached to paint first", async () => {
+    await cache.discard(UID)
+    const { transport, updates } = fakeTransport()
+    const session = start(transport, { firstPaint: () => new Promise<void>(() => {}) })
+    await session.ready
+    expect(updates).toEqual([null])
+    expect(session.state.source).toBe("full")
+  })
+
+  it("a gate that fails still lets the revalidation go out", async () => {
+    const { transport, updates } = fakeTransport({ update: async () => ({ status: 304 }) })
+    const session = start(transport, { firstPaint: () => Promise.reject(new Error("no map")) })
+    await session.ready
+    expect(updates).toEqual([42])
+  })
+
+  /**
+   * Criterion 3. The 304 path emits NOTHING: the state after it is the same object, holding the same
+   * set and generation, so no consumer re-renders and `useFogMask`'s generation-keyed refresh — the
+   * only thing that re-uploads the mask — has nothing to see.
+   */
+  it("an unchanged payload (304) causes no state change at all", async () => {
+    const { transport, updates } = fakeTransport({ update: async () => ({ status: 304 }) })
+    const session = start(transport)
+    await session.ready
+    expect(updates).toEqual([42])
+    expect(states).toHaveLength(1)
+    expect(states[0]!.source).toBe("cache")
+    expect(session.state).toBe(states[0])
+
+    // And a focus revalidation answered 304 is just as silent.
+    await session.refresh()
+    expect(updates).toEqual([42, 42])
+    expect(states).toHaveLength(1)
+  })
+
+  it("an up-to-date plan is just as silent as a 304", async () => {
+    const { transport } = fakeTransport({
+      update: async () => ({ status: 200, update: update({ plan: "up-to-date" }) }),
+    })
+    const session = start(transport)
+    await session.ready
+    expect(states).toHaveLength(1)
+  })
+
+  /**
+   * Criterion 6, the read half. A route that never answers — no status, no error, no close — is cut
+   * off at 10 s by the transport's own timeout, and the cached map is on screen the whole time.
+   */
+  it("a hung fog route holds nothing: the cached map stays, and the session settles at 10 s", async () => {
+    vi.useFakeTimers()
+    const hung = vi.fn(() => new Promise<Response>(() => {}))
+    const session = start(httpTransport(hung as unknown as typeof fetch))
+    let settled = false
+    void session.ready.then(() => {
+      settled = true
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(hung).toHaveBeenCalledTimes(1)
+    expect(session.state.phase).toBe("ready")
+    expect(session.state.source).toBe("cache")
+
+    await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled).toBe(true)
+    expect(session.state.phase).toBe("ready")
+    expect(session.state.set?.size).toBe(BASE.length)
+    expect(session.state.message).toMatch(/offline/i)
   })
 })

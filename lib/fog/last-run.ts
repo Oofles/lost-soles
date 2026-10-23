@@ -1,3 +1,4 @@
+import { withApiTimeout } from "@/lib/http/timeout"
 import { decodeLastRunBlob } from "@/src/domain/explored-blob"
 
 import type { ExploredSet } from "./explored-set"
@@ -75,17 +76,17 @@ export class LastRunDays {
 export type LastRunFetch = (generation: number) => Promise<Uint8Array>
 
 export function httpLastRunFetch(fetchImpl: typeof globalThis.fetch = globalThis.fetch): LastRunFetch {
-  return async (generation) => {
+  return (generation) => withApiTimeout(`GET ${fogLastRunPath(generation)}`, async (signal) => {
     /**
      * `cache: "default"` for the cell blob's reason: the route is named by generation, a generation is
      * never rewritten, and the response is `private, immutable` — a re-open costs nothing.
      */
-    const response = await fetchImpl(fogLastRunPath(generation), { credentials: "same-origin", cache: "default" })
+    const response = await fetchImpl(fogLastRunPath(generation), { credentials: "same-origin", cache: "default", signal })
     if (!response.ok) {
       throw new FogTransportError(response.status, `GET ${fogLastRunPath(generation)} → ${response.status}`)
     }
     return new Uint8Array(await response.arrayBuffer())
-  }
+  })
 }
 
 /**

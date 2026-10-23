@@ -65,7 +65,12 @@ describe("loadLastRun", () => {
   it("fetches /api/fog/lastrun/<gen>, cacheable, and surfaces a 404 as an error", async () => {
     const fetchImpl = vi.fn(async () => new Response(null, { status: 404 }))
     await expect(httpLastRunFetch(fetchImpl as unknown as typeof fetch)(9)).rejects.toThrow(/404/)
-    expect(fetchImpl).toHaveBeenCalledWith("/api/fog/lastrun/9", { credentials: "same-origin", cache: "default" })
+    expect(fetchImpl).toHaveBeenCalledWith("/api/fog/lastrun/9", {
+      credentials: "same-origin",
+      cache: "default",
+      // `0113`: every API call carries the 10 s timeout's abort signal.
+      signal: expect.any(AbortSignal),
+    })
   })
 })
 

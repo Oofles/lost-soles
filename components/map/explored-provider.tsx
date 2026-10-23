@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { startFogSession, type FogState } from "@/lib/fog/boot"
 import { perfDataset } from "@/lib/fog/debug-flags"
 import { indexedDbCache } from "@/lib/fog/explored-cache"
+import { paintGate } from "@/lib/fog/paint-gate"
 import { loadPerfDataset } from "@/lib/fog/perf/dataset-source"
 import { httpTransport } from "@/lib/fog/transport"
 import { EXTRACT_FALLBACK, readCamera } from "@/lib/map-camera"
@@ -40,6 +41,18 @@ export function useExplored(): FogState {
   return useContext(ExploredContext)
 }
 
+const NO_GATE = (): void => {}
+const MapPaintedContext = createContext<() => void>(NO_GATE)
+
+/**
+ * `0113`. The map shell calls this once its canvas has painted, and the fog session's revalidation
+ * request goes out after it and not before (`06` §9.5; `lib/fog/paint-gate.ts`). Outside a provider
+ * it does nothing.
+ */
+export function useMarkMapPainted(): () => void {
+  return useContext(MapPaintedContext)
+}
+
 export function ExploredProvider({
   uid,
   children,
@@ -56,6 +69,17 @@ export function ExploredProvider({
   children: ReactNode
 }) {
   const [state, setState] = useState<FogState>(EMPTY)
+
+  /**
+   * `0113`. One gate per provider mount — the map paints once per mount, and a context-loss rebuild
+   * marking it again is a no-op. Built lazily in state rather than `useMemo` so a re-render can never
+   * swap it for a fresh, unopened one under a session already awaiting it. Created only in the
+   * browser: its ceiling is a timer, and a server render has no business starting one. It is not
+   * disposed on unmount: Strict Mode's mount-unmount-mount would open it before the map painted,
+   * and an un-awaited promise resolving at its 10 s ceiling costs nothing.
+   */
+  const [gate] = useState(() => (typeof window === "undefined" ? null : paintGate()))
+  const markPainted = gate ? gate.mark : NO_GATE
 
   /**
    * `0059` — `?fog=perf`. Read ONCE on mount, for the reason `useFogMask` reads its own flags once:
@@ -126,10 +150,15 @@ export function ExploredProvider({
        */
       cache: indexedDbCache(),
       onChange: setState,
+      ...(gate ? { firstPaint: () => gate.painted } : {}),
     })
 
     return () => session.dispose()
-  }, [uid, perf])
+  }, [uid, perf, gate])
 
-  return <ExploredContext.Provider value={state}>{children}</ExploredContext.Provider>
+  return (
+    <MapPaintedContext.Provider value={markPainted}>
+      <ExploredContext.Provider value={state}>{children}</ExploredContext.Provider>
+    </MapPaintedContext.Provider>
+  )
 }

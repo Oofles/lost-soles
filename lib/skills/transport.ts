@@ -18,7 +18,8 @@
  */
 
 import type { Schema } from "@/amplify/data/resource"
-import { API_TIMEOUT_MS, errorFrom } from "@/lib/log/transport"
+import { withApiTimeout } from "@/lib/http/timeout"
+import { errorFrom } from "@/lib/log/transport"
 
 import type { DetailLedgerRow, LandmarkRow } from "./detail"
 import type { SkillLedgerRow } from "./next"
@@ -39,11 +40,9 @@ function dataClient(): Promise<DataClient> {
   return client
 }
 
+/** `06` §9.5's 10 s, the shared helper (0113). Amplify's data client takes no signal; the race is the timeout. */
 function timed<T>(p: Promise<T>, what: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${API_TIMEOUT_MS} ms`)), API_TIMEOUT_MS)),
-  ])
+  return withApiTimeout(what, () => p)
 }
 
 /** The user's newest ledger rows, newest activity first, at most `LEDGER_ROWS`. */

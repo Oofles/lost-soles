@@ -108,6 +108,11 @@ frontend:
         # on an allowlist, and no prerendered page or static asset carries cell or trace data.
         - node scripts/check-prerender-no-cell-data.mjs --self-test
         - node scripts/check-prerender-no-cell-data.mjs
+        # 06 §9.5 / 0113. After the build, over what it produced: every absolute host the client
+        # bundle names is first-party (the app origin, amplify_outputs.json's endpoints) or a link
+        # with a written reason, and no request position names a third party.
+        - node scripts/check-third-party-origins.mjs --self-test
+        - node scripts/check-third-party-origins.mjs
         # AFTER the build, and the only place the LITERAL scan can run: this
         # container holds AWS credentials, so the real secret values come from
         # SSM. --require-literals makes it fail closed — if the SSM read breaks,

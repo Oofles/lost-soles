@@ -10,12 +10,10 @@
  */
 
 import type { Schema } from "@/amplify/data/resource"
+import { withApiTimeout } from "@/lib/http/timeout"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { LogRefusedError, type SendLog } from "@/lib/log/queue"
 import type { WorkoutEntry } from "@/lib/log/workout-entry"
-
-/** `06` §9.5: *"API timeout 10 s, then queue. No request is allowed to hold a screen."* */
-export const API_TIMEOUT_MS = 10_000
 
 /** `amplify/functions/log-workout`: errors the client caused are `REFUSED:<code>:<message>`. */
 const REFUSED = /^REFUSED:([A-Z_]+):?\s*(.*)$/s
@@ -29,22 +27,6 @@ function dataClient(): Promise<DataClient> {
   return client
 }
 
-function withTimeout<T>(p: Promise<T>, what: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${what} timed out after ${API_TIMEOUT_MS} ms`)), API_TIMEOUT_MS)
-    p.then(
-      (v) => {
-        clearTimeout(t)
-        resolve(v)
-      },
-      (e: unknown) => {
-        clearTimeout(t)
-        reject(e)
-      },
-    )
-  })
-}
-
 /** GraphQL errors from the data client → a refusal, or a retryable failure. */
 export function errorFrom(errors: readonly { message?: string; errorType?: string }[]): Error {
   for (const e of errors) {
@@ -56,7 +38,8 @@ export function errorFrom(errors: readonly { message?: string; errorType?: strin
 
 export const sendLog: SendLog = async (entry: WorkoutEntry) => {
   const c = await dataClient()
-  const { data, errors } = await withTimeout(
+  // `06` §9.5: *"API timeout 10 s, then queue."* A timeout is a failed flush: the entry stays queued.
+  const { data, errors } = await withApiTimeout("logWorkout", () =>
     c.mutations.logWorkout({
       exerciseId: entry.exerciseId,
       sets: entry.sets.map((s) => ({ ...s })),
@@ -64,7 +47,6 @@ export const sendLog: SendLog = async (entry: WorkoutEntry) => {
       idempotencyKey: entry.idempotencyKey,
       timezone: entry.timezone ?? null,
     }),
-    "logWorkout",
   )
   if (errors?.length) throw errorFrom(errors)
   if (!data) throw new Error("logWorkout returned no data")
@@ -74,7 +56,7 @@ export const sendLog: SendLog = async (entry: WorkoutEntry) => {
 /** The signed-in user's `SkillState` rows. Owner-scoped by AppSync; one page is every skill. */
 export async function fetchSkills(): Promise<CachedSkill[]> {
   const c = await dataClient()
-  const { data, errors } = await withTimeout(c.models.SkillState.list({ limit: 1000 }), "SkillState.list")
+  const { data, errors } = await withApiTimeout("SkillState.list", () => c.models.SkillState.list({ limit: 1000 }))
   if (errors?.length) throw errorFrom(errors)
   return data.map((s) => ({
     skillId: s.skillId,

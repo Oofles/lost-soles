@@ -24,9 +24,9 @@ import type { FogTransport } from "./transport"
  * before the request can be sent (D-228).
  *
  * **What the parallelism was for is preserved exactly.** The obligation is that first
- * paint does not wait for the network, and it does not — the cache read is local, the
- * request is in flight before the set is handed to the renderer, and nothing awaits the
- * response before painting. An IndexedDB read is a few milliseconds against a network
+ * paint does not wait for the network, and it does not — the cache read is local and nothing
+ * awaits the response before painting. Since `0113` the request is not even ISSUED until the
+ * cached set has painted (`firstPaint`, `06` §9.5). An IndexedDB read is a few milliseconds against a network
  * round trip; the alternative — a `localStorage` generation hint, so the request could be
  * sent first — buys that back at the cost of two sources of truth that can disagree, and
  * a disagreement here silently renders a map that is missing a run.
@@ -106,6 +106,24 @@ export interface FogSessionOptions {
    * button, which already exists. **Never a timer** — that is the upkeep D-013 rejects.
    */
   revalidateOnFocus?: boolean
+  /**
+   * `0113`, `06` §9.5: *"The fog payload is fetched after first paint, never before."* Resolves once
+   * the map canvas has painted the cached set. Awaited ONLY on a warm start — after step 1 put a
+   * cached set on screen and before step 2's request. A cold start has nothing to paint, and holding
+   * its only request back would only delay the first fog it can show.
+   *
+   * The provider passes the map's own signal (`components/map/explored-provider.tsx`). The default is
+   * the next two animation frames — the frame after React commits the cached set has been painted —
+   * and, where there are no frames to wait for (node, a test), nothing.
+   */
+  firstPaint?: () => Promise<void>
+}
+
+/** Two frames: the first runs before the commit's paint, the second after it. */
+export function nextPaint(): Promise<void> {
+  const raf = (globalThis as { requestAnimationFrame?: (cb: () => void) => number }).requestAnimationFrame
+  if (!raf) return Promise.resolve()
+  return new Promise((resolve) => raf(() => raf(() => resolve())))
 }
 
 export interface FogSession {
@@ -139,6 +157,7 @@ export function startFogSession(options: FogSessionOptions): FogSession {
     onChange,
     schedulePersist = idle,
     revalidateOnFocus = typeof document !== "undefined",
+    firstPaint = nextPaint,
   } = options
 
   let state: FogState = {
@@ -152,6 +171,15 @@ export function startFogSession(options: FogSessionOptions): FogSession {
   let inFlight: Promise<void> | null = null
 
   function emit(next: Partial<FogState>): void {
+    /**
+     * `0113`: A STATE THAT DID NOT CHANGE IS NOT EMITTED. The common revalidation — a 304, or an
+     * `up-to-date` plan — re-asserts `ready` with no message over a state that already says exactly
+     * that. Emitting it anyway hands React a new object, re-renders every consumer of the context,
+     * and asks a reader to prove that none of them re-uploads the mask on an identical set. Not
+     * emitting makes *"a 304 causes no visual change"* structural.
+     */
+    const keys = Object.keys(next) as (keyof FogState)[]
+    if (keys.every((k) => Object.is(state[k], next[k]))) return
     state = { ...state, ...next }
     if (!disposed) onChange(state)
   }
@@ -326,6 +354,7 @@ export function startFogSession(options: FogSessionOptions): FogSession {
   }
 
   async function boot(): Promise<void> {
+    let painted = false
     try {
       const cached = await cache?.readLatest(uid)
       if (cached && !disposed) {
@@ -342,10 +371,18 @@ export function startFogSession(options: FogSessionOptions): FogSession {
           generation: set.generation,
           message: null,
         })
+        painted = true
       }
     } catch {
       // A cache that will not read is a cold start. Nothing else changes.
     }
+    /**
+     * `0113`: THE CACHED SET IS PAINTED BEFORE THE NETWORK IS ASKED (`06` §9.5, §2.4: *"drawn before
+     * any network call"*). Until `0113` the request went out on the same tick as the cached emit —
+     * not blocking the paint, but competing with it for a slow connection's one bar. A gate that
+     * throws is treated as painted: the worst it can cost is the ordering, never the revalidation.
+     */
+    if (painted && !disposed) await firstPaint().catch(() => {})
     if (!disposed) await refresh()
   }
 

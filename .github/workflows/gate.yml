@@ -290,6 +290,13 @@ jobs:
 
       - name: C-2 — no prerendered page or static asset carries cell or trace data
         run: node scripts/check-prerender-no-cell-data.mjs
+
+      # 06 §9.5 / 0113. Reads the build above: no third-party origin the browser could request.
+      - name: third-party origins check self-test
+        run: node scripts/check-third-party-origins.mjs --self-test
+
+      - name: no third-party origin in the built app
+        run: node scripts/check-third-party-origins.mjs
       # Ticket 0115. The live half reads the DEPLOYED account and runs in amplify.yml's
       # backend phase, which holds credentials; this job holds none (0017), so only the
       # self-test is meaningful here. It proves the assertions still fire.
