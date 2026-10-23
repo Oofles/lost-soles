@@ -248,7 +248,8 @@ Amplify Gen 2 backends are AWS CDK. `defineBackend()` returns an object exposing
 generated construct, and `backend.createStack(name)` creates an arbitrary nested
 CloudFormation stack. AWS is explicit that **you own the correctness and security of
 anything added this way** — Amplify will not validate it. Keep it to these four uses
-*(five since D-350: the reconcile sweep's nightly `Schedule`; see the note below the grants)*:
+*(five since D-350: the reconcile sweep's nightly `Schedule`; six since `0305`: 30-day log
+retention; see the note below the grants)*:
 
 ```ts
 // amplify/backend.ts
@@ -326,6 +327,10 @@ sourceAccount.grantReadWriteData(backend.tokenRefresh.resources.lambda)
 > verify-token parameter (D-357). It still has no grant on `SourceAccount` or `ExploredCell`. Its
 > callback URL is the `IngestWebhookUrl` stack output plus `api/webhooks/<source>` (D-343). A fifth
 > escape-hatch use exists: `reconcile-sweep`'s nightly CDK `Schedule` (D-350).
+> A sixth (ticket `0305`): a CDK Aspect adding a `LogRetention` custom resource for every Lambda's
+> log group and the Amplify Hosting group, so all of them expire at 30 days (`08` §3.1, §6.1).
+> `defineFunction`'s own `logging.retention` was not used: it moves logs to a new group and reaches
+> none of the framework Lambdas (`amplify/log-retention.ts` says why in full).
 
 ### Strava's 2-second deadline — the precise design
 

@@ -337,6 +337,14 @@ secrets and coordinates leak, and an unbounded log group is both a liability and
 > shape, and the one line carrying `<redacted>` is the logger working. The retention half is a
 > follow-up ticket, and the account-deletion runbook's step 7 ("lines expire under the 30-day
 > retention") depends on it.
+>
+> **Fixed by `0305` (2026-10-22).** `amplify/log-retention.ts` is a CDK Aspect that gives every
+> `AWS::Lambda::Function` in every backend stack — framework Lambdas included — a `LogRetention`
+> custom resource setting `/aws/lambda/<name>` to 30 days, and sets `/aws/amplify/<appId>` the same
+> way on a branch deploy. `LogRetention`, not an explicit `LogGroup`: the groups already exist, and
+> CloudFormation creating one by name fails with `AlreadyExists`. The CDK provider Lambda that does
+> the work keeps its own group at **1 day**, by CDK design. `amplify/log-retention.test.ts` fails the
+> synth on a function without it.
 
 **Not secrets, and must not be mistaken for leaks:** `amplify_outputs.json` (Cognito pool ID,
 app client ID, identity pool ID, AppSync endpoint, **and the `custom` block**) and

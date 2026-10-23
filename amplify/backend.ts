@@ -58,6 +58,7 @@ import { reconcileSweep } from "./functions/reconcile-sweep/resource"
 import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { tokenRefresh } from "./functions/token-refresh/resource"
 import { storage } from "./storage/resource"
+import { applyLogRetention } from "./log-retention"
 
 /**
  * All three resources are wired from the first deploy on purpose (ticket 0012).
@@ -2247,3 +2248,11 @@ const sweepRecovering = new Alarm(ingestStack, "ReconcileSweepRecovering", {
   treatMissingData: TreatMissingData.NOT_BREACHING,
 })
 sweepRecovering.addAlarmAction(new SnsAction(ingestAlarms))
+
+/**
+ * 30-DAY LOG RETENTION on every Lambda's group and on the Amplify Hosting app's group (ticket
+ * 0305, `08-security-privacy.md` §3.1 and §6.1). An Aspect, so a function added anywhere above
+ * inherits it; why a `LogRetention` custom resource rather than a `LogGroup` is in
+ * `log-retention.ts`. The sixth escape-hatch use (`01-architecture.md` §2).
+ */
+applyLogRetention(backend.stack)
