@@ -25,7 +25,7 @@ predates `0097`. Without them, labels vanish on a cold cache or offline. Adventu
 
 - [x] Glyph PBFs and the sprite the style references are served from this project's own origin or the tiles CloudFront distribution (D-226), never a third party.
 - [x] A test fails if the built style names `protomaps.github.io` or any other third-party host.
-- [ ] Labels render in both variants on the deployed app with the browser's network panel showing no third-party font or sprite request.
+- [x] Labels render in both variants on the deployed app with the browser's network panel showing no third-party font or sprite request. — verified 2026-10-22: operator, desktop browser, adventure and `?basemap=atlas`; looks the same, no third-party request.
   *Not tickable before deploy.* Locally: `tools/fog-harness/tune.mjs` rendered both variants off the real archive with labels, POI icons and shields drawn from the self-hosted files, and `next start` served a glyph range and the sprite at 200 with no redirect. The deployed check is the post-deploy smoke test plus the operator's look below.
 
 ## Notes
@@ -38,6 +38,15 @@ Only the font stacks and sprite the fork actually uses need hosting.
 ## Operator validation
 
 Desktop browser: labels in adventure and `?basemap=atlas` look the same as before the change.
+
+**Result, 2026-10-22, after Amplify job 426 deployed `88a6798`:**
+
+- **Operator, desktop browser:** in `/` (adventure) and `/?basemap=atlas`, street names, water labels, POI icons and road shields look the same as before. The network panel shows font and sprite requests only to `soles.devaultsecurity.com/basemap-assets/`, none to `protomaps.github.io`.
+- **Smoke test (orchestrator):**
+  - All 8 sampled asset URLs return 200: three font stacks at 0-255, Regular 8192-8447, and `light`/`light@2x` `.json`/`.png`.
+  - The pbfs are `application/octet-stream`. Regular 0-255 is 76,044 bytes and `light.json` is 3,549 bytes, exactly as the agent predicted.
+  - No JS chunk on the deployed `/` names `protomaps.github.io`.
+- D-123 trigger checked? none.
 
 ## Resolution
 
