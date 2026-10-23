@@ -4,7 +4,7 @@ slug: secrets-dependency-audit-incident-playbook
 title: Secrets and dependency audit; incident playbook dry-read
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [6, 17, 96]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-22T05:00:54Z
+closed: 2026-10-23T02:19:23Z
 ---
 
 ## Description
