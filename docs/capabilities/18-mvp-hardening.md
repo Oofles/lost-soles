@@ -247,6 +247,45 @@ Re-run: `MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA node tools/fog-harness/run-cold-
 (`--size=WxH`, `--dpr=N`, `--dataset=50k|150k|500k`). Without the variable, Mesa picks the first
 adapter, which on this machine is the iGPU.
 
+## The dev-tree advisories (ticket `0308`, 2026-10-26)
+
+`0115` left the full tree at 56 advisories. By the time `0308` started it was **49: 6 critical,
+40 high, 3 moderate**, because lockfile churn had moved some of them. Each upgrade family went in
+on its own, with the full gate run after each.
+
+| Step | Change | Full tree after |
+|---|---|---|
+| vitest | `vitest` ^3.2.7 → **^5.0.5**. `vite` ^8.3.5 and `vite-node` ^6.0.0 are now direct devDependencies: vitest 5 takes `vite` as a peer and no longer ships `vite-node`, which `drill`, `drill:ci` and the `tools/` CLIs run on. Two source edits, both mechanical. Vite 8 transforms with oxc, so `esbuild: { jsx: "automatic" }` became `oxc: { jsx: { runtime: "automatic" } }`. And `ReturnType<typeof vi.fn>` no longer types as callable, so one test uses `Mock<() => void>` | 45 |
+| Amplify backend | `@aws-amplify/backend` ^1.25.1, `@aws-amplify/backend-cli` ^1.10.0, then `npm audit fix` (no `--force`) | 46 (the new CLI brings a newer codegen tree) |
+| `aws-cdk-lib` | ^2.267.0 → ^2.274.0, a minor. It **bundles** `brace-expansion`, so only a release can fix it (5.0.9 → 5.0.12) | 45 |
+| Overrides, all within a major (D-434: bump first, override second) | `handlebars` ^4.7.10 (`graphql-docs-generator` pins 4.7.9 exactly). `lodash` ^4.18.1 (old `@graphql-codegen/plugin-helpers` ask `~4.17.0`). `@ardatan/relay-compiler@12.0.0 → immutable ^3.8.4` (it asks `~3.7.6`; scoped, because `immutable` 5 is also in the tree). `mysql2` ^3.24.6 (`graphql-schema-generator` asks `~3.9.7`) | **39: 0 critical, 37 high, 2 moderate** |
+
+**Not cleared: three advisories, all in Amplify's own dependency tree.** The other 35 highs are
+packages in that tree (Amplify, `@graphql-codegen`, `@graphql-tools`, `@aws-blocks`) that npm flags only because they depend on the first two.
+
+| Advisory | Where | Why it stays |
+|---|---|---|
+| `@graphql-tools/utils` ≤ 12.0.0, GHSA-7mx3-vvmw-hjmv (high, `mergeDeep` prototype pollution) | v6, v7 and v9 copies, under `@aws-amplify/appsync-modelgen-plugin`, `graphql-generator` and old `@graphql-codegen/*`. These are `ampx`'s codegen, which `pipeline-deploy` runs | No fix below 12.0.1, so clearing it means a cross-major override of a library whose API changed between majors. That is a source-level change inside Amplify's codegen, and it can only be tested by a real `pipeline-deploy`, which writes. The latest `backend-cli` (1.10.0) still depends on these versions. Waits on upstream |
+| `zod` < 4.6.6, GHSA-mrhx-c7xc-m3w5 (high, memory exhaustion on oversized collections) | `zod` 3.25.x. `@aws-amplify/platform-core`, `cli-core`, `client-config` and others pin `3.25.17` exactly. Copies are also **bundled** inside `data-construct` and `graphql-api-construct` | There is no fixed 3.x. Zod 4 is a breaking API, an override cannot rewrite a bundled tarball (D-162), and the inputs zod validates here are the project's own backend config, never a request. Waits on upstream |
+| `csv-parse` < 7.0.2, GHSA-8cw4-87c7-c6xx (moderate) | `@aws-amplify/graphql-schema-generator` asks `^5.5.2` | Below the `high` gate threshold, and a two-major jump in an SQL schema importer this project does not use |
+
+**Therefore the gate is not widened.** It stays `npm audit --omit=dev --audit-level=high` on both
+surfaces (D-434). The runtime tree is still at 0.
+
+**`npm ci` re-test (`0128`): still fails**, now with 4 `Missing: @opentelemetry/core@2.0.0 from
+lock file` lines instead of ~95. The bundled-tree shape D-162 describes is still there. `npm install
+--no-save` from a clean copy of `package.json` and the lock leaves the lock byte-identical (md5
+`18a733a7…` before and after).
+
+**Dependabot** reported 31 open alerts on `main` before this ticket (4 critical, 10 high, 13
+medium, 4 low). It counts one alert per advisory per package, and only for the package that carries
+the vulnerable code, so it does not count the 35 parent packages that npm flags. The two lists
+agree on the leaf packages. Dependabot rates some of them lower than npm does (`brace-expansion`
+and `@vitest/mocker` are medium there), and it does not report the `zod` advisory. After this ticket
+the only alerts that should stay open are `@graphql-tools/utils` GHSA-7mx3-vvmw-hjmv (high) and
+`csv-parse` (medium). GHSA-c4qx-w738-7hr3 covers only `@graphql-tools/utils` 10.10.1–12.0.1, and
+the tree now holds 6.x, 7.x, 9.x and 12.1.0.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

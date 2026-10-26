@@ -39,8 +39,11 @@ export default defineConfig({
    * `React` that a server component never imports. The automatic runtime is what
    * Next itself compiles with, so this makes the test transform match the build
    * rather than introducing a second dialect.
+   *
+   * Ticket 0308: Vite 8 transforms with oxc, not esbuild, so the option moved
+   * from `esbuild: { jsx: "automatic" }` to `oxc.jsx.runtime`. Same setting.
    */
-  esbuild: { jsx: "automatic" },
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     /**
      * Ticket 0230. Every test file gets a private TMPDIR, removed after the file, so the CDK

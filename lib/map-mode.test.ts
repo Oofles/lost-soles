@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi, type Mock } from "vitest"
 
 import { FogAnimator, type AnimationHost } from "./fog/animation"
 import { ADVENTURE, ATLAS } from "./fog/fog-uniforms"
@@ -254,7 +254,7 @@ describe("reduced motion — criterion 7", () => {
 describe("atlas freezes the mist where it is (D-375)", () => {
   function host(reduced = false) {
     let cb: ((t: number) => void) | null = null
-    const h: AnimationHost & { fire(t: number): void; raf: ReturnType<typeof vi.fn> } = {
+    const h: AnimationHost & { fire(t: number): void; raf: Mock<() => void> } = {
       raf: vi.fn(),
       requestAnimationFrame: (c) => {
         h.raf()

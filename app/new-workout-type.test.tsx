@@ -70,16 +70,16 @@ async function world(data: typeof BEFORE | typeof AFTER) {
   vi.resetModules()
   vi.doMock(DATA_MODULES.rules, () => ({ BUNDLED_RULES: data.bundle }))
   vi.doMock(DATA_MODULES.sigils, () => ({ default: data.sigils }))
-  const [{ LogPage }, { SkillsPanel }, { skillsPanel }, { nextLine }, { rulesForSkills, awardFor }, { logRows, entryFor }, { default: Home }] =
-    await Promise.all([
-      import("@/app/log/log-page"),
-      import("@/app/skills/skills-panel"),
-      import("@/lib/skills/panel"),
-      import("@/lib/skills/next"),
-      import("@/lib/log/optimistic"),
-      import("@/lib/log/rows"),
-      import("@/app/(home)/layout"),
-    ])
+  // Sequential, not `Promise.all` (0308): under Vitest 5, concurrent `import()`s straight after
+  // `vi.resetModules()` can hand back a module instance from the previous world, so AFTER read
+  // BEFORE's ruleset. One at a time, each import sees the fresh graph.
+  const { LogPage } = await import("@/app/log/log-page")
+  const { SkillsPanel } = await import("@/app/skills/skills-panel")
+  const { skillsPanel } = await import("@/lib/skills/panel")
+  const { nextLine } = await import("@/lib/skills/next")
+  const { rulesForSkills, awardFor } = await import("@/lib/log/optimistic")
+  const { logRows, entryFor } = await import("@/lib/log/rows")
+  const { default: Home } = await import("@/app/(home)/layout")
   const rules = rulesForSkills([])
   return {
     rules,
