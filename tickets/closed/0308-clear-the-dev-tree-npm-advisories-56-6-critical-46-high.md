@@ -4,7 +4,7 @@ slug: clear-the-dev-tree-npm-advisories-56-6-critical-46-high
 title: Clear the dev-tree npm advisories (56: 6 critical, 46 high)
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T15:07:00Z
+closed: 2026-10-26T18:54:06Z
 ---
 
 ## Description
