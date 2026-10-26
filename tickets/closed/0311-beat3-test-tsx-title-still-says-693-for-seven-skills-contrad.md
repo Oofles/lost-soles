@@ -4,7 +4,7 @@ slug: beat3-test-tsx-title-still-says-693-for-seven-skills-contrad
 title: beat3.test.tsx title still says 693 for seven skills, contradicting D-192
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T20:52:53Z
+closed: 2026-10-26T21:18:38Z
 ---
 
 ## Description

@@ -7221,7 +7221,7 @@
     "title": "beat3.test.tsx title still says 693 for seven skills, contradicting D-192",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7229,8 +7229,9 @@
     "source": "agent",
     "created": "2026-10-22T19:51:44Z",
     "started": "2026-10-26T20:52:53Z",
-    "path": "tickets/open/0311-beat3-test-tsx-title-still-says-693-for-seven-skills-contrad.md",
-    "ready": true,
+    "closed": "2026-10-26T21:18:38Z",
+    "path": "tickets/closed/0311-beat3-test-tsx-title-still-says-693-for-seven-skills-contrad.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
