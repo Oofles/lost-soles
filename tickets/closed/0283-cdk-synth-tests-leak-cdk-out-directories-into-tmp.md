@@ -4,13 +4,14 @@ slug: cdk-synth-tests-leak-cdk-out-directories-into-tmp
 title: CDK synth tests leak cdk.out directories into /tmp
 type: chore
 priority: med
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-16T15:19:43Z
+closed: 2026-10-26T02:05:59Z
 ---
 
 ## Description
