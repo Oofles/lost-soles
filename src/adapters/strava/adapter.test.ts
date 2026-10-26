@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join, relative } from "node:path"
 
 import { describe, expect, it, vi } from "vitest"
 
@@ -20,6 +21,63 @@ import { assertStreamsAligned, openRawEnvelope, uploadIdOf } from "./raw-envelop
  * no replay (`03-integrations.md` §2.3). Without this there is no way to notice a run went
  * missing, so the tests are written against loss rather than against the happy path.
  */
+
+/**
+ * Ticket 0295. The two repo-wide scans below walk the FILESYSTEM, not the git index, so an
+ * agent worktree under `.claude/worktrees/` (gitignored, WAVES §2) is a full second copy of
+ * the repository sitting inside it. Every wave gate runs while those exist, and each one's
+ * `scripts/make-strava-fixture.mjs` read as an unexempted polyline importer.
+ *
+ * The exclusion is the PATH `<root>/.claude/worktrees`, not the name `.claude`: the rest of
+ * `.claude/` (the tracked `/tickets` skill) is this repository's own code and stays scanned.
+ * Keyed on `root`, so the scan run from inside a worktree is that worktree's own tree.
+ */
+const AGENT_WORKTREES = join(".claude", "worktrees")
+
+const sourceWalker = (root: string, skip: ReadonlySet<string>) => {
+  const worktrees = join(root, AGENT_WORKTREES)
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const full = join(dir, e.name)
+      if (skip.has(e.name) || full === worktrees) return []
+      if (e.isDirectory()) return walk(full)
+      return /\.(ts|tsx|mjs|js)$/.test(e.name) ? [full] : []
+    })
+  return walk
+}
+
+describe("the repo-wide scans see only the repository's own tree (0295)", () => {
+  it("does not descend into an agent worktree, but does scan the rest of .claude/", () => {
+    const root = mkdtempSync(join(tmpdir(), "repo-walk-"))
+    const put = (rel: string) => {
+      mkdirSync(join(root, rel, ".."), { recursive: true })
+      writeFileSync(join(root, rel), "import polyline from \"@mapbox/polyline\"\n")
+    }
+    put("src/a.ts")
+    put(".claude/skills/tickets/scripts/tickets.mjs")
+    put(".claude/worktrees/agent-x/scripts/make-strava-fixture.mjs")
+    put(".claude/worktrees/agent-x/src/a.ts")
+    put("node_modules/p/index.js")
+
+    const found = sourceWalker(root, new Set(["node_modules"]))(root)
+      .map((f) => relative(root, f))
+      .sort()
+
+    expect(found).toEqual([".claude/skills/tickets/scripts/tickets.mjs", "src/a.ts"])
+  })
+
+  it("treats a worktree's own .claude/worktrees as excluded, not the parent's path", () => {
+    // Run from inside `.claude/worktrees/agent-x`, root IS the worktree: its files are scanned.
+    const outer = mkdtempSync(join(tmpdir(), "repo-walk-"))
+    const root = join(outer, ".claude", "worktrees", "agent-x")
+    mkdirSync(join(root, "scripts"), { recursive: true })
+    writeFileSync(join(root, "scripts", "make-strava-fixture.mjs"), "")
+
+    expect(sourceWalker(root, new Set())(root).map((f) => relative(root, f))).toEqual([
+      "scripts/make-strava-fixture.mjs",
+    ])
+  })
+})
 
 const USER = "b3f1c2d4-0000-4000-8000-000000000001"
 const WATERMARK = "2026-09-01T00:00:00.000Z"
@@ -254,20 +312,10 @@ describe("the polyline is a signal and nothing else", () => {
      * `scripts/` holds `check-boundaries.mjs`, whose whole job is to carry this word in a
      * pattern. A gate that cannot name what it forbids is not a gate.
      */
-    const skip = new Set([
-      "node_modules", ".next", ".amplify", ".git", ".npm", "docs", "tickets", "scripts",
-    ])
-
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-        skip.has(e.name)
-          ? []
-          : e.isDirectory()
-            ? walk(join(dir, e.name))
-            : /\.(ts|tsx|mjs|js)$/.test(e.name)
-              ? [join(dir, e.name)]
-              : [],
-      )
+    const walk = sourceWalker(
+      root,
+      new Set(["node_modules", ".next", ".amplify", ".git", ".npm", "docs", "tickets", "scripts"]),
+    )
 
     /**
      * A COMMENT NAMING IT IS NOT A USE, and the distinction has to be drawn or this test
@@ -813,17 +861,10 @@ describe("no polyline decoder exists anywhere in this repository", () => {
 
     expect(declared).toEqual([])
 
-    const skip = new Set(["node_modules", ".next", ".amplify", ".git", ".npm", "docs", "tickets"])
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-        skip.has(e.name)
-          ? []
-          : e.isDirectory()
-            ? walk(join(dir, e.name))
-            : /\.(ts|tsx|mjs|js)$/.test(e.name)
-              ? [join(dir, e.name)]
-              : [],
-      )
+    const walk = sourceWalker(
+      root,
+      new Set(["node_modules", ".next", ".amplify", ".git", ".npm", "docs", "tickets"]),
+    )
 
     const importers = walk(root)
       .filter((f) => /^\s*import\b.*polyline|require\(["'][^"']*polyline/im.test(readFileSync(f, "utf8")))
