@@ -5997,3 +5997,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   override second (D-434), whose `npm audit --omit=dev --audit-level=high` gate stays the
   build-time control; alerts cover the gap between pushes. They start with roughly 56 dev-tree
   advisories, which `0308` clears.
+- **D-450** **The audit gate stays `--omit=dev`; the full tree is not gated while Amplify's own tree
+  carries highs.** *(Agent, 2026-10-26, `0308`. Re-affirms D-434 and D-163.)* After `0308` the full
+  tree has 0 critical but 37 high. They come from two leaf advisories inside Amplify's tree:
+  `@graphql-tools/utils` GHSA-7mx3, which has no fix below 12.0.1 in the codegen, and `zod` 3.x
+  GHSA-mrhx, which Amplify pins exactly and also bundles. Overrides stay within a major (D-434),
+  because only a writing `pipeline-deploy` can test a cross-major override inside codegen. The
+  remaining advisories are listed in `docs/capabilities/18-mvp-hardening.md`. A full-tree gate with
+  an allowlist is a separate design question, filed as its own ticket.

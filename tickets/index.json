@@ -7136,7 +7136,7 @@
     "path": "tickets/open/0308-clear-the-dev-tree-npm-advisories-56-6-critical-46-high.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 4
     }
   },
@@ -7217,7 +7217,7 @@
     "path": "tickets/open/0312-tickets-mjs-waves-serializes-a-wide-layer-s-chunks-so-a-tick.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7321,6 +7321,46 @@
     "acceptance": {
       "checked": 0,
       "total": 2
+    }
+  },
+  {
+    "id": 318,
+    "slug": "widen-the-npm-audit-gate-to-the-full-tree-with-a-reviewed-ad",
+    "title": "Widen the npm audit gate to the full tree with a reviewed advisory allowlist",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T16:05:00Z",
+    "path": "tickets/open/0318-widen-the-npm-audit-gate-to-the-full-tree-with-a-reviewed-ad.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 319,
+    "slug": "re-check-the-amplify-tree-advisories-graphql-tools-utils-zod",
+    "title": "Re-check the Amplify-tree advisories (@graphql-tools/utils, zod) on the next backend-cli release",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T16:05:00Z",
+    "path": "tickets/open/0319-re-check-the-amplify-tree-advisories-graphql-tools-utils-zod.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]

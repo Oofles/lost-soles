@@ -110,7 +110,7 @@ After the push, only GHSA-7mx3 (high) and `csv-parse` (medium) should remain ope
 - `lib/map-mode.test.ts`: the `Mock` type.
 - `docs/capabilities/18-mvp-hardening.md`: new section, "The dev-tree advisories (ticket `0308`)".
 
-**Decisions:** none recorded. Widening the gate was conditional on a clean full tree, which this
+**Decisions:** D-450 (orchestrator-recorded from this ticket's proposal) re-affirms the `--omit=dev` gate. Widening the gate was conditional on a clean full tree, which this
 ticket could not reach. A possible allowlisted full-tree gate is proposed to the orchestrator, not
 built.
 
