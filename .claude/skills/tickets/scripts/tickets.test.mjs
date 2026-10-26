@@ -2551,6 +2551,15 @@ describe("0269 — waves: a capability's open tickets layered for parallel agent
     assert.deepEqual(ids(planWaves("13-x", ts, { max: 2 })), [[4, 2], [3, 5]]);
   });
 
+  test("0312: waves fill greedily — a ticket unblocked by wave 1 is in wave 2, not behind the rest of its layer", () => {
+    // Wide layer of six, max 2. 113 (high) depends on 1 (wave 1); the layer's other
+    // low tickets used to fill waves 2 and 3 before 113 could start.
+    const ts = [T({ id: 1, priority: "high" }), T({ id: 2, priority: "high" }),
+      T({ id: 3, priority: "low" }), T({ id: 4, priority: "low" }), T({ id: 5, priority: "low" }), T({ id: 6, priority: "low" }),
+      T({ id: 113, priority: "high", depends_on: [1] }), T({ id: 114, priority: "low", depends_on: [113] })];
+    assert.deepEqual(ids(planWaves("13-x", ts, { max: 2 })), [[1, 2], [113, 3], [4, 5], [6, 114]]);
+  });
+
   test("D-151's overrun-risk capabilities stay one ticket at a time, whatever --max says", () => {
     for (const cap of ["08-map", "09-xp", "12-post"]) {
       const ts = [T({ id: 1, capability: cap }), T({ id: 2, capability: cap })];

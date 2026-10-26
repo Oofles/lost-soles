@@ -1795,11 +1795,12 @@ function cmdNext(flags) {
 // ──────────────────────────────────────────────────────────────── waves ────
 
 /**
- * D-312. A capability's open tickets, layered by depends_on into waves that can be
+ * D-312. A capability's open tickets, scheduled by depends_on into waves that can be
  * built in parallel, one agent and one worktree per ticket. Wave 1 is ready now;
- * wave k is ready once waves 1..k-1 have merged. A wave wider than `max` is split
- * in priority order, because merging is the cost that grows with width: tickets in
- * one capability touch the same files (D-151).
+ * wave k is ready once waves 1..k-1 have merged. A wave holds at most `max`, because
+ * merging is the cost that grows with width: tickets in one capability touch the same
+ * files (D-151). Waves fill greedily (0312): each takes the highest-priority tickets
+ * whose deps are all in earlier waves, so an early unblock never queues behind a layer.
  *
  * The capabilities D-151 marks as overrun risks keep their one-ticket-at-a-time
  * rule, as waves of width 1.
@@ -1823,32 +1824,37 @@ function planWaves(capability, tickets, { max = WAVE_MAX } = {}) {
     else if (outside.length) held.set(t.fm.id, `waits on ${outside.map((d) => `${pad(d)} (${index.get(d)?.fm?.capability ?? "unknown"})`).join(", ")}, outside this capability`);
     else if (t.fm.size === "l") held.set(t.fm.id, "size l — split it first");
   }
-  const layers = [];
+  // 0312. Greedy fill: each wave takes up to `width` of the tickets whose in-capability deps
+  // are all in earlier waves, highest priority first, ties by lowest id. Cutting whole
+  // topological layers into chunks made a ticket unblocked by wave 1 wait for every chunk
+  // of its predecessor's layer.
+  const waves = [];
   const placed = new Set();
+  const inCapDeps = (t) => (t.fm.depends_on ?? []).filter((d) => inCap.has(d));
   let rest = members.filter((t) => !held.has(t.fm.id));
   while (rest.length) {
-    const inCapDeps = (t) => (t.fm.depends_on ?? []).filter((d) => inCap.has(d));
-    const layer = rest.filter((t) => inCapDeps(t).every((d) => placed.has(d)));
-    const stuck = rest.filter((t) => !layer.includes(t));
+    const ready = rest.filter((t) => inCapDeps(t).every((d) => placed.has(d)));
+    const stuck = rest.filter((t) => !ready.includes(t));
     // A dependency on a held ticket holds this one too; anything else left is a cycle.
     for (const t of stuck) {
       const h = inCapDeps(t).find((d) => held.has(d));
       if (h !== undefined) held.set(t.fm.id, `waits on ${pad(h)}, which is held`);
     }
-    if (!layer.length) {
+    if (!ready.length) {
       for (const t of stuck) if (!held.has(t.fm.id)) held.set(t.fm.id, "in a depends_on cycle — run validate");
       break;
     }
-    layer.sort((a, b) => (PRIO_RANK[a.fm.priority] ?? 9) - (PRIO_RANK[b.fm.priority] ?? 9) || a.fm.id - b.fm.id);
-    for (let i = 0; i < layer.length; i += width) layers.push(layer.slice(i, i + width));
-    for (const t of layer) placed.add(t.fm.id);
-    rest = stuck.filter((t) => !held.has(t.fm.id));
+    ready.sort((a, b) => (PRIO_RANK[a.fm.priority] ?? 9) - (PRIO_RANK[b.fm.priority] ?? 9) || a.fm.id - b.fm.id);
+    const wave = ready.slice(0, width);
+    waves.push(wave);
+    for (const t of wave) placed.add(t.fm.id);
+    rest = rest.filter((t) => !placed.has(t.fm.id) && !held.has(t.fm.id));
   }
   return {
     capability,
     width,
     gatedOn: auditBlockers(capability, tickets),
-    waves: layers,
+    waves,
     held: members.filter((t) => held.has(t.fm.id)).map((t) => ({ ticket: t, reason: held.get(t.fm.id) })),
   };
 }

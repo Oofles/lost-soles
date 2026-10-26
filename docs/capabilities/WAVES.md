@@ -21,6 +21,11 @@ node .claude/skills/tickets/scripts/tickets.mjs waves <cap> --max 3
 Wave 1 is ready now. Wave *k* becomes ready once waves 1..*k*-1 have merged. `held` says why a
 ticket cannot be scheduled. Width defaults to 4, because merge cost grows with width: tickets in one
 capability touch the same files (D-151). Capabilities `08`, `09` and `12` stay at width 1.
+Waves fill greedily (`0312`): each takes up to the width of the tickets whose in-capability
+`depends_on` are all in earlier waves, highest priority first, then lowest id. A ticket unblocked
+by wave 1 is in wave 2, not queued behind the rest of its topological layer. The flip side: a
+ticket that should run last (a sweep, an audit) runs as soon as its *declared* deps allow, so
+declare them.
 
 **Propose the wave to the operator and wait for a yes**, as for any session's batch. The exception
 is **`/tickets wave <n>`** (ticket `0271`): typing it is the yes for that capability's next ready
