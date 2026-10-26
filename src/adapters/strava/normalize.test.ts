@@ -624,7 +624,7 @@ describe("trace sanitation, through the archive", () => {
     expect(trace?.pointCount).toBe(6)
     expect(trace?.gaps).toEqual([])
     expect(activity.source.meta).toBeUndefined()
-    // Under §2.2's single 8 m/s gate this ride would have lost five of its six fixes.
+    // Under `03-integrations.md` §2.6's single 8 m/s gate this ride would have lost five of its six fixes.
   })
 })
 

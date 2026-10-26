@@ -223,7 +223,7 @@ function revisionFrom(job: IngestJob): number {
 /**
  * REJECTION COUNTS, AS PROVENANCE RATHER THAN AS A LOG LINE — D-197.
  *
- * `03-integrations.md` §2.2 says *"Log rejection counts per activity. A sudden rise means a
+ * `03-integrations.md` §2.6 says *"Log rejection counts per activity. A sudden rise means a
  * hardware or firmware change worth knowing about."* `normalize` is pure and cannot log, and
  * a `console.log` here would be the first side effect on the migration seam.
  *

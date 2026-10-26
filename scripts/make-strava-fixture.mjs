@@ -25,7 +25,7 @@
 //
 // The shape of a route IS its sequence of bearings. Its metric properties — total
 // distance, speed profile, the magnitude of a signal-loss jump, the point count — are
-// its sequence of step LENGTHS. Everything the sanitizer (§2.2, D-197) and the fidelity
+// its sequence of step LENGTHS. Everything the sanitizer (`03-integrations.md` §2.6, D-197) and the fidelity
 // floor actually measure lives in the lengths, and everything identifying lives in the
 // bearings. So the transform keeps every step length to the metre and throws the
 // bearings away, replacing them with a deterministic sequence that stays inside the

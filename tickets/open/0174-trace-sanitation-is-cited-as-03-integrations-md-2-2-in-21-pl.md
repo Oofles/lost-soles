@@ -47,16 +47,23 @@ A blind find-and-replace breaks four right citations to fix twenty-one wrong one
 
 ## Acceptance criteria
 
-- [ ] Every `03-integrations.md` §2.2 citation whose subject is trace sanitation reads §2.6 —
+- [x] Every `03-integrations.md` §2.2 citation whose subject is trace sanitation reads §2.6 —
       9 in `sanitize.ts`, 4 in `sanitize.test.ts`, 1 in `normalize.ts`.
+      *Amended (agent, 0174): the counts were stale when built. `0045` moved the gate into
+      `src/domain/geo.ts`, taking four `sanitize.ts` citations and one `sanitize.test.ts`
+      citation with it, already corrected to §2.6 there. The tree held 5 in `sanitize.ts`, 3 in
+      `sanitize.test.ts` and 1 in `normalize.ts`, plus 2 the audit missed (`normalize.test.ts`
+      and `scripts/make-strava-fixture.mjs`). All 11 now read §2.6.*
 - [ ] D-197 and D-201 in `docs/decisions/DECISIONS.md` cite §2.6. **The decisions' substance is
       not touched** — this is a corrected cross-reference, not an amendment, and the standing
       rule against editing a settled `D-xxx` to make a ticket easier is not in play because
       nothing about what was decided changes.
-- [ ] The four correct citations are still correct: `normalize.ts:64` and `normalize.ts:361`
-      still read `05-fog-of-war.md` §2.2; `oauth.ts` and `client.ts` still read
+      *Left for the orchestrator (agent, 0174): `DECISIONS.md` is a shared file under
+      `WAVES.md` §3. The seven lines are listed in the Resolution. Count verified at 7.*
+- [x] The four correct citations are still correct: `normalize.ts:64` and `normalize.ts:361`
+      still read `05-fog-of-war.md` §2.2 (now at lines 63 and 335); `oauth.ts` and `client.ts` still read
       `03-integrations.md` §2.2.
-- [ ] `npm run typecheck`, `npm run lint --max-warnings 0` and `npm test` are clean — comment-only
+- [x] `npm run typecheck`, `npm run lint --max-warnings 0` and `npm test` are clean — comment-only
       changes, so any movement here is a signal something else was edited.
 
 ## Steps to reproduce
@@ -83,6 +90,58 @@ number.** Nothing in the toolchain checks that a `§n.n` in a comment resolves t
 exists, let alone to the right one. If this happens a third time, the cheap fix is a CI check
 that parses `<doc> §<n>` out of comments and asserts the heading exists — `docs/INDEX.md` already
 carries the heading table it would need.
+
+## Resolution
+
+Comment and cross-reference changes only, with no runtime surface. `03-integrations.md` §2.6
+holds "Trace sanitation" (line 777 today). §2.2 is OAuth.
+
+**Files touched**
+
+- `src/adapters/strava/sanitize.ts`: 5 citations, at lines 5, 76, 103, 113 and 115. Line 5 names
+  the doc. The other four are bare §2.2 inside the same comment block and now read §2.6.
+- `src/adapters/strava/sanitize.test.ts`: 3 citations, at lines 168, 196 (a test title) and 210.
+- `src/adapters/strava/normalize.ts`: 1 citation, line 226, the `rejectedPoints` rationale.
+- `src/adapters/strava/normalize.test.ts`: 1 citation the audit missed, line 627. *"Under
+  §2.2's single 8 m/s gate"* means `03`'s 8 m/s (`05` §2.2's gate is 12.0), so the line now
+  names the doc and reads `03-integrations.md` §2.6.
+- `scripts/make-strava-fixture.mjs`: 1 citation the audit missed, line 28, *"the sanitizer
+  (§2.2, D-197)"*. It now reads `03-integrations.md` §2.6.
+- This ticket.
+
+**Why the counts differ from the Description.** The audit counted on 2026-09-06, before `0045`
+(`71fcf22`) moved `MAX_IMPLIED_SPEED_MS` and the haversine into `src/domain/geo.ts`. Four of the
+nine `sanitize.ts` citations and one of the four `sanitize.test.ts` citations moved with that
+code, and `0045` had already corrected them to §2.6 (`geo.ts` lines 61, 85, 90 and 100,
+`geo.test.ts` line 73). That left 5, 3 and 1. All of those are fixed, plus the two above.
+
+**Left alone on purpose.** `normalize.ts` lines 63 and 335 (the ticket's 64 and 361, which have
+moved since) cite `05-fog-of-war.md` §2.2, and that is correct. `oauth.ts` lines 5 and 146 and
+`client.ts` line 4 cite `03-integrations.md` §2.2 for OAuth, also correct. Every other `§2.2`
+under `src/` points at `05-fog-of-war.md` (Trace → cells) or at OAuth. So does
+`docs/08-security-privacy.md` line 102, which is about privacy-zone truncation under the lesser
+scope, and that is §2.2's scope argument.
+
+**Criterion 2 (D-197 and D-201) belongs to the orchestrator**, because `DECISIONS.md` is a shared
+file (`WAVES.md` §3). There are seven occurrences, verified. In each one, §2.2 becomes §2.6 and
+nothing else in the text changes:
+
+- D-197: `- **§2.2's 8 m/s was measured against real traces and found too tight.**`
+- D-197: `implied speeds 8, 8, 9, 9, 9 and 13 m/s — and **caught zero GPS jumps.** The failure §2.2`
+- D-197: `- **12.5 m/s (45 km/h) splits the observed data along §2.2's own reasoning.**`
+- D-197: `- **§2.2 specified one number and only for one kind**`
+- D-201: ``Ticket `0172`. Amends `03-integrations.md` §2.2.``
+- D-201: `- **§2.2 specified the filter and never said where it starts.**`
+- D-201: `→ nothing is corroborated and the evidence does not name a culprit, so fall back to §2.2`
+
+D-197's existing "§2.6's table" (about `Ride`) is already correct and stays as it is.
+
+**Decisions:** none. This corrects an address. It does not amend anything.
+
+**Verification.** Every guard in `amplify.yml`'s build phase passed. `check-secret-storage.mjs
+--require-literals` ran with `AWS_APP_ID` and `AWS_BRANCH` set, against read-only AWS.
+`npm run typecheck`, `npm run lint`, `npx vitest run` and `npm run build` are clean. A grep for
+`§2\.2` over `sanitize.ts` and `sanitize.test.ts` returns nothing.
 
 ## Operator validation
 

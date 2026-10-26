@@ -165,7 +165,7 @@ describe("degenerate input", () => {
    * THE REGRESSION TEST FOR `0172`, and it is the same case inverted.
    *
    * Until 0172 this asserted the opposite — `points` of length 1 and `rejected` of 9 —
-   * because §2.2 anchors on "the previous ACCEPTED point" and the first fix is always
+   * because §2.6 anchors on "the previous ACCEPTED point" and the first fix is always
    * accepted, having nothing to compare it against. A cold-start fix 400 m off therefore
    * became the anchor and rejected the real trace behind it. `0037` implemented that
    * literally and recorded the consequence here rather than quietly improving it, which is
@@ -193,7 +193,7 @@ describe("degenerate input", () => {
     expect(sanitizeTracePoints(points, "run").breaks).toEqual([])
   })
 
-  it("keeps §2.2's behaviour when NOTHING is corroborated", () => {
+  it("keeps §2.6's behaviour when NOTHING is corroborated", () => {
     // Both of the first two steps implausible: the evidence does not name a culprit, so
     // the fix declines to guess and falls back to the algorithm as specified.
     const points = track(6, 3)
@@ -207,7 +207,7 @@ describe("degenerate input", () => {
   it("does not fire on a trace too short to corroborate anything", () => {
     const two = track(2, 3)
     two[0] = { ...two[0], lat: two[0].lat + 400 / 111_320 }
-    // Two fixes offer no second step to consult. Unchanged from §2.2: keep the first.
+    // Two fixes offer no second step to consult. Unchanged from §2.6: keep the first.
     expect(sanitizeTracePoints(two, "run").points).toEqual([two[0]])
   })
 

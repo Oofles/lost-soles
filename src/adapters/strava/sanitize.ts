@@ -2,7 +2,7 @@ import type { ActivityKind, GeoPoint } from "@/src/domain/activity"
 import { MAX_IMPLIED_SPEED_MS, impliedSpeedMs } from "@/src/domain/geo"
 
 /**
- * TRACE SANITATION. Ticket 0037, `03-integrations.md` §2.2 and `05-fog-of-war.md` §9.5.
+ * TRACE SANITATION. Ticket 0037, `03-integrations.md` §2.6 and `05-fog-of-war.md` §9.5.
  *
  * A run through a tunnel or an urban canyon produces `latlng` points that jump hundreds of
  * metres. **One bad fix paints a revealed corridor across the city, and D-020 makes it
@@ -73,7 +73,7 @@ export const ANCHOR_CORROBORATION_LOOKAHEAD = 1
  *   p0 -> p1 implausible, p1 -> p2 fine   p1 is corroborated and p0 is not. p0 is the
  *                                         outlier. Start at 1, counting p0 as rejected.
  *   both implausible                      Nothing is corroborated and the evidence does not
- *                                         name a culprit. Fall back to §2.2 as written:
+ *                                         name a culprit. Fall back to §2.6 as written:
  *                                         start at 0 and let the gate work. Guessing here
  *                                         would trade a known behaviour for an arbitrary
  *                                         one.
@@ -100,7 +100,7 @@ export function chooseAnchor(points: readonly GeoPoint[], gate: number): number 
 /**
  * Drop implausible fixes and mark where the trace broke.
  *
- * §2.2's algorithm, transcribed: *"Reject a point whose implied speed from the previous
+ * §2.6's algorithm, transcribed: *"Reject a point whose implied speed from the previous
  * accepted point exceeds ~8 m/s. Drop the point, keep the previous, continue. Do not
  * interpolate across the gap; a straight line through a dropout also reveals ground that
  * may not have been run. Break the trace into segments and project each independently."*
@@ -110,9 +110,9 @@ export function chooseAnchor(points: readonly GeoPoint[], gate: number): number 
  * draw reads `breaks` and ignores the rest. Returning arrays-of-arrays would have made the
  * common case — "is there a break between these two points?" — the awkward one.
  *
- * ─── THE BOUNDARY CASE §2.2 DOES NOT COVER, FIXED IN 0172 ───────────────────
+ * ─── THE BOUNDARY CASE §2.6 DOES NOT COVER, FIXED IN 0172 ───────────────────
  *
- * "From the previous **accepted** point" has to start somewhere, and §2.2 is silent on
+ * "From the previous **accepted** point" has to start somewhere, and §2.6 is silent on
  * where. `0037` implemented the literal reading — accept the first fix unconditionally,
  * because there is nothing to compare it against — and recorded the consequence rather
  * than quietly improving it: a cold-start fix that is 400 m wrong becomes the anchor, and
