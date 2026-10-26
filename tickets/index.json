@@ -7329,7 +7329,7 @@
     "title": "The Strava adapter's repo-wide scans still walk the gitignored tmp/ directory",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7337,8 +7337,9 @@
     "source": "agent",
     "created": "2026-10-26T12:32:10Z",
     "started": "2026-10-26T20:52:53Z",
-    "path": "tickets/open/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
-    "ready": true,
+    "closed": "2026-10-26T21:18:39Z",
+    "path": "tickets/closed/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
