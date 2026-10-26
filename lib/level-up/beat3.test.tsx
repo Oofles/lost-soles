@@ -81,9 +81,11 @@ describe("milestones (criteria 4, 5, 6)", () => {
     for (const l of [10, 25, 75, 90, 47]) expect(card(l).place).toBeNull()
   })
 
-  it("Total Level milestones run 100, 150, … up to the computed ceiling (693 for seven skills)", () => {
-    expect(totalLevelCeiling(SKILLS, CURVE)).toBe(693)
-    expect(totalLadder(RULES)).toEqual([100, 150, 200, 250, 300, 400, 500, 693])
+  it("Total Level milestones run 100, 150, … up to the computed ceiling (enabled rows × maxLevel)", () => {
+    // Never a ceiling figure here (D-192): the fixture's arithmetic is the expectation.
+    const ceiling = SKILLS.filter((s) => s.enabled).length * CURVE.maxLevel
+    expect(totalLevelCeiling(SKILLS, CURVE)).toBe(ceiling)
+    expect(totalLadder(RULES)).toEqual([100, 150, 200, 250, 300, 400, 500, ceiling])
   })
 
   it("a gain that carries Total Level across 100 adds a crest card after the skill's own", () => {

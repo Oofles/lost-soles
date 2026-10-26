@@ -20,8 +20,8 @@ A test title in `lib/level-up/beat3.test.tsx` reads "… (693 for seven skills)"
 
 ## Acceptance criteria
 
-- [ ] The title states the arithmetic (enabled rows × `maxLevel`) and no number.
-- [ ] `grep -rn '693' lib src app components` finds no ceiling literal in a test title or assertion.
+- [x] The title states the arithmetic (enabled rows × `maxLevel`) and no number.
+- [x] `grep -rn '693' lib src app components` finds no ceiling literal in a test title or assertion.
 
 ## Notes
 
@@ -32,3 +32,29 @@ Trivial; pair it with another small ticket.
 None: a test title.
 
 D-123 trigger checked? none.
+
+## Resolution
+
+**Files touched**
+
+- `lib/level-up/beat3.test.tsx` — the Total Level ladder test. Title now ends "(enabled rows ×
+  maxLevel)" with no figure. The two assertions that hardcoded the ceiling (`toBe(693)` and the
+  ladder's last rung) now compare against `ceiling`, computed in the test from the fixture as
+  `SKILLS.filter((s) => s.enabled).length * CURVE.maxLevel`. The second criterion names
+  assertions as well as titles, so the literal in the assertions went too, not only the title.
+  The fixture stays at seven enabled rows: that keeps the ceiling above 500, so the test still
+  shows the computed rung appended after the fixed ladder.
+
+**Remaining `grep -rn '693' lib src app components` hits, and why each stays**
+
+- `src/scoring/levels.test.ts:24` — a doc comment recording the history of falsified figures
+  ("594 → 693 → 792 → 891") as the reason D-192 exists. That is history, not a ceiling claim
+  in a title or assertion. Stays.
+- `src/adapters/strava/__fixtures__/*.json` and `src/adapters/__fixtures__/equivalence-run.gpx`
+  — `693` appears as a stream index or inside coordinate digits. Not a ceiling. Stays.
+
+**Decisions**: none new. This applies D-192.
+
+**Verification**: amplify.yml build-phase guards, `npm run typecheck`, `npm run lint`,
+`npx vitest run`, `npm run build`, all run in the worktree before commit.
+
