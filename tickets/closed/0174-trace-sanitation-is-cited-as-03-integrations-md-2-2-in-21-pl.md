@@ -4,7 +4,7 @@ slug: trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl
 title: Trace sanitation is cited as 03-integrations.md §2.2 in 21 places; it is §2.6
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-06T15:57:09Z
 started: 2026-10-26T01:42:16Z
+closed: 2026-10-26T02:05:58Z
 ---
 
 ## Description

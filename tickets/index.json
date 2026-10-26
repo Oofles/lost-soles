@@ -4151,7 +4151,7 @@
     "title": "Trace sanitation is cited as 03-integrations.md §2.2 in 21 places; it is §2.6",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -4159,8 +4159,9 @@
     "source": "agent",
     "created": "2026-09-06T15:57:09Z",
     "started": "2026-10-26T01:42:16Z",
-    "path": "tickets/open/0174-trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl.md",
-    "ready": true,
+    "closed": "2026-10-26T02:05:58Z",
+    "path": "tickets/closed/0174-trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
