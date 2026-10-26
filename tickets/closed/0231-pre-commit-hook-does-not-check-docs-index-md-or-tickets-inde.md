@@ -4,7 +4,7 @@ slug: pre-commit-hook-does-not-check-docs-index-md-or-tickets-inde
 title: Pre-commit hook does not check docs/INDEX.md or tickets/index.json, so CI goes red silently
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T20:01:11Z
 started: 2026-10-26T03:02:11Z
+closed: 2026-10-26T12:45:56Z
 ---
 
 ## Description
