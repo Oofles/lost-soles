@@ -4,7 +4,7 @@ slug: stale-storage-claims-02-1-2-facts-prefix-and-08-5-5-owner-au
 title: Stale storage claims: 02 §1.2 facts/ prefix and 08 §5.5 owner-auth model list
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T00:44:19Z
 started: 2026-10-26T20:04:43Z
+closed: 2026-10-26T20:33:14Z
 ---
 
 ## Description
