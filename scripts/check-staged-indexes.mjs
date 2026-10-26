@@ -5,8 +5,8 @@
 //   node scripts/check-staged-indexes.mjs --tickets   tickets/index.json
 //
 // Both files are committed, both are generated, and CI rejects a stale one
-// (gate.yml `build-index.mjs --check`, tickets.yml `tickets.mjs index` + `git
-// diff`). For two days in 2026-09 every push to main failed that way, reported
+// (gate.yml `build-index.mjs --check`, tickets.yml `git ls-files --error-unmatch`,
+// then `tickets.mjs index` + `git diff`). For two days in 2026-09 every push to main failed that way, reported
 // only by email. This is the same check, moved to .githooks/pre-commit, so the
 // refusal arrives in the terminal of whoever made the edit.
 //
@@ -79,12 +79,17 @@ function checkTickets(dir) {
   }
   // The staged index.json, read BEFORE regeneration overwrites the exported copy.
   //
-  // ABSENT FROM THE STAGE PASSES, because it passes CI, and the acceptance
-  // criterion is that the two never disagree. tickets.yml runs `git diff
-  // --exit-code tickets/index.json`, which says nothing about an UNTRACKED file —
-  // so a commit that deletes index.json is green there. That is a gap in CI, not
-  // something to paper over here with a stricter local rule (reported with 0231).
-  if (!existsSync(join(dir, "tickets/index.json"))) return 0;
+  // ABSENT FROM THE STAGE BLOCKS, as it fails CI (0315): tickets.yml runs `git
+  // ls-files --error-unmatch tickets/index.json` before regenerating. Under 0231
+  // this returned 0, because CI's `git diff --exit-code` ignored the untracked
+  // file a deleted index regenerates into, and D-446 puts agreement with CI
+  // first. The two layers were tightened together and still agree.
+  if (!existsSync(join(dir, "tickets/index.json"))) {
+    console.error(`  tickets/index.json is missing from the staged tree — CI's tickets workflow would fail on it.
+  Fix:  node ${TICKETS_MJS} index
+        git add tickets/index.json`);
+    return 1;
+  }
   const staged = readFileSync(join(dir, "tickets/index.json"), "utf8");
   const r = spawnSync(process.execPath, [join(dir, TICKETS_MJS), "index"], {
     encoding: "utf8",

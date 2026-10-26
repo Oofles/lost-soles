@@ -660,6 +660,7 @@ describe("layer 5 — derived indexes", () => {
     }
     const docs = ok(() => node(dir, BUILD_INDEX, "--check"))
     const tickets = ok(() => {
+      g(dir, "ls-files", "--error-unmatch", "tickets/index.json")
       node(dir, TICKETS_MJS, "index")
       g(dir, "diff", "--exit-code", "tickets/index.json")
     })
@@ -757,6 +758,23 @@ describe("layer 5 — derived indexes", () => {
       })
       expect(r.status, why(r)).toBe(1)
       expect(r.err).toMatch(/tickets\/index\.json is stale/)
+    })
+
+    it("blocks a commit that deletes tickets/index.json, naming the fix (0315)", () => {
+      // CI regenerates the index and runs `git diff`, which ignored the untracked
+      // result, so this passed both layers until 0315 tightened them together.
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          commit(repo)
+          g(repo, "rm", "-q", "tickets/index.json")
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/tickets\/index\.json is missing from the staged tree/)
+      expect(r.err).toContain("git add tickets/index.json")
     })
 
     it("permits the same edit once the regenerated index is staged", () => {
@@ -897,7 +915,7 @@ describe("layer 5 — derived indexes", () => {
         edit(repo, TICKET, ticket(["one", "two"]))
         g(repo, "add", TICKET)
       },
-      "tickets/index.json deleted (CI's `git diff` passes an untracked file)": (repo) => {
+      "tickets/index.json deleted (both block, 0315)": (repo) => {
         regenDocs(repo)
         regenTickets(repo)
         g(repo, "add", "-A")

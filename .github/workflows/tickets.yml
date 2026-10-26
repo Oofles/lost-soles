@@ -23,7 +23,12 @@ jobs:
       - name: backlog validates
         run: node .claude/skills/tickets/scripts/tickets.mjs validate
       - name: index.json is current (D-159 — it is committed)
+        # Presence is checked BEFORE regenerating (0315). `git diff` ignores an
+        # untracked file, so a commit deleting index.json regenerated it untracked
+        # and passed. --error-unmatch asks the committed tree directly.
         run: |
+          git ls-files --error-unmatch tickets/index.json >/dev/null 2>&1 \
+            || { echo "tickets/index.json is missing from the commit — run 'tickets.mjs index' and commit it"; exit 1; }
           node .claude/skills/tickets/scripts/tickets.mjs index
           git diff --exit-code tickets/index.json \
             || (echo "tickets/index.json is stale — run 'tickets.mjs index' and commit"; exit 1)
