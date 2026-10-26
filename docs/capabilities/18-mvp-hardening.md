@@ -205,6 +205,48 @@ the sheets are views.
 (`--text-primary`) ring, and that is the correct one: `--accent` is `--gold-500`, 2.1:1 on
 parchment, under the 3:1 a focus indicator needs.
 
+## The cold pass on a real GPU (ticket `0298`, 2026-10-26)
+
+D-391's pass 3 copies the frame under the fog (`copyTexSubImage2D`) and draws ~17 mask taps plus the
+composite's warp. `0059`'s gate (05 §6.4 items 2–3, D-241) was never applied to it, because
+SwiftShader cannot price a frame copy. **`tools/fog-harness/run-cold-cost.mjs`** now does. It opens a
+**headed** Chromium on a real `requestAnimationFrame` clock. Under WSL2 that is WSLg, with Mesa's
+`d3d12` driver reaching the host GPU through `/dev/dxg`. The runner refuses to print a figure when
+the renderer string is software (SwiftShader, llvmpipe).
+
+**Setup.** 150k fixture cells, every one last run 365 days ago. The ramp is saturated, so the whole
+revealed disc is cold ground. The shipped 690-state `PATH`, one state per frame. One warm-up, which
+is discarded, then arms interleaved **cold** (`ATLAS`), **off** (`{ ...ATLAS, coldWash: 0 }`: the
+layer skips the pass, copy included), cold, off. Then a **copy-only** arm: off, plus a custom layer
+that does nothing but the same full-frame copy, timed on its own.
+
+**Result: within budget on the desktop's GPU. No cheaper path is needed.**
+
+| GPU (WSLg → D3D12) | buffer | GPU cold pass, mean / max | copy alone | composite (off) | pan p50, cold vs off | dropped, pan phases |
+|---|---|---|---|---|---|---|
+| **RTX 5080** | 1919×1023, DPR 1 | **0.13–0.15 / 1.4 ms** | 0.018 ms | 1.55–1.58 ms | **16.6–16.8 vs 16.7–16.8 ms** | 0–0.8%, both arms |
+| RTX 5080 (stress) | 3840×2048, DPR 2 | 0.45–0.48 / 2.5 ms | 0.044 ms | 1.48–1.54 ms | 18.5–18.6 vs 18.3–18.4 ms | ≤ 0.8%, both arms |
+| AMD Radeon iGPU | 1919×1023, DPR 1 | 7.3 / 9.8 ms | 0.37 ms | **10.0 ms** | 26.6 vs 18.8–19.0 ms | 0% |
+
+- **At the desktop's own resolution the pass cannot be seen in frame time.** Both arms hold vsync, at
+  p50 16.7 ms with nothing dropped. The cold pass's 0.15 ms is under a tenth of the composite's.
+- **The copy is not the cost.** It runs 0.018 ms on the 5080 and 0.37 ms on the iGPU, about 5% of
+  the pass. A half-resolution copy, or skipping the copy when no cold disc is in view, would save
+  almost nothing. What costs anything is the shader's taps. If a cheaper path is ever needed, the
+  lever is the feather's tap count, not the copy.
+- **The 4K stress case fails D-241 in both arms**, off as well as cold: p50 18.4 ms, mask 1.4 ms
+  against a 1 ms budget. The cold pass adds 0.2 ms of p50 to that. So the miss is the frame at that
+  size (WSLg presenting 8 Mpx), not the cold pass. It is recorded, not judged: it is not the
+  operator's display.
+- **The iGPU busts `0059`'s budget before the cold pass runs.** The composite alone is 10 ms against
+  2 ms, and the off arm's p50 is 18.8 ms. The cold pass adds 7.3 ms of GPU and 8 ms of p50 on top.
+  This path goes through Mesa's GL-on-D3D12 translation, not through Windows Chrome's ANGLE on D3D11,
+  so it is a pessimistic reading of an integrated GPU. It is not the desktop's display adapter.
+
+Re-run: `MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA node tools/fog-harness/run-cold-cost.mjs`
+(`--size=WxH`, `--dpr=N`, `--dataset=50k|150k|500k`). Without the variable, Mesa picks the first
+adapter, which on this machine is the iGPU.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._

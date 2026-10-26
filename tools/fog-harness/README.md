@@ -10,7 +10,16 @@ node tools/fog-harness/run-mode-swap.mjs  # 0098: atlas/adventure swaps keep the
                                           # 0099: ... and the coverage mask, bit for bit
 node tools/fog-harness/mode-parity-shots.mjs # 0099: ghost grid + street-name contrast, real tiles
 node tools/fog-harness/run-map-controls.mjs # 0101: no rotate or tilt, the zoom rubber band, route opacities
+node tools/fog-harness/run-cold-cost.mjs  # 0298: atlas's cold pass vs cold weight 0, HEADED on the real GPU
 ```
+
+**`run-cold-cost.mjs`** (ticket `0298`) is the one runner here that is **headed and on a real
+clock**. It answers a frame-time question, and neither `--virtual-time-budget` nor SwiftShader can.
+It opens `cold-cost-harness.js` in a real window. On WSL2 that is WSLg with `GALLIUM_DRIVER=d3d12`,
+which the runner sets. It drives the shipped `PATH` with the cold pass on, then off, then a copy-only
+arm. The figures come back over DevTools. If the renderer string is software, it exits 2 and prints
+no figure. `MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA` picks a discrete card over an iGPU. The results
+are in `docs/capabilities/18-mvp-hardening.md`.
 
 **`run-map-controls.mjs`** (ticket `0101`) builds a real Map with the shipped `MAP_INPUT_OPTIONS`
 and drives it with real DOM events. A right-drag and a Ctrl-drag must leave `getBearing()` and
