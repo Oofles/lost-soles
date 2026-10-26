@@ -59,7 +59,7 @@ oversight rather than a deferral. Sequence with `0115` (secrets/dependency audit
       (sign-in, refresh and sign-out; the identity-pool credential exchange), and the list predated
       that knowledge. The "R2 tiles host" is the CloudFront distribution (D-226), named from
       `amplify_outputs.json`.*
-- [ ] The CSP is verified not to break the map: MapLibre, the pmtiles range requests and the
+- [x] The CSP is verified not to break the map: MapLibre, the pmtiles range requests and the
       WebGL worker all still load. A CSP that ships and is then loosened in a panic is worse than
       one designed against the real asset list.
       *Partly verified, so left unticked: headless Chromium against the local production build,
@@ -67,6 +67,7 @@ oversight rather than a deferral. Sequence with `0115` (secrets/dependency audit
       tiles, AppSync and Cognito hosts raise no CSP violation. Third-party fetch, image and blob
       worker are blocked (the controls). The signed-in map could not be loaded locally (no
       session against the production pool), so the post-deploy check completes this criterion.*
+      — verified 2026-10-25: operator, desktop browser, signed in: the map's tiles and fog render under the shipped CSP, with no violation in the Console.
 - [x] `dangerouslySetInnerHTML` appears nowhere in the app, asserted by a check rather than by
       reading — §5.3 names it as the other half of the XSS mitigation.
 - [x] A test asserts the headers are present on a representative authed route, so they cannot be
@@ -87,18 +88,13 @@ specifically; keep the two from overlapping.
 
 ## Operator validation
 
-> **D-181 — most of what follows is the AGENT's to run, not the operator's.**
-> Swept 2026-09-02 (ticket `0147`). This ticket's capability has no screen of its own. Before asking
-> the operator for any step below, check whether AWS credentials (`AWS_PROFILE=devault`), `curl`, or
-> a script can answer it — if so it is a **smoke test**, and what it proved is recorded here at
-> close *instead of* the instruction. Keep only what genuinely needs a human eye, a phone, or a real
-> run. The text below is the original author's intent, kept as context for **what** to verify — not
-> as a list of chores for the operator.
+**Operator, 2026-10-25, desktop browser, signed in at `https://soles.devaultsecurity.com`:**
+checks good. The document response carries HSTS, `nosniff` and the CSP with
+`frame-ancestors 'none'`. The map's tiles and fog render, with no CSP violation in the Console.
 
-In the desktop browser at `https://soles.devaultsecurity.com`, signed in: the DevTools Network
-panel's response headers for the document request show HSTS,
-`nosniff`, the CSP and the frame-ancestors directive. Then load the **map** and confirm tiles and
-fog still render — a CSP that silently blocks the basemap looks identical to a slow network, and this is the check that distinguishes them.
+**Smoke tests (orchestrator, 2026-10-22):** curl against the deployed app shows the headers on
+every response Next serves, but not on CDN-served static files. That is recorded as D-444.
+`lib/security-headers.test.ts` and the `react/no-danger` lint rule guard the policy in CI.
 
 ## Resolution
 

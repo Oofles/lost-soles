@@ -2777,7 +2777,7 @@
     "path": "tickets/open/0113-offline-and-slow-connection-behaviour.md",
     "ready": true,
     "acceptance": {
-      "checked": 7,
+      "checked": 8,
       "total": 8
     }
   },
@@ -3474,7 +3474,7 @@
     "path": "tickets/open/0143-08-section-5-3-security-headers-are-in-no-ticket-hsts-nosnif.md",
     "ready": true,
     "acceptance": {
-      "checked": 5,
+      "checked": 6,
       "total": 6
     }
   },

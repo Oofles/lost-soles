@@ -81,7 +81,7 @@ skeleton, or a spinner over the map area.
       flushes exactly once on reconnect. *(Already built by 0068 / D-282; proven end to end in
       `lib/log/offline.test.ts`. "Pending" shows in `/log`'s optimistic standing, the only place
       since D-252.)*
-- [ ] Zero third-party origins are requested at runtime — asserted by a CI check over the built
+- [x] Zero third-party origins are requested at runtime — asserted by a CI check over the built
       app's network origins and confirmed by an empty third-party list in a browser network trace.
       *Partly met at build:* the CI half is `scripts/check-third-party-origins.mjs`, run after the
       build in `amplify.yml` and the GitHub gate, and green on this build. "First-party" there is the
@@ -93,6 +93,7 @@ skeleton, or a spinner over the map area.
       third-party request at runtime would show as a CSP violation in the Console, and the
       Network panel's Domain column is read at the same time.
 
+      — verified 2026-10-25: operator, desktop browser, signed in: the Network panel's Domain column lists first-party domains only, with no CSP violation in the Console.
 ## Notes
 
 **2026-10-22 — orchestrator answers to the build's open questions.** (1) Criterion 8's browser half
@@ -115,12 +116,15 @@ response.
 
 ## Operator validation
 
-In the desktop browser: (1) DevTools Offline, reload, and count — the map must be there and usable
-before you have finished saying "one thousand one"; (2) log a set of pushups while still offline,
-and confirm it accepts instantly with no error; (3) go back online, wait, and confirm it landed
-exactly once (`/skills` shows one XP award); (4) enable DevTools' slow 3G throttle and reload — the
-map must paint from cache and the fog must catch up silently with no flash. Anywhere you see a
-spinner over the map, or a banner, this ticket is not done.
+**Operator, 2026-10-25, desktop browser, signed in at `https://soles.devaultsecurity.com`:**
+checks good. (1) DevTools Offline + reload: the map is there and usable at once, with no spinner
+or banner. (2) Slow 3G + reload: the map paints from cache and the fog catches up with no flash.
+(3) The Network panel's Domain column shows only first-party domains (app, AppSync, tiles
+CloudFront, Cognito), and the Console shows no CSP violation.
+
+The original step "log pushups offline and confirm it lands once" was not asked by hand:
+`lib/log/offline.test.ts` proves it end to end (D-229). The CI half of the origins check,
+`scripts/check-third-party-origins.mjs`, is green on every build.
 
 ## Resolution
 
