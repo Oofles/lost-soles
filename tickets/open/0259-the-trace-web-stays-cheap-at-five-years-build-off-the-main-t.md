@@ -53,6 +53,12 @@ cost that is years away.
 None perceptual: this is a performance ticket, verified by measurement. The agent runs the
 synthetic-scale measurement and records it.
 
+**2026-10-26, agent.** The measurement table is in the Resolution, from headless Chromium on the
+desktop. Post-deploy (Amplify job 432, `d70401b`): `GET /api/runs/web` signed out → 404, posture
+unchanged. `/_next/static/chunks/trace-web.3386d5f98d94c038.js` → 200 `text/javascript`, 3,599 B.
+That hash is the one the local clean build produced, so the deployed worker is this commit's.
+Nothing perceptual: the drawn web is identical, and beat 1's timing was measured, not judged.
+
 ## Resolution
 
 **Option (a): the web is built in a Web Worker.** The `web.json.gz` format (D-299 v1) is unchanged.
@@ -145,5 +151,6 @@ chunk has no `importScripts`. Loaded from a page served with the app's
 - At realistic density the raw body passes ~6 MB at about 1,000 runs. Whether Amplify compute's
   response-size limit applies before or after gzip is unsettled; a ticket is proposed.
 
-**Decisions.** None recorded in DECISIONS.md, which belongs to the orchestrator. Proposed: amend
-D-299's scale bullet (see the wave report).
+**Decisions.** **D-451** (recorded by the orchestrator, wave 18.4) amends D-299's scale bullet.
+It says the web is built in a worker, `web.json.gz` stays v1, and lists the known limits above.
+The Amplify response-size question is filed as `0320`.

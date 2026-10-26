@@ -92,3 +92,8 @@ Post-deploy smoke test (orchestrator): signed out, `/dev/tickets` 307s to `/?nex
 exactly as before (the middleware gates every path before route resolution, so signed out cannot
 distinguish a deleted route from a live one), and `/`, `/skills`, `/log`, `/settings` behave as
 before. The deletion itself is proven by the build manifest, not by curl.
+
+**2026-10-26, post-deploy (Amplify job 432, `d70401b`).** Signed out, `/dev/tickets` and
+`/dev/tickets/0001` → 307 to `/?next=…`, as before. `/` → 200. `/skills`, `/log`, `/settings`
+and `/chronicle` → 307, as before. `POST /api/tickets/capture` with no credential → 404, so the
+endpoint is untouched.
