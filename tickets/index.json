@@ -2749,6 +2749,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
+    "started": "2026-10-26T03:02:11Z",
     "path": "tickets/open/0112-accessibility-and-reality-checks.md",
     "ready": true,
     "acceptance": {
@@ -5430,6 +5431,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T20:01:11Z",
+    "started": "2026-10-26T03:02:11Z",
     "path": "tickets/open/0231-pre-commit-hook-does-not-check-docs-index-md-or-tickets-inde.md",
     "ready": true,
     "acceptance": {
@@ -5849,6 +5851,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-08T15:18:40Z",
+    "started": "2026-10-26T03:02:11Z",
     "path": "tickets/open/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
     "ready": true,
     "acceptance": {
@@ -6845,6 +6848,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-19T13:47:44Z",
+    "started": "2026-10-26T03:02:11Z",
     "path": "tickets/open/0295-a-repo-walking-test-sees-agent-worktrees-and-fails-the-wave.md",
     "ready": true,
     "acceptance": {
