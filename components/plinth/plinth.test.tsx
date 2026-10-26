@@ -175,10 +175,23 @@ describe("what the home route must never render (D-013, §2.3)", () => {
     // React's static render appends its form-replay `<script>` for the Sync form; it draws nothing.
     const html = home().replace(/<style>[\s\S]*?<\/style>/g, "").replace(/<script>[\s\S]*?<\/script>/g, "")
     const top = html
+      // `0112`: the map's text twin for a screen reader, visually hidden (06 §9.4). Not UI.
+      .replace(/<p role="status" aria-live="polite" data-map-summary=""[^>]*><\/p>/, "")
       .replace(/<aside[\s\S]*<\/aside>/, "")
       .replace(/<div class="mode-toggle"[\s\S]*?<\/div>/, "")
       .replace(/<a [^>]*class="home-gear"[\s\S]*?<\/a>/, "")
     expect(top).toBe('<div data-testid="map-shell"></div>')
+  })
+
+  /** `0112`, 06 §9.4: the map is not a decorative image; its text summary sits where it does. */
+  it("carries the map's text summary in one polite live region, visually hidden, before the map", () => {
+    const html = home()
+    const region = /<p role="status" aria-live="polite" data-map-summary=""[^>]*>([\s\S]*?)<\/p>/.exec(html)
+    expect(region).not.toBeNull()
+    // Present, and empty, before the explored set is known: the region exists before its text does.
+    expect(region![1]).toBe("")
+    expect(region![0]).toContain("clip:rect(0 0 0 0)")
+    expect(html.indexOf("data-map-summary")).toBeLessThan(html.indexOf('data-testid="map-shell"'))
   })
 
   /** `0098`, 06 §4.2: two rows, both labels always visible, neither selected before the client knows. */
@@ -201,8 +214,9 @@ describe("chrome is opaque and gold is never text (D-148)", () => {
     // `0098`. The mode toggle is floating chrome too.
     expect(MODE_TOGGLE_CSS).toMatch(/\.mode-toggle \{[^}]*background: var\(--surface-raised\)/)
     expect(MODE_TOGGLE_CSS).not.toMatch(/opacity|rgba|transparent|backdrop/)
-    // Gold is the selected row's FILL; its text is ink.
-    expect(MODE_TOGGLE_CSS).toContain("[aria-checked='true'] { background: var(--accent); color: var(--text-primary); }")
+    // Gold is the selected row's FILL; its text is ink. `--ink-900`, not `--text-primary`, because
+    // the dark theme turns `--text-primary` to parchment and `--accent` to `--gold-300`: 1.39:1 (`0112`).
+    expect(MODE_TOGGLE_CSS).toContain("[aria-checked='true'] { background: var(--accent); color: var(--ink-900); }")
     expect(MODE_TOGGLE_CSS).not.toMatch(/color: var\(--(accent|gold|progress)/)
   })
 

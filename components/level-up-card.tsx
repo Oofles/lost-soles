@@ -32,6 +32,16 @@ declare global {
   }
 }
 
+/**
+ * `0112`. What a screen reader hears for one card — the card's own words, once, as it lands. One
+ * function for both voices: the card's own live region (on `/log`), and the run page's single
+ * narration region, which hears beat 3 in its place between beat 2's lines (06 §9.4).
+ */
+export function cardWords(card: LevelCard, skillName: (id: string) => string): string {
+  const tier = card.kind === "skill" && card.tier ? ` ${card.tier}.` : ""
+  return (card.kind === "skill" ? `${skillName(card.skillId)} reached level ${card.to}.` : `Total Level ${card.milestone}.`) + tier
+}
+
 /** Where a place-bound card flies, in viewport px; `null` to exit ordinarily. */
 export type FlyTarget = (card: Extract<LevelCard, { kind: "skill" }>) => { x: number; y: number } | null
 
@@ -42,6 +52,7 @@ export function LevelUpQueue({
   flyTo,
   onPlaced,
   reduced = false,
+  announce,
 }: {
   cards: readonly LevelCard[]
   skillName: (id: string) => string
@@ -51,6 +62,12 @@ export function LevelUpQueue({
   onPlaced?: (at: { x: number; y: number }) => void
   /** `0084`. `prefers-reduced-motion`: no scale, no rise, no flight. Same cards, same timing. */
   reduced?: boolean
+  /**
+   * `0112`. Hand each card's words to the caller's live region instead of the card's own. The run
+   * page passes its narration here, so the whole sequence speaks through ONE region, in beat order
+   * (06 §9.4); without it the card announces itself, as on `/log`.
+   */
+  announce?: (words: string) => void
 }) {
   const at = reduced ? cardReducedAt : cardAt
   const [index, setIndex] = useState(0)
@@ -60,6 +77,8 @@ export function LevelUpQueue({
   done.current = onDone
   const placed = useRef(onPlaced)
   placed.current = onPlaced
+  const speak = useRef(announce)
+  speak.current = announce
 
   const card = cards[index]
   /**
@@ -75,6 +94,7 @@ export function LevelUpQueue({
       return
     }
     target.current = !reduced && card.kind === "skill" && card.place && flyTo ? flyTo(card) : null
+    speak.current?.(cardWords(card, skillName))
     const start = nextStart.current ?? performance.now()
     const log = (window.__cards ??= [])
     let raf = 0
@@ -97,7 +117,7 @@ export function LevelUpQueue({
   }, [card])
 
   if (!card) return null
-  return <LevelUpCard card={card} frame={frame} skillName={skillName} fly={target.current} reduced={reduced} />
+  return <LevelUpCard card={card} frame={frame} skillName={skillName} fly={target.current} reduced={reduced} silent={announce !== undefined} />
 }
 
 export function LevelUpCard({
@@ -106,12 +126,15 @@ export function LevelUpCard({
   skillName,
   fly = null,
   reduced = false,
+  silent = false,
 }: {
   card: LevelCard
   frame: CardFrame
   skillName: (id: string) => string
   fly?: { x: number; y: number } | null
   reduced?: boolean
+  /** `0112`. The caller narrates this card (`LevelUpQueue`'s `announce`), so it has no region of its own. */
+  silent?: boolean
 }) {
   const name = card.kind === "skill" ? skillName(card.skillId) : "Total Level"
   const from = card.kind === "skill" ? card.from : null
@@ -147,10 +170,11 @@ export function LevelUpCard({
       }}
     >
       {/* Announced once, as the card lands — not narrated frame by frame. */}
-      <p aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-        {card.kind === "skill" ? `${name} reached level ${to}.` : `Total Level ${to}.`}
-        {tier ? ` ${tier}.` : ""}
-      </p>
+      {silent ? null : (
+        <p aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+          {cardWords(card, skillName)}
+        </p>
+      )}
       <div
         aria-hidden="true"
         style={{

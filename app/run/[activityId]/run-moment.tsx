@@ -416,6 +416,7 @@ export function RunMoment({
           tally={tally}
           chronicle={chronicle}
           frontier={frontierLine}
+          frontierWords={target ? frontierText(target, place) : null}
           onLines={onLines}
           onDone={onDone}
           reduced={reduced}

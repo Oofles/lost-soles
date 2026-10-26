@@ -6,7 +6,7 @@
 
 ## Tickets (7)
 
-- `0112` — Accessibility and reality checks — sunlight, one-handed reach, sweaty thumbs, reduced motion
+- `0112` — Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection
 - `0113` — Offline and slow-connection behaviour — the map degrades, never blanks
 - `0114` — The D-123 standing conditions, wired as code and CI rather than caveated
 - `0115` — Secrets and dependency audit; incident playbook dry-read
@@ -157,6 +157,53 @@ and `idempotency.test.ts` names them:
 - the receipt's DONE.
 
 None of them moves XP or the map.
+
+## Accessibility and reality checks — `06` §9.6 (ticket `0112`, 2026-10-25)
+
+Graded by code, tests and headless Chromium against the shipped components. Read with D-251 (desktop
+only), D-253 (mouse and keyboard), D-313 (rail at ≥1024px, bottom card below), D-148. The phone rows
+(sunlight, gloves, wet screen) are dropped by D-251 and are not graded. **Operator** marks what needs
+human perception (D-229) and is not yet done.
+
+### The §9.6 table
+
+| Situation | Result | Evidence |
+|---|---|---|
+| Adventure mode, a street inside the fog; **no auto-switch** | **PASS** | The saved mode is written only by `mode-toggle.tsx` (its two rows and `M`). `lib/map-mode.ts` reads no OS theme, clock or sensor: `components/map/no-auto-switch.test.ts`. The run page's adventure-while-playing is D-378 and never writes the saved mode. Atlas is one click or `M` away (`lib/map-mode.test.ts`). |
+| The watch or phone died mid-run | **PASS** (by absence) | No recording route, no `watchPosition`/`getCurrentPosition`, no Start/Stop Run anywhere in `app/` or `components/`: `app/a11y-reality.test.ts`, `app/routes.test.ts` (nine segments, refused screens). |
+| Strava token expired | **PASS** | One `--text-secondary` underlined line, `<source> needs reconnecting` → `/settings`. No red token, badge, dot or modal: `plinth.test.tsx` › *the reconnect line is one quiet ink link*, `model.test.ts` › *a broken token — and only that*. |
+| Three weeks without opening it | **PASS** (by absence) | `plinth.test.tsx` › *three weeks idle is identical to yesterday* (criterion 11 of `0087`). The forbidden-words pass covers *welcome back / days since / ago / streak / today*. The new map summary carries the run's date, never an age (`model.test.ts` › *the map, as text*). |
+| Slow connection (DevTools Slow 3G) | **PASS** | Graded by what `0113` built (D-439). The fog waits for first paint, a 304 emits nothing, and every fetch times out at 10 s: `0113`'s tests. Operator-checked on 2026-10-25 in the desktop browser (`0113` § Operator validation). **Known gap, ticketed:** on Slow 3G the fog cannot draw until MapLibre's `load`, which waits for visible tiles (`0313`). |
+| Offline (app already open) | **PASS** | As above, plus `lib/log/offline.test.ts`: an offline log persists, stacks as pending, and lands once on reconnect. Capture is withdrawn (D-252). Operator-checked 2026-10-25. |
+| 200% browser zoom | **FAIL** (two overlaps) | `node tools/a11y/run-zoom.mjs`. Every screen at 200% of 1280×800, 1920×1080 and 2560×1440 windows, with 24 layouts measured. **No horizontal scroll, no clipped or truncated text, and no off-screen text anywhere.** It fails on overlap. (1) `/` at 1280×800 (640×400 CSS px): the right-edge map controls (`⤢`, `⌖`) sit on top of the bottom card. They cover the cells figure and the card's scrollbar. Four 40px controls plus a 55vh card plus its 36px inset do not fit in 400px. (2) `/chronicle` below 1024px: the panel runs `top: 72px` to the right edge, under the mode toggle (10px), the jump-to control and both map controls. They paint over the rows' right-hand `n new` figures. Both are a layout decision about the right-edge controls below 1024px, not a local fix. **Proposed ticket** (report). Screenshots: `assets/0112/`. |
+| Screen reader only | **PASS** (markup) / **Operator** (narration) | `/` now carries a visually hidden `role="status"` polite region before the map. It reads *"Map. 12,480 cells revealed. Last run Fri 28 Aug, 8.40 km, 21 new cells."* (`mapSummary`, from the plinth's own inputs.) `/run/:id`'s sequence speaks through **one** polite region, in beat order: beat 1's reveal at t = 0, each tally line as it fades in, each level-up card as it lands, the chronicle line at beat 4 and the frontier at beat 5. See `app/run/[activityId]/narration.ts` and `narration.test.tsx` (`narrationOrder`, one region, §3.5 wording). Whether NVDA reads it sensibly is the operator's. |
+| Keyboard only | **PASS** (audit) / **Operator** (walk) | `app/a11y-keyboard.test.ts`: every JSX pointer handler is on a button, link or control, or is listed with its keyboard twin. The listed ones are the scrim (Esc and close), the jump-to options (a listbox with arrow keys and Enter) and the route-line click (every run is reachable from RUNS and the last-run line). There is no drag-and-drop or context menu. Esc skips the sequence (`exit.ts`), closes the Chronicle and closes the sheet. The map takes arrows and `+`/`−` (`MAP_INPUT_OPTIONS.keyboard`). `M` toggles. Focus rings are a 2px `--text-primary` outline on the plinth, toggle, gear, map controls and Chronicle. Elsewhere they are the browser's default ring (visible). |
+| Every destructive action has undo | **PASS** | Inventory below. |
+
+### The two definition-of-done rules
+
+| Rule | Result | Evidence |
+|---|---|---|
+| `prefers-reduced-motion` renders the fog static and schedules **zero** rAF callbacks after first paint | **PASS** | `node tools/a11y/run-reduced-motion.mjs`: a real MapLibre Map, the shipped `FogMaskLayer` and `FogAnimator` wired as `use-fog-mask.ts` wires them, in adventure, with `window.requestAnimationFrame` spied from before any script runs. Under emulated `reduce`, 3 s after first paint: **0 rAF calls, 0 MapLibre renders, `u_time` 0**, and the fog composited. Control, same page without `reduce`: 277–341 rAF calls, 137–167 renders, 97 animator repaints (the 30 fps cap holds). Unit spies: `lib/fog/animation.test.ts` › *runs NO rAF loop at all*, `lib/map-mode.test.ts` › *a toggle is a hard cut* (D-376). The post-run sequence keeps its clocks under reduced motion by design: §3.4 removes motion, never sequence. |
+| D-148: gold only as fill or rule, or type ≥24sp or on navy; floating chrome opaque | **PASS after fixes** | `app/a11y-d148.test.ts` scans every source in `app/` and `components/`. **Found and fixed:** gold `--accent-text` body type, 3.7–3.95:1 on parchment, on `/settings`' buttons and Connect link, `/run`'s kind *Change*/*Save*/*Cancel*, `/log`'s LOG button and the whole confirmed row. Each is now ink inside its gold rule. The mode toggle's selected row was `--text-primary` on `--accent`, which is **1.39:1** in the dark theme (parchment on `--gold-300`). It is now `--ink-900`, 11.2:1. Remaining gold `color`s are two marks, the crest and the `↑` glyph, both measured as graphics. Every fixed element has an opaque token background, or is a scrim, a light or a positioning wrapper whose controls are opaque. |
+
+### Destructive actions and their undo
+
+| Action | Where | Undo |
+|---|---|---|
+| Log a workout | `/log` LOG | The in-row **⟲ Undo** for 8 s (`undoLog`; §6.4). The one place the app permits a destructive action, and the reason there is no confirm dialog. |
+| Change an activity's kind | `/run/:id` *Change* | *Change* back: the old kind is named on the row (`(was Run)`). XP already awarded is kept by `retained_floor` (D-135), so nothing is lost either way. |
+| Disconnect a source | `/settings` | **Connect** on the same card (OAuth again). One confirmation, which says *nothing is deleted*: map, XP and history stay (08 §6.5). The revoked token is the only thing lost, and reconnecting replaces it. |
+| Sign out | `/settings` | Sign in. |
+| Delete account | `/settings` | **Nothing to undo: it deletes nothing.** The typed confirmation unlocks a link to the operator runbook (08 §6.4, `0106`). |
+| Open a run (marks it `seen`) | `/run/:id` | Not data. The plinth's `1 new run` line becomes the ordinary last-run line. **⟲ Relive** replays the sequence whenever wanted. |
+
+Nothing else in the app writes or removes anything: the mode toggle, Sync, Relive, the Chronicle and
+the sheets are views.
+
+**Finding, fixed in `06` §9.4:** it specified an `--accent` focus ring. Every control ships an ink
+(`--text-primary`) ring, and that is the correct one: `--accent` is `--gold-500`, 2.1:1 on
+parchment, under the 3:1 a focus indicator needs.
 
 ## Audit
 

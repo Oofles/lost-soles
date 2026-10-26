@@ -148,12 +148,41 @@ export function milestoneTarget(rung: Rung, ceiling: number): string {
 export function lastRunLine(latest: RunFeatureCollection): LastRunLine | null {
   const run = latest.features[0]?.properties
   if (!run) return null
-  const parts = [runDate(run.startedAtLocal ?? run.startedAt, { year: false })]
-  const distance = runDistance(run.distanceM ?? null)
-  if (distance) parts.push(distance)
-  const fresh = run.newCellCount ?? 0
-  if (fresh > 0) parts.push(`${fmt.format(fresh)} new`)
+  const p = lastRunParts(latest)!
+  const parts = [p.date, ...(p.distance ? [p.distance] : []), ...(p.fresh > 0 ? [`${fmt.format(p.fresh)} new`] : [])]
   return { href: runHref(run.activityId), text: `Last: ${parts.join(" · ")}` }
+}
+
+/** The latest run's three facts, shared by the visible line and the map's text summary. */
+function lastRunParts(latest: RunFeatureCollection): { date: string; distance: string | null; fresh: number } | null {
+  const run = latest.features[0]?.properties
+  if (!run) return null
+  return {
+    date: runDate(run.startedAtLocal ?? run.startedAt, { year: false }),
+    distance: runDistance(run.distanceM ?? null),
+    fresh: run.newCellCount ?? 0,
+  }
+}
+
+/**
+ * `0112`. THE MAP, AS TEXT (06 §9.4): *"Map. 12,480 cells revealed. Last run Thursday, 8.4
+ * kilometres, 21 new."* The canvas says nothing to a screen reader, so `/` carries this in a polite
+ * live region beside it. Territory, then the last run, then its new cells — the plinth's own facts,
+ * from the same inputs, so the summary and the rail can never disagree.
+ *
+ * `null` until the explored set is known: a summary of an unknown map would be a guess, and a live
+ * region that announces a guess announces it again when it is corrected. Like the plinth, it names
+ * the run by its date and never by an age (H2), and says nothing of what was missed (D-013).
+ */
+export function mapSummary(cells: number | null, latest: RunFeatureCollection): string | null {
+  if (cells === null) return null
+  const out = [`Map. ${fmt.format(cells)} ${cells === 1 ? "cell" : "cells"} revealed.`]
+  const p = lastRunParts(latest)
+  if (p) {
+    const facts = [p.date, ...(p.distance ? [p.distance] : []), ...(p.fresh > 0 ? [`${fmt.format(p.fresh)} new ${p.fresh === 1 ? "cell" : "cells"}`] : [])]
+    out.push(`Last run ${facts.join(", ")}.`)
+  }
+  return out.join(" ")
 }
 
 export function plinthModel(input: {

@@ -18,7 +18,9 @@ import { useMapMode } from "./use-map-mode"
  * pointer path (06 §4.4).
  *
  * D-148: OPAQUE, like all floating chrome, because the surface under it swings from parchment to
- * near-black fog within one screen. Gold is the selected row's FILL, never text.
+ * near-black fog within one screen. Gold is the selected row's FILL, never text. The selected label
+ * is `--ink-900` in both themes, never `--text-primary`: in dark, that is parchment on `--gold-300`,
+ * 1.39:1 (`0112`); ink on either gold is 7.5:1 or better.
  *
  * Rendered with neither row selected until the client knows the saved mode: the server cannot
  * (05 §5.3 — it is per device), and a flash of the wrong selection is a lie about the state.
@@ -41,7 +43,7 @@ export const MODE_TOGGLE_CSS =
   " color: var(--text-secondary); font: 500 12px/1 var(--font-sans); letter-spacing: .08em; text-transform: uppercase;" +
   " text-align: center; cursor: pointer; }" +
   " .mode-toggle button + button { border-top: 1px solid var(--line); }" +
-  " .mode-toggle button[aria-checked='true'] { background: var(--accent); color: var(--text-primary); }" +
+  " .mode-toggle button[aria-checked='true'] { background: var(--accent); color: var(--ink-900); }" +
   " .mode-toggle button:hover[aria-checked='false'] { background: var(--bg); }" +
   " .mode-toggle button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }" +
   " @media (min-width: 1024px) { .mode-toggle { left: calc(24rem + 16px); } }"

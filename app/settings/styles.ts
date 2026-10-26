@@ -12,7 +12,9 @@ export const button: CSSProperties = {
   borderRadius: ".375rem",
   border: "1px solid var(--accent)",
   background: "transparent",
-  color: "var(--accent-text)",
+  // Ink, not `--accent-text`: gold type below 24sp is 3.7:1 on parchment (D-148, `0112`). The gold
+  // stays as the rule around the button.
+  color: "var(--text-primary)",
   font: "inherit",
   cursor: "pointer",
   textDecoration: "none",

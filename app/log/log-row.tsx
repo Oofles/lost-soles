@@ -15,7 +15,8 @@ import { holdToRepeat } from "@/lib/log/repeat"
  * workout type.
  *
  * Idle:       `MIGHT  pushups   [−] [ 30 ] [+]  [LOG]`
- * Confirmed:  `MIGHT 30 pushups · Might +120 → L31 · ⟲ Undo 7s`, gold, with a bar wipe.
+ * Confirmed:  `MIGHT 30 pushups · Might +120 → L31 · ⟲ Undo 7s`, ink inside a gold rule, with a gold
+ *             bar wipe. Gold is the rule and the fill, never the type (D-148; `0112` moved it off the text).
  *
  * NO CONFIRMATION DIALOG, ANYWHERE (0071's notes). The 8-second undo is why: it handles the
  * mis-click afterwards instead of taxing every log in advance. No gesture is the only path to
@@ -53,7 +54,8 @@ const logButton: React.CSSProperties = {
   minWidth: "5.5rem",
   marginLeft: "auto",
   border: "1px solid var(--accent)",
-  color: "var(--accent-text)",
+  // Ink type inside a gold rule: 16px bold gold is below D-148's large-text line (`0112`).
+  color: "var(--text-primary)",
   fontSize: "1rem",
   fontWeight: 700,
   letterSpacing: ".08em",
@@ -212,7 +214,7 @@ export function LogRowView({
   if (logged) {
     const remaining = Math.max(0, Math.ceil((logged.holdUntil - now) / 1000))
     return (
-      <div ref={cardRef} role="group" aria-label={label} style={{ ...card, color: "var(--accent-text)" }}>
+      <div ref={cardRef} role="group" aria-label={label} style={{ ...card, borderColor: "var(--accent)", color: "var(--text-primary)" }}>
         <style>{REDUCED_MOTION_CSS}</style>
         <p aria-live="polite" style={{ margin: 0, fontWeight: 700, display: "flex", gap: ".5rem", alignItems: "center" }}>
           <RowName row={row} />

@@ -24,7 +24,8 @@ const quiet: React.CSSProperties = {
   background: "transparent",
   border: "none",
   padding: 0,
-  color: "var(--accent-text)",
+  // `0112`, D-148: gold type below 24sp is 3.7:1 on parchment. Quiet is secondary ink, underlined.
+  color: "var(--text-secondary)",
   font: "inherit",
   textDecoration: "underline",
   cursor: "pointer",
@@ -35,7 +36,8 @@ const button: React.CSSProperties = {
   borderRadius: ".375rem",
   border: "1px solid var(--accent)",
   background: "transparent",
-  color: "var(--accent-text)",
+  // Ink type inside a gold rule (D-148, `0112`).
+  color: "var(--text-primary)",
   font: "inherit",
   cursor: "pointer",
 }

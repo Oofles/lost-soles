@@ -4,7 +4,7 @@ import { rulesForSkills } from "@/lib/log/optimistic"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
 import { skillsPanel } from "@/lib/skills/panel"
 
-import { lastRunLine, milestoneTarget, plinthModel, quickView } from "./model"
+import { lastRunLine, mapSummary, milestoneTarget, plinthModel, quickView } from "./model"
 
 const run = (props: Partial<RunFeatureCollection["features"][0]["properties"]> = {}): RunFeatureCollection => ({
   type: "FeatureCollection",
@@ -83,6 +83,33 @@ describe("the last-run line", () => {
 
   it("is never a relative age — no 'ago', no 'days since' (H2)", () => {
     expect(lastRunLine(run())!.text).not.toMatch(/ago|since|days?\b/i)
+  })
+})
+
+describe("the map, as text (0112, 06 §9.4)", () => {
+  it("names the territory, then the last run, then its new cells", () => {
+    expect(mapSummary(12480, run())).toBe("Map. 12,480 cells revealed. Last run Fri 28 Aug, 8.40 km, 21 new cells.")
+  })
+
+  it("is the rail's own facts: the same date, distance and count as the last-run line", () => {
+    const line = lastRunLine(run())!.text
+    for (const fact of ["Fri 28 Aug", "8.40 km", "21"]) {
+      expect(line).toContain(fact)
+      expect(mapSummary(5, run())).toContain(fact)
+    }
+  })
+
+  it("leaves out what the run does not have, and says nothing of a run that revealed nothing new", () => {
+    expect(mapSummary(1, run({ distanceM: null, newCellCount: 0 }))).toBe("Map. 1 cell revealed. Last run Fri 28 Aug.")
+  })
+
+  it("with no run, is the territory alone; with the explored set unknown, is nothing rather than a guess", () => {
+    expect(mapSummary(0, EMPTY_COLLECTION)).toBe("Map. 0 cells revealed.")
+    expect(mapSummary(null, run())).toBeNull()
+  })
+
+  it("never names an age, a gap or what was missed (H2, D-013)", () => {
+    expect(mapSummary(12480, run())).not.toMatch(/ago|since|days?\b|welcome|missed|while you/i)
   })
 })
 

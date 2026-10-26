@@ -10,6 +10,7 @@ import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
 import { ModeToggle } from "@/components/map/mode-toggle"
 import type { LatestAnswer } from "@/components/map/use-latest-run"
+import { VISUALLY_HIDDEN } from "@/lib/a11y/visually-hidden"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { logStore } from "@/lib/log/queue"
 import { currentUid, fetchSkills } from "@/lib/log/transport"
@@ -17,7 +18,7 @@ import type { Camera } from "@/lib/map-camera"
 import type { SourceConnection } from "@/lib/plinth/connections"
 import { latestSeen, mergeHolds } from "@/lib/backfill/plan"
 import { loadStanding } from "@/lib/plinth/load"
-import { plinthModel } from "@/lib/plinth/model"
+import { mapSummary, plinthModel } from "@/lib/plinth/model"
 import { answersFor, firstPulse, homeHold } from "@/lib/plinth/states"
 import { isSeen } from "@/lib/run-moment/seen"
 import { EMPTY_COLLECTION, type RunFeatureCollection } from "@/lib/runs/wire"
@@ -139,16 +140,34 @@ export function HomeScreen({
     [skills, explored.set, latest, seen, pulse, sources, reconnectIds],
   )
 
+  /**
+   * `0112`. THE MAP, AS TEXT (06 §9.4). Held back with the plinth while an aggregate reveal plays —
+   * the numbers come after the map (§3.2), for a screen reader as for the eye.
+   */
+  const veiled = Array.isArray(backfill.hold)
+  const summary = useMemo(
+    () => (veiled ? null : mapSummary(lifetimeCells(explored.set), latest)),
+    [veiled, explored.set, latest],
+  )
+
   return (
     <>
       <style>{PLINTH_CSS}</style>
-      {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} veiled={Array.isArray(backfill.hold)} />}
+      {chronicleOpen ? null : <Plinth model={model} onReconnect={onReconnect} veiled={veiled} />}
       {children}
       {/* `0098`. Top-left of the map pane (06 §4.2); before `⚙` in §2.2's focus order; `M` from anywhere. */}
       <ModeToggle />
       <Link href="/settings" className="home-gear" aria-label="Settings">
         <span aria-hidden="true">⚙</span>
       </Link>
+      {/*
+        `0112`. Before the map in the DOM, so it is what a screen reader reaches where the canvas is.
+        Rendered empty from the first paint, so the region exists before its text arrives: a live
+        region inserted already full is announced by some readers and not others.
+      */}
+      <p role="status" aria-live="polite" data-map-summary="" style={VISUALLY_HIDDEN}>
+        {summary ?? ""}
+      </p>
       <MapShell
         home={home}
         paneClassName="home-pane"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from "react-dom"
 
 import { useExplored } from "@/components/map/explored-provider"
+import { VISUALLY_HIDDEN } from "@/lib/a11y/visually-hidden"
 import type { MapStage } from "@/components/map/map-shell"
 import { fogDisabled, perfEnabled } from "@/lib/fog/debug-flags"
 import { FogPerf, type FrameStats } from "@/lib/fog/perf/collector"
@@ -25,6 +26,7 @@ import { documentTraceColor, installWebBeat, type WebBeat } from "@/lib/trace-we
 import { webRuns } from "@/lib/trace-web/runs"
 import { buildWeb, type WebRunInput } from "@/lib/trace-web/web"
 
+import { revealWords, tallyWords } from "./narration"
 import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
 import { ChronicleLine } from "./run-lines"
 
@@ -88,6 +90,15 @@ import { ChronicleLine } from "./run-lines"
  * settled tally at 6.0 s, the frontier line under it at 7.2 s, and `onDone` comes at 8.4 s
  * (`beat45.ts`). One clock, so a pause anywhere in beat 2 moves every later boundary with it. While
  * the chronicle line is fading nothing else moves: the tally's frame is held at its settled value.
+ *
+ * ─── THE NARRATION: ONE LIVE REGION, IN BEAT ORDER (`0112`) ─────────────────
+ *
+ * 06 §9.4. A visually hidden `aria-live="polite"` region, mounted empty with the sequence, that each
+ * beat appends its settled words to as it begins (`narration.ts`): beat 1's reveal at its t = 0 (or
+ * at hand-off, when it could not play), each tally line as its count starts, each level-up card as it
+ * lands (`LevelUpQueue`'s `announce`, so the cards have no region of their own here), the chronicle
+ * line at beat 4 and the frontier at beat 5. Appended, never replaced, keyed per beat so a re-render
+ * cannot say a line twice. A skip unmounts it with everything else; the end state is plain DOM.
  */
 
 /** How long to wait for the map before giving up and showing the end state. */
@@ -126,6 +137,7 @@ export function RunSequence({
   onLines,
   onDone,
   reduced = false,
+  frontierWords = null,
 }: {
   summary: RunSummary
   stage?: MapStage
@@ -139,15 +151,39 @@ export function RunSequence({
   onDone: () => void
   /** `0084`. `prefers-reduced-motion`, read once when the sequence began. */
   reduced?: boolean
+  /** `0112`. Beat 5's line as words, for the narration; `null` while there is nothing to name. */
+  frontierWords?: string | null
 }) {
+  /** `0112`. What the narration region has said, in order. Keyed, so nothing is said twice. */
+  const [said, setSaid] = useState<{ key: string; text: string }[]>([])
+  const say = useCallback((key: string, text: string | null) => {
+    if (!text) return
+    setSaid((s) => (s.some((x) => x.key === key) ? s : [...s, { key, text }]))
+  }, [])
+  const sayReveal = useCallback(() => say("beat1", revealWords(summary)), [say, summary])
+  const frontierRef = useRef(frontierWords)
+  frontierRef.current = frontierWords
+
   // The `performance.now()` at which beat 2 begins — beat 1's NOMINAL end, not whenever React got
   // round to mounting beat 2. Measured in 0081's smoke: starting the clock at mount put beat 2 ~100 ms
   // late (a state update, a render and an effect, at SwiftShader frame rates).
   const [handoff, setHandoff] = useState<number | null>(null)
-  const toBeat2 = useCallback((at: number) => setHandoff((h) => h ?? at), [])
-  const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} reduced={reduced} />
+  const toBeat2 = useCallback(
+    (at: number) => {
+      // A beat 1 that could not play (no WebGL2, no route, the wait gave up) is still narrated first.
+      sayReveal()
+      setHandoff((h) => h ?? at)
+    },
+    [sayReveal],
+  )
+  const beat1 = <Beat1 summary={summary} stage={stage} onDone={toBeat2} onStart={sayReveal} reduced={reduced} />
   return (
     <>
+      <div aria-live="polite" data-narration="" style={VISUALLY_HIDDEN}>
+        {said.map((x) => (
+          <p key={x.key}>{x.text}</p>
+        ))}
+      </div>
       {beat1}
       {handoff !== null ? (
         <Beat2
@@ -160,6 +196,8 @@ export function RunSequence({
           onLines={onLines}
           onDone={onDone}
           reduced={reduced}
+          say={say}
+          frontierWords={frontierRef}
         />
       ) : null}
     </>
@@ -170,12 +208,15 @@ function Beat1({
   summary,
   stage,
   onDone,
+  onStart,
   reduced,
 }: {
   summary: RunSummary
   stage: MapStage
   /** Called once, with the `performance.now()` at which beat 1 ended. */
   onDone: (at: number) => void
+  /** `0112`. Called at t = 0, when the map can show the reveal: the narration's first line. */
+  onStart: () => void
   reduced: boolean
 }) {
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
@@ -297,6 +338,7 @@ function Beat1({
         }
         t0 = now
         window.__sequence = { t0 }
+        onStart()
         perf?.beginPhase("beat1")
         // Reduced motion: no flight. The map was framed on the run at mount (`MapShell`).
         if (!reduced) startCamera()
@@ -333,7 +375,7 @@ function Beat1({
       layer?.setBloom(null)
       setHost(null)
     }
-  }, [stage, path, expectReveal, summary, onDone, reduced])
+  }, [stage, path, expectReveal, summary, onDone, onStart, reduced])
 
   if (!host) return null
   // The lantern: a point of warm light, additive (`plus-lighter`), riding the map's own container so
@@ -385,6 +427,8 @@ function Beat2({
   onLines,
   onDone,
   reduced,
+  say,
+  frontierWords,
 }: {
   summary: RunSummary
   stage: MapStage
@@ -396,8 +440,16 @@ function Beat2({
   onLines: () => void
   onDone: () => void
   reduced: boolean
+  /** `0112`. The sequence's one narration region (`RunSequence`). */
+  say: (key: string, text: string | null) => void
+  /** `0112`. Read at beat 5 and after, since the frontier is computed only once beat 4 begins. */
+  frontierWords: { readonly current: string | null }
 }) {
   const count = data.tally ? tallyLineCount(data.tally, summary) : 0
+  /** `0112`. Each staggered line's words, index for index with the lines counted in below. */
+  const words = useMemo(() => (data.tally ? tallyWords(data.tally, summary, data.skillName) : []), [data.tally, summary, data.skillName])
+  const wordsRef = useRef(words)
+  wordsRef.current = words
   const frameAt = reduced ? beat2ReducedAt : beat2At
   const [frame, setFrame] = useState<Beat2Frame>(() => frameAt(0, count))
   const [lines, setLines] = useState(() => beat45At(0))
@@ -431,6 +483,8 @@ function Beat2({
   triggersRef.current = triggers
   const nextTrigger = useRef(0)
   const [playing, setPlaying] = useState<LevelCard[] | null>(null)
+  /** `0112`. One narration key per card played, so two cards with the same words are both spoken. */
+  const cardKey = useRef(0)
   const [pulse, setPulse] = useState<{ x: number; y: number; key: number } | null>(null)
 
   // Where a place-bound card flies: the route, walked by the card's share of the run's XP (D-297).
@@ -479,6 +533,7 @@ function Beat2({
     }
 
     let raf = 0
+    let spoken = 0
     const tick = (now: number) => {
       if (!c.isPaused) {
         let t = c.elapsed(now)
@@ -491,9 +546,19 @@ function Beat2({
           c.rewindTo(due.at, now)
           setPlaying(due.cards)
         }
+        // `0112`: each line is spoken as it begins to fade in, at the CLAMPED `t`, so a line that has
+        // not appeared when a card takes the screen is not spoken before the card. `narrationOrder`
+        // (`narration.ts`) states the order this loop produces, and its test pins it.
+        const n = wordsRef.current.length
+        while (spoken < n && t >= lineStart(spoken, n)) {
+          say(`tally-${spoken}`, wordsRef.current[spoken]!)
+          spoken++
+        }
         // Held at the settled tally once beat 2 is over: nothing but the lines moves in beats 4–5.
         setFrame(frameAt(Math.min(t, BEAT2_MS), countRef.current))
         setLines(beat45At(t))
+        if (t >= BEAT4_START) say("chronicle", chronicle)
+        if (t >= BEAT5_START) say("frontier", frontierWords.current)
         if (t >= BEAT4_START && seq.beat4Start === undefined) {
           seq.beat2End = seq.beat4Start = now
           onLines()
@@ -543,6 +608,7 @@ function Beat2({
         onPlaced={(at) => setPulse({ ...at, key: performance.now() })}
         onDone={() => setPlaying(null)}
         reduced={reduced}
+        announce={(text) => say(`card-${cardKey.current++}`, text)}
       />
     ) : null}
     {pulse ? <CellPulse key={pulse.key} x={pulse.x} y={pulse.y} onEnd={() => setPulse(null)} /> : null}
