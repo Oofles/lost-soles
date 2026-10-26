@@ -4,13 +4,14 @@ slug: registry-ts-says-0036-0037-register-the-strava-adapter-both
 title: registry.ts says 0036/0037 register the strava adapter; both closed and it is still unregistered
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-09-06T15:57:14Z
+closed: 2026-10-26T19:48:00Z
 ---
 
 ## Description

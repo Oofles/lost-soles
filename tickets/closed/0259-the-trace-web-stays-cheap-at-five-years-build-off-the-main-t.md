@@ -4,7 +4,7 @@ slug: the-trace-web-stays-cheap-at-five-years-build-off-the-main-t
 title: The trace web stays cheap at five years — build off the main thread or precompute it
 type: chore
 priority: low
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [85]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-14T04:48:33Z
 started: 2026-10-26T19:03:53Z
+closed: 2026-10-26T19:48:06Z
 ---
 
 ## Description

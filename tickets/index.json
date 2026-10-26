@@ -4195,15 +4195,16 @@
     "title": "registry.ts says 0036/0037 register the strava adapter; both closed and it is still unregistered",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-06T15:57:14Z",
-    "path": "tickets/open/0175-registry-ts-says-0036-0037-register-the-strava-adapter-both.md",
-    "ready": true,
+    "closed": "2026-10-26T19:48:00Z",
+    "path": "tickets/closed/0175-registry-ts-says-0036-0037-register-the-strava-adapter-both.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
@@ -5098,7 +5099,7 @@
     "title": "Remove the /dev/tickets stub routes now that D-252 withdrew the in-app ticket UI",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -5106,8 +5107,9 @@
     "source": "agent",
     "created": "2026-09-28T17:42:28Z",
     "started": "2026-10-26T19:03:53Z",
-    "path": "tickets/open/0216-remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t.md",
-    "ready": true,
+    "closed": "2026-10-26T19:48:06Z",
+    "path": "tickets/closed/0216-remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
@@ -6074,7 +6076,7 @@
     "title": "The trace web stays cheap at five years — build off the main thread or precompute it",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -6084,8 +6086,9 @@
     "source": "agent",
     "created": "2026-10-14T04:48:33Z",
     "started": "2026-10-26T19:03:53Z",
-    "path": "tickets/open/0259-the-trace-web-stays-cheap-at-five-years-build-off-the-main-t.md",
-    "ready": true,
+    "closed": "2026-10-26T19:48:06Z",
+    "path": "tickets/closed/0259-the-trace-web-stays-cheap-at-five-years-build-off-the-main-t.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

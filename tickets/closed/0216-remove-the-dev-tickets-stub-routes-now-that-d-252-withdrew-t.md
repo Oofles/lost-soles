@@ -4,7 +4,7 @@ slug: remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t
 title: Remove the /dev/tickets stub routes now that D-252 withdrew the in-app ticket UI
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-28T17:42:28Z
 started: 2026-10-26T19:03:53Z
+closed: 2026-10-26T19:48:06Z
 ---
 
 ## Description
