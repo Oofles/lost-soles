@@ -1,4 +1,5 @@
 import { withApiTimeout } from "@/lib/http/timeout"
+import { webRunsFromBody } from "@/lib/trace-web/body"
 import type { WebRunInput } from "@/lib/trace-web/web"
 
 import {
@@ -82,17 +83,28 @@ async function latestRun(fetchImpl: Fetch, signal: AbortSignal): Promise<RunFeat
  * `fetchLatestRun`: a 404 is a signed-out map and reads as "no routes"; any other failure throws.
  */
 export function fetchTraceWebRuns(fetchImpl: Fetch = globalThis.fetch): Promise<WebRunInput[]> {
-  return withApiTimeout(`GET ${RUNS_WEB_PATH}`, (signal) => traceWebRuns(fetchImpl, signal))
+  return fetchTraceWebBody(fetchImpl).then((body) => body.runs)
 }
 
-async function traceWebRuns(fetchImpl: Fetch, signal: AbortSignal): Promise<WebRunInput[]> {
+/**
+ * `0259`. The same read, keeping the body's TEXT beside the parsed runs: the trace web's worker
+ * (`lib/trace-web/off-thread.ts`) is handed the text, one flat string, rather than a structured clone
+ * of every coordinate array.
+ */
+export function fetchTraceWebBody(fetchImpl: Fetch = globalThis.fetch): Promise<{ text: string; runs: WebRunInput[] }> {
+  return withApiTimeout(`GET ${RUNS_WEB_PATH}`, (signal) => traceWebBody(fetchImpl, signal))
+}
+
+const NO_WEB_BODY = JSON.stringify({ runs: [] })
+
+async function traceWebBody(fetchImpl: Fetch, signal: AbortSignal): Promise<{ text: string; runs: WebRunInput[] }> {
   const response = await fetchImpl(RUNS_WEB_PATH, { credentials: "same-origin", cache: "no-store", signal })
-  if (response.status === 404) return []
+  if (response.status === 404) return { text: NO_WEB_BODY, runs: [] }
   if (!response.ok) {
     throw new RunFetchError(response.status, `GET ${RUNS_WEB_PATH} returned ${response.status}`)
   }
-  const body = (await response.json()) as { runs?: unknown }
-  return Array.isArray(body?.runs) ? (body.runs as WebRunInput[]) : []
+  const text = await response.text()
+  return { text, runs: webRunsFromBody(text) }
 }
 
 /**

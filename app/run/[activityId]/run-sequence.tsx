@@ -23,8 +23,9 @@ import { lanternPath } from "@/lib/run-moment/lantern-path"
 import { documentBloomPalette } from "@/lib/run-moment/palette"
 import type { RunSummary } from "@/lib/runs/wire"
 import { documentTraceColor, installWebBeat, type WebBeat } from "@/lib/trace-web/layer"
-import { webRuns } from "@/lib/trace-web/runs"
-import { buildWeb, type WebRunInput } from "@/lib/trace-web/web"
+import { buildWebOffThread } from "@/lib/trace-web/off-thread"
+import { webSource } from "@/lib/trace-web/runs"
+import type { WebFeatureCollection } from "@/lib/trace-web/web"
 
 import { revealWords, tallyWords } from "./narration"
 import { tallyFooters, tallyLineCount, TallyView, type useRunTally } from "./run-ledger"
@@ -222,9 +223,10 @@ function Beat1({
   const path = useMemo(() => lanternPath(summary.route.features[0]?.geometry), [summary])
   const expectReveal = summary.reveal.new.length + summary.reveal.rearmed.length > 0
 
-  // `0085`. The web's inputs: the array, `"none"` when the fetch failed (the beat plays without
-  // the web), or `null` while it is in flight.
-  const web = useRef<WebRunInput[] | "none" | null>(null)
+  // `0085`. The web WITHOUT this run: `"none"` when the fetch failed (the beat plays without the
+  // web), or `null` while it is in flight. `0259`: built in a worker (`off-thread.ts`) and waited for
+  // like the reveal — the beat's clock starts after it lands, never across a build.
+  const web = useRef<WebFeatureCollection | "none" | null>(null)
 
   const explored = useExplored()
   const exploredReady = useRef(false)
@@ -233,18 +235,20 @@ function Beat1({
   const generation = explored.generation
   useEffect(() => {
     let cancelled = false
-    webRuns(generation).then(
-      (runs) => {
-        if (!cancelled && web.current === null) web.current = runs
-      },
-      () => {
-        if (!cancelled && web.current === null) web.current = "none"
-      },
-    )
+    webSource(generation)
+      .then((source) => buildWebOffThread(source, { exclude: summary.activityId }))
+      .then(
+        (before) => {
+          if (!cancelled && web.current === null) web.current = before
+        },
+        () => {
+          if (!cancelled && web.current === null) web.current = "none"
+        },
+      )
     return () => {
       cancelled = true
     }
-  }, [generation])
+  }, [generation, summary.activityId])
 
   const lantern = useRef<HTMLDivElement | null>(null)
   const ended = useRef(false)
@@ -281,9 +285,9 @@ function Beat1({
     }
     let webBeat: WebBeat | null = null
     const installWeb = () => {
-      const runs = web.current
-      if (webBeat || !traceColor || runs === null || runs === "none") return
-      webBeat = installWebBeat(map, buildWeb(runs, { exclude: summary.activityId }), traceColor)
+      const before = web.current
+      if (webBeat || !traceColor || before === null || before === "none") return
+      webBeat = installWebBeat(map, before, traceColor)
       webBeat.crossfade(0)
     }
     const bloomPalette = documentBloomPalette()
