@@ -4205,7 +4205,7 @@
     "path": "tickets/open/0175-registry-ts-says-0036-0037-register-the-strava-adapter-both.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

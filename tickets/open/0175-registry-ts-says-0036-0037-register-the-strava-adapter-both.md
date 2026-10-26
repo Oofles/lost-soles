@@ -38,12 +38,17 @@ Cosmetic in effect, not in position.
 
 ## Acceptance criteria
 
-- [ ] `registry.ts`'s comment names `0093` as the ticket that registers the ingest adapter, and
+- [x] `registry.ts`'s comment names `0093` as the ticket that registers the ingest adapter, and
       states the reason `adapter.ts` gives — a registry entry must not resolve to an object that
       throws on `accept`.
-- [ ] The two files no longer disagree: `adapter.ts`'s "STILL NOT IN `registry.ts`'s `ADAPTERS`"
+      *Amended 2026-10-26:* `0042` registered it, not `0093` (see the note below). The comment
+      names `0042`, states `adapter.ts`'s `accept` reasoning, and now adds that `0091` built
+      `accept`, so the registered object has no throwing phase.
+- [x] The two files no longer disagree: `adapter.ts`'s "STILL NOT IN `registry.ts`'s `ADAPTERS`"
       paragraph and `registry.ts`'s comment tell the same story.
-- [ ] `registry.test.ts`'s "ships empty" assertion is untouched and still passes.
+- [x] ~~`registry.test.ts`'s "ships empty" assertion is untouched and still passes.~~
+      *Overturned by `0042`* (note below): replaced by "registers exactly the adapters that
+      exist". That test and the other nine in `registry.test.ts` pass (2026-10-26).
 
 **2026-09-07 — ticket `0042` overtook this one, by operator decision.** `0042` needed the ingest
 adapter registered: `process-activity` reaches its adapter only through `getAdapter(job.source)`,
@@ -83,7 +88,27 @@ matters.
 Low priority, and it should stay low — but it is a two-line fix and the file is the one place
 this kind of staleness costs the most.
 
+## Resolution
+
+Closed at capability 18 as already satisfied by `0042`, as that ticket's note said it should be.
+
+- **Files touched:** `src/adapters/registry.ts`, one paragraph.
+- **What was still wrong.** The comment `0042` wrote was right when it was written, but it had
+  gone stale the same way this ticket complains about. It defended registering an adapter whose
+  `accept` "throws a named `NotYetImplemented`" because the webhook did not exist yet. `0091`
+  then built `accept`, and the webhook reaches it through `getWebhookAdapter`. The new paragraph
+  says the trade is now history. The "STILL NOT IN `registry.ts`'s `ADAPTERS`" paragraph that
+  `adapter.ts` used to carry is gone. Its phase-1 comment now points at `getWebhookAdapter`, so
+  the two files agree.
+- **Criteria 1 and 3 were amended, not met as written.** Criterion 1 named `0093`, and that guess
+  was wrong. Criterion 3 pinned an assertion that could not survive registration. Both
+  amendments are recorded on the criteria.
+- **Decisions:** none.
+
 ## Operator validation
 
 None — a code comment with no runtime surface. Verified by the agent by re-reading both files and
 confirming they agree.
+
+**2026-10-26, agent:** `registry.ts` lines 40–64 and `adapter.ts` phase 1 (line ~220) re-read
+and agree. `npx vitest run src/adapters/registry.test.ts`: 10/10 pass. No deploy surface.

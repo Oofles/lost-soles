@@ -58,6 +58,9 @@ export class UnknownAdapterError extends Error {
  * and 4 are complete and are what the worker actually calls. Registering an object whose
  * unbuilt phase throws a named `NotYetImplemented` naming its ticket is a better failure
  * than a registry that cannot answer at all.
+ *
+ * That trade is now history: ticket 0091 built `accept`, so the registered adapter has no
+ * throwing phase left, and the webhook reaches it through `getWebhookAdapter` below.
  */
 export const ADAPTERS: Readonly<Partial<Record<SourceId, SourceAdapter>>> = {
   strava: stravaAdapter as SourceAdapter,
