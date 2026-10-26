@@ -4,11 +4,11 @@ slug: accessibility-and-reality-checks
 title: Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection
 type: chore
 priority: high
-status: blocked
+status: open
 size: m
 capability: 18-mvp-hardening
 depends_on: [59, 85, 90, 101, 113]
-blocked_by: [314]
+blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-26T03:02:11Z
