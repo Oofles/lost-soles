@@ -6763,7 +6763,7 @@
     "title": "Delete the secret-smoke-test function, now the backend's last secret() user",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -6771,8 +6771,9 @@
     "source": "agent",
     "created": "2026-10-19T05:14:32Z",
     "started": "2026-10-26T20:04:43Z",
-    "path": "tickets/open/0290-delete-the-secret-smoke-test-function-now-the-backend-s-last.md",
-    "ready": true,
+    "closed": "2026-10-26T20:33:13Z",
+    "path": "tickets/closed/0290-delete-the-secret-smoke-test-function-now-the-backend-s-last.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4

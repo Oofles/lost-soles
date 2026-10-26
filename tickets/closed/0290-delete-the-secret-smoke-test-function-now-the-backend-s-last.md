@@ -4,7 +4,7 @@ slug: delete-the-secret-smoke-test-function-now-the-backend-s-last
 title: Delete the secret-smoke-test function, now the backend's last secret() user
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T05:14:32Z
 started: 2026-10-26T20:04:43Z
+closed: 2026-10-26T20:33:13Z
 ---
 
 ## Description
