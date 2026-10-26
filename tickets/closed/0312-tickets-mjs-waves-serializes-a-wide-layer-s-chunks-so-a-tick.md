@@ -4,7 +4,7 @@ slug: tickets-mjs-waves-serializes-a-wide-layer-s-chunks-so-a-tick
 title: tickets.mjs waves serializes a wide layer's chunks, so a ticket unblocked early waits for the whole layer
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T15:07:00Z
+closed: 2026-10-26T18:54:15Z
 ---
 
 ## Description
