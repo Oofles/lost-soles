@@ -31,6 +31,10 @@ Trivial; pair it with another small ticket.
 
 None: a test title.
 
+**Result, 2026-10-26, after Amplify job 434 (`ffa90a3`) succeeded.** The build's `npm test` passed
+with the new title and computed ceiling. On `main` the orchestrator re-ran
+`npx vitest run lib/level-up/beat3.test.tsx` (with the adapter test): 84/84 pass.
+
 D-123 trigger checked? none.
 
 ## Resolution

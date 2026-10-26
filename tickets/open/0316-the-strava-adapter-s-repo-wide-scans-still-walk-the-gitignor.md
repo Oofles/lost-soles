@@ -102,3 +102,10 @@ The planted probes were removed afterwards (`tmp/` deleted).
 ## Operator validation
 
 None: test-only.
+
+**Result, 2026-10-26, on `main` after Amplify job 434 succeeded.** `check-design-tokens.mjs
+--self-test` exits 0 (it now plants the dangling `tmp/` symlink), `check-fixture-geography.mjs
+--self-test` exits 0, and `npx vitest run src/adapters/strava/adapter.test.ts` passes. Before merge,
+the agent ran every guard and the full suite with probes planted under `tmp/`, and nothing failed.
+The orchestrator accepted one trade-off: `check-fixture-geography` no longer sees a file
+force-added under the gitignored `tmp/`. That is the same gap it already has for `.claude/`.

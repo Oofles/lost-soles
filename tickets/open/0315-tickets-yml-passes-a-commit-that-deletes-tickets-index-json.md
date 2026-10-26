@@ -46,6 +46,12 @@ Low priority: nothing deletes the file in normal work.
 
 None: CI configuration. Proven by a test or a throwaway push showing the red run.
 
+**Result, 2026-10-26.** The red run was proven before merge, in a scratch clone: on a commit that
+deletes the index, `git ls-files --error-unmatch tickets/index.json` exits 1, and the old step's
+`git diff --exit-code` exits 0. After the push, GitHub Actions `tickets` run 40401641127 on
+`ffa90a3` completed `success` in 25 s, so the new presence check passes a normal tree. The hook
+tests (64 pass) cover layer 5's block.
+
 ## Resolution
 
 **Files touched**
