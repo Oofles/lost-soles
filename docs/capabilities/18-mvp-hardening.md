@@ -12,7 +12,7 @@
 - `0115` — Secrets and dependency audit; incident playbook dry-read
 - `0116` — Invariant test sweep — 02-data-model.md §9 I-1 through I-26
 - `0117` — MVP definition-of-done sweep — evaluate every box in roadmap §9 objectively
-- `0275` — Deferred lifetime stats — waits for a consuming screen (D-329); moved here from `13`
+- `0275` — Deferred lifetime stats — waits for a consuming screen (D-329); moved here from `13`. Declined 2026-10-26 (D-453)
 
 ## Design notes
 

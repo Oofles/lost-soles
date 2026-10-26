@@ -25,8 +25,9 @@ clip rule's guarantee that cold never touches the frontier.
 
 ## Acceptance criteria
 
-- [ ] A decision is recorded (`D-xxx`) on whether cold ground shows below z14, and by what rule.
-- [ ] If it does, the chosen rule keeps cold ground two cell-widths (at that bucket) inside the
+- [x] A decision is recorded (`D-xxx`) on whether cold ground shows below z14, and by what rule.
+      D-452: it does not; the existing clip stands.
+- [x] (Not applicable: D-452 chose not to show it.) If it does, the chosen rule keeps cold ground two cell-widths (at that bucket) inside the
       drawn edge, with a shader test as `0100` has.
 
 ## Options considered
@@ -38,7 +39,8 @@ clip rule's guarantee that cold never touches the frontier.
 
 ## Open questions
 
-- Does the operator plan routes zoomed out, or always at street zoom?
+- Does the operator plan routes zoomed out, or always at street zoom? *Answered by the decision:
+  cold ground is a street-zoom reading (D-452).*
 
 ## Notes
 
@@ -47,5 +49,20 @@ Filed by the orchestrator from `0100`'s report (wave 15.3, 2026-10-20). Filed in
 
 ## Operator validation
 
-Desktop browser, atlas, at z12–z13 over ground last run 6+ months ago: is cold ground visible and
-still clearly separate from the frontier?
+**None owed.** The decision keeps the shipped behaviour, so no pixel changed and nothing was
+deployed. The original check ("is cold ground visible at z12–z13") now has a known, intended answer:
+mostly no. `0100`'s shader test for the two-cell-width clip still guards the rule that stands.
+
+## Resolution
+
+**Decided by the operator, 2026-10-26, at wave 18.5's planning: option 1, "leave it" (D-452).**
+
+The orchestrator offered three routes: have an agent investigate and propose options, record
+"cold stays hidden below z14", or hold the ticket. The operator chose to record it. Cold ground
+answers whether a street is worth 50% again, which is a street-zoom question. Lowering the clip
+threshold per bucket (option 2) or adding a coarse-only floor (option 3) would both loosen the
+guarantee that keeps cold off the frontier (D-147), for a reading nobody had asked for at region
+scale. A region-scale "neglected ground" view, if ever wanted, is its own design.
+
+No code changed. Files touched: `docs/decisions/DECISIONS.md` (D-452), `docs/05-fog-of-war.md`
+§8.5's settled note.

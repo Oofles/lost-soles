@@ -6027,3 +6027,17 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     - (b), a precomputed drawn web, derives "without this run" by subtraction, and that is not
       identical to `buildWeb` with the run excluded.
     - (c) alone does nothing for the build.
+- **D-452** **Cold ground is a close-zoom reading; it is not drawn below z14.** *(Operator,
+  2026-10-26, ticket `0297`.)* Re-affirms D-147's clip and D-390's coarse-bucket rule, and records
+  what they imply. At coarse buckets the clip (`coverage - 0.75`) rarely passes on a sparsely
+  explored parent disc, so the cold wash mostly vanishes. That is accepted as designed, and nothing
+  will widen the clip or lower the threshold per bucket. Cold ground answers *"is this street worth
+  50% again"*, a question asked at street zoom. A region-scale "where have I neglected" view would
+  need its own design and its own decision, not a tuned shader. No code changed.
+- **D-453** **The four deferred lifetime stats are declined, not held open.** *(Operator,
+  2026-10-26, ticket `0275`.)* Amends D-329's *"a ticket exists for them; it opens when a screen
+  needs them"*. No capability, MVP or post-MVP, designs a screen that consumes explorer since,
+  re-armed lifetime, most-run ground or total distance/runs, and an open ticket that may not start
+  was holding capability 18's audit. `0275` closes declined. The design in `05` §8.3 stays as the
+  specification. A future screen that shows them files its own ticket and cites §8.3 and this
+  decision. `lib/stats/derived.ts` stays the place they go.

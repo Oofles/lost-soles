@@ -6447,8 +6447,8 @@
     "path": "tickets/open/0275-deferred-lifetime-stats-explorer-since-re-armed-lifetime-mos.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 3
+      "checked": 1,
+      "total": 1
     }
   },
   {
@@ -6923,7 +6923,7 @@
     "path": "tickets/open/0297-cold-territory-at-coarse-zooms.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },

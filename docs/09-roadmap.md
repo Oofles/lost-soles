@@ -406,7 +406,7 @@ thing is skippable and nothing about it is required.
 | 2 | ▸ **Home states** | §2.4: cold start, no runs yet, sync in progress, offline. No "sync failed": a failed import surfaces nowhere; only a broken token shows, as one reconnect line (D-318, D-337). |
 | 3 | **`/chronicle` — run list, opened from RUNS** | At ≥1024px it replaces the rail's contents in the rail's column, not a sheet (D-313, D-322); exists as a route so the browser back button and deep links behave (D-251). |
 | 4 | **`/settings` — small and boring** | Connect/disconnect source, sign out, account deletion entry point. |
-| 5 | **Derived stats feed: new territory per run, lifetime totals** | `05-fog-of-war.md` §8.2, §8.3. No lifetime totals on the Chronicle; only cells is shown (the plinth). Area and frontier length are built but unrendered; the other four are deferred (D-329, D-340, `0275`). |
+| 5 | **Derived stats feed: new territory per run, lifetime totals** | `05-fog-of-war.md` §8.2, §8.3. No lifetime totals on the Chronicle; only cells is shown (the plinth). Area and frontier length are built but unrendered; the other four are deferred (D-329, D-340), and `0275` was declined (D-453). |
 
 *Added during the capability (nine more):* `0187` the desktop design pass over `06` (D-313),
 `0215` phone criteria stripped (D-251), `0270` the skills quick-view in the rail, `0249` sheets

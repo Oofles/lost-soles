@@ -28,10 +28,12 @@ SSR, or a small derived payload beside `explored-r10.bin`).
 
 ## Acceptance criteria
 
-- [ ] A consuming screen exists and cites the stats it shows.
-- [ ] Each shown stat is computed from its source of truth (cell table, run ledger), never from a
-      cached number, and is never a period aggregate (N2).
-- [ ] The computation adds no VPC-attached Lambda (D-081) and is bounded at year-five scale.
+**Withdrawn 2026-10-26 — D-453.** Declined. The three originals are preserved verbatim in
+`## Resolution`.
+
+- [x] Declined into `tickets/closed/` with a `## Resolution`; D-329's "a ticket exists for them" is
+      amended by D-453, and `05` §8.3, `09` §row 5 and the capability doc say the ticket was
+      declined rather than pending.
 
 ## Notes
 
@@ -42,4 +44,31 @@ Put the rest beside it, or in its server counterpart, rather than inline in a pa
 
 ## Operator validation
 
-Decided with the consuming screen.
+**None, and none is owed: declined, not delivered.** Nothing was built, so there is no screen to look
+at and nothing deployed to smoke-test. The original line read "Decided with the consuming screen",
+and that still holds for whichever future ticket builds one.
+
+## Resolution
+
+**Declined by the operator, 2026-10-26, at wave 18.5's planning (D-453).**
+
+The ticket's own text said not to start until a screen needed these numbers. None does, in any
+capability, MVP or post-MVP, and its first criterion could never be met. Left open, it would have
+held capability 18's audit indefinitely. The orchestrator offered decline, defer, or leave open;
+the operator chose decline.
+
+What survives the decline:
+- `05` §8.3 still specifies all four stats and their sources. It is the design a future ticket cites.
+- `lib/stats/derived.ts` remains the place for them, beside `lifetimeTerritory`.
+- The constraints of the original criteria carry forward to that future ticket: computed from the
+  source of truth, never a period aggregate (N2), no VPC Lambda (D-081), bounded at year five.
+
+Original criteria, verbatim:
+
+> - A consuming screen exists and cites the stats it shows.
+> - Each shown stat is computed from its source of truth (cell table, run ledger), never from a
+>   cached number, and is never a period aggregate (N2).
+> - The computation adds no VPC-attached Lambda (D-081) and is bounded at year-five scale.
+
+Files touched: `docs/decisions/DECISIONS.md` (D-453), `docs/05-fog-of-war.md` §8.3 note,
+`docs/09-roadmap.md` (capability 13 row 5), `docs/capabilities/18-mvp-hardening.md` ticket list.

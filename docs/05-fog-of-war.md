@@ -1878,7 +1878,7 @@ level curve belong to the progression document, not this one.
 
 ### 8.3 Lifetime totals
 
-> **D-329 (2026-10-15, `0090`), amended by D-340 (`13` audit, 2026-10-16).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. Only cells is shown, on the plinth; area and frontier length are built, memoised and tested in `lib/stats/derived.ts`, and no screen renders them. **Deferred until a screen consumes them** (`0275`): explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
+> **D-329 (2026-10-15, `0090`), amended by D-340 (`13` audit, 2026-10-16).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. Only cells is shown, on the plinth; area and frontier length are built, memoised and tested in `lib/stats/derived.ts`, and no screen renders them. **Deferred until a screen consumes them** (`0275`, declined by D-453: a consuming screen files its own ticket): explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
 
 Cheap aggregates, computed on generation change and memoised:
 
@@ -1963,7 +1963,9 @@ function cellNovelty(cell, exploredSet, lastRunAt, now) {
 > D-147 makes it a **cool** desaturation, not the warm tint proposed below, and clips it two
 > cell-widths inside the coverage. D-391 is the pass, D-392 is the ramp (0 up to month 4, 0.10 at
 > month 6, asymptote 0.18), and D-389 is the lazy fetch. It is always on in atlas, with no opt-in
-> (D-395). The proposal below is kept as history.
+> (D-395). It is a close-zoom reading: below z14 the clip rarely passes on a coarse parent disc,
+> so cold ground mostly does not show, and that is intended (D-452). The proposal below is kept as
+> history.
 
 Ground whose `lastRunAt` is approaching or past 6 months is *re-armed for discovery* and the user
 has no way to know. An opt-in atlas overlay tinting those cells warm ("neglected ground — worth
