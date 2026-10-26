@@ -6041,3 +6041,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   was holding capability 18's audit. `0275` closes declined. The design in `05` §8.3 stays as the
   specification. A future screen that shows them files its own ticket and cites §8.3 and this
   decision. `lib/stats/derived.ts` stays the place they go.
+- **D-454** **Re-processing an ingested activity is value-idempotent, not write-idempotent.**
+  *(Operator, 2026-10-26, ticket `0310`.)* After the receipt TTL, or on `reingest`, a re-process
+  still bumps `generation`, re-PUTs the explored blob, sends `ADD exploredChildren 0`, re-puts T3 and
+  writes the receipt's DONE. It moves no cell timestamp, no XP and no pixel, and
+  `src/pipeline/idempotency.test.ts` pins that list. Zero writes is the rule only inside the TTL.
+  Skipping the bump when no cell is newly written was rejected. A crash between T6's cell writes
+  and the blob PUT leaves cells that the redelivery sees as already written, and the redelivery is
+  what publishes them (`explored-blob-store.ts`, "a redelivery republishes"). A zero-new-cell skip
+  would leave that map stale permanently. The cost accepted is one redundant blob download per
+  client per re-process, which is rare for one user.

@@ -20,8 +20,8 @@ After the receipt TTL, or on `reingest`, re-processing an already-ingested activ
 
 ## Acceptance criteria
 
-- [ ] A decision is recorded: either the list is accepted as value-idempotent, or zero-new-cell re-processes skip the generation bump and blob PUT.
-- [ ] If skipped, `idempotency.test.ts` asserts zero aggregate and blob writes, and the drill still passes.
+- [x] A decision is recorded (D-454: the list is accepted as value-idempotent): either the list is accepted as value-idempotent, or zero-new-cell re-processes skip the generation bump and blob PUT.
+- [x] (Not applicable: D-454 did not skip.) If skipped, `idempotency.test.ts` asserts zero aggregate and blob writes, and the drill still passes.
 
 ## Notes
 
@@ -29,6 +29,20 @@ A generation bump with identical content invalidates every client's cached blob 
 
 ## Operator validation
 
-None: no visible change either way.
+**None owed.** The decision keeps the shipped behaviour; no code changed and nothing was deployed.
+`src/pipeline/idempotency.test.ts` already pins the accepted write list and stays green.
 
-D-123 trigger checked? none.
+## Resolution
+
+**Decided by the operator, 2026-10-26, at wave 18.5: accept as value-idempotent (D-454).**
+
+The orchestrator offered two options: accept the list, or skip the generation bump and blob PUT on
+zero new cells. Before recording, it checked the reason it had given for accepting.
+`src/pipeline/explored-blob-store.ts` merges this activity's cells into the previous generation, and
+its error path says a crash after T6's writes is healed because "a redelivery republishes". To that
+redelivery, those cells already look written, so a zero-new-cell skip would leave the map without
+them permanently. Avoiding that would need a separate heal path. The cost of accepting is one
+redundant blob download per cached client per re-process, and re-processes are rare.
+
+`0116`'s literal "write count of zero" criterion holds inside the receipt TTL. Past it, D-454 is
+the rule. No code changed. Files touched: `docs/decisions/DECISIONS.md` (D-454).
