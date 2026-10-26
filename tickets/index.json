@@ -5105,6 +5105,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-28T17:42:28Z",
+    "started": "2026-10-26T19:03:53Z",
     "path": "tickets/open/0216-remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t.md",
     "ready": true,
     "acceptance": {
@@ -6082,6 +6083,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-14T04:48:33Z",
+    "started": "2026-10-26T19:03:53Z",
     "path": "tickets/open/0259-the-trace-web-stays-cheap-at-five-years-build-off-the-main-t.md",
     "ready": true,
     "acceptance": {
@@ -6275,7 +6277,7 @@
     "title": "Measure the skip-token saving: Amplify build count and minutes, 2026-10-15 to 10-29",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "deferred",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -6284,8 +6286,9 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-15T15:17:29Z",
+    "deferred": "2026-10-26T19:03:53Z",
     "path": "tickets/open/0268-measure-skip-token-saving.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 2
