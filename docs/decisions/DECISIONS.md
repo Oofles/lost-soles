@@ -1711,10 +1711,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 
 - **D-197** **The trace outlier gate is 12.5 m/s on foot, PER-`ActivityKind`, as a data table —
   and rejection counts are recorded as provenance rather than logged.** Ticket `0037`.
-  - **§2.2's 8 m/s was measured against real traces and found too tight.** `05-fog-of-war.md`
+  - **§2.6's 8 m/s was measured against real traces and found too tight.** `05-fog-of-war.md`
     §9.5 instructs *"measure it on the user's real first 20 runs before touching the
     constants"*; eight runs and 21,225 fixes settled it. At 8 m/s the gate rejected six fixes —
-    implied speeds 8, 8, 9, 9, 9 and 13 m/s — and **caught zero GPS jumps.** The failure §2.2
+    implied speeds 8, 8, 9, 9, 9 and 13 m/s — and **caught zero GPS jumps.** The failure §2.6
     exists to prevent ("points that jump hundreds of metres") is ~200 m/s at the observed
     ~0.5 Hz cadence, and it did not occur once in the data. Meanwhile the operator's fastest
     ACCEPTED fix was 7.6 m/s, so "comfortably above any human running pace" was a 5% margin.
@@ -1722,12 +1722,12 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     (D-198), so 8 m/s was manufacturing six breaks in traces that were continuous — which is
     precisely the *"dotted corridor"* §9.5 warns about, on the routes the operator runs most.
     A gate that discards real fixes is not the safe direction; it is a different harm.
-  - **12.5 m/s (45 km/h) splits the observed data along §2.2's own reasoning.** That section
+  - **12.5 m/s (45 km/h) splits the observed data along §2.6's own reasoning.** That section
     appeals to what a human can run; the men's 100 m world record peaks at ~12.4 m/s. 12.5
     admits all five plausible bursts and still rejects the 13 m/s fix, which nobody has ever
     run. It leaves a 64% margin over this operator's observed maximum, against 5%, and remains
     an order of magnitude below any real jump.
-  - **§2.2 specified one number and only for one kind** — *"~8 m/s for a run
+  - **§2.6 specified one number and only for one kind** — *"~8 m/s for a run
     (~29 km/h — comfortably above any human running pace, below GPS jump magnitudes)"* — and said
     nothing about anything else. That reads complete until you check what else reaches the
     sanitizer.
@@ -1758,9 +1758,9 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
 - **D-198** **`Trace.gaps` marks anything a corridor must not be drawn across — a time gap OR a
   sanitation break — and there is no second field.** Ticket `0037`. Amends
   `contracts/ingestion-contract.md` §2, `01-architecture.md` §3 and `src/domain/activity.ts`.
-  - **The contract defined `gaps` too narrowly to hold what §2.2 requires.** It said
+  - **The contract defined `gaps` too narrowly to hold what §2.6 requires.** It said
     *"[startIdx, endIdx] pairs marking gaps > GAP_THRESHOLD_MS"*, which is a statement about
-    TIME. §2.2 separately requires the sanitizer to *"break the trace into segments"* when an
+    TIME. §2.6 separately requires the sanitizer to *"break the trace into segments"* when an
     implausible fix is dropped — and a fix dropped between two 2-second samples produces a break
     that crosses no time threshold at all. Under the original wording that break had **nowhere
     to be recorded**, so the renderer would have drawn straight through it.
@@ -1877,8 +1877,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     `normalize.test.ts` now asserts both halves against two separate fixtures.
 
 - **D-201** **A fix earns the sanitation anchor by being corroborated: one plausible step.**
-  Ticket `0172`. Amends `03-integrations.md` §2.2.
-  - **§2.2 specified the filter and never said where it starts.** "Reject a point whose
+  Ticket `0172`. Amends `03-integrations.md` §2.6.
+  - **§2.6 specified the filter and never said where it starts.** "Reject a point whose
     implied speed from the previous **accepted** point exceeds the gate" presumes the last
     accepted point is real, and at index 0 that presumption has no evidence behind it —
     `p0` is accepted because it is first, not because anything corroborated it. `0037`
@@ -1887,7 +1887,7 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **The rule.** `p0 -> p1` plausible → start at `p0` (the ordinary trace; the only branch
     a clean stream ever takes). Implausible, but `p1 -> p2` plausible → `p1` is corroborated
     and `p0` is not, so `p0` is the outlier: discard it and start at `p1`. Neither plausible
-    → nothing is corroborated and the evidence does not name a culprit, so fall back to §2.2
+    → nothing is corroborated and the evidence does not name a culprit, so fall back to §2.6
     as written. **Guessing in the third branch would trade a known behaviour for an
     arbitrary one.**
   - **Lookahead depth 1, and raising it is not free.** A deeper lookahead buys robustness

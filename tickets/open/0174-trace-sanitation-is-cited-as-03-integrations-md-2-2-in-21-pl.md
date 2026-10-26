@@ -54,10 +54,13 @@ A blind find-and-replace breaks four right citations to fix twenty-one wrong one
       citation with it, already corrected to §2.6 there. The tree held 5 in `sanitize.ts`, 3 in
       `sanitize.test.ts` and 1 in `normalize.ts`, plus 2 the audit missed (`normalize.test.ts`
       and `scripts/make-strava-fixture.mjs`). All 11 now read §2.6.*
-- [ ] D-197 and D-201 in `docs/decisions/DECISIONS.md` cite §2.6. **The decisions' substance is
+- [x] D-197 and D-201 in `docs/decisions/DECISIONS.md` cite §2.6. **The decisions' substance is
       not touched** — this is a corrected cross-reference, not an amendment, and the standing
       rule against editing a settled `D-xxx` to make a ticket easier is not in play because
       nothing about what was decided changes.
+      *Done by the orchestrator in the wave's shared-file commit: the seven occurrences, plus two
+      more in **D-198** (the sanitizer's "break the trace into segments", which is
+      `03-integrations.md:793`, inside §2.6). D-197, D-198 and D-201 now hold no §2.2.*
       *Left for the orchestrator (agent, 0174): `DECISIONS.md` is a shared file under
       `WAVES.md` §3. The seven lines are listed in the Resolution. Count verified at 7.*
 - [x] The four correct citations are still correct: `normalize.ts:64` and `normalize.ts:361`
@@ -135,6 +138,12 @@ nothing else in the text changes:
 - D-201: `→ nothing is corroborated and the evidence does not name a culprit, so fall back to §2.2`
 
 D-197's existing "§2.6's table" (about `Ride`) is already correct and stays as it is.
+
+*Orchestrator, at merge:* applied. **D-198** held the same wrong pointer twice (lines 1761 and 1763:
+"what §2.2 requires", "§2.2 separately requires the sanitizer to *break the trace into
+segments*"); that quote is `03-integrations.md:793`, in §2.6, so both were corrected too. The audit
+counted 21; the real number was 25: 11 fixed in code here, 9 in decisions, and 5 that `0045`
+had already corrected when it moved the gate into `src/domain/geo.ts`.
 
 **Decisions:** none. This corrects an address. It does not amend anything.
 

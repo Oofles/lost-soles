@@ -4162,7 +4162,7 @@
     "path": "tickets/open/0174-trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -5409,7 +5409,7 @@
     "path": "tickets/open/0230-cdk-synth-tests-leak-a-cdk-out-dir-into-tmp-per-suite-until.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
