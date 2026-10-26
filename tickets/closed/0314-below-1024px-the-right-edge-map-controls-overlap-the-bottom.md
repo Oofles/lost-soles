@@ -4,7 +4,7 @@ slug: below-1024px-the-right-edge-map-controls-overlap-the-bottom
 title: Below 1024px the right-edge map controls overlap the bottom card and the Chronicle
 type: bug
 priority: high
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-26T12:32:10Z
 started: 2026-10-26T13:42:13Z
+closed: 2026-10-26T15:04:13Z
 ---
 
 ## Description
