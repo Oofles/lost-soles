@@ -55,8 +55,14 @@ const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "")
  * scripts/generated-paths.mjs, and deeper than the root derivation: public/ is still a
  * derived root and everything else in it is still scanned. This does not reintroduce a
  * hand-written list of what TO scan; it names what the build writes that is not ours.
+ *
+ * And `tmp/` (0316): the gitignored per-ticket scratch directory, already out of typecheck,
+ * lint and vitest collection (0250). Nothing there ships, and what lands there is not ours
+ * either: a Chromium profile left by a perf probe holds a dangling `SingletonLock` symlink
+ * that `statSync` throws on, which failed this guard on a clean tree. Named here, not in
+ * SKIP_DIRS, so it is excluded as a ROOT only: a `tmp/` inside app/ or lib/ is still scanned.
  */
-const EXCLUDED = new Set(["node_modules"])
+const EXCLUDED = new Set(["node_modules", "tmp"])
 
 /** The scan roots, read from disk rather than remembered. See the header. */
 function rootsFor(base) {
@@ -306,6 +312,10 @@ if (process.argv.includes("--self-test")) {
     // A CSS value continued onto its own line starts with `#` too, and still fires.
     "components/continued.css": ["    #0B1020;", true],
 
+    // ── 0316: the gitignored root scratch dir is skipped, and ONLY at the root ──
+    "tmp/probe/leak.tsx": ["const c = '#C9A227'", false],
+    "lib/tmp/leak.tsx": ["const c = '#C9A227'", true],
+
     // The escape hatch, visible on the line (criterion 4). A genuine colour that
     // has been looked at and judged — the gitleaks:allow convention.
     "components/suppressed.tsx": ["const c = '#C9A227' // design-tokens:allow — §8.3 exception", false],
@@ -319,6 +329,11 @@ if (process.argv.includes("--self-test")) {
     }
     // The palette file must be allowed its hex, but NOT pure black or white.
     writeFileSync(join(base, "app/tokens.css"), "  --ink-900: #14161c;\n  --bad: #FFFFFF;\n")
+    // 0316's actual failure: a Chromium profile's dangling lock symlink under tmp/. If the
+    // root exclusion regresses, statSync throws here and the self-test dies, not passes.
+    const { symlinkSync } = await import("node:fs")
+    mkdirSync(join(base, "tmp/chromium-profile"), { recursive: true })
+    symlinkSync(join(base, "nowhere"), join(base, "tmp/chromium-profile/SingletonLock"))
     const caught = new Set(scan(base).map((h) => h.rel))
     let failed = 0
     for (const [rel, [, shouldFire]] of Object.entries(FIXTURE)) {

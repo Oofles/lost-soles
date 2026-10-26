@@ -264,9 +264,17 @@ function fixtureFilesUnder(dir) {
   return out
 }
 
-/** Every `__fixtures__` directory in the tree, found by name. */
+/**
+ * Every `__fixtures__` directory in the tree, found by name.
+ *
+ * Except under `<base>/tmp` (0316): the gitignored per-ticket scratch directory, already out
+ * of typecheck, lint and vitest collection (0250). It is never committed, so it is outside
+ * what this guard protects, a public repository. Skipped by PATH, not by name, so a `tmp/`
+ * anywhere inside the tracked tree is still walked.
+ */
 export function fixtureDirs(base = ROOT) {
   const out = []
+  const scratch = join(base, "tmp")
   const walk = (dir) => {
     let entries
     try {
@@ -277,6 +285,7 @@ export function fixtureDirs(base = ROOT) {
     for (const e of entries) {
       if (!e.isDirectory() || SKIP.has(e.name)) continue
       const full = join(dir, e.name)
+      if (full === scratch) continue
       if (e.name === FIXTURE_DIR) out.push(full)
       else walk(full)
     }
@@ -511,10 +520,15 @@ if (isMain && process.argv.includes("--self-test")) {
       writeFileSync(join(dir, name), body)
     }
 
-    // Discovery must work by name, from an arbitrary root.
-    const found = fixtureDirs(base)
-    if (found.length !== 1) {
-      console.error(`  FAIL  fixtureDirs found ${found.length} directories, expected 1`)
+    // Discovery must work by name, from an arbitrary root, and skip the root scratch dir
+    // (0316) without skipping a nested one.
+    mkdirSync(join(base, "tmp", "probe", FIXTURE_DIR), { recursive: true })
+    const nested = join(base, "lib", "tmp", FIXTURE_DIR)
+    mkdirSync(nested, { recursive: true })
+    const found = fixtureDirs(base).sort()
+    const want = [dir, nested].sort()
+    if (JSON.stringify(found) !== JSON.stringify(want)) {
+      console.error(`  FAIL  fixtureDirs found ${JSON.stringify(found)}, expected ${JSON.stringify(want)}`)
       process.exit(1)
     }
 

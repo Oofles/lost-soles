@@ -31,15 +31,21 @@ import { assertStreamsAligned, openRawEnvelope, uploadIdOf } from "./raw-envelop
  * The exclusion is the PATH `<root>/.claude/worktrees`, not the name `.claude`: the rest of
  * `.claude/` (the tracked `/tickets` skill) is this repository's own code and stays scanned.
  * Keyed on `root`, so the scan run from inside a worktree is that worktree's own tree.
+ *
+ * Ticket 0316 adds `<root>/tmp`, the gitignored scratch directory that `0250` already took out
+ * of typecheck, lint and vitest collection: a probe left there never ships, so a decoder import
+ * in it is not a finding. Also a PATH, not a name, so a `tmp/` inside the shipped tree is still
+ * scanned.
  */
 const AGENT_WORKTREES = join(".claude", "worktrees")
+const SCRATCH = "tmp"
 
 const sourceWalker = (root: string, skip: ReadonlySet<string>) => {
-  const worktrees = join(root, AGENT_WORKTREES)
+  const excluded = new Set([join(root, AGENT_WORKTREES), join(root, SCRATCH)])
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
       const full = join(dir, e.name)
-      if (skip.has(e.name) || full === worktrees) return []
+      if (skip.has(e.name) || excluded.has(full)) return []
       if (e.isDirectory()) return walk(full)
       return /\.(ts|tsx|mjs|js)$/.test(e.name) ? [full] : []
     })
@@ -64,6 +70,23 @@ describe("the repo-wide scans see only the repository's own tree (0295)", () => 
       .sort()
 
     expect(found).toEqual([".claude/skills/tickets/scripts/tickets.mjs", "src/a.ts"])
+  })
+
+  it("does not descend into the gitignored <root>/tmp scratch dir, but scans a nested tmp/ (0316)", () => {
+    const root = mkdtempSync(join(tmpdir(), "repo-walk-"))
+    const put = (rel: string) => {
+      mkdirSync(join(root, rel, ".."), { recursive: true })
+      writeFileSync(join(root, rel), "import polyline from \"@mapbox/polyline\"\n")
+    }
+    put("src/a.ts")
+    put("tmp/x/p.ts")
+    put("src/tmp/b.ts")
+
+    const found = sourceWalker(root, new Set())(root)
+      .map((f) => relative(root, f))
+      .sort()
+
+    expect(found).toEqual(["src/a.ts", "src/tmp/b.ts"])
   })
 
   it("treats a worktree's own .claude/worktrees as excluded, not the parent's path", () => {
