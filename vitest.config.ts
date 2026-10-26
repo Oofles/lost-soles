@@ -41,6 +41,14 @@ export default defineConfig({
    */
   esbuild: { jsx: "automatic" },
   test: {
+    /**
+     * Ticket 0230. Every test file gets a private TMPDIR, removed after the file, so the CDK
+     * synth suites stop leaking a 30-50 MB `cdk.out` into /tmp per suite. Global setup sweeps
+     * what a killed run left and fails the run if a new `cdk.out*` appears in the real /tmp.
+     * Both projects inherit these through `extends: true`. Rationale: scripts/vitest-tmpdir.mjs.
+     */
+    globalSetup: ["./scripts/vitest-global-setup.mjs"],
+    setupFiles: ["./scripts/vitest-setup-tmpdir.mjs"],
     projects: [
       {
         extends: true,
