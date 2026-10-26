@@ -4,7 +4,7 @@ slug: decide-whether-a-re-process-with-zero-new-cells-should-regen
 title: Decide whether a re-process with zero new cells should regenerate the explored blob
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T20:04:43Z
+closed: 2026-10-26T20:33:15Z
 ---
 
 ## Description

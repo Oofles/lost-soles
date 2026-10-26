@@ -7199,7 +7199,7 @@
     "title": "Decide whether a re-process with zero new cells should regenerate the explored blob",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7207,8 +7207,9 @@
     "source": "agent",
     "created": "2026-10-22T19:51:44Z",
     "started": "2026-10-26T20:04:43Z",
-    "path": "tickets/open/0310-decide-whether-a-re-process-with-zero-new-cells-should-regen.md",
-    "ready": true,
+    "closed": "2026-10-26T20:33:15Z",
+    "path": "tickets/closed/0310-decide-whether-a-re-process-with-zero-new-cells-should-regen.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
