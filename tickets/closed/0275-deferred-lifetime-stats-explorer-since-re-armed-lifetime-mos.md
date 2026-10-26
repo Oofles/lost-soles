@@ -4,13 +4,14 @@ slug: deferred-lifetime-stats-explorer-since-re-armed-lifetime-mos
 title: Deferred lifetime stats — explorer since, re-armed lifetime, most-run ground, total distance and runs
 type: feature
 priority: low
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-15T18:54:00Z
+closed: 2026-10-26T20:04:26Z
 ---
 
 ## Description
