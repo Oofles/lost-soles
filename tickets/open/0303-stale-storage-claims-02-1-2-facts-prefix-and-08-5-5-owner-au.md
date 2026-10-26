@@ -49,6 +49,12 @@ REFLECT habit).
 
 None perceptual: doc-only. Smoke test: `grep -rn 'facts/' docs src tools amplify` returns only deliberate history.
 
+**Result, 2026-10-26, on `main` after Amplify job 433 succeeded.** The grep returns five lines: `02`
+§1.2's two "never written" rows, the `16-rebuild-drill` audit note, `02-deploy-and-auth.md`'s
+`cdk.out` path (not the prefix), and `drill-ci.test.ts:220`, which asserts the drill is refused a
+`facts/` read. All are deliberate. `08` no longer contains the old "`Trace`, `ExploredCell` and
+`SourceAccount`" model list (0 matches). `check-d123-trigger-a.mjs` passes on the reworded A-1.
+
 ## Resolution
 
 Doc-only. Two design passages described storage that was never built; both now describe what the

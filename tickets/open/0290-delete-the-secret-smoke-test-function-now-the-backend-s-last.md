@@ -50,6 +50,12 @@ None expected. Smoke test after deploy: `aws lambda list-functions --profile dev
 `secretsmoketest` function. A webhook handshake with the real token still returns the exact bytes,
 which shows the SSM parameter survived.
 
+**Result, 2026-10-26, after Amplify job 433 (`a5a2be9`) succeeded.** The orchestrator ran the agent's
+read-only `@aws-sdk` smoke script: 40 Lambdas, none matching `secretsmoke`; no IAM role matching;
+`/amplify/shared/d14fhvl4rp79nn/STRAVA_WEBHOOK_VERIFY_TOKEN` present; `selfCheck` against the
+production callback answered the exact `{"hub.challenge":"…"}` bytes. `SMOKE PASSED`. Before deploy,
+the same script had found the Lambda and its role, so the check can fail.
+
 ## Resolution
 
 Deleted `amplify/functions/secret-smoke-test/` (`handler.ts`, `resource.ts`) and removed its import,
