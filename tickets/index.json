@@ -2755,7 +2755,7 @@
     "path": "tickets/open/0112-accessibility-and-reality-checks.md",
     "ready": false,
     "acceptance": {
-      "checked": 6,
+      "checked": 7,
       "total": 8
     }
   },
@@ -7286,6 +7286,26 @@
     "source": "agent",
     "created": "2026-10-26T12:32:10Z",
     "path": "tickets/open/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 317,
+    "slug": "recentre-glyph-slightly-small",
+    "title": "The ⌖ recentre glyph is slightly small inside its button",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "operator",
+    "created": "2026-10-26T13:41:13Z",
+    "path": "tickets/open/0317-recentre-glyph-slightly-small.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

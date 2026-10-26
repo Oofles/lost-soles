@@ -61,11 +61,13 @@ whose state you cannot predict, and prediction is the whole value of the toggle 
       right-edge map controls overlap two surfaces. They sit over the bottom card on a 1280×800 window,
       and over the Chronicle at any width under 1024px. Fixing that is a layout decision, not a local
       change, so a follow-up ticket is proposed.)*
-- [ ] With a screen reader on, `/` announces a text summary of the map (territory, last run, new cells)
+- [x] With a screen reader on, `/` announces a text summary of the map (territory, last run, new cells)
       and the post-run reveal is narrated in beat order.
       *(0112: built and tested: `mapSummary` in a polite status region on `/`, and one narration
       region on `/run/:id`, spoken in beat order (`narration.ts`, `narration.test.tsx`). Left unticked
       because "with a screen reader on" is the operator's NVDA check (D-229).)*
+      — verified 2026-10-26: operator, desktop browser on the deployed app, with a screen reader on.
+      `/` announces the map summary sensibly, and a relived run is narrated in beat order.
 - [x] ~~All interactive targets are ≥56dp with ≥16dp slop; a test measures rendered hit rects and
       fails on any smaller.~~ *(D-251, 0215)* No action anywhere is reachable only by a gesture, or
       only by a pointer.
@@ -193,3 +195,17 @@ card, 24/32/40px targets), D-376/D-375 (reduced motion), D-148, and `0113`/D-439
 `app/a11y-keyboard.test.ts`, `app/a11y-reality.test.ts`, `components/map/no-auto-switch.test.ts`,
 `tools/a11y/{cdp.mjs,run-reduced-motion.mjs,reduced-motion-harness.js,run-zoom.mjs,zoom-screens.jsx,stubs.jsx}`,
 `docs/capabilities/assets/0112/*.png` (16), `docs/capabilities/18-mvp-hardening.md`, `docs/06-ui-ux.md` §9.4.
+
+**Operator, 2026-10-26, desktop browser, deployed app (wave 1 perceptual checks):** all pass.
+1. Screen reader: the `/` map summary makes sense; a relived run narrates in beat order.
+2. 200% zoom: no defects beyond the known overlaps (`0314`).
+3. `⌖` renders as a crosshair, not an empty box; it could be slightly larger (filed as a ticket).
+4. Keyboard: focus ring visible on every screen.
+5. Gold-to-ink: `/settings` Connect and Sign out, the run page's "Change" and `/log`'s LOG button
+   and confirmed row read as intended.
+6. Dark theme: the mode toggle's selected label is readable.
+
+Smoke, 2026-10-26 (orchestrator, after the green deploy of `65bb872`):
+`tools/a11y/run-reduced-motion.mjs` printed `REDUCED MOTION HARNESS PASS` (0 rAF calls, 0 renders
+after first paint under `reduce`; 336 and 164 in the control). `tools/a11y/run-zoom.mjs` printed
+`ZOOM HARNESS FAIL (3)`, exactly the overlaps `0314` covers. The deployed `/` returns 200.
