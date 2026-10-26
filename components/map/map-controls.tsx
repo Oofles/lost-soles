@@ -60,12 +60,18 @@ export interface ControlsHost extends CameraHost {
  * (`0314`) they are a row at `top: 16px`, `right: 112px` — left of jump-to (`right: 64px`) and `⚙`
  * (`right: 16px`), 8px apart — so the four controls are one 40px strip and the card and the
  * Chronicle, whatever their height, stay below it.
+ *
+ * `.recentre-glyph` (`0317`): neither `⌖` nor `⤢` is in the self-hosted Inter subset, so both are drawn
+ * by a system fallback font (Segoe UI Symbol on the operator's Windows desktop). At 18px there `⌖` is a
+ * thin-stroked crosshair that reads lighter than `⤢`; 22px brings it to a comparable weight. Scoped to
+ * that span so the button stays 40px (D-313) and no other control's glyph moves.
  */
 export const MAP_CONTROLS_CSS =
   ".map-controls { position: fixed; z-index: 1; top: 16px; right: 112px; display: flex; flex-direction: row; gap: 8px; }" +
   " .map-control { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" +
   " box-sizing: border-box; padding: 0; background: var(--surface-raised); border: 1px solid var(--line);" +
   " border-radius: 4px; color: var(--text-primary); font-size: 18px; line-height: 1; cursor: pointer; }" +
+  " .map-control .recentre-glyph { font-size: 22px; }" +
   " .map-control:hover:not(:disabled) { background: var(--bg); }" +
   " .map-control:disabled { color: var(--text-secondary); cursor: default; }" +
   " .map-control:focus-visible, .route-card a:focus-visible, .route-chip:focus-visible {" +
@@ -276,7 +282,7 @@ export function MapControls({
           disabled={!map || !hasLatest}
           onClick={() => map && recentre(map, latest)}
         >
-          <span aria-hidden="true">⌖</span>
+          <span className="recentre-glyph" aria-hidden="true">⌖</span>
         </button>
       </div>
       {popup}

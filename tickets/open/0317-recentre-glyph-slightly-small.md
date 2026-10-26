@@ -24,7 +24,7 @@ fit-to-territory's `⤢` does.
 
 ## Acceptance criteria
 
-- [ ] The `⌖` glyph is enlarged inside its button. The button stays 40×40 (D-313), and the other
+- [x] The `⌖` glyph is enlarged inside its button. The button stays 40×40 (D-313), and the other
       map controls' glyphs are unchanged.
 - [ ] (operator) In the desktop browser, `⌖` reads at a comparable visual weight to `⤢` beside it.
 
@@ -42,3 +42,36 @@ browser a system fallback font draws it, possibly at a different size, which may
 ## Operator validation
 
 The (operator) criterion above, on the desktop browser.
+
+## Resolution
+
+**Cause, from font coverage first (as the Notes asked).** Neither `⌖` (U+2316) nor `⤢` (U+2922) is in
+the self-hosted Inter Latin subset in `app/fonts`, so both glyphs come from a system fallback font. On
+the operator's desktop (Windows) only three installed fonts carry either character: Segoe UI Symbol,
+Cambria and Cambria Math (`fc-list :charset=…` over `C:\Windows\Fonts`). Rendering the control row in
+headless Chromium with Inter plus Segoe UI Symbol as the fallback, `CSS.getPlatformFontsForNode`
+reports **Segoe UI Symbol for both glyphs**; Inter draws neither (an Inter-only span shows the
+missing-glyph box). At 18px Segoe UI Symbol's `⌖` actually has the larger ink box (≈12×13 px against
+`⤢`'s ≈10×10) but it is a hairline circle-and-cross, so it reads lighter and smaller than the arrow.
+That is the "slightly small". It is not a missing-glyph or wrong-font problem, so a scoped size bump
+is the fix the ticket expected. An inline SVG or a font subset would change the design, and neither
+was needed.
+
+**Change.** `components/map/map-controls.tsx`: the `⌖` span gets `className="recentre-glyph"`, and
+`MAP_CONTROLS_CSS` gains one rule, `.map-control .recentre-glyph { font-size: 22px; }`. `.map-control`
+is untouched: 40×40 (D-313) and 18px for every other glyph. I compared 18, 20, 21, 22 and 24px beside
+`⤢` at 18. At 22px the crosshair matches the arrow's visual weight and stays well inside the button
+(ink ≈15×16 px in 40). At 24px it starts to dominate the row. The comment above `MAP_CONTROLS_CSS`
+records why.
+
+**Test.** `components/map/map-controls-css.test.ts` (new) pins `.map-control` at 40×40/18px and checks
+that the only other `font-size` in the sheet is the recentre glyph's 22px. A later change that moves
+every glyph, or the button, fails it.
+
+**Decisions.** None new. No design doc gives a glyph size (06 §2.2 rows 6 and 8 give only the 40×40
+box), so no doc drift.
+
+**Caveat for the perceptual check.** The fallback is the browser's choice. Chrome/Edge on Windows map
+these blocks to Segoe UI Symbol, which is what was measured. Firefox, or a machine without Segoe UI
+Symbol, may pick Cambria Math, whose crosshair is drawn differently.
+
