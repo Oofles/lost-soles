@@ -38,8 +38,7 @@ filed rather than fixed in the audit commit. Two passages describe storage that 
       found that rule covers no object (identity-pool id ≠ user-pool `sub`); S3 is owner-scoped by
       the `/api/fog` and `/api/runs/*` routes reading as the SSR compute role with the key built
       from the session `sub`. §5.5 says both.*
-- [x] A `D-xxx` records each correction. *(Proposed as D-NEW-a and D-NEW-b; the orchestrator
-      allocates the numbers.)*
+- [x] A `D-xxx` records each correction. *(D-455 and D-456, allocated by the orchestrator at merge.)*
 
 ## Notes
 
@@ -83,8 +82,8 @@ code writes and how it is scoped, checked against `amplify/backend.ts`, `amplify
   object, D-228) next to the routes that actually serve the user's objects as the SSR compute
   role, keyed by the session's `sub`. The `Trace` model is gone. There never was one.
 
-**Decisions.** D-NEW-a (02's storage map corrected; `facts/` never built, Break 1 open).
-D-NEW-b (08 §5.5 names the real per-store mechanism). The orchestrator allocates the numbers.
+**Decisions.** D-455 (02's storage map corrected; `facts/` never built, Break 1 open).
+D-456 (08 §5.5 names the real per-store mechanism). Numbers allocated by the orchestrator at merge.
 
 **D-123 / §2.4 A-1.** Every store is still owner-scoped, so A-1's premise holds. For the CDK
 tables and S3 the scoping is a property of the route handlers, because one role serves every user.
@@ -97,3 +96,9 @@ orchestrator as an open question.
 `tools/drill/ci/drill-ci.test.ts`, which asserts the drill is *refused* a `facts/` read. The
 `Trace` hits that remain are the domain type from the ingestion contract, not a store. §2.4 A-1's
 "`Trace` read path" names the route-trace store and is left alone.
+
+**Orchestrator, at merge (2026-10-26).** The report's open question on §2.4 A-1 went to the
+operator, who chose to reword it now: D-457 re-affirms D-123 and A-1's test, and states the
+route-handler mechanism. That edit is in the wave's shared commit, not this one. The I-2 reframing
+(the Cognito `sub` in place of `identity.json`) is accepted into D-455. The proposed Break 1 ticket
+was declined by the operator: the risk is accepted for one user and recorded as open in `02` §1.4.

@@ -6051,3 +6051,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   what publishes them (`explored-blob-store.ts`, "a redelivery republishes"). A zero-new-cell skip
   would leave that map stale permanently. The cost accepted is one redundant blob download per
   client per re-process, which is rare for one user.
+- **D-455** **`02`'s storage map lists only what is written, each with its writer.** *(Agent,
+  2026-10-26, ticket `0303`; follows D-423.)* The `facts/` prefix was never built:
+  `highwater.jsonl` is superseded by the `snapshots/skillstate/<uid>/` waterline (D-143, D-259) and
+  the `isFloor` ledger rows (§4.6). `identity.json` was never written, so §1.4 Break 1 (a recreated
+  Cognito pool changes every `sub`) is recorded as open. The rebuild drill uses the same pool and
+  does not cover it. The S3 `rules/` mirror was never built either, because rules ship bundled
+  (D-274). `regions/` is planned by `05` §8.1 and has no ticket. §1.2 gains the prefixes that are
+  written but were never listed. I-1 and I-2 now match: I-2's three non-reconstructible items are
+  the snapshot waterline, the Cognito `sub` that every `<uid>` embeds (in place of `identity.json`),
+  and the `SourceAccount` tokens. The operator chose not to file a ticket for Break 1 (2026-10-26):
+  for one user, the risk is accepted and the doc records it as open.
+- **D-456** **`08` §5.5 names the owner-scoping mechanism store by store.** *(Agent, 2026-10-26,
+  ticket `0303`.)* The five `defineData` models use Amplify Data owner auth. The two custom
+  mutations are `allow.authenticated()`, and their handlers take the user from `identity.sub` and
+  check the owner allowlist. The five CDK tables are scoped by IAM grants to roles, plus route
+  handlers that key every read by the verified session `sub`. S3's `entity('identity')` rule covers
+  no object (D-228); `/api/fog` and `/api/runs/*` read as the SSR compute role with the key built
+  from the session `sub`. There is no `Trace` model.
+- **D-457** **§2.4 A-1 names the scoping mechanism that exists, and keeps its proof.** *(Operator,
+  2026-10-26, from `0303`'s report.)* Re-affirms **D-123** and A-1's test. A-1 required every S3
+  prefix to sit under `entity('identity')` or a `raw/<uid>/` IAM condition, which D-228 made
+  unsatisfiable without contradicting it. It now says the CDK tables and S3 are scoped by the
+  route handler from the verified session `sub`, and spells out `Trace` as the route-trace S3
+  objects. The proof is unchanged: user B signs in and gets a 403/empty on user A's `uid`. **This
+  is not a D-123 trigger.** No second account, share or public URL is proposed, the gate stays
+  unticked, and nothing ships. Rejected for now: moving S3 scoping into IAM (per-user session
+  policies). Whoever opens Trigger A can raise that again as a build item.

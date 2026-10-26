@@ -6774,7 +6774,7 @@
     "path": "tickets/open/0290-delete-the-secret-smoke-test-function-now-the-backend-s-last.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -7055,7 +7055,7 @@
     "path": "tickets/open/0303-stale-storage-claims-02-1-2-facts-prefix-and-08-5-5-owner-au.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7186,7 +7186,7 @@
     "path": "tickets/open/0309-widen-the-invariant-sweep-s-app-roots-to-amplify-components.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7207,7 +7207,7 @@
     "path": "tickets/open/0310-decide-whether-a-re-process-with-zero-new-cells-should-regen.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },

@@ -43,7 +43,7 @@ Four layers, in strictly decreasing order of authority:
 | Layer | Where | System of record? | Rebuildable from |
 |---|---|---|---|
 | **Raw** | S3 `raw/…` — original Strava JSON / GPX / FIT / manual-log JSON | **YES — D-101.** The only authority. | nothing. This is bedrock. |
-| **Rules** | Git repo `rules/xp-rules-vN.yaml`, bundled into the worker as generated JSON (D-274); there is no S3 mirror (D-NEW-a) | **YES.** Immutable once shipped. | git history |
+| **Rules** | Git repo `rules/xp-rules-vN.yaml`, bundled into the worker as generated JSON (D-274); there is no S3 mirror (D-455) | **YES.** Immutable once shipped. | git history |
 | **Facts** | DynamoDB `Activity`; S3 `traces/`, `cells/` | rebuildable | raw + `normalize()` (a *pure* function — the contract §3 makes this the migration seam) |
 | **Derived** | DynamoDB `ExploredCell`, `XpLedgerEntry`, `SkillState`; S3 `explored-*.bin` | rebuildable | facts + rules |
 | **Ephemeral** | DynamoDB `IngestReceipt` (TTL 90 d); IndexedDB in the browser | discardable | nothing needed |
@@ -81,7 +81,7 @@ s3://lost-soles-storage/
   users/<uid>/deltas/<toGen>.bin                     immutable, GC'd at ~20 generations (D-220)┘
   users/<uid>/backfill/batch.json                    last historical import (lib/backfill/store.ts). tools/backfill only.
 
-  NOT BUILT — listed so nobody goes looking (D-NEW-a):
+  NOT BUILT — listed so nobody goes looking (D-455):
   facts/<uid>/highwater.jsonl                        never written. Superseded: the waterline is snapshots/skillstate/
                                                      (D-143, D-259) and the floors are `isFloor` ledger rows (§4.6).
   facts/<uid>/identity.json                          never written. §1.4 Break 1's planned fix; Break 1 is open.
@@ -132,7 +132,7 @@ reconstructible from them plus the XP rules.* Walking it:
 
 **Break 1 — identity.** `userId` comes from a Cognito sub. Rebuilding into a fresh Cognito pool
 mints new subs, and every S3 key and DynamoDB partition key embeds `<uid>`.
-*Planned fix, NOT BUILT (D-NEW-a):* `facts/<uid>/identity.json` recording `{userId, cognitoSub,
+*Planned fix, NOT BUILT (D-455):* `facts/<uid>/identity.json` recording `{userId, cognitoSub,
 email, displayName, createdAt}`, written at first sign-in and on every profile change, so a
 rebuild could restore the mapping or perform a documented key rewrite. Nothing writes it. **Break 1
 is open:** the drill (§8.3) rebuilds into a parallel stack against the *same* user pool, so the
@@ -151,7 +151,7 @@ displayed, and would honestly — and wrongly, per D-135 — show Might 37.
 (§8.2, D-143, D-259). A rebuild that has lost the tables takes its waterline from the newest
 snapshot. This is the one place the model stores a derived number as a fact, and it is D-135 that
 forces it. It is worth saying plainly: **D-135 costs us a fact stream.** *(This paragraph named a
-`facts/<uid>/highwater.jsonl` stream that was never built; the snapshot replaced it. D-NEW-a.)*
+`facts/<uid>/highwater.jsonl` stream that was never built; the snapshot replaced it. D-455.)*
 
 **Break 3 — OAuth tokens.** `SourceAccount` is deliberately unrecoverable. Rebuilding requires
 the user to press "Connect Strava" once. This is correct behaviour for a credential store, not
@@ -2172,8 +2172,8 @@ Three rules govern the list:
 
 | # | Invariant | Why it matters | How it is checked |
 |---|---|---|---|
-| **I-1** | Every store except `raw/`, `rules/` and the `snapshots/skillstate/` waterline is **rebuildable from them** (the two `facts/` files this row once named were never built, D-NEW-a), with no other input (D-101). | It is the entire disaster-recovery story and the entire D-121 exit story. If it silently stops being true, nobody finds out until the day it is needed. | The rebuild drill runs **end to end in CI on every build** against a ~20-object fixture (§8.4), asserting §8.3 step 8's six checks. Real-archive run once before MVP ship and before any D-121 migration. |
-| **I-2** | The set of non-reconstructible data is **exactly three items and is closed**: the displayed-XP waterline (`snapshots/skillstate/`, D-143, D-259; the `isFloor` ledger rows restate it while T4 survives), the Cognito sub that every `<uid>` embeds (§1.4 Break 1, whose `facts/<uid>/identity.json` fix is not built), and `SourceAccount` tokens. *(Amended by D-NEW-a: this row named a `facts/<uid>/highwater.jsonl` that was never written.)* | D-143 permits *one* documented exception to D-101. Each further exception is a piece of the system that can no longer be rebuilt, and they accumulate silently. | CI check: the drill fixture is rebuilt from `raw/<uid>/` + `rules/` + `snapshots/skillstate/<uid>/` (plus `manifest.json`, read only as step 0's verification target) **and nothing else** (`drillMayRead`, `tools/drill/ci/drill-ci.ts`) — the drill harness denies reads outside that set, so a fourth dependency fails the build rather than passing quietly. |
+| **I-1** | Every store except `raw/`, `rules/` and the `snapshots/skillstate/` waterline is **rebuildable from them** (the two `facts/` files this row once named were never built, D-455), with no other input (D-101). | It is the entire disaster-recovery story and the entire D-121 exit story. If it silently stops being true, nobody finds out until the day it is needed. | The rebuild drill runs **end to end in CI on every build** against a ~20-object fixture (§8.4), asserting §8.3 step 8's six checks. Real-archive run once before MVP ship and before any D-121 migration. |
+| **I-2** | The set of non-reconstructible data is **exactly three items and is closed**: the displayed-XP waterline (`snapshots/skillstate/`, D-143, D-259; the `isFloor` ledger rows restate it while T4 survives), the Cognito sub that every `<uid>` embeds (§1.4 Break 1, whose `facts/<uid>/identity.json` fix is not built), and `SourceAccount` tokens. *(Amended by D-455: this row named a `facts/<uid>/highwater.jsonl` that was never written.)* | D-143 permits *one* documented exception to D-101. Each further exception is a piece of the system that can no longer be rebuilt, and they accumulate silently. | CI check: the drill fixture is rebuilt from `raw/<uid>/` + `rules/` + `snapshots/skillstate/<uid>/` (plus `manifest.json`, read only as step 0's verification target) **and nothing else** (`drillMayRead`, `tools/drill/ci/drill-ci.ts`) — the drill harness denies reads outside that set, so a fourth dependency fails the build rather than passing quietly. |
 | **I-3** | `raw/` objects are **immutable and undeletable**; the only operation permitted to remove one is account deletion (§8.5). | Bedrock. Once a raw object is gone, no rebuild can reproduce the activity it encoded. | **[S]** Bucket policy denies `s3:DeleteObject` **and `s3:DeleteObjectVersion`** on the `raw/` prefix for every principal but the deletion role; S3 Versioning is on. Not a convention — a policy. **Overwrite is enforced by non-destructiveness, not refusal — see D-205**: no IAM condition distinguishes a PUT onto an existing key from the first PUT, so versioning + the version-delete deny make an overwrite unable to destroy anything, and `archiveRaw` PUTs with `IfNoneMatch: "*"` so the common case never writes a second version at all. |
 | **I-4** | `adapter.normalize()` is **pure**: no clock, no network, no RNG. Same bytes in ⇒ same `Activity` out, byte-for-byte, forever. | It is the migration seam (contract §3). An impure `normalize()` makes rebuilds non-reproducible, which makes I-1 unverifiable. | CI: `normalize()` is invoked with `Date.now`, `Math.random` and the network stubbed to **throw** (contract §5). Plus a golden-file test over the fixture archive. |
 | **I-5** | `activityId = sha256(userId:source:externalId)` — **deterministic, never a ULID**. | It is what makes replay and webhook redelivery idempotent for free (D-140, contract conflict #6). A random id would award XP twice on every redelivery. | **[S]** The id is computed, not generated; a duplicate `PutItem` is a no-op on the same key. Unit test asserts stability across processes. |

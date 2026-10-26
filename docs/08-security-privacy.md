@@ -162,10 +162,13 @@ login, which is the same thing with worse accountability.
 **Gate — all must be true before the second account can sign in:**
 
 - [ ] **A-1. Owner-scoped data access is proven, not assumed.** Every `ExploredCell`, `Activity`,
-      `Trace`, and `SourceAccount` read path is scoped by Cognito `sub`. Every S3 prefix is under
-      `entity('identity')` or an explicit `raw/<uid>/` IAM condition. Proven by a test that signs
-      in as user B and asserts a 403/empty on user A's `uid` — an actual failing-then-passing
-      test, not a code review.
+      `SourceAccount` and route-trace (`users/<uid>/` S3 object) read path is scoped by the
+      Cognito user-pool `sub`. For the `defineData` models that is owner auth. For the CDK tables
+      and S3 it is the route handler, which builds every key from the verified session `sub`,
+      because one role serves every user (§5.5, D-228). Proven by a test that signs in as user B
+      and asserts a 403/empty on user A's `uid` — an actual failing-then-passing test, not a code
+      review. *(Mechanism clause reworded by D-457. It once required `entity('identity')` or a
+      `raw/<uid>/` IAM condition per S3 prefix, which D-228 made unsatisfiable.)*
 - [ ] **A-2. No cross-user aggregate exists.** No shared map layer, no combined explored set, no
       "total territory" across users, no leaderboard (D-011 already forbids competition —
       this makes it a *security* requirement as well as a product one).
@@ -691,7 +694,7 @@ With one user, authorization is nearly vacuous — which is exactly why it must 
 it were not, since §5.4 is designed to make a second user appear one day.
 
 - **Every read and write is scoped by the JWT's `sub`** — by a different mechanism per store,
-  and the list below is what is built, not what was first planned (D-NEW-b; this bullet once
+  and the list below is what is built, not what was first planned (D-456; this bullet once
   named a `Trace` model and two CDK tables as Amplify models):
   - **`defineData` models — Amplify Data owner auth.** `Activity`, `SkillState`,
     `XpLedgerEntry` and `Landmark` are `allow.owner().to(["read"])`; `Profile` is `allow.owner()`
