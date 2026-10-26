@@ -11,7 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-26T16:05:00Z
-deferred: 2026-10-26T22:03:09Z
+deferred: 2026-10-26T22:03:25Z
 ---
 
 ## Description
@@ -27,9 +27,23 @@ runs it and reports the result; nothing un-defers on its own. When it exits 0, r
 output and `tickets.mjs resume 0319`.
 
 ```sh
+v=$(npm view @aws-amplify/backend-cli version 2>/dev/null); if [ -n "$v" ] && [ "$v" != "1.10.0" ]; then echo "READY: backend-cli $v released (was 1.10.0)"; else echo "WAITING: backend-cli still ${v:-unknown}"; exit 1; fi
+```
+
+
+## Deferred — resumed 2026-10-26
+
+**Reason:** Waits on an upstream @aws-amplify/backend-cli release past 1.10.0 (D-450); none since 2026-09-10.
+
+**Re-check** — the cheap test that says the wait is over. `tickets.mjs recheck 0319`
+runs it and reports the result; nothing un-defers on its own. When it exits 0, read the
+output and `tickets.mjs resume 0319`.
+
+```sh
 v=$(npm view @aws-amplify/backend-cli version 2>/dev/null); if [ -n "$v" ] && [ "$v" != "1.10.0" ]; then echo "READY: backend-cli $v released (was 1.10.0)"; else echo "WAITING: backend-cli still ${v:-unknown}"; fi
 ```
 
+**Resumed 2026-10-26:** re-deferring: the first re-check exited 0 while still waiting
 
 ## Acceptance criteria
 

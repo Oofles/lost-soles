@@ -7400,7 +7400,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T16:05:00Z",
-    "deferred": "2026-10-26T22:03:09Z",
+    "deferred": "2026-10-26T22:03:25Z",
     "path": "tickets/open/0319-re-check-the-amplify-tree-advisories-graphql-tools-utils-zod.md",
     "ready": false,
     "acceptance": {
