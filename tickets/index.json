@@ -6910,7 +6910,7 @@
     "title": "Real-GPU cost of the cold pass and its frame copy",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -6918,8 +6918,9 @@
     "source": "agent",
     "created": "2026-10-20T13:32:55Z",
     "started": "2026-10-26T13:42:13Z",
-    "path": "tickets/open/0298-real-gpu-cost-of-the-cold-pass.md",
-    "ready": true,
+    "closed": "2026-10-26T14:37:28Z",
+    "path": "tickets/closed/0298-real-gpu-cost-of-the-cold-pass.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
@@ -7037,7 +7038,7 @@
     "title": "Make the user-data bucket's public-access block explicit in IaC",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7045,8 +7046,9 @@
     "source": "agent",
     "created": "2026-10-22T19:51:43Z",
     "started": "2026-10-26T13:42:13Z",
-    "path": "tickets/open/0304-make-the-user-data-bucket-s-public-access-block-explicit-in.md",
-    "ready": true,
+    "closed": "2026-10-26T14:37:33Z",
+    "path": "tickets/closed/0304-make-the-user-data-bucket-s-public-access-block-explicit-in.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3
@@ -7080,7 +7082,7 @@
     "title": "Decide Dependabot for npm under the no-PR trunk model",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7088,8 +7090,9 @@
     "source": "agent",
     "created": "2026-10-22T19:51:44Z",
     "started": "2026-10-26T13:42:13Z",
-    "path": "tickets/open/0306-decide-dependabot-for-npm-under-the-no-pr-trunk-model.md",
-    "ready": true,
+    "closed": "2026-10-26T14:37:33Z",
+    "path": "tickets/closed/0306-decide-dependabot-for-npm-under-the-no-pr-trunk-model.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2

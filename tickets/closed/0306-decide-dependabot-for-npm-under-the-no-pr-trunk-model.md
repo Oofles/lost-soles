@@ -4,7 +4,7 @@ slug: decide-dependabot-for-npm-under-the-no-pr-trunk-model
 title: Decide Dependabot for npm under the no-PR trunk model
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T13:42:13Z
+closed: 2026-10-26T14:37:33Z
 ---
 
 ## Description

@@ -4,7 +4,7 @@ slug: real-gpu-cost-of-the-cold-pass
 title: Real-GPU cost of the cold pass and its frame copy
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-20T13:32:55Z
 started: 2026-10-26T13:42:13Z
+closed: 2026-10-26T14:37:28Z
 ---
 
 
