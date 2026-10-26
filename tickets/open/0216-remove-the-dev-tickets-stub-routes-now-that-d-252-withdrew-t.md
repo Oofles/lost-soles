@@ -44,12 +44,6 @@ text only and this is code.
 
 Related: D-252, `0016`, `0114`, `0215`.
 
-## Operator validation
-
-None needed from the operator: removing unreachable stubs. Smoke test by the agent after deploy:
-`curl` shows `/dev/tickets` returns 404 while signed out, as before, and the app's other routes
-are unaffected.
-
 ## Resolution
 
 **Deleted**

@@ -5109,7 +5109,7 @@
     "path": "tickets/open/0216-remove-the-dev-tickets-stub-routes-now-that-d-252-withdrew-t.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -6087,7 +6087,7 @@
     "path": "tickets/open/0259-the-trace-web-stays-cheap-at-five-years-build-off-the-main-t.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7384,6 +7384,26 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 320,
+    "slug": "does-amplify-compute-cap-api-runs-web-before-or-after-gzip",
+    "title": "Does Amplify compute cap /api/runs/web before or after gzip?",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T19:31:39Z",
+    "path": "tickets/open/0320-does-amplify-compute-cap-api-runs-web-before-or-after-gzip.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]

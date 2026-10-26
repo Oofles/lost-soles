@@ -6005,3 +6005,25 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   because only a writing `pipeline-deploy` can test a cross-major override inside codegen. The
   remaining advisories are listed in `docs/capabilities/18-mvp-hardening.md`. A full-tree gate with
   an allowlist is a separate design question, filed as its own ticket.
+- **D-451** **The permanent trace web is built in a Web Worker, and `web.json.gz` stays v1.**
+  *(Operator, 2026-10-26, ticket `0259`: Q1 = A realistic density, Q2 = A build and draw only,
+  Q3 = (b) ruled out.)* Amends D-299's scale bullet, which no longer holds.
+  - **Mechanism.** `lib/trace-web/off-thread.ts` runs a pool of two workers, so `/run/:id`'s two
+    builds (with and without this run) run side by side. The main thread hands over the response
+    text and gets the drawn web back as transferred typed arrays (`pack.ts`). If no worker can
+    run, it builds on the main thread as before. `buildWeb` and its tests are unchanged, and the
+    drawn web is identical. Beat 1 waits for the without-this-run web, so the build no longer
+    eats into its 2.9 s clock.
+  - **Measured** in headless Chromium at 1,000 runs × 8 km and ~30 pts/km: 1.13 MB transferred
+    (responses are gzipped in transit), 6–10 ms of main-thread time at map load (940–980 ms
+    before), beat 1 at 2.9 s. D-299's "19 runs, ~17 ms" was already stale: 113 real runs cost
+    63–79 ms before this change.
+  - **Known limits.**
+    - At ~96 pts/km the transfer is 3.06 MB gzipped. A delta-encoded integer store cuts it to
+      1.27 MB, but is a format change and was not made.
+    - The JSON parse shared by the run index and the region list stays on the main thread:
+      ~30 ms at realistic density, ~89 ms at noisy.
+  - **Rejected.**
+    - (b), a precomputed drawn web, derives "without this run" by subtraction, and that is not
+      identical to `buildWeb` with the run excluded.
+    - (c) alone does nothing for the build.
