@@ -290,7 +290,7 @@ the bottom of a map that now fills the window: 16px side insets, its bottom edge
 MapLibre attribution (36px; D-315), full width less 32px, 8px radius,
 capped at 55% of the window height and scrolling beyond. The four right-edge map controls are
 **one row along the top-right**, 40px tall at `top: 16px`, 8px apart: fit, `⌖`, jump-to, `⚙` —
-`⚙` keeps the corner *(`0314`, D-NEW-a: the card's height varies with its content, so neither
+`⚙` keeps the corner *(`0314`, D-448: the card's height varies with its content, so neither
 "16px above the card" nor a column down the right edge has a position it cannot collide with; at
 200% zoom of a 1280×800 window the column ran 56px into the card. The row needs 16 + 112 (mode
 toggle) + 184 + 16 = 328px of width, inside §9.2's ~360px floor)*.
@@ -378,7 +378,7 @@ earlier "carries the lifetime totals at its own top")*.
   insets, `top: 98px` (16px below the mode toggle: 16 + its 66px + 16, the tallest thing on the
   top edge now that the map controls are one 40px row there, §2.2) and `bottom: 36px` (clear of the
   attribution, D-315). It does not grow with its content. It is still a panel, not a full-screen
-  page. *(`0314`, D-NEW-a: the old `top: 72px` cleared only `⚙`, and ran under the mode toggle,
+  page. *(`0314`, D-448: the old `top: 72px` cleared only `⚙`, and ran under the mode toggle,
   jump-to, fit and `⌖`.)*
 
 The skill detail is the other thing that opens over a parent, and it is deliberately different:

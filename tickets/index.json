@@ -6921,7 +6921,7 @@
     "path": "tickets/open/0298-real-gpu-cost-of-the-cold-pass.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7048,7 +7048,7 @@
     "path": "tickets/open/0304-make-the-user-data-bucket-s-public-access-block-explicit-in.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },
@@ -7091,7 +7091,7 @@
     "path": "tickets/open/0306-decide-dependabot-for-npm-under-the-no-pr-trunk-model.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 1,
       "total": 2
     }
   },
@@ -7252,7 +7252,7 @@
     "path": "tickets/open/0314-below-1024px-the-right-edge-map-controls-overlap-the-bottom.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },

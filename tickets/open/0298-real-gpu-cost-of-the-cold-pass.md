@@ -38,10 +38,6 @@ decide whether it needs a cheaper path.
 Filed by the orchestrator from `0100`'s report (wave 15.3, 2026-10-20). Adventure never runs the
 pass (D-391), so only atlas is at stake.
 
-## Operator validation
-
-None perceptual: the measurement is scripted. A smoke test records the figures.
-
 ## Resolution
 
 **The cold pass is within `0059`'s budget on the desktop's GPU, and the frame copy is not where

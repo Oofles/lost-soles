@@ -1030,7 +1030,7 @@ by definition, in the wrong place.
 - **Dependabot (or Renovate) on `npm` weekly, grouped, security updates separately.** Six users
   do not justify a patching SLA; a transitive RCE in an SSR dependency still does. Read the
   changelog on anything that touches auth, `h3`, or the Strava adapter.
-  *(As decided (D-NEW-a), `0306`: **Dependabot alerts only.** Vulnerability alerts are on;
+  *(As decided (D-449), `0306`: **Dependabot alerts only.** Vulnerability alerts are on;
   security-update PRs and version-update PRs are off, and there is no `.github/dependabot.yml`.
   Bot PRs would land commits on `main` with no ticket, which D-150's trunk model refuses. An alert
   becomes a ticket, fixed by patch/minor bump first and override second (D-434), and the
@@ -1235,7 +1235,7 @@ that protects six people who are already behind Cognito.
 | **Anonymised analytics, error tracking SaaS, session replay** | A third party in the request path of a lifetime GPS history, for product insight into a userbase of one who can simply be asked. CloudWatch is sufficient and stays inside the account |
 | **Data residency / regional constraints** | One user, one region, no cross-border obligation to satisfy |
 | **Disaster recovery beyond S3 versioning + DynamoDB PITR** | The archive is the system of record (D-101) and is ~40 MB (§6.1); versioning plus PITR covers deletion and corruption. A multi-region replica protects against a region loss that would also mean the user has larger problems than a map |
-| **Automated dependency patching SLAs, SBOM, signed artifacts** | Dependabot alerts plus `npm audit` failing on high/critical (§7.5) is the right amount. *(As decided (D-NEW-a): alerts only, no Dependabot PRs; the original plan was weekly grouped update PRs.)* An SBOM has no consumer |
+| **Automated dependency patching SLAs, SBOM, signed artifacts** | Dependabot alerts plus `npm audit` failing on high/critical (§7.5) is the right amount. *(As decided (D-449): alerts only, no Dependabot PRs; the original plan was weekly grouped update PRs.)* An SBOM has no consumer |
 
 **The pattern, stated once:** the controls this system actually has are the ones that are
 **free, structural, and hard to un-do** — self-signup off (§5.1), Block Public Access (§6.2),

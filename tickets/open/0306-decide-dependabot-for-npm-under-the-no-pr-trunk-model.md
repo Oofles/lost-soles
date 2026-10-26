@@ -21,7 +21,7 @@ started: 2026-10-26T13:42:13Z
 ## Acceptance criteria
 
 - [x] A decision is recorded: enable Dependabot (alerts only, or PRs), or decline it with §7.5 amended.
-  *(Operator chose alerts only, option A. The decision text is proposed as D-NEW-a for the
+  *(Operator chose alerts only, option A. The decision text is proposed as D-449 for the
   orchestrator to allocate; 08 §7.5 and the §9 out-of-scope row are amended.)*
 - [ ] Whatever is decided is applied live and verified by API read.
   *(Left open for the orchestrator. Wave agents may not change GitHub settings, so the
@@ -34,8 +34,8 @@ The runtime tree is already gated by `npm audit --omit=dev --audit-level=high` (
 ## Resolution
 
 **Decision (operator, option A): Dependabot alerts only.** Vulnerability alerts on. Security-update
-PRs and version-update PRs off. No `.github/dependabot.yml`. Proposed as D-NEW-a; the orchestrator
-allocates the id and swaps the `D-NEW-a` placeholders in `08`.
+PRs and version-update PRs off. No `.github/dependabot.yml`. Proposed as D-449; the orchestrator
+allocates the id and swaps the `D-449` placeholders in `08`.
 
 **Why.** Before this ticket the repo (public) had alerts off (`/vulnerability-alerts` returned
 404), `dependabot_security_updates` disabled, `automated-security-fixes` `enabled:false`, and no
@@ -56,12 +56,12 @@ off, so any `dependabot/*` branch would never have deployed anyway. Alerts will 
 the ~56 dev-tree advisories, which ticket 0308 clears.
 
 **Files touched.**
-- `docs/08-security-privacy.md`: §7.5 Dependabot bullet gains an "as decided (D-NEW-a)" note;
+- `docs/08-security-privacy.md`: §7.5 Dependabot bullet gains an "as decided (D-449)" note;
   the §9 out-of-scope row "Automated dependency patching SLAs…" now says alerts, not weekly PRs.
 - This ticket.
 
 **Not done here (orchestrator):** `gh api -X PUT repos/Oofles/lost-soles/vulnerability-alerts`
-and the verification read; allocate D-NEW-a in `DECISIONS.md`; regenerate `docs/INDEX.md`
+and the verification read; allocate D-449 in `DECISIONS.md`; regenerate `docs/INDEX.md`
 (08's line ranges shift by 5 after §7.5).
 
 ## Operator validation

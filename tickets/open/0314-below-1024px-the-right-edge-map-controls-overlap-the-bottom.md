@@ -81,12 +81,12 @@ Files:
   rule (unchanged values) and the new below-1024px rule.
 - `docs/06-ui-ux.md`: §2.2's "Below 1024px" paragraph (the row), §2.5's Chronicle bullet
   (`top: 98px`, which closes "the 72px is revisited when the mode toggle lands"), and §9.2's
-  below-1024 bullet. All of them cite `0314` and **D-NEW-a**. The orchestrator replaces that
+  below-1024 bullet. All of them cite `0314` and **D-448**. The orchestrator replaces that
   placeholder with the allocated id.
 - `docs/capabilities/assets/0112/{home,chronicle}-{1280x800,1920x1080}-200pct.png`: regenerated
   with `run-zoom.mjs --commit`. The other committed shots came out byte-identical.
 
-Decisions: D-NEW-a (proposed). Below 1024px the map controls are one top-right row and the
+Decisions: D-448 (proposed). Below 1024px the map controls are one top-right row and the
 Chronicle's top is 16px below the mode toggle. It amends 06 §2.2 and §2.5. D-313 and D-251 are
 unchanged in substance.
 

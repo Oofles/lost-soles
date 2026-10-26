@@ -32,6 +32,12 @@ fit-to-territory's `⤢` does.
 Cosmetic. Scope it to the `⌖` span (e.g. a class on that span), not `.map-control`, so the other
 glyphs don't move. Touches the same `MAP_CONTROLS_CSS` as `0314`, so it may land in a later wave.
 
+2026-10-26, from `0314`'s agent: the zoom harness renders `⌖` as a missing-glyph box, because the
+self-hosted fonts in `app/fonts` lack the character (see
+`docs/capabilities/assets/0112/home-1280x800-200pct.png`, second control in the top row). In a real
+browser a system fallback font draws it, possibly at a different size, which may be the cause of
+"slightly small". Check the font coverage before resizing the span.
+
 ## Operator validation
 
 The (operator) criterion above, on the desktop browser.

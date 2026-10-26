@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,683 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,693 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -375,7 +375,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,950 lines
+**06 — UI / UX** — 1,955 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -387,69 +387,69 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.3 Justification, screen by screen | `127-138` |  |
 | &nbsp;&nbsp;↳ 1.4 Screens deliberately refused | `139-157` | Lifetime totals live at the top of the Chronicle sheet, where you are already looking at your |
 | &nbsp;&nbsp;↳ 1.5 Navigation model | `158-184` | implies peer sections — which these are not. |
-| 2. The home screen | `185-384` | Fullscreen map, plus one card at the bottom: the plinth. |
+| 2. The home screen | `185-389` | Fullscreen map, plus one card at the bottom: the plinth. |
 | &nbsp;&nbsp;↳ 2.1 What it is | `187-216` | Fullscreen map, plus one card at the bottom: the plinth. |
-| &nbsp;&nbsp;↳ 2.2 Wireframe — the design case, a ~1440 × 900 window | `217-297` | ┌────────────────────────────────────┬─────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 2.3 What earns its space, and what does not | `298-340` | run, not on your home, and not on your whole territory — because the interesting thing is |
-| &nbsp;&nbsp;↳ 2.4 States | `341-357` | The empty state deserves a note: with no territory, the map is all fog and reads as broken. |
-| &nbsp;&nbsp;↳ 2.5 Where the Chronicle opens (D-313) | `358-384` | not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4), |
-| 3. The post-run moment — "Return from the Fog" | `385-729` | This is the most important screen in the app and it is not really a screen. |
-| &nbsp;&nbsp;↳ 3.1 Entry points | `395-406` | A run is marked seen the first time the sequence completes or is skipped. |
-| &nbsp;&nbsp;↳ 3.2 The sequence | `407-608` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
-| &nbsp;&nbsp;↳ 3.3 The end state | `609-623` | When the sequence finishes it does not navigate anywhere. |
-| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `624-654` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
-| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `655-729` | This is the case that decides whether the app survives month four. |
-| 4. The map screen | `730-1027` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.1 There is no map screen | `732-746` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
-| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `747-780` | permanently visible — never an icon, never a single button whose label is the state you are not |
-| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `781-815` |  |
-| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `816-849` |  |
-| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `850-909` | On / the trace web is always drawn and the last run is the selected run. |
-| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `910-973` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
-| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `974-1004` | ATLAS ADVENTURE |
-| &nbsp;&nbsp;↳ 4.8 Loading, offline, and narrow windows | `1005-1027` | from IndexedDB render before any network call. |
-| 5. The skills panel | `1028-1233` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `1030-1056` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
-| &nbsp;&nbsp;↳ 5.2 Wireframe | `1057-1103` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `1104-1133` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
-| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `1134-1172` | which makes it the first live test of D-031's promise that a new skill is a data row. |
-| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `1173-1233` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
-| 6. Add workout (D-061) | `1234-1383` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1236-1253` | The decision is not really about the home screen's tidiness. |
-| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1254-1270` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
-| &nbsp;&nbsp;↳ 6.3 Wireframe | `1271-1315` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1316-1341` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
-| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1342-1366` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
-| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1367-1383` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
-| 7. Ticket capture UI (D-092) | `1384-1509` | wireframes, and the reasons the constraints are what they are. |
-| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1394-1408` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
-| &nbsp;&nbsp;↳ 7.2 Placement and access | `1409-1417` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
-| &nbsp;&nbsp;↳ 7.3 Capture | `1418-1455` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1456-1467` | browse list with a pending marker. |
-| &nbsp;&nbsp;↳ 7.5 Browse | `1468-1496` | ┌──────────────────────────────────────────────┐ |
-| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1497-1509` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
-| 8. Visual system | `1510-1726` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1512-1538` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
-| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1539-1573` | Six ramps. Nothing outside them ships. |
-| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1574-1627` |  |
-| &nbsp;&nbsp;↳ 8.4 Typography | `1628-1660` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
-| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1661-1674` | the map's floating controls 8dp. |
-| &nbsp;&nbsp;↳ 8.6 Iconography | `1675-1689` | an 8dp construction grid, no fills, no gradients, no two-tone. |
-| &nbsp;&nbsp;↳ 8.7 Motion | `1690-1726` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1727-1847` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
-| &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1739-1751` | the lightest colour permitted to carry type; --gold-500 carries none. |
-| &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1752-1773` | pattern for every screen). |
-| &nbsp;&nbsp;↳ 9.3 Narrow windows | `1774-1784` | place, and the right-edge map controls sit above it (§2.2). |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1785-1808` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1809-1832` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1833-1847` |  |
-| 10. What we are deliberately NOT building | `1848-1950` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1857-1870` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1871-1877` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1878-1903` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1904-1919` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1920-1936` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1937-1950` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ 2.2 Wireframe — the design case, a ~1440 × 900 window | `217-300` | ┌────────────────────────────────────┬─────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 2.3 What earns its space, and what does not | `301-343` | run, not on your home, and not on your whole territory — because the interesting thing is |
+| &nbsp;&nbsp;↳ 2.4 States | `344-360` | The empty state deserves a note: with no territory, the map is all fog and reads as broken. |
+| &nbsp;&nbsp;↳ 2.5 Where the Chronicle opens (D-313) | `361-389` | not drawn while it is open — the Chronicle carries the lifetime totals at its own top (§1.4), |
+| 3. The post-run moment — "Return from the Fog" | `390-734` | This is the most important screen in the app and it is not really a screen. |
+| &nbsp;&nbsp;↳ 3.1 Entry points | `400-411` | A run is marked seen the first time the sequence completes or is skipped. |
+| &nbsp;&nbsp;↳ 3.2 The sequence | `412-613` | Total: 8.4 s nominal, plus ~1.4 s per level-up card. |
+| &nbsp;&nbsp;↳ 3.3 The end state | `614-628` | When the sequence finishes it does not navigate anywhere. |
+| &nbsp;&nbsp;↳ 3.4 Skip, interruption and failure | `629-659` | overshoot. The reveal becomes a single 400 ms cross-fade from pre-run to post-run territory; |
+| &nbsp;&nbsp;↳ 3.5 The fallback: a run with no new territory | `660-734` | This is the case that decides whether the app survives month four. |
+| 4. The map screen | `735-1032` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.1 There is no map screen | `737-751` | the surface that §2 put a plinth on top of, and the same surface that §3 lights up. |
+| &nbsp;&nbsp;↳ 4.2 The mode toggle (D-052) | `752-785` | permanently visible — never an icon, never a single button whose label is the state you are not |
+| &nbsp;&nbsp;↳ 4.3 What actually changes between the modes | `786-820` |  |
+| &nbsp;&nbsp;↳ 4.4 Controls and gestures | `821-854` |  |
+| &nbsp;&nbsp;↳ 4.5 Routes over fog, and inspecting a past run | `855-914` | On / the trace web is always drawn and the last run is the selected run. |
+| &nbsp;&nbsp;↳ 4.6 Cold territory in atlas, without competing with the reveal edge (D-133) | `915-978` | D-133 is precise about the risk: a third visual state that fights the frontier for attention. |
+| &nbsp;&nbsp;↳ 4.7 The two modes, drawn | `979-1009` | ATLAS ADVENTURE |
+| &nbsp;&nbsp;↳ 4.8 Loading, offline, and narrow windows | `1010-1032` | from IndexedDB render before any network call. |
+| 5. The skills panel | `1033-1238` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.1 The reference, and what we actually take from it | `1035-1061` | Runescape's skills tab is the explicitly-loved model (§1.3, D-030). |
+| &nbsp;&nbsp;↳ 5.2 Wireframe | `1062-1108` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 5.3 The rules that keep it readable in year ten | `1109-1138` | This panel has to survive an unbounded number of workout types (D-031) without ever becoming a |
+| &nbsp;&nbsp;↳ 5.4 Vigil, and what it proves (D-132) | `1139-1177` | which makes it the first live test of D-031's promise that a new skill is a data row. |
+| &nbsp;&nbsp;↳ 5.5 The skill detail sheet — `/skills/:skillId` | `1178-1238` | Tapping any tile opens a sheet over the panel (§1.5: a route so back and deep links behave). |
+| 6. Add workout (D-061) | `1239-1388` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.1 The decision, and what it is protecting | `1241-1258` | The decision is not really about the home screen's tidiness. |
+| &nbsp;&nbsp;↳ 6.2 What the page is for, physically | `1259-1275` | The user is standing in a hallway, breathing hard, holding the phone in one hand, possibly with |
+| &nbsp;&nbsp;↳ 6.3 Wireframe | `1276-1320` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 6.4 Row anatomy and the interaction rules | `1321-1346` | optimistically, and flushes to the API on a background-sync queue with an idempotency key — the |
+| &nbsp;&nbsp;↳ 6.5 How a new workout type arrives | `1347-1371` | by zero pixels. No component is written, no layout is revisited, no screen is redesigned. |
+| &nbsp;&nbsp;↳ 6.6 What is deferred, and how it fits later without a redesign | `1372-1388` | D-062 defers sets, reps-per-set and a rest timer, but requires the data model accommodate sets |
+| 7. Ticket capture UI (D-092) | `1389-1514` | wireframes, and the reasons the constraints are what they are. |
+| &nbsp;&nbsp;↳ 7.1 Why it is in this app at all | `1399-1413` | D-090 puts the ticket system in the project from day one; D-092 requires manual ticket creation |
+| &nbsp;&nbsp;↳ 7.2 Placement and access | `1414-1422` | PWA shortcut (long-press the home-screen icon → New ticket), which is the fastest path and |
+| &nbsp;&nbsp;↳ 7.3 Capture | `1423-1460` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.4 Offline, and the only sync UI there is | `1461-1472` | browse list with a pending marker. |
+| &nbsp;&nbsp;↳ 7.5 Browse | `1473-1501` | ┌──────────────────────────────────────────────┐ |
+| &nbsp;&nbsp;↳ 7.6 v1 non-goals, restated because they will be argued with | `1502-1514` | No editing, no closing, no reordering, no comments, no kanban board, no charts, no |
+| 8. Visual system | `1515-1731` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.1 The constraint that shapes the whole palette | `1517-1543` | D-050 asks for dark fantasy — ink, parchment, lantern-light, gold leaf, deep navy. |
+| &nbsp;&nbsp;↳ 8.2 Primitive tokens | `1544-1578` | Six ramps. Nothing outside them ships. |
+| &nbsp;&nbsp;↳ 8.3 Semantic tokens | `1579-1632` |  |
+| &nbsp;&nbsp;↳ 8.4 Typography | `1633-1665` | Two families, both open-licence, both self-hosted (no third-party font CDN on a page that must |
+| &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1666-1679` | the map's floating controls 8dp. |
+| &nbsp;&nbsp;↳ 8.6 Iconography | `1680-1694` | an 8dp construction grid, no fills, no gradients, no two-tone. |
+| &nbsp;&nbsp;↳ 8.7 Motion | `1695-1731` | Five durations. Nothing else is invented at the component level. |
+| 9. Accessibility and reality checks | `1732-1852` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1744-1756` | the lightest colour permitted to carry type; --gold-500 carries none. |
+| &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1757-1778` | pattern for every screen). |
+| &nbsp;&nbsp;↳ 9.3 Narrow windows | `1779-1789` | place, and the right-edge map controls sit above it (§2.2). |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1790-1813` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1814-1837` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1838-1852` |  |
+| 10. What we are deliberately NOT building | `1853-1955` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1862-1875` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1876-1882` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1883-1908` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1909-1924` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1925-1941` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1942-1955` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 
@@ -510,7 +510,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,243 lines
+**08 — Security & Privacy** — 1,248 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -545,18 +545,18 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `756-793` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
 | &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `794-845` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
 | &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `846-859` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `860-1045` | The repository is the most likely place a secret in this project actually escapes. |
+| 7. Repo hygiene — and one live finding (O-005) | `860-1050` | The repository is the most likely place a secret in this project actually escapes. |
 | &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `867-908` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
 | &nbsp;&nbsp;↳ 7.2 What must never be committed | `909-931` |  |
 | &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `932-966` | makes an accidental git add . |
 | &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `967-1025` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `1026-1045` | control, not a convenience. |
-| 8. Incident playbook | `1046-1206` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1080-1115` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1116-1141` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1142-1173` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1174-1206` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1207-1243` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `1026-1050` | control, not a convenience. |
+| 8. Incident playbook | `1051-1211` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1085-1120` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1121-1146` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1147-1178` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1179-1211` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1212-1248` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 

@@ -5978,3 +5978,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   the merge. The variable must be exactly `1`; layers 1–4, gitleaks included, run unchanged.
   Rejected: agents staging the indexes (every cherry-pick in a wide wave conflicts on them), and
   `--no-verify` (turns off secret scanning). WAVES §3 and §6 carry the rule.
+- **D-448** **Below 1024px the map controls are one top-right row, and the Chronicle sits under the
+  mode toggle.** *(Operator, 2026-10-26, `0314`, option A. Amends `06` §2.2, §2.5, §9.2.)* Fit, `⌖`,
+  jump-to and `⚙` form one 40px row at `top: 16px`, 8px apart, `⚙` keeping the corner; the
+  Chronicle starts at `top: 98px`, 16px below the mode toggle, at full width. The bottom card's
+  height varies with content and window, so neither a column down the right edge nor "16px above
+  the card" has a position it cannot collide with: at 200% of 1280×800 the column ran 56px into the
+  card. The Chronicle's 72px dated from when `⚙` alone shared its top edge. Costs accepted: below
+  1024px the row's visual order is the reverse of tab order, and it needs 328px of width, inside
+  the ~360px floor. Rejected: a 64px right inset on the panels (clips `+ ADD WORKOUT` near 360px)
+  and capping the panels under the column (~148px tall at 640×400). ≥1024px, D-313 and D-251 are
+  unchanged.
+- **D-449** **Dependabot runs as alerts only.** *(Operator, 2026-10-26, `0306`, option A. Amends
+  `08` §7.5 and the §9 row.)* Vulnerability alerts are on; security-update PRs and version-update
+  PRs are off, and there is no `.github/dependabot.yml`. A bot PR would put a commit on `main` with
+  no ticket, which D-150's ticket-and-code rule refuses, and merging it in the GitHub UI skips the
+  local gitleaks hook. An alert becomes a ticket, fixed by a patch or minor bump first and an
+  override second (D-434), whose `npm audit --omit=dev --audit-level=high` gate stays the
+  build-time control; alerts cover the gap between pushes. They start with roughly 56 dev-tree
+  advisories, which `0308` clears.
