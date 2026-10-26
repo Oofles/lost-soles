@@ -7255,7 +7255,7 @@
     "path": "tickets/open/0314-below-1024px-the-right-edge-map-controls-overlap-the-bottom.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 3,
       "total": 3
     }
   },

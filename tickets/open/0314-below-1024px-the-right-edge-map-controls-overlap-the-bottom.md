@@ -43,7 +43,7 @@ Nothing scrolls horizontally and no text clips, so this is the only failing part
 - [x] `node tools/a11y/run-zoom.mjs` passes, with no overlap on any screen at any of its window sizes.
 - [x] The ≥1024px rail layout is unchanged; the harness's screenshots at 100% are identical in layout.
   *(Amended: the harness has no 100% shots. Its rail case is 2560×1440 at 200%, a 1280×720 viewport, measured but not pictured. It was pictured temporarily before and after the change, and all eight screens' PNGs are byte-identical.)*
-- [ ] (operator) At 200% zoom in the desktop browser, `/` and `/chronicle` look right with the controls clear of the card and panel.
+- [x] (operator) At 200% zoom in the desktop browser, `/` and `/chronicle` look right with the controls clear of the card and panel. — verified 2026-10-26: operator reports the checks are good.
 
 ## Notes
 
@@ -54,6 +54,11 @@ Propose the options before building (D-152). `0112` stays open until this closes
 ## Operator validation
 
 The (operator) criterion above, on the desktop browser.
+
+**Result, 2026-10-26:** the operator checked `/` and `/chronicle` at 200% zoom in the desktop browser and
+reported them good. Smoke tests after Amplify build 430 (commit `6930ac7`): `node tools/a11y/run-zoom.mjs`
+prints `ZOOM HARNESS PASS` on merged main, and the deployed client chunks carry the new
+`top: 16px; right: 64px` jump-to rule.
 
 ## Resolution
 
