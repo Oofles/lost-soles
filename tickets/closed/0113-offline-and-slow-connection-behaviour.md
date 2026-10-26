@@ -4,7 +4,7 @@ slug: offline-and-slow-connection-behaviour
 title: Offline and slow-connection behaviour — the map degrades, never blanks
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [59, 90, 293]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-23T02:20:13Z
+closed: 2026-10-26T03:01:06Z
 ---
 
 ## Description

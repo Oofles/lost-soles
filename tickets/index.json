@@ -2750,7 +2750,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0112-accessibility-and-reality-checks.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 8
@@ -2762,7 +2762,7 @@
     "title": "Offline and slow-connection behaviour — the map degrades, never blanks",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -2774,8 +2774,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-23T02:20:13Z",
-    "path": "tickets/open/0113-offline-and-slow-connection-behaviour.md",
-    "ready": true,
+    "closed": "2026-10-26T03:01:06Z",
+    "path": "tickets/closed/0113-offline-and-slow-connection-behaviour.md",
+    "ready": false,
     "acceptance": {
       "checked": 8,
       "total": 8
