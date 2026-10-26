@@ -1018,8 +1018,13 @@ function sourceFiles(dir, acc = []) {
  * carries `| **I-1** |` rows as *fixture data*, which activated the invariant
  * sweep against the real backlog and reported 28 uncited invariants. A sweep
  * that can be tripped by the string that describes it is worse than no sweep.
+ *
+ * `amplify`, `components` and `tools` joined in 0309: structural tests there
+ * cite I-1, I-2, I-3, I-20, I-28 and I-30 and run in `npm test`, so a citation
+ * living only there must not read as lost. `.claude/` stays out, for the reason
+ * above.
  */
-const APP_ROOTS = ["src", "app", "lib", "scripts"];
+const APP_ROOTS = ["src", "app", "lib", "scripts", "amplify", "components", "tools"];
 
 function testFiles(roots = APP_ROOTS, acc = []) {
   for (const r of roots) {

@@ -20,9 +20,9 @@ The audit's invariant-citation row scans `src|app|lib|scripts` only. The structu
 
 ## Acceptance criteria
 
-- [ ] `APP_ROOTS` includes `amplify`, `components` and `tools`.
-- [ ] `tickets.mjs audit 18` still reports all 30 cited and complete.
-- [ ] A tickets test covers a citation found only under one of the new roots.
+- [x] `APP_ROOTS` includes `amplify`, `components` and `tools`.
+- [x] `tickets.mjs audit 18` still reports all 30 cited and complete.
+- [x] A tickets test covers a citation found only under one of the new roots.
 
 ## Notes
 
@@ -30,6 +30,25 @@ An orchestrator-session change, since agents cannot edit `.claude/`.
 
 ## Operator validation
 
-None: tooling with no screen. The audit output is the check.
+**None owed: tooling only.** Smoke test, run by the orchestrator on the real repo after the change:
+`tickets.mjs audit 18-mvp-hardening --json` reports `invariant-sweep pass — all 30 invariants cited
+by a test name, and the set is declared complete`, and `vigil-test pass`. Nothing deploys.
 
-D-123 trigger checked? none.
+## Resolution
+
+Built by the orchestrator in the main session, because agents cannot edit `.claude/` (the `0116`
+agent was refused the same one-line edit).
+
+- `.claude/skills/tickets/scripts/tickets.mjs`: `APP_ROOTS` gains `amplify`, `components` and
+  `tools`, with the reason added to the existing doc comment. `.claude/` stays excluded for the
+  0133 fixture reason the comment already gives. `vigilTests()` shares `testFiles()`, so the vigil
+  marker search widens with it, which is correct for the same reason.
+- `.claude/skills/tickets/scripts/tickets.test.mjs`: a new test plants an `I-1` test-name citation
+  under each new root alone (`amplify/functions/x`, `components`, `tools`) and asserts the sweep
+  passes with 1/1 cited. The existing "outside the app roots does not activate" test still passes,
+  so `.claude/` stays out.
+
+Verified: `node --test` on the tickets suite, 205 pass, 0 fail. `audit 18` reports all 30 cited and
+complete. One snag: `audit 18` with the bare number printed only the capability list, while
+`waves 18` accepts the number. I ran it with the full slug. That inconsistency is minor, and not
+filed.

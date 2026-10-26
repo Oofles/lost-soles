@@ -910,6 +910,23 @@ describe("0133 — audit runs AUDIT.md's mechanical half and is honest about wha
     rmSync(d, { recursive: true, force: true });
   });
 
+  test("a citation found only under amplify/, components/ or tools/ counts (0309)", () => {
+    // These roots hold structural tests that run in `npm test`. Before 0309 the
+    // sweep did not scan them, so a citation living only there read as lost.
+    for (const root of ["amplify/functions/x", "components", "tools"]) {
+      const d = repo();
+      const cap = withCap(d);
+      mkdirSync(join(d, "docs"), { recursive: true });
+      writeFileSync(join(d, "docs/02-data-model.md"), "| **I-1** | never re-fog | why | CI |\n");
+      mkdirSync(join(d, root), { recursive: true });
+      writeFileSync(join(d, root, "cells.test.ts"), "it('never re-fogs a cell (I-1)', () => {})\n");
+      const c = auditJson(d, cap).checks.find((x) => x.id === "invariant-sweep");
+      assert.equal(c.status, "pass", `${root}: ${c.detail}`);
+      assert.match(c.detail, /1\/1 invariants cited/, root);
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
   test("a citation outside the app roots does not activate the sweep", () => {
     // Regression: 0133's own test carries `| **I-1** |` rows as fixture data,
     // and scanning the whole repo let that trip the sweep against the real
