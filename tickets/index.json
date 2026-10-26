@@ -7228,6 +7228,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-22T19:51:44Z",
+    "started": "2026-10-26T20:52:53Z",
     "path": "tickets/open/0311-beat3-test-tsx-title-still-says-693-for-seven-skills-contrad.md",
     "ready": true,
     "acceptance": {
@@ -7312,6 +7313,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T12:32:10Z",
+    "started": "2026-10-26T20:52:53Z",
     "path": "tickets/open/0315-tickets-yml-passes-a-commit-that-deletes-tickets-index-json.md",
     "ready": true,
     "acceptance": {
@@ -7332,6 +7334,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T12:32:10Z",
+    "started": "2026-10-26T20:52:53Z",
     "path": "tickets/open/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
     "ready": true,
     "acceptance": {
@@ -7352,6 +7355,7 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-10-26T13:41:13Z",
+    "started": "2026-10-26T20:52:53Z",
     "path": "tickets/open/0317-recentre-glyph-slightly-small.md",
     "ready": true,
     "acceptance": {
