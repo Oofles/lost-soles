@@ -1068,7 +1068,12 @@ by definition, in the wrong place.
   becomes noise, and a build that cries wolf is a build people bypass. *(As built, `0115`:
   `npm audit --omit=dev --audit-level=high` in `gate.yml` and `amplify.yml`, so the gate covers
   the runtime tree only. The dev tree carried 56 advisories at landing, mostly through the Amplify
-  backend CLI and codegen, and is a separate ticket.)*
+  backend CLI and codegen, and is a separate ticket.)* *(As built, `0318` (D-NEW-a): the full
+  tree is gated too, by `scripts/check-npm-audit.mjs` on both surfaces. It judges per advisory,
+  not per path, against `scripts/npm-audit-allowlist.json`, which admits only the two Amplify-tree
+  highs `0308` could not clear, each with an owner, a reason and a re-check tied to `0319`. An
+  unlisted high/critical, a re-rated listed one, or a stale entry fails the build. The runtime
+  line stays beside it with no exceptions.)*
 - **Fewest dependencies that get the job done.** Every package added to the SSR bundle or a
   Lambda is code with the same IAM grants as ours, and cold-start weight against §4's 2-second
   budget. `h3`, the AWS SDK, and Next.js are unavoidable; a date library is not.

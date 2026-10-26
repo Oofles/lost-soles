@@ -1,0 +1,192 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@graphql-tools/utils": {
+      "name": "@graphql-tools/utils",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1241230,
+          "name": "@graphql-tools/utils",
+          "dependency": "@graphql-tools/utils",
+          "title": "GraphQL Tools has prototype pollution in well-established utility function `mergeDeep`",
+          "url": "https://github.com/advisories/GHSA-7mx3-vvmw-hjmv",
+          "severity": "high",
+          "cwe": [
+            "CWE-1321"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<=12.0.0"
+        }
+      ],
+      "effects": [
+        "@aws-amplify/appsync-modelgen-plugin",
+        "@aws-amplify/graphql-generator",
+        "@graphql-codegen/core",
+        "@graphql-codegen/plugin-helpers",
+        "@graphql-tools/merge",
+        "@graphql-tools/relay-operation-optimizer",
+        "@graphql-tools/schema"
+      ],
+      "range": "<=12.0.0",
+      "nodes": [
+        "node_modules/@aws-amplify/graphql-generator/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-codegen/core/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-codegen/plugin-helpers/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-codegen/visitor-plugin-common/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-tools/merge/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-tools/relay-operation-optimizer/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-tools/schema/node_modules/@graphql-tools/utils",
+        "node_modules/@graphql-tools/utils"
+      ],
+      "fixAvailable": false
+    },
+    "zod": {
+      "name": "zod",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1243066,
+          "name": "zod",
+          "dependency": "zod",
+          "title": "Zod can exhaust memory while validating oversized constrained collections",
+          "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+          "severity": "high",
+          "cwe": [
+            "CWE-770"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<4.6.6"
+        }
+      ],
+      "effects": [
+        "@aws-amplify/backend-cli",
+        "@aws-amplify/backend-output-schemas",
+        "@aws-amplify/cli-core",
+        "@aws-amplify/client-config",
+        "@aws-amplify/data-construct",
+        "@aws-amplify/deployed-backend-client",
+        "@aws-amplify/graphql-api-construct",
+        "@aws-amplify/platform-core",
+        "@aws-blocks/hosting"
+      ],
+      "range": "<4.6.6",
+      "nodes": [
+        "node_modules/@aws-amplify/data-construct/node_modules/@aws-amplify/backend-output-schemas/node_modules/zod",
+        "node_modules/@aws-amplify/data-construct/node_modules/@aws-amplify/platform-core/node_modules/zod",
+        "node_modules/@aws-amplify/data-construct/node_modules/zod",
+        "node_modules/@aws-amplify/graphql-api-construct/node_modules/@aws-amplify/backend-output-schemas/node_modules/zod",
+        "node_modules/@aws-amplify/graphql-api-construct/node_modules/@aws-amplify/platform-core/node_modules/zod",
+        "node_modules/@aws-amplify/graphql-api-construct/node_modules/zod",
+        "node_modules/zod"
+      ],
+      "fixAvailable": false
+    },
+    "csv-parse": {
+      "name": "csv-parse",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1193670,
+          "name": "csv-parse",
+          "dependency": "csv-parse",
+          "title": "node-csv: Prototype replacement still reachable via columns path",
+          "url": "https://github.com/advisories/GHSA-8cw4-87c7-c6xx",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-1321"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<7.0.2"
+        }
+      ],
+      "effects": [
+        "@aws-amplify/graphql-schema-generator"
+      ],
+      "range": "<7.0.2",
+      "nodes": [
+        "node_modules/csv-parse"
+      ],
+      "fixAvailable": true
+    },
+    "@graphql-codegen/core": {
+      "name": "@graphql-codegen/core",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@graphql-codegen/plugin-helpers",
+        "@graphql-tools/schema",
+        "@graphql-tools/utils"
+      ],
+      "effects": [
+        "@aws-amplify/graphql-generator"
+      ],
+      "range": "1.13.6-alpha-01e83c2c.25 - 1.13.6-alpha-e05b7bda.36 || 1.14.1-alpha-02e7bdc6.12 - 6.2.1",
+      "nodes": [
+        "node_modules/@graphql-codegen/core"
+      ],
+      "fixAvailable": false
+    },
+    "@aws-amplify/platform-core": {
+      "name": "@aws-amplify/platform-core",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "zod"
+      ],
+      "effects": [
+        "@aws-amplify/auth-construct",
+        "@aws-amplify/backend",
+        "@aws-amplify/backend-cli",
+        "@aws-amplify/backend-deployer",
+        "@aws-amplify/backend-output-storage",
+        "@aws-amplify/backend-secret",
+        "@aws-amplify/cli-core",
+        "@aws-amplify/client-config",
+        "@aws-amplify/data-construct",
+        "@aws-amplify/deployed-backend-client",
+        "@aws-amplify/graphql-api-construct",
+        "@aws-amplify/model-generator",
+        "@aws-amplify/sandbox",
+        "@aws-amplify/schema-generator"
+      ],
+      "range": "<=0.0.0-test-20260601122829 || >=0.2.1",
+      "nodes": [
+        "node_modules/@aws-amplify/data-construct/node_modules/@aws-amplify/platform-core",
+        "node_modules/@aws-amplify/graphql-api-construct/node_modules/@aws-amplify/platform-core",
+        "node_modules/@aws-amplify/platform-core"
+      ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 2,
+      "high": 37,
+      "critical": 0,
+      "total": 39
+    },
+    "dependencies": {
+      "prod": 231,
+      "dev": 1657,
+      "optional": 160,
+      "peer": 33,
+      "peerOptional": 0,
+      "total": 1924
+    }
+  }
+}

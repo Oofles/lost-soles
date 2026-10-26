@@ -73,9 +73,13 @@ frontend:
         # still in a public repo's history. Pinned binary, sha256-verified; refuses a shallow clone.
         - node scripts/check-history-secrets.mjs --install --self-test
         - node scripts/check-history-secrets.mjs --install --unshallow
-        # 08 §7.5 / 0115. Runtime tree, high/critical only; the dev tree is its own ticket.
+        # 08 §7.5 / 0115. Runtime tree, high/critical only, NO exceptions.
         # Unreachable registry = non-zero exit = failed build (D-176). Mirrors gate.yml.
         - npm audit --omit=dev --audit-level=high
+        # 0318. The FULL tree, high/critical, judged per advisory against the reviewed
+        # scripts/npm-audit-allowlist.json; a stale entry fails too. Fails closed. Mirrors gate.yml.
+        - node scripts/check-npm-audit.mjs --self-test
+        - node scripts/check-npm-audit.mjs
         - node scripts/check-fog-render-boundary.mjs # 05 §2.3 — REVEAL_R_M is scoring, revealScale is a look
         - node scripts/check-mode-boundary.mjs # 05 §5.4 — the map mode is a look; it never reaches scoring
         - node scripts/check-fog-hot-path.mjs  # 02 §5.6 — AP-16 must not reach the ingest hot path
