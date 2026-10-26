@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,680 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,683 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -375,7 +375,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,947 lines
+**06 — UI / UX** — 1,950 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -436,20 +436,20 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1661-1674` | the map's floating controls 8dp. |
 | &nbsp;&nbsp;↳ 8.6 Iconography | `1675-1689` | an 8dp construction grid, no fills, no gradients, no two-tone. |
 | &nbsp;&nbsp;↳ 8.7 Motion | `1690-1726` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1727-1844` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| 9. Accessibility and reality checks | `1727-1847` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
 | &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1739-1751` | the lightest colour permitted to carry type; --gold-500 carries none. |
 | &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1752-1773` | pattern for every screen). |
 | &nbsp;&nbsp;↳ 9.3 Narrow windows | `1774-1784` | place, and the right-edge map controls sit above it (§2.2). |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1785-1805` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1806-1829` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1830-1844` |  |
-| 10. What we are deliberately NOT building | `1845-1947` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1854-1867` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1868-1874` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1875-1900` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1901-1916` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1917-1933` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1934-1947` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1785-1808` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1809-1832` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1833-1847` |  |
+| 10. What we are deliberately NOT building | `1848-1950` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1857-1870` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1871-1877` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1878-1903` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1904-1919` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1920-1936` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1937-1950` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 

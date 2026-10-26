@@ -53,7 +53,7 @@ orchestrator's, because parallel edits to them always conflict:
 |---|---|
 | edit `docs/decisions/DECISIONS.md` or allocate a `D-xxx` | propose it in the report as `D-NEW-a` |
 | run `tickets.mjs create`, `start`, `close`, or allocate an id | propose new tickets in the report |
-| edit `tickets/index.json` or `docs/INDEX.md` | leave them stale; the orchestrator regenerates both. Commit with `LOST_SOLES_WAVE_AGENT=1 git commit …`, which skips only the pre-commit hook's derived-index layer (0231). Never `--no-verify`, which also skips gitleaks |
+| edit `tickets/index.json` or `docs/INDEX.md` | leave them stale; the orchestrator regenerates both. Commit with `LOST_SOLES_WAVE_AGENT=1 git commit …`, which skips only the pre-commit hook's derived-index layer (0231, D-447). Never `--no-verify`, which also skips gitleaks |
 | edit any other ticket's file | mention it in the report |
 | push, or touch `origin` at all | commit locally on its worktree branch |
 | create, change or delete AWS resources | read-only AWS; post-deploy checks go in the report |

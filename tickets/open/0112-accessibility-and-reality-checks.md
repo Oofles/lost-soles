@@ -4,11 +4,11 @@ slug: accessibility-and-reality-checks
 title: Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection
 type: chore
 priority: high
-status: open
+status: blocked
 size: m
 capability: 18-mvp-hardening
 depends_on: [59, 85, 90, 101, 113]
-blocked_by: []
+blocked_by: [314]
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-26T03:02:11Z
@@ -90,6 +90,9 @@ whose state you cannot predict, and prediction is the whole value of the toggle 
       label at 1.39:1 in the dark theme.)*
 
 ## Notes
+
+
+**Blocked 2026-10-26 on 0314:** §9.6 200% zoom row fails on the control overlap 0314 fixes
 
 The rows that are hardest to pass honestly are the ones asserting the app does *nothing* — three
 weeks away, phone died mid-run, token expired. Passing them means resisting the instinct to add a

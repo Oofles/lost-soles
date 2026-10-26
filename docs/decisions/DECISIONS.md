@@ -5961,3 +5961,20 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   deploy. Nothing is added for those paths: CSP and `frame-ancestors` act only on documents, every
   document carries them, and HSTS is recorded from any response. Amplify `customHeaders` were
   rejected as a second place to keep the same policy in step, for files where it does nothing.
+- **D-445** **The pre-commit hook blocks a stale derived index; it never regenerates it or
+  `git add`s it.** *(Agent, 2026-10-26, `0231`; settles the question in its Notes.)* Layer 5
+  refuses a commit whose staged `docs/INDEX.md` or `tickets/index.json` does not match what the
+  staged generators produce, and prints the regeneration command. A hook that rewrites the commit
+  is surprising, `tickets.mjs` deliberately never commits, and every other layer refuses rather
+  than repairs.
+- **D-446** **The hook judges the staged tree with the staged generators, as CI judges the
+  committed tree with the committed generators.** *(Agent, 2026-10-26, `0231`.)* Agreement with
+  CI takes priority over being stricter locally, so a commit deleting `tickets/index.json` passes
+  both today (CI's `git diff --exit-code` ignores an untracked file). That CI gap is ticketed
+  separately rather than closed by a stricter hook.
+- **D-447** **`LOST_SOLES_WAVE_AGENT=1` skips the hook's layer 5 only.** *(Operator, 2026-10-26,
+  `0231`'s D-152 question, option (c).)* A wave agent edits its own ticket, which makes the
+  indexes stale, and WAVES §3 forbids it to stage them; the orchestrator regenerates both after
+  the merge. The variable must be exactly `1`; layers 1–4, gitleaks included, run unchanged.
+  Rejected: agents staging the indexes (every cherry-pick in a wide wave conflicts on them), and
+  `--no-verify` (turns off secret scanning). WAVES §3 and §6 carry the rule.

@@ -265,7 +265,7 @@ done <<< "$index_paths"
 [ "$docs_seen" -eq 1 ] && index_flags="${index_flags} --docs"
 [ "$tickets_seen" -eq 1 ] && index_flags="${index_flags} --tickets"
 
-# LOST_SOLES_WAVE_AGENT=1 skips THIS LAYER ONLY (operator decision, 0231). A
+# LOST_SOLES_WAVE_AGENT=1 skips THIS LAYER ONLY (operator decision, 0231, D-447). A
 # wave agent edits its own ticket file, which makes tickets/index.json stale, and
 # docs/capabilities/WAVES.md §3 forbids it to stage either index: the orchestrator
 # regenerates both after the merge. Without a narrow bypass every agent would

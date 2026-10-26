@@ -2736,7 +2736,7 @@
     "title": "Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -2746,14 +2746,16 @@
       101,
       113
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      314
+    ],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-26T03:02:11Z",
     "path": "tickets/open/0112-accessibility-and-reality-checks.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 8
     }
   },
@@ -5435,7 +5437,7 @@
     "path": "tickets/open/0231-pre-commit-hook-does-not-check-docs-index-md-or-tickets-inde.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -5855,7 +5857,7 @@
     "path": "tickets/open/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -6852,7 +6854,7 @@
     "path": "tickets/open/0295-a-repo-walking-test-sees-agent-worktrees-and-fails-the-wave.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7224,6 +7226,66 @@
     "acceptance": {
       "checked": 0,
       "total": 3
+    }
+  },
+  {
+    "id": 314,
+    "slug": "below-1024px-the-right-edge-map-controls-overlap-the-bottom",
+    "title": "Below 1024px the right-edge map controls overlap the bottom card and the Chronicle",
+    "type": "bug",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T12:32:10Z",
+    "path": "tickets/open/0314-below-1024px-the-right-edge-map-controls-overlap-the-bottom.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 315,
+    "slug": "tickets-yml-passes-a-commit-that-deletes-tickets-index-json",
+    "title": "tickets.yml passes a commit that deletes tickets/index.json",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T12:32:10Z",
+    "path": "tickets/open/0315-tickets-yml-passes-a-commit-that-deletes-tickets-index-json.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
+    }
+  },
+  {
+    "id": 316,
+    "slug": "the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor",
+    "title": "The Strava adapter's repo-wide scans still walk the gitignored tmp/ directory",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-26T12:32:10Z",
+    "path": "tickets/open/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 2
     }
   }
 ]
