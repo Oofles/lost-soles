@@ -2736,7 +2736,7 @@
     "title": "Accessibility and reality checks — screen reader, keyboard, zoom, reduced motion, slow connection",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -2750,8 +2750,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-26T03:02:11Z",
-    "path": "tickets/open/0112-accessibility-and-reality-checks.md",
-    "ready": true,
+    "closed": "2026-10-26T15:08:05Z",
+    "path": "tickets/closed/0112-accessibility-and-reality-checks.md",
+    "ready": false,
     "acceptance": {
       "checked": 8,
       "total": 8
@@ -2884,7 +2885,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0117-mvp-definition-of-done-sweep.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
