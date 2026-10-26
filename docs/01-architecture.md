@@ -992,7 +992,8 @@ error.
 > screen.* The map is the home screen.
 >
 > What ticket `0016` actually built, and what `middleware.ts` gates, is the seven routes of
-> §1.2 — nine App Router segments, no route groups:
+> §1.2 — seven App Router segments (nine until `0216` deleted the two withdrawn `/dev/tickets`
+> stubs, D-252), no route groups:
 >
 > ```
 > app/
@@ -1004,8 +1005,6 @@ error.
 >   chronicle/page.tsx          sheet over /, a route so back works
 >   run/[activityId]/page.tsx   /run/:id — the post-run moment
 >   settings/page.tsx           /settings
->   dev/tickets/page.tsx        /dev/tickets (D-092)
->   dev/tickets/[id]/page.tsx
 >   api/tickets/capture/route.ts
 > ```
 >

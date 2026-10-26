@@ -43,7 +43,6 @@ export const ALLOWED_STATIC = new Map([
   ["/skills", "renders null; the panel is layout.tsx, static by D-282 with no session read"],
   ["/skills/[skillId]", "generateStaticParams over committed skill DEFINITIONS; XP is fetched client-side"],
   ["/log", "the manual-log form; no stored data is rendered into it"],
-  ["/dev/tickets", "a Stub, deleted by ticket 0216"],
 ])
 
 /** Shapes that are DATA wherever they appear, code included. */

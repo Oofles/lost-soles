@@ -91,10 +91,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   /**
-   * Everything except Next's own static output, the favicon, and `/maplibre/`. Note
-   * this deliberately DOES cover `/dev/tickets`: it is owner-only, and with one user
-   * (P9) owner-only and authenticated are the same thing — but it must stay
-   * behind the gate for the day that stops being true.
+   * Everything except Next's own static output, the favicon, and `/maplibre/`. Every
+   * route is owner-only: with one user (P9) owner-only and authenticated are the same
+   * thing, but it must stay behind the gate for the day that stops being true. (The
+   * `/dev/tickets` stubs this once named are gone, D-252 and ticket 0216.)
    *
    * `/maplibre/` is MapLibre's own worker, copied out of node_modules at prebuild by
    * `scripts/copy-maplibre-worker.mjs` (ticket 0053). It is exempt for the same reason

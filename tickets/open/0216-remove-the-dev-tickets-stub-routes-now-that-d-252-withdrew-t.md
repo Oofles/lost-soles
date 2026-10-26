@@ -27,13 +27,18 @@ text only and this is code.
 
 ## Acceptance criteria
 
-- [ ] Both `app/dev/tickets` pages are removed, and `app/routes.test.ts` drops them. Its comment
+- [x] Both `app/dev/tickets` pages are removed, and `app/routes.test.ts` drops them. Its comment
       cites D-252 for the change in route count.
-- [ ] Nothing else links to `/dev/tickets`: grep `app/`, `components/` and `lib/`. The capture
+- [x] Nothing else links to `/dev/tickets`: grep `app/`, `components/` and `lib/`. The capture
       endpoint `/api/tickets/capture` is untouched (D-252 keeps it).
-- [ ] `0114`'s criterion "`/api/dev/tickets` and `/dev/tickets` are owner-only (A-6)" is amended to
+      *(The grep's only remaining hit is `routes.test.ts`'s own comment recording the removal.)*
+- [x] `0114`'s criterion "`/api/dev/tickets` and `/dev/tickets` are owner-only (A-6)" is amended to
       the routes that still exist.
-- [ ] `npm run typecheck`, `npm run lint` and `npm run test` pass.
+      *(Already done before this ticket started: `tickets/closed/0114-d123-standing-conditions-wired.md`
+      carries an operator amendment (Q3 = a) under that criterion, scoping it to
+      `/api/tickets/capture` and noting `/dev/tickets` is a stub `0216` deletes. Not re-edited here,
+      since it is another ticket's file.)*
+- [x] `npm run typecheck`, `npm run lint` and `npm run test` pass.
 
 ## Notes
 
@@ -44,3 +49,52 @@ Related: D-252, `0016`, `0114`, `0215`.
 None needed from the operator: removing unreachable stubs. Smoke test by the agent after deploy:
 `curl` shows `/dev/tickets` returns 404 while signed out, as before, and the app's other routes
 are unaffected.
+
+## Resolution
+
+**Deleted**
+- `app/dev/tickets/page.tsx`, `app/dev/tickets/[id]/page.tsx` — the two `0016` stubs for the UI
+  D-252 withdrew.
+- `components/stub.tsx` — the `Stub` component. Those two pages were its last consumers (every other
+  `0016` stub has since been filled in), so leaving it would be dead code whose doc comment still
+  claims "every route in §1.2 exists" as a stub.
+
+**Changed**
+- `app/routes.test.ts` — the screen map drops both segments; the count assertion goes from nine to
+  seven, and the comment cites D-252 and `0216` for the change.
+- `scripts/check-prerender-no-cell-data.mjs` — `/dev/tickets` removed from `ALLOWED_STATIC` (its
+  reason string was literally "a Stub, deleted by ticket 0216"). An allowlist entry for a route that
+  no longer exists would silently re-admit it as a prerendered page if it ever came back.
+- `middleware.ts` — the matcher comment no longer names `/dev/tickets` as the example of an
+  owner-only route; the matcher itself is unchanged. `middleware.test.ts`'s "still covers
+  `/dev/tickets`" case is left as is: it tests the matcher pattern against a path string, and a
+  path that no longer resolves must still be gated, so it remains a valid case.
+
+**Docs made wrong by this change, corrected (doc-finding rule)**
+- `docs/06-ui-ux.md` §1.2 — the route diagram box and the paragraph under it said the route
+  "survives as a stub" until `0216`; §1.3's table row's "Cut later?" now reads "removed by `0216`".
+- `docs/01-architecture.md` App Router structure — the shipped-tree listing dropped the two
+  `dev/tickets` lines; "nine App Router segments" now says seven, with the reason.
+- `docs/capabilities/18-mvp-hardening.md` — the public-surface table's prerendered-pages row no
+  longer lists `/dev/tickets`.
+- `docs/07-ticketsmith.md` §2.4 — "`/dev/tickets` is the UI page" now says it *was*, withdrawn by
+  D-252, stubs deleted by `0216`.
+- `docs/08-security-privacy.md` §2.4 A-6 already names only `/api/tickets/capture` (`0154`); no
+  change needed. Historical/withdrawn text (`07` §5, `09-roadmap.md`, R6, capability `17`'s close
+  record) is left as the record it is.
+
+**Not touched:** `/api/tickets/capture` and everything behind it (D-252 keeps the endpoint).
+`docs/INDEX.md` and `docs/.index-summaries.json` are stale for the edited docs; the orchestrator
+regenerates them.
+
+**Decisions:** none new. This executes D-252.
+
+## Operator validation
+
+Nothing perceptual. Agent-side, in the worktree: the full amplify.yml build-phase guard list,
+`npm run typecheck`, `npm run lint`, `npx vitest run` and `npm run build` all pass; the built
+`.next/app-path-routes-manifest.json` and `prerender-manifest.json` contain no `dev/tickets`.
+Post-deploy smoke test (orchestrator): signed out, `/dev/tickets` 307s to `/?next=/dev/tickets`
+exactly as before (the middleware gates every path before route resolution, so signed out cannot
+distinguish a deleted route from a live one), and `/`, `/skills`, `/log`, `/settings` behave as
+before. The deletion itself is proven by the build manifest, not by curl.

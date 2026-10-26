@@ -14,7 +14,11 @@ import { describe, expect, it } from "vitest"
  */
 const ROOT = join(import.meta.dirname, "..")
 
-/** The seven routes of §1.2, as their nine App Router segments. */
+/**
+ * The seven routes of §1.2, as their seven App Router segments. Nine until D-252 withdrew the
+ * in-app ticket UI: `0216` deleted the two `/dev/tickets` stub segments, so a route for a
+ * feature that will never be built is no longer pinned here as though it were intended.
+ */
 const SCREEN_MAP = [
   "app/(home)/page.tsx",               // /                      map + plinth (home)
   "app/skills/page.tsx",               // /skills                skills panel
@@ -23,8 +27,6 @@ const SCREEN_MAP = [
   "app/(home)/chronicle/page.tsx",     // /chronicle             panel in the rail's column
   "app/run/[activityId]/page.tsx",     // /run/:activityId       the post-run moment
   "app/settings/page.tsx",             // /settings              small and boring
-  "app/dev/tickets/page.tsx",          // /dev/tickets           withdrawn stub (D-252; removal is 0216)
-  "app/dev/tickets/[id]/page.tsx",     // /dev/tickets/:id       read-only detail
 ]
 
 describe("the §1.2 screen map", () => {
@@ -32,8 +34,8 @@ describe("the §1.2 screen map", () => {
     expect(existsSync(join(ROOT, rel)), `${rel} is in the screen map but not on disk`).toBe(true)
   })
 
-  it("has exactly nine segments — no route added without a design decision", () => {
-    expect(SCREEN_MAP).toHaveLength(9)
+  it("has exactly seven segments — no route added without a design decision", () => {
+    expect(SCREEN_MAP).toHaveLength(7)
   })
 
   it("does not contain a screen §1.4 explicitly refused", () => {

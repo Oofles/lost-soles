@@ -207,7 +207,7 @@ information about the backlog. Ten half-formed tickets sitting in `open/` would 
 > **Route names, corrected 2026-09-03 (ticket `0154`).** The capture endpoint shipped as
 > **`POST /api/tickets/capture`** (`0018`); this document had called it `/api/dev/tickets`
 > throughout, which never existed. The **read** route and the **webhook** below are *not built* —
-> they are capability `17`'s `0110`, which names them. `/dev/tickets` (no `/api`) is the UI page.
+> they are capability `17`'s `0110`, which names them. `/dev/tickets` (no `/api`) was the UI page: withdrawn by D-252, its stub routes deleted by `0216`.
 
 ```
  Phone ──POST /api/tickets/capture──▶ capture endpoint ──GitHub Contents API──▶ commit to

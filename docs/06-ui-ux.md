@@ -110,7 +110,7 @@ is to link to other screens.
   ┌──────────────────────┐   ┌──────────────────────┐
   │ /settings            │   │ /dev/tickets         │
   │ small, boring        │   │ WITHDRAWN (D-252):   │
-  │ reached from the ⚙   │   │ a stub until `0216`  │
+  │ reached from the ⚙   │   │ removed by `0216`    │
   └──────────────────────┘   └──────────────────────┘
 ```
 
@@ -121,8 +121,8 @@ second way in: a row of the plinth's quick-view opens it straight from `/`, and 
 back to `/`, not to `/skills` *(D-330)*. Accepted cost: the sheet is still the `/skills/:skillId`
 route, so the map unmounts while it is open and the `/skills` panel is drawn behind the dialog; a
 deep link or a reload lands on `/skills` as before. `/dev/tickets` lost its
-UI to D-252; the route survives as a stub, and its removal (with `app/routes.test.ts`'s count)
-is ticket `0216`, not this document.
+UI to D-252, and ticket `0216` deleted the stub route; `app/routes.test.ts` now pins seven
+segments.
 
 ### 1.3 Justification, screen by screen
 
@@ -133,7 +133,7 @@ is ticket `0216`, not this document.
 | `/skills` | Constraint R1 — every session must move a *named* number, and the user must be able to go look at those names. Runescape's skills panel is the explicitly-loved reference. | Levels exist but are unreadable; the "9 runs to 48" plan (04 §4.1) has no home. | Never |
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
 | `/chronicle` | The only way back to a past run's `/run/:id`. It carries no lifetime totals (D-329): those live on the plinth. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
-| `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — `0216` |
+| `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — removed by `0216` |
 | `/settings` | Connect, reconnect or disconnect each source, named by its connector's display name, never a hard-coded "Strava" *(D-100)* — reconnecting is the one recurring chore S3 permits. Sign out, the account-deletion entry point, a build line. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
 ### 1.4 Screens deliberately refused
