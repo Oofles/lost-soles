@@ -22,7 +22,7 @@ The user-data bucket (`users/`, `raw/`, `snapshots/`) blocks all public access o
 
 - [x] The bucket's construct sets `blockPublicAccess: BLOCK_ALL` explicitly; the synthesized template carries all four settings `true`. *(Amended: `defineStorage` has no `blockPublicAccess` option and the L2 `Bucket` is built inside Amplify, so `BLOCK_ALL` is set as its four flags on the L1 `cfnBucket.publicAccessBlockConfiguration`, the same override the 0106 lifecycle rule uses. The template outcome is the one this criterion asks for.)*
 - [x] `explored-set-not-public.test.ts` asserts the explicit block, and fails if it is removed.
-- [ ] The deployed bucket still reports all four settings `true` after deploy (read-only `get-public-access-block`).
+- [x] The deployed bucket still reports all four settings `true` after deploy (read-only `get-public-access-block`).
 
 ## Notes
 
@@ -31,6 +31,11 @@ This changes infra on the bucket that holds `raw/`, the system of record (D-101)
 ## Operator validation
 
 Smoke test: `aws s3api get-public-access-block` on the deployed user-data bucket, all four `true`. No perceptual check.
+
+**Result, 2026-10-26, after Amplify build 430 (commit `6930ac7`):** `aws s3api get-public-access-block`
+on `amplify-d14fhvl4rp79nn-ma-lostsolesuserdatabucket5-mpiyvettxgde` returns all four flags `True`.
+`list-buckets` still shows the same bucket with its original `CreationDate` of 2026-08-31, so it was
+updated in place, not replaced.
 
 D-123 trigger checked? C — this narrows the public surface; no trigger fires.
 

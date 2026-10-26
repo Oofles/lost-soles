@@ -117,3 +117,8 @@ only frame time.
 None perceptual. The figures above come from `run-cold-cost.mjs` on this machine (WSL2 → WSLg →
 D3D12), against the RTX 5080 and then the AMD iGPU, run on 2026-10-26. The re-run command is in the
 capability doc.
+
+No deploy smoke test applies, because the commit ships tooling and docs only (Amplify build 430
+was green). The open assumption, that the operator's desktop browser renders on the RTX 5080 and not
+the AMD iGPU, is put to the operator in the wave's hand-over. If it is the iGPU, that is a new ticket
+about the composite's budget, not a reopening of this one.

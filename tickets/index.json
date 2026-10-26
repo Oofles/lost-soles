@@ -7048,7 +7048,7 @@
     "path": "tickets/open/0304-make-the-user-data-bucket-s-public-access-block-explicit-in.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7091,7 +7091,7 @@
     "path": "tickets/open/0306-decide-dependabot-for-npm-under-the-no-pr-trunk-model.md",
     "ready": true,
     "acceptance": {
-      "checked": 1,
+      "checked": 2,
       "total": 2
     }
   },

@@ -23,7 +23,7 @@ started: 2026-10-26T13:42:13Z
 - [x] A decision is recorded: enable Dependabot (alerts only, or PRs), or decline it with §7.5 amended.
   *(Operator chose alerts only, option A. The decision text is proposed as D-449 for the
   orchestrator to allocate; 08 §7.5 and the §9 out-of-scope row are amended.)*
-- [ ] Whatever is decided is applied live and verified by API read.
+- [x] Whatever is decided is applied live and verified by API read.
   *(Left open for the orchestrator. Wave agents may not change GitHub settings, so the
   orchestrator runs `PUT /vulnerability-alerts` after the merge and verifies it by API read.)*
 
@@ -67,5 +67,10 @@ and the verification read; allocate D-449 in `DECISIONS.md`; regenerate `docs/IN
 ## Operator validation
 
 Smoke test: `gh api repos/Oofles/lost-soles` `security_and_analysis` read matches the decision.
+
+**Result, 2026-10-26 (orchestrator):** ran `gh api -X PUT repos/Oofles/lost-soles/vulnerability-alerts`.
+Then `vulnerability-alerts -i` returns `HTTP/2.0 204`, `security_and_analysis.dependabot_security_updates.status`
+is `disabled`, `automated-security-fixes` is `{"enabled":false}`, and `.github/dependabot.yml` is 404.
+Alerts only, as D-449 decides. No perceptual check.
 
 D-123 trigger checked? none (no auth, sharing, export or public route changes).
