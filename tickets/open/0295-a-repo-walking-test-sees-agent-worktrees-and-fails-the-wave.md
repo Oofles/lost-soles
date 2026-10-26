@@ -112,3 +112,7 @@ It passes on its own and in the clean full run.
 ## Operator validation
 
 None needed: a test-only change, proven by the suite with a worktree present.
+
+**Smoke test, 2026-10-26 (orchestrator):** the wave-1 gate on main ran with all four agent
+worktrees still under `.claude/worktrees/`, which is the exact condition that failed capability 15's
+gate. All 38 amplify.yml checks passed, `npm test` included, before any worktree was removed.

@@ -25,16 +25,28 @@ Every audit hits this, and the obvious workaround (deleting the operator's scrat
 
 ## Acceptance criteria
 
-- [ ] `tsconfig.json` excludes `tmp/`, and the ESLint config ignores it.
-- [ ] With a deliberately ill-typed, lint-failing file in `tmp/`, `npm run typecheck` and
+- [x] `tsconfig.json` excludes `tmp/`, and the ESLint config ignores it.
+- [x] With a deliberately ill-typed, lint-failing file in `tmp/`, `npm run typecheck` and
       `npm run lint` both pass.
-- [ ] Nothing tracked stops being checked: the file count `tsc --listFilesOnly` reports outside
+- [x] Nothing tracked stops being checked: the file count `tsc --listFilesOnly` reports outside
       `tmp/` is unchanged.
 
 ## Notes
 
-TODO
+A near-duplicate of `0250`, filed independently. Closed by `0250`'s change.
+
+## Resolution
+
+**Satisfied by `0250`; no code in this ticket.** `0250` (commit `2d2aac1`) added `"tmp"` to
+`tsconfig.json`'s `exclude`, `"tmp/**"` to the ESLint global ignores, and `"tmp/**"` to vitest's
+shared exclude. This ticket's three criteria are a subset of `0250`'s. The `0250` agent mapped each
+one, and the orchestrator re-checked them on main rather than tick them on trust (below). The
+`tmp/` scan in the Strava adapter test, which neither ticket covered, is `0316`.
 
 ## Operator validation
 
-TODO
+None: build configuration with nothing to look at. **Smoke test, 2026-10-26 (orchestrator, main at
+`65bb872`):** with an ill-typed `.ts` (`const a: number = "s"`) and a lint-failing `.js`
+(`var u = 1`) in `tmp/v0239/`, `npm run typecheck` and `npm run lint` both passed.
+`tsc --listFilesOnly -p .` outside `tmp/` and `node_modules` gave 608 files with the pre-`0250`
+tsconfig and 608 with the current one.

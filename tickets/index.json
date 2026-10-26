@@ -5613,7 +5613,7 @@
     "path": "tickets/open/0239-exclude-tmp-from-typecheck-and-lint.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

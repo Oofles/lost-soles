@@ -138,3 +138,11 @@ Decisions and findings:
 
 None beyond a smoke test: stage a doc edit without regenerating and confirm the commit is refused.
 Then regenerate, stage and confirm it passes. A push is green on `gate` and `tickets`.
+
+**Smoke test, 2026-10-26 (orchestrator, main checkout after merge):** appended a line to
+`docs/05-fog-of-war.md` and staged it alone. The commit was refused with `COMMIT BLOCKED: a derived
+index is stale`, the regeneration command, and the `LOST_SOLES_WAVE_AGENT=1` pointer; HEAD did not
+move. After `node scripts/build-index.mjs` and staging `docs/INDEX.md` and
+`docs/.index-summaries.json`, the commit went through, and was then reset away. The wave's own
+`wave 1: decisions and indexes` commit (`65bb872`), which staged regenerated indexes, passed layer 5. `gate`,
+`tickets` and `secret-scan` were green on that push, and the Amplify build SUCCEEDed.

@@ -72,3 +72,8 @@ No decisions were needed. The Node 20 note in `## Notes` is out of scope and was
 
 Nothing to look at. The before, after and moved-into-`src/` runs above are the smoke test. CI
 runs on a clean checkout, which has no `tmp/`, so the deploy changes nothing.
+
+**Smoke test, 2026-10-26 (orchestrator, main after merge):** an ill-typed `.ts` and a lint-failing
+`.js` in `tmp/v0239/`; `npm run typecheck` and `npm run lint` both passed. `tsc --listFilesOnly`
+outside `tmp/` and `node_modules`: 608 files with the old tsconfig and with the new one. The full
+amplify.yml gate (38 checks) passed on main with `tmp/fog-harness/` present.
