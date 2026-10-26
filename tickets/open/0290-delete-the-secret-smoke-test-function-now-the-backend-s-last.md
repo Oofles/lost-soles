@@ -29,13 +29,13 @@ consumer depends on, and it still costs a deployed Lambda, an IAM role, and an
 
 ## Acceptance criteria
 
-- [ ] `amplify/functions/secret-smoke-test/` is deleted, and its import and `defineBackend` entry
+- [x] `amplify/functions/secret-smoke-test/` is deleted, and its import and `defineBackend` entry
       are removed from `amplify/backend.ts`, along with the `0017` comment above the entry.
-- [ ] Comments that cite it as a live example are updated, for example
+- [x] Comments that cite it as a live example are updated, for example
       `amplify/functions/process-activity/resource.ts` around line 28.
-- [ ] The `STRAVA_WEBHOOK_VERIFY_TOKEN` SSM parameter itself is **not** deleted. The webhook reads
+- [x] The `STRAVA_WEBHOOK_VERIFY_TOKEN` SSM parameter itself is **not** deleted. The webhook reads
       the shared path (D-357), and `scripts/strava-subscription.mjs rotate-token` writes it.
-- [ ] typecheck, lint, the unit suite and the `amplify.yml` build-phase guards pass, and
+- [x] typecheck, lint, the unit suite and the `amplify.yml` build-phase guards pass, and
       `scripts/check-bundle-leak.mjs` still runs and passes. It is the standing control and does
       not depend on this function.
 
@@ -49,3 +49,44 @@ it is.
 None expected. Smoke test after deploy: `aws lambda list-functions --profile devault` shows no
 `secretsmoketest` function. A webhook handshake with the real token still returns the exact bytes,
 which shows the SSM parameter survived.
+
+## Resolution
+
+Deleted `amplify/functions/secret-smoke-test/` (`handler.ts`, `resource.ts`) and removed its import,
+its `defineBackend` entry and the `0017` comment above that entry from `amplify/backend.ts`. On
+deploy CloudFormation removes the Lambda, its service role and the role's `ssm:GetParameters` on
+the verify-token paths. Nothing else in the backend uses `secret()` now.
+
+Files touched:
+
+- `amplify/functions/secret-smoke-test/handler.ts`: deleted.
+- `amplify/functions/secret-smoke-test/resource.ts`: deleted.
+- `amplify/backend.ts`: the import and the `defineBackend` entry are gone, along with its comment.
+- `amplify/functions/process-activity/resource.ts`: the "NO `secret()` HERE" block cited the smoke
+  test as a live `secret()` user. It now says nothing in the backend uses `secret()` since `0290`.
+- `scripts/check-secret-storage.mjs`: the `AMPLIFY_RUNTIME_PLACEHOLDER` doc comment named the
+  smoke test as the remaining user. The comment now records its removal. The allowance itself and
+  its self-test fixture stay, so a future `secret()` is judged correctly (a placeholder value is
+  not plaintext) and is not flagged.
+
+Left alone on purpose:
+
+- The `STRAVA_WEBHOOK_VERIFY_TOKEN` SSM parameter. The webhook reads the shared path through its own
+  `ssm:GetParameter` grant (D-357), and `rotate-token` writes it.
+- The historical mentions in `docs/capabilities/02-deploy-and-auth.md` (per Notes), and also
+  `14-webhook-and-automatic-sync.md` §84 and `18-mvp-hardening.md` §58. Those two are audit records
+  of what was true when they were written, not live claims.
+- Generic `secret()` remarks in `check-bundle-leak.mjs`, `check-boundaries.mjs` and `.env.example`.
+  They describe the mechanism and not this function.
+
+No decisions were made. The ticket fully specified the change.
+
+Verification, in the worktree: every `node`/`npm` command in `amplify.yml`'s backend and build
+phases exits 0. That covers typecheck, lint, `npm test` (vitest), `npm run build`, and
+`check-bundle-leak.mjs --self-test` and `--require-literals`.
+`check-secret-storage.mjs --require-literals` needs the Amplify env, so it was run with
+`AWS_APP_ID`/`AWS_BRANCH=main` against the current deployed state: 18 stacks, 19 Lambdas, pass.
+
+Pre-deploy dry run of the smoke test, read-only: the Lambda and its role are both still present,
+as expected before deploy. The webhook GET handshake with the real token from SSM already returns
+the exact bytes.

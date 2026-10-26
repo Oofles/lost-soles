@@ -25,8 +25,8 @@ import { defineFunction } from "@aws-amplify/backend"
  *
  * ─── NO `secret()` HERE, AND THAT IS NOT AN OVERSIGHT ───────────────────────
  *
- * `secret-smoke-test/resource.ts` reads one because proving `secret()` resolves was its
- * whole purpose. This function needs no static secret: the per-user OAuth tokens live in
+ * Nothing in this backend uses `secret()` any more (ticket 0290 deleted the last one,
+ * 0017's smoke test). This function needs no static secret: the per-user OAuth tokens live in
  * `LostSolesSourceAccount` (§7), reached with an IAM grant, and the client credentials
  * are only needed by the token EXCHANGE, which happens in `lib/sources/token-refresh.ts`
  * under the SSR compute's own grant. Adding `STRAVA_CLIENT_SECRET` here "for later"

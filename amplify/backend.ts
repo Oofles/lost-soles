@@ -55,7 +55,6 @@ import { logWorkoutFunction } from "./functions/log-workout/resource"
 import { setActivityKindFunction } from "./functions/set-activity-kind/resource"
 import { processActivity } from "./functions/process-activity/resource"
 import { reconcileSweep } from "./functions/reconcile-sweep/resource"
-import { secretSmokeTest } from "./functions/secret-smoke-test/resource"
 import { tokenRefresh } from "./functions/token-refresh/resource"
 import { storage } from "./storage/resource"
 import { applyLogRetention } from "./log-retention"
@@ -94,9 +93,6 @@ export const backend = defineBackend({
   auth,
   data,
   storage,
-  // Ticket 0017. Proves secret() resolves end to end; deleted when token-refresh
-  // (ticket 0094) reads the same secret in earnest. See its resource.ts.
-  secretSmokeTest,
   // Ticket 0042. The ingest worker. Its queue, DLQ, grants and environment are at the
   // bottom of this file — `defineFunction` has no queue primitive, which is the second
   // of the four escape-hatch uses 01-architecture.md §2 sanctions.

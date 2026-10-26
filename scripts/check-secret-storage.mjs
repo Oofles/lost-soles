@@ -43,7 +43,8 @@ const SSM_KEYS = REGISTRY.filter((r) => r.store === "ssm").map((r) => r.key)
  * What Amplify's `secret()` writes into a function's environment at deploy time. The
  * real value is fetched from SSM at cold start and lives only in process memory, so a
  * registry NAME carrying exactly this is not plaintext storage. As built nothing uses
- * `secret()` except `secret-smoke-test` (D-357, D-362; `0290` removes that function).
+ * `secret()` (D-357, D-362; `0290` removed the last user, `secret-smoke-test`). The
+ * allowance stays so a future `secret()` is judged correctly rather than flagged.
  */
 export const AMPLIFY_RUNTIME_PLACEHOLDER = "<value will be resolved during runtime>"
 
