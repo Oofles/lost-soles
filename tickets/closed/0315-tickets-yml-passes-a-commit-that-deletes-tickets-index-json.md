@@ -4,7 +4,7 @@ slug: tickets-yml-passes-a-commit-that-deletes-tickets-index-json
 title: tickets.yml passes a commit that deletes tickets/index.json
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-26T12:32:10Z
 started: 2026-10-26T20:52:53Z
+closed: 2026-10-26T21:18:38Z
 ---
 
 ## Description
