@@ -20,7 +20,7 @@ import { ChronicleRows } from "./chronicle-rows"
  *
  * A PANEL, NOT A PAGE AND NOT A MODAL. At ≥1024px it replaces the rail's contents — the same 24rem
  * column, full height, opaque — with no scrim, and the map to its right stays live. Below 1024px it
- * takes the bottom card's place, growing up to 16px below the map's top controls, and takes the
+ * takes the bottom card's place, from 16px below the mode toggle to the attribution, and takes the
  * shared swipe-down (D-314) there. It is a ROUTE, held in no component state: the home layout keeps
  * the map mounted under both `/` and `/chronicle`, so opening and dismissing it never touch the
  * camera.
@@ -33,8 +33,13 @@ import { ChronicleRows } from "./chronicle-rows"
  * no week or month totals, no filter, no search, no sort. A list, newest first.
  */
 
+/**
+ * Below 1024px, `top: 98px` is 16px under the mode toggle (16 + its 66px: two 32px border-box rows
+ * and its 1px border, top and bottom) — the tallest thing on the top edge, since `⚙`, jump-to, fit and `⌖`
+ * are one 40px row there (`0314`). `bottom: 36px` keeps the attribution clear (D-315).
+ */
 export const CHRONICLE_CSS =
-  ".chronicle { position: fixed; z-index: 1; left: 16px; right: 16px; top: 72px; bottom: 36px;" +
+  ".chronicle { position: fixed; z-index: 1; left: 16px; right: 16px; top: 98px; bottom: 36px;" +
   " overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; background: var(--surface-raised);" +
   " border: 1px solid var(--line); border-radius: 8px; color: var(--text-primary); font-family: var(--font-sans); }" +
   " .chronicle-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center;" +

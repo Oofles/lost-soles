@@ -288,9 +288,12 @@ focus ring.
 rail goes away and its content stacks, unchanged and in the same order, as an opaque card over
 the bottom of a map that now fills the window: 16px side insets, its bottom edge clear of the
 MapLibre attribution (36px; D-315), full width less 32px, 8px radius,
-capped at 55% of the window height and scrolling beyond. The right-edge map controls stack
-down the right edge under `⚙` and jump-to *(`0101`: the card's height varies with its content, so
-"16px above the card" has no fixed position; under jump-to it cannot collide with the card)*.
+capped at 55% of the window height and scrolling beyond. The four right-edge map controls are
+**one row along the top-right**, 40px tall at `top: 16px`, 8px apart: fit, `⌖`, jump-to, `⚙` —
+`⚙` keeps the corner *(`0314`, D-NEW-a: the card's height varies with its content, so neither
+"16px above the card" nor a column down the right edge has a position it cannot collide with; at
+200% zoom of a 1280×800 window the column ran 56px into the card. The row needs 16 + 112 (mode
+toggle) + 184 + 16 = 328px of width, inside §9.2's ~360px floor)*.
 
 **The plinth belongs to `/` only.** `/run/:id` is §3's, and its ledger owns the bottom of the
 window there.
@@ -372,9 +375,11 @@ earlier "carries the lifetime totals at its own top")*.
 - **The unseen mark** goes on at most one row — the latest traced run, when this device has not
   seen it — as a 3px inset `--accent-text` rule plus hidden text, never a count *(D-324, D-335)*.
 - Below 1024px it takes the bottom card's place as a fixed panel at full height: 16px side
-  insets, `top: 72px` (clear of the `⚙`: 16 + 40 + 16) and `bottom: 36px` (clear of the
+  insets, `top: 98px` (16px below the mode toggle: 16 + its 66px + 16, the tallest thing on the
+  top edge now that the map controls are one 40px row there, §2.2) and `bottom: 36px` (clear of the
   attribution, D-315). It does not grow with its content. It is still a panel, not a full-screen
-  page. The 72px is revisited when the mode toggle (`0098`) lands, which shares that top edge.
+  page. *(`0314`, D-NEW-a: the old `top: 72px` cleared only `⚙`, and ran under the mode toggle,
+  jump-to, fit and `⌖`.)*
 
 The skill detail is the other thing that opens over a parent, and it is deliberately different:
 a **centred dialog with a scrim** over `/skills` (§5.5, as `0074` built it), because the panel
@@ -1777,7 +1782,7 @@ The "must not break" rule (D-251), as checks rather than a layout:
 
 - **No horizontal page scroll** at any width down to ~360px, and nothing clipped or unreachable.
 - **Below 1024px the rail becomes a bottom card** over the map, the Chronicle takes that card's
-  place, and the right-edge map controls sit above it (§2.2). The skill dialog rises from the bottom
+  place, and the map controls are one row along the top-right above both (§2.2). The skill dialog rises from the bottom
   edge (§5.5). Nothing else changes.
 - **Nothing is optimised for a phone and nothing is tested on one.** A narrow window in the
   desktop browser is the test.

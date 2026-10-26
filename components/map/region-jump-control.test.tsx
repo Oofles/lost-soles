@@ -51,7 +51,11 @@ describe("RegionJumpControl", () => {
   })
 
   it("sits under the settings control on the pane's right edge, clear of the top-left mode toggle", () => {
-    expect(REGION_JUMP_CSS).toContain(".region-jump { position: fixed; z-index: 1; top: 64px; right: 16px; }")
+    expect(REGION_JUMP_CSS).toContain("@media (min-width: 1024px) { .region-jump { top: 64px; right: 16px; } }")
     expect(REGION_JUMP_CSS).not.toMatch(/\.region-jump \{[^}]*left:/)
+  })
+
+  it("below 1024px sits in the top-right row, left of the settings control (0314)", () => {
+    expect(REGION_JUMP_CSS).toContain(".region-jump { position: fixed; z-index: 1; top: 16px; right: 64px; }")
   })
 })

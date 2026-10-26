@@ -54,12 +54,14 @@ export function listKey(key: string, active: number, count: number): ListMove {
 
 /**
  * Positioned against the pane's right edge, as `⚙` is: `right: 16px` from the window IS the pane's
- * right edge at every width (the rail is on the left). `top: 64px` is `⚙`'s 16px inset, its 40px,
- * and the 8px gap §2.2 uses between stacked map controls. Clear of the mode toggle (top-left) and of
- * fit and `⌖` (bottom-right).
+ * right edge at every width (the rail is on the left). At ≥1024px `top: 64px` is `⚙`'s 16px inset,
+ * its 40px, and the 8px gap §2.2 uses between stacked map controls. Below 1024px (`0314`) it sits
+ * in the top-right row instead, left of `⚙` (`right: 64px` = 16 + 40 + 8), with fit and `⌖` to its
+ * left. Clear of the mode toggle (top-left) either way.
  */
 export const REGION_JUMP_CSS =
-  ".region-jump { position: fixed; z-index: 1; top: 64px; right: 16px; }" +
+  ".region-jump { position: fixed; z-index: 1; top: 16px; right: 64px; }" +
+  " @media (min-width: 1024px) { .region-jump { top: 64px; right: 16px; } }" +
   " .region-jump-button { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" +
   " box-sizing: border-box; padding: 0; background: var(--surface-raised); border: 1px solid var(--line);" +
   " border-radius: 4px; color: var(--text-primary); font-size: 18px; line-height: 1; cursor: pointer; }" +

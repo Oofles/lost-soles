@@ -37,7 +37,9 @@ import { useExplored } from "./explored-provider"
  * `⌖` with an 8 px gap and `⌖`'s bottom 16 px above the attribution (`06` §2.2 rows 6 and 8; D-313:
  * map controls are 40 px and live on the pane, never under the rail), clear of the mode toggle
  * (top-left) and of `⚙` and jump-to (top-right). Below 1024 px the plinth is a bottom card of
- * variable height, so they move up under jump-to instead — that width only must not break (D-251).
+ * variable height, so they join `⚙` and jump-to in ONE ROW along the top-right — fit, `⌖`, jump-to,
+ * `⚙` — where neither the card nor the Chronicle can reach them (`0314`; that width only must not
+ * break, D-251).
  *
  * The rules themselves — hit test, card placement, the transition function — are `lib/route-inspect.ts`
  * and `lib/map-controls.ts`, pure and tested; this file wires them to MapLibre's events.
@@ -54,10 +56,13 @@ export interface ControlsHost extends CameraHost {
 
 /**
  * `bottom: 36px` keeps MapLibre's attribution uncovered (§2.2 row 10, the plinth's own inset). The
- * two buttons share one rule set with `⚙` and jump-to: same surface, rule and size.
+ * two buttons share one rule set with `⚙` and jump-to: same surface, rule and size. Below 1024px
+ * (`0314`) they are a row at `top: 16px`, `right: 112px` — left of jump-to (`right: 64px`) and `⚙`
+ * (`right: 16px`), 8px apart — so the four controls are one 40px strip and the card and the
+ * Chronicle, whatever their height, stay below it.
  */
 export const MAP_CONTROLS_CSS =
-  ".map-controls { position: fixed; z-index: 1; top: 112px; right: 16px; display: flex; flex-direction: column; gap: 8px; }" +
+  ".map-controls { position: fixed; z-index: 1; top: 16px; right: 112px; display: flex; flex-direction: row; gap: 8px; }" +
   " .map-control { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" +
   " box-sizing: border-box; padding: 0; background: var(--surface-raised); border: 1px solid var(--line);" +
   " border-radius: 4px; color: var(--text-primary); font-size: 18px; line-height: 1; cursor: pointer; }" +
@@ -65,7 +70,7 @@ export const MAP_CONTROLS_CSS =
   " .map-control:disabled { color: var(--text-secondary); cursor: default; }" +
   " .map-control:focus-visible, .route-card a:focus-visible, .route-chip:focus-visible {" +
   " outline: 2px solid var(--text-primary); outline-offset: 2px; }" +
-  " @media (min-width: 1024px) { .map-controls { top: auto; bottom: 36px; } }" +
+  " @media (min-width: 1024px) { .map-controls { top: auto; bottom: 36px; right: 16px; flex-direction: column; } }" +
   " .route-chip, .route-card { position: fixed; z-index: 2; box-sizing: border-box; background: var(--surface-raised);" +
   " border: 1px solid var(--line); border-radius: 4px; color: var(--text-primary); font: 400 14px/1.3 var(--font-sans);" +
   " font-variant-numeric: tabular-nums; }" +
