@@ -5847,7 +5847,7 @@
     "title": "Typecheck, lint and tests ignore the gitignored tmp/ scratch directory",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -5855,8 +5855,9 @@
     "source": "agent",
     "created": "2026-10-08T15:18:40Z",
     "started": "2026-10-26T03:02:11Z",
-    "path": "tickets/open/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
-    "ready": true,
+    "closed": "2026-10-26T12:45:57Z",
+    "path": "tickets/closed/0250-typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4

@@ -4,7 +4,7 @@ slug: typecheck-lint-and-tests-ignore-the-gitignored-tmp-scratch-d
 title: Typecheck, lint and tests ignore the gitignored tmp/ scratch directory
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-08T15:18:40Z
 started: 2026-10-26T03:02:11Z
+closed: 2026-10-26T12:45:57Z
 ---
 
 ## Description
