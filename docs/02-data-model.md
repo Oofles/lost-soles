@@ -43,7 +43,7 @@ Four layers, in strictly decreasing order of authority:
 | Layer | Where | System of record? | Rebuildable from |
 |---|---|---|---|
 | **Raw** | S3 `raw/…` — original Strava JSON / GPX / FIT / manual-log JSON | **YES — D-101.** The only authority. | nothing. This is bedrock. |
-| **Rules** | Git repo `rules/xp-rules-vN.yaml`, mirrored to S3 `rules/` | **YES.** Immutable once shipped. | git history |
+| **Rules** | Git repo `rules/xp-rules-vN.yaml`, bundled into the worker as generated JSON (D-274); there is no S3 mirror (D-NEW-a) | **YES.** Immutable once shipped. | git history |
 | **Facts** | DynamoDB `Activity`; S3 `traces/`, `cells/` | rebuildable | raw + `normalize()` (a *pure* function — the contract §3 makes this the migration seam) |
 | **Derived** | DynamoDB `ExploredCell`, `XpLedgerEntry`, `SkillState`; S3 `explored-*.bin` | rebuildable | facts + rules |
 | **Ephemeral** | DynamoDB `IngestReceipt` (TTL 90 d); IndexedDB in the browser | discardable | nothing needed |
@@ -57,21 +57,37 @@ Everything below the first row is a cache with a longer-than-usual lifetime.
 
 ```
 s3://lost-soles-storage/
-  raw/<uid>/<source>/<externalId>/<sha256>.<ext>     RawArchiveRef.key — contract §2
-                                                     IMMUTABLE. Versioning ON. Delete DENIED
-                                                     by bucket policy, not just by convention.
-  facts/<uid>/highwater.jsonl                        append-only D-135 floor decisions (§4.6)
-  facts/<uid>/identity.json                          userId ↔ Cognito sub ↔ display name (§1.4)
-  users/<uid>/traces/<activityId>.segments.json.gz   route trace (S-7, `routeTraceKey`). DERIVED.
+  raw/<uid>/<source>/<externalId>/<sha256>.<ext>     RawArchiveRef.key — contract §2. Writers: process-activity,
+                                                     log-workout (archive.ts). IMMUTABLE. Versioning ON. Delete
+                                                     DENIED by bucket policy, not just by convention.
+  raw/<uid>/<source>/<externalId>.duplicate-of.json  cross-source dedupe pointer (D-263, dedupe.ts). process-activity.
+  raw/<uid>/<source>/<externalId>.retracted.json     retraction record (D-421, retract.ts). process-activity.
+  raw/<uid>/<source>/<externalId>.kind-override/<id>.json
+                                                     kind correction (D-284, kind-override.ts). set-activity-kind,
+                                                     tools/kind-override.
+  snapshots/skillstate/<uid>/<takenAt>-<gen>.json    the D-135 waterline (§8.2, D-143, D-259). process-activity,
+                                                     log-workout, replay step 0. SYSTEM OF RECORD (I-2).
+  users/<uid>/traces/<activityId>.segments.json.gz   route trace (S-7, `routeTraceKey`). DERIVED. process-activity.
+  users/<uid>/traces/web.json.gz                     the trace web (D-299, `traceWebKey`). DERIVED. process-activity,
+                                                     tools/trace-web, the rebuild drill.
   users/<uid>/cells/<activityId>.bin                 res-11 cell set for one activity (D-237, `objectKeys.runCells`;
-                                                     D-423). DERIVED.
-  users/<uid>/manifest.json                          mutable pointer, no-cache (05 §7.3)
-  users/<uid>/explored/explored-r11.<gen>.bin        immutable, content-addressed by generation
-  users/<uid>/explored/explored-agg.<gen>.json
-  users/<uid>/explored/explored-lastrun-r11.<gen>.bin
-  users/<uid>/deltas/<toGen>.bin                     immutable, GC'd at ~20 generations
-  rules/xp-rules-v<N>.yaml                           mirror of the repo file, for the replay job
-  regions/<regionId>-r10.bin                         precomputed denominators (05 §8.1)
+                                                     D-423). DERIVED. process-activity.
+  users/<uid>/cells/<activityId>.classes.json        what that run revealed (0253, `objectKeys.runClasses`). DERIVED.
+                                                     process-activity, tools/xp-replay.
+  users/<uid>/manifest.json                          mutable pointer, no-cache (05 §7.3)       ┐ process-activity,
+  users/<uid>/explored/explored-r11.<gen>.bin        immutable, content-addressed by generation│ set-activity-kind,
+  users/<uid>/explored/explored-agg.<gen>.json                                                 │ replay and rebuild
+  users/<uid>/explored/explored-lastrun-r11.<gen>.bin                                          │ tools
+  users/<uid>/deltas/<toGen>.bin                     immutable, GC'd at ~20 generations (D-220)┘
+  users/<uid>/backfill/batch.json                    last historical import (lib/backfill/store.ts). tools/backfill only.
+
+  NOT BUILT — listed so nobody goes looking (D-NEW-a):
+  facts/<uid>/highwater.jsonl                        never written. Superseded: the waterline is snapshots/skillstate/
+                                                     (D-143, D-259) and the floors are `isFloor` ledger rows (§4.6).
+  facts/<uid>/identity.json                          never written. §1.4 Break 1's planned fix; Break 1 is open.
+  rules/xp-rules-v<N>.yaml                           never mirrored. Every shipped version is bundled into the
+                                                     worker as generated JSON (D-274); replay reads the repo.
+  regions/<regionId>-r10.bin                         planned by 05 §8.1 (% explored of a named region). No ticket.
 ```
 
 `traces/` and `cells/` are S3, not DynamoDB, deliberately. A 2,700-point trace is ~90 KB of JSON
@@ -116,20 +132,26 @@ reconstructible from them plus the XP rules.* Walking it:
 
 **Break 1 — identity.** `userId` comes from a Cognito sub. Rebuilding into a fresh Cognito pool
 mints new subs, and every S3 key and DynamoDB partition key embeds `<uid>`.
-*Fix:* `facts/<uid>/identity.json` records `{userId, cognitoSub, email, displayName, createdAt}`,
-written at first sign-in and on every profile change. A rebuild reads it and either restores the
-mapping or performs a documented key rewrite. Without this file the archive is anonymous rubble.
+*Planned fix, NOT BUILT (D-NEW-a):* `facts/<uid>/identity.json` recording `{userId, cognitoSub,
+email, displayName, createdAt}`, written at first sign-in and on every profile change, so a
+rebuild could restore the mapping or perform a documented key rewrite. Nothing writes it. **Break 1
+is open:** the drill (§8.3) rebuilds into a parallel stack against the *same* user pool, so the
+`<uid>` it reads under `raw/` is still the live sub. Losing or recreating the pool is the case this
+file was for, and today it would need the old sub recovered by hand (it is the `<uid>` segment of
+every `raw/` key).
 
 **Break 2 — D-135's monotonicity floors are not a function of facts + rules.** They are a
 function of *what the user was shown, and when*. If v1 ran, the user saw Might 40, then v2
 lowers pushup XP, the floor that protects Might 40 exists only because v1 was live at a
 particular moment. A rebuild that replays straight to v2 has no way to know Might 40 was ever
 displayed, and would honestly — and wrongly, per D-135 — show Might 37.
-*Fix:* **floors are promoted to facts.** Every floor decision is appended to
-`facts/<uid>/highwater.jsonl` (§4.6) *and* to the ledger as a `monotonicity_floor` row. The
-rebuild replays the ruleset chain in order and re-applies floors from the JSONL. This is the one
-place the model stores a derived number as a fact, and it is D-135 that forces it. It is worth
-saying plainly: **D-135 costs us a fact stream.**
+*Fix:* **what was displayed is promoted to a fact.** Every floor decision is a ledger row with
+`isFloor = true` (§4.6), and the displayed state is snapshotted to
+`snapshots/skillstate/<uid>/<takenAt>-<generation>.json` after every ingest and at replay step 0
+(§8.2, D-143, D-259). A rebuild that has lost the tables takes its waterline from the newest
+snapshot. This is the one place the model stores a derived number as a fact, and it is D-135 that
+forces it. It is worth saying plainly: **D-135 costs us a fact stream.** *(This paragraph named a
+`facts/<uid>/highwater.jsonl` stream that was never built; the snapshot replaced it. D-NEW-a.)*
 
 **Break 3 — OAuth tokens.** `SourceAccount` is deliberately unrecoverable. Rebuilding requires
 the user to press "Connect Strava" once. This is correct behaviour for a credential store, not
@@ -137,8 +159,8 @@ a defect, but a rebuild runbook that does not mention it will appear to hang for
 a webhook (§8.3 step 8).
 
 Everything else — every cell, every XP number, every byte of every blob — is a cache. **The
-delete-protected `raw/` prefix plus `rules/` plus two small fact files is the whole of Lost
-Soles.**
+delete-protected `raw/` prefix plus `rules/` plus the `snapshots/skillstate/` waterline is the
+whole of Lost Soles** — for as long as the user pool and its subs survive (Break 1).
 
 ---
 
@@ -2150,8 +2172,8 @@ Three rules govern the list:
 
 | # | Invariant | Why it matters | How it is checked |
 |---|---|---|---|
-| **I-1** | Every store except `raw/`, `rules/` and the two fact files is **rebuildable from them**, with no other input (D-101). | It is the entire disaster-recovery story and the entire D-121 exit story. If it silently stops being true, nobody finds out until the day it is needed. | The rebuild drill runs **end to end in CI on every build** against a ~20-object fixture (§8.4), asserting §8.3 step 8's six checks. Real-archive run once before MVP ship and before any D-121 migration. |
-| **I-2** | The set of non-reconstructible data is **exactly three items and is closed**: the displayed-XP waterline (`snapshots/skillstate/` + `facts/<uid>/highwater.jsonl`, D-143), `facts/<uid>/identity.json`, and `SourceAccount` tokens. | D-143 permits *one* documented exception to D-101. Each further exception is a piece of the system that can no longer be rebuilt, and they accumulate silently. | CI check: the drill fixture is rebuilt from `raw/` + `rules/` + those three inputs **and nothing else** — the drill harness denies reads outside that set, so a fourth dependency fails the build rather than passing quietly. |
+| **I-1** | Every store except `raw/`, `rules/` and the `snapshots/skillstate/` waterline is **rebuildable from them** (the two `facts/` files this row once named were never built, D-NEW-a), with no other input (D-101). | It is the entire disaster-recovery story and the entire D-121 exit story. If it silently stops being true, nobody finds out until the day it is needed. | The rebuild drill runs **end to end in CI on every build** against a ~20-object fixture (§8.4), asserting §8.3 step 8's six checks. Real-archive run once before MVP ship and before any D-121 migration. |
+| **I-2** | The set of non-reconstructible data is **exactly three items and is closed**: the displayed-XP waterline (`snapshots/skillstate/`, D-143, D-259; the `isFloor` ledger rows restate it while T4 survives), the Cognito sub that every `<uid>` embeds (§1.4 Break 1, whose `facts/<uid>/identity.json` fix is not built), and `SourceAccount` tokens. *(Amended by D-NEW-a: this row named a `facts/<uid>/highwater.jsonl` that was never written.)* | D-143 permits *one* documented exception to D-101. Each further exception is a piece of the system that can no longer be rebuilt, and they accumulate silently. | CI check: the drill fixture is rebuilt from `raw/<uid>/` + `rules/` + `snapshots/skillstate/<uid>/` (plus `manifest.json`, read only as step 0's verification target) **and nothing else** (`drillMayRead`, `tools/drill/ci/drill-ci.ts`) — the drill harness denies reads outside that set, so a fourth dependency fails the build rather than passing quietly. |
 | **I-3** | `raw/` objects are **immutable and undeletable**; the only operation permitted to remove one is account deletion (§8.5). | Bedrock. Once a raw object is gone, no rebuild can reproduce the activity it encoded. | **[S]** Bucket policy denies `s3:DeleteObject` **and `s3:DeleteObjectVersion`** on the `raw/` prefix for every principal but the deletion role; S3 Versioning is on. Not a convention — a policy. **Overwrite is enforced by non-destructiveness, not refusal — see D-205**: no IAM condition distinguishes a PUT onto an existing key from the first PUT, so versioning + the version-delete deny make an overwrite unable to destroy anything, and `archiveRaw` PUTs with `IfNoneMatch: "*"` so the common case never writes a second version at all. |
 | **I-4** | `adapter.normalize()` is **pure**: no clock, no network, no RNG. Same bytes in ⇒ same `Activity` out, byte-for-byte, forever. | It is the migration seam (contract §3). An impure `normalize()` makes rebuilds non-reproducible, which makes I-1 unverifiable. | CI: `normalize()` is invoked with `Date.now`, `Math.random` and the network stubbed to **throw** (contract §5). Plus a golden-file test over the fixture archive. |
 | **I-5** | `activityId = sha256(userId:source:externalId)` — **deterministic, never a ULID**. | It is what makes replay and webhook redelivery idempotent for free (D-140, contract conflict #6). A random id would award XP twice on every redelivery. | **[S]** The id is computed, not generated; a duplicate `PutItem` is a no-op on the same key. Unit test asserts stability across processes. |

@@ -690,10 +690,36 @@ magnitude. Anyone estimating "add friends" as a small ticket has not read §2.4.
 With one user, authorization is nearly vacuous — which is exactly why it must be written as if
 it were not, since §5.4 is designed to make a second user appear one day.
 
-- **Every read and write is scoped by the JWT's `sub`.** Amplify Data's owner-based
-  authorization on `Activity`, `Trace`, `ExploredCell`, and `SourceAccount`; `entity('identity')`
-  on the storage paths. No model is `authenticated`-readable, because `authenticated` will one
-  day mean six people.
+- **Every read and write is scoped by the JWT's `sub`** — by a different mechanism per store,
+  and the list below is what is built, not what was first planned (D-NEW-b; this bullet once
+  named a `Trace` model and two CDK tables as Amplify models):
+  - **`defineData` models — Amplify Data owner auth.** `Activity`, `SkillState`,
+    `XpLedgerEntry` and `Landmark` are `allow.owner().to(["read"])`; `Profile` is `allow.owner()`
+    with its server-maintained fields read-only. No model is `authenticated`-readable, because
+    `authenticated` will one day mean six people. The two custom mutations, `logWorkout` and
+    `setActivityKind`, are `allow.authenticated()` because a custom operation has no row to own;
+    their handlers take the user from `identity.sub`, never an argument, and check the owner
+    allowlist. Where the SSR compute reads a model's table directly (`Query` on T3 for the latest
+    run, on T4's `byUserAndSeq` for the run tally), the partition key is the `sub` re-derived from
+    the verified session (§5.3).
+  - **CDK tables — IAM plus handler scoping.** `ExploredCell`, `SourceAccount`, `OAuthState`,
+    `IngestReceipt` and `CaptureGuard` are not `defineData` models and have no owner rule. No
+    browser credential reaches any of them. They are reached only by roles: the pipeline Lambdas,
+    each with an explicit action list on the tables it needs (`01-architecture.md` §7), and the
+    SSR compute role, whose routes key every read by the session's `sub` and, for the
+    `SourceAccount`/`OAuthState` connect routes, the Sync action and `CaptureGuard`, also require
+    the owner allowlist. `ExploredCell` has no app read path at all: the browser gets the map from
+    S3 blobs.
+  - **S3 — `entity('identity')`, and the route that actually serves it.** `storage/resource.ts`
+    grants `users/{entity_id}/*` to `allow.entity("identity")`, but `{entity_id}` is the
+    identity-pool id and every key is written under the user-pool `sub`, so that rule covers no
+    object (D-228). The browser reads its own objects through `/api/fog` and `/api/runs/*`, which
+    run as the SSR compute role (`s3:GetObject` on `users/*`) with the key built from the
+    session's `sub`. `raw/` and `snapshots/` have no browser or compute read grant.
+
+  The owner scoping of the CDK tables and of S3 is therefore a property of the handlers, not of
+  IAM: one role serves every user. §2.4's A-1 test (user B gets a 403/empty on user A's `uid`)
+  is what proves it.
 - **There is exactly one privileged role: the owner.** It gates `POST /api/tickets/capture`
   (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6) and nothing else. It is a single `sub`
   compared against an SSM parameter — not a roles table, not RBAC. Six users do not need a
