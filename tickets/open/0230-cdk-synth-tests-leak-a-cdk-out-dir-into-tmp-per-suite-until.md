@@ -69,7 +69,15 @@ temp repo).
 
 ## Operator validation
 
-None beyond a smoke test: the before/after directory count around a full `vitest run`.
+None for the operator: test-harness only, nothing deployed changes.
+
+**Smoke test (orchestrator, 2026-10-25, `main` at `3955546`, clean worktree).** The full
+`amplify.yml` gate (40 commands, `npm test` among them) passes. `/tmp/cdk.out*` held 20 before and
+20 after (the 20 are leftovers from the parallel 0174 agent's run on pre-0230 code; sweeping
+the shared `/tmp` was refused by the sandbox, and the guard counts only new ones).
+`/tmp/lost-soles-vitest-*` held 0 after the run. The agent showed the guard catching a regression
+(with `setupFiles` removed, the run exits 1 and names the leaked dir) and the SIGINT path (18
+per-file dirs left by a killed run, all removed by the next run's setup).
 
 ## Resolution
 

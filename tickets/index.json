@@ -6582,7 +6582,7 @@
     "path": "tickets/open/0283-cdk-synth-tests-leak-cdk-out-directories-into-tmp.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },

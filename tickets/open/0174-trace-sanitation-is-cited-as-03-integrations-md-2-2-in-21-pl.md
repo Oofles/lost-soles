@@ -154,5 +154,10 @@ had already corrected when it moved the gate into `src/domain/geo.ts`.
 
 ## Operator validation
 
-None — comment and cross-reference changes with no runtime surface. Verified by the agent with
-the greps in the acceptance criteria plus a clean typecheck/lint/test run.
+None for the operator: comments and decision cross-references only, no runtime surface.
+
+**Smoke test (orchestrator, 2026-10-25, `main` at `3955546`).** `grep -n "§2\.2"` over
+`sanitize.ts` and `sanitize.test.ts` returns nothing. D-197, D-198 and D-201 hold no `§2.2`.
+The four correct citations are unchanged (`normalize.ts` → `05-fog-of-war.md` §2.2; `oauth.ts`,
+`client.ts` → `03-integrations.md` §2.2 for OAuth). All 40 `amplify.yml` gate commands pass on a
+clean worktree, including typecheck, lint, the full suite and the build.

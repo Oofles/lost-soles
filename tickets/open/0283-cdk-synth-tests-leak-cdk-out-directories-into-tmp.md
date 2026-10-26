@@ -22,9 +22,12 @@ and `npx vitest run` reported 14 false failures until the agent deleted them. Th
 
 ## Acceptance criteria
 
-- [ ] Each synth test writes to a temporary outdir it removes afterwards, even when the test fails
-      (`afterAll`/`finally`).
-- [ ] A full `npx vitest run` leaves no new `/tmp/cdk.out*` entries, checked by a before/after count.
+- [x] Each synth test writes to a temporary outdir it removes afterwards, even when the test fails
+      (`afterAll`/`finally`). *Met by `0230`: every test file gets its own `TMPDIR`, removed in
+      `afterAll`, and swept at teardown if the file threw at module scope.*
+- [x] A full `npx vitest run` leaves no new `/tmp/cdk.out*` entries, checked by a before/after count.
+      *Met by `0230`: `scripts/vitest-global-setup.mjs` counts before and after on every run and
+      fails it on a new entry.*
 
 ## Notes
 
@@ -33,4 +36,14 @@ call; check `amplify/*-stack.test.ts` for the synth entry point before touching 
 
 ## Operator validation
 
-None: build hygiene. Smoke: `ls -d /tmp/cdk.out* | wc -l` before and after a full suite run.
+None for the operator. Smoke test as for `0230` (2026-10-25, `main` at `3955546`): a full gate run
+on a clean worktree left the `/tmp/cdk.out*` count unchanged (20 → 20) and no per-file dirs.
+
+## Resolution
+
+**Closed as a duplicate of `0230`**, which fixed the same leak (`c21716b`). That fix is in the
+vitest config (`globalSetup` + `setupFiles`), not in a helper, so it covers all 18 synth-calling
+`amplify/*.test.ts` suites, every `*-stack.test.ts` this ticket names included, and any added
+later. The shared helper this ticket's Notes guessed at does not exist and is not needed. No code
+was written under this ticket.
+
