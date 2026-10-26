@@ -5399,7 +5399,7 @@
     "title": "CDK synth tests leak a cdk.out dir into /tmp per suite, until the suite fails ENOSPC",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -5407,8 +5407,9 @@
     "source": "agent",
     "created": "2026-10-01T19:35:31Z",
     "started": "2026-10-26T01:42:16Z",
-    "path": "tickets/open/0230-cdk-synth-tests-leak-a-cdk-out-dir-into-tmp-per-suite-until.md",
-    "ready": true,
+    "closed": "2026-10-26T02:05:58Z",
+    "path": "tickets/closed/0230-cdk-synth-tests-leak-a-cdk-out-dir-into-tmp-per-suite-until.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

@@ -4,7 +4,7 @@ slug: cdk-synth-tests-leak-a-cdk-out-dir-into-tmp-per-suite-until
 title: CDK synth tests leak a cdk.out dir into /tmp per suite, until the suite fails ENOSPC
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-01T19:35:31Z
 started: 2026-10-26T01:42:16Z
+closed: 2026-10-26T02:05:58Z
 ---
 
 ## Description
