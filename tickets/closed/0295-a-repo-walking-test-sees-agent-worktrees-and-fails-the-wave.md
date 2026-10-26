@@ -4,7 +4,7 @@ slug: a-repo-walking-test-sees-agent-worktrees-and-fails-the-wave
 title: A repo-walking test sees agent worktrees and fails the wave gate
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T13:47:44Z
 started: 2026-10-26T03:02:11Z
+closed: 2026-10-26T12:45:58Z
 ---
 
 ## Description
