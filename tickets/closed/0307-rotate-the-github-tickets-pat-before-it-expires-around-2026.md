@@ -4,7 +4,7 @@ slug: rotate-the-github-tickets-pat-before-it-expires-around-2026
 title: Rotate the GitHub tickets PAT before it expires around 2026-11-29
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-22T19:51:44Z
 started: 2026-10-26T15:07:00Z
+closed: 2026-10-26T16:04:33Z
 ---
 
 ## Description
