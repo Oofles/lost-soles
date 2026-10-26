@@ -25,5 +25,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next", ".amplify"]
+  "exclude": ["node_modules", ".next", ".amplify", "tmp"]
 }

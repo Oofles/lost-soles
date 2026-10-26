@@ -9,7 +9,8 @@ import tsconfigPaths from "vite-tsconfig-paths"
 // plain node by design — they run in the Amplify build container, which has no
 // TypeScript — so their tests cannot be .ts either.
 const INCLUDE = ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"]
-const EXCLUDE = ["node_modules/**", ".next/**", ".amplify/**", ".claude/**"]
+// tmp/ is the gitignored per-ticket scratch directory (ticket 0250).
+const EXCLUDE = ["node_modules/**", ".next/**", ".amplify/**", ".claude/**", "tmp/**"]
 
 /**
  * Ticket 0149. Two projects, because one file needs a different module resolution

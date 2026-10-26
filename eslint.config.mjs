@@ -15,6 +15,9 @@ const config = [
       // separate decision, not a side effect of project init.
       ".claude/**",
       "scripts/**",
+      // Ticket 0250. The gitignored per-ticket scratch directory (tmp/NNNN/smoke.ts, bundled
+      // harnesses). Never shipped, never in CI's checkout, and it failed local audits' lint row.
+      "tmp/**",
       // Ticket 0188. Generated vendor output inside public/: MapLibre's minified worker,
       // copied from node_modules at prebuild and gitignored. It is not this project's code,
       // and linting it turned `--max-warnings 0` red with ~1,090 warnings on any machine
