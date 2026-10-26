@@ -4,13 +4,14 @@ slug: cold-territory-at-coarse-zooms
 title: Show cold territory at coarse zooms
 type: design
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-20T13:32:52Z
+closed: 2026-10-26T20:04:30Z
 ---
 
 
