@@ -4,13 +4,14 @@ slug: exclude-tmp-from-typecheck-and-lint
 title: tsc and eslint include the gitignored tmp/ smoke scripts, so the audit's typecheck and lint rows fail locally
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-02T15:19:39Z
+closed: 2026-10-26T12:45:58Z
 ---
 
 ## Description
