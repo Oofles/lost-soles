@@ -89,3 +89,12 @@ definition-of-done sweep, which in spirit runs last. Its `depends_on` lists only
 101/105/106/112–116, so the planner does what is declared. If the sweep should wait for the rest
 of capability 18, that is a `depends_on` change on 0117 for the orchestrator. It is not a planner
 change.
+
+## Operator validation (result)
+
+Smoke test, 2026-10-26 (orchestrator, on `main` after merge): `node --test tickets.test.mjs` passed
+204 of 204. `tickets.mjs waves 18` fills each wave by priority as dependencies allow. The new
+schedule surfaced 0117 (the MVP sweep) in the next wave, because its declared dependencies were
+complete. The operator chose to make it run last by declaring dependencies. That was a missing
+`depends_on`, not a planner bug. No perceptual check: tooling.
+

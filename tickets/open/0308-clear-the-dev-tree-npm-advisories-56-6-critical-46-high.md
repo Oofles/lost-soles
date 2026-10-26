@@ -22,7 +22,7 @@ After 0115, the production tree has 0 advisories and is gated (D-434). The full 
 
 - [x] `npm audit --audit-level=high` reports 0 over the full tree, or each remaining advisory is listed in the capability doc with why it cannot be cleared. *(The second branch applies. 0 critical, and 3 leaf advisories remain (`@graphql-tools/utils`, `zod`, `csv-parse`), each listed with its reason in `docs/capabilities/18-mvp-hardening.md` under "The dev-tree advisories".)*
 - [x] `npm install --no-save` from a clean clone leaves `package-lock.json` byte-identical (D-162).
-- [ ] The full local gate and the Amplify build are green. *(The local half is done: every `amplify.yml` frontend build command passes in the worktree. The Amplify build can only be checked after the wave push, which the orchestrator verifies.)*
+- [x] The full local gate and the Amplify build are green. *(The local half is done: every `amplify.yml` frontend build command passes in the worktree. The Amplify build can only be checked after the wave push, which the orchestrator verifies.)* — verified 2026-10-26: all 36 `amplify.yml` gate steps green on `main`; Amplify job 431 (`0b6eac2`) SUCCEED, backend `pipeline-deploy` included.
 - [x] If the full tree is clean, the gate is widened to it (both CI surfaces, D-163), with a decision recorded. *(Not applicable: the full tree is not clean, so the gate stays `--omit=dev` on both surfaces (D-434), and there is no widening to record.)*
 
 ## Notes
@@ -117,3 +117,12 @@ built.
 **Not verified locally:** the backend phase (`ampx pipeline-deploy`) under the upgraded
 `@aws-amplify/backend` 1.25.1, `backend-cli` 1.10.0 and `aws-cdk-lib` 2.274.0. The CDK synth suites
 under `amplify/*.test.ts` pass, but only the Amplify build exercises the deploy itself.
+
+## Operator validation (result)
+
+Smoke test, 2026-10-26 (orchestrator, after the wave 18.3 push): Amplify job **431** on `0b6eac2`
+**SUCCEED**. That proves `ampx pipeline-deploy` and the frontend gate under backend 1.25.1,
+backend-cli 1.10.0, cdk-lib 2.274.0 and vitest 5. On `main`, `npm audit` over the full tree reports
+39 (0 critical, 37 high, 2 moderate), matching the Resolution. `npm audit --omit=dev
+--audit-level=high` exits 0. Dependabot's open alerts are down from 31 to exactly the two predicted:
+`@graphql-tools/utils` GHSA-7mx3 (high) and `csv-parse` GHSA-8cw4 (medium). No perceptual check.

@@ -7,7 +7,7 @@ priority: high
 status: open
 size: m
 capability: 18-mvp-hardening
-depends_on: [101, 105, 106, 112, 113, 114, 115, 116]
+depends_on: [101, 105, 106, 112, 113, 114, 115, 116, 175, 216, 259, 268, 275, 290, 297, 303, 308, 309, 310, 311, 312, 315, 316, 317, 318, 319]
 blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
@@ -93,6 +93,8 @@ And §9.6, which is the reason this checklist must not be mistaken for success: 
 names **S1 — six-month retention** as the only test that really matters, and it cannot be
 evaluated at ship. **This list defines when MVP is built. It does not define when Lost Soles has
 worked.** That is settled six months later, by whether the user is still opening it.
+
+**2026-10-26 — runs last** (operator, wave 18.3): with the greedy planner (0312), 0117 would have run in the next wave. The sweep evaluates the capability's end state, so it now depends on every other open capability-18 ticket. Add any ticket filed into 18 later to this list as well.
 
 ## Operator validation
 

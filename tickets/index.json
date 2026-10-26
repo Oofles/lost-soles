@@ -2879,13 +2879,31 @@
       113,
       114,
       115,
-      116
+      116,
+      175,
+      216,
+      259,
+      268,
+      275,
+      290,
+      297,
+      303,
+      308,
+      309,
+      310,
+      311,
+      312,
+      315,
+      316,
+      317,
+      318,
+      319
     ],
     "blocked_by": [],
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0117-mvp-definition-of-done-sweep.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -7136,7 +7154,7 @@
     "path": "tickets/open/0308-clear-the-dev-tree-npm-advisories-56-6-critical-46-high.md",
     "ready": true,
     "acceptance": {
-      "checked": 3,
+      "checked": 4,
       "total": 4
     }
   },
