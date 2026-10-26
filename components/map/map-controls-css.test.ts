@@ -20,7 +20,7 @@ describe("map control glyph sizes", () => {
   })
 
   it("enlarges only the recentre glyph", () => {
-    expect(rule(".map-control .recentre-glyph")).toContain("font-size: 22px")
+    expect(rule(".map-control .recentre-glyph")).toContain("font-size: 24px")
     expect(MAP_CONTROLS_CSS.match(/font-size/g)).toHaveLength(2)
   })
 })

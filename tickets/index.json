@@ -7362,7 +7362,7 @@
     "path": "tickets/open/0317-recentre-glyph-slightly-small.md",
     "ready": true,
     "acceptance": {
-      "checked": 1,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7379,6 +7379,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T16:05:00Z",
+    "started": "2026-10-26T22:03:10Z",
     "path": "tickets/open/0318-widen-the-npm-audit-gate-to-the-full-tree-with-a-reviewed-ad.md",
     "ready": true,
     "acceptance": {
@@ -7392,15 +7393,16 @@
     "title": "Re-check the Amplify-tree advisories (@graphql-tools/utils, zod) on the next backend-cli release",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "deferred",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T16:05:00Z",
+    "deferred": "2026-10-26T22:03:09Z",
     "path": "tickets/open/0319-re-check-the-amplify-tree-advisories-graphql-tools-utils-zod.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 3
@@ -7419,6 +7421,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T19:31:39Z",
+    "started": "2026-10-26T22:03:10Z",
     "path": "tickets/open/0320-does-amplify-compute-cap-api-runs-web-before-or-after-gzip.md",
     "ready": true,
     "acceptance": {

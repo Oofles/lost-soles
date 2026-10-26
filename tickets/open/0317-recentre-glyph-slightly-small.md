@@ -26,7 +26,9 @@ fit-to-territory's `⤢` does.
 
 - [x] The `⌖` glyph is enlarged inside its button. The button stays 40×40 (D-313), and the other
       map controls' glyphs are unchanged.
-- [ ] (operator) In the desktop browser, `⌖` reads at a comparable visual weight to `⤢` beside it.
+- [x] (operator) In the desktop browser, `⌖` reads at a comparable visual weight to `⤢` beside it.
+      — verified 2026-10-26: the operator judged 22px against the 18–24px comparison and chose
+      24px ("24px looks great"). Shipped at 24px.
 
 ## Notes
 
@@ -75,3 +77,8 @@ box), so no doc drift.
 these blocks to Segoe UI Symbol, which is what was measured. Firefox, or a machine without Segoe UI
 Symbol, may pick Cambria Math, whose crosshair is drawn differently.
 
+**Operator change after deploy (2026-10-26).** The agent shipped 22px, because at 24px it judged the
+crosshair began to dominate the row. Shown the comparison render and the deployed 22px, the operator
+chose 24px. The orchestrator changed the rule and its test to 24px
+(`components/map/map-controls.tsx`, `components/map/map-controls-css.test.ts`). `.map-control`
+stays 40×40 at 18px, and the other glyphs are unchanged.
