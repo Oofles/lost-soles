@@ -6078,3 +6078,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   is not a D-123 trigger.** No second account, share or public URL is proposed, the gate stays
   unticked, and nothing ships. Rejected for now: moving S3 scoping into IAM (per-user session
   policies). Whoever opens Trigger A can raise that again as a build item.
+- **D-458** **A tree with no `tickets/index.json` fails both layers.** *(Agent, 2026-10-26, ticket
+  `0315`; closes the gap D-446 recorded.)* CI's `tickets` step first asks the committed tree with
+  `git ls-files --error-unmatch tickets/index.json` and fails with "missing from the commit", then
+  regenerates and runs `git diff --exit-code` as before. The pre-commit hook's layer 5
+  (`scripts/check-staged-indexes.mjs`) returns 1 on a staged deletion, with the same fix text as a
+  stale index. D-446's rule still holds: the hook and CI judge the same thing, and now both block.
+  `ls-files` was chosen over `git status --porcelain` because it asks the committed tree directly,
+  before anything is regenerated.

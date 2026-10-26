@@ -7232,7 +7232,7 @@
     "path": "tickets/open/0311-beat3-test-tsx-title-still-says-693-for-seven-skills-contrad.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7317,7 +7317,7 @@
     "path": "tickets/open/0315-tickets-yml-passes-a-commit-that-deletes-tickets-index-json.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7338,7 +7338,7 @@
     "path": "tickets/open/0316-the-strava-adapter-s-repo-wide-scans-still-walk-the-gitignor.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
     }
   },
@@ -7359,7 +7359,7 @@
     "path": "tickets/open/0317-recentre-glyph-slightly-small.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 1,
       "total": 2
     }
   },

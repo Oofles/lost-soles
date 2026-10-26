@@ -88,3 +88,5 @@ was the old step's only verdict.
 `drill:ci`, typecheck, lint, `npx vitest run`, `npm run build`, the post-build guards,
 `tickets.test.mjs` and `check-skills.mjs`. All exited 0.
 
+
+**Orchestrator, at merge (2026-10-26):** recorded as D-458, which closes the gap D-446 left open.
