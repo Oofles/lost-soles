@@ -37,25 +37,24 @@ describe("C-4: the explored set is never a public object", () => {
   })
 
   /**
-   * The template does not set `PublicAccessBlockConfiguration` today. The live bucket has all four
-   * flags on because S3 applies them to every new bucket by default, not because this stack asks
-   * for it. So this asserts the template never WEAKENS that default. The live value is checked by
-   * the ticket's smoke test.
+   * PINNED, not merely defaulted (`0304`). Before that ticket the template left
+   * `PublicAccessBlockConfiguration` unset and the live flags were on only because S3 defaults
+   * them, so this could assert only that nothing weakened them. Now `backend.ts` sets all four, and
+   * an absent block fails here exactly as a weakened one does. The live value is checked by the
+   * ticket's smoke test.
    */
-  it("the user-data bucket never turns off any public-access block", () => {
+  it("the user-data bucket explicitly blocks all public access", () => {
     const buckets = Object.values(template.findResources("AWS::S3::Bucket"))
     expect(buckets.length).toBe(1)
     const pab = (
       buckets[0].Properties as { PublicAccessBlockConfiguration?: Record<string, unknown> }
     ).PublicAccessBlockConfiguration
-    if (pab !== undefined) {
-      expect(pab).toEqual({
-        BlockPublicAcls: true,
-        BlockPublicPolicy: true,
-        IgnorePublicAcls: true,
-        RestrictPublicBuckets: true,
-      })
-    }
+    expect(pab, "PublicAccessBlockConfiguration must be set, not left to S3's default").toEqual({
+      BlockPublicAcls: true,
+      BlockPublicPolicy: true,
+      IgnorePublicAcls: true,
+      RestrictPublicBuckets: true,
+    })
   })
 
   it("no bucket policy statement ALLOWS an anonymous or wildcard principal", () => {

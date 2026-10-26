@@ -669,6 +669,29 @@ backend.storage.resources.cfnResources.cfnBucket.lifecycleConfiguration = {
   ],
 }
 
+/**
+ * BLOCK ALL PUBLIC ACCESS, PINNED. Ticket `0304`, `08-security-privacy.md` §2.4 TRIGGER C.
+ *
+ * The explored set's key is predictable (`users/<sub>/explored/explored-r11.<gen>.bin`), so what
+ * keeps the map private is that this bucket refuses anonymous reads. Before `0304` all four flags
+ * were on only because S3 applies them to every new bucket by default; the template said nothing,
+ * so a console click or a later construct default could have turned them off and the next deploy
+ * would not have put them back. Now the stack asserts them and drift is reverted on deploy.
+ *
+ * Set on the L1 resource, the same override as the lifecycle rule above: `defineStorage` has no
+ * `blockPublicAccess` option, so this is `BlockPublicAccess.BLOCK_ALL` written out as its four
+ * CloudFormation flags. A property on an existing resource, not a new escape hatch, and not a
+ * replacement: `PublicAccessBlockConfiguration` updates the bucket in place. The live bucket
+ * already reports all four `true`, so the deploy is a no-op on it.
+ * `explored-set-not-public.test.ts` fails if this is removed.
+ */
+backend.storage.resources.cfnResources.cfnBucket.publicAccessBlockConfiguration = {
+  blockPublicAcls: true,
+  blockPublicPolicy: true,
+  ignorePublicAcls: true,
+  restrictPublicBuckets: true,
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────
  * THE INGEST RECEIPT  (ticket 0040, 02-data-model.md T8, 01-architecture.md §4)
