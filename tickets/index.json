@@ -7114,7 +7114,7 @@
     "path": "tickets/open/0307-rotate-the-github-tickets-pat-before-it-expires-around-2026.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

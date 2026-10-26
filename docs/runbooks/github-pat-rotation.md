@@ -41,7 +41,7 @@ access, because that is exactly what it is.
 | | |
 |---|---|
 | **Issued** | **2026-08-31** — SSM parameter version 1, written `2026-08-31T21:21:03-04:00` |
-| **Expires** | **~2026-11-29** (issue + 90 days) — **confirm against GitHub, do not trust this line** |
+| **Expires** | **Never.** Checked 2026-10-26 (`0307`): `api.github.com/user` returns 200 with **no** `github-authentication-token-expiration` header, which GitHub omits only for a token with no expiry. The "~2026-11-29" this line used to give was derived from the 90-day policy and was wrong. The operator chose to keep the token, not rotate it: it breaks §0's 90-day rule knowingly. Rotate when §3 or a leak says to |
 | Written by | `arn:aws:iam::286588821906:root` |
 | Parameter version | 1 (never rotated) |
 
