@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import {
   mkdtempSync,
   mkdirSync,
@@ -153,6 +153,8 @@ function runHook(
     brokenGit = false,
     stagedOnly = {},
     withoutNode = false,
+    setup = null,
+    env = {},
   } = {},
 ) {
   const repo = mkdtempSync(join(tmpdir(), "hookrepo-"))
@@ -214,6 +216,9 @@ function runHook(
   }
   execFileSync("git", ["add", "-A"], { cwd: repo })
   for (const rel of Object.keys(stagedOnly)) rmSync(join(repo, rel))
+  // Arbitrary staging after the initial `git add -A`: layer 5 needs a stage that
+  // differs from the worktree in specific ways (0231).
+  if (setup) setup(repo)
 
   // Captured for the failure message, not used by any assertion — see why().
   const staged = execFileSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACM"], {
@@ -234,12 +239,15 @@ function runHook(
 
   const meta = { staged, bin: listing }
   try {
-    const stdout = execFileSync(BASH, [HOOK], {
+    // spawnSync, not execFileSync: a PASSING run's stderr matters too since
+    // 0231 (the LOST_SOLES_WAVE_AGENT notice), and execFileSync discards it.
+    const r = spawnSync(BASH, [HOOK], {
       cwd: repo,
-      env: { PATH: bin, HOME: repo },
+      env: { PATH: bin, HOME: repo, ...env },
       stdio: ["ignore", "pipe", "pipe"],
     })
-    return { status: 0, out: stdout.toString(), err: "", ...meta }
+    if (r.error) throw r.error
+    return { status: r.status, out: r.stdout.toString(), err: r.stderr.toString(), ...meta }
   } catch (e) {
     return {
       status: e.status,
@@ -590,6 +598,345 @@ describe("layer 4 — fixture geography", () => {
     expect(r.status, why(r)).toBe(1)
     expect(r.err).toMatch(/node is not on PATH/)
     expect(r.err).not.toMatch(/carries a real location/)
+  })
+})
+
+/**
+ * Layer 5 — ticket 0231. docs/INDEX.md and tickets/index.json are derived and
+ * committed; CI rejects a stale one. Every push to main went red for two days
+ * that way and nobody saw it. These run the REAL generators, staged into the temp
+ * repo at their real paths, because the hook runs the staged copies (as CI runs
+ * the committed ones).
+ */
+describe("layer 5 — derived indexes", () => {
+  const BUILD_INDEX = "scripts/build-index.mjs"
+  const TICKETS_MJS = ".claude/skills/tickets/scripts/tickets.mjs"
+  const CHECKER = "scripts/check-staged-indexes.mjs"
+  const GENERATORS = {
+    [BUILD_INDEX]: readFileSync(join(ROOT, BUILD_INDEX), "utf8"),
+    [TICKETS_MJS]: readFileSync(join(ROOT, TICKETS_MJS), "utf8"),
+    [CHECKER]: readFileSync(join(ROOT, CHECKER), "utf8"),
+  }
+  const DOCS = {
+    "docs/01-demo.md": "# Demo\n\n## First\n\nA section that says something useful.\n",
+    "docs/contracts/c.md": "# Contract\n\n## Shape\n\nThe shape of the thing, stated plainly.\n",
+  }
+  const TICKET = "tickets/open/0001-demo.md"
+  const ticket = (acceptance) =>
+    "---\nid: 1\nslug: demo\ntitle: Demo\ntype: task\npriority: med\nstatus: open\nsize: s\n" +
+    "capability: null\ndepends_on: []\nblocked_by: []\nsource: agent\n" +
+    "created: 2026-10-01T00:00:00Z\n---\n\n## Description\n\nx\n\n## Acceptance criteria\n\n" +
+    acceptance.map((a) => `- [ ] ${a}\n`).join("")
+  const TICKETS = { [TICKET]: ticket(["one"]) }
+
+  const g = (repo, ...args) => execFileSync("git", args, { cwd: repo, stdio: "pipe" })
+  const node = (repo, ...args) => execFileSync(process.execPath, args, { cwd: repo, stdio: "pipe" })
+  const regenDocs = (repo) => node(repo, BUILD_INDEX)
+  const regenTickets = (repo) => node(repo, TICKETS_MJS, "index")
+  const edit = (repo, rel, body) => writeFileSync(join(repo, rel), body)
+  // A real HEAD, so `git mv` is reported as a rename (R) rather than an add.
+  const commit = (repo) =>
+    g(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-verify", "-m", "base")
+
+  /**
+   * What CI would say about this staged tree, computed the way CI computes it:
+   * a clean checkout of the would-be commit, then gate.yml's and tickets.yml's
+   * own commands. Independent of check-staged-indexes.mjs by construction.
+   */
+  function ciVerdict(repo) {
+    const dir = mkdtempSync(join(tmpdir(), "ci-"))
+    tmps.push(dir)
+    g(repo, "checkout-index", "-a", `--prefix=${dir}/`)
+    g(dir, "init", "-q", ".")
+    g(dir, "add", "-A")
+    commit(dir)
+    const ok = (fn) => {
+      try {
+        fn()
+        return 0
+      } catch {
+        return 1
+      }
+    }
+    const docs = ok(() => node(dir, BUILD_INDEX, "--check"))
+    const tickets = ok(() => {
+      node(dir, TICKETS_MJS, "index")
+      g(dir, "diff", "--exit-code", "tickets/index.json")
+    })
+    return docs || tickets
+  }
+
+  const files = { ...GENERATORS, ...DOCS, ...TICKETS }
+
+  describe("docs/INDEX.md", () => {
+    it("permits a docs edit staged with its regenerated index", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+        },
+      })
+      expect(r.status, why(r)).toBe(0)
+    })
+
+    it("blocks a docs edit whose index is stale, naming the fix", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          edit(repo, "docs/01-demo.md", DOCS["docs/01-demo.md"] + "\n## Second\n\nAnother one.\n")
+          g(repo, "add", "docs/01-demo.md")
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/docs\/INDEX\.md is stale/)
+      expect(r.err).toContain("node scripts/build-index.mjs")
+      expect(r.err).toContain("git add docs/INDEX.md")
+    })
+
+    it("judges the STAGED tree: an index regenerated on disk but not staged still blocks", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          edit(repo, "docs/01-demo.md", DOCS["docs/01-demo.md"] + "\n## Second\n\nAnother one.\n")
+          g(repo, "add", "docs/01-demo.md")
+          regenDocs(repo) // the worktree is now current; the index is not
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/docs\/INDEX\.md is stale/)
+    })
+
+    it("catches a DELETED doc, which the ACM listing of layers 2-4 never sees", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          commit(repo)
+          g(repo, "rm", "-q", "docs/01-demo.md")
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/docs\/INDEX\.md is stale/)
+    })
+  })
+
+  describe("tickets/index.json", () => {
+    it("blocks a ticket body edited by hand after the index was built, naming the fix", () => {
+      // The 18b953c shape: create, then fill in the body, acceptance count 1 -> 2.
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          edit(repo, TICKET, ticket(["one", "two"]))
+          g(repo, "add", TICKET)
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/tickets\/index\.json is stale/)
+      expect(r.err).toContain(`node ${TICKETS_MJS} index`)
+      expect(r.err).toContain("git add tickets/index.json")
+    })
+
+    it("judges the STAGED tree: an index regenerated on disk but not staged still blocks", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          edit(repo, TICKET, ticket(["one", "two"]))
+          g(repo, "add", TICKET)
+          regenTickets(repo)
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/tickets\/index\.json is stale/)
+    })
+
+    it("permits the same edit once the regenerated index is staged", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          edit(repo, TICKET, ticket(["one", "two"]))
+          regenTickets(repo)
+          g(repo, "add", TICKET, "tickets/index.json")
+        },
+      })
+      expect(r.status, why(r)).toBe(0)
+    })
+
+    it("catches a `git mv` to closed/, which rename detection hides from the ACM listing", () => {
+      const r = runHook(files, {
+        setup: (repo) => {
+          regenDocs(repo)
+          regenTickets(repo)
+          g(repo, "add", "-A")
+          commit(repo)
+          mkdirSync(join(repo, "tickets/closed"), { recursive: true })
+          g(repo, "mv", TICKET, "tickets/closed/0001-demo.md")
+        },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/tickets\/index\.json is stale/)
+    })
+  })
+
+  describe("cost and failure modes", () => {
+    it("a commit staging neither path never runs node", () => {
+      // Node absent from PATH would block any layer that invoked it (require_node),
+      // so exit 0 here proves layer 5 did not start.
+      const r = runHook({ ...GENERATORS, "src/app.ts": "export const x = 1\n" }, { withoutNode: true })
+      expect(r.status, why(r)).toBe(0)
+    })
+
+    it("blocks when node is not on PATH and docs/ is staged", () => {
+      const r = runHook(files, { withoutNode: true })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/node is not on PATH/)
+    })
+
+    it("FAILS CLOSED when the checker script is missing", () => {
+      const { [CHECKER]: _, ...rest } = files
+      const r = runHook(rest)
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/check-staged-indexes\.mjs is missing/)
+    })
+
+    it("FAILS CLOSED when a generator is absent from the staged tree", () => {
+      const { [BUILD_INDEX]: _, ...rest } = files
+      const r = runHook(rest)
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/build-index\.mjs is not in the staged tree/)
+    })
+  })
+
+  describe("LOST_SOLES_WAVE_AGENT=1 skips layer 5 and nothing else", () => {
+    // A wave agent may not stage either index (WAVES.md §3); its own ticket edit
+    // makes tickets/index.json stale. The bypass must be narrower than
+    // --no-verify, which would also silence gitleaks.
+    const staleTicket = (repo) => {
+      regenDocs(repo)
+      regenTickets(repo)
+      g(repo, "add", "-A")
+      edit(repo, TICKET, ticket(["one", "two"]))
+      g(repo, "add", TICKET)
+    }
+
+    it("a stale index passes with the variable set to 1, and says so", () => {
+      const r = runHook(files, { setup: staleTicket, env: { LOST_SOLES_WAVE_AGENT: "1" } })
+      expect(r.status, why(r)).toBe(0)
+      expect(r.err).toMatch(/LOST_SOLES_WAVE_AGENT=1, derived-index check \(layer 5\) skipped/)
+    })
+
+    for (const [label, env] of [
+      ["unset", {}],
+      ["set to 0", { LOST_SOLES_WAVE_AGENT: "0" }],
+      ["set to empty", { LOST_SOLES_WAVE_AGENT: "" }],
+      ["set to true", { LOST_SOLES_WAVE_AGENT: "true" }],
+    ]) {
+      it(`a stale index still blocks with the variable ${label}`, () => {
+        const r = runHook(files, { setup: staleTicket, env })
+        expect(r.status, why(r)).toBe(1)
+        expect(r.err).toMatch(/tickets\/index\.json is stale/)
+      })
+    }
+
+    it("gitleaks still runs under the variable", () => {
+      const r = runHook(files, {
+        setup: staleTicket,
+        gitleaks: "block",
+        env: { LOST_SOLES_WAVE_AGENT: "1" },
+      })
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/gitleaks found a secret/)
+    })
+
+    it("the literal-pattern layer still runs under the variable", () => {
+      const r = runHook(
+        { ...files, "leak.py": `k = "${AKIA}"\n` },
+        { setup: staleTicket, env: { LOST_SOLES_WAVE_AGENT: "1" } },
+      )
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/matches a known credential pattern/)
+    })
+
+    it("the fixture-geography layer still runs under the variable", () => {
+      const REAL = JSON.stringify({ streams: { latlng: { data: [[40.758, -73.9855]] } } })
+      const r = runHook(
+        { ...files, "src/adapters/demo/__fixtures__/run.json": REAL },
+        { setup: staleTicket, withGeographyChecker: true, env: { LOST_SOLES_WAVE_AGENT: "1" } },
+      )
+      expect(r.status, why(r)).toBe(1)
+      expect(r.err).toMatch(/carries a real location/)
+    })
+  })
+
+  describe("agrees with CI on every staged tree", () => {
+    const scenarios = {
+      "both fresh": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+        g(repo, "add", "-A")
+      },
+      "docs stale": (repo) => {
+        regenTickets(repo)
+        g(repo, "add", "-A")
+      },
+      "tickets stale": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+        g(repo, "add", "-A")
+        edit(repo, TICKET, ticket(["one", "two"]))
+        g(repo, "add", TICKET)
+      },
+      "tickets/index.json deleted (CI's `git diff` passes an untracked file)": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+        g(repo, "add", "-A")
+        commit(repo)
+        g(repo, "rm", "-q", "tickets/index.json")
+      },
+      "a doc deleted, index not regenerated": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+        g(repo, "add", "-A")
+        commit(repo)
+        g(repo, "rm", "-q", "docs/01-demo.md")
+      },
+      "both regenerated on disk, neither staged": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+      },
+      "only a summaries sidecar change, index current": (repo) => {
+        regenDocs(repo)
+        regenTickets(repo)
+        g(repo, "add", "-A")
+        commit(repo)
+        const p = join(repo, "docs/.index-summaries.json")
+        edit(repo, "docs/.index-summaries.json", readFileSync(p, "utf8").replace(/\n$/, " \n"))
+        g(repo, "add", "docs/.index-summaries.json")
+      },
+    }
+    for (const [name, setup] of Object.entries(scenarios)) {
+      it(name, () => {
+        let ci = null
+        const r = runHook(files, {
+          setup: (repo) => {
+            setup(repo)
+            ci = ciVerdict(repo)
+          },
+        })
+        expect(r.status === 0 ? 0 : 1, why(r)).toBe(ci)
+      })
+    }
   })
 })
 

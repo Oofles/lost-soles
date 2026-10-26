@@ -53,7 +53,7 @@ orchestrator's, because parallel edits to them always conflict:
 |---|---|
 | edit `docs/decisions/DECISIONS.md` or allocate a `D-xxx` | propose it in the report as `D-NEW-a` |
 | run `tickets.mjs create`, `start`, `close`, or allocate an id | propose new tickets in the report |
-| edit `tickets/index.json` or `docs/INDEX.md` | leave them; the orchestrator regenerates both |
+| edit `tickets/index.json` or `docs/INDEX.md` | leave them stale; the orchestrator regenerates both. Commit with `LOST_SOLES_WAVE_AGENT=1 git commit …`, which skips only the pre-commit hook's derived-index layer (0231). Never `--no-verify`, which also skips gitleaks |
 | edit any other ticket's file | mention it in the report |
 | push, or touch `origin` at all | commit locally on its worktree branch |
 | create, change or delete AWS resources | read-only AWS; post-deploy checks go in the report |
@@ -126,6 +126,8 @@ Rules:
 - Append a full `## Resolution` to your ticket (files touched, decisions made, why). Leave the
   ticket in tickets/open with status as it is; the orchestrator closes it after deploy.
 - Make exactly ONE commit containing the code and the ticket file: `<NNNN>: <ticket title>`.
+  Commit with `LOST_SOLES_WAVE_AGENT=1 git commit …` (the indexes stay stale for the
+  orchestrator), never with --no-verify.
   Never type the bracketed Amplify skip token in a message (D-311).
 
 Report, in this order and nothing else:

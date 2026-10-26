@@ -95,7 +95,21 @@ fi
 # everything below an unconditional exit. Written as an explicit `if` block so
 # there is no bare `exit 0` mid-file for an edit to land on, and so the early
 # return cannot silently absorb whatever gets added after it.
-if [ -z "$staged" ]; then
+#
+# LAYER 5's LISTING IS TAKEN HERE, ABOVE THE EARLY RETURN (ticket 0231), and the
+# return waits for it to be empty too. $staged is --diff-filter=ACM, which drops
+# a DELETED doc or ticket and — rename detection being on — a `git mv`ed one
+# (status R). A commit that only deletes a doc, or only moves a ticket
+# open/ → closed/, has an EMPTY $staged and a stale index; returning on $staged
+# alone skipped layer 5 for exactly the edits it exists for (caught by its tests).
+# --no-renames reports a move as its D and A halves, both kept.
+if ! index_paths=$(git diff --cached --name-only --no-renames 2>&1); then
+  fail "git could not list the staged paths, so the derived-index check never ran.
+  git said:
+    ${index_paths}
+  Nothing has been committed."
+fi
+if [ -z "$staged" ] && [ -z "$index_paths" ]; then
   exit 0
 fi
 
@@ -221,6 +235,56 @@ if [ -n "$fixtures_staged" ]; then
   if ! node scripts/check-fixture-geography.mjs --staged $fixtures_staged; then
     fail "a staged fixture carries a real location (above).
   Nothing has been committed."
+  fi
+fi
+
+# ── 5. derived indexes ─────────────────────────────────────────────────────
+# Ticket 0231. docs/INDEX.md and tickets/index.json are GENERATED and COMMITTED,
+# and CI rejects a stale one — after a 4.5-minute run, reported only by email.
+# Every push to main failed that way for two days in 2026-09 and nobody noticed,
+# which is how a real failure gets lost among stale-index noise.
+#
+# This layer BLOCKS with the regeneration command; it never regenerates and
+# `git add`s for you. A hook that rewrites the commit is surprising, the
+# tickets.mjs commands deliberately do not commit, and every other layer here
+# refuses rather than repairs.
+#
+# It gates on $index_paths (listed above the early return), NOT $staged — see there.
+#
+# Pure-bash gate, for layer 3's reason — and so a commit touching neither tree
+# never starts node at all.
+index_flags=""
+docs_seen=0
+tickets_seen=0
+while IFS= read -r f; do
+  case "$f" in
+    docs/*) docs_seen=1 ;;
+    tickets/*) tickets_seen=1 ;;
+  esac
+done <<< "$index_paths"
+[ "$docs_seen" -eq 1 ] && index_flags="${index_flags} --docs"
+[ "$tickets_seen" -eq 1 ] && index_flags="${index_flags} --tickets"
+
+# LOST_SOLES_WAVE_AGENT=1 skips THIS LAYER ONLY (operator decision, 0231). A
+# wave agent edits its own ticket file, which makes tickets/index.json stale, and
+# docs/capabilities/WAVES.md §3 forbids it to stage either index: the orchestrator
+# regenerates both after the merge. Without a narrow bypass every agent would
+# reach for --no-verify, which also silences gitleaks. Layers 1-4 have already
+# run by this point and are unaffected. Exactly "1": any other value, including
+# 0 or empty, still checks.
+if [ -n "$index_flags" ] && [ "${LOST_SOLES_WAVE_AGENT:-}" = "1" ]; then
+  echo "  pre-commit: LOST_SOLES_WAVE_AGENT=1, derived-index check (layer 5) skipped; the orchestrator regenerates the indexes." >&2
+elif [ -n "$index_flags" ]; then
+  if [ ! -f scripts/check-staged-indexes.mjs ]; then
+    fail "docs/ or tickets/ is staged but scripts/check-staged-indexes.mjs is missing,
+  so the derived indexes were never checked. Nothing has been committed."
+  fi
+  require_node "the derived indexes (docs/INDEX.md, tickets/index.json)"
+  # shellcheck disable=SC2086  # word splitting is the intent: one argument per flag
+  if ! node scripts/check-staged-indexes.mjs $index_flags; then
+    fail "a derived index is stale in the staged tree, or could not be checked (above).
+  CI would reject this commit. Nothing has been committed.
+  A wave agent (WAVES.md §3) commits with: LOST_SOLES_WAVE_AGENT=1 git commit ..."
   fi
 fi
 
