@@ -4,7 +4,7 @@ slug: 08-section-5-3-security-headers-are-in-no-ticket-hsts-nosnif
 title: 08 section 5.3 security headers are in no ticket — HSTS, nosniff, frame-ancestors, CSP
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-02T01:55:54Z
 started: 2026-10-23T02:20:14Z
+closed: 2026-10-26T03:01:06Z
 ---
 
 ## Description
