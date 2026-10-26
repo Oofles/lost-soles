@@ -4158,6 +4158,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-06T15:57:09Z",
+    "started": "2026-10-26T01:42:16Z",
     "path": "tickets/open/0174-trace-sanitation-is-cited-as-03-integrations-md-2-2-in-21-pl.md",
     "ready": true,
     "acceptance": {
@@ -5404,6 +5405,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-01T19:35:31Z",
+    "started": "2026-10-26T01:42:16Z",
     "path": "tickets/open/0230-cdk-synth-tests-leak-a-cdk-out-dir-into-tmp-per-suite-until.md",
     "ready": true,
     "acceptance": {
