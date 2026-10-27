@@ -112,8 +112,11 @@ export const config = {
    * copied from Protomaps' OFL/MIT-licensed assets. MapLibre fetches them as subresources, so
    * a 307 to `/` is an HTML body where a PBF should be and every label vanishes. The sprite's
    * `.png` was already exempt by extension; its `.json` and every `.pbf` were not.
+   *
+   * `probe/size` is TEMPORARY (ticket 0320): a token-gated synthetic-body route that measures
+   * Amplify's response-size cap. It and this exemption are removed in the following commit.
    */
   matcher: [
-    "/((?!_next/static|_next/image|maplibre/|basemap-assets/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|maplibre/|basemap-assets/|probe/size|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 }
