@@ -82,3 +82,7 @@ crosshair began to dominate the row. Shown the comparison render and the deploye
 chose 24px. The orchestrator changed the rule and its test to 24px
 (`components/map/map-controls.tsx`, `components/map/map-controls-css.test.ts`). `.map-control`
 stays 40×40 at 18px, and the other glyphs are unchanged.
+
+**Orchestrator, commit record (2026-10-26).** The 24px change has no `0317:` commit. Its own commit was blocked by the stale-index check, unnoticed, and the next commit (`5b3c652`, "tickets: defer 0319, start 0318, 0320") swept it in with `git add -A`. That commit deployed as Amplify job 435 (SUCCEED). History was already pushed, so it was left as is and recorded here.
+
+**Smoke test, after job 435:** the deployed client chunk contains `recentre-glyph { font-size: 24px; }`.
