@@ -6122,3 +6122,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   first upgrade that clears either advisory and forces its entry out; Dependabot alerts (D-449);
   and the allowlist's severity cap, which fails the build if either advisory is re-rated above
   high. Each allowlist entry's `recheck` now names this decision instead of `0319`.
+- **D-462** **§9.1's home-screen box follows `06` §2.3: Total Level and lifetime cells on home,
+  Total XP on `/skills`.** *(Operator, 2026-10-27, ticket `0117`.)* The roadmap box read "Total
+  Level and Total XP are on the home screen". `06` §2.3 row 4 gives home exactly two glance numbers,
+  Total Level and lifetime cells revealed, and the shipped plinth follows it. Total XP is shown in
+  the `/skills` header. The roadmap box was the outlier, so it is amended. Nothing in the app
+  changes.
+- **D-463** **§9.3's raw-archive box is a mapping, not an equal count.** *(Operator, 2026-10-27,
+  ticket `0117`.)* "Object count equals activity count" cannot hold under D-101's append-only
+  archive. A re-archived payload with new content adds an object; a kind-override record adds an
+  object. Live on 2026-10-26 there were 124 objects for 117 activities: 2 re-archives and 5
+  overrides. The box now reads: every activity's `raw.key` resolves to its archived payload, written
+  before normalize, and every `raw/<uid>/<source>/<externalId>/` prefix holding a `<sha256>`
+  payload maps to exactly one activity. Measured: 117 of 117 resolve, 0 orphans either way.
+- **D-464** **§9.4's billing box is the month at or under D-083; its alarm half is superseded by
+  D-361.** *(Operator, 2026-10-27, ticket `0117`.)* D-361 (2026-10-18) removed the account-wide
+  Budget on purpose: the account hosts the operator's other Amplify apps, so an account-wide alarm
+  measures them, not Lost Soles. The box keeps its other half. September 2026's Lost Soles runtime
+  cost was at most about $1.90 against D-083, in D-433's scope, with build minutes ($18.41) outside
+  it. The cost-DoS bound remains the webhook's reserved concurrency (D-361).

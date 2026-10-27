@@ -201,3 +201,10 @@ adds on top. Repeat three times and record all three.
 
 The doc's *"Not yet green"* table holds five rows. Three need an operator decision (one per failing
 box). One needs three console timings. One needs the perceptual checks.
+
+**Orchestrator, 2026-10-27.** The three failing boxes were put to the operator, who chose to amend
+each one: D-462 (§9.1 Total XP lives on `/skills`, per `06` §2.3), D-463 (§9.3 is a mapping, not
+an equal count) and D-464 (§9.4's alarm half is superseded by D-361). The roadmap boxes carry the
+amendments, and the doc's table marks them resolved by decision, not annotated into passes. The
+operator also approved the CLAUDE.md sentence carrying Trigger A's five build-first items forward;
+the orchestrator applied it. Still open: the three console timings and the perceptual checks.

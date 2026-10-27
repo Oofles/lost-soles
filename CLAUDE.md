@@ -10,7 +10,9 @@ proposing anything that changes what it is.**
 > TRIGGER — three conditions, each with a hard gate"**. If any of its three conditions becomes true,
 > or is *proposed* in a ticket, a design doc or a PR, D-123 is reopened before that work merges:
 > **(A)** a second Cognito account, **(B)** any share, export or screenshot feature, **(C)** any
-> public URL serving cell data. Reopening means a new decision in **`docs/decisions/DECISIONS.md`**
+> public URL serving cell data. Trigger **(A)** also needs five things built first: owner-scoping
+> tests (A-1), a fidelity field (A-3), a consent screen (A-4), a working delete (A-5), and a
+> recorded successor decision (A-7). Reopening means a new decision in **`docs/decisions/DECISIONS.md`**
 > that supersedes or re-affirms D-123 with its new premise stated, and §2.4's gate checklist complete.
 > *"It's fine, it's still just me" is not a resolution. A recorded decision is.*
 

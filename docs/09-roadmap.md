@@ -1067,7 +1067,8 @@ walks this list.
 - [ ] **Both** map modes exist and are toggleable (D-052), and render an identical revealed set.
 - [ ] All **seven** MVP skills exist as rows in `xp-rules-v1.yaml` and appear on `/skills`:
       Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution.
-- [ ] XP and levels are computed and displayed; Total Level and Total XP are on the home screen.
+- [ ] XP and levels are computed and displayed; ~~Total Level and Total XP are on the home screen~~
+      Total Level and lifetime cells are on the home screen and Total XP on `/skills` (D-462, `06` §2.3).
 - [ ] `/log` records pushups, situps and planks in one tap each (D-061, D-062).
 - [ ] `/tickets` works ~~and `/dev/tickets` capture works~~ (D-090, D-091; ~~D-092~~ withdrawn by D-252).
 - [ ] **Nothing built from the OUT list**: no combat, no encounters, no boss quests, no route
@@ -1097,7 +1098,9 @@ walks this list.
 ### 9.3 Reversibility — the D-101 / D-121 proof
 
 - [ ] Every ingested activity has a raw object in `s3://…/raw/<uid>/<source>/<externalId>/
-      <sha256>.<ext>`, written **before** normalize. Object count equals activity count.
+      <sha256>.<ext>`, written **before** normalize. ~~Object count equals activity count.~~
+      Every activity's `raw.key` resolves, and every payload prefix maps to exactly one activity
+      (D-463: re-archives and kind overrides add objects under the append-only archive).
 - [ ] `normalize()` passes with `fetch` and `Date.now` stubbed to throw (purity).
 - [ ] The CI rebuild drill runs on every build against the fixture and asserts §8.3 steps 1–8.
 - [ ] **The full drill has been executed once, for real, against the live archive**, into a
@@ -1118,8 +1121,8 @@ walks this list.
 - [ ] Cognito self-signup is OFF and unauthenticated identities are OFF (`08` §5.1).
 - [ ] No secret in the client bundle — the §7 forbidden-list grep passes against `.next/static`.
 - [ ] gitleaks passes on the full history; the O-005 key is rotated and its file is gitignored.
-- [ ] A billing alarm exists at $10/month, and one month of real billing is at or under the D-083
-      target of a few dollars.
+- [ ] ~~A billing alarm exists at $10/month, and~~ one month of real billing is at or under the D-083
+      target of a few dollars. *(The alarm half is superseded by D-361; D-464.)*
 
 ### 9.5 The product, on the actual device
 

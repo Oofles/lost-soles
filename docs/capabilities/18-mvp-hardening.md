@@ -428,9 +428,9 @@ work is **proposed**, not when it ships (`08` §2.4):
 
 | Box | State | What closes it |
 |---|---|---|
-| §9.1 Total XP on the home screen | FAIL as worded | An operator decision. Either amend the box to match `06` §2.3 (Total XP lives on `/skills`), or file a ticket to add it to the plinth |
-| §9.3 object count = activity count | FAIL as worded | An operator decision on the wording (re-archives and kind overrides make the counts differ), or a ticket |
-| §9.4 billing alarm at $10/month | FAIL | An operator decision. Amend the box per D-361, or re-add a budget (a ticket) |
+| §9.1 Total XP on the home screen | **resolved, 2026-10-27**: box amended by D-462 | Passes as amended: home carries Total Level and lifetime cells, `/skills` carries Total XP |
+| §9.3 object count = activity count | **resolved, 2026-10-27**: box amended by D-463 | Passes as amended: 117/117 resolve, 0 orphans |
+| §9.4 billing alarm at $10/month | **resolved, 2026-10-27**: alarm half superseded by D-361, D-464 | Passes as amended: September runtime ≤ ~$1.90 |
 | §9.5 sequence 8.4 s ± 0.3 s, three timings | not measured | The operator's three console timings on the deployed app |
 | §9.5 narration, gold by eye, street names by eye | perception | The operator, desktop browser |
 
