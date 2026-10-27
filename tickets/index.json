@@ -6280,7 +6280,7 @@
     "title": "Measure the skip-token saving: Amplify build count and minutes, 2026-10-15 to 10-29",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -6289,8 +6289,9 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-15T15:17:29Z",
-    "path": "tickets/open/0268-measure-skip-token-saving.md",
-    "ready": true,
+    "closed": "2026-10-27T02:33:26Z",
+    "path": "tickets/closed/0268-measure-skip-token-saving.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2

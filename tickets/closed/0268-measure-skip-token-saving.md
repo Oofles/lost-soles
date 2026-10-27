@@ -4,13 +4,14 @@ slug: measure-skip-token-saving
 title: Measure the skip-token saving: Amplify build count and minutes, 2026-10-15 to 10-29
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: [214]
 blocked_by: []
 source: agent
 created: 2026-10-15T15:17:29Z
+closed: 2026-10-27T02:33:26Z
 ---
 
 ## Description
