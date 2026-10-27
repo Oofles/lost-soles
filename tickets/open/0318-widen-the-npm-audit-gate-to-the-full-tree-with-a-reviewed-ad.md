@@ -38,6 +38,14 @@ Run this after `0319` if an upstream release is close: a clean tree removes the 
 
 None: CI tooling. The smoke test is the gate failing on a planted unlisted advisory, and a green build without one.
 
+**Result, 2026-10-26.** Planted red: `npx vitest run scripts/check-npm-audit.test.mjs` includes "turns
+red on an unlisted high advisory", and the suite passed on `main` in the gate. Green on both CI
+surfaces for `35adb32`:
+- GitHub Actions `gate` run 40432438791 printed `check-npm-audit: self-test passed (8 cases)` and
+  `full tree OK … (admitted: @graphql-tools/utils GHSA-7mx3-vvmw-hjmv, zod GHSA-mrhx-c7xc-m3w5)`.
+- Amplify job 436 succeeded with both lines in its build phase.
+- Locally, the orchestrator ran the self-test and the live check on `main`: both exit 0.
+
 D-123 trigger checked? none.
 
 ## Resolution

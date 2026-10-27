@@ -44,6 +44,10 @@ web, with no coordinates and no user data.
   `content-encoding: gzip`.
 - After `460b265` deployed, `/probe/size` no longer exists (result below).
 
+**Removal confirmed:** Amplify job 437 (`460b265`) succeeded. `GET /probe/size?mb=1` with the token
+now returns 307 to `/?next=/probe/size`, the middleware's normal signed-out redirect, so neither the
+route nor its matcher exemption is live. GitHub `gate` run 40433823456 passed.
+
 ## Resolution
 
 **The cap applies to the raw body (D-460), so the raw branch of the criteria applies.** The run
