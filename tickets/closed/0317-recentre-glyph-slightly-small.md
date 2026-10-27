@@ -4,7 +4,7 @@ slug: recentre-glyph-slightly-small
 title: The ⌖ recentre glyph is slightly small inside its button
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-10-26T13:41:13Z
 started: 2026-10-26T20:52:53Z
+closed: 2026-10-27T00:59:20Z
 ---
 
 ## Description

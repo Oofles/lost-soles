@@ -7351,7 +7351,7 @@
     "title": "The ⌖ recentre glyph is slightly small inside its button",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7359,8 +7359,9 @@
     "source": "operator",
     "created": "2026-10-26T13:41:13Z",
     "started": "2026-10-26T20:52:53Z",
-    "path": "tickets/open/0317-recentre-glyph-slightly-small.md",
-    "ready": true,
+    "closed": "2026-10-27T00:59:20Z",
+    "path": "tickets/closed/0317-recentre-glyph-slightly-small.md",
+    "ready": false,
     "acceptance": {
       "checked": 2,
       "total": 2
