@@ -4,13 +4,14 @@ slug: re-check-the-amplify-tree-advisories-graphql-tools-utils-zod
 title: Re-check the Amplify-tree advisories (@graphql-tools/utils, zod) on the next backend-cli release
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-26T16:05:00Z
+closed: 2026-10-27T02:33:27Z
 ---
 
 ## Description

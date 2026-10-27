@@ -2903,7 +2903,7 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "path": "tickets/open/0117-mvp-definition-of-done-sweep.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 9
@@ -7395,15 +7395,16 @@
     "title": "Re-check the Amplify-tree advisories (@graphql-tools/utils, zod) on the next backend-cli release",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-26T16:05:00Z",
-    "path": "tickets/open/0319-re-check-the-amplify-tree-advisories-graphql-tools-utils-zod.md",
-    "ready": true,
+    "closed": "2026-10-27T02:33:27Z",
+    "path": "tickets/closed/0319-re-check-the-amplify-tree-advisories-graphql-tools-utils-zod.md",
+    "ready": false,
     "acceptance": {
       "checked": 1,
       "total": 1
