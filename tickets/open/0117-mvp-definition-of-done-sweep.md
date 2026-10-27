@@ -64,22 +64,31 @@ cost legibility (D-051, non-negotiable).**
 - [ ] Every box in §9.1–§9.5 is evaluated and recorded in
       `docs/capabilities/18-mvp-hardening.md` with its **evidence**: the command and its exit
       code, the file path, the two numbers compared, or the date the physical act was performed.
-- [ ] No box is recorded as passing on the basis of a memory, a screenshot from an earlier build,
+      *(2026-10-26, agent: every box has a row with evidence. Not ticked, because five rows still
+      wait on the operator: the 8.4 s timing, and narration, D-148 gold and street names judged by
+      eye. See the doc's "Not yet green" table.)*
+- [x] No box is recorded as passing on the basis of a memory, a screenshot from an earlier build,
       or another ticket's checkbox — each is re-evaluated against the shipping build.
-- [ ] The OUT-list grep is run and its empty output pasted: no combat, encounter, boss, route-plan,
+- [x] The OUT-list grep is run and its empty output pasted: no combat, encounter, boss, route-plan,
       equipment or loot module exists.
-- [ ] The seven skills are listed with their `xp-rules-v1.yaml` row and their rendered `/skills`
+- [x] The seven skills are listed with their `xp-rules-v1.yaml` row and their rendered `/skills`
       entry, side by side.
-- [ ] The four drill numbers are present in `docs/capabilities/16-rebuild-drill.md` and are quoted
+- [x] The four drill numbers are present in `docs/capabilities/16-rebuild-drill.md` and are quoted
       here — if they are absent there, this sweep **fails**, and no other evidence substitutes.
 - [ ] The post-run sequence is timed in the desktop browser three times; all three fall within 8.4 s ± 0.3 s
       and the three measurements are recorded.
-- [ ] The frame budget is measured at year-one cell volume (not at today's volume) and the number
+      *(2026-10-26, agent: not done. It needs a signed-in session on the deployed app. Making one
+      for a harness is a Cognito write, which a wave agent may not do. The operator's console
+      method is in the Resolution.)*
+- [x] The frame budget is measured at year-one cell volume (not at today's volume) and the number
       recorded against the `05-fog-of-war.md` §6.3 target.
 - [ ] Any box that fails gets a new ticket, linked from the sweep, and this ticket stays open until
       every box is either checked or has a linked, closed ticket. **A failing box is not annotated
       into a pass.**
-- [ ] §9.6 is transcribed into the capability doc verbatim as the closing line of the MVP record.
+      *(2026-10-26, agent: three boxes fail as worded: Total XP on home, the raw object count, and
+      the billing alarm. A wave agent cannot create tickets, so each is a proposal in the report.
+      Each is also partly a design question (D-152). This stays open until the operator decides.)*
+- [x] §9.6 is transcribed into the capability doc verbatim as the closing line of the MVP record.
 
 ## Notes
 
@@ -114,3 +123,81 @@ three street names, toggle back and read the same three. Open `/skills` and coun
 `/log` and record a set of pushups in one click. ~~Outdoors, on the phone, in sunlight; put the
 phone away; capture a ticket on `/dev/tickets`.~~ *(D-251, D-252, 0215)* Then run every command in the checklist,
 pasting real output — not "passes" — into the capability doc. When every box carries evidence rather than a tick, the MVP is built.
+
+## Resolution
+
+*(Agent, wave 18.8, 2026-10-26. The ticket stays open: see "What keeps it open".)*
+
+**Every §9.1–§9.5 box is evaluated and recorded, one row each, in
+`docs/capabilities/18-mvp-hardening.md` § *The MVP definition-of-done sweep*.** Each was measured
+against the shipping build, Amplify job 438 (`d2a5597`). The sweep ran at `5596e50`, which differs
+only in `tickets/`. Nothing was copied from an earlier ticket's tick. Two rows rest on dated
+physical acts recorded elsewhere, and the row names the act and its date: the full drill
+(2026-10-21) and the account deletion (2026-10-20). The DLQ row rests on live CloudWatch alarm
+history and SNS delivery metrics from 2026-10-22, read today.
+
+**Result: 32 PASS, 3 FAIL as worded, 1 not measured, 3 perceptual.**
+
+- **FAIL, §9.1:** *Total Level and Total XP on the home screen.* The plinth carries Total Level and
+  lifetime cells. That is exactly what `06` §2.3 specifies, and Total XP is on `/skills`' header.
+  The roadmap box and the UI design disagree. That is D-152, so the agent did not choose.
+- **FAIL, §9.3:** *Object count equals activity count.* The object count is 124 and the activity
+  count is 117. Every activity's `raw.key` exists (117/117), and payload prefixes map 1:1 to
+  activities. The extra 7 objects are two re-archived payloads and five kind-override records.
+  The wording cannot hold while either exists. D-152.
+- **FAIL, §9.4:** *A billing alarm at $10/month.* None exists. D-361 removed it on purpose, but
+  §9.4 was never amended. The month half passes: September 2026 runtime is at most about $1.9
+  (D-433).
+- **Not measured, §9.5:** *8.4 s ± 0.3 s, three times.* That needs a signed-in session on the
+  deployed app. Creating a throwaway user is a Cognito write (and briefly Trigger A), which a wave
+  agent may not do. The one-tap half passes (`exit.test.ts`).
+- **Perceptual, §9.5:** screen-reader narration, D-148 gold by eye, and street names by eye. Each
+  has its mechanical half measured and passing.
+
+**Measured, not assumed.** The frame budget at year-one volume: R3 as corrected by D-237 puts year
+one at most ~207k res-11 cells. Runs at 151k and 501k bracket it, headed on the RTX 5080 through
+WSLg (`run-cold-cost.mjs`). Mask mean ≤ 0.72 ms, composite mean ≤ 1.91 ms, pan p50 16.6–16.9 ms,
+dropped ≤ 0.4%. Reduced motion: 0 rAF after first paint. 200% zoom: 24/24. Mode parity: equal mask
+FNV at three zooms. Street-name contrast over revealed ground: 1.00× stock in both modes. Live data:
+the 2026-10-26 13:35Z run arrived by webhook with no action, and generation 270 / 5,224 cells
+survived eight deploys. The blob equals the distinct cell table. 6,365/6,365 cell rows carry
+`lastRunAt`. SkillState 71,749 = ledger 71,749. 150 snapshots, the latest at generation 270.
+token-refresh: 61 clean sweeps. Nightly reconcile: every day at 08:00:35Z.
+
+**Files touched**
+
+- `docs/capabilities/18-mvp-hardening.md`: the sweep section. It has one table per §9 sub-list, the
+  seven-skills side-by-side, the OUT-list grep and its empty output, the four drill numbers quoted,
+  the D-123 standing conditions carried forward, the "Not yet green" table, and §9.6 verbatim as
+  the closing line.
+- `tickets/open/0117-mvp-definition-of-done-sweep.md`: criteria ticked or amended, and this section.
+
+No code changed. Scratch scripts lived in the session scratchpad and in gitignored `tmp/`, which was
+removed before commit.
+
+**Decisions made:** none. Three are proposed in the wave report, one per failing box.
+
+**`CLAUDE.md` was not edited.** Its standing rule already arms Triggers A, B and C at proposal
+time. The one thing the Notes ask for that it lacks is the five build items behind Trigger A. They
+are now in the capability doc, and the exact one-line addition for `CLAUDE.md` is in the wave
+report for the orchestrator or operator to apply.
+
+**Deferred `0128` and `0178`.** `0128` (`npm ci`) touches no §9 box. `0178` concerns the operator's
+view of a real failed import. §9.4's DLQ box is met by the alarm and email, proven live on
+2026-10-22, so `0178` does not hold it.
+
+**The operator's timing method** (desktop browser, the deployed app, signed in). Open the latest run,
+`/run/<activityId>`, from RUNS, and click **⟲ Relive**. When the end state shows, run this in the
+DevTools console:
+
+```js
+(s => ({ wall: Math.round(s.end - s.t0), cards: Math.round(s.pausedMs ?? 0), sequence: Math.round(s.end - s.t0 - (s.pausedMs ?? 0)) }))(window.__sequence)
+```
+
+`sequence` is the figure to judge against 8,400 ± 300 ms. `cards` is level-up card time, which §3.2
+adds on top. Repeat three times and record all three.
+
+## What keeps it open
+
+The doc's *"Not yet green"* table holds five rows. Three need an operator decision (one per failing
+box). One needs three console timings. One needs the perceptual checks.

@@ -291,6 +291,156 @@ the only alerts that should stay open are `@graphql-tools/utils` GHSA-7mx3-vvmw-
 `csv-parse` (medium). GHSA-c4qx-w738-7hr3 covers only `@graphql-tools/utils` 10.10.1–12.0.1, and
 the tree now holds 6.x, 7.x, 9.x and 12.1.0.
 
+## The MVP definition-of-done sweep — `09-roadmap.md` §9 (ticket `0117`, 2026-10-26)
+
+Every box re-evaluated on 2026-10-26 (UTC evening) against the **shipping build**: Amplify job 438,
+`d2a5597`, `SUCCEED` 2026-10-27T02:48Z. The sweep ran at `5596e50`, which differs from `d2a5597`
+only in `tickets/` (`git diff --stat`). AWS was read only, `--profile devault`, `us-east-1`, app
+`d14fhvl4rp79nn`. No row cites an earlier ticket's checkbox. Where an earlier record is quoted, it
+is the dated record of a physical act, and the row says so.
+
+**Reading the result column.** **PASS**: the evidence meets the box as worded. **FAIL**: it does
+not, and the row names the open question or proposed ticket. **OPERATOR**: only a human eye or a
+real-clock measurement on the deployed app can settle it. The steps are in `0117`'s report.
+
+**The common run** behind rows that say *suite*: `scripts/…` are every guard in `amplify.yml`'s
+build and backend phases, run in that order. Every one exited 0. That includes
+`check-history-secrets --install --unshallow` (922 commits), `check-npm-audit`,
+`npm run drill:ci`, `check-adapter-deletion`, `typecheck`, `lint`, `build`, `check-bundle-leak
+--require-literals`, `check-home-not-in-client` with the two Amplify values set (2 scanned),
+`check-auth-posture`, `check-d123-trigger-a` and `check-secret-storage --require-literals`.
+`npx vitest run`: **276 files, 4,537 passed, 1 skipped, exit 0.** GitHub `gate` on `5596e50`:
+`success`.
+
+### §9.1 Scope — D-122
+
+| Box | Result | Evidence |
+|---|---|---|
+| A real Strava run imports and reveals territory that persists across sessions and deploys | **PASS** | At 2026-10-26T13:35:03Z, `ingest-webhook` logged `aspect_type: create` → `queued`. At 13:35:08Z, `process-activity` logged `persisted` for Strava `20737466579`: 343 cells advanced, **generation 269 → 270, `cellCount` 5,211 → 5,224**, 755 XP. Eight deploys followed (jobs 430–437 `SUCCEED`, 438 `SUCCEED`). The live `users/<uid>/manifest.json` still reads `generation` 270, `cellCount` 5,224. The decoded `explored-r11.270.bin` holds 5,224 cells, equal as a set to the distinct `LostSolesExploredCell` cell keys (0 in either but not the other). |
+| Both map modes exist and toggle (D-052), with an identical revealed set | **PASS** | `node tools/fog-harness/run-mode-swap.mjs` → `MODE SWAP HARNESS PASS`, exit 0. 12 swaps. The mask FNV is equal across adventure, atlas, mid-fade and back at z12 (`8b1856dc`), z15.25 (`b6600b35`) and z17.75 (`822feef5`). The sabotage differs by 4,829 / 7,884 / 23,236 bytes. `check-mode-boundary.mjs` exit 0. |
+| All seven skills are rows in `xp-rules-v1.yaml` and appear on `/skills` | **PASS** | Table below. Rendered by `SkillsPanel` over the **live** SkillState values (`tmp/` scratch through `vite-node`, `rulesVersion` 3). `skills-panel.test.tsx` › *renders every enabled skill exactly once* is green in the suite. |
+| XP and levels computed and displayed; **Total Level and Total XP on the home screen** | **FAIL** (half) | Computed: live SkillState Σ`displayedXp` **71,749** = Σ`XpLedgerEntry.xpAwarded` **71,749**. `/skills` renders `TOTAL LEVEL 100`, `Total XP 71,749`. **Home** (`components/plinth/plinth.tsx`) carries Total Level and lifetime cells, **not Total XP**. That is what `06` §2.3 specifies, so `06` and this box disagree. Open question in `0117`'s report. |
+| `/log` records pushups, situps and planks in one tap each | **PASS** | Suite: `lib/log/rows.test.ts` › *what one click sends*, *renders exactly the enabled activity skills' declared exercises*; `lib/log/workout-entry.test.ts` › *one click of 30 pushups persists sets*. Not exercised live: a live tap is a write. |
+| `/tickets` works | **PASS** | `node .claude/skills/tickets/scripts/tickets.mjs validate` → `0 error(s), 0 warning(s)`, exit 0. `… next` exit 0. |
+| Nothing built from the OUT list | **PASS** | See the grep below. |
+
+**The seven skills, side by side** (`rules/xp-rules-v1.yaml`; `/skills` rendered, live values):
+
+| Skill | `xp-rules-v1.yaml` row | `/skills` entry |
+|---|---|---|
+| Wayfaring | l. 39 `id: wayfaring`, `enabled: true` | ACTIVITY · `Wayfaring 29` |
+| Vigil | l. 80 `id: vigil`, `enabled: true` | ACTIVITY · `Vigil 8` |
+| Might | l. 181 `id: might`, `enabled: true` | ACTIVITY · `Might 4` |
+| Fortitude | l. 210 `id: fortitude`, `enabled: true` | Untrained (3) · `Fortitude 1` |
+| Endurance | l. 239 `id: endurance`, `enabled: true` | Untrained (3) · `Endurance 1` |
+| Cartography | l. 272 `id: cartography`, `enabled: true` | META · `Cartography 27` |
+| Constitution | l. 298 `id: constitution`, `enabled: true` | META · `Constitution 20` |
+
+`v1` also ships `roving` and `cadence` enabled (`Roving 9`, `Cadence 1` on the panel), and `slayer`
+`enabled: false`. Fortitude and Endurance have no XP yet, so they sit in the collapsed *Untrained*
+group (06 §5.3). They are in the markup, one click from view.
+
+**The OUT-list grep**, over tracked code paths:
+
+```
+$ git ls-files app components lib src amplify tools scripts public rules \
+    | grep -iE '(^|/|[-_.])(combat|encounters?|boss(es)?|quests?|route[-_]?plan(ner|ning)?|equipment|loot|inventory|slayer)([-_./]|$)'
+$ echo $?
+1
+```
+
+Empty. The word-bounded content grep over `app components lib src amplify tools` finds only
+comments, tests asserting absence, and the `slayer` row shipped `enabled: false` (`xp-rules-v1.test.ts`
+› *ships Slayer disabled*). It finds no module.
+
+### §9.2 Invariants — mechanically checked
+
+`0116`'s table above is complete: 30 rows, I-1…I-30, each with a test and none needing a written
+reason. Every cited file resolves in the tree (62 paths checked; the only one absent is
+`lib/scratch-0116-leak.ts`, a scratch file removed by design). Every cited test runs in the
+suite, green today.
+
+| Box | Result | Evidence |
+|---|---|---|
+| Strava grep outside `src/adapters/strava/` is empty and fails the build | **PASS** | `node scripts/check-boundaries.mjs` exit 0, `--self-test` exit 0. It is in `amplify.yml`'s build phase, first line |
+| T1–T4 pass in CI | **PASS** | T1 above. T2 `check-adapter-deletion.mjs` exit 0 and `registry.test.ts`, T3 `cross-adapter-equivalence.test.ts`, T4 `normalize-purity.test.ts`, all in the suite. GitHub `gate` `success` on `5596e50`, and Amplify job 438 `SUCCEED` |
+| Adding a skill is zero diff outside `rules/` (Vigil test) | **PASS** | `src/rules/registry-delta.test.ts` (I-24) in the suite |
+| One skill per `measure`; ambiguity is a seed-time error (I-26) | **PASS** | `src/rules/validate.test.ts`, `src/scoring/units.test.ts` in the suite |
+| `displayedXp == SUM(ledger)` after a full replay | **PASS** | `xp-replay.test.ts` › *I-15 after every replay*. Live: 71,749 = 71,749 per skill (cartography 27,061, constitution 11,170, might 80, roving 1,017, vigil 660, wayfaring 31,761) |
+| Lower ruleset → `retained_floor`, no visible decrease | **PASS** | `xp-replay.test.ts` › *a stingier ruleset (I-16)*, `reconcile.test.ts` |
+| Total Level ceiling computed, never a literal | **PASS** | `src/scoring/levels.test.ts` › *the Total Level ceiling (D-145, D-192)*, *no remembered numbers in source* |
+| Adding a skill fires zero level-up cards (D-146) | **PASS** | `src/scoring/d146-guard.test.ts`, `registry-delta` › *D-146* |
+| Re-processing changes zero cells, timestamps, ledger rows | **PASS**, as D-454 scopes it | `src/pipeline/idempotency.test.ts` (I-21, I-23). D-454: value-idempotent, not write-idempotent, after the receipt TTL |
+| Every explored cell carries `lastRunAt`; no presence bit (D-120) | **PASS** | `no-presence-bit.test.ts` in the suite. Live scan of `LostSolesExploredCell`: **6,365 of 6,365** cell rows carry `lastRunAt` as an ISO string, and 0 have `firstRunAt > lastRunAt`. (1,141 of them are the pre-D-267 res-6-keyed copies. Cell rows are never deleted. The 5,224 distinct cells equal the blob.) |
+| The map has never re-fogged (D-020) | **PASS** | `cellCount` 5,211 at the drill (2026-10-21, `16-rebuild-drill.md`) → **5,224** now. Generations 269 → 270. `explored-cells.test.ts` › *no delete exists (I-7)* |
+| I-1…I-26 each have a test or a written reason | **PASS** | `0116`'s table: I-1…I-30, all tested |
+
+### §9.3 Reversibility — D-101 / D-121
+
+| Box | Result | Evidence |
+|---|---|---|
+| Every activity has a raw object at `raw/<uid>/<source>/<externalId>/<sha256>.<ext>`, written before normalize; **object count equals activity count** | **FAIL as worded**; every activity has its object | `Activity` **117** rows (116 Strava, 1 manual), all `ACTIVE`. **117 of 117** have a `raw.key` that exists. Distinct `<source>/<externalId>` with a `<sha256>.json` payload: **117**, with 0 orphans either way. **But `raw/<uid>/` holds 124 objects:** 119 payloads (Strava `15336494333` and `20576149694` were each re-archived with new bytes, and each activity points at the newer one) and 5 `kind-override` records for `20076758956`. Ordering: `process-activity.test.ts` › *runs credentials → fetch → archive → normalize*, *never normalizes bytes it has not archived*. The live log's `timings` show `archiveMs` before `normalizeMs`. Open question in the report: the box's count cannot equal 117 while re-archives and overrides exist. |
+| `normalize()` passes with `fetch` and `Date.now` stubbed to throw | **PASS** | `src/adapters/normalize-purity.test.ts` (T4 / I-4) in the suite |
+| The CI drill runs on every build and asserts steps 1–8 | **PASS** | `npm run drill:ci` in `amplify.yml`'s build phase. Today: `PASS — six assertions and 6 expectations`, exit 0 (`CELL_COUNT 240`, `LEDGER 32 rows summing to 3327`) |
+| The full drill executed once, for real; four numbers in `16-rebuild-drill.md` | **PASS** | Executed **2026-10-21** (`0105`). From `16-rebuild-drill.md` § *The four numbers*: (1) objects **123**, against `--expect-objects=123`; (2) normalize failures **0**; (3) `cellCount` **5,211** = `manifest.json` **5,211**; (4) Total XP **70,994** = snapshot **70,994** |
+| `snapshots/skillstate/` is being written (D-143) | **PASS** | **150** objects under `snapshots/skillstate/<uid>/`. First `…/2026-09-29T18:28:59.948Z-63.json`, latest `…/2026-10-26T13:35:08.092Z-270.json`, written by the 13:35Z ingest |
+| The account-deletion runbook executed against a throwaway account | **PASS** (dated act) | Executed **2026-10-20**, 18:05:31Z → 18:05:38Z, on `drill-0106@example.invalid` (`16-rebuild-drill.md` § *Account deletion, executed*). Today's `check-d123-trigger-a.mjs`: `1 account(s) in the pool`, exit 0, so the throwaway is gone |
+
+### §9.4 Operational
+
+| Box | Result | Evidence |
+|---|---|---|
+| `https://soles.devaultsecurity.com` over valid TLS | **PASS** | `curl` → `http=200 ssl_verify=0`, exit 0. Cert `CN=*.devaultsecurity.com`, Amazon RSA 2048 S20, valid to 2027-03-17 |
+| A phone run appears with no user action (D-013) | **PASS** | The 2026-10-26 run in §9.1 row 1: Strava's `create` webhook → queue → `persisted` → generation 270, in 5 s, with nothing pressed. The Sync button remains as a fallback |
+| `token-refresh` and `nightly-reconcile` each ran successfully on schedule | **PASS** | EventBridge Scheduler, `ENABLED`: `cron(0 */4 * * ? *)` UTC → token-refresh; `cron(0 8 * * ? *)` `{"mode":"nightly"}` → reconcile-sweep. Since 2026-10-17: **61** `token-refresh sweep complete`, 0 `ERROR`/timeout lines, `refreshed: 1` on 43 of them. Nightly `reconcile sweep complete {"mode":"nightly",…,"failed":0}` every day **2026-10-18 → 2026-10-26 at 08:00:35Z**. Lambda `Errors` = 0 every day, both functions |
+| A poisoned message lands in the DLQ and is visible where a human looks | **PASS** (dated act) | On the current queue and alarm: the DLQ was created 2026-09-07 and is unchanged since, with `maxReceiveCount` 3. `process-activity` `Errors` = **3** on 2026-10-22. DLQ `ApproximateNumberOfMessagesVisible` max **1** that day. Alarm history: `Lost Soles — an activity failed to import` **OK → ALARM 2026-10-22T20:58:18Z**, back to OK at 21:01:18Z. SNS `NumberOfNotificationsDelivered` **1** in that hour, to the confirmed email subscription. This is `0115`'s live test. The DLQ holds 0 now |
+| Cognito self-signup OFF, unauthenticated identities OFF | **PASS** | `node scripts/check-auth-posture.mjs` exit 0: `self-signup is OFF (AllowAdminCreateUserOnly)`, `unauthenticated identities are OFF` |
+| No secret in the client bundle | **PASS** | `check-bundle-leak.mjs --require-literals` exit 0: `No secret in built output. 4 literal(s) and 5 patterns`. `STRAVA_CLIENT_ID` is skipped below the 12-char floor. `check-home-not-in-client.mjs` exit 0, 2 values scanned |
+| gitleaks on full history; O-005 rotated and gitignored | **PASS** | `check-history-secrets.mjs --install --unshallow` exit 0: `No secret in 922 commits of history.` `iam list-access-keys cli-user`: one key, `Active`, created 2026-08-31T01:50:32Z. `git check-ignore -v`: `.claude/settings.json` (`.gitignore:22`), `.claude/settings.local.json` (`.gitignore:26`) |
+| A billing alarm at $10/month, and one real month at or under D-083 | **FAIL** (alarm half) | **Alarm: none.** `budgets describe-budgets` returns no budget, and no `AWS/Billing` CloudWatch alarm exists. D-361 removed it on purpose, but the box was never amended. Open question in the report. **Month: meets D-083 as D-433 scopes it (runtime).** September 2026, Cost Explorer `UnblendedCost`: account total $50.08. Lost Soles' runtime is at most **≈ $1.9**: KMS $1.86 for both CMKs, the Lost Soles one created 2026-09-04, so ≤ $1. DynamoDB $0.008. CloudWatch $0.005. S3 $0.10 (shared). Amplify hosting $0.31 across all 10 apps (DataTransferOut 0.13, compute 0.18, storage 0.002). Route 53 $0.56 (the shared zone). Lambda, SQS, SNS and Cognito $0. Amplify `BuildDuration` $18.41 is excluded by D-433 |
+
+### §9.5 The product, desktop browser (D-240, D-251)
+
+| Box | Result | Evidence |
+|---|---|---|
+| §6.3 frame budget measured and met at year-one cell volume | **PASS** | Year one at res 11 is at most **~207,000** cells (R3's zero-overlap worst case, corrected by D-237). The real map is 5,224. Measured at **151,201 and 500,617**, which brackets it. `MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA node tools/fog-harness/run-cold-cost.mjs --size=1920x1080 --dataset=150k\|500k`, exit 0 both. Headed, on a real rAF clock: ANGLE D3D12, **RTX 5080**, 1919×1023, DPR 1, `EXT_disjoint_timer_query_webgl2`. Shipping arm (`cold` = `ATLAS`): **mask mean 0.03–0.72 ms** (< 1 ms), **composite mean 1.79–1.91 ms** (< 2 ms). **Pan phases p50 16.6–16.9 ms** (≤ 17), **dropped 0–0.4%** (< 1%). CPU (`run-perf.mjs 150k 500k`, `VERDICT: every measured budget met`): cull net max 0.4 ms, **0.00 ms on `pan-inside`**. `visibleInstanceCount` is the same at 150k and 500k from z13 up (peak 5,351 at z14). *Recorded, not judged:* mask **max** 3.4–4.5 ms on single frames |
+| Post-run sequence completes in **8.4 s ± 0.3 s** (three timings); one tap from any beat lands on the end state | **OPERATOR** (timing) / **PASS** (tap) | Tap: `lib/run-moment/exit.test.ts` › *one click or key always ends it* in the suite. Timing: **not measured here.** It needs a signed-in session on the deployed app, and creating one is a Cognito write (`0084`'s method), which this sweep may not do. The clock's constants are pinned: `beat45.test.ts`, `BEAT1_MS + SEQUENCE_END = 8400`. The deployed page records `window.__sequence` on every play. The operator's console check is in the report |
+| `prefers-reduced-motion`: fog static, rAF loop stopped | **PASS** | `node tools/a11y/run-reduced-motion.mjs` → `REDUCED MOTION HARNESS PASS`, exit 0. reduce: `rafAfterFirstPaint 0`, `rendersAfterFirstPaint 0`, `uTime 0`. Control: 337 rAF, 166 renders |
+| Desktop `06` §9.6 rows: token expired, three weeks away, slow or no connection, 200% zoom, screen reader | **PASS**, except screen-reader narration: **OPERATOR** | Token expired, three weeks and slow/offline: `plinth.test.tsx`, `lib/plinth/model.test.ts`, `0113`'s tests and `lib/log/offline.test.ts`, all in the suite. 200%: `node tools/a11y/run-zoom.mjs` → `ZOOM HARNESS PASS`, 24 of 24 layouts. Screen reader: `narration.test.tsx` and the home `role="status"` region are in the suite. Whether NVDA reads them sensibly is perception. *Known gap, ticketed:* `0313`, Slow 3G fog waits for tiles (open, capability `08`) |
+| Gold only as fill or rule, or type ≥24sp or on navy; floating chrome opaque (D-148) | **PASS** (mechanical) / **OPERATOR** (by eye) | `app/a11y-d148.test.ts` in the suite. `check-contrast.mjs` and `check-design-tokens.mjs` exit 0 |
+| Street names legible in both modes at planning zoom (D-051) | **PASS** (measured) / **OPERATOR** (by eye) | `node tools/fog-harness/mode-parity-shots.mjs`, real CloudFront tiles, → `MODE PARITY SHOTS PASS`, exit 0. Over revealed ground, label core:ring contrast **equals the stock map in both modes**: atlas z15 median 2.03:1 (1.00×), adventure z15 2.05:1 (1.00×), and likewise at z16. Atlas keeps names over unexplored ground: z15 median 1.55:1 (0.77×), min 1.30:1. Adventure over unexplored is 0.56–0.59× (mostly hidden, by design). The ratio is a proxy; legibility is the operator's eye |
+
+### Carried forward: the standing conditions do not close with the MVP
+
+**D-123 stays armed** (last re-affirmed by D-457, 2026-10-26). This section restates the standing
+gates. It proposes no feature. Post-MVP work starts with these gates in force. Each is applied when the
+work is **proposed**, not when it ships (`08` §2.4):
+
+- **Any share, export or screenshot feature reopens D-123 at proposal time** (Trigger B, B-1…B-7).
+  `check-d123-trigger-b.mjs` runs on every build.
+- **A second user account triggers the same gate** (Trigger A). `check-d123-trigger-a.mjs` fails
+  the deploy on any non-owner account that no recorded decision admits. Five things must exist first:
+  **owner-scoping tests (A-1), a fidelity field (A-3), a consent screen (A-4), a working delete
+  (A-5), and a recorded successor decision (A-7).**
+- **Any public URL serving cell data** (Trigger C) reopens it too. The C-1 surface list is above.
+
+### Not yet green — what keeps `0117` open
+
+| Box | State | What closes it |
+|---|---|---|
+| §9.1 Total XP on the home screen | FAIL as worded | An operator decision. Either amend the box to match `06` §2.3 (Total XP lives on `/skills`), or file a ticket to add it to the plinth |
+| §9.3 object count = activity count | FAIL as worded | An operator decision on the wording (re-archives and kind overrides make the counts differ), or a ticket |
+| §9.4 billing alarm at $10/month | FAIL | An operator decision. Amend the box per D-361, or re-add a budget (a ticket) |
+| §9.5 sequence 8.4 s ± 0.3 s, three timings | not measured | The operator's three console timings on the deployed app |
+| §9.5 narration, gold by eye, street names by eye | perception | The operator, desktop browser |
+
+**§9.6, verbatim — the closing line of the MVP record:**
+
+> `00-vision.md` §5 names **S1 — six-month retention** as the only test that really matters, and it
+> cannot be evaluated at ship. It is recorded here so nobody mistakes a green checklist for success:
+> **this list defines when MVP is built. It does not define when Lost Soles has worked.**
+> That is settled six months later, by whether the user is still opening it.
+
 ## Audit
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
