@@ -6112,3 +6112,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   emits, consistent with Lambda's 6 MB response limit, and `/api/runs/web` travels raw. At today's
   ~2.8 KB a run, the trace web reaches the cap near 2,100 runs; at D-451's realistic density, near
   1,000. The follow-up is `0321`.
+- **D-461** **The two Amplify-tree advisories are an accepted risk; nothing waits on Amplify's
+  release.** *(Operator, 2026-10-26, ticket `0319`. Amends D-459's re-check, which was tied to
+  `0319` resuming.)* `@graphql-tools/utils` GHSA-7mx3-vvmw-hjmv and `zod` GHSA-mrhx-c7xc-m3w5 sit in
+  Amplify's dev-time CLI and codegen tree, not in the runtime tree, which still has no exceptions.
+  The operator declined to hold capability `18` and the MVP sweep (`0117`) on an upstream release
+  with no date: `@aws-amplify/backend-cli` has been at 1.10.0 since 2026-09-10. `0319` closes
+  declined. What still watches the risk: D-459's stale-entry rule, which fails the build on the
+  first upgrade that clears either advisory and forces its entry out; Dependabot alerts (D-449);
+  and the allowlist's severity cap, which fails the build if either advisory is re-rated above
+  high. Each allowlist entry's `recheck` now names this decision instead of `0319`.

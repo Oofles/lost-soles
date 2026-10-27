@@ -76,7 +76,7 @@ describe("check-npm-audit", () => {
       "@graphql-tools/utils GHSA-7mx3-vvmw-hjmv",
       "zod GHSA-mrhx-c7xc-m3w5",
     ])
-    for (const e of allowlist.advisories) expect(e.recheck).toMatch(/0319/)
+    for (const e of allowlist.advisories) expect(e.recheck).toMatch(/D-461/)
   })
 
   it("rejects a malformed allowlist: short id, missing reason, below-gate severity, duplicate", () => {

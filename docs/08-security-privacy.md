@@ -1071,7 +1071,7 @@ by definition, in the wrong place.
   backend CLI and codegen, and is a separate ticket.)* *(As built, `0318` (D-459): the full
   tree is gated too, by `scripts/check-npm-audit.mjs` on both surfaces. It judges per advisory,
   not per path, against `scripts/npm-audit-allowlist.json`, which admits only the two Amplify-tree
-  highs `0308` could not clear, each with an owner, a reason and a re-check tied to `0319`. An
+  highs `0308` could not clear, each with an owner, a reason and a re-check tied to `0319` (D-461: now an accepted risk, re-checked on any backend-cli upgrade). An
   unlisted high/critical, a re-rated listed one, or a stale entry fails the build. The runtime
   line stays beside it with no exceptions.)*
 - **Fewest dependencies that get the job done.** Every package added to the SSR bundle or a

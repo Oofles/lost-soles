@@ -7,7 +7,7 @@
       "severity": "high",
       "owner": "operator",
       "reason": "mergeDeep prototype pollution in the v6/v7/v9 copies under ampx's codegen (@aws-amplify/appsync-modelgen-plugin, graphql-generator, old @graphql-codegen/*). Dev tree only, run by pipeline-deploy over the project's own schema. No fix below 12.0.1: clearing it is a cross-major override inside Amplify's codegen, testable only by a real pipeline-deploy. @aws-amplify/backend-cli 1.10.0 still depends on these versions. 18-mvp-hardening.md, 0308 section.",
-      "recheck": "Reviewed when ticket 0319 resumes (deferred until @aws-amplify/backend-cli releases past 1.10.0). Remove this entry when the advisory leaves the audit; the gate fails while a stale entry remains."
+      "recheck": "Accepted risk (D-461): reviewed on any @aws-amplify/backend-cli upgrade past 1.10.0, when the stale-entry rule fires. Remove this entry when the advisory leaves the audit; the gate fails while a stale entry remains."
     },
     {
       "package": "zod",
@@ -15,7 +15,7 @@
       "severity": "high",
       "owner": "operator",
       "reason": "Memory exhaustion on oversized collections in zod 3.25.x, which @aws-amplify/platform-core, cli-core, client-config and others pin exactly, and which data-construct and graphql-api-construct bundle (an override cannot rewrite a bundled tarball, D-162). No fixed 3.x; zod 4 is a breaking API. The inputs zod validates here are the project's own backend config, never a request. 18-mvp-hardening.md, 0308 section.",
-      "recheck": "Reviewed when ticket 0319 resumes (deferred until @aws-amplify/backend-cli releases past 1.10.0). Remove this entry when the advisory leaves the audit; the gate fails while a stale entry remains."
+      "recheck": "Accepted risk (D-461): reviewed on any @aws-amplify/backend-cli upgrade past 1.10.0, when the stale-entry rule fires. Remove this entry when the advisory leaves the audit; the gate fails while a stale entry remains."
     }
   ]
 }
