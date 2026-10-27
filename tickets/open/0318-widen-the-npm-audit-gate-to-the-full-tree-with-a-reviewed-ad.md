@@ -22,7 +22,7 @@ Found by 0308. The full tree cannot reach 0 high without upstream Amplify releas
 
 - [x] A decision is recorded: either gate the full tree with an allowlist (format, owner, and an
       expiry or re-check rule per entry), or keep D-450's `--omit=dev` gate as is.
-      *The operator chose the allowlist (2026-10-26); proposed to the orchestrator as D-NEW-a for
+      *The operator chose the allowlist (2026-10-26); proposed to the orchestrator as D-459 for
       recording in DECISIONS.md, which a wave agent may not edit.*
 - [x] If the full tree is gated: both CI surfaces (`gate.yml` and `amplify.yml`, D-163) fail on any
       high not on the allowlist, and a test proves an unlisted advisory turns the gate red.
@@ -42,7 +42,7 @@ D-123 trigger checked? none.
 
 ## Resolution
 
-**Decision (operator, 2026-10-26, proposed as D-NEW-a): gate the full tree with a reviewed
+**Decision (operator, 2026-10-26, proposed as D-459): gate the full tree with a reviewed
 allowlist.** Amends D-450 (the gate is no longer only `--omit=dev`) and D-434's gate wording;
 D-163's two-surface rule holds, both surfaces run the same check.
 

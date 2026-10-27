@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,745 lines; three of
+**Read by section, never whole** (D-151). These documents total 16,750 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 559 sections · regenerated 2026-10-26
+13 documents · 559 sections · regenerated 2026-10-27
 
 
 ## `docs/00-vision.md`
@@ -510,7 +510,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,277 lines
+**08 — Security & Privacy** — 1,282 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -545,18 +545,18 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `785-822` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
 | &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `823-874` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
 | &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `875-888` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `889-1079` | The repository is the most likely place a secret in this project actually escapes. |
+| 7. Repo hygiene — and one live finding (O-005) | `889-1084` | The repository is the most likely place a secret in this project actually escapes. |
 | &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `896-937` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
 | &nbsp;&nbsp;↳ 7.2 What must never be committed | `938-960` |  |
 | &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `961-995` | makes an accidental git add . |
 | &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `996-1054` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `1055-1079` | control, not a convenience. |
-| 8. Incident playbook | `1080-1240` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1114-1149` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1150-1175` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1176-1207` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1208-1240` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1241-1277` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `1055-1084` | control, not a convenience. |
+| 8. Incident playbook | `1085-1245` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1119-1154` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1155-1180` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1181-1212` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1213-1245` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1246-1282` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 

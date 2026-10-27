@@ -270,7 +270,7 @@ packages in that tree (Amplify, `@graphql-codegen`, `@graphql-tools`, `@aws-bloc
 | `csv-parse` < 7.0.2, GHSA-8cw4-87c7-c6xx (moderate) | `@aws-amplify/graphql-schema-generator` asks `^5.5.2` | Below the `high` gate threshold, and a two-major jump in an SQL schema importer this project does not use |
 
 **Therefore the gate is not widened.** It stays `npm audit --omit=dev --audit-level=high` on both
-surfaces (D-434). The runtime tree is still at 0. *(Superseded by `0318`, D-NEW-a: the full tree is now gated through
+surfaces (D-434). The runtime tree is still at 0. *(Superseded by `0318`, D-459: the full tree is now gated through
 `scripts/check-npm-audit.mjs`, which admits exactly the two high advisories above
 (`@graphql-tools/utils` GHSA-7mx3-vvmw-hjmv, `zod` GHSA-mrhx-c7xc-m3w5) from
 `scripts/npm-audit-allowlist.json`. It judges by advisory id, so the 35 parent paths do not count,

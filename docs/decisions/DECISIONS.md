@@ -6086,3 +6086,17 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   stale index. D-446's rule still holds: the hook and CI judge the same thing, and now both block.
   `ls-files` was chosen over `git status --porcelain` because it asks the committed tree directly,
   before anything is regenerated.
+- **D-459** **The full dependency tree is gated through a reviewed advisory allowlist.**
+  *(Operator, 2026-10-26, ticket `0318`. Amends D-450, which kept the gate at `--omit=dev`, and
+  D-434's gate wording. D-163 holds: both surfaces run the same check.)*
+  `scripts/check-npm-audit.mjs` runs `npm audit --json` over the full tree and judges advisory
+  objects by leaf package plus GHSA id, so 0308's 37 "high" paths count as two advisories. It fails
+  on any high or critical not on `scripts/npm-audit-allowlist.json`, an allowlisted advisory
+  re-rated above its entry's severity cap, a **stale entry** (its advisory no longer appears), a
+  malformed allowlist, or an audit it cannot read (fails closed, D-176). Each entry names the
+  package, the GHSA id, a severity cap, its owner, a reason, and a re-check, which is reviewed when
+  `0319` resumes after an `@aws-amplify/backend-cli` release past 1.10.0. The two entries are
+  `@graphql-tools/utils` GHSA-7mx3-vvmw-hjmv and `zod` GHSA-mrhx-c7xc-m3w5. A stale entry fails the
+  build rather than warning, because a warning in a green log goes unread. The
+  `--omit=dev --audit-level=high` line stays beside it, so the runtime tree keeps zero exceptions
+  even if an allowlisted advisory reaches it.
