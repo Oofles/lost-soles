@@ -4,7 +4,7 @@ slug: widen-the-npm-audit-gate-to-the-full-tree-with-a-reviewed-ad
 title: Widen the npm audit gate to the full tree with a reviewed advisory allowlist
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-26T16:05:00Z
 started: 2026-10-26T22:03:10Z
+closed: 2026-10-27T01:51:43Z
 ---
 
 ## Description
