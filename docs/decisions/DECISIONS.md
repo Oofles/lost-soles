@@ -6100,3 +6100,15 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   build rather than warning, because a warning in a green log goes unread. The
   `--omit=dev --audit-level=high` line stays beside it, so the runtime tree keeps zero exceptions
   even if an allowlisted advisory reaches it.
+- **D-460** **Amplify compute caps the raw response body near 6 MB, and route-handler JSON is not
+  compressed in transit.** *(Measured by the orchestrator, 2026-10-26, ticket `0320`. Corrects
+  D-451's "Measured" bullet, whose "1.13 MB transferred (responses are gzipped in transit)" was
+  measured locally and does not hold in production.)* A temporary token-gated route on the real app
+  (`35adb32`, removed by `460b265`) returned synthetic JSON shaped like `/api/runs/web`. Results:
+  5,936,087 bytes returned **200**, and about 6.03 MB and above returned **413** with an empty body,
+  whether the client sent `Accept-Encoding: identity`, `gzip` or `br`. No response from the route
+  carried `Content-Encoding`. The page `/` does arrive gzipped. Next's standalone server did not
+  gzip the route-handler response locally either. So the cap applies to the raw body the handler
+  emits, consistent with Lambda's 6 MB response limit, and `/api/runs/web` travels raw. At today's
+  ~2.8 KB a run, the trace web reaches the cap near 2,100 runs; at D-451's realistic density, near
+  1,000. The follow-up is `0321`.

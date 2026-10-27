@@ -7426,8 +7426,28 @@
     "path": "tickets/open/0320-does-amplify-compute-cap-api-runs-web-before-or-after-gzip.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 2
+    }
+  },
+  {
+    "id": 321,
+    "slug": "api-runs-web-is-sent-uncompressed-and-413s-past-5-9-mb-raw",
+    "title": "/api/runs/web is sent uncompressed and 413s past ~5.9 MB raw",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "m",
+    "capability": "12-post-run-moment",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-27T01:39:35Z",
+    "path": "tickets/open/0321-api-runs-web-is-sent-uncompressed-and-413s-past-5-9-mb-raw.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
     }
   }
 ]
