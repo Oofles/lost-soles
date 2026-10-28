@@ -311,7 +311,7 @@ activity never writes `ACTIVE` over it.
 
 `src/adapters/registry.ts` is **the one file that names concrete adapters.**
 
-*(As built, recorded by `D-NEW-sweep`.)* **`src/adapters/types.ts` also exports the connection
+*(As built, recorded by D-465.)* **`src/adapters/types.ts` also exports the connection
 half**, which this section never listed: `OAuthConnector`, `OAuthGrant`, `OAuthRefresh`,
 `GrantCheck` and `OAuthClientCredentials` (tickets `0032`, `0033`, `0165`). They are not part of
 `SourceAdapter`. The four phases above run per activity in a queue worker. The connector runs
@@ -376,7 +376,7 @@ accept()                                   → ack the source in <2s, enqueue
   → 7. PERSIST activity + cell deltas      (DynamoDB, D-082; append-only, D-020)
 ```
 
-> **Amended by `D-NEW-sweep` (18 audit sweep, 2026-10-27):** sanitation is not a step after
+> **Amended by D-465 (18 audit sweep, 2026-10-27):** sanitation is not a step after
 > dedupe. It runs **inside `normalize()`**, before anything is measured
 > (`src/adapters/strava/normalize.ts`, `sanitizeTracePoints`), because `gaps`, `bbox` and
 > `pointCount` describe the trace that will be projected, and measuring the unsanitized array would

@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 16,753 lines; three of
+**Read by section, never whole** (D-151). These documents total 17,022 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -63,7 +63,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/01-architecture.md`
 
-**01 — System Architecture** — 1,687 lines
+**01 — System Architecture** — 1,717 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -71,134 +71,134 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 1. Stack decision | `37-110` |  |
 | &nbsp;&nbsp;↳ Why Next.js and not Astro | `52-70` | The house stack at devaultsecurity is Astro 4 + SolidJS, static output, no SSR adapter. |
 | &nbsp;&nbsp;↳ This is the user's first Gen 2 backend — what that means | `71-110` | phase, no appRoot, no headers/redirects block. |
-| 2. AWS topology | `111-405` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
+| 2. AWS topology | `111-435` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
 | &nbsp;&nbsp;↳ Hard constraints this topology exists to satisfy | `113-126` | do not want it. A Lambda that needs both a VPC (to reach RDS/Aurora) and the public |
-| &nbsp;&nbsp;↳ Component diagram | `127-196` | ┌──────────────────┐ |
-| &nbsp;&nbsp;↳ Resource table | `197-227` | Every resource, what it does, and what would make it cost money. |
-| &nbsp;&nbsp;↳ Why the cell store is not an Amplify Data model | `228-244` | session and does every query in memory (§5). |
-| &nbsp;&nbsp;↳ The CDK escape hatch — where and why | `245-334` | Amplify Gen 2 backends are AWS CDK. |
-| &nbsp;&nbsp;↳ Strava's 2-second deadline — the precise design | `335-393` | Strava requires the subscription POST be acknowledged within 2 seconds or it retries |
-| &nbsp;&nbsp;↳ The 15-minute wall | `394-405` | R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of |
-| 3. The adapter architecture | `406-821` | The rationale is not aesthetic. |
-| &nbsp;&nbsp;↳ Module layout — the boundary is a directory boundary | `428-475` | domain/ ← NO source-specific type may appear anywhere in here. |
-| &nbsp;&nbsp;↳ The domain contract | `476-580` | / Which adapter produced this. |
-| &nbsp;&nbsp;↳ The adapter interface | `581-662` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
-| &nbsp;&nbsp;↳ How each source plugs into the same contract | `663-722` | job from {ownerid, objectid, aspecttype}. |
-| &nbsp;&nbsp;↳ The test that proves the boundary is right | `723-779` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
-| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `780-821` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
-| 4. Data flow — one activity, end to end | `822-953` |  |
-| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `847-881` | D-120 is final and supersedes the provisional D-022. |
-| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `882-927` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
-| &nbsp;&nbsp;↳ Failure handling | `928-953` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
-| 5. Frontend architecture | `954-1170` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ The fact that drives the whole design | `956-985` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
-| &nbsp;&nbsp;↳ App Router structure | `986-1074` | layout.tsx root: fonts, theme, <AmplifyProvider> |
-| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1075-1159` | server rendering and attempting it wastes SSR duration. |
-| &nbsp;&nbsp;↳ Rendering the strength-log page | `1160-1170` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
-| 6. Environments and deploy | `1171-1341` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Repository and branches | `1173-1190` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
-| &nbsp;&nbsp;↳ Environments | `1191-1208` | There is no separate staging environment. |
-| &nbsp;&nbsp;↳ `amplify.yml` | `1209-1271` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
-| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1272-1319` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
-| &nbsp;&nbsp;↳ CI | `1320-1341` | and it runs neither lint, typecheck, nor tests. |
-| 7. Secrets | `1342-1465` | Two stores, chosen by rotation frequency and ownership. |
-| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1347-1389` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
-| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1390-1432` | Strava's OAuth refresh tokens rotate on every refresh. |
-| &nbsp;&nbsp;↳ What never reaches the client | `1433-1450` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
-| &nbsp;&nbsp;↳ Standing conditions | `1451-1465` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
-| 8. Cost model | `1466-1561` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
-| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1497-1529` | Amplify data transfer out is $0.15/GB after 15 GB free. |
-| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1530-1543` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
-| &nbsp;&nbsp;↳ What would actually blow the budget | `1544-1561` | own. This is what D-081 exists to prevent. |
-| 9. Conventions | `1562-1613` | R5 read /home/vivicat/devaultsecurity/ directly. |
-| &nbsp;&nbsp;↳ Adopt — match the house style | `1567-1589` | nothing else. |
-| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1590-1602` |  |
-| &nbsp;&nbsp;↳ Do not replicate | `1603-1613` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
-| 10. Rejected alternatives | `1614-1635` |  |
-| 11. Known tensions the decision log creates | `1636-1676` | The constraints are right, but three of them have real costs. |
-| Open items carried into implementation | `1677-1687` | A five-minute device check: Health Connect → App permissions → Strava → look for |
+| &nbsp;&nbsp;↳ Component diagram | `127-213` | ┌──────────────────┐ |
+| &nbsp;&nbsp;↳ Resource table | `214-254` | Every resource, what it does, and what would make it cost money. |
+| &nbsp;&nbsp;↳ Why the cell store is not an Amplify Data model | `255-274` | session and does every query in memory (§5). |
+| &nbsp;&nbsp;↳ The CDK escape hatch — where and why | `275-364` | Amplify Gen 2 backends are AWS CDK. |
+| &nbsp;&nbsp;↳ Strava's 2-second deadline — the precise design | `365-423` | Strava requires the subscription POST be acknowledged within 2 seconds or it retries |
+| &nbsp;&nbsp;↳ The 15-minute wall | `424-435` | R3 measures a 5-mile run at ~80–130 res-10 cells and the whole regeneration of |
+| 3. The adapter architecture | `436-851` | The rationale is not aesthetic. |
+| &nbsp;&nbsp;↳ Module layout — the boundary is a directory boundary | `458-505` | domain/ ← NO source-specific type may appear anywhere in here. |
+| &nbsp;&nbsp;↳ The domain contract | `506-610` | / Which adapter produced this. |
+| &nbsp;&nbsp;↳ The adapter interface | `611-692` | import type { AdapterId, NormalizedIngest, RawArchiveRef } from "@/domain/activity" |
+| &nbsp;&nbsp;↳ How each source plugs into the same contract | `693-752` | job from {ownerid, objectid, aspecttype}. |
+| &nbsp;&nbsp;↳ The test that proves the boundary is right | `753-809` | rg -n --ignore-case 'strava\|polyline\|athlete\|activity:read\|hub\.challenge' \ |
+| &nbsp;&nbsp;↳ D-121 mitigation: archive raw before normalize | `810-851` | fetchRaw() → PutObject raw/<uid>/<adapter>/<externalId>/<sha256>.json → normalize() |
+| 4. Data flow — one activity, end to end | `852-983` |  |
+| &nbsp;&nbsp;↳ Fog and XP scoring (D-120) — why cells carry a timestamp, not a bit | `877-911` | D-120 is final and supersedes the provisional D-022. |
+| &nbsp;&nbsp;↳ Idempotency — webhook replay must not double-award XP | `912-957` | Strava redelivers. SQS standard is at-least-once. Lambda retries. There are therefore |
+| &nbsp;&nbsp;↳ Failure handling | `958-983` | authorization must surface as a visible "reconnect Strava" state, not a retry storm. |
+| 5. Frontend architecture | `984-1200` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ The fact that drives the whole design | `986-1015` | From R3: five years of the stated usage pattern (3–5 runs/week, 3–8 mi/run) produces |
+| &nbsp;&nbsp;↳ App Router structure | `1016-1104` | layout.tsx root: fonts, theme, <AmplifyProvider> |
+| &nbsp;&nbsp;↳ Where the map lives, and how the explored set reaches it | `1105-1189` | server rendering and attempting it wastes SSR duration. |
+| &nbsp;&nbsp;↳ Rendering the strength-log page | `1190-1200` | button, not per-exercise buttons on the home screen (D-061) — chosen so that adding a |
+| 6. Environments and deploy | `1201-1371` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Repository and branches | `1203-1220` | R5's advice is to decide once and be consistent, because Amplify branch names drive both |
+| &nbsp;&nbsp;↳ Environments | `1221-1238` | There is no separate staging environment. |
+| &nbsp;&nbsp;↳ `amplify.yml` | `1239-1301` | The existing site's amplify.yml is 16 lines of the stock Astro static preset with no |
+| &nbsp;&nbsp;↳ PRE-FLIGHT — audit CloudFront before touching DNS | `1302-1349` | history shows an abandoned S3 + CloudFront + ACM architecture, retired over unresolvable |
+| &nbsp;&nbsp;↳ CI | `1350-1371` | and it runs neither lint, typecheck, nor tests. |
+| 7. Secrets | `1372-1495` | Two stores, chosen by rotation frequency and ownership. |
+| &nbsp;&nbsp;↳ SSM Parameter Store, via Amplify's `secret()` | `1377-1419` | Set with npx ampx sandbox secret set <KEY> (sandbox) or in the Amplify console (branch |
+| &nbsp;&nbsp;↳ DynamoDB `LostSolesSourceAccount` — per-user, rotating | `1420-1462` | Strava's OAuth refresh tokens rotate on every refresh. |
+| &nbsp;&nbsp;↳ What never reaches the client | `1463-1480` | happens entirely inside /api/strava/callback; the browser only ever sees a redirect and |
+| &nbsp;&nbsp;↳ Standing conditions | `1481-1495` | account, map shown only to the owner; full-fidelity traces are stored, nothing truncated |
+| 8. Cost model | `1496-1591` | All figures us-east-1, verified 2026-08-30 (R5 §8). |
+| &nbsp;&nbsp;↳ Risk 1 — pmtiles egress *(re-sized and re-mitigated by D-226)* | `1527-1559` | Amplify data transfer out is $0.15/GB after 15 GB free. |
+| &nbsp;&nbsp;↳ Risk 2 — free-tier perpetuity is genuinely ambiguous | `1560-1573` | Sources disagree on whether Amplify Hosting's allowances (1,000 build min, 5 GB storage, |
+| &nbsp;&nbsp;↳ What would actually blow the budget | `1574-1591` | own. This is what D-081 exists to prevent. |
+| 9. Conventions | `1592-1643` | R5 read /home/vivicat/devaultsecurity/ directly. |
+| &nbsp;&nbsp;↳ Adopt — match the house style | `1597-1619` | nothing else. |
+| &nbsp;&nbsp;↳ Diverge — deliberately, and for stated reasons | `1620-1632` |  |
+| &nbsp;&nbsp;↳ Do not replicate | `1633-1643` | Tracked nodemodules/ (2,229 files), a committed 19 MB public.tar.gz, committed |
+| 10. Rejected alternatives | `1644-1665` |  |
+| 11. Known tensions the decision log creates | `1666-1706` | The constraints are right, but three of them have real costs. |
+| Open items carried into implementation | `1707-1717` | A five-minute device check: Health Connect → App permissions → Strava → look for |
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,250 lines
+**02 — Data Model & Persistence** — 2,283 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | Contents | `19-32` |  |
-| 1. Storage map | `33-166` |  |
+| 1. Storage map | `33-177` |  |
 | &nbsp;&nbsp;↳ 1.1 The layering, stated once | `35-53` |  |
-| &nbsp;&nbsp;↳ 1.2 What lives where | `54-105` | s3://lost-soles-storage/ |
-| &nbsp;&nbsp;↳ 1.3 What ships to the browser | `106-115` | Per R3 the entire explored set is 300–450 KB gzipped at the five-year worst case and ships |
-| &nbsp;&nbsp;↳ 1.4 Proof of D-101 — and where it breaks | `116-166` | D-101: user-supplied raw files in S3 are the system of record; everything else must be |
-| 2. DynamoDB table design | `167-728` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
-| &nbsp;&nbsp;↳ 2.1 Multi-table. Eight tables. Here is why that is not laziness. | `169-205` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
-| &nbsp;&nbsp;↳ 2.2 Table index | `206-224` | participates in ingest. |
-| &nbsp;&nbsp;↳ T1 — `Profile` | `225-253` | Table: Profile (Amplify defineData model) |
-| &nbsp;&nbsp;↳ T2 — `SkillState` | `254-282` | Table: SkillState |
-| &nbsp;&nbsp;↳ T3 — `Activity` | `283-359` | The item is the contract's Activity (contract §2) stored flat, with the nested SourceRef and |
-| &nbsp;&nbsp;↳ T4 — `XpLedgerEntry` | `360-395` | Table: XpLedgerEntry |
-| &nbsp;&nbsp;↳ T5 — `RuleSkill` | `396-410` | The skill registry, materialised as rows. |
-| &nbsp;&nbsp;↳ T6 — `ExploredCell` — the fog | `411-564` | downloads explored-r10.bin and queries it in memory. |
-| &nbsp;&nbsp;↳ T7 — `SourceAccount` | `565-604` | access/refresh tokens. |
-| &nbsp;&nbsp;↳ T8 — `IngestReceipt` — idempotency | `605-660` | pk = ingestKey (no sort key) |
-| &nbsp;&nbsp;↳ 2.9 Two things this design deliberately does not store | `661-680` | {userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls |
-| &nbsp;&nbsp;↳ 2.10 Blob regeneration does not re-read the table | `681-698` | Naïvely, regenerating explored-r10.bin means Querying every res-6 partition — ~24 MB of |
-| &nbsp;&nbsp;↳ 2.11 The remaining Amplify models | `699-728` | denominator are precomputed once and shipped from regions/ in S3, because they never change. |
-| 3. The skill schema — skills are data, not code | `729-1057` | requires a code change, the design has failed." D-031 makes modularity a product decision, |
-| &nbsp;&nbsp;↳ 3.1 The five jobs a skill row has to do | `741-757` | A skill definition is not just a name and an XP rate. |
-| &nbsp;&nbsp;↳ 3.2 `RuleSkill` — the item shape (T5) | `758-798` | The YAML in rules/xp-rules-vN.yaml is authored in git and is the human-editable authority. |
-| &nbsp;&nbsp;↳ 3.3 Why the registry is a table and not just a file | `799-807` | The scoring Lambda could read the YAML from S3. |
-| &nbsp;&nbsp;↳ 3.4 `match` — the selection clause, declaratively | `808-858` | kinds: [run, walk, hike] # ActivityKind values (contract §2). |
-| &nbsp;&nbsp;↳ 3.5 THE VIGIL TEST (D-132) | `859-937` | D-132: "GPS-less running trains a SEPARATE activity skill, at full XP, with zero discovery |
-| &nbsp;&nbsp;↳ 3.6 The loud part: 04 §1.3's schema, as written, does NOT pass | `938-980` | The YAML in 04-game-design.md §1.3 has no match block. |
-| &nbsp;&nbsp;↳ 3.7 The honest boundary — what stays code, forever | `981-1010` | Data cannot be turned all the way down, and pretending otherwise produces a YAML dialect that is |
-| &nbsp;&nbsp;↳ 3.8 Seeding, and the CI checks that keep this true | `1011-1057` | The deploy-time seeder reads rules/xp-rules-vN.yaml, validates it, and writes T5 items under |
-| 4. The XP ledger | `1058-1410` | must be a recomputation, not a migration. |
-| &nbsp;&nbsp;↳ 4.1 One row per (activity, skill, reason) | `1071-1095` | that table needs to be operable at all: a deterministic id and an explicit seq. |
-| &nbsp;&nbsp;↳ 4.2 The `reason` vocabulary | `1096-1123` | Closed, and versioned with the ruleset. |
-| &nbsp;&nbsp;↳ 4.3 The write path | `1124-1189` | Every ledger row is written inside the single TransactWriteItems described in §2 T8 layer 3, |
-| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1190-1293` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
-| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1294-1322` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
-| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1323-1393` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
-| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1394-1410` | D-135 is about replay, but three non-replay paths could also lower a number. |
-| 5. Access patterns | `1411-1549` | Every query the app makes. |
-| &nbsp;&nbsp;↳ 5.1 The complete list | `1417-1480` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
-| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1481-1494` |  |
-| &nbsp;&nbsp;↳ 5.3 Write patterns | `1495-1508` | thing is the thing the product is about. |
-| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1509-1518` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
-| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1519-1525` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
-| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1526-1549` | build minutes, all of which sit in 01's estimate. |
-| 6. The client payload | `1550-1740` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
-| &nbsp;&nbsp;↳ 6.1 The objects | `1560-1575` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
-| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1576-1620` | Three cell-count scenarios. |
-| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1621-1642` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
-| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1643-1697` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
-| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1698-1740` | The emotional payload of the product (05 §7.4). |
-| 7. Migrations and versioning | `1741-1893` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1743-1766` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1767-1787` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
-| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1788-1803` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
-| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1804-1878` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
-| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1879-1893` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1894-2154` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
-| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1900-1924` |  |
-| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1925-1959` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1960-2110` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2111-2125` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `2126-2154` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `2155-2250` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2171-2181` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2182-2191` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `2192-2199` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2200-2210` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2211-2218` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2219-2227` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2228-2235` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2236-2250` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ 1.2 What lives where | `54-116` | s3://lost-soles-storage/ |
+| &nbsp;&nbsp;↳ 1.3 What ships to the browser | `117-126` | Per R3 the entire explored set is 300–450 KB gzipped at the five-year worst case and ships |
+| &nbsp;&nbsp;↳ 1.4 Proof of D-101 — and where it breaks | `127-177` | D-101: user-supplied raw files in S3 are the system of record; everything else must be |
+| 2. DynamoDB table design | `178-747` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
+| &nbsp;&nbsp;↳ 2.1 Multi-table. Eight tables. Here is why that is not laziness. | `180-216` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
+| &nbsp;&nbsp;↳ 2.2 Table index | `217-239` | participates in ingest. |
+| &nbsp;&nbsp;↳ T1 — `Profile` | `240-268` | Table: Profile (Amplify defineData model) |
+| &nbsp;&nbsp;↳ T2 — `SkillState` | `269-297` | Table: SkillState |
+| &nbsp;&nbsp;↳ T3 — `Activity` | `298-374` | The item is the contract's Activity (contract §2) stored flat, with the nested SourceRef and |
+| &nbsp;&nbsp;↳ T4 — `XpLedgerEntry` | `375-410` | Table: XpLedgerEntry |
+| &nbsp;&nbsp;↳ T5 — `RuleSkill` | `411-429` | The skill registry, materialised as rows. |
+| &nbsp;&nbsp;↳ T6 — `ExploredCell` — the fog | `430-583` | downloads explored-r10.bin and queries it in memory. |
+| &nbsp;&nbsp;↳ T7 — `SourceAccount` | `584-623` | access/refresh tokens. |
+| &nbsp;&nbsp;↳ T8 — `IngestReceipt` — idempotency | `624-679` | pk = ingestKey (no sort key) |
+| &nbsp;&nbsp;↳ 2.9 Two things this design deliberately does not store | `680-699` | {userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls |
+| &nbsp;&nbsp;↳ 2.10 Blob regeneration does not re-read the table | `700-717` | Naïvely, regenerating explored-r10.bin means Querying every res-6 partition — ~24 MB of |
+| &nbsp;&nbsp;↳ 2.11 The remaining Amplify models | `718-747` | denominator are precomputed once and shipped from regions/ in S3, because they never change. |
+| 3. The skill schema — skills are data, not code | `748-1089` | requires a code change, the design has failed." D-031 makes modularity a product decision, |
+| &nbsp;&nbsp;↳ 3.1 The five jobs a skill row has to do | `761-777` | A skill definition is not just a name and an XP rate. |
+| &nbsp;&nbsp;↳ 3.2 `RuleSkill` — the item shape (T5) | `778-825` | The YAML in rules/xp-rules-vN.yaml is authored in git and is the human-editable authority. |
+| &nbsp;&nbsp;↳ 3.3 Why the registry is a table and not just a file | `826-839` | The scoring Lambda could read the YAML from S3. |
+| &nbsp;&nbsp;↳ 3.4 `match` — the selection clause, declaratively | `840-890` | kinds: [run, walk, hike] # ActivityKind values (contract §2). |
+| &nbsp;&nbsp;↳ 3.5 THE VIGIL TEST (D-132) | `891-969` | D-132: "GPS-less running trains a SEPARATE activity skill, at full XP, with zero discovery |
+| &nbsp;&nbsp;↳ 3.6 The loud part: 04 §1.3's schema, as written, does NOT pass | `970-1012` | The YAML in 04-game-design.md §1.3 has no match block. |
+| &nbsp;&nbsp;↳ 3.7 The honest boundary — what stays code, forever | `1013-1042` | Data cannot be turned all the way down, and pretending otherwise produces a YAML dialect that is |
+| &nbsp;&nbsp;↳ 3.8 Seeding, and the CI checks that keep this true | `1043-1089` | The deploy-time seeder reads rules/xp-rules-vN.yaml, validates it, and writes T5 items under |
+| 4. The XP ledger | `1090-1442` | must be a recomputation, not a migration. |
+| &nbsp;&nbsp;↳ 4.1 One row per (activity, skill, reason) | `1103-1127` | that table needs to be operable at all: a deterministic id and an explicit seq. |
+| &nbsp;&nbsp;↳ 4.2 The `reason` vocabulary | `1128-1155` | Closed, and versioned with the ruleset. |
+| &nbsp;&nbsp;↳ 4.3 The write path | `1156-1221` | Every ledger row is written inside the single TransactWriteItems described in §2 T8 layer 3, |
+| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1222-1325` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
+| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1326-1354` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
+| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1355-1425` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
+| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1426-1442` | D-135 is about replay, but three non-replay paths could also lower a number. |
+| 5. Access patterns | `1443-1581` | Every query the app makes. |
+| &nbsp;&nbsp;↳ 5.1 The complete list | `1449-1512` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
+| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1513-1526` |  |
+| &nbsp;&nbsp;↳ 5.3 Write patterns | `1527-1540` | thing is the thing the product is about. |
+| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1541-1550` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
+| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1551-1557` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
+| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1558-1581` | build minutes, all of which sit in 01's estimate. |
+| 6. The client payload | `1582-1772` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
+| &nbsp;&nbsp;↳ 6.1 The objects | `1592-1607` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
+| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1608-1652` | Three cell-count scenarios. |
+| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1653-1674` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
+| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1675-1729` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
+| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1730-1772` | The emotional payload of the product (05 §7.4). |
+| 7. Migrations and versioning | `1773-1926` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1775-1798` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1799-1819` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
+| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1820-1836` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
+| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1837-1911` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
+| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1912-1926` | depends on it. |
+| 8. Retention, deletion, and the rebuild drill | `1927-2187` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1933-1957` |  |
+| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1958-1992` | D-135 says replay may never lower already-displayed XP. |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `1993-2143` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2144-2158` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `2159-2187` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `2188-2283` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2204-2214` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2215-2224` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `2225-2232` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2233-2243` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2244-2251` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2252-2260` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2261-2268` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2269-2283` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 
-**03 — Integrations & Data Ingestion** — 1,793 lines
+**03 — Integrations & Data Ingestion** — 1,801 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -207,110 +207,110 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | 1.2 The adapter interface | `148-177` | interface SourceAdapter { |
 | 1.3 The pipeline every adapter feeds | `178-226` | adapter.fetch() |
 | 2.1 Endpoints used | `227-241` | Nothing else. Club, Segment-Explore, and leaderboard endpoints are out of scope and several |
-| 2.2 OAuth | `242-352` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
-| 2.3 Webhooks | `353-494` | POST https://www.strava.com/api/v3/pushsubscriptions |
-| 2.4 Fetching the trace | `495-567` | GET https://www.strava.com/api/v3/activities/{id}/streams |
-| 2.5 Rate limits and the budget | `568-697` | shared across every athlete who has authorized the app. |
-| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `603-644` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
-| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `645-658` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
-| &nbsp;&nbsp;↳ Backoff and retry | `659-697` | read X-ReadRateLimit-Usage / -Limit |
-| 2.6 Activity type mapping | `698-838` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
-| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `730-756` | the stream response comes back without the key. |
-| &nbsp;&nbsp;↳ Manual Strava activities | `757-762` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
-| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `763-776` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
-| &nbsp;&nbsp;↳ Trace sanitation | `777-838` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
-| 2.7 Idempotency, edits, deletions, and dedupe | `839-975` | same hazard for recent activities. |
-| 2.8 The honest risk register | `976-1126` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
-| &nbsp;&nbsp;↳ What is true | `981-1012` | "aggregate, cache, or store geographic location information", except per §6.2. |
-| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `1013-1024` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
-| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `1025-1047` | This is the part to internalize. |
-| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `1048-1074` | Review this list quarterly. |
-| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `1075-1099` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
-| &nbsp;&nbsp;↳ The counterfactual, recorded once | `1100-1126` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
-| 3.1 Rules | `1127-1141` | with them. A parser bug must never cost data; it must only cost a replay. |
-| 3.2 Bucket and layout | `1142-1224` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
-| 3.3 Format and encoding | `1225-1235` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
-| 3.4 Lifecycle, cost, and durability | `1236-1254` | below, so a future convenience change cannot quietly add one. |
-| 3.5 Backfilling a future adapter from the archive | `1255-1321` | This is the procedure §6 depends on, so it is specified here rather than described. |
-| 4.1 Health Connect bridge (D-113) | `1322-1429` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
-| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1332-1361` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
-| &nbsp;&nbsp;↳ Data shape | `1362-1378` | ExerciseRoute.Location( |
-| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1379-1408` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
-| &nbsp;&nbsp;↳ Bridge sketch | `1409-1429` | [Screen: one button, one status line] |
-| 4.2 GPSLogger HTTP endpoint (D-112) | `1430-1512` | — so no Play review, no Play policy exposure). |
-| &nbsp;&nbsp;↳ Endpoint spec | `1439-1477` | POST https://lostsoles.devaultsecurity.com/api/ingest |
-| &nbsp;&nbsp;↳ GPX parsing | `1478-1486` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
-| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1487-1512` | Each session is one activity, cleanly. |
-| 4.3 Manual entry | `1513-1544` | Two distinct paths, one UI. |
-| 4.4 Watch vendor (D-117) — sketch only | `1545-1583` | device decision is no longer blocking and can be made later without touching the rest of the |
-| Whoop — REJECTED as a trace source | `1584-1600` | all, so there is nothing to expose. |
-| Fitbit / Google Health API — REJECTED | `1601-1610` | be building on something already gone. |
-| Apple Health — REJECTED (structural, not a preference) | `1611-1618` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
-| Health Connect as a *native* dependency — SCOPED, not rejected | `1619-1625` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
-| PWA run recording — REJECTED (D-110) | `1626-1637` | The user's instinct that "it needs to be an Android app" was correct. |
-| Share-sheet GPX import — REJECTED (D-111) | `1638-1658` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
-| 6.1 Trigger | `1659-1668` | Any row in §2.8's trigger table. |
-| 6.2 Steps | `1669-1707` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
-| 6.3 What changes, and what does not | `1708-1741` |  |
-| 6.4 How the archive backfills history | `1742-1769` | function and the transport is a separate file. |
-| 6.5 Do not delete the archive | `1770-1780` | Even after migration, source=strava objects in the raw archive are the only copy of some |
-| Appendix — decision references used | `1781-1793` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
+| 2.2 OAuth | `242-353` | R1, §7 "Privacy zones": with only activity:read, Strava truncates traces at the boundary of |
+| 2.3 Webhooks | `354-495` | POST https://www.strava.com/api/v3/pushsubscriptions |
+| 2.4 Fetching the trace | `496-568` | GET https://www.strava.com/api/v3/activities/{id}/streams |
+| 2.5 Rate limits and the budget | `569-698` | shared across every athlete who has authorized the app. |
+| &nbsp;&nbsp;↳ Budget math — 1 user (MVP) | `604-645` | Backfill is therefore a checkpointed background job, never a synchronous "connect your |
+| &nbsp;&nbsp;↳ Budget math — 6 users (post-MVP, D-014) | `646-659` | Requires the self-serve 10-athlete upgrade: 2,000 reads/day, 200 per 15 min, shared. |
+| &nbsp;&nbsp;↳ Backoff and retry | `660-698` | read X-ReadRateLimit-Usage / -Limit |
+| 2.6 Activity type mapping | `699-846` | legacy enum (37 values, deprecated) and sporttype the current one (56 values). |
+| &nbsp;&nbsp;↳ Indoor / treadmill runs with no GPS | `731-759` | the stream response comes back without the key. |
+| &nbsp;&nbsp;↳ Manual Strava activities | `760-765` | Treated exactly as above: a real Activity with hasTrace: false, rawArchiveKey pointing at |
+| &nbsp;&nbsp;↳ Strength work is NOT ingested from Strava | `766-779` | anywhere in the API. A pushup session surfaces at best as a WeightTraining or Workout |
+| &nbsp;&nbsp;↳ Trace sanitation | `780-846` | A run through a tunnel or an urban canyon produces latlng points that jump hundreds of metres. |
+| 2.7 Idempotency, edits, deletions, and dedupe | `847-983` | same hazard for recent activities. |
+| 2.8 The honest risk register | `984-1134` | This section exists so that the Strava decision (D-121) is a monitored risk rather than a |
+| &nbsp;&nbsp;↳ What is true | `989-1020` | "aggregate, cache, or store geographic location information", except per §6.2. |
+| &nbsp;&nbsp;↳ R8's corrections to R1 — recorded so nobody re-litigates them | `1021-1032` | developers in September 2022, and the 7-day cache rule as far back as June 2015. |
+| &nbsp;&nbsp;↳ The real exposure is the athlete cap, not deletion (D-102, D-121) | `1033-1055` | This is the part to internalize. |
+| &nbsp;&nbsp;↳ Trigger conditions — migrate when any of these fire | `1056-1082` | Review this list quarterly. |
+| &nbsp;&nbsp;↳ What we do about §7.4 and §6.3, honestly | `1083-1107` | We are not going to pretend to comply with a clause we are knowingly violating (D-121). |
+| &nbsp;&nbsp;↳ The counterfactual, recorded once | `1108-1134` | R1 and R8 both concluded that the bulk data export path is on genuinely different legal |
+| 3.1 Rules | `1135-1149` | with them. A parser bug must never cost data; it must only cost a replay. |
+| 3.2 Bucket and layout | `1150-1232` | One bucket, private, versioned, SSE-S3 (or SSE-KMS if the extra ~$1/mo is acceptable under |
+| 3.3 Format and encoding | `1233-1243` | FIT is binary, so binary. Do not transcode on the way in; transcoding is a lossy decision made |
+| 3.4 Lifecycle, cost, and durability | `1244-1262` | below, so a future convenience change cannot quietly add one. |
+| 3.5 Backfilling a future adapter from the archive | `1263-1329` | This is the procedure §6 depends on, so it is specified here rather than described. |
+| 4.1 Health Connect bridge (D-113) | `1330-1437` | service, no background-location permission) that reads ExerciseRoute records out of Android's |
+| &nbsp;&nbsp;↳ O-004 — the open question, and the exact check | `1340-1369` | Many fitness apps write only summary sessions (type, duration, distance, calories, heart rate) |
+| &nbsp;&nbsp;↳ Data shape | `1370-1386` | ExerciseRoute.Location( |
+| &nbsp;&nbsp;↳ Permissions and constraints — all four matter | `1387-1416` | the feature page says READEXERCISEROUTES, the data-types page says READEXERCISEROUTE. |
+| &nbsp;&nbsp;↳ Bridge sketch | `1417-1437` | [Screen: one button, one status line] |
+| 4.2 GPSLogger HTTP endpoint (D-112) | `1438-1520` | — so no Play review, no Play policy exposure). |
+| &nbsp;&nbsp;↳ Endpoint spec | `1447-1485` | POST https://lostsoles.devaultsecurity.com/api/ingest |
+| &nbsp;&nbsp;↳ GPX parsing | `1486-1494` | Parse <trkpt lat lon> with child <ele> and <time>; segment on <trkseg> boundaries. |
+| &nbsp;&nbsp;↳ The activity-segmentation problem, and why continuous mode may be *better* | `1495-1520` | Each session is one activity, cleanly. |
+| 4.3 Manual entry | `1521-1552` | Two distinct paths, one UI. |
+| 4.4 Watch vendor (D-117) — sketch only | `1553-1591` | device decision is no longer blocking and can be made later without touching the rest of the |
+| Whoop — REJECTED as a trace source | `1592-1608` | all, so there is nothing to expose. |
+| Fitbit / Google Health API — REJECTED | `1609-1618` | be building on something already gone. |
+| Apple Health — REJECTED (structural, not a preference) | `1619-1626` | HealthKit has no web API. Data is reachable only from a native iOS/watchOS app on the device, |
+| Health Connect as a *native* dependency — SCOPED, not rejected | `1627-1633` | Distinguish two things. Health Connect the data store is in scope (§4.1, D-113). What is |
+| PWA run recording — REJECTED (D-110) | `1634-1645` | The user's instinct that "it needs to be an Android app" was correct. |
+| Share-sheet GPX import — REJECTED (D-111) | `1646-1666` | support documentation. The imagined "finish run → share to Lost Soles" flow does not exist. |
+| 6.1 Trigger | `1667-1676` | Any row in §2.8's trigger table. |
+| 6.2 Steps | `1677-1715` | D-14 Buy the hardware. Record with BOTH the new device and Strava for two weeks. |
+| 6.3 What changes, and what does not | `1716-1749` |  |
+| 6.4 How the archive backfills history | `1750-1777` | function and the transport is a separate file. |
+| 6.5 Do not delete the archive | `1778-1788` | Even after migration, source=strava objects in the raw archive are the only copy of some |
+| Appendix — decision references used | `1789-1801` | D-013 (low upkeep), D-014 (≤6 users), D-020 (permanent reveal, append-only), D-031/D-032 |
 
 ## `docs/04-game-design.md`
 
-**Lost Soles — RPG Systems Design** — 1,516 lines
+**Lost Soles — RPG Systems Design** — 1,531 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | 0. Design thesis | `13-35` | The user runs 3–5×/week, 3–8 miles, and has done so for years without an app. |
-| 1. The skill system | `36-494` | Per D-030 (hybrid), D-031 (activity skills, must be modular), D-032 (meta skills), |
+| 1. The skill system | `36-509` | Per D-030 (hybrid), D-031 (activity skills, must be modular), D-032 (meta skills), |
 | &nbsp;&nbsp;↳ 1.1 The skills | `41-79` |  |
-| &nbsp;&nbsp;↳ 1.2 Total Level (D-033) | `80-119` | Total Level is the headline number on the home screen, not any individual skill. |
-| &nbsp;&nbsp;↳ 1.3 Skills are data, not code — the extensibility requirement (D-031) | `120-494` | This is the most load-bearing structural requirement in the document. |
-| 2. The XP curve | `495-675` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
-| &nbsp;&nbsp;↳ 2.1 Runescape's actual curve, and why it cannot be used | `497-539` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
-| &nbsp;&nbsp;↳ 2.2 The Lost Soles curve | `540-560` | That is a cubic in cumulative terms, C(L) ≈ (4/3)L³, versus Runescape's exponential. |
-| &nbsp;&nbsp;↳ 2.3 What this feels like in runs | `561-577` | Early levels arrive mid-run. |
-| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `578-660` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
-| &nbsp;&nbsp;↳ 2.5 Past 99 | `661-675` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
-| 3. XP awards, exactly | `676-880` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `678-702` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `703-757` | a 5-mile run is about 800. |
-| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `758-790` | three years and the skill flatlines forever. |
-| &nbsp;&nbsp;↳ 3.4 Constitution | `791-803` | Computed on post-multiplier XP — i.e. |
-| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `804-880` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
-| 4. Levels, milestones and feedback | `881-1004` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.1 The guarantee | `883-903` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `904-952` | This is the core reward loop. |
-| &nbsp;&nbsp;↳ 4.3 Milestone levels | `953-994` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
-| &nbsp;&nbsp;↳ 4.4 Never punish | `995-1004` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
-| 5. Combat — POST-MVP | `1005-1143` | so the Slayer skill row already exists in the ruleset (disabled). |
-| &nbsp;&nbsp;↳ 5.1 Fiction | `1016-1026` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
-| &nbsp;&nbsp;↳ 5.2 Player Power | `1027-1042` | Power = round( 0.40 × Wayfaring |
-| &nbsp;&nbsp;↳ 5.3 Map encounters | `1043-1098` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
-| &nbsp;&nbsp;↳ 5.4 Boss quests | `1099-1143` | The problem boss quests solve: rest days and strength days must matter (D-040). |
-| 6. Equipment and loot — POST-MVP | `1144-1206` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
-| &nbsp;&nbsp;↳ 6.1 Rules | `1148-1159` | durability, no consumables, no crafting. |
-| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1160-1187` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
-| &nbsp;&nbsp;↳ 6.3 Sources | `1188-1206` | That last row is the one that matters most. |
-| 7. Balance safety — rebalancing without rewriting history | `1207-1306` | The system will be mis-tuned on the first try. |
-| &nbsp;&nbsp;↳ 7.1 The invariant | `1212-1225` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
-| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1226-1243` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
-| &nbsp;&nbsp;↳ 7.3 The ledger | `1244-1260` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
-| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1261-1277` | the derived layer, §3.5, not be baked in at ingest) |
-| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1278-1293` | A rebalance that reduces rates would de-level the user. |
-| &nbsp;&nbsp;↳ 7.6 Operational notes | `1294-1306` | not a recompute path. |
-| 8. Worked examples | `1307-1464` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
-| &nbsp;&nbsp;↳ 8.1 The pipeline | `1312-1331` | segment < 5 m [§3.5] |
-| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1332-1416` | distance = 5.2 mi × 1.609344 = 8.369 km |
-| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1417-1464` | Pushups 3 × 25 = 75 reps |
-| 9. Summary of judgment calls, for overruling | `1465-1478` | Everything here is a call I made that no decision covers. |
-| 10. Open questions for later documents | `1479-1496` | (R4), but every Cartography number here scales with it linearly. |
-| ADDENDUM — Round 4 user decisions (2026-08-30) | `1497-1516` | Confirmed after this document was written. |
+| &nbsp;&nbsp;↳ 1.2 Total Level (D-033) | `80-121` | Total Level is the headline number on the home screen, not any individual skill. |
+| &nbsp;&nbsp;↳ 1.3 Skills are data, not code — the extensibility requirement (D-031) | `122-509` | This is the most load-bearing structural requirement in the document. |
+| 2. The XP curve | `510-690` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
+| &nbsp;&nbsp;↳ 2.1 Runescape's actual curve, and why it cannot be used | `512-554` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
+| &nbsp;&nbsp;↳ 2.2 The Lost Soles curve | `555-575` | That is a cubic in cumulative terms, C(L) ≈ (4/3)L³, versus Runescape's exponential. |
+| &nbsp;&nbsp;↳ 2.3 What this feels like in runs | `576-592` | Early levels arrive mid-run. |
+| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `593-675` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
+| &nbsp;&nbsp;↳ 2.5 Past 99 | `676-690` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
+| 3. XP awards, exactly | `691-895` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `693-717` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `718-772` | a 5-mile run is about 800. |
+| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `773-805` | three years and the skill flatlines forever. |
+| &nbsp;&nbsp;↳ 3.4 Constitution | `806-818` | Computed on post-multiplier XP — i.e. |
+| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `819-895` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
+| 4. Levels, milestones and feedback | `896-1019` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.1 The guarantee | `898-918` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `919-967` | This is the core reward loop. |
+| &nbsp;&nbsp;↳ 4.3 Milestone levels | `968-1009` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
+| &nbsp;&nbsp;↳ 4.4 Never punish | `1010-1019` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
+| 5. Combat — POST-MVP | `1020-1158` | so the Slayer skill row already exists in the ruleset (disabled). |
+| &nbsp;&nbsp;↳ 5.1 Fiction | `1031-1041` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
+| &nbsp;&nbsp;↳ 5.2 Player Power | `1042-1057` | Power = round( 0.40 × Wayfaring |
+| &nbsp;&nbsp;↳ 5.3 Map encounters | `1058-1113` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
+| &nbsp;&nbsp;↳ 5.4 Boss quests | `1114-1158` | The problem boss quests solve: rest days and strength days must matter (D-040). |
+| 6. Equipment and loot — POST-MVP | `1159-1221` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
+| &nbsp;&nbsp;↳ 6.1 Rules | `1163-1174` | durability, no consumables, no crafting. |
+| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1175-1202` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
+| &nbsp;&nbsp;↳ 6.3 Sources | `1203-1221` | That last row is the one that matters most. |
+| 7. Balance safety — rebalancing without rewriting history | `1222-1321` | The system will be mis-tuned on the first try. |
+| &nbsp;&nbsp;↳ 7.1 The invariant | `1227-1240` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
+| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1241-1258` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
+| &nbsp;&nbsp;↳ 7.3 The ledger | `1259-1275` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
+| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1276-1292` | the derived layer, §3.5, not be baked in at ingest) |
+| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1293-1308` | A rebalance that reduces rates would de-level the user. |
+| &nbsp;&nbsp;↳ 7.6 Operational notes | `1309-1321` | not a recompute path. |
+| 8. Worked examples | `1322-1479` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
+| &nbsp;&nbsp;↳ 8.1 The pipeline | `1327-1346` | segment < 5 m [§3.5] |
+| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1347-1431` | distance = 5.2 mi × 1.609344 = 8.369 km |
+| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1432-1479` | Pushups 3 × 25 = 75 reps |
+| 9. Summary of judgment calls, for overruling | `1480-1493` | Everything here is a call I made that no decision covers. |
+| 10. Open questions for later documents | `1494-1511` | (R4), but every Cartography number here scales with it linearly. |
+| ADDENDUM — Round 4 user decisions (2026-08-30) | `1512-1531` | Confirmed after this document was written. |
 
 ## `docs/05-fog-of-war.md`
 
-**05 — Fog of War** — 2,112 lines
+**05 — Fog of War** — 2,121 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -319,63 +319,63 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.1 Two different things happen to the same cell | `44-72` | This is the single most important distinction in this document, and conflating them will |
 | &nbsp;&nbsp;↳ 1.2 Worked example | `73-85` | You run the same loop three times. |
 | &nbsp;&nbsp;↳ 1.3 What the fog is *not* | `86-93` |  |
-| 2. Territory representation | `94-418` |  |
+| 2. Territory representation | `94-420` |  |
 | &nbsp;&nbsp;↳ 2.1 H3 resolution 10, canonical, never mixed | `96-151` | the path (§2.3). At res 10 that is exactly k = 0 — the cell you are standing in. The |
-| &nbsp;&nbsp;↳ 2.2 Trace → cells | `152-330` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
-| &nbsp;&nbsp;↳ 2.3 The reveal radius | `331-375` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
-| &nbsp;&nbsp;↳ 2.4 The per-cell record | `376-418` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
-| 3. The discovery-scoring algorithm | `419-717` | (D-021, D-120). |
-| &nbsp;&nbsp;↳ 3.1 Definitions | `429-457` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
-| &nbsp;&nbsp;↳ 3.2 The algorithm | `458-576` | key = idempotencyKey(activity, trace) |
-| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `577-607` | All of these are solved by one design decision — traceToCells returns a Set — but each |
-| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `608-646` | Activities do not arrive in chronological order. |
-| &nbsp;&nbsp;↳ 3.5 Idempotency | `647-681` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
-| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `682-717` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
-| 4. Rendering | `718-1251` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
-| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `732-794` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
-| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `795-930` | MapLibre calls prerender during its offscreen pass. |
-| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `931-1168` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
-| &nbsp;&nbsp;↳ 4.4 Layer order | `1169-1221` | map.on('style.load', () => { |
-| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1222-1236` | Drifting mist does not benefit from 60 and it halves the battery cost. |
-| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1237-1251` | Recorded so that a future session does not rediscover them the expensive way. |
-| 5. The two map modes | `1252-1342` | run) and adventure (full atmosphere, for admiring the map). |
-| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1261-1291` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
-| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1292-1320` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
-| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1321-1333` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
-| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1334-1342` | and style-layer switch, entirely client-side, with no path back to §3. |
-| 6. Performance | `1343-1600` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
-| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1355-1442` | Map zoom selects a render resolution. |
-| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1443-1502` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
-| &nbsp;&nbsp;↳ 6.3 Expected budget | `1503-1518` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
-| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1519-1600` | None of the above is true until measured. |
-| 7. Data delivery | `1601-1815` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
-| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1623-1666` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
-| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1667-1689` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
-| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1690-1750` | s3://lost-soles-data/users/<uid>/ |
-| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1751-1815` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
-| 8. Derived statistics | `1816-1980` | Everything here runs client-side against the in-memory set (§7), except where noted. |
-| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1821-1845` | // Denominator NEVER changes for a given region+resolution. |
-| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1846-1878` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
-| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1879-1893` |  |
-| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1894-1959` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
-| &nbsp;&nbsp;↳ 8.5 Cold territory, in atlas (was "Optional: stale territory"; built in `0100`) | `1960-1980` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
-| 9. Open questions and risks | `1981-2094` | Stated honestly. Several of these are things this document chose a default for without a |
-| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1986-1993` | D-120 and D-021 cover ground that has been run before. |
-| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `1994-1998` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
-| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `1999-2008` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
-| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `2009-2031` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
-| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `2032-2039` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
-| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `2040-2052` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
-| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **RESOLVED** (D-133, D-147, D-395; §8.5) | `2053-2059` | The 6-month re-arm is invisible on the map by design. |
-| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `2060-2065` | §8.1 needs polygons for "my city", "my neighbourhood". |
-| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `2066-2072` | progression design doc (D-030..D-033). |
-| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `2073-2083` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
-| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `2084-2094` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
-| Appendix A — invariants an implementer must not violate | `2095-2112` | radius never feeds back into scoring. |
+| &nbsp;&nbsp;↳ 2.2 Trace → cells | `152-332` | Input is the normalised Trace from the ingestion adapter boundary (D-100): an ordered list of |
+| &nbsp;&nbsp;↳ 2.3 The reveal radius | `333-377` | to within rounding, "the cell you ran through" — gridDisk(c, 0) — with the §2.2 step-5 filter |
+| &nbsp;&nbsp;↳ 2.4 The per-cell record | `378-420` | D-120 is explicit: each explored cell needs a lastRunAt timestamp, not just a presence bit, |
+| 3. The discovery-scoring algorithm | `421-719` | (D-021, D-120). |
+| &nbsp;&nbsp;↳ 3.1 Definitions | `431-459` | SIXMONTHSMS = 183 24 60 60 1000 # see §9.2 — 183 days, UTC, not calendar months |
+| &nbsp;&nbsp;↳ 3.2 The algorithm | `460-578` | key = idempotencyKey(activity, trace) |
+| &nbsp;&nbsp;↳ 3.3 Same-run edge cases | `579-609` | All of these are solved by one design decision — traceToCells returns a Set — but each |
+| &nbsp;&nbsp;↳ 3.4 Out-of-order and backfilled activities | `610-648` | Activities do not arrive in chronological order. |
+| &nbsp;&nbsp;↳ 3.5 Idempotency | `649-683` | src = activity.source + '#' + activity.sourceActivityId # e.g. |
+| &nbsp;&nbsp;↳ 3.6 Treadmill and no-GPS activities | `684-719` | An indoor run, a treadmill session, or any of the strength workouts logged in-app (D-060, D-061) |
+| 4. Rendering | `720-1253` | Follows R4's RECOMMENDATION (R4 §1, §3.5, §4) without deviation. |
+| &nbsp;&nbsp;↳ 4.1 Why discs, not hexagons | `734-796` | This is the most important visual decision in the whole product, and it is the reason D-115 could |
+| &nbsp;&nbsp;↳ 4.2 Pass 1 — `prerender`: the coverage mask | `797-932` | MapLibre calls prerender during its offscreen pass. |
+| &nbsp;&nbsp;↳ 4.3 Pass 2 — `render`: the noisy composite | `933-1170` | One full-screen triangle into MapLibre's framebuffer, in the translucent pass. |
+| &nbsp;&nbsp;↳ 4.4 Layer order | `1171-1223` | map.on('style.load', () => { |
+| &nbsp;&nbsp;↳ 4.5 Animation and accessibility | `1224-1238` | Drifting mist does not benefit from 60 and it halves the battery cost. |
+| &nbsp;&nbsp;↳ 4.6 What R4 ruled out, and why — do not retry these | `1239-1253` | Recorded so that a future session does not rediscover them the expensive way. |
+| 5. The two map modes | `1254-1344` | run) and adventure (full atmosphere, for admiring the map). |
+| &nbsp;&nbsp;↳ 5.1 The art-direction call that makes both modes possible | `1263-1293` | The instinct with a "dark fantasy" brief (D-050 — ink, parchment, lantern-light, gold leaf, deep |
+| &nbsp;&nbsp;↳ 5.2 The difference, exactly | `1294-1322` | Both modes share one basemap source (one PMTiles archive) and one fog shader. |
+| &nbsp;&nbsp;↳ 5.3 How this satisfies D-051 | `1323-1335` | route into unknown ground — the exact task D-051 was written for — works perfectly. |
+| &nbsp;&nbsp;↳ 5.4 What the modes are *not* allowed to differ in | `1336-1344` | and style-layer switch, entirely client-side, with no path back to §3. |
+| 6. Performance | `1345-1609` | R4's claim (§3.6): 50k–500k stored cells at 60 fps, because viewport culling means only |
+| &nbsp;&nbsp;↳ 6.1 Zoom bucketing | `1357-1444` | Map zoom selects a render resolution. |
+| &nbsp;&nbsp;↳ 6.2 Viewport culling | `1445-1504` | R4's sketch culls by looping every cell in the bucket and doing four float compares against the |
+| &nbsp;&nbsp;↳ 6.3 Expected budget | `1505-1527` | That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing. |
+| &nbsp;&nbsp;↳ 6.4 What to measure to prove it | `1528-1609` | None of the above is true until measured. |
+| 7. Data delivery | `1610-1824` | R3's headline: this is a few-megabytes problem, not a gigabytes problem. |
+| &nbsp;&nbsp;↳ 7.1 Payload format — `explored-r10.bin` | `1632-1675` | Little-endian throughout. Served from S3 with Content-Encoding: gzip (CloudFront passes it |
+| &nbsp;&nbsp;↳ 7.2 The companion payloads | `1676-1698` | and the fog itself does not need it — revealed is permanent (D-020), so rendering depends on |
+| &nbsp;&nbsp;↳ 7.3 Cache and invalidation | `1699-1759` | s3://lost-soles-data/users/<uid>/ |
+| &nbsp;&nbsp;↳ 7.4 Incremental update when a run lands mid-session | `1760-1824` | The user finishes a run, Strava's webhook fires, the Lambda scores it (§3.2) and bumps |
+| 8. Derived statistics | `1825-1989` | Everything here runs client-side against the in-memory set (§7), except where noted. |
+| &nbsp;&nbsp;↳ 8.1 % explored of a named region | `1830-1854` | // Denominator NEVER changes for a given region+resolution. |
+| &nbsp;&nbsp;↳ 8.2 New territory per run — the Cartography feed | `1855-1887` | Cartography (D-032) is fed directly by the ledger entry written in §3.2. |
+| &nbsp;&nbsp;↳ 8.3 Lifetime totals | `1888-1902` |  |
+| &nbsp;&nbsp;↳ 8.4 Unexplored zones near me — and the route-planner precursor | `1903-1968` | This is the cheap version of D-070's route planner, deferred from MVP by D-122 but worth |
+| &nbsp;&nbsp;↳ 8.5 Cold territory, in atlas (was "Optional: stale territory"; built in `0100`) | `1969-1989` | Ground whose lastRunAt is approaching or past 6 months is re-armed for discovery and the user |
+| 9. Open questions and risks | `1990-2103` | Stated honestly. Several of these are things this document chose a default for without a |
+| &nbsp;&nbsp;↳ 9.1 Treadmill / no-GPS Wayfaring XP — **NEEDS DECISION** | `1995-2002` | D-120 and D-021 cover ground that has been run before. |
+| &nbsp;&nbsp;↳ 9.2 What exactly is "6 months"? — minor, decide now | `2003-2007` | Calendar months are ambiguous (Aug 31 + 6 months = ?) and drift with month length. |
+| &nbsp;&nbsp;↳ 9.3 Replay can lower a displayed XP total — real risk | `2008-2017` | Backfilling an old activity (§3.4) re-folds history, which can turn a cell that scored 100% into |
+| &nbsp;&nbsp;↳ 9.4 Res 10's 131 m corridor over-reveals in dense grids — **THE EXIT WAS TAKEN** | `2018-2040` | with an exit". The exit was taken and the section is kept so nobody re-opens the question without |
+| &nbsp;&nbsp;↳ 9.5 GPS quality in urban canyons, tunnels and under tree cover | `2041-2048` | The §2.2 pipeline splits rather than interpolates across implausible jumps, so a lost fix |
+| &nbsp;&nbsp;↳ 9.6 WebGL2 assumptions | `2049-2061` | this adds no new constraint — but it does mean there is no WebGL1 fallback path at all and the |
+| &nbsp;&nbsp;↳ 9.7 Surfacing the cooldown without breaking D-020 — **RESOLVED** (D-133, D-147, D-395; §8.5) | `2062-2068` | The 6-month re-arm is invisible on the map by design. |
+| &nbsp;&nbsp;↳ 9.8 Region boundaries are an unchosen input | `2069-2074` | §8.1 needs polygons for "my city", "my neighbourhood". |
+| &nbsp;&nbsp;↳ 9.9 XP constants live elsewhere | `2075-2081` | progression design doc (D-030..D-033). |
+| &nbsp;&nbsp;↳ 9.10 The explored blob is a precise map of the user's home | `2082-2092` | D-123 explicitly declines special privacy handling: single user, private AWS account, map shown |
+| &nbsp;&nbsp;↳ 9.11 Strava adapter fragility (context, not a fog problem) | `2093-2103` | D-121 ships Strava as the MVP adapter over an explicit recommendation against it. |
+| Appendix A — invariants an implementer must not violate | `2104-2121` | radius never feeds back into scoring. |
 
 ## `docs/06-ui-ux.md`
 
-**06 — UI / UX** — 1,955 lines
+**06 — UI / UX** — 1,967 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -436,24 +436,24 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 8.5 Spacing, shape and elevation | `1666-1679` | the map's floating controls 8dp. |
 | &nbsp;&nbsp;↳ 8.6 Iconography | `1680-1694` | an 8dp construction grid, no fills, no gradients, no two-tone. |
 | &nbsp;&nbsp;↳ 8.7 Motion | `1695-1731` | Five durations. Nothing else is invented at the component level. |
-| 9. Accessibility and reality checks | `1732-1852` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
+| 9. Accessibility and reality checks | `1732-1864` | Every screen in this document gets used in a specific physical situation: outdoors, in daylight, |
 | &nbsp;&nbsp;↳ 9.1 Contrast and legibility | `1744-1756` | the lightest colour permitted to carry type; --gold-500 carries none. |
 | &nbsp;&nbsp;↳ 9.2 Pointer and keyboard (D-253) | `1757-1778` | pattern for every screen). |
 | &nbsp;&nbsp;↳ 9.3 Narrow windows | `1779-1789` | place, and the right-edge map controls sit above it (§2.2). |
-| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1790-1813` | separate section headers (§5.3). |
-| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1814-1837` | The app is opened outdoors, often on one bar. |
-| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1838-1852` |  |
-| 10. What we are deliberately NOT building | `1853-1955` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
-| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1862-1875` |  |
-| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1876-1882` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
-| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1883-1908` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
-| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1909-1924` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
-| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1925-1941` | Three things in this document are conditional, and each has a written trigger so that changing |
-| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1942-1955` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
+| &nbsp;&nbsp;↳ 9.4 Vision, motion and assistive technology | `1790-1824` | separate section headers (§5.3). |
+| &nbsp;&nbsp;↳ 9.5 Slow connections and no connection | `1825-1849` | The app is opened outdoors, often on one bar. |
+| &nbsp;&nbsp;↳ 9.6 The reality-check table | `1850-1864` |  |
+| 10. What we are deliberately NOT building | `1865-1967` | wear. This section is that list rendered as UI: the specific screens, controls and widgets that |
+| &nbsp;&nbsp;↳ 10.1 Refused because of a vision non-goal | `1874-1887` |  |
+| &nbsp;&nbsp;↳ 10.2 Refused screens (§1.4, restated so it is one list) | `1888-1894` | Dashboard · profile · achievement gallery · calendar heatmap · onboarding flow · notifications |
+| &nbsp;&nbsp;↳ 10.3 Refused controls and patterns | `1895-1920` | These are smaller, they arrive one at a time, and each is individually defensible — which is why |
+| &nbsp;&nbsp;↳ 10.4 Refused for now, by MVP scope (D-122) | `1921-1936` | No Slayer tile beyond the collapsed Untrained row (§5.3). |
+| &nbsp;&nbsp;↳ 10.5 The standing conditions | `1937-1953` | Three things in this document are conditional, and each has a written trigger so that changing |
+| &nbsp;&nbsp;↳ 10.6 The test every future screen has to pass | `1954-1967` | The clause before the dash is the value test: a screen must serve novelty (P6) or the post-run |
 
 ## `docs/07-ticketsmith.md`
 
-**07 — Ticket System ("TicketSmith, adapted")** — 1,435 lines
+**07 — Ticket System ("TicketSmith, adapted")** — 1,450 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -462,55 +462,55 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.1 What TicketSmith actually is | `28-68` | Be precise about this, because it constrains what "adapting" it can mean. |
 | &nbsp;&nbsp;↳ 1.2 Kept unchanged, because it is the actual value | `69-86` | mechanical changes. |
 | &nbsp;&nbsp;↳ 1.3 Changed, and what each change buys | `87-114` | R6 §1.8 identified four honest gaps in TicketSmith. |
-| 2. Storage design — the central problem | `115-298` | client that commits through a server-side GitHub integration. |
+| 2. Storage design — the central problem | `115-313` | client that commits through a server-side GitHub integration. |
 | &nbsp;&nbsp;↳ 2.1 The problem D-092 creates | `124-142` | TicketSmith assumes one operator, at one keyboard, in one repo. |
 | &nbsp;&nbsp;↳ 2.2 Why it works: the write sets are not symmetric | `143-186` | Look at the table again. The phone almost only creates. The agent almost only edits and |
 | &nbsp;&nbsp;↳ 2.3 Triage is a gate, not overhead | `187-204` | The obvious objection to inbox/ is that it adds a step. |
-| &nbsp;&nbsp;↳ 2.4 Data flow | `205-237` | Route names corrected 2026-09-03 (0154): capture shipped as POST /api/tickets/capture; the read route and webhook are 0110's, unbuilt |
-| &nbsp;&nbsp;↳ 2.5 Rejected alternatives | `238-298` | Tickets live in a Lost Soles DynamoDB table; the repo has no tickets/. |
-| 3. Ticket schema | `299-657` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
-| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `305-394` |  |
-| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `395-426` | thing: they move information out of prose that the agent must re-infer every session and into |
-| &nbsp;&nbsp;↳ 3.3 Body sections | `427-461` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
-| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria — the ones a human must run | `462-525` | A criterion prefixed (operator) is one no agent can check: it needs a human, a device, and |
-| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `526-548` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
-| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `549-581` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
-| &nbsp;&nbsp;↳ 3.6 Complete example | `582-657` | slug: half-xp-on-explored-ground |
-| 4. The `/tickets` command | `658-1008` | Required by D-091. |
-| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `662-684` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
-| &nbsp;&nbsp;↳ 4.2 Frontmatter | `685-724` | name: tickets |
-| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `725-748` |  |
-| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `749-769` | starting work. Note the path difference from TicketSmith: this project uses a |
-| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `770-814` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
-| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `815-834` | Refuse first, then act. |
-| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `835-974` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
-| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `975-1008` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
-| 5. The in-app ticket UI | `1009-1139` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
-| &nbsp;&nbsp;↳ 5.1 Placement | `1018-1029` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
-| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `1030-1059` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
-| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `1060-1081` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
-| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `1082-1093` | Read-only list from the cached mirror. |
-| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1094-1100` | Tap a row → rendered markdown detail view. |
-| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1101-1106` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
-| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1107-1139` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
-| 6. Auth and security | `1140-1279` | The capture endpoint is a write primitive pointed at your source repository. |
-| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1145-1150` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
-| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1151-1167` | Fastest to stand up, and adequate for a single-operator project. |
-| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1168-1182` | Recommended once the endpoint is stable. |
-| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1183-1252` | { "title": "string, 1..200", |
-| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1253-1266` |  |
-| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1267-1279` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
-| 7. Bootstrapping | `1280-1424` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1282-1298` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
-| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1299-1353` | ├── CLAUDE.md # orientation. |
-| &nbsp;&nbsp;↳ 7.3 Seeding | `1354-1397` | Ordered, and each step is usable before the next exists. |
-| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1398-1405` | Do not pre-populate tickets/inbox/ with ideas. |
-| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1406-1424` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
-| Open questions | `1425-1435` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
+| &nbsp;&nbsp;↳ 2.4 Data flow | `205-252` | Route names corrected 2026-09-03 (0154): capture shipped as POST /api/tickets/capture; the read route and webhook are 0110's, unbuilt |
+| &nbsp;&nbsp;↳ 2.5 Rejected alternatives | `253-313` | Tickets live in a Lost Soles DynamoDB table; the repo has no tickets/. |
+| 3. Ticket schema | `314-672` | Normative. docs/TICKETFORMAT.md is generated from this section at bootstrap (§7) and is the |
+| &nbsp;&nbsp;↳ 3.1 Frontmatter fields | `320-409` |  |
+| &nbsp;&nbsp;↳ 3.2 Why the four additions earn their place | `410-441` | thing: they move information out of prose that the agent must re-infer every session and into |
+| &nbsp;&nbsp;↳ 3.3 Body sections | `442-476` | Unchanged from TicketSmith, and this matters more than the frontmatter. |
+| &nbsp;&nbsp;↳ 3.3.1 `(operator)` criteria — the ones a human must run | `477-540` | A criterion prefixed (operator) is one no agent can check: it needs a human, a device, and |
+| &nbsp;&nbsp;↳ 3.4 Inbox capture format | `541-563` | A deliberately degenerate subset: everything the phone can plausibly know, and nothing else. |
+| &nbsp;&nbsp;↳ 3.5 `## Operator validation` is non-negotiable | `564-596` | This is the single best idea in TicketSmith and it is more valuable here than in its origin |
+| &nbsp;&nbsp;↳ 3.6 Complete example | `597-672` | slug: half-xp-on-explored-ground |
+| 4. The `/tickets` command | `673-1023` | Required by D-091. |
+| &nbsp;&nbsp;↳ 4.1 Vehicle: a project Skill, not a command file | `677-699` | R6 §2.1 verified against the current Claude Code docs that .claude/commands/.md and |
+| &nbsp;&nbsp;↳ 4.2 Frontmatter | `700-739` | name: tickets |
+| &nbsp;&nbsp;↳ 4.3 Subcommand reference | `740-763` |  |
+| &nbsp;&nbsp;↳ 4.4 Bare `/tickets` — the default loop | `764-784` | starting work. Note the path difference from TicketSmith: this project uses a |
+| &nbsp;&nbsp;↳ 4.5 `/tickets triage` | `785-829` | — into one round. Never drip questions. This is TicketSmith discipline #2 and it is the |
+| &nbsp;&nbsp;↳ 4.6 `/tickets close 0042` | `830-849` | Refuse first, then act. |
+| &nbsp;&nbsp;↳ 4.7 `scripts/tickets.mjs` | `850-989` | Node, no dependencies beyond the standard library and a small YAML parser vendored or pinned. |
+| &nbsp;&nbsp;↳ 4.8 The agent's workflow, end to end | `990-1023` | ├─ sync git pull --rebase; regenerate index; report new inbox items |
+| 5. The in-app ticket UI | `1024-1154` | Required by D-092: manual ticket creation from the app UI, phone-friendly. |
+| &nbsp;&nbsp;↳ 5.1 Placement | `1033-1044` | A route inside the Lost Soles app: /dev/tickets, gated to the owner. |
+| &nbsp;&nbsp;↳ 5.2 Screen 1 — Capture (the one that matters) | `1045-1074` | That is the entire form. Two taps and a sentence: under fifteen seconds, one-handed, while |
+| &nbsp;&nbsp;↳ 5.3 Offline and the capture queue | `1075-1096` | Connectivity is flaky outdoors, and the capture must never fail in a way the user notices. |
+| &nbsp;&nbsp;↳ 5.4 Screen 2 — Browse | `1097-1108` | Read-only list from the cached mirror. |
+| &nbsp;&nbsp;↳ 5.5 Screen 3 — Detail | `1109-1115` | Tap a row → rendered markdown detail view. |
+| &nbsp;&nbsp;↳ 5.6 Non-goals for v1, stated explicitly | `1116-1121` | No editing. No closing. No reordering. No comments. No kanban board. No charts. No |
+| &nbsp;&nbsp;↳ 5.7 How the read cache stays fresh | `1122-1154` | The cache is a DynamoDB table, one row per ticket: parsed frontmatter, path, and the raw |
+| 6. Auth and security | `1155-1294` | The capture endpoint is a write primitive pointed at your source repository. |
+| &nbsp;&nbsp;↳ 6.1 Absolute rule | `1160-1165` | no client-side GitHub SDK, no token in a client-exposed env var, no token in localStorage, no |
+| &nbsp;&nbsp;↳ 6.2 v1 credential — fine-grained PAT | `1166-1182` | Fastest to stand up, and adequate for a single-operator project. |
+| &nbsp;&nbsp;↳ 6.3 v2 credential — a GitHub App | `1183-1197` | Recommended once the endpoint is stable. |
+| &nbsp;&nbsp;↳ 6.4 Endpoint hardening | `1198-1267` | { "title": "string, 1..200", |
+| &nbsp;&nbsp;↳ 6.5 Abuse cases and what stops them | `1268-1281` |  |
+| &nbsp;&nbsp;↳ 6.6 A more paranoid variant, if wanted | `1282-1294` | Have the endpoint commit to a tickets-inbox branch rather than main, and let |
+| 7. Bootstrapping | `1295-1439` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.1 The chicken-and-egg, stated plainly | `1297-1313` | The backlog for building Lost Soles must exist as tickets before there is anything capable of |
+| &nbsp;&nbsp;↳ 7.2 Initial repository layout | `1314-1368` | ├── CLAUDE.md # orientation. |
+| &nbsp;&nbsp;↳ 7.3 Seeding | `1369-1412` | Ordered, and each step is usable before the next exists. |
+| &nbsp;&nbsp;↳ 7.4 Seeding the inbox is not part of this | `1413-1420` | Do not pre-populate tickets/inbox/ with ideas. |
+| &nbsp;&nbsp;↳ 7.5 The honest awkwardness | `1421-1439` | hand-authored tickets have a frontmatter error, tickets.mjs validate finds it only after |
+| Open questions | `1440-1450` | cache's cold rebuild cheaper and gives the UI a fallback if the Trees walk fails; gitignoring |
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,282 lines
+**08 — Security & Privacy** — 1,357 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -519,98 +519,98 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ Who is actually in scope | `42-57` | Nobody is hunting this application. |
 | &nbsp;&nbsp;↳ Why "targeted attacker" is ranked last | `58-77` | Ranking a targeted attacker low is a deliberate, stated judgement, not an omission. |
 | &nbsp;&nbsp;↳ Explicitly out of the threat model | `78-89` | (§5) exists to prevent mistakes, not to contain an adversary who already has an account. |
-| 2. The GPS sensitivity problem — and the D-123 revisit trigger | `90-292` | Lost Soles is, viewed uncharitably, a machine for building a permanent, high-resolution, |
+| 2. The GPS sensitivity problem — and the D-123 revisit trigger | `90-329` | Lost Soles is, viewed uncharitably, a machine for building a permanent, high-resolution, |
 | &nbsp;&nbsp;↳ 2.1 What the system actually accumulates | `92-115` | Lost Soles is, viewed uncharitably, a machine for building a permanent, high-resolution, |
 | &nbsp;&nbsp;↳ 2.2 The decision as it stands: D-123 | `116-131` | This is the right call for exactly the conditions it was made under. |
 | &nbsp;&nbsp;↳ 2.3 The contradiction that must be wired, not caveated | `132-145` | D-123 and D-014 cannot both remain true indefinitely. |
-| &nbsp;&nbsp;↳ 2.4 THE D-123 TRIGGER — three conditions, each with a hard gate | `146-275` | friends are "planned" — when the second account is provisioned (§5.3). |
-| &nbsp;&nbsp;↳ 2.5 Where this checklist lives so it is actually enforced | `276-292` | points at DECISIONS.md. Any agent starting a session reads it. |
-| 3. Secrets inventory | `293-375` | Every credential the system holds. |
-| &nbsp;&nbsp;↳ 3.1 What must never reach the browser bundle | `313-375` | happens entirely inside /api/strava/callback; the browser sees a redirect and a connected |
-| 4. The webhook endpoint | `376-550` | (01-architecture.md §2). This is the only unauthenticated, internet-facing surface in the |
-| &nbsp;&nbsp;↳ 4.1 Verifying events actually came from Strava — honestly | `388-424` | "verify the webhook" here would be false. |
-| &nbsp;&nbsp;↳ 4.2 The `hub.challenge` handshake | `425-443` | GET ?hub.mode=subscribe&hub.challenge=X&hub.verifytoken=T |
-| &nbsp;&nbsp;↳ 4.3 Replay and idempotency | `444-474` | Strava retries up to three times and has no dead-letter mechanism, so duplicates are normal |
-| &nbsp;&nbsp;↳ 4.4 Rate limiting and cost-DoS | `475-520` | An attacker cannot read anything here. |
-| &nbsp;&nbsp;↳ 4.5 What the endpoint must never do | `521-550` | The 2-second budget is a security control as much as a performance one: the smaller this |
-| 5. Authentication and account provisioning | `551-735` | The whole auth surface serves one person today and at most six ever (D-014). |
-| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `557-609` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
-| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `610-633` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
-| &nbsp;&nbsp;↳ 5.3 Session handling | `634-650` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
-| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `651-690` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
-| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `691-735` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
-| 6. Data lifecycle, retention, and deletion | `736-888` |  |
-| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `738-754` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
-| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `755-784` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
-| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `785-822` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
-| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `823-874` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
-| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `875-888` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `889-1084` | The repository is the most likely place a secret in this project actually escapes. |
-| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `896-937` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `938-960` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `961-995` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `996-1054` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `1055-1084` | control, not a convenience. |
-| 8. Incident playbook | `1085-1245` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1119-1154` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1155-1180` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1181-1212` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1213-1245` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1246-1282` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| &nbsp;&nbsp;↳ 2.4 THE D-123 TRIGGER — three conditions, each with a hard gate | `146-307` | friends are "planned" — when the second account is provisioned (§5.3). |
+| &nbsp;&nbsp;↳ 2.5 Where this checklist lives so it is actually enforced | `308-329` | points at DECISIONS.md. Any agent starting a session reads it. |
+| 3. Secrets inventory | `330-412` | Every credential the system holds. |
+| &nbsp;&nbsp;↳ 3.1 What must never reach the browser bundle | `350-412` | happens entirely inside /api/strava/callback; the browser sees a redirect and a connected |
+| 4. The webhook endpoint | `413-587` | (01-architecture.md §2). This is the only unauthenticated, internet-facing surface in the |
+| &nbsp;&nbsp;↳ 4.1 Verifying events actually came from Strava — honestly | `425-461` | "verify the webhook" here would be false. |
+| &nbsp;&nbsp;↳ 4.2 The `hub.challenge` handshake | `462-480` | GET ?hub.mode=subscribe&hub.challenge=X&hub.verifytoken=T |
+| &nbsp;&nbsp;↳ 4.3 Replay and idempotency | `481-511` | Strava retries up to three times and has no dead-letter mechanism, so duplicates are normal |
+| &nbsp;&nbsp;↳ 4.4 Rate limiting and cost-DoS | `512-557` | An attacker cannot read anything here. |
+| &nbsp;&nbsp;↳ 4.5 What the endpoint must never do | `558-587` | The 2-second budget is a security control as much as a performance one: the smaller this |
+| 5. Authentication and account provisioning | `588-805` | The whole auth surface serves one person today and at most six ever (D-014). |
+| &nbsp;&nbsp;↳ 5.1 The configuration, and the two lines that matter | `594-655` | (01-architecture.md §1, table row 2; research in R5-aws-amplify.md §3). |
+| &nbsp;&nbsp;↳ 5.2 Passkeys, and the recovery problem nobody plans for | `656-687` | close to ideal: the credential lives in the Google Password Manager passkey store, syncs across |
+| &nbsp;&nbsp;↳ 5.3 Session handling | `688-704` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
+| &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `705-745` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
+| &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `746-805` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
+| 6. Data lifecycle, retention, and deletion | `806-958` |  |
+| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `808-824` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
+| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `825-854` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
+| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `855-892` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
+| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `893-944` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
+| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `945-958` | Removing the Strava connection deletes SourceAccount and stops ingest. |
+| 7. Repo hygiene — and one live finding (O-005) | `959-1157` | The repository is the most likely place a secret in this project actually escapes. |
+| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `966-1007` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `1008-1030` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `1031-1065` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `1066-1124` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `1125-1157` | control, not a convenience. |
+| 8. Incident playbook | `1158-1318` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1192-1227` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1228-1253` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1254-1285` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1286-1318` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1319-1357` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 
-**09 — Roadmap: The Build Order** — 1,160 lines
+**09 — Roadmap: The Build Order** — 1,172 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | Contents | `17-30` |  |
 | 1. The shape of the build | `31-67` | Four phases. Nineteen capabilities. Each phase ends at a coherent state — not necessarily |
-| 2. THE FIRST-USABLE MILESTONE | `68-162` | D-013 is a hard design constraint, and the Habitica lesson behind it (00-vision.md §3.1) is |
+| 2. THE FIRST-USABLE MILESTONE | `68-169` | D-013 is a hard design constraint, and the Habitica lesson behind it (00-vision.md §3.1) is |
 | &nbsp;&nbsp;↳ 2.1 Why this is the governing constraint | `79-94` | D-013 is a hard design constraint, and the Habitica lesson behind it (00-vision.md §3.1) is |
 | &nbsp;&nbsp;↳ 2.2 The critical path, exactly | `95-111` | ├─► 05 strava-adapter ──► 06 ingest-pipeline ──► 07 fog-projection |
-| &nbsp;&nbsp;↳ 2.3 What is deliberately ugly or missing at the milestone | `112-162` | nothing scores. The number of skills displayed is zero. |
-| 3. Capability breakdown | `163-509` | Nineteen capabilities in dependency-respecting order. |
-| &nbsp;&nbsp;↳ PHASE 0 — Ground Truth on Disk | `173-209` | try, and where a secret cannot be committed. |
-| &nbsp;&nbsp;↳ PHASE 1 — The Spine | `210-334` |  |
-| &nbsp;&nbsp;↳ PHASE 2 — The Game Made Visible | `335-420` |  |
-| &nbsp;&nbsp;↳ PHASE 3 — Trustworthy and Complete | `421-509` |  |
-| 4. Sequencing calls that need justifying | `510-688` | tickets before there is anything capable of creating tickets. |
-| &nbsp;&nbsp;↳ 4.1 The bootstrapping paradox, and why `03` ships before `17` | `512-572` | tickets before there is anything capable of creating tickets. |
-| &nbsp;&nbsp;↳ 4.2 D-141: `match` lands before the first line of the scorer | `573-605` | (kinds, requiresTrace, sources, measure) and matchPriority, is ticket 4 of capability |
-| &nbsp;&nbsp;↳ 4.3 The S3 rebuild drill is a scheduled exercise, not an assumption | `606-635` | D-101 says user-supplied files are the system of record and anything API-sourced is reproducible. |
-| &nbsp;&nbsp;↳ 4.4 Pre-flight: audit CloudFront before the subdomain exists | `636-658` | The devaultsecurity repo history shows an abandoned S3 + CloudFront + ACM architecture, retired |
-| &nbsp;&nbsp;↳ 4.5 Manual Sync before the webhook — a deliberate inversion | `659-676` | D-013 forbids upkeep, so a Sync button looks like a violation. |
-| &nbsp;&nbsp;↳ 4.6 Why the XP engine is in Phase 2 and not Phase 1 | `677-688` | The fog reveal is the product (P4, D-051). |
-| 5. Carry-forward corrections | `689-777` | Defects found during design. |
-| &nbsp;&nbsp;↳ 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated | `694-715` | Adding Vigil as a fifth activity skill moved the ceiling. |
-| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `716-738` | Total Level = Σ level(skill). |
-| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `739-764` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
-| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `765-777` | Not defects, but they expire silently if nobody holds them. |
-| 6. Post-MVP phases | `778-860` | Everything here is OUT of MVP by D-122 and stays out. |
-| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `789-811` | and its absence is visible on the skills panel from day one. |
-| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `812-832` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
-| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `833-842` | Last of the game systems, for two reasons. |
-| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `843-860` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
-| 7. Honest sizing | `861-950` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `863-886` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
-| &nbsp;&nbsp;↳ 7.2 Per phase | `887-906` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
-| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `907-950` | This is the single most technically uncertain piece in the project. |
-| 8. Risks to the schedule | `951-1057` | Ordered by expected damage, not by probability. |
-| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `955-983` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
-| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `984-1008` | first-usable milestone. |
-| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `1009-1018` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
-| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `1019-1024` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
-| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `1025-1034` | Target is a few dollars a month; the estimate is $1–5 all-in. |
-| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1035-1049` | The most likely way this project fails is not technical. |
-| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1050-1057` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
-| 9. Definition of done for MVP | `1058-1160` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
-| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1064-1076` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
-| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1077-1097` | decrease (D-135). |
-| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1098-1113` | <sha256>.<ext>, written before normalize. |
-| &nbsp;&nbsp;↳ 9.4 Operational | `1114-1126` | button may remain as a manual fallback; it must not be the only path. |
-| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1127-1153` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
-| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1154-1160` | That is settled six months later, by whether the user is still opening it. |
+| &nbsp;&nbsp;↳ 2.3 What is deliberately ugly or missing at the milestone | `112-169` | nothing scores. The number of skills displayed is zero. |
+| 3. Capability breakdown | `170-516` | Nineteen capabilities in dependency-respecting order. |
+| &nbsp;&nbsp;↳ PHASE 0 — Ground Truth on Disk | `180-216` | try, and where a secret cannot be committed. |
+| &nbsp;&nbsp;↳ PHASE 1 — The Spine | `217-341` |  |
+| &nbsp;&nbsp;↳ PHASE 2 — The Game Made Visible | `342-427` |  |
+| &nbsp;&nbsp;↳ PHASE 3 — Trustworthy and Complete | `428-516` |  |
+| 4. Sequencing calls that need justifying | `517-695` | tickets before there is anything capable of creating tickets. |
+| &nbsp;&nbsp;↳ 4.1 The bootstrapping paradox, and why `03` ships before `17` | `519-579` | tickets before there is anything capable of creating tickets. |
+| &nbsp;&nbsp;↳ 4.2 D-141: `match` lands before the first line of the scorer | `580-612` | (kinds, requiresTrace, sources, measure) and matchPriority, is ticket 4 of capability |
+| &nbsp;&nbsp;↳ 4.3 The S3 rebuild drill is a scheduled exercise, not an assumption | `613-642` | D-101 says user-supplied files are the system of record and anything API-sourced is reproducible. |
+| &nbsp;&nbsp;↳ 4.4 Pre-flight: audit CloudFront before the subdomain exists | `643-665` | The devaultsecurity repo history shows an abandoned S3 + CloudFront + ACM architecture, retired |
+| &nbsp;&nbsp;↳ 4.5 Manual Sync before the webhook — a deliberate inversion | `666-683` | D-013 forbids upkeep, so a Sync button looks like a violation. |
+| &nbsp;&nbsp;↳ 4.6 Why the XP engine is in Phase 2 and not Phase 1 | `684-695` | The fog reveal is the product (P4, D-051). |
+| 5. Carry-forward corrections | `696-784` | Defects found during design. |
+| &nbsp;&nbsp;↳ 5.1 D-145 — the Total Level ceiling is COMPUTED, not stated | `701-722` | Adding Vigil as a fifth activity skill moved the ceiling. |
+| &nbsp;&nbsp;↳ 5.2 D-146 — adding a skill mints a free Total Level point that must never celebrate | `723-745` | Total Level = Σ level(skill). |
+| &nbsp;&nbsp;↳ 5.3 The `04-game-design.md` §1.3 open item — one `measure` per row | `746-771` | two exercises needs two measures; whether match becomes a list or measure accepts a set is an |
+| &nbsp;&nbsp;↳ 5.4 Standing conditions carried into implementation | `772-784` | Not defects, but they expire silently if nobody holds them. |
+| 6. Post-MVP phases | `785-867` | Everything here is OUT of MVP by D-122 and stays out. |
+| &nbsp;&nbsp;↳ Phase 4 — Combat (D-040, D-041) | `796-818` | and its absence is visible on the skills panel from day one. |
+| &nbsp;&nbsp;↳ Phase 5 — Novelty route planning (D-070) | `819-839` | R7 found this unexpectedly cheap: roughly 300–500 lines and about $0.03/month. |
+| &nbsp;&nbsp;↳ Phase 6 — Equipment and loot (D-134) | `840-849` | Last of the game systems, for two reasons. |
+| &nbsp;&nbsp;↳ Phase 7 — Further ingestion adapters | `850-867` | Ordered by D-121's post-MVP note: Health Connect (D-113) or GPSLogger (D-112), then a watch |
+| 7. Honest sizing | `868-957` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.1 Estimating assumptions — state them so the numbers can be argued with | `870-893` | (07-ticketsmith.md §1.2). A ticket estimated l is a smell meaning "split it", not a big |
+| &nbsp;&nbsp;↳ 7.2 Per phase | `894-913` | is the honest shape of a project whose product is a custom WebGL layer over a third-party ingest |
+| &nbsp;&nbsp;↳ 7.3 The three capabilities most likely to overrun | `914-957` | This is the single most technically uncertain piece in the project. |
+| 8. Risks to the schedule | `958-1064` | Ordered by expected damage, not by probability. |
+| &nbsp;&nbsp;↳ 8.1 The Strava athlete cap (D-102, D-121) | `962-990` | The verified risk profile: the integration violates Strava's written terms — unambiguously. |
+| &nbsp;&nbsp;↳ 8.2 The WebGL fog renderer is the single most technically uncertain piece | `991-1015` | first-usable milestone. |
+| &nbsp;&nbsp;↳ 8.3 Amplify Gen 2 is the user's first | `1016-1025` | (backend.createStack) carries four resources — the three machine-only DynamoDB tables, the SQS |
+| &nbsp;&nbsp;↳ 8.4 The domain association stalls | `1026-1031` | first failure. A day lost to a fifteen-minute audit. Mitigation: 00/1, before anything. See |
+| &nbsp;&nbsp;↳ 8.5 Cost drifts past the D-083 target | `1032-1041` | Target is a few dollars a month; the estimate is $1–5 all-in. |
+| &nbsp;&nbsp;↳ 8.6 The plan's own upkeep — the Habitica risk turned inward | `1042-1056` | The most likely way this project fails is not technical. |
+| &nbsp;&nbsp;↳ 8.7 Scope creep from the post-run moment | `1057-1064` | budget. It will invite polish forever. Mitigation: its done-condition (§3, 12) is timing and |
+| 9. Definition of done for MVP | `1065-1172` | Every box is objectively evaluable — a command that exits zero, a file that exists, a number that |
+| &nbsp;&nbsp;↳ 9.1 Scope — D-122, exactly | `1071-1086` | Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution. |
+| &nbsp;&nbsp;↳ 9.2 Invariants — mechanically checked | `1087-1108` | decrease (D-135). |
+| &nbsp;&nbsp;↳ 9.3 Reversibility — the D-101 / D-121 proof | `1109-1124` | <sha256>.<ext>, written before normalize. |
+| &nbsp;&nbsp;↳ 9.4 Operational | `1125-1138` | button may remain as a manual fallback; it must not be the only path. |
+| &nbsp;&nbsp;↳ 9.5 The product, on the actual device | `1139-1165` | Evaluated in the desktop browser on the real deployed app (D-240); two rows are tagged for capabilities 12 and 13. |
+| &nbsp;&nbsp;↳ 9.6 The one test that is not on this list | `1166-1172` | That is settled six months later, by whether the user is still opening it. |
 
 ## `docs/BUILD-ORDER.md`
 
@@ -654,12 +654,12 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/contracts/ingestion-contract.md`
 
-**CANONICAL — Ingestion Contract** — 390 lines
+**CANONICAL — Ingestion Contract** — 450 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | 1. The eight conflicts and how they were settled | `13-27` |  |
 | 2. `src/domain/activity.ts` — the contract | `28-163` | / Known sources, widened so adding one never edits the domain (D-100). |
-| 3. `src/adapters/types.ts` — the adapter interface | `164-313` | export interface SourceAdapter<TCreds = unknown> { |
-| 4. The pipeline | `314-333` | accept() → ack the source in <2s, enqueue |
-| 5. CI checks that prove the boundary holds (D-100) | `334-390` | source-side decimation (the summarypolyline failure mode) before it permanently |
+| 3. `src/adapters/types.ts` — the adapter interface | `164-363` | export interface SourceAdapter<TCreds = unknown> { |
+| 4. The pipeline | `364-393` | accept() → ack the source in <2s, enqueue |
+| 5. CI checks that prove the boundary holds (D-100) | `394-450` | source-side decimation (the summarypolyline failure mode) before it permanently |

@@ -354,7 +354,7 @@ skills:
         quickValues: [5, 10, 15]
 ```
 
-*Amended (`D-NEW-sweep`):* this example lacked `enabled`, `introducedIn` and `revealsGround`, and
+*Amended (D-465):* this example lacked `enabled`, `introducedIn` and `revealsGround`, and
 put the exercise in a top-level list with a `skill:` back-reference, which the excerpt above
 forbids. As written now, v3 plus this row passes `validateRuleSet` (`src/rules/validate.ts`).
 Nothing in CI parses this block yet: `src/rules/doc-schema.test.ts` reads only the first `yaml`

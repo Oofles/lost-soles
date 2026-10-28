@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-22
+Last updated: 2026-10-27
 
 ---
 
@@ -6018,6 +6018,9 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     (responses are gzipped in transit), 6–10 ms of main-thread time at map load (940–980 ms
     before), beat 1 at 2.9 s. D-299's "19 runs, ~17 ms" was already stale: 113 real runs cost
     63–79 ms before this change.
+    → **Corrected by D-460 (2026-10-26):** the 1.13 MB was measured locally. In production,
+    route-handler JSON is not compressed in transit and the raw body is capped near 6 MB;
+    `/api/runs/web` travels raw. *(Back-pointer added by D-465.)*
   - **Known limits.**
     - At ~96 pts/km the transfer is 3.06 MB gzipped. A delta-encoded integer store cuts it to
       1.27 MB, but is a format change and was not made.
@@ -6141,3 +6144,39 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   measures them, not Lost Soles. The box keeps its other half. September 2026's Lost Soles runtime
   cost was at most about $1.90 against D-083, in D-433's scope, with build minutes ($18.41) outside
   it. The cost-DoS bound remains the webhook's reserved concurrency (D-361).
+- **D-465** **The capability `18` as-built sweep: the design docs describe the shipped build.**
+  *(Operator, 2026-10-27; tickets `0325`, `0326`, from the capability `18` drift audit.)* The audit
+  found about 25 places where a design doc still described a plan that later decisions had changed.
+  In every case the code was right. That is over AUDIT.md §2's budget of three, so the operator
+  chose a DESIGN sweep and a re-audit over a forced record. The sweep amends docs in place and
+  leaves the old text visible next to the decision that changed it (struck through or quoted, as
+  D-276 did). It edits no settled decision. **Why the drift went unseen:** each audit re-reads only
+  the sections its own capability's tickets cite. Broad sections (`01` §2, `02` §1.2/§9, `08`
+  §5.5/§9) drifted during capabilities `01`–`16` and were not re-cited until `18` swept the whole MVP.
+  The docs now reflect:
+  - **`08`:** D-426, D-427, D-429 and D-430 name §2.4's four CI checks, and §2.5 no longer calls
+    three placements "the whole enforcement mechanism". §5.5: the owner is the committed
+    `OWNER_USER_IDS` list, not an SSM parameter, and `isOwner` gates capture, the `[source]` OAuth
+    routes, Sync, `/settings`, `logWorkout` and `setActivityKind`. §7.5: D-162 (`npm install
+    --no-save`; revert under `0128`). §9: T7's CMK is carved out of "no CMKs" (D-362, D-433), and
+    there is no budget alarm among the controls (D-361, D-464). §3 S6/S7: no `secret()` (`0290`).
+  - **`01` §2:** the six real models, no AppSync mutation or wss subscription (D-364), four token
+    principals (D-362), and resource rows 22–27 (log-workout, set-activity-kind,
+    `LostSolesOAuthState`, `SourceAccountKey`, `IngestAlarms`, `LostSolesArchiveDeletion`).
+  - **Passkeys were never enabled.** The pool is email + password, MFA off (read live
+    2026-10-27). `0014` deferred passkeys, and D-175/D-425 replace Cognito after the MVP. `08` §9's
+    "no MFA beyond passkeys" therefore had no basis, and the docs mark it undecided pending the
+    operator's call.
+  - **The ingestion contract:** §3 adds the five OAuth exports of `src/adapters/types.ts`. §4: sanitation runs
+    inside `normalize()`, before dedupe (D-198, D-284).
+  - **`02`:** eleven tables (D-456); tiles on S3 behind CloudFront (D-226); no T5 and no seeder (D-274,
+    D-276); the IndexedDB `/log` queue is not a cache (D-282). I-18 and I-20 name `setActivityKind`
+    (D-284; its mutation allowlist already did). I-28: the webhook holds no SourceAccount grant (D-343, D-365).
+  - **`03` §2.6:** the speed gate lives in `src/domain/geo.ts` (`0045`, D-100); a traceless run goes to Vigil.
+  - **`04`:** Total XP is on `/skills` (D-462), the registry is v3 (D-286), and the "exactly this
+    diff" example now validates (D-146, D-189).
+  - **`05` §6.3:** desktop GPU budgets (D-241, D-251) plus the atlas cold-pass row (D-147, `0298`); r11 blob names (D-237).
+  - **`06` §9.4/§9.6:** three or five grid columns, nothing between (D-289); no legend (D-394); the D-316 last-run format.
+  - **`07` §2.4:** no read route, cache, webhook or phone queue (D-251, D-252).
+  - **`09`:** nine enabled skills (D-189), I-1…I-30, `0117`, `reconcile-sweep` (D-350), three alarms
+    (D-351), stock basemap colours (D-373). §2.3 is annotated as a dated snapshot.

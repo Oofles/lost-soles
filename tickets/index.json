@@ -7471,7 +7471,7 @@
     "path": "tickets/open/0322-middleware-404-and-307-responses-carry-no-cache-control-agai.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },
@@ -7512,7 +7512,7 @@
     "path": "tickets/open/0324-skill-tiles-do-not-announce-progress-to-the-next-level-to-sc.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 5
     }
   },
@@ -7533,7 +7533,7 @@
     "path": "tickets/open/0325-as-built-doc-sweep-part-1-08-security-privacy-01-architectur.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 4
     }
   },
@@ -7554,7 +7554,7 @@
     "path": "tickets/open/0326-as-built-doc-sweep-part-2-02-03-04-05-06-07-and-09.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 6
     }
   },
@@ -7572,6 +7572,26 @@
     "source": "agent",
     "created": "2026-10-28T02:24:41Z",
     "path": "tickets/open/0327-maplibre-renders-50-s-while-the-fog-animator-requests-29-fin.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 328,
+    "slug": "doc-check-gaps-found-in-the-0326-sweep-add-a-skill-example-u",
+    "title": "Doc-check gaps found in the 0326 sweep: add-a-skill example unparsed, doc-schema test pinned to v2, stale resource.ts header",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T03:39:03Z",
+    "path": "tickets/open/0328-doc-check-gaps-found-in-the-0326-sweep-add-a-skill-example-u.md",
     "ready": true,
     "acceptance": {
       "checked": 0,

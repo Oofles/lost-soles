@@ -183,7 +183,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
   Alarms: 3 CloudWatch alarms → SNS topic IngestAlarms → email (the only push channel, D-185)
 ```
 
-**Amended by D-364 / `D-NEW-sweep` (18 audit sweep, 2026-10-27):** the diagram showed
+**Amended by D-364 / D-465 (18 audit sweep, 2026-10-27):** the diagram showed
 `process-activity` sending a GraphQL mutation to AppSync and the browser holding a **wss
 subscription** that it woke. D-364 dropped that path; neither half was ever built.
 `process-activity` writes `Activity`, ledger, skill and profile rows straight to the Amplify Data
@@ -221,7 +221,7 @@ Every resource, what it does, and what would make it cost money.
 | 2 | Cognito user pool | `defineAuth` | `amplify/auth/resource.ts` | Identity. Email + password; no passkey was enabled (`0014`, `09` §2.3; `08` §5.1). `allowUnauthenticatedIdentities: false`, self-signup disabled | MAU (10,000 free, non-expiring) |
 | 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
 | 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads under owner auth, plus the two custom mutations `logWorkout` and `setActivityKind` (#22, #23). **No subscriptions**: the live notify path was dropped by D-364 | $4.00/M ops |
-| 5 | DynamoDB (Amplify-managed) | `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, `DeploySmokeTest` (`0012`'s placeholder, one `note` field). *(Said `Profile, Skill, Activity, Region, Ticket`; `D-NEW-sweep`.)* | `defineData` models | Game state the client reads. `process-activity` writes these tables directly, not through AppSync (§4, D-276) | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
+| 5 | DynamoDB (Amplify-managed) | `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, `DeploySmokeTest` (`0012`'s placeholder, one `note` field). *(Said `Profile, Skill, Activity, Region, Ticket`; D-465.)* | `defineData` models | Game state the client reads. `process-activity` writes these tables directly, not through AppSync (§4, D-276) | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
 | 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
 | 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d. Also holds the webhook's per-user flood counters, `rate#<source>#<userId>#<UTC hour>`, TTL 2 h (D-349) | Negligible |
@@ -247,7 +247,7 @@ Every resource, what it does, and what would make it cost money.
 
 Also in play, **not created by this backend**: `LostSolesAmplifyComputeRole`, the SSR compute role,
 made by hand in `0018` and imported by ARN so CDK can attach grants to it. *(Rows 22–27 and this
-note were added by `D-NEW-sweep`; the table had stopped at 21.)*
+note were added by D-465; the table had stopped at 21.)*
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
 WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always-on compute.
@@ -264,7 +264,7 @@ WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always
    rule is safer than no API. Exactly four principals get IAM grants on the token table and its
    key: the SSR compute role (the OAuth callback and the manual Sync), `process-activity`,
    `token-refresh` and `reconcile-sweep` (D-362). *(Said "only `process-activity` and
-   `token-refresh`"; `D-NEW-sweep`.)*
+   `token-refresh`"; D-465.)*
 3. **Write volume is machine-generated.** ~100 conditional writes per run from one Lambda.
    AppSync resolvers add latency and cost with no benefit.
 

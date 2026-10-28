@@ -339,7 +339,7 @@ webhook events for them (§2.3).
   conditional update keyed on the previous token value, so two concurrent refreshes cannot both
   win. Do not put refresh tokens in environment variables — they are long-lived *mutable*
   state. Secrets Manager or a dedicated DynamoDB `Connection` row (D-080/D-081: no VPC, so
-  both are plain HTTPS calls from Lambda). *As built (`D-NEW-sweep`):* the row is the CDK table
+  both are plain HTTPS calls from Lambda). *As built (D-465):* the row is the CDK table
   `LostSolesSourceAccount` (`02` T7), KMS-encrypted with a customer-managed key.
 - Refresh proactively at `expires_at - 300s`, not reactively on 401. A 401 mid-webhook-consume
   costs a retry you did not need.
@@ -752,7 +752,7 @@ Handling:
 3. Either way, write the Activity: it still awards activity XP and counts toward
    Constitution (D-032) volume. It simply reveals no fog and earns no Cartography.
 ```
-*Amended (`D-NEW-sweep`):* step 3 said "Wayfaring XP". A traceless run matches `vigil`
+*Amended (D-465):* step 3 said "Wayfaring XP". A traceless run matches `vigil`
 (`requiresTrace: false`, D-132), at the same rate, as the type-mapping table above already says.
 Check for the *presence* of the `latlng` key before indexing into it. `streams.latlng.data[0]`
 on a treadmill run is the crash you will ship if you skip this.
@@ -822,7 +822,7 @@ revealed corridor across the city, and D-020 makes it permanent.
 > Note the general shape, because the next adapter inherits it: **every "compare against the
 > previous accepted value" filter has this weakness at its boundary.** Fixed in
 > `sanitize.ts`, which D-112 and D-113 will share, rather than per adapter.
-> *Amended (`D-NEW-sweep`):* only the speed-gate table is shared, and it moved to
+> *Amended (D-465):* only the speed-gate table is shared, and it moved to
 > `src/domain/geo.ts` (`MAX_IMPLIED_SPEED_MS`, `0045`). The anchor rule stays in
 > `src/adapters/strava/sanitize.ts`, Strava-private, because `src/domain` may not import an adapter
 > (D-100). The next adapter imports the gate and states its own boundary rule.
@@ -832,7 +832,7 @@ revealed corridor across the city, and D-020 makes it permanent.
 >    matching `kinds: [ride]`, so rides are ingested and earn XP, and a cyclist holds 8 m/s
 >    without trying. A single gate at 8 deletes five fixes out of six from an ordinary descent.
 >    The table lives in ~~`src/adapters/strava/sanitize.ts`~~ `src/domain/geo.ts`
->    (`MAX_IMPLIED_SPEED_MS`; moved by `0045`, `D-NEW-sweep`) as a data table, not a `switch`
+>    (`MAX_IMPLIED_SPEED_MS`; moved by `0045`, D-465) as a data table, not a `switch`
 >    (D-031). The fog projection reads the same table.
 > 3. **"Log" is "record".** `normalize()` is pure (D-196) and cannot log; a `console.log` there
 >    would be the first side effect on the migration seam. The count rides on `SourceRef.meta`

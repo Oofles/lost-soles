@@ -189,7 +189,7 @@ CONSTANTS
 >
 > **The constants block once read `TELEPORT_SPEED = 12.0`, and that value is superseded.** *(This
 > said "the 12.0 written above … is left standing so the mistake is visible"; a later edit replaced
-> the literal with the line above, so the mistake is recorded here instead, `D-NEW-sweep`.)*
+> the literal with the line above, so the mistake is recorded here instead, D-465.)*
 > `src/domain/fog.ts` imports the per-kind table rather than restating a number, so there is
 > one gate with one owner. The table moved to `src/domain/geo.ts` in the same ticket, because
 > the domain may not import from an adapter and a second copy of the number is exactly the
@@ -1517,7 +1517,7 @@ Further reductions, in order of value:
 dedupe + bbox precompute — 30–80 ms, debounced, once per bucket"*. At 500k res-11 cells a whole-bucket
 pass is ~2 s (the bridge `gridDisk` alone is 1,543 ms), so derivation is lazy per group — see §6.1.
 
-**Amended (`D-NEW-sweep`):** the last column was headed *"Mid-range phone"*. D-251 removed the phone
+**Amended (D-465):** the last column was headed *"Mid-range phone"*. D-251 removed the phone
 as a viewing surface and D-241 judges the renderer on the desktop, so the same budgets are now the
 desktop's, and `lib/fog/perf/report.ts` holds the mask and composite to them. The atlas cold
 pass row was missing; `0298` measured it on real hardware (`docs/capabilities/18-mvp-hardening.md`,

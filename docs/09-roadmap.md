@@ -111,7 +111,7 @@ Seven capabilities, in this order, and nothing else:
 
 ### 2.3 What is deliberately ugly or missing at the milestone
 
-> *Dated snapshot (`D-NEW-sweep`):* this section describes the first-usable milestone as planned,
+> *Dated snapshot (D-465):* this section describes the first-usable milestone as planned,
 > and is kept as written rather than rewritten to the build. Two annotations below mark where the
 > build later moved past it.
 

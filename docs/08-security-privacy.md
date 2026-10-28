@@ -185,7 +185,7 @@ login, which is the same thing with worse accountability.
       box could have been ticked by curling a 404 for entirely the wrong reason.)*
 - [ ] **A-7. D-123 reopened and a successor decision recorded.**
 
-**Enforced (`0114`, D-426; recorded by `D-NEW-sweep`):** `scripts/check-d123-trigger-a.mjs` reads
+**Enforced (`0114`, D-426; recorded by D-465):** `scripts/check-d123-trigger-a.mjs` reads
 the live production pool in `amplify.yml`'s backend phase and fails the deploy on any account that is
 neither an owner (`OWNER_USER_IDS`, §5.5) nor listed in its `APPROVED_ACCOUNTS` under a decision
 that supersedes or re-affirms D-123. A console-provisioned account never touches the repo, which is
@@ -227,7 +227,7 @@ time**, because the design of a share feature is where the privacy decision actu
 - [ ] **B-7. D-123 reopened and a successor decision recorded** — with the mask/exclusion
       behaviour written down as the decision, not as an implementation detail.
 
-**Enforced (`0114`, D-427; recorded by `D-NEW-sweep`):** `scripts/check-d123-trigger-b.mjs` runs on
+**Enforced (`0114`, D-427; recorded by D-465):** `scripts/check-d123-trigger-b.mjs` runs on
 both CI surfaces and reads only the lines a push adds. Added lines in `tickets/**.md` and
 `docs/**.md` are matched against the list above, and pass only when that file cites a decision that
 supersedes or re-affirms D-123. Added code is matched against API-shaped signals, and passes only
@@ -260,7 +260,7 @@ page rendered with real data, a cached CDN response, an OG-image endpoint, a sta
       *the explored set is never baked into a tile.* **Amended (08 audit, 2026-09-28):** this
       item said "R2"; tiles moved to S3 + our own CloudFront by D-226, and the bucket itself is
       private (D-250) — the distribution is the public path.
-      **The matcher's exemptions, as built (recorded by `D-NEW-sweep`):** `/_next/static`,
+      **The matcher's exemptions, as built (recorded by D-465):** `/_next/static`,
       `/maplibre/` (the vendored MapLibre worker, `0053`), `/basemap-assets/` (self-hosted
       glyphs and sprite, `0293`), `favicon.ico`, any `.png/.jpg/.jpeg/.svg/.webp/.ico` path, and
       `/_next/image`. None serves anything derived from cells. `/_next/image` is Next's image
@@ -319,7 +319,7 @@ A checklist in a design doc that nobody opens is decoration. Three placements, a
    **needs D-123 review** before it is numbered.
 
 Those three cost one line in a template and one regex, and they were once the whole enforcement
-mechanism. **Since `0114` they are not** (recorded by `D-NEW-sweep`). Four CI checks enforce §2.4
+mechanism. **Since `0114` they are not** (recorded by D-465). Four CI checks enforce §2.4
 directly, each described under its item above: Trigger A against the live pool (D-426), Trigger B
 on the lines a push adds (D-427), C-2's prerender allowlist and scan (D-430), and C-3's
 `withNoStore` rule (D-429). The three placements stay. The checks catch what reaches a diff or a
@@ -342,8 +342,8 @@ unused at $0.40/secret/month (§9).
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
 | S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
-| S6 | **GitHub webhook secret** (push → cache refresh) | SSM `SecureString` at the shared path, to be read through an explicit `ssm:GetParameter` grant like S1–S3 (D-357, D-362). Said "via `secret()`"; nothing in the backend uses `secret()` since `0290` (`D-NEW-sweep`) | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
-| S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM `SecureString`, to be read through an explicit `ssm:GetParameter` grant, as S6. Said "via `secret()`" (`D-NEW-sweep`) | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
+| S6 | **GitHub webhook secret** (push → cache refresh) | SSM `SecureString` at the shared path, to be read through an explicit `ssm:GetParameter` grant like S1–S3 (D-357, D-362). Said "via `secret()`"; nothing in the backend uses `secret()` since `0290` (D-465) | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
+| S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM `SecureString`, to be read through an explicit `ssm:GetParameter` grant, as S6. Said "via `secret()`" (D-465) | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
 | S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, Cognito, billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
 | S9 | **Map tile access** | *None.* pmtiles on a private S3 bucket (`lost-soles-tiles`) behind our own CloudFront distribution, fetched by HTTP range from the browser (`01-architecture.md` §8; D-226, D-250) | the browser | **No credential exists in the browser.** The distribution is public by design and serves a generic basemap identical for every user, with zero Lost Soles data in it. The bucket is `BLOCK_ALL`; CloudFront reads it through Origin Access Control. *(Amended, 08 audit 2026-09-28: said Cloudflare R2 / public-read bucket.)* | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
 
@@ -598,7 +598,7 @@ because it is *free, boring, and hard to misconfigure* at six users — not beca
 Managed Login and passwordless/passkey (WebAuthn) sign-in, with 10,000 MAU free and — confirmed
 — **non-expiring**, so auth costs $0.00 forever at this scale (D-083).
 
-*(As built, recorded by `D-NEW-sweep`: **email + password, no passkey.** `amplify/auth/resource.ts`
+*(As built, recorded by D-465: **email + password, no passkey.** `amplify/auth/resource.ts`
 is `loginWith: { email: true }` with `accountRecovery: "EMAIL_ONLY"`. Ticket `0014` left passkeys
 off, per `09-roadmap.md` §2.3 ("Email + password, passkeys later"), and none has been enabled
 since. D-175 and D-425 replace Cognito with Auth.js and Google after the MVP ships (`0138`), so
@@ -655,7 +655,7 @@ the deploy, and fails it on either boolean.)*
 
 ### 5.2 Passkeys, and the recovery problem nobody plans for
 
-> **As built (`D-NEW-sweep`): no passkey is enabled** (§5.1's note). The pool signs in with email
+> **As built (D-465): no passkey is enabled** (§5.1's note). The pool signs in with email
 > and password, and recovers by email only. So the paragraph below describes a plan, not the
 > system. What holds regardless: **the email inbox is the real security boundary** (the
 > recovery channel, and now the password-reset path too), so the owner's email account needs its
@@ -783,7 +783,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
   `lib/auth/owner-ids.ts`, a committed list of Cognito `sub`s, hard-coded on purpose: a `sub` is
   an identifier, not a credential, and a control that must fail closed should have no runtime
   dependency that can be unavailable. An empty list 404s everything. Not an SSM parameter, not a
-  roles table, not RBAC. *(Amended by `D-NEW-sweep`: this bullet said the role gated
+  roles table, not RBAC. *(Amended by D-465: this bullet said the role gated
   `POST /api/tickets/capture` "and nothing else", against "an SSM parameter". Neither was true as
   built.)* `isOwner` gates:
   - `POST /api/tickets/capture` (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6);
@@ -1125,7 +1125,7 @@ by definition, in the wrong place.
 ### 7.5 Dependencies
 
 - **`package-lock.json` committed**, `npm ci` in CI. Reproducible builds are a supply-chain
-  control, not a convenience. *(As built, D-162, recorded by `D-NEW-sweep`: both CI surfaces run
+  control, not a convenience. *(As built, D-162, recorded by D-465: both CI surfaces run
   `npm install --no-save` (`amplify.yml`, `gate.yml`), because `npm ci` cannot install the Amplify
   Gen 2 dependency set. `--no-save` installs from the committed lock and leaves it byte-identical,
   so the intent stands. The revert to `npm ci` is ticket `0128`, deferred.)*
@@ -1333,10 +1333,10 @@ that protects six people who are already behind Cognito.
 | **Penetration testing** | The attack surface is one unauthenticated endpoint that holds no credentials and can be reasoned about completely in §4. A pen test would cost more than the app will cost to run for a decade |
 | **SOC 2, ISO 27001, GDPR Article 30 records, a DPA, a formal DPIA** | No customers, no processors, no controller relationship, nothing to attest to. If friends are ever added (§5.4), the *substance* they would be owed — knowing what is stored, and being able to have it deleted — is already required by §2.4 A-4 and §6.4. **That is the part worth having; the paperwork is not** |
 | **A bug bounty / security.txt / vulnerability disclosure programme** | There is no unauthenticated attack surface worth reporting against, and no capacity to triage submissions. `security.txt` on a personal app invites automated low-quality reports, exclusively |
-| **Customer-managed KMS keys** | ~$1/month plus per-request charges to defend against a threat (AWS-internal access to raw storage) that §1 explicitly excludes. SSE-S3 is on and free (§6.2). *(**One exception, as built** (`D-NEW-sweep`): T7 `LostSolesSourceAccount`, the OAuth tokens (S4), is encrypted with the CMK `alias/lost-soles-source-account` (`amplify/backend.ts`, `02-data-model.md` T7). It is bought for a different reason than the threat above: a CMK gives a readable key policy and attributable `Decrypt` events, and disabling it makes every token unreadable in one action, the containment move if a compute role is ever suspected. It costs $1/month, the largest line in D-433's runtime figure. It is granted to exactly the four principals D-362 names. Everything else stays on AWS-owned or SSE-S3 keys.)* |
+| **Customer-managed KMS keys** | ~$1/month plus per-request charges to defend against a threat (AWS-internal access to raw storage) that §1 explicitly excludes. SSE-S3 is on and free (§6.2). *(**One exception, as built** (D-465): T7 `LostSolesSourceAccount`, the OAuth tokens (S4), is encrypted with the CMK `alias/lost-soles-source-account` (`amplify/backend.ts`, `02-data-model.md` T7). It is bought for a different reason than the threat above: a CMK gives a readable key policy and attributable `Decrypt` events, and disabling it makes every token unreadable in one action, the containment move if a compute role is ever suspected. It costs $1/month, the largest line in D-433's runtime figure. It is granted to exactly the four principals D-362 names. Everything else stays on AWS-owned or SSE-S3 keys.)* |
 | **AWS Secrets Manager** | $0.40/secret/month × 6–7 secrets ≈ $2.80/month, against SSM Parameter Store at $0 for the same job (§3). Secrets Manager's rotation automation is what you pay for, and our highest-value credential (S4) already rotates itself on every refresh |
-| **MFA beyond passkeys; SMS MFA specifically** | Passkeys are already phishing-resistant and hardware-bound (§5.2). SMS costs real SNS money and is the weakest available second factor. *(As built, `D-NEW-sweep`: **no passkey was ever enabled**, so the first sentence's premise is false. The pool is email + password with no second factor (§5.1). The SMS half stands. Whether "no MFA" is accepted until `0138` replaces Cognito, or TOTP is added, is not yet decided.)* |
-| **A roles/permissions system** | One privileged role exists, the owner: a committed `sub` allowlist (`OWNER_USER_IDS`) that gates the capture endpoint, the source connect routes, Sync, `/settings` and the two custom mutations (§5.5). *(Said "one privileged action", the capture endpoint; `D-NEW-sweep`.)* RBAC for six users creates a second thing to misconfigure |
+| **MFA beyond passkeys; SMS MFA specifically** | Passkeys are already phishing-resistant and hardware-bound (§5.2). SMS costs real SNS money and is the weakest available second factor. *(As built, D-465: **no passkey was ever enabled**, so the first sentence's premise is false. The pool is email + password with no second factor (§5.1). The SMS half stands. Whether "no MFA" is accepted until `0138` replaces Cognito, or TOTP is added, is not yet decided.)* |
+| **A roles/permissions system** | One privileged role exists, the owner: a committed `sub` allowlist (`OWNER_USER_IDS`) that gates the capture endpoint, the source connect routes, Sync, `/settings` and the two custom mutations (§5.5). *(Said "one privileged action", the capture endpoint; D-465.)* RBAC for six users creates a second thing to misconfigure |
 | **Field-level or client-side encryption of coordinates** | The app must render the map, so the key would have to reach the client, and the threat model's highest-ranked actor is an accident, not a cryptanalyst. It would break every server-side aggregate (D-115, D-120) to defend against nothing in §1 |
 | **Home-location masking / privacy zones** | **D-123, and it is the one item on this list with a live tripwire under it.** Not a permanent dismissal: §2.4's Triggers A, B and C each force it back open. See §2 — it is the most important section in this document, and this row is a pointer, not a decision |
 | **Anonymised analytics, error tracking SaaS, session replay** | A third party in the request path of a lifetime GPS history, for product insight into a userbase of one who can simply be asked. CloudWatch is sufficient and stays inside the account |
@@ -1350,7 +1350,7 @@ reserved concurrency (§4.4), a bucket policy denying archive deletes (§6.2), o
 authorization (§5.5), no credential in the public endpoint (§4.5), and a gitignore written
 before the first commit (§7.1). *(This list named "a budget alarm (§4.4)". None exists: AWS cost
 alerting is not this project's control (D-361, D-464), and reserved concurrency is the cost bound.
-`D-NEW-sweep`.)* Almost all of them are one line, cost nothing,
+D-465.)* Almost all of them are one line, cost nothing,
 and cannot be forgotten once set. **That is what security proportionate to a personal project
 looks like — and if the budget is ever spent on exactly one security control, it should be spent
 on §2, because the sensitive thing here is not the infrastructure. It is the map.**

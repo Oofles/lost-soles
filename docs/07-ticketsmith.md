@@ -204,7 +204,7 @@ information about the backlog. Ten half-formed tickets sitting in `open/` would 
 
 ### 2.4 Data flow
 
-> **AS BUILT (`D-NEW-sweep`; D-251, D-252).** Only the top-left of the diagram below exists:
+> **AS BUILT (D-465; D-251, D-252).** Only the top-left of the diagram below exists:
 >
 > ```
 >  any client ──POST /api/tickets/capture──▶ capture endpoint ──GitHub Contents API──▶ commit to
