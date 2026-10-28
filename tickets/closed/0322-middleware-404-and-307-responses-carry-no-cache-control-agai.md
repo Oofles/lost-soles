@@ -4,7 +4,7 @@ slug: middleware-404-and-307-responses-carry-no-cache-control-agai
 title: Middleware 404 and 307 responses carry no Cache-Control, against D-429
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T02:22:22Z
 started: 2026-10-28T03:22:38Z
+closed: 2026-10-28T03:55:47Z
 ---
 
 ## Description
