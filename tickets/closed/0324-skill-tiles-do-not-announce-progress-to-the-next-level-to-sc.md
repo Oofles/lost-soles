@@ -4,7 +4,7 @@ slug: skill-tiles-do-not-announce-progress-to-the-next-level-to-sc
 title: Skill tiles do not announce progress to the next level to screen readers (06 §9.4)
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T02:22:22Z
 started: 2026-10-28T03:22:38Z
+closed: 2026-10-28T15:09:54Z
 ---
 
 ## Description

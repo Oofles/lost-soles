@@ -7502,7 +7502,7 @@
     "title": "Skill tiles do not announce progress to the next level to screen readers (06 §9.4)",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7510,8 +7510,9 @@
     "source": "agent",
     "created": "2026-10-28T02:22:22Z",
     "started": "2026-10-28T03:22:38Z",
-    "path": "tickets/open/0324-skill-tiles-do-not-announce-progress-to-the-next-level-to-sc.md",
-    "ready": true,
+    "closed": "2026-10-28T15:09:54Z",
+    "path": "tickets/closed/0324-skill-tiles-do-not-announce-progress-to-the-next-level-to-sc.md",
+    "ready": false,
     "acceptance": {
       "checked": 5,
       "total": 5
