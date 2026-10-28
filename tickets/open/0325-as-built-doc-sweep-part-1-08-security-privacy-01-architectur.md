@@ -73,14 +73,19 @@ editing, since the list is a pointer and not the authority.
 
 ## Acceptance criteria
 
-- [ ] Each numbered item is amended to match the build, or found already correct with the reason
+- [x] Each numbered item is amended to match the build, or found already correct with the reason
       recorded in `## Resolution`. Nits are fixed in the same pass.
 - [ ] One decision is recorded in `docs/decisions/DECISIONS.md` for the sweep. It names the
       decisions whose effects the docs now reflect. It edits no settled decision; superseded entries
       get a back-pointer only where a reader would otherwise take a stale line as current. D-451's
       "responses are gzipped in transit", contradicted by D-460, is the one the audit named.
+      *(Not done by the wave agent, which may not edit DECISIONS.md (WAVES.md §3). The half for
+      this ticket and the D-451 back-pointer text are proposed in the agent's report. The
+      orchestrator merges them with `0326`'s into one decision and replaces the `D-NEW-sweep`
+      placeholder in the three docs.)*
 - [ ] `node scripts/build-index.mjs` is re-run and `docs/INDEX.md` committed.
-- [ ] No code changes in this ticket. A divergence that turns out to be a code bug is filed as a new
+      *(Left to the orchestrator: a wave agent leaves `docs/INDEX.md` stale (WAVES.md §3).)*
+- [x] No code changes in this ticket. A divergence that turns out to be a code bug is filed as a new
       ticket (`source: agent`), not fixed here.
 
 ## Notes
@@ -94,3 +99,76 @@ must close before `/tickets audit 18-mvp-hardening` is re-run. Code bugs from th
 None owed. Doc-only. The re-run audit's §2 is the check.
 
 D-123 trigger checked? none. It describes existing enforcement; it proposes no feature.
+
+## Resolution
+
+Doc-only. Every item was re-checked against the code on 2026-10-27 before editing, and each
+amendment is marked in place with what the line used to say. `D-NEW-sweep` in the docs is a
+placeholder for the one sweep decision the orchestrator records from this ticket's and `0326`'s
+proposals.
+
+Files touched:
+
+- `docs/08-security-privacy.md`: items 1–6 and the nits.
+- `docs/01-architecture.md`: items 7–11, §2 plus the §1 stack row for auth.
+- `docs/contracts/ingestion-contract.md`: items 12–13.
+- This ticket file.
+
+Per item:
+
+1. **§2.4/§2.5.** C-2 and C-3 now name what `0114` built: `check-prerender-no-cell-data.mjs`
+   (D-430), `withNoStore` plus `check-route-cache-control.mjs` (D-429). Triggers A and B each gained
+   an "Enforced" paragraph for `check-d123-trigger-a.mjs` (D-426, live pool) and
+   `check-d123-trigger-b.mjs` (D-427). §2.5 no longer says three placements are the whole
+   mechanism. Nits: `D-2xx` is `D-xxx` in the standing rule, A-3 and §5.4 step 3. C-1 now says `/`
+   is the signed-out landing (no sign-in route exists) and lists every middleware matcher exemption.
+   **`/_next/image` was checked before being listed as safe.** The app uses no `next/image` and sets
+   no `images` config, so only same-origin paths are allowed. In Next 15.5.28
+   `fetchInternalImage` builds its mock request with no headers from the caller
+   (`node_modules/next/dist/server/image-optimizer.js`), so the internal fetch is signed out, and a
+   body that does not sniff as an image is refused. It serves nothing derived from cells.
+2. **§5.5 owner store.** Now `OWNER_USER_IDS` in `lib/auth/owner-ids.ts`, hard-coded on purpose,
+   with the file's own reasons.
+3. **§5.5 owner gates.** Listed from a grep of `isOwner`/`OWNER_USER_IDS`: capture, the
+   `[source]` start/callback/disconnect routes (`shared.ts`), `sync-action.ts`, `/settings`, and the
+   two mutation handlers. `reconcile-sweep` uses the list as its set of users to sweep, which is not
+   a gate, and is described that way. **The ticket's pointer was wrong on `lib/auth/bearer.ts`.**
+   It mentions `OWNER_USER_IDS` only in a comment and verifies a token against the production pool
+   without checking the owner list, so it is not listed. §9's "one privileged action" row is
+   rewritten to match. Nits: `DeploySmokeTest` added to the model list. The Lambdas bullet now names
+   all five Lambdas that hold grants.
+4. **§7.5.** `npm install --no-save` on both surfaces, D-162, revert under `0128`.
+5. **§9 KMS row.** T7's CMK is carved out, with its reason (auditable, revocable) and cost (D-433).
+6. **§9 controls list.** "a budget alarm (§4.4)" removed with a note (D-361, D-464). §4.4 item 7
+   was already correct: it carries D-361's as-built note.
+   Nits: §3 S6/S7 no longer say "via `secret()`" (`0290`). §8's Lambdas row adds `logworkout…` and
+   `setactivitykind…`, read from the live account with `aws lambda list-functions`.
+7. **01 row 5.** The six real models.
+8. **01 diagram + row 4.** The mutation and wss arrows are gone. `process-activity` is shown
+   writing the model tables with `TransactWrite`, and the browser reads through AppSync queries.
+   Row 4 says no subscriptions (D-364). The closing line of "Why the cell store…" no longer credits
+   real-time subscriptions.
+9. **01 resource table.** Rows 22–27 added: `log-workout`, `set-activity-kind`,
+   `LostSolesOAuthState`, `SourceAccountKey`, `IngestAlarms` with its three alarms, and
+   `LostSolesArchiveDeletion`. A note covers the hand-made, imported `LostSolesAmplifyComputeRole`.
+   The diagram gained the two resolvers and the alarm line. Row 17 (SSM) said `secret()` at the
+   branch path, and now gives the shared path with explicit grants.
+10. **01 token grants.** The four principals of D-362.
+11. **Passkeys.** 01 row 2, the §1 stack row and the diagram now say email + password. In `08`:
+    §5.1 has an as-built note, §5.2 an as-built box saying what still holds (the inbox is the
+    boundary, break-glass is the console), §5.4 step 5 says "sets their password", and §9's MFA row
+    is marked. **No decision ever dropped passkeys.** `0014` deferred them under `09` §2.3, and
+    D-175/D-425 replace Cognito after the MVP. The passkey premise behind §9's "no MFA" row is
+    therefore gone. The docs say "not yet decided" rather than inventing an acceptance, and the
+    question is in the agent's report (D-152).
+12. **Contract §3.** An as-built block lists the five OAuth exports (plus `RetractConfirmation`),
+    abridged from `types.ts`, which stays the authority.
+13. **Contract §4.** SANITIZE moved inside `normalize()`, ahead of dedupe, with an amendment note.
+    Step numbers 5–7 are kept so existing citations still resolve.
+
+Found but left alone (outside this ticket's sections): `01-architecture.md`'s module-layout tree
+(~l. 1063) still lists `sign-in/page.tsx` "(passkey-first)". No such route exists (middleware
+serves `/` signed out). It belongs to §5's layout, which neither sweep ticket covers. The agent's
+report flags it.
+
+No code changed. No code bug found: every divergence was a stale doc.

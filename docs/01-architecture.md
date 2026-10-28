@@ -40,7 +40,7 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 |---|---|---|
 | Hosting + CI/CD | **AWS Amplify Gen 2**, `soles.devaultsecurity.com` | D-080 |
 | Framework | **Next.js 15, App Router**, SSR + route handlers | R5 (deliberate divergence from house Astro) |
-| Auth | **Cognito** user pool, Essentials tier, email + passkey, self-signup OFF | R5 §3 |
+| Auth | **Cognito** user pool, Essentials tier, email + password (passkey planned, never enabled; `08` §5.1), self-signup OFF | R5 §3 |
 | Client-facing data | **AppSync + DynamoDB** via `defineData` | R5 §4 |
 | Machine-only data | **DynamoDB tables created through the CDK escape hatch** | §2 below |
 | Object storage | **S3** via `defineStorage` (raw trace archive, `explored.bin`) | D-101, D-121.2 |
@@ -145,17 +145,17 @@ hosted zone, different subdomains. That is explicitly supported (§6).
   │   fetch raw ─▶ archive to S3 ─▶ normalize ─▶ H3 res 11 ─▶ diff ─▶ XP      │
   └──┬────────────┬──────────────┬───────────────┬──────────────┬─────────────┘
      │            │              │               │              │
-     │ https      │ PutObject    │ Batch RW      │ Query/Update │ GraphQL mutation
+     │ https      │ PutObject    │ Batch RW      │ Get/Update   │ TransactWrite
      ▼            ▼              ▼               ▼              ▼
   Strava      ┌────────┐   ┌────────────┐  ┌───────────┐  ┌──────────────┐
-  API v3      │ S3     │   │ DDB        │  │ DDB       │  │ AppSync      │
-  (internet)  │ storage│   │ Explored   │  │ Source-   │  │ + DDB models │
+  API v3      │ S3     │   │ DDB        │  │ DDB       │  │ DDB model    │
+  (internet)  │ storage│   │ Explored   │  │ Source-   │  │ tables       │
               │ bucket │   │ Cell       │  │ Account   │  │ (Amplify     │
-              └───┬────┘   │ Ingest     │  │ (tokens)  │  │  Data)       │
-                  │        │ Receipt    │  └───────────┘  └──────┬───────┘
-                  │        └────────────┘                        │
-                  │                                     subscription (wss)
-                  ▼                                              │
+              └───┬────┘   │ Ingest     │  │ (tokens,  │  │  Data)       │
+                  │        │ Receipt    │  │  CMK)     │  └──────┬───────┘
+                  │        └────────────┘  └───────────┘         │
+                  │                                   AppSync queries · SSR Query
+                  ▼                                   (owner auth; no wss, D-364)
    users/<uid>/explored/explored-r11.<gen>.bin                   │
                   │  GetObject (compute role, D-228)             │
                   ▼                                              ▼
@@ -165,7 +165,7 @@ hosted zone, different subdomains. That is explicitly supported (§6).
   │   /api/fog · /api/fog/blob/[gen] · /api/runs/latest                       │
   │   soles.devaultsecurity.com  ·  ACM cert  ·  Route 53 (existing zone)     │
   └───────────────────────────┬───────────────────────────────────────────────┘
-                              │  Cognito session (Essentials, passkey)
+                              │  Cognito session (Essentials, email + password)
                               ▼
                        Browser: MapLibre GL + WebGL2 fog layer; sorted cell array in memory
                               │  (explored set fetched from the app origin, never from S3)
@@ -175,7 +175,24 @@ hosted zone, different subdomains. That is explicitly supported (§6).
   Scheduled (EventBridge, no VPC):
     token-refresh     every 4 h   → refresh Strava tokens nearing expiry
     reconcile-sweep   every 6 h + nightly 08:00 UTC → poll for activities the webhook dropped
+
+  AppSync custom mutations (Lambda resolvers, no VPC, owner allowlist checked in the handler):
+    log-workout        logWorkout       → a manual workout, sets on Activity.sets (D-280)
+    set-activity-kind  setActivityKind  → the operator's kind for a run (D-284)
+
+  Alarms: 3 CloudWatch alarms → SNS topic IngestAlarms → email (the only push channel, D-185)
 ```
+
+**Amended by D-364 / `D-NEW-sweep` (18 audit sweep, 2026-10-27):** the diagram showed
+`process-activity` sending a GraphQL mutation to AppSync and the browser holding a **wss
+subscription** that it woke. D-364 dropped that path; neither half was ever built.
+`process-activity` writes `Activity`, ledger, skill and profile rows straight to the Amplify Data
+tables in one `TransactWriteItems` (§4, D-276), and a webhook-delivered run reaches the screen when
+the tab next becomes visible or gains focus (`05` §7.4 trigger 2). The browser reads models
+through AppSync queries under owner auth, and the SSR compute `Query`s two of the tables directly
+with the session's `sub` (`08` §5.5). The `logWorkout`/`setActivityKind` resolvers and the alarm
+topic were missing from the diagram, and sign-in was labelled "passkey". It is email + password
+(`amplify/auth/resource.ts`; `08` §5.1).
 
 **Amended by D-345 / D-350 / D-361 (14 audit, 2026-10-19):** the webhook function is
 `ingest-webhook`, not `strava-webhook` — a vendor-named function fails `check-boundaries` (D-100).
@@ -201,10 +218,10 @@ Every resource, what it does, and what would make it cost money.
 | # | Resource | Logical name | Created by | Purpose | Cost driver |
 |---|---|---|---|---|---|
 | 1 | Amplify Hosting app | `lost-soles` | Console + `amplify.yml` | Next.js SSR, CDN, CI/CD, auto-SSL | Build minutes; SSR requests; **data transfer out @ $0.15/GB after 15 GB** |
-| 2 | Cognito user pool | `defineAuth` | `amplify/auth/resource.ts` | Identity. Email + passkey. `allowUnauthenticatedIdentities: false`, self-signup disabled | MAU (10,000 free, non-expiring) |
+| 2 | Cognito user pool | `defineAuth` | `amplify/auth/resource.ts` | Identity. Email + password; no passkey was enabled (`0014`, `09` §2.3; `08` §5.1). `allowUnauthenticatedIdentities: false`, self-signup disabled | MAU (10,000 free, non-expiring) |
 | 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
-| 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads/writes + **real-time subscriptions** | $4.00/M ops; $2.00/M real-time updates |
-| 5 | DynamoDB (Amplify-managed) | `Profile`, `Skill`, `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Region`, `Ticket` | `defineData` models | Game state the client reads | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
+| 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads under owner auth, plus the two custom mutations `logWorkout` and `setActivityKind` (#22, #23). **No subscriptions**: the live notify path was dropped by D-364 | $4.00/M ops |
+| 5 | DynamoDB (Amplify-managed) | `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, `DeploySmokeTest` (`0012`'s placeholder, one `note` field). *(Said `Profile, Skill, Activity, Region, Ticket`; `D-NEW-sweep`.)* | `defineData` models | Game state the client reads. `process-activity` writes these tables directly, not through AppSync (§4, D-276) | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
 | 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
 | 8 | DynamoDB (CDK) | `LostSolesIngestReceipt` | `backend.createStack` | Idempotency ledger. `PK = ingestKey`, TTL 90 d. Also holds the webhook's per-user flood counters, `rate#<source>#<userId>#<UTC hour>`, TTL 2 h (D-349) | Negligible |
@@ -216,11 +233,21 @@ Every resource, what it does, and what would make it cost money.
 | 14 | Lambda | `token-refresh` | `defineFunction`, `schedule: 'every 4h'` | Refresh Strava tokens before expiry | Negligible |
 | 15 | Lambda | `reconcile-sweep` (D-350; was `nightly-reconcile`) | `defineFunction`, `schedule: 'every 6h'`, plus a CDK `Schedule` nightly at 08:00 UTC with `{mode:"nightly"}` (escape hatch five) | Backstop poll — catches anything the webhook lost. 60 s, 256 MB | Negligible |
 | 16 | EventBridge Scheduler schedules | auto + CDK | `schedule` on #14/#15; #15's nightly one in `backend.ts` (D-350) | Cron | Free at this volume |
-| 17 | SSM Parameter Store | `/amplify/<app-id>/<branch>-branch-<hash>/*` | `secret()` | Static secrets (§7) | Standard params free |
+| 17 | SSM Parameter Store | `/amplify/shared/<app-id>/*` (`SecureString`) | The operator, `aws ssm put-parameter` (`08` §3). *(Said `secret()` at the branch path; nothing in the backend uses `secret()` since `0290`, D-357, D-362.)* | Static secrets (§7), each read at runtime through an explicit `ssm:GetParameter` grant | Standard params free |
 | 18 | ACM certificate | Amplify-managed | Domain association | TLS for `soles.devaultsecurity.com` | Free |
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
 | 20 | S3 bucket + CloudFront distribution | `lost-soles-tiles` | `backend.createStack` | pmtiles basemap, fetched by HTTP range from the browser. **Private** — `blockPublicAccess: BLOCK_ALL`; CloudFront reads it through Origin Access Control with `originPath: "/tiles"`, so the distribution is the bucket's only reader (D-250; D-226's "public-read" wording was wrong). Served on the distribution's default `*.cloudfront.net` name, so **no ACM cert and no Route 53 record** (D-226) | ~$0.03/mo storage; egress inside CloudFront's **always-free** 1 TB + 10M requests |
 | 21 | DynamoDB (CDK) | `LostSolesCaptureGuard` | `backend.createStack` | Capture-endpoint rate-limit counters and idempotency records. `PK = pk`, TTL 2 h / 2 d / 24 h. Read and written by the **SSR compute**, not by a Lambda (ticket 0019, D-180) | Negligible |
+| 22 | Lambda | `log-workout` | `defineFunction` (`resourceGroupName: "data"`) | The `logWorkout` AppSync resolver: a manual workout to `Activity` and the ledger (`0069`, D-280). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
+| 23 | Lambda | `set-activity-kind` | `defineFunction` (`resourceGroupName: "data"`) | The `setActivityKind` AppSync resolver: the operator's kind for a run (`0244`, D-284). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
+| 24 | DynamoDB (CDK) | `LostSolesOAuthState` | `backend.createStack` | OAuth `state` nonces, 10-minute rows with TTL; issued by `/api/auth/[source]/start`, consumed by the callback. Kept apart from #7 so no new item shape needs a write grant where the tokens live. SSR compute only | Negligible |
+| 25 | KMS customer-managed key | `SourceAccountKey`, `alias/lost-soles-source-account` | `backend.createStack` | Encrypts #7's tokens. Auditable `Decrypt`, revocable in one action, annual rotation, `RETAIN` with a 30-day pending window. Granted to the four principals D-362 names (`08` §9 carves it out of "no CMKs") | **$1/month**, the largest runtime line (D-433) |
+| 26 | SNS topic + 3 CloudWatch alarms | `IngestAlarms`; `IngestDlqNotEmpty`, `WebhookOwnerFlood` (on a log metric filter), `ReconcileSweepRecovering` | `backend.ts` | Email to the operator: an activity failed to import, the webhook is being flooded, the webhook is missing runs. The only push channel (D-185) | Free at this volume |
+| 27 | IAM role | `LostSolesArchiveDeletion` | `backend.createStack` | Break-glass only: the one principal the bucket policy lets delete `raw/*`. Deletion only, 1-hour sessions, assumed deliberately (`08` §6.4) | Free |
+
+Also in play, **not created by this backend**: `LostSolesAmplifyComputeRole`, the SSR compute role,
+made by hand in `0018` and imported by ARN so CDK can attach grants to it. *(Rows 22–27 and this
+note were added by `D-NEW-sweep`; the table had stopped at 21.)*
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
 WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always-on compute.
@@ -234,13 +261,16 @@ WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always
    from the app's own origin (D-228) once per session and does every query in memory (§5). Putting the cell table behind AppSync would
    add $4.00/M operations for a path nobody uses.
 2. **Tokens must not be reachable from a client-authenticated GraphQL API at all.** No auth
-   rule is safer than no API. Only `process-activity` and `token-refresh` get IAM grants.
+   rule is safer than no API. Exactly four principals get IAM grants on the token table and its
+   key: the SSR compute role (the OAuth callback and the manual Sync), `process-activity`,
+   `token-refresh` and `reconcile-sweep` (D-362). *(Said "only `process-activity` and
+   `token-refresh`"; `D-NEW-sweep`.)*
 3. **Write volume is machine-generated.** ~100 conditional writes per run from one Lambda.
    AppSync resolvers add latency and cost with no benefit.
 
 Everything the *client* reads — profile, skills, XP, activity list, workout log — stays in
-`defineData`, where declarative `allow.owner()` rules and real-time subscriptions earn their
-cost.
+`defineData`, where declarative `allow.owner()` rules earn their cost. *(Said "and real-time
+subscriptions"; none exists, D-364.)*
 
 ### The CDK escape hatch — where and why
 

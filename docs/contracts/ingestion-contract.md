@@ -311,6 +311,56 @@ activity never writes `ACTIVE` over it.
 
 `src/adapters/registry.ts` is **the one file that names concrete adapters.**
 
+*(As built, recorded by `D-NEW-sweep`.)* **`src/adapters/types.ts` also exports the connection
+half**, which this section never listed: `OAuthConnector`, `OAuthGrant`, `OAuthRefresh`,
+`GrantCheck` and `OAuthClientCredentials` (tickets `0032`, `0033`, `0165`). They are not part of
+`SourceAdapter`. The four phases above run per activity in a queue worker. The connector runs
+three times in the life of a connection (connect, re-authorise, disconnect) from a route handler
+with a signed-in browser attached. It is registered in `registry.ts` and reached only through it,
+as `SourceAdapter` is, which keeps `app/api/auth/[source]/` free of any vendor's name.
+
+```ts
+export interface OAuthClientCredentials { clientId: string; clientSecret: string }  // from SSM, never env
+
+export interface OAuthGrant {                 // a code exchange, normalised
+  externalOwnerId: string                     // a STRING, as IngestJob.externalId
+  accessToken: string
+  refreshToken: string
+  expiresAt: number                           // epoch seconds FROM THE RESPONSE; no TTL constant
+  scopes: readonly string[]
+  scopeSource: "response" | "callback"        // where `scopes` came from (0165)
+}
+
+export interface OAuthRefresh {               // NOT OAuthGrant: a refresh has no owner, no scope
+  accessToken: string
+  refreshToken: string                        // always present, may be new
+  expiresAt: number
+}
+
+export type GrantCheck =                      // not a boolean: a refusal says what the user loses
+  | { ok: true }
+  | { ok: false; missing: readonly string[]; consequence: string }
+
+export interface OAuthConnector {
+  readonly source: SourceId
+  readonly displayName: string
+  readonly requiredScopes: readonly string[]
+  readonly credentialParameters: { clientId: string; clientSecret: string }  // SSM leaf names
+  readonly scopeConsequence: string
+  authorizeUrl(input: { clientId: string; redirectUri: string; state: string; force: boolean }): string  // PURE
+  readCallbackScopes(rawScope: string | null): { scopes: string[]; check: GrantCheck }                 // PURE
+  exchangeCode(input: { code: string; redirectUri: string; credentials: OAuthClientCredentials;
+                        grantedScopes: readonly string[] }): Promise<OAuthGrant>
+  refreshTokens(input: { refreshToken: string; credentials: OAuthClientCredentials }): Promise<OAuthRefresh>
+  checkGrant(grant: OAuthGrant): GrantCheck
+  revoke(input: { accessToken: string; credentials: OAuthClientCredentials }): Promise<void>
+}
+```
+
+`types.ts` is the authority for these shapes; the block above is a reading aid and its comments are
+abridged. It also exports `RetractConfirmation` (`"gone" | "present"`), the named type of
+`confirmRetracted`'s answer above.
+
 ## 4. The pipeline
 
 ```
@@ -318,12 +368,22 @@ accept()                                   → ack the source in <2s, enqueue
   → fetchRaw()
   → 1. ARCHIVE raw bytes to S3             (D-101/D-121.2 — before anything trusts them)
   → 2. normalize()  [PURE]                 (vendor types die here)
+       └ SANITIZE trace, inside normalize  (speed-gate implausible jumps; breaks become `gaps`, D-198)
   → 3. DEDUPE on dedupeKey                 (cross-source, not just intra-source — `src/pipeline/dedupe.ts`, 0179)
-  → 4. SANITIZE trace                      (speed-gate implausible jumps; honour `gaps`)
+  → 4. (was SANITIZE; see below)
   → 5. PROJECT to H3 res 11 cells          (D-237, superseding D-115; D-276)
   → 6. SCORE fog + XP                      (D-120: full / half / 50% re-arm)
   → 7. PERSIST activity + cell deltas      (DynamoDB, D-082; append-only, D-020)
 ```
+
+> **Amended by `D-NEW-sweep` (18 audit sweep, 2026-10-27):** sanitation is not a step after
+> dedupe. It runs **inside `normalize()`**, before anything is measured
+> (`src/adapters/strava/normalize.ts`, `sanitizeTracePoints`), because `gaps`, `bbox` and
+> `pointCount` describe the trace that will be projected, and measuring the unsanitized array would
+> put a rejected fix inside the bounding box. So the trace is already sanitized when dedupe sees
+> it. The operator's kind override (D-284) is applied after `normalize()` and before dedupe, and
+> does not touch the trace (`src/pipeline/process-activity.ts`). Step numbers 5–7 are kept so
+> existing citations still resolve.
 
 > **Amended by D-276 (09 audit, 2026-10-02):** step 7 is two writes in a fixed order. The cell
 > deltas (T6, plus the per-run blob) are written **first, outside and before** the XP transaction

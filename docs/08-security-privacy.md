@@ -147,7 +147,7 @@ section converts it into something a person or an agent can actually check.
 
 > **Standing rule.** If any of the three conditions below becomes true — or is *proposed* in a
 > ticket, a design doc, or a PR — **D-123 is reopened before that work merges.** Reopening means:
-> a new decision (`D-2xx`) is recorded in `docs/decisions/DECISIONS.md` explicitly superseding or
+> a new decision (`D-xxx`) is recorded in `docs/decisions/DECISIONS.md` explicitly superseding or
 > re-affirming D-123 with its new premise stated, and the gate checklist below is complete.
 > "It's fine, it's still just me" is not a resolution; a recorded decision is.
 
@@ -172,7 +172,7 @@ login, which is the same thing with worse accountability.
 - [ ] **A-2. No cross-user aggregate exists.** No shared map layer, no combined explored set, no
       "total territory" across users, no leaderboard (D-011 already forbids competition —
       this makes it a *security* requirement as well as a product one).
-- [ ] **A-3. Per-user fidelity policy exists as data.** Whatever D-2xx decides, the setting lives
+- [ ] **A-3. Per-user fidelity policy exists as data.** Whatever the successor decision decides, the setting lives
       on the user record and is enforced at *render and export* time, not only at ingest —
       because the archive (D-101) is full-fidelity by design and always will be.
 - [ ] **A-4. Onboarding discloses what is stored.** A friend consents to a permanent,
@@ -184,6 +184,12 @@ login, which is the same thing with worse accountability.
       *(Path corrected from `/api/dev/tickets` by ticket `0154`; that route never existed, so this
       box could have been ticked by curling a 404 for entirely the wrong reason.)*
 - [ ] **A-7. D-123 reopened and a successor decision recorded.**
+
+**Enforced (`0114`, D-426; recorded by `D-NEW-sweep`):** `scripts/check-d123-trigger-a.mjs` reads
+the live production pool in `amplify.yml`'s backend phase and fails the deploy on any account that is
+neither an owner (`OWNER_USER_IDS`, §5.5) nor listed in its `APPROVED_ACCOUNTS` under a decision
+that supersedes or re-affirms D-123. A console-provisioned account never touches the repo, which is
+why the check reads the pool and not the source. The GitHub gate runs only its self-test.
 
 **What must be BUILT before Trigger A:** A-1 (owner-scoping tests), A-3 (a fidelity field on the
 user record, even if every user is set to `full`), A-4 (a consent screen), A-5 (a working delete).
@@ -221,6 +227,13 @@ time**, because the design of a share feature is where the privacy decision actu
 - [ ] **B-7. D-123 reopened and a successor decision recorded** — with the mask/exclusion
       behaviour written down as the decision, not as an implementation detail.
 
+**Enforced (`0114`, D-427; recorded by `D-NEW-sweep`):** `scripts/check-d123-trigger-b.mjs` runs on
+both CI surfaces and reads only the lines a push adds. Added lines in `tickets/**.md` and
+`docs/**.md` are matched against the list above, and pass only when that file cites a decision that
+supersedes or re-affirms D-123. Added code is matched against API-shaped signals, and passes only
+through an entry in `scripts/d123-acknowledgements.json` naming such a decision. It fails closed
+without a base ref. Passing it means recording a decision, never narrowing its patterns.
+
 **What must be BUILT before Trigger B:** B-2's home point + exclusion radius (a user setting and
 a filter function), B-1's separate share payload type, and B-5's timestamp-stripping. There is
 no version of a share feature that is cheaper than this, and anyone who thinks there is has
@@ -239,18 +252,32 @@ page rendered with real data, a cached CDN response, an OG-image endpoint, a sta
 **Gate:**
 
 - [ ] **C-1. Enumerate the surface.** Every public path is listed: the webhook Function URL (§4),
-      the sign-in page, static assets, and the tiles CloudFront distribution (`lost-soles-tiles`
+      `/` (the signed-out landing; there is no sign-in route, and `middleware.ts` 307s every
+      other page to `/` and 404s every signed-out API call), the static paths the middleware
+      matcher exempts, and the tiles CloudFront distribution (`lost-soles-tiles`
       behind OAC; D-226, D-250). **The tile distribution serves the basemap only** — generic
       pmtiles, identical for every user, containing zero Lost Soles data. It must stay that way:
       *the explored set is never baked into a tile.* **Amended (08 audit, 2026-09-28):** this
       item said "R2"; tiles moved to S3 + our own CloudFront by D-226, and the bucket itself is
       private (D-250) — the distribution is the public path.
+      **The matcher's exemptions, as built (recorded by `D-NEW-sweep`):** `/_next/static`,
+      `/maplibre/` (the vendored MapLibre worker, `0053`), `/basemap-assets/` (self-hosted
+      glyphs and sprite, `0293`), `favicon.ico`, any `.png/.jpg/.jpeg/.svg/.webp/.ico` path, and
+      `/_next/image`. None serves anything derived from cells. `/_next/image` is Next's image
+      optimizer. The app uses no `next/image` and configures no remote pattern, so it can only
+      fetch a same-origin path. In Next 15.5 that internal fetch carries none of the caller's
+      headers, so it is a signed-out request, and a body that does not sniff as an image is
+      refused. It can reach only what a signed-out request reaches directly, and every authed
+      route re-derives `sub` from the session (§5.3).
 - [ ] **C-2. Prerendering is proven safe.** Amplify's SSG/ISR behaviour
       (`01-architecture.md` §1.5, §11) means a page rendered at build time is a static file on a
       CDN. **No page containing cell data may be statically rendered.** The explored set is
       fetched client-side against an authed endpoint, or server-rendered per-request with the
-      session in hand. A CI check asserting that no built artifact under `.next/static` or the
-      prerender manifest contains cell/trace data belongs here.
+      session in hand. **As built (`0114`, D-430):** `scripts/check-prerender-no-cell-data.mjs`
+      runs after `next build` on both CI surfaces. The prerendered route set is an allowlist
+      with a reason per route, so a new static page fails until someone says why it shows no
+      one's map. Every prerendered body and every file under `.next/static` is scanned for the
+      shapes cell and trace data take on the wire. It fails closed.
 - [ ] **C-3. `Cache-Control` on every authed response is `private, no-store`.** A shared CDN
       cache in front of a per-user map is a cross-user disclosure waiting for a second account.
       **Amended by D-228 (08 audit, 2026-09-28) — one carve-out:** generation-named immutable
@@ -258,7 +285,12 @@ page rendered with real data, a cached CDN response, an OG-image endpoint, a sta
       are `private, max-age=31536000, immutable`, because a
       generation's bytes never change and re-downloading them per load is pure waste. `private`
       still keeps them out of every shared cache, which is this item's point. `/api/fog` and
-      `/api/runs/latest` stay `no-store, private`.
+      `/api/runs/latest` stay `no-store, private`. **As built (`0114`, D-429):** every route
+      handler is exported through `lib/http/no-store.ts` `withNoStore`, which sets the header on
+      every response, 404s, 304s, redirects and errors included.
+      `scripts/check-route-cache-control.mjs` fails a bare handler export, a shared-cache
+      directive (`public`, `s-maxage`, `revalidate`, `force-static`), or the carve-out outside
+      its two routes.
 - [ ] **C-4. `explored-r10.bin` is served authenticated.** *(Now `explored-r11.<gen>.bin`
       (D-237), served from the app's own authed routes `/api/fog` and `/api/fog/blob/[gen]`
       with `sub` re-derived server-side — no signed URL exists (D-228).)* The binary explored set
@@ -286,7 +318,12 @@ A checklist in a design doc that nobody opens is decoration. Three placements, a
    matches `/share|export|screenshot|public|friend|invite|account|signup|poster|embed/i` as
    **needs D-123 review** before it is numbered.
 
-That is the whole enforcement mechanism. It costs one line in a template and one regex.
+Those three cost one line in a template and one regex, and they were once the whole enforcement
+mechanism. **Since `0114` they are not** (recorded by `D-NEW-sweep`). Four CI checks enforce §2.4
+directly, each described under its item above: Trigger A against the live pool (D-426), Trigger B
+on the lines a push adds (D-427), C-2's prerender allowlist and scan (D-430), and C-3's
+`withNoStore` rule (D-429). The three placements stay. The checks catch what reaches a diff or a
+deploy. The placements catch the conversation before it does.
 
 ---
 
@@ -305,8 +342,8 @@ unused at $0.40/secret/month (§9).
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
 | S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then delete the row. Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
-| S6 | **GitHub webhook secret** (push → cache refresh) | SSM, via `secret()` | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
-| S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM, via `secret()` | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
+| S6 | **GitHub webhook secret** (push → cache refresh) | SSM `SecureString` at the shared path, to be read through an explicit `ssm:GetParameter` grant like S1–S3 (D-357, D-362). Said "via `secret()`"; nothing in the backend uses `secret()` since `0290` (`D-NEW-sweep`) | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
+| S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM `SecureString`, to be read through an explicit `ssm:GetParameter` grant, as S6. Said "via `secret()`" (`D-NEW-sweep`) | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
 | S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, Cognito, billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
 | S9 | **Map tile access** | *None.* pmtiles on a private S3 bucket (`lost-soles-tiles`) behind our own CloudFront distribution, fetched by HTTP range from the browser (`01-architecture.md` §8; D-226, D-250) | the browser | **No credential exists in the browser.** The distribution is public by design and serves a generic basemap identical for every user, with zero Lost Soles data in it. The bucket is `BLOCK_ALL`; CloudFront reads it through Origin Access Control. *(Amended, 08 audit 2026-09-28: said Cloudflare R2 / public-read bucket.)* | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
 
@@ -556,10 +593,17 @@ because it is *free, boring, and hard to misconfigure* at six users — not beca
 
 ### 5.1 The configuration, and the two lines that matter
 
-**Cognito user pool, Essentials tier, email + passkey, self-signup OFF**
+**Cognito user pool, Essentials tier, email sign-in (planned: + passkey), self-signup OFF**
 (`01-architecture.md` §1, table row 2; research in `R5-aws-amplify.md` §3). Essentials includes
 Managed Login and passwordless/passkey (WebAuthn) sign-in, with 10,000 MAU free and — confirmed
 — **non-expiring**, so auth costs $0.00 forever at this scale (D-083).
+
+*(As built, recorded by `D-NEW-sweep`: **email + password, no passkey.** `amplify/auth/resource.ts`
+is `loginWith: { email: true }` with `accountRecovery: "EMAIL_ONLY"`. Ticket `0014` left passkeys
+off, per `09-roadmap.md` §2.3 ("Email + password, passkeys later"), and none has been enabled
+since. D-175 and D-425 replace Cognito with Auth.js and Google after the MVP ships (`0138`), so
+passkeys on this pool are not planned. §5.2 is written for a passkey pool; its as-built note says
+what still holds.)*
 
 Two settings in `amplify/auth/resource.ts` carry almost the entire posture:
 
@@ -605,9 +649,19 @@ factor is ever wanted beyond passkeys, it is **TOTP**, which is free.
 booleans that a console click or a careless `defineAuth` edit can flip back. A one-line
 post-deploy check — `aws cognito-idp describe-user-pool` asserting the admin-only signup policy
 — belongs in the same CI step as the secret grep (§3.1). It is the cheapest possible guard
-against the highest-consequence misconfiguration in the system.
+against the highest-consequence misconfiguration in the system. *(Built, `0014`:
+`scripts/check-auth-posture.mjs` reads the live pool in `amplify.yml`'s backend phase, right after
+the deploy, and fails it on either boolean.)*
 
 ### 5.2 Passkeys, and the recovery problem nobody plans for
+
+> **As built (`D-NEW-sweep`): no passkey is enabled** (§5.1's note). The pool signs in with email
+> and password, and recovers by email only. So the paragraph below describes a plan, not the
+> system. What holds regardless: **the email inbox is the real security boundary** (the
+> recovery channel, and now the password-reset path too), so the owner's email account needs its
+> own MFA, and **the break-glass path is the AWS console**. "Register at least two passkeys" has
+> nothing to apply to. A password-only pool has no second factor. Whether to accept that until
+> `0138` replaces the pool, or to add TOTP (free, §5.1), is not yet decided (§9's MFA row).
 
 **Passkeys are the primary and preferred factor.** For an Android-first app (D-124) this is
 close to ideal: the credential lives in the Google Password Manager passkey store, syncs across
@@ -668,12 +722,13 @@ The provisioning runbook, in order:
    *build* items actually built: owner-scoped access tests (A-1), a fidelity field on the user
    record (A-3), a consent screen (A-4), and a delete path that has been executed once against
    a test account (A-5).
-3. **Record the successor decision (`D-2xx`)** in `docs/decisions/DECISIONS.md`, superseding or
+3. **Record the successor decision (a new `D-xxx`)** in `docs/decisions/DECISIONS.md`, superseding or
    re-affirming D-123 with its new premise written down. *"It's fine, it's just my brother"* is
    not a resolution; a recorded decision is (§2.4, standing rule).
 4. **Only then**: `admin-create-user` with the friend's email, `MessageAction: SUPPRESS` or the
    default invite, and no temporary password shared over a chat app.
-5. **The friend registers a passkey on first sign-in**, and passes the A-4 consent screen —
+5. **The friend sets their password on first sign-in** (said "registers a passkey"; none is
+   enabled, §5.1), and passes the A-4 consent screen —
    which discloses, in plain words, that the system keeps a permanent, unmaskable,
    full-fidelity record of where they run (§2.1). They have not accepted D-123; nobody can
    accept it on their behalf.
@@ -698,7 +753,8 @@ it were not, since §5.4 is designed to make a second user appear one day.
   named a `Trace` model and two CDK tables as Amplify models):
   - **`defineData` models — Amplify Data owner auth.** `Activity`, `SkillState`,
     `XpLedgerEntry` and `Landmark` are `allow.owner().to(["read"])`; `Profile` is `allow.owner()`
-    with its server-maintained fields read-only. No model is `authenticated`-readable, because
+    with its server-maintained fields read-only. `DeploySmokeTest`, `0012`'s placeholder (one
+    `note` field, no user data), is `allow.owner()`. No model is `authenticated`-readable, because
     `authenticated` will one day mean six people. The two custom mutations, `logWorkout` and
     `setActivityKind`, are `allow.authenticated()` because a custom operation has no row to own;
     their handlers take the user from `identity.sub`, never an argument, and check the owner
@@ -723,13 +779,27 @@ it were not, since §5.4 is designed to make a second user appear one day.
   The owner scoping of the CDK tables and of S3 is therefore a property of the handlers, not of
   IAM: one role serves every user. §2.4's A-1 test (user B gets a 403/empty on user A's `uid`)
   is what proves it.
-- **There is exactly one privileged role: the owner.** It gates `POST /api/tickets/capture`
-  (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6) and nothing else. It is a single `sub`
-  compared against an SSM parameter — not a roles table, not RBAC. Six users do not need a
-  permission system, and building one would create a second thing to get wrong.
-- **Lambdas authenticate as themselves, not as users.** `process-activity` and `token-refresh`
-  hold IAM grants on exactly the tables and prefixes they need (`01-architecture.md` §7), which
-  is why the public webhook can hold none (§4.5).
+- **There is exactly one privileged role: the owner.** It is `OWNER_USER_IDS` in
+  `lib/auth/owner-ids.ts`, a committed list of Cognito `sub`s, hard-coded on purpose: a `sub` is
+  an identifier, not a credential, and a control that must fail closed should have no runtime
+  dependency that can be unavailable. An empty list 404s everything. Not an SSM parameter, not a
+  roles table, not RBAC. *(Amended by `D-NEW-sweep`: this bullet said the role gated
+  `POST /api/tickets/capture` "and nothing else", against "an SSM parameter". Neither was true as
+  built.)* `isOwner` gates:
+  - `POST /api/tickets/capture` (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6);
+  - the source `start`, `callback` and `disconnect` routes (`app/api/auth/[source]/shared.ts`);
+  - the manual Sync server action (`app/sync-action.ts`) and `/settings` (`app/settings/page.tsx`);
+  - the `logWorkout` and `setActivityKind` mutation handlers, which import the list directly
+    (`amplify/functions/*/handler.ts`).
+
+  `reconcile-sweep` takes the same list as the set of users it sweeps
+  (`lib/sources/reconcile-sweep.ts`). With one user, owner-only and signed-in are the same set, so
+  the gate costs nothing today. It is the line that holds when Trigger A fires. Six users do not
+  need a permission system, and building one would create a second thing to get wrong.
+- **Lambdas authenticate as themselves, not as users.** `process-activity`, `token-refresh`,
+  `reconcile-sweep`, `log-workout` and `set-activity-kind` hold IAM grants on exactly the tables
+  and prefixes they need (`01-architecture.md` §7). The public webhook holds no credential grant
+  at all (§4.5).
 
 ---
 
@@ -1055,7 +1125,10 @@ by definition, in the wrong place.
 ### 7.5 Dependencies
 
 - **`package-lock.json` committed**, `npm ci` in CI. Reproducible builds are a supply-chain
-  control, not a convenience.
+  control, not a convenience. *(As built, D-162, recorded by `D-NEW-sweep`: both CI surfaces run
+  `npm install --no-save` (`amplify.yml`, `gate.yml`), because `npm ci` cannot install the Amplify
+  Gen 2 dependency set. `--no-save` installs from the committed lock and leaves it byte-identical,
+  so the intent stands. The revert to `npm ci` is ticket `0128`, deferred.)*
 - **Dependabot (or Renovate) on `npm` weekly, grouped, security updates separately.** Six users
   do not justify a patching SLA; a transitive RCE in an SSR dependency still does. Read the
   changelog on anything that touches auth, `h3`, or the Strava adapter.
@@ -1109,7 +1182,7 @@ command that finds it again). Every command takes `--profile devault --region us
 | Amplify app / branch | `lost-soles`, `d14fhvl4rp79nn`, `main` |
 | SSM secrets (all `SecureString`, `alias/aws/ssm`) | `/amplify/shared/d14fhvl4rp79nn/{STRAVA_CLIENT_ID,STRAVA_CLIENT_SECRET,STRAVA_WEBHOOK_VERIFY_TOKEN,GITHUB_TICKETS_PAT}` |
 | Strava tokens (S4) | DynamoDB `LostSolesSourceAccount` |
-| Lambdas | `aws lambda list-functions --query "Functions[?contains(FunctionName,'d14fhvl4rp79nn')].FunctionName"`: `ingestwebhook…`, `processactivity…`, `tokenrefresh…`, `reconcilesweep…` |
+| Lambdas | `aws lambda list-functions --query "Functions[?contains(FunctionName,'d14fhvl4rp79nn')].FunctionName"`: `ingestwebhook…`, `processactivity…`, `tokenrefresh…`, `reconcilesweep…`, `logworkout…`, `setactivitykind…` (the last two are AppSync resolvers, `0069` and `0244`; the rest of the list is CDK custom-resource helpers) |
 | Logs | `/aws/lambda/<function>` and, for SSR routes (`/api/auth/*`, `/api/tickets/capture`), `/aws/amplify/d14fhvl4rp79nn` |
 | Alarms → email | three CloudWatch alarms named `Lost Soles — …` → SNS topic `…IngestAlarms…` → `amazingbrandon@gmail.com` (confirmed subscription). The only push channel there is (D-185) |
 | GPS archive | S3 `amplify-d14fhvl4rp79nn-ma-lostsolesuserdatabucket5-…` |
@@ -1260,10 +1333,10 @@ that protects six people who are already behind Cognito.
 | **Penetration testing** | The attack surface is one unauthenticated endpoint that holds no credentials and can be reasoned about completely in §4. A pen test would cost more than the app will cost to run for a decade |
 | **SOC 2, ISO 27001, GDPR Article 30 records, a DPA, a formal DPIA** | No customers, no processors, no controller relationship, nothing to attest to. If friends are ever added (§5.4), the *substance* they would be owed — knowing what is stored, and being able to have it deleted — is already required by §2.4 A-4 and §6.4. **That is the part worth having; the paperwork is not** |
 | **A bug bounty / security.txt / vulnerability disclosure programme** | There is no unauthenticated attack surface worth reporting against, and no capacity to triage submissions. `security.txt` on a personal app invites automated low-quality reports, exclusively |
-| **Customer-managed KMS keys** | ~$1/month plus per-request charges to defend against a threat (AWS-internal access to raw storage) that §1 explicitly excludes. SSE-S3 is on and free (§6.2) |
+| **Customer-managed KMS keys** | ~$1/month plus per-request charges to defend against a threat (AWS-internal access to raw storage) that §1 explicitly excludes. SSE-S3 is on and free (§6.2). *(**One exception, as built** (`D-NEW-sweep`): T7 `LostSolesSourceAccount`, the OAuth tokens (S4), is encrypted with the CMK `alias/lost-soles-source-account` (`amplify/backend.ts`, `02-data-model.md` T7). It is bought for a different reason than the threat above: a CMK gives a readable key policy and attributable `Decrypt` events, and disabling it makes every token unreadable in one action, the containment move if a compute role is ever suspected. It costs $1/month, the largest line in D-433's runtime figure. It is granted to exactly the four principals D-362 names. Everything else stays on AWS-owned or SSE-S3 keys.)* |
 | **AWS Secrets Manager** | $0.40/secret/month × 6–7 secrets ≈ $2.80/month, against SSM Parameter Store at $0 for the same job (§3). Secrets Manager's rotation automation is what you pay for, and our highest-value credential (S4) already rotates itself on every refresh |
-| **MFA beyond passkeys; SMS MFA specifically** | Passkeys are already phishing-resistant and hardware-bound (§5.2). SMS costs real SNS money and is the weakest available second factor |
-| **A roles/permissions system** | One privileged action exists (`POST /api/tickets/capture`), gated by a single `sub` comparison (§5.5). RBAC for six users creates a second thing to misconfigure |
+| **MFA beyond passkeys; SMS MFA specifically** | Passkeys are already phishing-resistant and hardware-bound (§5.2). SMS costs real SNS money and is the weakest available second factor. *(As built, `D-NEW-sweep`: **no passkey was ever enabled**, so the first sentence's premise is false. The pool is email + password with no second factor (§5.1). The SMS half stands. Whether "no MFA" is accepted until `0138` replaces Cognito, or TOTP is added, is not yet decided.)* |
+| **A roles/permissions system** | One privileged role exists, the owner: a committed `sub` allowlist (`OWNER_USER_IDS`) that gates the capture endpoint, the source connect routes, Sync, `/settings` and the two custom mutations (§5.5). *(Said "one privileged action", the capture endpoint; `D-NEW-sweep`.)* RBAC for six users creates a second thing to misconfigure |
 | **Field-level or client-side encryption of coordinates** | The app must render the map, so the key would have to reach the client, and the threat model's highest-ranked actor is an accident, not a cryptanalyst. It would break every server-side aggregate (D-115, D-120) to defend against nothing in §1 |
 | **Home-location masking / privacy zones** | **D-123, and it is the one item on this list with a live tripwire under it.** Not a permanent dismissal: §2.4's Triggers A, B and C each force it back open. See §2 — it is the most important section in this document, and this row is a pointer, not a decision |
 | **Anonymised analytics, error tracking SaaS, session replay** | A third party in the request path of a lifetime GPS history, for product insight into a userbase of one who can simply be asked. CloudWatch is sufficient and stays inside the account |
@@ -1274,8 +1347,10 @@ that protects six people who are already behind Cognito.
 **The pattern, stated once:** the controls this system actually has are the ones that are
 **free, structural, and hard to un-do** — self-signup off (§5.1), Block Public Access (§6.2),
 reserved concurrency (§4.4), a bucket policy denying archive deletes (§6.2), owner-scoped
-authorization (§5.5), no credential in the public endpoint (§4.5), a budget alarm (§4.4), and a
-gitignore written before the first commit (§7.1). Almost all of them are one line, cost nothing,
+authorization (§5.5), no credential in the public endpoint (§4.5), and a gitignore written
+before the first commit (§7.1). *(This list named "a budget alarm (§4.4)". None exists: AWS cost
+alerting is not this project's control (D-361, D-464), and reserved concurrency is the cost bound.
+`D-NEW-sweep`.)* Almost all of them are one line, cost nothing,
 and cannot be forgotten once set. **That is what security proportionate to a personal project
 looks like — and if the budget is ever spent on exactly one security control, it should be spent
 on §2, because the sensitive thing here is not the infrastructure. It is the map.**
