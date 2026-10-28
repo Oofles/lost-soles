@@ -165,7 +165,7 @@ Vigil's `treadmill` exercise and changes no number, D-286), loaded at ingest tim
 activity (§7). The excerpt below is v2's, whose scoring fields v3 repeats byte for byte. The schema:
 
 ```yaml
-# rules/xp-rules-v2.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
+# The newest rules/xp-rules-vN.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
 # this block is checked against it by `src/rules/doc-schema.test.ts`, which extracts the
 # YAML below and runs the 0028 validator over it. If it drifts, the build goes red.
 #
@@ -357,8 +357,8 @@ skills:
 *Amended (D-465):* this example lacked `enabled`, `introducedIn` and `revealsGround`, and
 put the exercise in a top-level list with a `skill:` back-reference, which the excerpt above
 forbids. As written now, v3 plus this row passes `validateRuleSet` (`src/rules/validate.ts`).
-Nothing in CI parses this block yet: `src/rules/doc-schema.test.ts` reads only the first `yaml`
-block of §1.3.
+`src/rules/doc-schema.test.ts` parses this block too (ticket `0328`): it appends the row to the
+newest bundled ruleset as the next version and fails the build if `validateRuleSet` objects.
 
 #### The proof: Wayfaring vs Vigil, side by side (D-141 / D-132)
 

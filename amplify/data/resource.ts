@@ -4,9 +4,9 @@ import { logWorkoutFunction } from "../functions/log-workout/resource"
 import { setActivityKindFunction } from "../functions/set-activity-kind/resource"
 
 /**
- * The AppSync-backed half of the data model. `02-data-model.md` §2.1: five
- * `defineData` models (one physical table each, which is how Gen 2 works) plus three
- * raw CDK `dynamodb.Table` constructs for the machine-only tables in `../backend.ts`.
+ * The AppSync-backed half of the data model. `02-data-model.md` §2.1: six `defineData`
+ * models (one physical table each, which is how Gen 2 works) plus five raw CDK
+ * `dynamodb.Table` constructs for the machine-only tables in `../backend.ts` (D-456, D-465).
  *
  * A model belongs HERE when a browser is allowed to ask about it, and in the CDK
  * escape hatch when it is not. That is the whole rule: "no auth rule is as safe as no
