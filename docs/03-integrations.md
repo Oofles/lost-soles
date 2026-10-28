@@ -708,7 +708,7 @@ single value `Workout`.
 | `Run` | `wayfaring` | yes | the main case |
 | `TrailRun` | `wayfaring` | yes | full credit; invisible in `type` |
 | `VirtualRun` | `wayfaring` | **no** | Zwift / Peloton / footpod. Distance + XP, zero fog. |
-| `Walk`, `Hike` | `wayfaring` | yes | **Policy call, flagged:** these reveal fog and grant Wayfaring XP. D-012's motivator is novelty of *place*; ground covered on foot is ground explored. If the user disagrees, this is a one-line change in the adapter's map — nowhere else. |
+| `Walk`, `Hike` | `wayfaring` | yes | **Policy call, flagged:** these reveal fog and grant Wayfaring XP. D-012's motivator is novelty of *place*; ground covered on foot is ground explored. If the user disagrees, this is a change to the rules file's `match.kinds`, not the adapter (D-141, D-193; this said "a one-line change in the adapter's map"). |
 | `Workout`, `WeightTraining`, `Crossfit`, `HighIntensityIntervalTraining` | *(ignored)* | no | See below. |
 | everything else (`Ride`, `Swim`, `Yoga`, …) | *(ignored)* | — | Archived to S3 (§3) but not ingested. Cheap to enable later; the raw payload is already kept. |
 
@@ -724,8 +724,9 @@ single value `Workout`.
 > reps the rep-measured rows need (D-060). Read the rules file for the current mapping; do not
 > restate it here (D-193).
 
-**Unknown `sport_type` values must not crash the adapter.** Strava adds sport types. Default to
-"ignored", log the raw string in `sourceTypeRaw`, and archive the payload anyway. A new sport
+**Unknown `sport_type` values must not crash the adapter.** Strava adds sport types. The adapter maps an
+unknown one to `other` and ingests it (the note above; D-467 — this said "Default to 'ignored'"),
+logs the raw string in `sourceTypeRaw`, and archives the payload as always. A new sport
 type is a backlog ticket, not a page.
 
 ### Indoor / treadmill runs with no GPS
@@ -759,8 +760,9 @@ on a treadmill run is the crash you will ship if you skip this.
 
 ### Manual Strava activities
 
-Treated exactly as above: a real `Activity` with `hasTrace: false`, `rawArchiveKey` pointing at
-the archived summary JSON, and no trace. They are the user's own record of a run that happened;
+Treated exactly as above: a real `Activity` with `hasTrace: false`, `raw` (a `RawArchiveRef`, contract §3)
+pointing at the archived envelope (summary and streams in one object; D-467: this named a
+`rawArchiveKey` field, which is only the key-builder in `src/pipeline/archive.ts`), and no trace. They are the user's own record of a run that happened;
 they earn XP. They just cannot reveal ground, because there is no evidence of which ground.
 
 ### Strength work is NOT ingested from Strava

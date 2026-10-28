@@ -6190,3 +6190,35 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   factor. Adding TOTP to a pool that is about to be replaced is rework for one user. SMS MFA stays
   rejected for §9's reasons. **Reopen** if `0138` is dropped or slips indefinitely, or if D-123's
   Trigger A fires, because a second account changes who the password protects.
+- **D-467** **Capability 18 re-audit: nine drifts found and resolved in one commit. The rules gate
+  moves before the backend deploy, the focus ring becomes global, and the CDK rule is a list, not
+  a count.** *(Operator, 2026-10-28: "fix all now, re-audit now", at the second attempt of the `18`
+  audit.)* The second §2 pass, four reviewers over every cited section after D-465's sweep, found
+  nine. **Two were code:** (1) `02` I-26 and §9.8 promised that a bad ruleset fails the deploy,
+  but `amplify.yml` validated rules only in the frontend phase, after `pipeline-deploy` had shipped
+  the Lambdas that `assertValidRuleSet` at cold start, so a bad ruleset would have sent every
+  ingest to the DLQ. The backend phase now runs `build-rules-json --check` and `vitest run
+  src/rules` before `pipeline-deploy`. `shipped-rulesets.test.ts` validates every bundled version
+  (I-26) and turned red on a planted invalid row. (2) `06` §9.4's 2px `--text-primary` focus ring
+  existed only in five components, and `/skills`, `/log`, `/settings`, `/run` and the map canvas
+  fell back to the browser default. One `:focus-visible` rule in `app/tokens.css` is now the
+  floor (`app/focus-ring.test.ts`). **Six were doc text, where the code was right:**
+  - `08` §3: three principals hold `sqs:SendMessage` (D-345, D-350), not the compute role alone.
+  - `08` §8.1 and S4: Disconnect keeps the `SourceAccount` row and strips its tokens, as `02`
+    specifies. It does not delete the row.
+  - `01` §1/§2: the CDK escape-hatch rule said four, five and six at once. It is now an enumerated
+    list of seven uses, and the `backend.ts` header points at it.
+  - `04` §1.3: the "complete" field table gains `introducedIn`, `revealsGround` and `exercises`.
+  - `03`: a manual activity's archive is `raw: RawArchiveRef`, not a `rawArchiveKey` field.
+  - `03` §2.6: an unknown `sport_type` maps to `other`, and Walk/Hike policy lives in the rules
+    file.
+
+  The ninth is D-468. Supersedes nothing; amends `02` §9.8's "seed time" row, which D-276 had
+  already made unreachable.
+- **D-468** **I-15's standing consistency job is not built, and is post-MVP.** *(Operator,
+  2026-10-28.)* `02` §9 promised a scheduled job recomputing `SUM(ledger)` per skill and alerting
+  on a mismatch. No ticket ever built it. For one user with ~117 activities, I-15 is already held by
+  `xp-replay.test.ts` after every replay, by drill step 8 check 5 (`drill:ci` on every build), and by
+  the live Σ comparison the capability audits run (71,749 = 71,749 at `0117`). A scheduled sweep
+  would add a Lambda and an alarm to watch an equation that three other checks already pin.
+  **Reopen** if D-123's Trigger A fires, or the first time any of those checks finds a mismatch.

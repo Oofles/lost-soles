@@ -382,7 +382,8 @@ alone**. Vigil (D-132, GPS-less running) is added as this row and nothing else:
     feeds: [{ skill: constitution, rate: 0.3333 }]
 ```
 
-Every field of both rows, complete:
+Every field of both rows, complete, as they stand in v3 (D-467: `introducedIn`, `revealsGround` and
+`exercises` were missing from this table, though v3 ships all three):
 
 | field | `wayfaring` | `vigil` |
 |---|---|---|
@@ -390,11 +391,12 @@ Every field of both rows, complete:
 | `name` | Wayfaring | Vigil *(provisional, D-132)* |
 | `kind` | `activity` | `activity` |
 | `enabled` | `true` | `true` |
+| `introducedIn` | `1` | `1` *(D-146)* |
 | `displayOrder` | `10` | `15` |
 | `logMode` | `trace` | `trace` |
 | `unit` | `km` | `km` |
 | `match.kinds` | `[run, walk, hike]` | `[run, walk, hike]` |
-| **`match.requiresTrace`** | **`true`** | **`false`** ← **the entire discriminator** |
+| **`match.requiresTrace`** | **`true`** | **`false`** ← **the entire match discriminator** |
 | `match.sources` | `any` | `any` |
 | `match.measure` | `distanceKm` | `distanceKm` |
 | `matchPriority` | `100` | `100` |
@@ -404,8 +406,10 @@ Every field of both rows, complete:
 | `sanityCeilingUnits` | `300` | `300` |
 | `minUnitsForCredit` | `0.25` | `0.25` |
 | `feeds` | `[{constitution, 0.3333}]` | `[{constitution, 0.3333}]` |
+| `revealsGround` | `true` | `false` *(D-189: only Wayfaring reveals; it follows from the trace, not a second match rule)* |
+| `exercises` | — | `[treadmill]` *(v3, D-286: a hand-loggable distance)* |
 
-One field separates them, and it is read off `Activity.hasTrace` — a field the ingestion
+One match field separates them, and it is read off `Activity.hasTrace` — a field the ingestion
 contract already defines and `02-data-model.md` T3 already stores. **No new type, no new
 concept, no code.** Equal `matchPriority` is safe here because `requiresTrace: true` and
 `requiresTrace: false` make the two rows mutually exclusive: no activity is ever a candidate for

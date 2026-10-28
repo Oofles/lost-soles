@@ -83,6 +83,11 @@ import { applyLogRetention } from "./log-retention"
  * Ticket 0095 makes it FIVE: the reconcile sweep's NIGHTLY schedule, at the bottom of
  * this file. `defineFunction`'s `schedule` targets every entry with the same empty
  * input, so a second Amplify schedule could not tell the handler which window to use.
+ *
+ * D-467 (capability 18 re-audit) RETIRED THE COUNT. It read four here, five and six in
+ * 01 §2, while the code had five stacks plus the URL, the schedule and the log Aspect.
+ * The constraint is now the enumerated list in `01-architecture.md` §2: a new CDK use is
+ * added to that list in the same commit, or it is drift.
  */
 /**
  * EXPORTED so `raw-archive-immutability.test.ts` can synthesize this stack and assert
@@ -1655,7 +1660,7 @@ dlqNotEmpty.addAlarmAction(new SnsAction(ingestAlarms))
  * THE BASEMAP TILES BUCKET AND ITS DISTRIBUTION
  * (ticket 0052, D-226, 01-architecture.md §8 Risk 1, inventory row 20)
  *
- * The fifth and last use of the CDK escape hatch. `defineStorage` cannot express
+ * One use of the CDK escape hatch (01-architecture.md §2 lists them all, D-467). `defineStorage` cannot express
  * this: Amplify Storage is auth-scoped user data behind signed URLs, and these are
  * anonymous public reads by a map library that speaks HTTP Range.
  *
@@ -2214,7 +2219,7 @@ reconcileLambda.addToRolePolicy(
 backend.reconcileSweep.addEnvironment("INGEST_QUEUE_URL", activityIngestQueue.queueUrl)
 
 /**
- * ESCAPE HATCH (5 of 5). THE NIGHTLY SCHEDULE, carrying `{ "mode": "nightly" }`: the 14-day
+ * ESCAPE HATCH (01 §2's list). THE NIGHTLY SCHEDULE, carrying `{ "mode": "nightly" }`: the 14-day
  * window. 08:00 UTC (04:00 EDT, 03:00 EST), off the six-hourly grid. MUST MATCH
  * `NIGHTLY_UTC_HOUR` in `lib/sources/reconcile-sweep.ts`; the synth test checks it. A literal
  * here rather than an import, because this file imports no application code.
@@ -2272,6 +2277,6 @@ sweepRecovering.addAlarmAction(new SnsAction(ingestAlarms))
  * 30-DAY LOG RETENTION on every Lambda's group and on the Amplify Hosting app's group (ticket
  * 0305, `08-security-privacy.md` §3.1 and §6.1). An Aspect, so a function added anywhere above
  * inherits it; why a `LogRetention` custom resource rather than a `LogGroup` is in
- * `log-retention.ts`. The sixth escape-hatch use (`01-architecture.md` §2).
+ * `log-retention.ts`. An escape-hatch use, in `01-architecture.md` §2's list.
  */
 applyLogRetention(backend.stack)

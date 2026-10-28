@@ -191,3 +191,15 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
 }
+
+/* 06 §9.4: every focusable element has a visible 2px --text-primary ring (D-467). The
+   component rules (plinth, map controls, chronicle, mode toggle) are more specific and
+   still set their own offsets; this is the floor for everything else — /skills, /log,
+   /settings, /run — and the map canvas, which fills its pane, so its ring is inset. */
+:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+.maplibregl-canvas:focus-visible {
+  outline-offset: -2px;
+}

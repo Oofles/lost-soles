@@ -340,7 +340,7 @@ unused at $0.40/secret/month (§9).
 | S1 | `STRAVA_CLIENT_ID` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | SSR compute role (callback, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` (D-362) | Effectively none — it appears in the OAuth authorize URL and is semi-public. Kept server-side anyway, to avoid building the habit | Regenerate in the Strava developer console; update SSM; redeploy |
 | S2 | `STRAVA_CLIENT_SECRET` | SSM, read through an explicit `ssm:GetParameter` grant (D-362) | the same four principals as S1 (D-362). **Never reaches a browser** | **High.** With a refresh token it mints access tokens for the user's Strava account; alone it lets an attacker complete OAuth flows impersonating the app | Strava console → regenerate → `aws ssm put-parameter --overwrite` at the shared path (not `ampx sandbox secret set`, which writes a `secret()` this value no longer is; §8.1, `0115`). **Existing refresh tokens survive**, so this is a low-drama rotation |
 | S3 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM SecureString at the shared Amplify path, read lazily on GET only through one explicit `ssm:GetParameter` grant (ticket `0286`; it was a `secret()` until then, which every cold start resolved in init) | `ingest-webhook` GET handshake only (the function is `ingest-webhook`, not `strava-webhook`, D-345) | Low. An attacker who has it can complete a handshake they have no use for. It does **not** authenticate POSTs (§4.1) | Generate a new random string, update SSM, `DELETE` and recreate the subscription (`03-integrations.md` §2.3). One subscription per app, so this is a brief outage — do it deliberately |
-| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then delete the row. Rotation is a *feature* here, not a chore |
+| S4 | **Per-user Strava OAuth `refreshToken` + `accessToken`** | DynamoDB `LostSolesSourceAccount`, encrypted at rest, IAM-granted to exactly four principals (D-362) | SSR compute role (`/api/auth/strava/callback`, manual Sync), `process-activity`, `token-refresh`, `reconcile-sweep` | **The highest in the system.** A refresh token plus S2 yields the user's entire Strava history — every GPS trace, indefinitely, silently. This is the T6 payload from §1 | **Rotates on every refresh, automatically** — Strava may return a new refresh token on any refresh (`03-integrations.md` §2.2). Manual revocation: `POST /oauth/revoke` (D-404), then mark the row `DISCONNECTED` and remove its tokens — which is what `/settings` → Disconnect does (D-467). Rotation is a *feature* here, not a chore |
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM `SecureString` at the shared path, to be read through an explicit `ssm:GetParameter` grant like S1–S3 (D-357, D-362). Said "via `secret()`"; nothing in the backend uses `secret()` since `0290` (D-465) | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM `SecureString`, to be read through an explicit `ssm:GetParameter` grant, as S6. Said "via `secret()`" (D-465) | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
@@ -397,8 +397,12 @@ sensitive.
 > **contains the AWS account id**. Two things make it a public identifier rather than a leak, and
 > both are worth stating because the next reader will and should stop on it:
 >
-> - Possessing the URL grants nothing. `sqs:SendMessage` on that queue is held by the SSR compute
->   role alone, and the worker's own grant is consume-only. The protection is the IAM policy.
+> - Possessing the URL grants nothing. `sqs:SendMessage` on that queue is held by three
+>   principals only: the SSR compute role (manual Sync), `ingest-webhook` (D-345) and
+>   `reconcile-sweep` (D-350). The worker's own grant is consume-only. The protection is the IAM
+>   policy. *(D-467: said "the SSR compute role alone", which stopped being true at D-345.)*
+>   The `custom` block also publishes the Activity and ledger table names, the tiles URL and the
+>   webhook URL; each is likewise an identifier, not a credential.
 > - The account id is **already public by this project's own choice** — `CLAUDE.md` states it, and
 >   the repository is public. Publishing it again in a bundle changes nothing about the exposure.
 >
@@ -1201,7 +1205,9 @@ disclosure, not a service outage.
   a commit, or a pasted terminal buffer.
 - **Contain** — **`/settings` → Disconnect Strava, immediately.** It calls `POST
   /oauth/revoke` with the client credentials (the current form of the legacy `/oauth/deauthorize`,
-  D-404) and deletes the `SourceAccount` row. This kills that refresh token at Strava, which is
+  D-404), then marks the `SourceAccount` row `DISCONNECTED` and removes both tokens from it
+  (`markDisconnected`; the row stays, as `02` specifies; D-467 — this said "deletes the row").
+  This kills that refresh token at Strava, which is
   the only place that can honour it. Ingest stops;
   the map is unaffected (§6.5), so the cost of over-reacting here is close to zero. *If the
   client secret (S2) is the leak, regenerate it in the Strava developer console
@@ -1216,8 +1222,10 @@ disclosure, not a service outage.
   it per execution environment, so warm Lambdas keep the old value until their next cold start:
   expect refresh failures for that window, which are an outage, not a leak. "Redeploy this
   version" in the Amplify console recycles the SSR compute. Have the user re-run the OAuth connect
-  flow from `/settings` to mint a fresh refresh token; the disconnect above already deleted the old
-  `SourceAccount` row, which is the point — a new row, not an updated one.
+  flow from `/settings` to mint a fresh refresh token; the disconnect above already removed the
+  old tokens from the `SourceAccount` row, so the reconnect writes fresh ones into the same row
+  and nothing of the leaked token survives (D-467: said "deleted the row … a new row, not an
+  updated one"; the row is kept, the tokens are not).
 - **Verify** — a test activity ingests end to end; the old token returns 401 from Strava
   (actually try it); Strava's authorized-apps list (<https://www.strava.com/settings/apps>)
   shows only our app; `SourceAccount` holds

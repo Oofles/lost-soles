@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest"
 
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 
-import { RULES_DIR, rulesPath } from "./load"
+import { parseRuleSetFile, RULES_DIR, rulesPath } from "./load"
+import { validateRuleSet } from "./validate"
 
 /**
  * I-6 — A SHIPPED RULESET IS NEVER MUTATED. Ticket `0116`.
@@ -40,6 +41,11 @@ describe("I-6 — a shipped rulesVersion is never mutated or deleted", () => {
   it("every bundled version but the newest is pinned — a version is shipped once a later one exists", () => {
     const unpinned = bundled.filter((v) => v !== newest && !(String(v) in PINS.pinned))
     expect(unpinned).toEqual([])
+  })
+
+  it.each(bundled)("I-26 — bundled v%s is valid, checked before the backend deploys (D-467)", (v) => {
+    expect(validateRuleSet(BUNDLED_RULES[v as keyof typeof BUNDLED_RULES])).toEqual([])
+    expect(validateRuleSet(parseRuleSetFile(v))).toEqual([])
   })
 
   it("every pinned version is still bundled, so the worker can still score under it", () => {

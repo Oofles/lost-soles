@@ -93,9 +93,11 @@ below is new territory for this user, and the plan must budget for it:
    no backend to deploy. This is a new file shape, not an edit of the old one.
 4. **Secrets as a first-class concept** — `npx ampx sandbox secret set`, resolved by
    `secret()` at synth time from SSM Parameter Store, namespaced per branch. See §7.
-5. **The CDK escape hatch.** Gen 2 backends *are* CDK. This project uses that fact in four
-   specific places (§2). The user has never written CDK; those four places should be the
-   only CDK in the codebase, and each one is documented inline.
+5. **The CDK escape hatch.** Gen 2 backends *are* CDK. This project uses that fact in a short,
+   enumerated list of places (§2). The user has never written CDK; that list should be the
+   only CDK in the codebase, and each entry is documented inline. *(D-467: this said "four
+   specific places", a count that drifted to six in §2 while the code grew past it. The rule is
+   the list, not a number.)*
 6. **IAM blast radius.** A Gen 2 backend deploy creates roles, tables, buckets, and a
    CloudFormation stack per branch. Gen 1 hosting created essentially nothing. Deploys will
    now fail for IAM reasons that never came up before.
@@ -277,9 +279,22 @@ subscriptions"; none exists, D-364.)*
 Amplify Gen 2 backends are AWS CDK. `defineBackend()` returns an object exposing every
 generated construct, and `backend.createStack(name)` creates an arbitrary nested
 CloudFormation stack. AWS is explicit that **you own the correctness and security of
-anything added this way** — Amplify will not validate it. Keep it to these four uses
-*(five since D-350: the reconcile sweep's nightly `Schedule`; six since `0305`: 30-day log
-retention; see the note below the grants)*:
+anything added this way** — Amplify will not validate it. Keep it to the uses enumerated
+here. A new one is added to this list in the same commit, or it is drift (D-467).
+*(Was "these four uses (five since D-350 …; six since `0305` …)". The count omitted the tiles
+stack, which D-226 itself called the fifth use, and the code's own comments said four, five and
+six at once. Counted from `amplify/backend.ts` on 2026-10-28.)*
+
+1. **`CaptureGuard`** stack — the capture rate-limit table (`0019`).
+2. **`SourceConnections`** stack — `LostSolesSourceAccount`, its KMS CMK, `LostSolesOAuthState` (D-185, D-362).
+3. **`RawArchive`** stack — the archive bucket's deny policy and the break-glass deletion role (I-3).
+4. **`IngestPipeline`** stack — `LostSolesExploredCell`, `LostSolesIngestReceipt`, the SQS queue and
+   DLQ, the SNS topic and `IngestAlarms` (D-345, D-351).
+5. **`BasemapTiles`** stack — the tiles bucket and its CloudFront distribution (D-226).
+6. **The webhook's Function URL**, and its metric filter and alarm (D-345).
+7. **The nightly reconcile `Schedule`** (D-350), and **the log-retention Aspect** (`0305`).
+
+The block below is the original sketch, kept for its reasoning; the list above is what exists.
 
 ```ts
 // amplify/backend.ts

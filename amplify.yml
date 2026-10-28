@@ -9,6 +9,12 @@ backend:
         # BUNDLED trees. --no-save installs from the committed lock and leaves it
         # byte-identical. Revert to `npm ci` under ticket 0128.
         - npm install --no-save --cache .npm --prefer-offline
+        # I-26 / I-6, BEFORE the deploy (D-467). The Lambdas import the bundled JSON and
+        # assertValidRuleSet at cold start; the frontend phase's `npm test` runs only after
+        # pipeline-deploy has already shipped them. A bad ruleset must fail the deploy, not
+        # every cold start (02 §9.8 "Seed time (deploy fails)").
+        - node scripts/build-rules-json.mjs --check
+        - npx vitest run src/rules
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
         # Post-deploy, and in the BACKEND phase on purpose: this needs both the
         # amplify_outputs.json that pipeline-deploy just wrote and the AWS

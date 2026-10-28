@@ -1811,7 +1811,8 @@ The "must not break" rule (D-251), as checks rather than a layout:
   sighted user sees, and the skip target is the whole screen.
 - **Focus order follows reading order**, and every focusable element has a visible 2px
   `--text-primary` focus ring; the map's controls are keyboard-reachable and `M` toggles modes (§9.2).
-  *(`0112`: was `--accent`. Ink is what every control ships with, and it is right: `--accent` is
+  *(`0112`: was `--accent`. Ink is what every control ships with — since D-467 through one global
+  `:focus-visible` rule in `app/tokens.css`, which until then existed only in five components — and it is right: `--accent` is
   `--gold-500` in the light theme, 2.1:1 on parchment, under the 3:1 a focus indicator needs as a
   graphic (D-148).)*
 - **`prefers-reduced-motion` is honoured everywhere** (§3.4, §8.7): it removes motion, never
