@@ -51,7 +51,14 @@ screen. `run-zoom.mjs`'s 24 layouts are the regression check for that.
 
 ## Operator validation
 
-None owed. DOM order is asserted by the test; no layout changes.
+None owed: no perceptual question (D-229). DOM order is asserted by
+`components/map/map-shell-focus-order.test.tsx`. Every control involved is fixed-positioned at
+every width, so nothing moves on screen, and D-448's row is unchanged.
+
+**Smoke test (orchestrator, 2026-10-28):** the full local gate on `main` passed, 43/43 rows,
+including vitest and `npm run build`. Amplify job 440 SUCCEEDED on 54c6b52. Live `/skills`
+still returns 307 to `/?next=%2Fskills` with `cache-control: no-store, private`. The change is
+client-side DOM order only, so curl cannot see more than that the deploy is up.
 
 D-123 trigger checked? none.
 

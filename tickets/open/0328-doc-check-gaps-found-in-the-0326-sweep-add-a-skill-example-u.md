@@ -43,7 +43,12 @@ for the Resolution, not a reason to loosen the validator.
 
 ## Operator validation
 
-None owed. Tests and a comment; the suite is the check.
+None owed: tests, a comment and two doc lines, with no runtime effect.
+
+**Smoke test (orchestrator, 2026-10-28):** the full local gate on `main` passed, 43/43 rows.
+That includes `check-doc-ruleset` and the new `doc-schema.test.ts` cases (add-a-skill appended
+as v4 validates; removing `enabled`, `introducedIn` or `revealsGround` fails). Amplify job 440
+SUCCEEDED on 54c6b52.
 
 D-123 trigger checked? none.
 
