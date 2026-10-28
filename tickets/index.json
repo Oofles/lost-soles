@@ -7482,7 +7482,7 @@
     "title": "Map focus order puts fit and recentre before the map, against 06 §2.2",
     "type": "bug",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7490,8 +7490,9 @@
     "source": "agent",
     "created": "2026-10-28T02:22:22Z",
     "started": "2026-10-28T15:10:12Z",
-    "path": "tickets/open/0323-map-focus-order-puts-fit-and-recentre-before-the-map-against.md",
-    "ready": true,
+    "closed": "2026-10-28T15:33:08Z",
+    "path": "tickets/closed/0323-map-focus-order-puts-fit-and-recentre-before-the-map-against.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

@@ -4,7 +4,7 @@ slug: map-focus-order-puts-fit-and-recentre-before-the-map-against
 title: Map focus order puts fit and recentre before the map, against 06 §2.2
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T02:22:22Z
 started: 2026-10-28T15:10:12Z
+closed: 2026-10-28T15:33:08Z
 ---
 
 ## Description
