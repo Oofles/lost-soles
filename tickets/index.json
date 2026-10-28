@@ -7453,5 +7453,125 @@
       "checked": 0,
       "total": 3
     }
+  },
+  {
+    "id": 322,
+    "slug": "middleware-404-and-307-responses-carry-no-cache-control-agai",
+    "title": "Middleware 404 and 307 responses carry no Cache-Control, against D-429",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:22:22Z",
+    "path": "tickets/open/0322-middleware-404-and-307-responses-carry-no-cache-control-agai.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 323,
+    "slug": "map-focus-order-puts-fit-and-recentre-before-the-map-against",
+    "title": "Map focus order puts fit and recentre before the map, against 06 §2.2",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:22:22Z",
+    "path": "tickets/open/0323-map-focus-order-puts-fit-and-recentre-before-the-map-against.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 324,
+    "slug": "skill-tiles-do-not-announce-progress-to-the-next-level-to-sc",
+    "title": "Skill tiles do not announce progress to the next level to screen readers (06 §9.4)",
+    "type": "bug",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:22:22Z",
+    "path": "tickets/open/0324-skill-tiles-do-not-announce-progress-to-the-next-level-to-sc.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 325,
+    "slug": "as-built-doc-sweep-part-1-08-security-privacy-01-architectur",
+    "title": "As-built doc sweep, part 1: 08 security-privacy, 01 architecture, ingestion contract",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:22:22Z",
+    "path": "tickets/open/0325-as-built-doc-sweep-part-1-08-security-privacy-01-architectur.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 326,
+    "slug": "as-built-doc-sweep-part-2-02-03-04-05-06-07-and-09",
+    "title": "As-built doc sweep, part 2: 02, 03, 04, 05, 06, 07 and 09",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "18-mvp-hardening",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:22:22Z",
+    "path": "tickets/open/0326-as-built-doc-sweep-part-2-02-03-04-05-06-07-and-09.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 327,
+    "slug": "maplibre-renders-50-s-while-the-fog-animator-requests-29-fin",
+    "title": "MapLibre renders ~50/s while the fog animator requests ~29 — find the extra render source",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "08-map-and-fog-renderer",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-10-28T02:24:41Z",
+    "path": "tickets/open/0327-maplibre-renders-50-s-while-the-fog-animator-requests-29-fin.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
   }
 ]

@@ -116,6 +116,18 @@ doc; a row you did not actually perform is a row that fails.
 ~~Outdoors, midday, no shade, the operator's own Android phone … (sunlight read, one-thumb reach to
 the capture sheet's Save and `⌖`, wet-thumb pan test).~~ *(D-251, D-252, 0215)*
 
+**Results, recorded at the capability 18 audit (2026-10-27).** These were first written under
+`## Resolution` and in the capability doc rather than here:
+
+- **Operator, 2026-10-26, desktop browser, deployed app** (wave 1 perceptual checks): all pass. The
+  full report is in `## Resolution` ("Operator, 2026-10-26 …").
+- **Operator, 2026-10-27, desktop browser, NVDA:** `/`'s status line and the `/run` narration read
+  sensibly (`docs/capabilities/18-mvp-hardening.md`, §9.6 table, *Screen reader only*).
+- **Agent harnesses:** `tools/a11y/run-zoom.mjs` → `ZOOM HARNESS PASS` (24 of 24 layouts at 200%);
+  `tools/a11y/run-reduced-motion.mjs` → `REDUCED MOTION HARNESS PASS`. The 200%-zoom overlap below
+  1024px was found here and fixed by `0314`.
+- **Missed, found at the audit:** skill tiles do not speak progress (§9.4). Filed as `0324`.
+
 ## Resolution
 
 **The §9.6 table is graded in `docs/capabilities/18-mvp-hardening.md`.** Eight rows pass. 200% zoom

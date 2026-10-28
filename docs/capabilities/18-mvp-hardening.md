@@ -445,6 +445,24 @@ work is **proposed**, not when it ships (`08` §2.4):
 
 _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
+**First attempt, 2026-10-27: not recorded, over the drift budget.** Mechanical half 12/12. §3 and
+§5 clean (0112's and 0317's `## Operator validation` sections were filled in from results recorded
+elsewhere; one unfiled observation became `0327`, capability `08`). §2 found about 28 verified
+divergences across the cited sections, against a budget of three:
+
+- **code-was-wrong, 3 new:** `0322` (middleware 404/307 lack `Cache-Control`, D-429), `0323` (map
+  focus order, `06` §2.2), `0324` (skill tiles do not speak progress, `06` §9.4). Two more were
+  already ticketed outside `18`: `0279`, `0313`.
+- **design-was-wrong, about 25:** stale as-built claims in `01` §2, `02` §1.2/§3.2/§9, `03` §2.6,
+  `04` §1.2/§1.3, `05` §6.3, `06` §9.4/§9.6, `07` §2.4, `08` §2.4/§5.5/§7.5/§9, `09` §9.1 and the
+  ingestion contract. In every case the code is right and a later decision backs it. Most date from
+  capabilities `01`–`16` and sat in broad sections that no later ticket re-cited, so no
+  per-capability audit re-read them.
+
+The operator chose a DESIGN sweep and then a re-audit over a forced record: `0325` and `0326` list
+every item with line references. Re-run `/tickets audit 18-mvp-hardening` once `0322`–`0326` are
+closed.
+
 ## Reflection
 
 _Filled in at the REFLECT step, after USE._

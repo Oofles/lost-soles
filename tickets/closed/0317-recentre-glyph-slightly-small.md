@@ -46,6 +46,11 @@ browser a system fallback font draws it, possibly at a different size, which may
 
 The (operator) criterion above, on the desktop browser.
 
+**Result, recorded at the capability 18 audit (2026-10-27):** operator, 2026-10-26, desktop browser,
+deployed app. Shown the 18–24px comparison render and the deployed 22px, the operator chose 24px
+("24px looks great"). Shipped at 24px. Smoke test after Amplify job 435: the deployed client chunk
+contains `recentre-glyph { font-size: 24px; }`. See the criterion's verified line and `## Resolution`.
+
 ## Resolution
 
 **Cause, from font coverage first (as the Notes asked).** Neither `⌖` (U+2316) nor `⤢` (U+2922) is in
