@@ -171,7 +171,7 @@ describe("level figures (0077)", () => {
 
 describe("activity vs meta is not colour-only (0077)", () => {
   it("each tile's accessible name states its kind, and the section headings stay", () => {
-    for (const s of enabled) expect(panel).toMatch(new RegExp(`aria-label="${s.name}, level \\d+, ${s.kind} skill"`))
+    for (const s of enabled) expect(panel).toMatch(new RegExp(`aria-label="${s.name}, level \\d+, (\\d+ percent to \\d+|maximum level), ${s.kind} skill"`))
     expect(panel).toContain("<h2")
     expect(panel).toMatch(/>ACTIVITY</)
     expect(panel).toMatch(/>META</)

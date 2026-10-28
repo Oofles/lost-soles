@@ -184,7 +184,7 @@ describe("the skills quick-view (0270)", () => {
     expect(view.meta).toEqual([])
   })
 
-  it("a row is level, progress and a link to the sheet — no XP — named by skill, level and kind", () => {
+  it("a row is level, progress and a link to the sheet — no XP — named by the tile's own label (0324)", () => {
     const m = meta[0]!
     const skills = [{ skillId: m.id, xp: 5_000 }]
     const [row] = plinthModel({ skills, cells: 0, latest: EMPTY_COLLECTION }).quickView!.meta
@@ -196,7 +196,7 @@ describe("the skills quick-view (0270)", () => {
       kind: "meta",
       level: tile.level,
       fraction: tile.fraction,
-      label: `${m.name}, level ${tile.level}, meta skill`,
+      label: tile.label,
     })
     expect(row).not.toHaveProperty("xp")
   })

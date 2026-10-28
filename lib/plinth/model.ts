@@ -76,7 +76,7 @@ export interface QuickRow {
   level: number
   /** 0..1 toward `level + 1`, the same fraction the `/skills` tile draws. */
   fraction: number
-  /** `Might, level 42, activity skill` — the `/skills` tile's accessible name, word for word. */
+  /** `Might, level 42, 37 percent to 43, activity skill` — the `/skills` tile's accessible name, word for word (`0324`). */
   label: string
 }
 
@@ -129,7 +129,7 @@ export function quickView(panel: Pick<SkillsPanelModel, "activity" | "meta">): Q
     kind: t.kind,
     level: t.level,
     fraction: t.fraction,
-    label: `${t.name}, level ${t.level}, ${t.kind} skill`,
+    label: t.label,
   })
   return { activity: panel.activity.map(row), meta: panel.meta.map(row) }
 }

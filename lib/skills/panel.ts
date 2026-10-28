@@ -26,6 +26,28 @@ export interface SkillTile {
   /** 0..1 toward `level + 1` (§5.2's 3dp bar). */
   fraction: number
   xpToNext: number
+  /**
+   * `0324`. The tile's accessible name, and the quick-view row's (06 §9.4): `Wayfaring, level 47,
+   * 88 percent to 48, activity skill`, or `…, level 99, maximum level, activity skill` at the curve's
+   * cap. Built here, once, so `/skills` and the home quick-view cannot disagree. See `skillLabel`.
+   */
+  label: string
+}
+
+/**
+ * `0324`. 06 §9.4's announcement. The percent is FLOORED from the same `fraction` the bar draws, so
+ * speech never claims "100 percent to 48" while the skill is still 47 — and at the cap, where no next
+ * level exists, it says so instead of "100 percent to 100" (the tile there is a full bar and nothing
+ * else). No XP: the quick-view's rule is level and progress only. The kind stays, last (`0077`): an
+ * Untrained tile sits outside the `ACTIVITY`/`META` regions, so its name is the only place the
+ * distinction reaches assistive technology without colour.
+ */
+export function skillLabel(tile: Pick<SkillTile, "name" | "kind" | "level" | "fraction">, maxLevel: number): string {
+  const progress =
+    tile.level >= maxLevel
+      ? "maximum level"
+      : `${Math.floor(Math.min(Math.max(tile.fraction, 0), 1) * 100)} percent to ${tile.level + 1}`
+  return `${tile.name}, level ${tile.level}, ${progress}, ${tile.kind} skill`
 }
 
 export interface SkillsPanelModel {
@@ -47,7 +69,8 @@ export function skillsPanel(rules: RuleSet, standing: readonly CachedSkill[]): S
     const held = bySkill.get(skill.id)
     const xp = held?.xp ?? 0
     const p = levelProgress(xp, rules.curve, held?.levelHighWater ?? 1)
-    return { skillId: skill.id, name: skill.name, kind: skill.kind, xp, level: p.level, fraction: p.fraction, xpToNext: p.xpToNext }
+    const tile = { skillId: skill.id, name: skill.name, kind: skill.kind, xp, level: p.level, fraction: p.fraction, xpToNext: p.xpToNext }
+    return { ...tile, label: skillLabel(tile, rules.curve.maxLevel) }
   })
 
   // Lifetime XP, and nothing else (0075): a row added last week and a row ignored for five years

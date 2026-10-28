@@ -1803,7 +1803,10 @@ The "must not break" rule (D-251), as checks rather than a layout:
   ellipsize; skill names may.
 - **Screen readers** (NVDA, VoiceOver). The map is not a decorative image — its container carries a live text summary:
   *"Map. 12,480 cells revealed. Last run Thursday, 8.4 kilometres, 21 new."* Skill tiles announce
-  *"Wayfaring, level 47, 88 percent to 48."* The §3 sequence announces each beat through a single
+  *"Wayfaring, level 47, 88 percent to 48, activity skill"* — the percent floored, so it never says
+  100 before the level turns; *"Wayfaring, level 99, maximum level, activity skill"* at the cap; the
+  kind last, because an Untrained tile sits outside the `ACTIVITY`/`META` regions (`0077`). The home
+  quick-view rows say the same, from the same string (`0324`). The §3 sequence announces each beat through a single
   `aria-live="polite"` region **in beat order**, so the reveal is narrated in the same sequence a
   sighted user sees, and the skip target is the whole screen.
 - **Focus order follows reading order**, and every focusable element has a visible 2px

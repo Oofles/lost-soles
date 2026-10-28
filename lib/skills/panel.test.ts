@@ -5,7 +5,7 @@ import type { RuleSet } from "@/src/rules/schema"
 import { cumulativeXp, levelForXp, totalLevelCeiling } from "@/src/scoring/levels"
 
 import { appendSkills, FIFTEEN } from "./__fixtures__/fifteen-skills"
-import { skillsPanel, type SkillsPanelModel } from "./panel"
+import { skillLabel, skillsPanel, type SkillsPanelModel } from "./panel"
 
 /**
  * Ticket 0073 — the panel's arithmetic and sections, against every bundled ruleset. No skill id
@@ -172,5 +172,54 @@ describe("the panel in year ten (0075)", () => {
       for (const id of xp.keys()) expect(m.untrained).not.toContain(id)
     }
     expect(skillsPanel(rules, [...xp].map(([skillId, x]) => ({ skillId, xp: x }))).untrained).toEqual([])
+  })
+})
+
+/**
+ * Ticket 0324 — 06 §9.4's announcement, built once and read by both `/skills` and the quick-view.
+ */
+describe.each(versions)("tile labels under ruleset v%i (0324)", (v) => {
+  const rules = BUNDLED_RULES[v] as RuleSet
+  const enabled = rules.skills.filter((s) => s.enabled).sort((a, b) => a.displayOrder - b.displayOrder)
+  const s0 = enabled[0]!
+  const max = rules.curve.maxLevel
+  const tileFor = (xp: number) => {
+    const m = skillsPanel(rules, [{ skillId: s0.id, xp }])
+    return [...m.activity, ...m.meta, ...m.untrained].find((t) => t.skillId === s0.id)!
+  }
+
+  it("mid-level: level, floored percent to the next level, kind", () => {
+    const lo = cumulativeXp(47)
+    const hi = cumulativeXp(48)
+    const t = tileFor(lo + Math.round((hi - lo) * 0.885))
+    expect(t.level).toBe(47)
+    expect(t.label).toBe(`${s0.name}, level 47, 88 percent to 48, ${s0.kind} skill`)
+  })
+
+  it("level 1 with 0 XP: 0 percent to 2", () => {
+    const t = tileFor(0)
+    expect(t.label).toBe(`${s0.name}, level 1, 0 percent to 2, ${s0.kind} skill`)
+  })
+
+  it("at the ceiling: says so, never '100 percent to 100'", () => {
+    const t = tileFor(cumulativeXp(max) + 12_345)
+    expect(t.level).toBe(max)
+    expect(t.label).toBe(`${s0.name}, level ${max}, maximum level, ${s0.kind} skill`)
+    expect(t.label).not.toMatch(/percent/)
+  })
+
+  it("one XP short of a level never announces 100 percent", () => {
+    const t = tileFor(cumulativeXp(48) - 1)
+    expect(t.level).toBe(47)
+    expect(t.label).toContain("99 percent to 48")
+  })
+})
+
+describe("skillLabel (0324)", () => {
+  it("clamps a stray fraction and names no XP", () => {
+    const base = { name: "Climbing", kind: "activity" as const, level: 5 }
+    expect(skillLabel({ ...base, fraction: -0.2 }, 99)).toBe("Climbing, level 5, 0 percent to 6, activity skill")
+    expect(skillLabel({ ...base, fraction: 1.4 }, 99)).toBe("Climbing, level 5, 100 percent to 6, activity skill")
+    expect(skillLabel({ ...base, fraction: 0.5 }, 99)).not.toMatch(/XP/)
   })
 })

@@ -36,10 +36,10 @@ const FULL: PlinthModel = {
   // `0270`: both groups filled, so every refusal below is tested against the quick-view too.
   quickView: {
     activity: [
-      { skillId: "act-a", href: "/skills/act-a", name: "Alpha", kind: "activity", level: 42, fraction: 0.5, label: "Alpha, level 42, activity skill" },
-      { skillId: "act-b", href: "/skills/act-b", name: "Beta", kind: "activity", level: 7, fraction: 0.25, label: "Beta, level 7, activity skill" },
+      { skillId: "act-a", href: "/skills/act-a", name: "Alpha", kind: "activity", level: 42, fraction: 0.5, label: "Alpha, level 42, 50 percent to 43, activity skill" },
+      { skillId: "act-b", href: "/skills/act-b", name: "Beta", kind: "activity", level: 7, fraction: 0.25, label: "Beta, level 7, 25 percent to 8, activity skill" },
     ],
-    meta: [{ skillId: "meta-c", href: "/skills/meta-c", name: "Gamma", kind: "meta", level: 19, fraction: 0.75, label: "Gamma, level 19, meta skill" }],
+    meta: [{ skillId: "meta-c", href: "/skills/meta-c", name: "Gamma", kind: "meta", level: 19, fraction: 0.75, label: "Gamma, level 19, 75 percent to 20, meta skill" }],
   },
 }
 
@@ -104,8 +104,8 @@ describe("the skills quick-view (0270)", () => {
     const html = quick(plinth())
     expect(html.indexOf(">ACTIVITY<")).toBeLessThan(html.indexOf(">META<"))
     expect(hrefs(html)).toEqual(["/skills/act-a", "/skills/act-b", "/skills/meta-c"])
-    expect(html).toContain('aria-label="Alpha, level 42, activity skill"')
-    expect(html).toContain('aria-label="Gamma, level 19, meta skill"')
+    expect(html).toContain('aria-label="Alpha, level 42, 50 percent to 43, activity skill"')
+    expect(html).toContain('aria-label="Gamma, level 19, 75 percent to 20, meta skill"')
     const t = text(html)
     for (const s of ["Alpha", "42", "Beta", "7", "Gamma", "19"]) expect(t).toContain(s)
     expect(t).not.toMatch(/\bxp\b|untrained|next|%/i)
