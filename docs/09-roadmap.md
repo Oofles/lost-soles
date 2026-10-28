@@ -111,6 +111,10 @@ Seven capabilities, in this order, and nothing else:
 
 ### 2.3 What is deliberately ugly or missing at the milestone
 
+> *Dated snapshot (`D-NEW-sweep`):* this section describes the first-usable milestone as planned,
+> and is kept as written rather than rewritten to the build. Two annotations below mark where the
+> build later moved past it.
+
 Stated plainly, so nobody mistakes it for a defect and files a ticket:
 
 **Missing entirely**
@@ -136,13 +140,16 @@ Stated plainly, so nobody mistakes it for a defect and files a ticket:
 - **The basemap is a stock Protomaps `light` flavour**, not the parchment fork. The fog is
   correct; the ground underneath it is generic. This is a deliberate split: the fog shader is
   the hard part and the palette fork is a colour-table edit that can happen any time after.
+  *(Later: the parchment colouring was built and then withdrawn. The basemap keeps the stock
+  `light` colours for good; the fork's structure stays, D-373.)*
 - **Sign-in is the raw Amplify UI component.** Email + password, passkeys later.
 - **One user.** Self-signup off, account created by hand in the Cognito console (`08-security-
   privacy.md` §5.4). No provisioning flow.
 - ~~**No error surface.** A failed import fails into CloudWatch. The user finds out because the map
   did not change.~~ **Superseded 2026-09-07 by ticket `0044`.** This was true when the milestone
   was written and is no longer. There is now one CloudWatch alarm on the DLQ emailing the operator
-  (`01-architecture.md` §4 — "the only alarm this app needs"), a `FAILED` status on the receipt,
+  (`01-architecture.md` §4 — "the only alarm this app needs"; *later three: the DLQ, the
+  missing-runs alarm and the flood alarm, D-349, D-351*), a `FAILED` status on the receipt,
   one structured log line per terminal failure, and a sentence in the Sync result reporting
   outstanding failures. What is still absent is a retry UI, an error detail page and
   notifications — deliberately, and recorded in that ticket's scope note.
@@ -1058,15 +1065,18 @@ binding — file a ticket, do not extend one (07 §1.2: never expand a ticket's 
 ## 9. Definition of done for MVP
 
 Every box is objectively evaluable — a command that exits zero, a file that exists, a number that
-matches, or a physical act performed. Nothing here reads "feels good". `18`/6 is the ticket that
+matches, or a physical act performed. Nothing here reads "feels good". `0117` is the ticket that
 walks this list.
 
 ### 9.1 Scope — D-122, exactly
 
 - [ ] A real Strava run imports and reveals territory that persists across sessions and deploys.
 - [ ] **Both** map modes exist and are toggleable (D-052), and render an identical revealed set.
-- [ ] All **seven** MVP skills exist as rows in `xp-rules-v1.yaml` and appear on `/skills`:
-      Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution.
+- [ ] ~~All **seven** MVP skills exist as rows in `xp-rules-v1.yaml` and appear on `/skills`:
+      Wayfaring, Vigil, Might, Fortitude, Endurance, Cartography, Constitution.~~
+      Every enabled skill row in the ruleset exists in `xp-rules-v1.yaml` and appears on
+      `/skills`. *(This said "seven"; D-189 added Roving and Cadence to `v1`, so it ships nine
+      enabled, `04` §1.1. Count the rows, D-145.)*
 - [ ] XP and levels are computed and displayed; ~~Total Level and Total XP are on the home screen~~
       Total Level and lifetime cells are on the home screen and Total XP on `/skills` (D-462, `06` §2.3).
 - [ ] `/log` records pushups, situps and planks in one tap each (D-061, D-062).
@@ -1093,7 +1103,8 @@ walks this list.
       rows (idempotency, T8).
 - [ ] Every explored cell carries `lastRunAt`, and no code path writes a presence bit (D-120).
 - [ ] The map has never re-fogged. Revealed ground is still revealed (D-020).
-- [ ] `02-data-model.md` §9 invariants I-1…I-26: each has a test, or a written reason it cannot.
+- [ ] `02-data-model.md` §9 invariants I-1…I-30: each has a test, or a written reason it cannot.
+      *(Said I-26; §9 runs to I-30.)*
 
 ### 9.3 Reversibility — the D-101 / D-121 proof
 
@@ -1116,7 +1127,8 @@ walks this list.
 - [ ] `https://soles.devaultsecurity.com` serves the app over valid TLS.
 - [ ] A run finished on the phone appears on the map **with no user action** (D-013). The Sync
       button may remain as a manual fallback; it must not be the only path.
-- [ ] `token-refresh` and `nightly-reconcile` have both run successfully on schedule at least once.
+- [ ] `token-refresh` and `reconcile-sweep` (built under that name, D-350; planned as
+      `nightly-reconcile`) have both run successfully on schedule at least once.
 - [ ] A poisoned message lands in the DLQ and is visible somewhere a human looks.
 - [ ] Cognito self-signup is OFF and unauthenticated identities are OFF (`08` §5.1).
 - [ ] No secret in the client bundle — the §7 forbidden-list grep passes against `.next/static`.

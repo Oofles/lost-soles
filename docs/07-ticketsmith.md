@@ -204,10 +204,25 @@ information about the backlog. Ten half-formed tickets sitting in `open/` would 
 
 ### 2.4 Data flow
 
+> **AS BUILT (`D-NEW-sweep`; D-251, D-252).** Only the top-left of the diagram below exists:
+>
+> ```
+>  any client ──POST /api/tickets/capture──▶ capture endpoint ──GitHub Contents API──▶ commit to
+>               (owner-only, `0018`, `0149`)                                          tickets/inbox/
+>
+>  Claude Code ── git pull ──▶ files ── tickets.mjs triage-move ──▶ tickets/open/ ── git push
+> ```
+>
+> There is **no read route, no read cache, no GitHub push webhook and no phone IndexedDB queue**.
+> They were capability `17`'s `0110`, which D-252 declined when it withdrew `17`; the phone is not
+> an input surface (D-251). The capture endpoint stays as plumbing. The diagram, the cache paragraph
+> and the failure modes below are the original design, kept as the record; of the failure modes,
+> only "app entirely down" and "GitHub down" (minus the queue) describe anything real.
+
 > **Route names, corrected 2026-09-03 (ticket `0154`).** The capture endpoint shipped as
 > **`POST /api/tickets/capture`** (`0018`); this document had called it `/api/dev/tickets`
 > throughout, which never existed. The **read** route and the **webhook** below are *not built* —
-> they are capability `17`'s `0110`, which names them. `/dev/tickets` (no `/api`) was the UI page: withdrawn by D-252, its stub routes deleted by `0216`.
+> they were capability `17`'s `0110`, declined with `17` by D-252, so they will not be built. `/dev/tickets` (no `/api`) was the UI page: withdrawn by D-252, its stub routes deleted by `0216`.
 
 ```
  Phone ──POST /api/tickets/capture──▶ capture endpoint ──GitHub Contents API──▶ commit to

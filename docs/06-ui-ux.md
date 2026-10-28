@@ -1792,10 +1792,13 @@ The "must not break" rule (D-251), as checks rather than a layout:
 - **Nothing is encoded by hue alone.** Activity vs meta bars differ in colour *and* live under
   separate section headers (§5.3). The selected route differs from the trace web in width and
   brightness, not hue (§4.5). Cold ground is a *desaturation* as much as a hue shift, so it
-  survives deuteranopia and protanopia (§4.6) — and it gets a one-time three-swatch legend.
-- **Browser zoom and text size to 200%.** Layouts reflow rather than truncate: the skills grid drops from three
-  (or five, D-289) columns to two at ≥1.3× and to one at ≥1.8×; the rail scrolls internally rather than widening, and
-  below 1024px the plinth card caps at 55% of the window height so the map keeps at least 45%
+  survives deuteranopia and protanopia (§4.6). ~~— and it gets a one-time three-swatch legend.~~
+  *(Withdrawn by D-394, as §4.6 records: there is no cold-territory legend or coach mark.)*
+- **Browser zoom and text size to 200%.** Layouts reflow rather than truncate: the skills grid is three columns below
+  1024px and five at or above it, with nothing between (D-289), so a 200% zoom that takes the viewport under 1024px
+  takes the grid from five to three and no narrower. *(This said two columns at ≥1.3× and one at ≥1.8×; no such steps
+  were built, and `tools/a11y/run-zoom.mjs` passes 24/24 without them, `D-NEW-sweep`.)* The rail scrolls internally
+  rather than widening, and below 1024px the plinth card caps at 55% of the window height so the map keeps at least 45%
   (§2.2). Levels and XP never
   ellipsize; skill names may.
 - **Screen readers** (NVDA, VoiceOver). The map is not a decorative image — its container carries a live text summary:
@@ -1811,6 +1814,11 @@ The "must not break" rule (D-251), as checks rather than a layout:
 - **`prefers-reduced-motion` is honoured everywhere** (§3.4, §8.7): it removes motion, never
   sequence, and it doubles as the manual battery-saver switch (05 §4.5).
 
+*As built (D-316, `D-NEW-sweep`):* the map summary names the run by its absolute date, in the
+plinth's own words, and reads *"Map. 12,480 cells revealed. Last run Fri 28 Aug, 8.40 km, 21 new
+cells."* (`lib/plinth/model.ts` `mapSummary`). The example in the screen-reader bullet above is the
+planned wording.
+
 ### 9.5 Slow connections and no connection
 
 The app is opened on whatever connection the desk has — usually good, sometimes a flaky café
@@ -1823,7 +1831,8 @@ critical path to seeing your map.**
   worker, so a cold load with no signal at all shows the browser's offline page.*
 - **The fog payload is fetched after first paint, never before**, and revalidated with
   `If-None-Match` (05 §7.3). A 304 costs nothing; a changed payload swaps in without a flash.
-- **There is no offline banner.** The plinth already shows *"Last: Thu · 8.4 km"*, which is the
+- **There is no offline banner.** The plinth already shows *"Last: Fri 28 Aug · 8.40 km · 21 new"*
+  (D-316's format; this said "Last: Thu · 8.4 km"), which is the
   honest freshness signal — the date of the most recent thing the app knows about. A banner
   announcing a condition the user cannot fix is chrome that exists to blame the world.
 - **Missing tiles are the flat basemap background, never a checkerboard, never a spinner** (§4.8, D-373).
@@ -1845,7 +1854,7 @@ critical path to seeing your map.**
 | Three weeks without opening it | Identical to any other day. No "welcome back", no summary of what you missed (D-013, H2) |
 | A slow connection (devtools "Slow 3G") | Cached map paints in under a second; the fog payload catches up silently |
 | No connection (devtools "Offline", app already open) | Everything above, plus logging still works and queues |
-| 200% browser zoom | Grid reflows; the rail scrolls internally (or, below 1024px, the plinth card caps at 55% of the height and scrolls); nothing truncates |
+| 200% browser zoom | The skills grid goes from five columns to three once the viewport is under 1024px, and no narrower (D-289); the rail scrolls internally (or, below 1024px, the plinth card caps at 55% of the height and scrolls); nothing truncates |
 | Screen reader only | Map summarised in text; the reveal narrated in beat order |
 
 ---

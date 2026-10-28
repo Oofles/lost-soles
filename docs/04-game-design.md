@@ -114,8 +114,10 @@ Total Level is the **headline number on the home screen**, not any individual sk
 ~9× faster than any single skill, which is what keeps mid-game weeks from feeling empty
 (a run that moves Wayfaring 1.8% of a level can still be the run that ticks Total Level).
 
-`TotalXP = Σ xp(skill)` is displayed underneath, and it is the number that **always** goes up,
-every session, without exception. That guarantee matters (§4.1).
+`TotalXP = Σ xp(skill)` is ~~displayed underneath~~ displayed in the `/skills` header, not on
+home (D-462, `06` §2.3: home's two glance numbers are Total Level and lifetime cells revealed). It
+is the number that **always** goes up, every session, without exception. That guarantee matters
+(§4.1).
 
 ### 1.3 Skills are data, not code — the extensibility requirement (D-031)
 
@@ -158,8 +160,9 @@ must be adding a row.** If it requires a code change, the design has failed.
 > matcher, §3.5 the worked Vigil test, §3.8 the CI checks that stop the property rotting. This
 > section carries the corrected schema; §3 carries the reasoning.
 
-The skill registry is a versioned data file (`rules/xp-rules-v<N>.yaml`, currently v2), loaded at ingest time
-and pinned per activity (§7). The schema:
+The skill registry is a versioned data file (`rules/xp-rules-v<N>.yaml`, currently v3: v3 adds
+Vigil's `treadmill` exercise and changes no number, D-286), loaded at ingest time and pinned per
+activity (§7). The excerpt below is v2's, whose scoring fields v3 repeats byte for byte. The schema:
 
 ```yaml
 # rules/xp-rules-v2.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
@@ -281,8 +284,8 @@ skills:
     revealsGround: false
     feeds: [{ skill: constitution, rate: 0.3333 }]
     exercises:               # NESTED in the skill that owns them (02 §3.2), not top-level:
-      - id: pushup           # the YAML is seeded VERBATIM into T5, so the file's shape and
-        label: Pushups       # the item's shape are one shape. A `skill:` back-reference
+      - id: pushup           # the YAML is bundled as-is (02 §3.8), so the file's shape and
+        label: Pushups       # the loaded row's are one shape. A `skill:` back-reference
         entry: count         # would be a second place the mapping could disagree.
         quickValues: [10, 20, 25, 50]
 
@@ -322,12 +325,16 @@ skills:
     feeds: []                # Constitution feeds nothing — §1.1, and 02 §3.8 check 2
 ```
 
-**Adding a workout type is exactly this diff** — no code:
+**Adding a workout type is exactly this diff** — no code. It goes into a new version file,
+`rules/xp-rules-v4.yaml` (a shipped version is never edited, 02 §3.8), copied from v3 with
+`version: 4` and this row appended:
 
 ```yaml
-  - id: pullups
+  - id: grip
     name: Grip                 # new activity skill
     kind: activity
+    enabled: true              # required, no default (02 §3.2)
+    introducedIn: 4            # D-146: the version that ships it, so the free level is not celebrated
     displayOrder: 45
     logMode: reps
     unit: rep
@@ -337,14 +344,21 @@ skills:
     softCapUnits: 50
     sanityCeilingUnits: 300
     minUnitsForCredit: 1
+    groundMultipliers: null
+    revealsGround: false       # required on every activity row, no default (D-189)
     feeds: [{ skill: constitution, rate: 0.3333 }]
-# ...and one row in `exercises:`
-  - id: pullup
-    label: Pull-ups
-    skill: grip
-    entry: count
-    quickValues: [5, 10, 15]
+    exercises:                 # nested in its skill, never a top-level row with `skill:`
+      - id: pullup
+        label: Pull-ups
+        entry: count
+        quickValues: [5, 10, 15]
 ```
+
+*Amended (`D-NEW-sweep`):* this example lacked `enabled`, `introducedIn` and `revealsGround`, and
+put the exercise in a top-level list with a `skill:` back-reference, which the excerpt above
+forbids. As written now, v3 plus this row passes `validateRuleSet` (`src/rules/validate.ts`).
+Nothing in CI parses this block yet: `src/rules/doc-schema.test.ts` reads only the first `yaml`
+block of §1.3.
 
 #### The proof: Wayfaring vs Vigil, side by side (D-141 / D-132)
 
@@ -429,7 +443,8 @@ records `cellCount: 0` so the shape never varies. This also settles the provisio
 "treadmill = half Wayfaring XP" suggestion in `05-fog-of-war.md` §3.6/§9.1: D-132 overrides it —
 full XP into a separate skill.
 
-**Verdict: Vigil is one YAML row, one seeded registry item, zero lines of code.**
+**Verdict: Vigil is one YAML row, zero lines of code.** *(This said "one seeded registry item";
+there is no seeded table, `02` §3.8.)*
 
 #### `match` must exist in `xp-rules-v1.yaml` before any scoring code is written
 

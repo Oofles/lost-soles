@@ -11,7 +11,8 @@
  *
  * ─── ITS OWN DATABASE, BESIDE THE FOG CACHE ─────────────────────────────────
  *
- * §3.4 says "IndexedDB alongside `explored-r10.bin`". Alongside, not inside: `lost-soles-fog` is
+ * The flag lives in IndexedDB alongside the cached explored blob (`explored-r11.<gen>.bin`, D-237;
+ * this comment once said `explored-r10.bin`). Alongside, not inside: `lost-soles-fog` is
  * versioned by `lib/fog/explored-cache.ts`, and adding a store there means a version bump that a tab
  * holding the old version open BLOCKS — the fog cache would fall back to a cold start to make room for
  * a display flag. A second database on the same origin is cleared by the same "clear site data".

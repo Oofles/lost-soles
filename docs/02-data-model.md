@@ -53,7 +53,9 @@ Everything below the first row is a cache with a longer-than-usual lifetime.
 
 ### 1.2 What lives where
 
-**S3 — one bucket, `lost-soles-storage`** (`defineStorage`, resource #9 in `01-architecture.md`).
+**S3 — one bucket, `defineStorage({ name: "lostSolesUserData" })`** (resource #9 in
+`01-architecture.md`; `amplify/storage/resource.ts`). *As built (`D-NEW-sweep`):* Amplify generates
+the physical bucket name, so `lost-soles-storage` below is a label for the tree, not a name to type.
 
 ```
 s3://lost-soles-storage/
@@ -95,13 +97,22 @@ s3://lost-soles-storage/
 the concern is that nothing ever *queries* a trace. It is fetched whole, by key, on activity
 detail. That is exactly S3's job and it costs $0.023/GB-month against DynamoDB's $0.25.
 
-**DynamoDB — eight tables.** Five behind AppSync, three raw CDK constructs outside it. §2.
+**DynamoDB — eleven tables.** *As built (`D-NEW-sweep`; D-276, D-456):* six `defineData`
+models behind AppSync (`Activity`, `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, and
+0012's `DeploySmokeTest` placeholder) and five raw CDK tables outside it (`ExploredCell`,
+`SourceAccount`, `IngestReceipt`, `OAuthState`, `CaptureGuard`). The planned T5 `RuleSkill` was
+never built (§3.2). §2.
 
-**Cloudflare R2** holds only the pmtiles basemap (resource #20). It is third-party map data,
-re-downloadable, and contains nothing of the user's. Not part of this model.
+**S3 bucket `lost-soles-tiles`, behind our own CloudFront distribution** holds only the pmtiles
+basemap (resource #20; D-226, `amplify/backend.ts`). *Amended (`D-NEW-sweep`): this said Cloudflare
+R2, which D-226 replaced.* It is third-party map data, re-downloadable, and contains nothing of the
+user's. Not part of this model.
 
-**Browser IndexedDB** holds the decoded explored set keyed `{uid, generation}` (05 §7.3). Pure
-cache; clearing it costs one 300 KB fetch.
+**Browser IndexedDB** holds the decoded explored set keyed `{uid, generation}` (05 §7.3), which
+is pure cache: clearing it costs one 300 KB fetch. It also holds the `/log` write queue
+(`lib/log/queue.ts`, D-282), which is **not** a cache: an entry lives there until `logWorkout`
+accepts it, so clearing site data inside the 8-second undo window, or while offline, loses that
+log.
 
 ### 1.3 What ships to the browser
 
@@ -215,6 +226,10 @@ the atomic ingest commit in 01 §4 step 15 works unchanged. Nothing is lost.
 | T6 | `ExploredCell` | **CDK** | **no** | 20k–150k | the fog. `firstRunAt` + `lastRunAt` per D-120 |
 | T7 | `SourceAccount` | **CDK** | **no** | ≤ 24 | OAuth tokens + per-adapter watermarks |
 | T8 | `IngestReceipt` | **CDK** | **no** | ~250 live (TTL 90 d) | idempotency ledger |
+
+> *As built (`D-NEW-sweep`):* T5 was never built; rules ship as bundled JSON (D-274, D-276,
+> §3.8). Three tables this index does not number exist: `Landmark` (`defineData`, §2.11),
+> `OAuthState` and `CaptureGuard` (both CDK, D-456). §1.2 has the full count.
 
 `Ticket` and `Region` from 01 §2 resource #5 are covered in §2.11 — both are small and neither
 participates in ingest. So is `Landmark` (`0248`), which does: one write-once row joins the ledger
@@ -394,6 +409,10 @@ Access patterns: **AP-7**, **AP-9**, **AP-11**.
 ---
 
 ### T5 — `RuleSkill`
+
+> **NOT BUILT (D-276, `D-NEW-sweep`).** No table, no seeder. Every shipped ruleset is bundled into
+> the worker and the web build as generated JSON (`rules/xp-rules.bundled.ts`, D-274; §3.8). The
+> plan below is kept as the record of what was designed.
 
 The skill registry, materialised as rows. Full treatment in §3.
 
@@ -735,7 +754,8 @@ zero discovery credit, no map reveal) must be a data row.
 
 This section designs the row, then runs the test. **The verdict is in §3.6, and it is a
 qualified pass: the schema as literally written in 04 §1.3 fails, one additive change fixes it,
-and after that change Vigil is exactly one row of YAML and one seeded item.** The change is
+and after that change Vigil is exactly one row of YAML.** *(This said "and one seeded item";
+there is no seeded table, D-276.)* The change is
 specified in §3.4 and must land before implementation.
 
 ### 3.1 The five jobs a skill row has to do
@@ -758,12 +778,18 @@ precisely what Vigil needs. That gap is the whole finding of this section.
 ### 3.2 `RuleSkill` — the item shape (T5)
 
 The YAML in `rules/xp-rules-vN.yaml` is authored in git and is the human-editable authority.
-It is **seeded verbatim into T5 at deploy time** so the browser and the scoring Lambda read the
+~~It is **seeded verbatim into T5 at deploy time** so the browser and the scoring Lambda read the
 same rows rather than each parsing a file. Git is the source of truth; T5 is a materialised
-projection of it, exactly as `ExploredCell` is a projection of the traces (§1.1).
+projection of it, exactly as `ExploredCell` is a projection of the traces (§1.1).~~
+*Amended (`D-NEW-sweep`; D-274, D-276):* there is no T5 and no seeder. `scripts/build-rules-json.mjs`
+turns each YAML file into `rules/xp-rules-vN.json` and `rules/xp-rules.bundled.ts`, which the
+ingest worker, the two mutation Lambdas and the web build all import, so the browser and the
+scorer still read the same rows from one source. **The attribute table below is the shape of a
+skill row in that file**, and `scripts/check-doc-ruleset.mjs` holds it to the newest ruleset. The
+key block is kept as the record of the planned table.
 
 ```
-Table: RuleSkill                        (Amplify defineData model)
+Table: RuleSkill                        (planned defineData model — NOT BUILT)
 PK   rulesVersion   = "1"               (the number, stored as a string partition key)
 SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript union, D-031)
 ```
@@ -792,9 +818,10 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `exercises` | L of M | J5 | for `logMode: reps\|duration\|trace` — `{id, label, entry, kind, quickValues}`, what `(app)/log/page.tsx` renders (D-061). `kind` is optional: the `ActivityKind` a log asserts (D-286). It is why `trace` is in the list — `xp-rules-v3` gave Vigil one exercise, `treadmill`, `kind: run`. The list, the shape and the `kind`/`logMode`/`unit` vocabularies above are checked against the newest ruleset by `scripts/check-doc-ruleset.mjs` (ticket `0162`). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
 
 The curve (`stepFormula: "4 * L^2"`, `maxLevel`, `deepMaxLevel` — D-130) is not per-skill:
-**D-131 explicitly rejected per-skill curve constants**, so it is one `RuleCurve` item stored in
+**D-131 explicitly rejected per-skill curve constants**, so it is ~~one `RuleCurve` item stored in
 the same table under `SK = "__curve__"`. One `Query` on the partition returns the curve and every
-skill together, which is AP-8.
+skill together, which is AP-8.~~ *amended (`D-NEW-sweep`):* one top-level `curve:` block per
+ruleset file, beside `skills:`. Loading a version loads both.
 
 ### 3.3 Why the registry is a table and not just a file
 
@@ -804,6 +831,11 @@ the post-run tally's labels. Shipping rows through AppSync with `allow.authentic
 gives the UI a typed, cached, paginated read of the same bytes the scorer used, with no second
 parser and no risk of the two drifting. **The YAML is the authority; T5 is a build artefact.**
 Writes are IAM-only, from the deploy-time seeding job (§3.8).
+
+> *Amended (`D-NEW-sweep`; D-274, D-276):* the build artefact turned out to be a file, not a
+> table. The generated `rules/xp-rules.bundled.ts` gives the client and the scorer the same bytes,
+> with one parser and nothing to drift, which was this section's whole requirement. It costs no
+> read at all.
 
 ### 3.4 `match` — the selection clause, declaratively
 
@@ -899,7 +931,7 @@ credit and no map reveal… adding it must be a DATA ROW, not code."*
     feeds: [{ skill: constitution, rate: 0.3333 }]
 ```
 
-As a T5 item:
+As a T5 item *(the planned table, never built; the same row as the bundled JSON carries it)*:
 
 ```json
 { "rulesVersion": "2", "skillId": "vigil", "name": "Vigil", "kind": "activity",
@@ -927,11 +959,11 @@ As a T5 item:
   template that never enumerates skills.
 - `Profile.totalLevel` / `totalXp` sum the `SkillState` query result; a sixth or seventh row is
   arithmetic, not a branch.
-- The skill panel and the log page iterate T5 ordered by `displayOrder`.
+- The skill panel and the log page iterate the bundled registry ordered by `displayOrder`.
 - `reason` for a Vigil award is `distance` — the same closed vocabulary value Wayfaring uses on
   ungrounded distance (§4.2). No new `reason` is minted.
 
-**Verdict: Vigil is one YAML row, one seeded item, zero lines of code.** The row above is the
+**Verdict: Vigil is one YAML row, zero lines of code.** The row above is the
 whole diff. A rename ("Vigil" → anything) is one attribute. This is the acceptance test D-132
 demanded, and the schema in §3.2 + §3.4 passes it.
 
@@ -1429,7 +1461,7 @@ marked, because nothing in this app is harmed by a 100 ms-stale number.
 | **AP-5** | One skill's state (skill detail page) | T2 base | `GetItem (userId, skillId)` | 1 | **0.5 RRU** |
 | **AP-6** | Pre-read of `SkillState` before the ingest transaction (§4.3) | T2 base | `Query userId` **consistent** | 6–8 | **1 RRU** |
 | **AP-7** | XP itemisation for one activity (post-run tally, activity detail) | T4 GSI1 `byActivity` | `Query activityId` | 4–6 | **0.5 RRU** |
-| **AP-8** | The skill registry + curve for a rules version | T5 `RuleSkill` base | `Query rulesVersion` | ~9 | **0.5 RRU**; cached in the client for the session |
+| **AP-8** | The skill registry + curve for a rules version | ~~T5 `RuleSkill` base~~ the bundled `rules/xp-rules.bundled.ts` (D-276, `D-NEW-sweep`) | ~~`Query rulesVersion`~~ an import | ~9 | **no read**: it ships in the build |
 | **AP-9** | One skill's XP history (sparkline, "training since") | T4 GSI3 `bySkill` | `Query userId#skillId, SK between` | 50–500 | **~5–45 RRU** (ALL projection, rows ~0.7 KB; was INCLUDE until 0242, which AppSync's owner filter cannot query) |
 | **AP-10** | Cross-source dedupe check at ingest | T3 GSI2 `byUserAndDedupe` | `Query userId, SK IN candidates(t)` (1–2 keys, D-211), then `GetItem` per hit | 0–2 | **~0.5–2.5 RRU** (KEYS_ONLY + a GetItem per candidate) |
 | **AP-11** | Replay: every ledger row for a user, in order | T4 GSI2 `byUserAndSeq` | `Query userId` paged | 9k–25k | **~1,250 RRU** once per rebalance |
@@ -1747,7 +1779,7 @@ are separate, and each has exactly one owner.
 
 | Version | Lives on | Owner | Bumped when | Forces |
 |---|---|---|---|---|
-| `xpRulesVersion` | `Activity`, `XpLedgerEntry`, `SkillState.rulesVersionLastComputed`, T5 partition | `rules/xp-rules-vN.yaml` | any XP rate, cap, curve, skill or `match` change | an XP replay (§4.4). **No table change.** |
+| `xpRulesVersion` | `Activity`, `XpLedgerEntry`, `SkillState.rulesVersionLastComputed`, the bundled `rules/xp-rules-vN.json` (no T5, D-276) | `rules/xp-rules-vN.yaml` | any XP rate, cap, curve, skill or `match` change | an XP replay (§4.4). **No table change.** |
 | `fogAlgoVersion` | `Activity.fogAlgoVersion`, the score-time `ingestKey` (T8) | the fog module (05 §3.5) | reveal radius, trace sanitisation, H3 projection changes | a cell rebuild + blob regeneration. **No XP change** unless Cartography counts move. |
 | blob `version` byte | `explored-r11.bin` header (05 §7.1) | the blob encoder | wire format changes | clients discard their cache and refetch (§6.4) |
 | `generation` | `manifest.json`, mirrored to `Profile` | the ingest Lambda | every cell write | a client delta or refetch (§6.5) |
@@ -1789,7 +1821,8 @@ cells projected by the old algorithm, so there is nothing a bump would distingui
 
 Mechanically covered by §4.4. The storage obligations:
 
-- **Every shipped ruleset is retained forever**, in git and as its own T5 partition (§3.8). A
+- **Every shipped ruleset is retained forever**, in git and as its own bundled
+  `rules/xp-rules-vN.json` (§3.8; there is no T5, D-276). A
   ledger row citing `v1` is meaningless if `v1`'s rows were mutated, and 04 §7.6 wants the
   chronicle to be able to replay what the user *saw at the time*.
 - **`Activity.xpRulesVersion` records what the user saw; `SkillState.rulesVersionLastComputed`
@@ -2177,7 +2210,7 @@ Three rules govern the list:
 | **I-3** | `raw/` objects are **immutable and undeletable**; the only operation permitted to remove one is account deletion (§8.5). | Bedrock. Once a raw object is gone, no rebuild can reproduce the activity it encoded. | **[S]** Bucket policy denies `s3:DeleteObject` **and `s3:DeleteObjectVersion`** on the `raw/` prefix for every principal but the deletion role; S3 Versioning is on. Not a convention — a policy. **Overwrite is enforced by non-destructiveness, not refusal — see D-205**: no IAM condition distinguishes a PUT onto an existing key from the first PUT, so versioning + the version-delete deny make an overwrite unable to destroy anything, and `archiveRaw` PUTs with `IfNoneMatch: "*"` so the common case never writes a second version at all. |
 | **I-4** | `adapter.normalize()` is **pure**: no clock, no network, no RNG. Same bytes in ⇒ same `Activity` out, byte-for-byte, forever. | It is the migration seam (contract §3). An impure `normalize()` makes rebuilds non-reproducible, which makes I-1 unverifiable. | CI: `normalize()` is invoked with `Date.now`, `Math.random` and the network stubbed to **throw** (contract §5). Plus a golden-file test over the fixture archive. |
 | **I-5** | `activityId = sha256(userId:source:externalId)` — **deterministic, never a ULID**. | It is what makes replay and webhook redelivery idempotent for free (D-140, contract conflict #6). A random id would award XP twice on every redelivery. | **[S]** The id is computed, not generated; a duplicate `PutItem` is a no-op on the same key. Unit test asserts stability across processes. |
-| **I-6** | A shipped `rulesVersion` partition in T5 is **never mutated or deleted** (04 §7.6). | Every `XpLedgerEntry` cites a `xpRulesVersion`. Mutating `v1`'s rows retroactively rewrites what the user was told they earned, and makes the ledger unauditable. | ~~Seeder is append-across-versions only, and refuses to write into an existing partition (§3.8). CI asserts a re-run of the seeder against an unchanged YAML produces zero writes.~~ *Amended by `0116` (2026-10-22): there is no seeder and no T5 (D-276), so the invariant is checked on the files.* `src/rules/shipped-rulesets.test.ts` pins each shipped `rules/xp-rules-vN.yaml` by sha256 in `rules/shipped-rulesets.json` (data, so shipping a version stays a `rules/`-only change) and fails if a pinned file changes or disappears, or if any bundled version but the newest is unpinned. |
+| **I-6** | A shipped `rulesVersion` ~~partition in T5~~ (its `rules/xp-rules-vN.yaml`; there is no T5, D-276) is **never mutated or deleted** (04 §7.6). | Every `XpLedgerEntry` cites a `xpRulesVersion`. Mutating `v1`'s rows retroactively rewrites what the user was told they earned, and makes the ledger unauditable. | ~~Seeder is append-across-versions only, and refuses to write into an existing partition (§3.8). CI asserts a re-run of the seeder against an unchanged YAML produces zero writes.~~ *Amended by `0116` (2026-10-22): there is no seeder and no T5 (D-276), so the invariant is checked on the files.* `src/rules/shipped-rulesets.test.ts` pins each shipped `rules/xp-rules-vN.yaml` by sha256 in `rules/shipped-rulesets.json` (data, so shipping a version stays a `rules/`-only change) and fails if a pinned file changes or disappears, or if any bundled version but the newest is unpinned. |
 
 ### 9.2 The fog — D-020, D-120, D-144
 
@@ -2204,9 +2237,9 @@ Three rules govern the list:
 | **I-15** | For every `(userId, skillId)`: **`SkillState.displayedXp == SUM(XpLedgerEntry.xpAwarded)`**, with no exceptions and no adjustment terms. | It is the single equation that makes XP auditable. The moment a displayed number can differ from the ledger, "why do I have this XP" has no answer and every downstream total is suspect. | Drill step 8 check 5. A standing consistency job recomputes the sum per skill and alerts on any mismatch. Also the reason `xpLedgerSum` and `displayedXp` are stored as **two** attributes (T2): a bug in one is detectable against the other. |
 | **I-16** | **Displayed XP never decreases** (D-135), and monotonicity is enforced **inside the ledger** by appending a deterministic `retained_floor` row — **never by clamping a computed value** (D-142). | Clamping hides the discrepancy and compounds it across successive rebalances; a floor row keeps I-15 true, makes the retention auditable, and makes a re-run of the same replay idempotent rather than additive. | Drill step 8 check 4: every skill's rebuilt `displayedXp` **≥** the snapshot's. CI: apply a deliberately stingier ruleset to the fixture and assert (a) no skill's total fell, (b) the shortfall appears as `retained_floor` rows, (c) replaying twice produces the same floor rows, not doubled ones. |
 | **I-17** | **`levelHighWater` ratchets** and is a *second, independent* ratchet from the XP floor (D-142). | The XP floor covers rate changes; it does not cover curve changes, which can lower a level at unchanged XP. Levels are memories (04 §7.5) — the user's level must not fall because the curve was edited. | CI: a fixture that changes only `stepFormula` asserts XP is untouched and displayed level never falls. Unit test on the ratchet: `levelHighWater = max(levelHighWater, computedLevel)`. |
-| **I-18** | The ledger is **append-only**: a replay deletes only `isFloor: false` rows; `isFloor: true` rows are never deleted, and no client-facing mutation can write, update or delete any row. | Floor rows record what the user was *shown* — the one thing not derivable from raw (D-143). Deleting one destroys the waterline that I-16 depends on. | **[S]** The AppSync schema exposes no `update`/`delete` for T4 and `allow.owner().to(['read'])` for read; replay deletes via IAM with a filter on `isFloor = false`. CI asserts the generated schema contains no T4 mutation. |
+| **I-18** | The ledger is **append-only**: only a replay or a kind correction deletes rows, and only `isFloor: false` ones; `isFloor: true` rows are never deleted, and no client-facing mutation can write, update or delete any row directly. *Amended (`D-NEW-sweep`):* this said "only a replay". `setActivityKind` (D-284, `0244`) re-scores one activity server-side and puts and deletes that activity's non-floor rows under the condition `isFloor = false` (`src/pipeline/kind-rescore.ts`). Displayed XP still never falls, because the correction runs through the same floor logic (I-16). | Floor rows record what the user was *shown* — the one thing not derivable from raw (D-143). Deleting one destroys the waterline that I-16 depends on. | **[S]** The AppSync schema exposes no `update`/`delete` for T4 and `allow.owner().to(['read'])` for read; replay deletes via IAM with a filter on `isFloor = false`. CI asserts the generated schema contains no T4 mutation. |
 | **I-19** | Every ledger row carries a **non-null `xpRulesVersion`**, and `xpAwarded` is an **integer rounded exactly once, at write time**. | A row without its rule version is unattributable and unreplayable. Rounding at read time lets two screens summing in different orders disagree about the same total. | **[S]** `xpRulesVersion` is part of the row's deterministic `id`, so a row cannot exist without it. CI: a property test asserts `Number.isInteger(xpAwarded)` for every row the scorer emits, and that summing a ledger in random order is invariant. |
-| **I-20** | **The client can never write XP, cells, or activities** (except through the `logWorkout` mutation, which runs the same server-side pipeline). | It is the trust boundary. XP the client can write is XP that means nothing. | **[S]** No AppSync mutation exists for T2/T4; T3 is `to(['read'])` for every pipeline-owned field; T6/T7/T8 have no AppSync model at all. CI asserts the generated schema against an allowlist of mutations. |
+| **I-20** | **The client can never write XP, cells, or activities** except through two custom mutations, each of which runs server-side code the client cannot steer: `logWorkout` (measured work in, the ingest pipeline behind it) and `setActivityKind` (an activity id and a kind in; it re-scores that activity, writes its cells and puts and deletes its non-floor ledger rows, D-284). *Amended (`D-NEW-sweep`): this named `logWorkout` alone.* | It is the trust boundary. XP the client can write is XP that means nothing. | **[S]** No AppSync mutation exists for T2/T4; T3 is `to(['read'])` for every pipeline-owned field; T6/T7/T8 have no AppSync model at all. CI asserts the generated schema against an allowlist of mutations: `amplify/log-workout-mutation.test.ts` pins `type Mutation` to exactly `logWorkout` and `setActivityKind`, and `amplify/set-activity-kind-mutation.test.ts` pins the second one's arguments and grants. |
 
 ### 9.5 Idempotency and dedupe
 
@@ -2220,7 +2253,7 @@ Three rules govern the list:
 
 | # | Invariant | Why it matters | How it is checked |
 |---|---|---|---|
-| **I-24** | **Adding a workout type touches zero lines of code.** A new skill is one YAML row plus one seeded T5 item; the TypeScript diff is empty. | D-031 makes this a product decision, not an aspiration. It is also the property most likely to rot quietly, one convenient `if` at a time. | **The D-132 regression test, wired into CI permanently** (§3.8 check 5): seed v1, add *only* the Vigil row, assert (a) empty TS diff, (b) a `hasTrace: false` run scores into `vigil` at full rate, (c) the same run with a trace scores into `wayfaring`, (d) neither writes an `ExploredCell` for the traceless case. |
+| **I-24** | **Adding a workout type touches zero lines of code.** A new skill is one YAML row in a new ruleset version (no seeded item: there is no T5, D-276); the TypeScript diff is empty. | D-031 makes this a product decision, not an aspiration. It is also the property most likely to rot quietly, one convenient `if` at a time. | **The D-132 regression test, wired into CI permanently** (§3.8 check 5): seed v1, add *only* the Vigil row, assert (a) empty TS diff, (b) a `hasTrace: false` run scores into `vigil` at full rate, (c) the same run with a trace scores into `wayfaring`, (d) neither writes an `ExploredCell` for the traceless case. |
 | **I-25** | **No skill id appears anywhere in `src/`** — no enum, no union type, no `switch` on skill id. Skill ids are opaque strings everywhere they are stored (T2, T4). | The moment one skill name is legible to the compiler, the next one is cheaper to add in code than in data, and D-031 is over. | §3.8 check 6: `grep -rE '"(wayfaring\|vigil\|might\|fortitude\|endurance\|cartography\|constitution)"' src/` must return nothing outside `rules/`, fixtures and tests. Fails the build. |
 | **I-26** | The matcher is **total and deterministic**: for every `ActivityKind` × `hasTrace` combination it returns **exactly one** enabled skill per `measure` — never zero for measurable work, never two at equal `matchPriority`. | Zero matches silently drops a workout; two matches double-awards it. Non-determinism breaks I-12 and I-14 and therefore I-1. Both must fail at **seed time**, not at 6am on a Sunday run. | §3.8 checks 3 and 4: the totality fixture sweeps the full `ActivityKind` × `hasTrace` grid; the matcher is additionally called with clock and RNG stubbed to throw. Ambiguity is a **seed-time hard error** — the deploy fails, not the run. |
 | **I-27** | **"Zero discovery credit / no map reveal" is expressed by no field at all.** `hasTrace: false` ⇒ `traceRef: null` ⇒ no trace ⇒ no cells ⇒ no `ExploredCell` write ⇒ no generation bump ⇒ no Cartography award. | A `grantsDiscovery: false` flag would be a second statement of a fact the pipeline already implies — and a place for the two to disagree. Deriving it means the property cannot be misconfigured. | I-24's test clause (d). Asserted structurally: the fog stage's input is the trace, and there is no trace. `cellCount: 0` is still written so the row shape never varies. |
@@ -2229,7 +2262,7 @@ Three rules govern the list:
 
 | # | Invariant | Why it matters | How it is checked |
 |---|---|---|---|
-| **I-28** | **OAuth tokens are unreachable from AppSync at any auth level, and are never projected into any index.** | No auth rule is as safe as no reachability. A compromised webhook Lambda with a valid IAM grant must still be unable to read a credential. | **[S]** T7 is a CDK table with no AppSync model at all; `byExternalOwner` is `KEYS_ONLY`, so the token attributes are not present in the index the webhook can query (T7, resolved conflict). CI asserts the generated schema mentions no token field and that the webhook role's policy names only the index ARN. |
+| **I-28** | **OAuth tokens are unreachable from AppSync at any auth level, and are never projected into any index.** | No auth rule is as safe as no reachability. A compromised webhook Lambda with a valid IAM grant must still be unable to read a credential. | **[S]** T7 is a CDK table with no AppSync model at all; `byExternalOwner` is `KEYS_ONLY`, so the token attributes are not present in the index the webhook can query (T7, resolved conflict). CI asserts the generated schema mentions no token field (`lib/sources/source-account-store.test.ts` pins the model list). ~~and that the webhook role's policy names only the index ARN~~ *Amended (`D-NEW-sweep`; D-343, D-365):* the webhook resolves owners from a static map and holds **no grant on T7 at all**; `amplify/ingest-webhook-stack.test.ts` asserts its policy never mentions `SourceAccount`. |
 | **I-29** | The client receives **no cell rows, no OAuth tokens, no ingest receipts** — ever. | Three tables that simply do not exist in the client's world is a stronger guarantee than three auth rules that could be edited. | **[S]** T6/T7/T8 have no `defineData` model (§1.3, 01 §2). Same generated-schema assertion as I-20/I-28. |
 | **I-30** | A migration or rebalance **never deletes user data to make a number consistent** (§7.5). Corrections add; they do not erase. | Every irreversible operation in this system is irreversible in the same direction. Account deletion (§8.5) is the only exception, it is the user's own instruction, and it must never be a side effect of disconnecting a source. | Code review gate plus the drill: any procedure whose rollback plan is "restore from PITR" does not ship. Deletion is gated behind an explicit typed confirmation. |
 

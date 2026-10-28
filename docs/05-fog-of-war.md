@@ -187,7 +187,9 @@ CONSTANTS
 > Raised by the `05-strava-adapter` drift audit, 2026-09-06 (divergence 2 of four); the audit
 > deliberately left the value open and made `0045` carry the obligation. This is that answer.
 >
-> **The 12.0 written above is superseded and is left standing so the mistake is visible.**
+> **The constants block once read `TELEPORT_SPEED = 12.0`, and that value is superseded.** *(This
+> said "the 12.0 written above … is left standing so the mistake is visible"; a later edit replaced
+> the literal with the line above, so the mistake is recorded here instead, `D-NEW-sweep`.)*
 > `src/domain/fog.ts` imports the per-kind table rather than restating a number, so there is
 > one gate with one owner. The table moved to `src/domain/geo.ts` in the same ticket, because
 > the domain may not import from an adapter and a second copy of the number is exactly the
@@ -1502,10 +1504,11 @@ Further reductions, in order of value:
 
 ### 6.3 Expected budget
 
-| Pass | Work per frame | Mid-range phone |
+| Pass | Work per frame | Desktop GPU budget |
 |---|---|---|
 | Mask FBO | 1 instanced draw call, ~1.5–6k quads, 0.5× resolution, ~2–4× overdraw | **< 1 ms** |
 | Composite | 1 full-screen triangle, 3-octave fBm (×4 since D-372: two wisp fields + a two-axis edge warp), ~40 ALU/fragment before the warp, DPR ≤ 2 | **1–2 ms** |
+| Atlas cold pass (D-147; atlas only, D-391) | the cold-territory wash plus one full-frame `copyTexSubImage2D` | **0.13–0.15 ms** measured mean, 1.4 ms max (`0298`, RTX 5080, 1919×1023, 150k cells) |
 | CPU per frame (camera still, or inside padded region) | none — nothing projected in JS | **~0 ms** |
 | CPU on padded-region exit / bucket change | two-level cull + VBO upload | 1–5 ms, off the frame path |
 | Bucket derivation (new zoom bucket, cold) | group index up front; ids, fractions, projection, bridges per group on first sight | index ~3.2 ms (151k cells), then ~10 ms per group; debounced |
@@ -1513,6 +1516,12 @@ Further reductions, in order of value:
 **Amended by D-238 (`0058`, 08 audit 2026-09-28):** the derivation row read *"`cellToParent` pass +
 dedupe + bbox precompute — 30–80 ms, debounced, once per bucket"*. At 500k res-11 cells a whole-bucket
 pass is ~2 s (the bridge `gridDisk` alone is 1,543 ms), so derivation is lazy per group — see §6.1.
+
+**Amended (`D-NEW-sweep`):** the last column was headed *"Mid-range phone"*. D-251 removed the phone
+as a viewing surface and D-241 judges the renderer on the desktop, so the same budgets are now the
+desktop's, and `lib/fog/perf/report.ts` holds the mask and composite to them. The atlas cold
+pass row was missing; `0298` measured it on real hardware (`docs/capabilities/18-mvp-hardening.md`,
+"The cold pass on a real GPU").
 
 That leaves the large majority of a 16.7 ms budget to MapLibre's own basemap drawing.
 
@@ -1878,7 +1887,7 @@ level curve belong to the progression document, not this one.
 
 ### 8.3 Lifetime totals
 
-> **D-329 (2026-10-15, `0090`), amended by D-340 (`13` audit, 2026-10-16).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r10.bin`. Only cells is shown, on the plinth; area and frontier length are built, memoised and tested in `lib/stats/derived.ts`, and no screen renders them. **Deferred until a screen consumes them** (`0275`, declined by D-453: a consuming screen files its own ticket): explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
+> **D-329 (2026-10-15, `0090`), amended by D-340 (`13` audit, 2026-10-16).** Built: territory cells, area (`cellArea`) and frontier length, client-side from `explored-r11.<gen>.bin` (D-237; this said `explored-r10.bin`). Only cells is shown, on the plinth; area and frontier length are built, memoised and tested in `lib/stats/derived.ts`, and no screen renders them. **Deferred until a screen consumes them** (`0275`, declined by D-453: a consuming screen files its own ticket): explorer since, cells re-armed lifetime, most-run ground, total distance/runs. They need per-cell history and full run totals the browser does not hold, so "client-side, no new endpoints" cannot serve them.
 
 Cheap aggregates, computed on generation change and memoised:
 

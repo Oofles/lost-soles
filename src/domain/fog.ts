@@ -409,7 +409,8 @@ export function segmentsToCells(segments: readonly (readonly Located[])[]): Set<
   //
   // Measured against the RAW segments, not the densified ones. §2.2 passes `segments`,
   // the output of step 3, and the distinction is load-bearing: densification puts a
-  // vertex every 30 m, so a nearest-vertex measure would be within ~1.7 m of the truth
+  // vertex every 12 m (`DENSIFY_STEP_M`; 30 m at res 10), so a nearest-vertex measure would
+  // be within ~0.3 m of the truth at the 65 m radius (√(65² + 6²) − 65)
   // there and the bug would hide. Against the raw segments a 400 m sampling gap is a
   // single 400 m edge, and only a genuine point-to-SEGMENT measure keeps the corridor
   // between its endpoints.
