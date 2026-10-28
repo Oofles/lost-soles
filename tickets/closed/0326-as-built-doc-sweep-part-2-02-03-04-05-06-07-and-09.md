@@ -4,7 +4,7 @@ slug: as-built-doc-sweep-part-2-02-03-04-05-06-07-and-09
 title: As-built doc sweep, part 2: 02, 03, 04, 05, 06, 07 and 09
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T02:22:22Z
 started: 2026-10-28T03:22:38Z
+closed: 2026-10-28T03:55:47Z
 ---
 
 ## Description
