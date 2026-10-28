@@ -3,8 +3,8 @@
   "fog": {
     "users": {
       "9ec8069a18c7209a": {
-        "cellCount": 5211,
-        "generation": 269
+        "cellCount": 5224,
+        "generation": 270
       }
     }
   },
@@ -16,11 +16,11 @@
           "level": 1
         },
         "cartography": {
-          "displayedXp": 26678,
+          "displayedXp": 27061,
           "level": 27
         },
         "constitution": {
-          "displayedXp": 11077,
+          "displayedXp": 11170,
           "level": 20
         },
         "endurance": {
@@ -48,7 +48,7 @@
           "level": 8
         },
         "wayfaring": {
-          "displayedXp": 31482,
+          "displayedXp": 31761,
           "level": 29
         }
       }

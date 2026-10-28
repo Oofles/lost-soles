@@ -463,7 +463,79 @@ The operator chose a DESIGN sweep and then a re-audit over a forced record: `032
 every item with line references. Re-run `/tickets audit 18-mvp-hardening` once `0322`–`0326` are
 closed.
 
+**Second attempt, 2026-10-28: not recorded, over the drift budget again (9).** Mechanical half
+12/12. §3 clean: all 49 closed tickets carry a dated result, a smoke test or a reasoned "none
+owed". §5: no NAT gateway; October runtime to the 28th is about $2.5 (Amplify hosting $0.41, KMS
+≤ $1.74, DynamoDB, S3 and AppSync in cents). Build minutes ($17.85) are excluded by D-433.
+Four reviewers re-read every cited section against the code after D-465's sweep. Nine verified
+divergences:
+
+- **code-was-wrong, 2, fixed in `4d181de`:** a bad ruleset reached the Lambdas before anything
+  validated it, so the backend phase now gates on `src/rules` before `pipeline-deploy` (`02` I-26,
+  §9.8). The `06` §9.4 focus ring was not global, and is now one rule in `tokens.css`.
+- **design-was-wrong, 6, amended in `4d181de`:** `08` §3 (`SendMessage` principals); `08` §8.1 and
+  S4 (disconnect keeps the row); `01` §1/§2 (the CDK count became a list); `04` §1.3 (the field
+  table); `03` (`rawArchiveKey`; unknown `sport_type`). All recorded as D-467.
+- **unbuilt, 1:** I-15's standing consistency job, made post-MVP by D-468 (operator).
+- Already ticketed outside `18`, not counted: `0279`, the unseen-run mark on `--accent` against
+  D-335.
+
+The operator chose to fix everything in one commit and re-audit, rather than file a third
+sweep. **Third attempt, 2026-10-28, the record below:** the mechanical half was re-run on
+`4d181de` (12/12, full suite 278 files and 4,568 tests). §2 re-checked each of the nine
+resolutions in the amended sections and the code. Nothing else in the tree had changed since the
+second pass read it, so it asserts no new divergence. The nine above are this audit's real drift
+count, and they are recorded here so the pass cannot read as clean.
+
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+**What the design got wrong.** Not the product: the *as-built* sentences. Every one of the ~37
+drifts across two passes was a doc saying something specific about the build — a count, a grant
+list, a field name, a phase order — that a later decision had quietly made false. The design
+choices themselves held up. No divergence in either pass was a design mistake that needed the
+code to change direction. Both code bugs were promises the design made and the build never kept
+(I-26's "the deploy fails", §9.4's "every focusable element").
 
+**What it got right that was non-obvious.** Writing invariants with a named enforcement mechanism
+per row (`02` §9.8). That table is why I-26 was catchable at all: it said *when* the failure must
+happen, and that is falsifiable against `amplify.yml`. An invariant stated only as a property
+("rulesets are valid") would have passed every audit.
+
+**Why `18` blew the budget twice.** Its tickets cite about 35 broad sections across ten docs.
+That is most of the design, and no per-capability audit had re-read it since the capability that
+wrote it. The first pass found the top layer. D-465's sweep fixed exactly the listed items. The
+second pass, reading the same sections fresh, found the next layer. The budget of three is right
+for a capability that cites five sections. For the capstone it measured the age of the whole doc
+set, not `18`'s work.
+
+**Estimate vs actual.** Seven planned tickets became 49 closed. Most were findings filed by the
+hardening tickets themselves, which is what a hardening capability is for. The audit took three
+attempts and three sessions, against AUDIT.md's "20–40 minutes".
+
+**What the next capability should do differently.** For any section a ticket *cites*, check its
+as-built claims at that ticket's close, not at the capability's. Most of the drift entered when a
+decision such as D-345, D-350 or D-276 changed the build and left a sentence elsewhere describing
+the old one. The cheapest catch is the session that makes the change, while it still knows. Fix
+this with the next capability's habits, not with a new gate. The operator has already declined a
+close-time doc-drift check.
+
+## Audit — 2026-10-28 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 12 passed, 0 failed, 0 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences: none.** Asserted explicitly at audit time, not left blank.
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — all 30 invariants cited by a test name, and the set is declared complete
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts, app/skills/vigil-peer.test.tsx
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **pass** — 1 baselined user(s): cells 5211 → 5224, gen 269 → 270 — none lower (docs/capabilities/regression-baseline.json)
+- `xp-not-lower` — **pass** — 1 baselined user(s), 10 skill(s): cartography 27061/L27, constitution 11170/L20, might 80/L4, roving 1017/L9, vigil 660/L8, wayfaring 31761/L29 — none lower (docs/capabilities/regression-baseline.json)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 49 closed
+
+<!-- audit-record {"capability":"18-mvp-hardening","audited":"2026-10-28T16:28:15Z","verdict":"pass","mechanical":{"pass":12,"fail":0,"na":0},"divergences":0} -->
