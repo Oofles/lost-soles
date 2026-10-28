@@ -7493,7 +7493,7 @@
     "path": "tickets/open/0323-map-focus-order-puts-fit-and-recentre-before-the-map-against.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7600,7 +7600,7 @@
     "path": "tickets/open/0328-doc-check-gaps-found-in-the-0326-sweep-add-a-skill-example-u.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   }
