@@ -2868,7 +2868,7 @@
     "title": "MVP definition-of-done sweep — evaluate every box in roadmap §9 objectively",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [
@@ -2903,8 +2903,9 @@
     "source": "operator",
     "created": "2026-08-30T00:00:00Z",
     "started": "2026-10-27T02:37:51Z",
-    "path": "tickets/open/0117-mvp-definition-of-done-sweep.md",
-    "ready": true,
+    "closed": "2026-10-28T01:35:34Z",
+    "path": "tickets/closed/0117-mvp-definition-of-done-sweep.md",
+    "ready": false,
     "acceptance": {
       "checked": 9,
       "total": 9
@@ -3386,7 +3387,7 @@
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7

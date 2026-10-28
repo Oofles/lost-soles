@@ -4,7 +4,7 @@ slug: mvp-definition-of-done-sweep
 title: MVP definition-of-done sweep — evaluate every box in roadmap §9 objectively
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: [101, 105, 106, 112, 113, 114, 115, 116, 175, 216, 259, 268, 275, 290, 297, 303, 308, 309, 310, 311, 312, 315, 316, 317, 318, 319]
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-08-30T00:00:00Z
 started: 2026-10-27T02:37:51Z
+closed: 2026-10-28T01:35:34Z
 ---
 
 ## Description
