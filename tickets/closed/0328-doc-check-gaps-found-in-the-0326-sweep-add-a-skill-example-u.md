@@ -4,7 +4,7 @@ slug: doc-check-gaps-found-in-the-0326-sweep-add-a-skill-example-u
 title: Doc-check gaps found in the 0326 sweep: add-a-skill example unparsed, doc-schema test pinned to v2, stale resource.ts header
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T03:39:03Z
 started: 2026-10-28T15:10:12Z
+closed: 2026-10-28T15:33:09Z
 ---
 
 ## Description
