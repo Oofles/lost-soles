@@ -4,7 +4,7 @@ slug: as-built-doc-sweep-part-1-08-security-privacy-01-architectur
 title: As-built doc sweep, part 1: 08 security-privacy, 01 architecture, ingestion contract
 type: chore
 priority: high
-status: open
+status: closed
 size: m
 capability: 18-mvp-hardening
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-28T02:22:22Z
 started: 2026-10-28T03:22:38Z
+closed: 2026-10-28T03:55:46Z
 ---
 
 ## Description

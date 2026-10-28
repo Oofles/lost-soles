@@ -7522,7 +7522,7 @@
     "title": "As-built doc sweep, part 1: 08 security-privacy, 01 architecture, ingestion contract",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "18-mvp-hardening",
     "depends_on": [],
@@ -7530,8 +7530,9 @@
     "source": "agent",
     "created": "2026-10-28T02:22:22Z",
     "started": "2026-10-28T03:22:38Z",
-    "path": "tickets/open/0325-as-built-doc-sweep-part-1-08-security-privacy-01-architectur.md",
-    "ready": true,
+    "closed": "2026-10-28T03:55:46Z",
+    "path": "tickets/closed/0325-as-built-doc-sweep-part-1-08-security-privacy-01-architectur.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
