@@ -3,7 +3,7 @@
 Running record of settled decisions. Anything here is CONFIRMED by the user unless
 marked PROVISIONAL. Research findings live in `docs/research/`.
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ---
 
@@ -6166,7 +6166,7 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Passkeys were never enabled.** The pool is email + password, MFA off (read live
     2026-10-27). `0014` deferred passkeys, and D-175/D-425 replace Cognito after the MVP. `08` §9's
     "no MFA beyond passkeys" therefore had no basis, and the docs mark it undecided pending the
-    operator's call.
+    operator's call. → **Settled by D-466 (2026-10-28):** no second factor until `0138`.
   - **The ingestion contract:** §3 adds the five OAuth exports of `src/adapters/types.ts`. §4: sanitation runs
     inside `normalize()`, before dedupe (D-198, D-284).
   - **`02`:** eleven tables (D-456); tiles on S3 behind CloudFront (D-226); no T5 and no seeder (D-274,
@@ -6180,3 +6180,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`07` §2.4:** no read route, cache, webhook or phone queue (D-251, D-252).
   - **`09`:** nine enabled skills (D-189), I-1…I-30, `0117`, `reconcile-sweep` (D-350), three alarms
     (D-351), stock basemap colours (D-373). §2.3 is annotated as a dated snapshot.
+- **D-466** **No second factor until `0138` replaces Cognito: email + password stands, and the
+  owner's email account is the boundary.** *(Operator, 2026-10-28, `0325`'s open question, option
+  i.)* D-465 found `08` §9's "no MFA beyond passkeys" had no basis, because no passkey was ever
+  enabled. The live pool signs in with email and password, MFA off. This decision supplies the
+  basis. There is one account (D-123), the owner allowlist gates every write path, the recovery
+  inbox is already the real boundary (§5.2) and carries its own MFA, and D-175/D-425 replace the
+  pool with Auth.js and Google sign-in after the MVP. Google's account then carries the second
+  factor. Adding TOTP to a pool that is about to be replaced is rework for one user. SMS MFA stays
+  rejected for §9's reasons. **Reopen** if `0138` is dropped or slips indefinitely, or if D-123's
+  Trigger A fires, because a second account changes who the password protects.
