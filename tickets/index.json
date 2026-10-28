@@ -7471,7 +7471,7 @@
     "path": "tickets/open/0322-middleware-404-and-307-responses-carry-no-cache-control-agai.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7533,7 +7533,7 @@
     "path": "tickets/open/0325-as-built-doc-sweep-part-1-08-security-privacy-01-architectur.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 4,
       "total": 4
     }
   },
@@ -7554,7 +7554,7 @@
     "path": "tickets/open/0326-as-built-doc-sweep-part-2-02-03-04-05-06-07-and-09.md",
     "ready": true,
     "acceptance": {
-      "checked": 5,
+      "checked": 6,
       "total": 6
     }
   },

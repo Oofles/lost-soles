@@ -101,8 +101,8 @@ item was verified on 2026-10-27; re-check each against the code before editing.
       do not open a second decision for the same sweep. *(Both run in parallel in wave 18.9. This
       half is proposed as `D-NEW-a` and the docs cite it as `D-NEW-sweep`; the orchestrator merges
       it with `0325`'s into one `D-xxx` and replaces the placeholder.)*
-- [ ] `node scripts/build-index.mjs` re-run; `docs/INDEX.md` committed. *(Not done by this agent:
-      WAVES.md §3 gives `docs/INDEX.md` to the orchestrator, who regenerates it at merge.)*
+- [x] `node scripts/build-index.mjs` re-run; `docs/INDEX.md` committed. *(Not done by this agent:
+      WAVES.md §3 gives `docs/INDEX.md` to the orchestrator, who regenerates it at merge.)* *(Done in `14ba0fd`.)*
 - [x] No code changes beyond the two comment fixes in item 12.
 
 ## Notes
@@ -216,8 +216,22 @@ the report) with `0325`'s.
 `docs/05-fog-of-war.md`, `docs/06-ui-ux.md`, `docs/07-ticketsmith.md`, `docs/09-roadmap.md`,
 `src/domain/fog.ts` (comment), `lib/run-moment/seen.ts` (comment), this ticket.
 
+**Orchestrator, at merge (wave 18.9, 2026-10-27).** Cherry-picked onto `main` cleanly. The
+two halves' proposed `D-NEW-a` were merged into one decision, **D-465**, and every `D-NEW-sweep`
+placeholder in `docs/` was replaced with it in `14ba0fd` (`wave 18.9: decisions and indexes`).
+The mentions of `D-NEW-sweep` above are left as written: they record what the agent saw. The proposed
+ticket was filed as `0328` (doc-check gaps: the add-a-skill example is not parsed by CI, the doc-schema
+test is pinned to v2, the `resource.ts` header is stale). On open question 1: the shipped map-summary
+wording stays as its own "As built" paragraph, since `0324` changed only the tile sentence.
+
 ## Operator validation
 
 None owed. Doc-only. The re-run audit's §2 is the check.
 
 D-123 trigger checked? none.
+
+**Result (orchestrator, 2026-10-27).** Doc-only plus two comments, so nothing deployed to poke. The
+checks: Amplify job 439's build ran every `amplify.yml` guard on the merged tree, including
+`check-doc-ruleset.mjs`, which confirms `04` §1.1/§1.2/§3.2 and `02` §3.2 agree with ruleset v3. The
+I-20 claim was confirmed in code: `amplify/log-workout-mutation.test.ts:60` pins the mutations to
+`["logWorkout","setActivityKind"]`. The re-run audit is the sweep's real check.

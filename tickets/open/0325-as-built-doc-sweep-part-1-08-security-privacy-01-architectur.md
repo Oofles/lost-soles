@@ -75,16 +75,18 @@ editing, since the list is a pointer and not the authority.
 
 - [x] Each numbered item is amended to match the build, or found already correct with the reason
       recorded in `## Resolution`. Nits are fixed in the same pass.
-- [ ] One decision is recorded in `docs/decisions/DECISIONS.md` for the sweep. It names the
+- [x] One decision is recorded in `docs/decisions/DECISIONS.md` for the sweep. It names the
       decisions whose effects the docs now reflect. It edits no settled decision; superseded entries
       get a back-pointer only where a reader would otherwise take a stale line as current. D-451's
       "responses are gzipped in transit", contradicted by D-460, is the one the audit named.
+      *(Done by the orchestrator in `14ba0fd`: D-465, merged from both tickets' proposals; D-451's
+      "Measured" bullet carries a `→ Corrected by D-460` back-pointer. No settled decision edited.)*
       *(Not done by the wave agent, which may not edit DECISIONS.md (WAVES.md §3). The half for
       this ticket and the D-451 back-pointer text are proposed in the agent's report. The
       orchestrator merges them with `0326`'s into one decision and replaces the `D-NEW-sweep`
       placeholder in the three docs.)*
-- [ ] `node scripts/build-index.mjs` is re-run and `docs/INDEX.md` committed.
-      *(Left to the orchestrator: a wave agent leaves `docs/INDEX.md` stale (WAVES.md §3).)*
+- [x] `node scripts/build-index.mjs` is re-run and `docs/INDEX.md` committed.
+      *(Left to the orchestrator: a wave agent leaves `docs/INDEX.md` stale (WAVES.md §3).)* *(Done in `14ba0fd`: 13 documents, 559 sections.)*
 - [x] No code changes in this ticket. A divergence that turns out to be a code bug is filed as a new
       ticket (`source: agent`), not fixed here.
 
@@ -99,6 +101,12 @@ must close before `/tickets audit 18-mvp-hardening` is re-run. Code bugs from th
 None owed. Doc-only. The re-run audit's §2 is the check.
 
 D-123 trigger checked? none. It describes existing enforcement; it proposes no feature.
+
+**Result (orchestrator, 2026-10-27).** Doc-only, so nothing deployed to poke. The checks: Amplify job 439's
+build ran every `amplify.yml` guard on the merged docs. The facts the docs now state were read live
+(`--profile devault`): the Cognito pool has `MfaConfiguration: OFF`, `UsernameAttributes: [email]`,
+`AllowedFirstAuthFactors: [PASSWORD]` (no passkey). `check-d123-trigger-b.mjs` reports Trigger B not
+fired on the added lines. The re-run of `/tickets audit 18-mvp-hardening` is this sweep's real check.
 
 ## Resolution
 
@@ -172,3 +180,12 @@ serves `/` signed out). It belongs to §5's layout, which neither sweep ticket c
 report flags it.
 
 No code changed. No code bug found: every divergence was a stale doc.
+
+**Orchestrator, at merge (wave 18.9, 2026-10-27).** Cherry-picked onto `main` cleanly. The
+two halves' proposed `D-NEW-a` were merged into one decision, **D-465**, and every `D-NEW-sweep`
+placeholder in `docs/` was replaced with it in `14ba0fd` (`wave 18.9: decisions and indexes`).
+The mentions of `D-NEW-sweep` above in this ticket are left as written: they record what the agent saw.
+
+On open question (c), the stale `sign-in/page.tsx` line in `01`'s module tree: no change. The note
+directly above that tree already marks it as the original plan and lists "no `/sign-in` route" among
+the deliberate absences. Open question (a), the MFA basis, is put to the operator with the wave's checks.

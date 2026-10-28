@@ -35,8 +35,9 @@ capability 18 drift audit (§2, `08` §5.3), 2026-10-27.
 - [x] Both middleware responses set `Cache-Control: no-store, private` (reuse `NO_STORE` from
       `lib/http/no-store.ts`; no second spelling of the string).
 - [x] A middleware test asserts the header on the `/api/*` 404 and on the page 307.
-- [ ] Smoke test after deploy: `curl -sI https://soles.devaultsecurity.com/api/fog` and
+- [x] Smoke test after deploy: `curl -sI https://soles.devaultsecurity.com/api/fog` and
       `curl -sI https://soles.devaultsecurity.com/skills` both show `cache-control: no-store, private`.
+      *(Verified 2026-10-27 after Amplify job 439: both do. See `## Operator validation`.)*
 
 ## Steps to reproduce
 
@@ -60,6 +61,23 @@ are in scope.
 None owed. Header behaviour, so the smoke test in the criteria is the check.
 
 D-123 trigger checked? none. It tightens a header on responses that already serve no data.
+
+**Smoke test (orchestrator, 2026-10-27, after Amplify job 439 `SUCCEED` on `14ba0fd`):**
+
+```
+$ curl -sI https://soles.devaultsecurity.com/api/fog
+HTTP/2 404
+cache-control: no-store, private
+x-cache: Error from cloudfront
+
+$ curl -sI https://soles.devaultsecurity.com/skills
+HTTP/2 307
+location: /?next=%2Fskills
+cache-control: no-store, private
+```
+
+Before this ticket the 404 carried no `cache-control`. The header survives CloudFront's error path
+(`x-cache: Error from cloudfront`), which the agent flagged as the one way it could have been lost.
 
 ## Resolution
 
