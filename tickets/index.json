@@ -7513,7 +7513,7 @@
     "path": "tickets/open/0324-skill-tiles-do-not-announce-progress-to-the-next-level-to-sc.md",
     "ready": true,
     "acceptance": {
-      "checked": 4,
+      "checked": 5,
       "total": 5
     }
   },

@@ -34,7 +34,7 @@ audit (§2, `06` §9.4), 2026-10-27.
 - [x] Whether to keep `activity skill` / `meta skill` in the label is decided and the §9.4 example
       matches the shipped string exactly.
 - [x] Tests cover a mid-level tile, a level-1 tile with 0 XP, and a ceiling tile.
-- [ ] (operator) NVDA on the desktop browser reads the `/skills` tiles and the home quick-view rows naturally.
+- [x] (operator) NVDA on the desktop browser reads the `/skills` tiles and the home quick-view rows naturally. — verified 2026-10-28: operator reports the check is good; the trailing kind stays.
 
 ## Steps to reproduce
 
@@ -55,8 +55,12 @@ so it is within that rule.
 
 ## Operator validation
 
-(operator) With NVDA on the desktop browser, Tab across `/skills` and the home quick-view and judge
-whether the announcement reads naturally.
+**Operator, 2026-10-28, desktop browser with NVDA:** Tabbed across the `/skills` tiles and the home
+quick-view rows. Verdict: "Check is good". The announcement reads naturally, and the trailing
+`activity skill` / `meta skill` is not clutter, so it stays.
+
+**Smoke test (agent):** shipped in Amplify job 439 (14ba0fd), deployed green. The label format is
+pinned by `lib/skills/panel.test.ts` (mid-level, level 1 at 0 XP, ceiling) and the consumer tests.
 
 D-123 trigger checked? none.
 
