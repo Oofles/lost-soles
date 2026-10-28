@@ -61,12 +61,13 @@ cost legibility (D-051, non-negotiable).**
 
 ## Acceptance criteria
 
-- [ ] Every box in §9.1–§9.5 is evaluated and recorded in
+- [x] Every box in §9.1–§9.5 is evaluated and recorded in
       `docs/capabilities/18-mvp-hardening.md` with its **evidence**: the command and its exit
       code, the file path, the two numbers compared, or the date the physical act was performed.
       *(2026-10-26, agent: every box has a row with evidence. Not ticked, because five rows still
       wait on the operator: the 8.4 s timing, and narration, D-148 gold and street names judged by
-      eye. See the doc's "Not yet green" table.)*
+      eye. See the doc's "Not yet green" table.)* — verified 2026-10-27: the timing and the
+      three perceptual rows passed by the operator; every row now carries evidence.
 - [x] No box is recorded as passing on the basis of a memory, a screenshot from an earlier build,
       or another ticket's checkbox — each is re-evaluated against the shipping build.
 - [x] The OUT-list grep is run and its empty output pasted: no combat, encounter, boss, route-plan,
@@ -75,19 +76,23 @@ cost legibility (D-051, non-negotiable).**
       entry, side by side.
 - [x] The four drill numbers are present in `docs/capabilities/16-rebuild-drill.md` and are quoted
       here — if they are absent there, this sweep **fails**, and no other evidence substitutes.
-- [ ] The post-run sequence is timed in the desktop browser three times; all three fall within 8.4 s ± 0.3 s
+- [x] The post-run sequence is timed in the desktop browser three times; all three fall within 8.4 s ± 0.3 s
       and the three measurements are recorded.
       *(2026-10-26, agent: not done. It needs a signed-in session on the deployed app. Making one
       for a harness is a Cognito write, which a wave agent may not do. The operator's console
-      method is in the Resolution.)*
+      method is in the Resolution.)* — verified 2026-10-27: operator, desktop browser, deployed
+      app, three Relives: `sequence` 8,405 / 8,405 / 8,405 ms (`cards` 0), all within 8,100–8,700.
 - [x] The frame budget is measured at year-one cell volume (not at today's volume) and the number
       recorded against the `05-fog-of-war.md` §6.3 target.
-- [ ] Any box that fails gets a new ticket, linked from the sweep, and this ticket stays open until
+- [x] Any box that fails gets a new ticket, linked from the sweep, and this ticket stays open until
       every box is either checked or has a linked, closed ticket. **A failing box is not annotated
       into a pass.**
       *(2026-10-26, agent: three boxes fail as worded: Total XP on home, the raw object count, and
       the billing alarm. A wave agent cannot create tickets, so each is a proposal in the report.
       Each is also partly a design question (D-152). This stays open until the operator decides.)*
+      — verified 2026-10-27: the operator decided all three as design questions, not code bugs, so
+      no ticket was filed. Each box was amended by a recorded decision (D-462, D-463, D-464) and
+      passes as amended. None was annotated into a pass as worded.
 - [x] §9.6 is transcribed into the capability doc verbatim as the closing line of the MVP record.
 
 ## Notes
@@ -123,6 +128,20 @@ three street names, toggle back and read the same three. Open `/skills` and coun
 `/log` and record a set of pushups in one click. ~~Outdoors, on the phone, in sunlight; put the
 phone away; capture a ticket on `/dev/tickets`.~~ *(D-251, D-252, 0215)* Then run every command in the checklist,
 pasting real output — not "passes" — into the capability doc. When every box carries evidence rather than a tick, the MVP is built.
+
+**Results, 2026-10-27 (operator, desktop browser, the deployed app, signed in):**
+
+- **Post-run timing:** three ⟲ Relives of the latest run, read from `window.__sequence` in the
+  console. `sequence` was 8,405 ms each time, `cards` 0, `wall` 8,405. The operator reported the
+  same figure on all three; the clock is timer-driven, so identical rounded values are plausible.
+  One click mid-sequence landed on the end state.
+- **Street names:** the same three names read equally well at z15 in atlas and adventure (`M`).
+- **D-148:** gold appears only as fill, rule or large type, and floating chrome is opaque, on `/`,
+  `/skills`, `/log` and `/run`.
+- **Screen reader:** NVDA reads `/`'s status line and the `/run` narration sensibly.
+
+**Smoke tests (agent):** the evidence for every other box is in the capability doc's sweep tables,
+each row with its command and exit code, or its live AWS read, against Amplify job 438.
 
 ## Resolution
 
@@ -208,3 +227,6 @@ an equal count) and D-464 (§9.4's alarm half is superseded by D-361). The roadm
 amendments, and the doc's table marks them resolved by decision, not annotated into passes. The
 operator also approved the CLAUDE.md sentence carrying Trigger A's five build-first items forward;
 the orchestrator applied it. Still open: the three console timings and the perceptual checks.
+
+**Closed 2026-10-27.** The operator's timings and perceptual checks are recorded above and in the
+capability doc. Nothing keeps it open.
