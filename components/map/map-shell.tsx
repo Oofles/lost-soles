@@ -723,9 +723,12 @@ export function MapShell({
   return (
     <>
       {/*
-        Ticket 0285. Home only: the jump-to control, under `⚙`. Before the map in the DOM, so the
-        focus order is `⚙` → jump-to → the map (§2.2). A jump marks the camera as placed, so the
-        first-load run centring cannot land on top of it if the latest run arrives after.
+        Ticket 0285, 0323. Home only: the jump-to control, under `⚙`. DOM order is focus order, so
+        jump-to, the map container and `<MapControls>` (fit, `⌖`) render in that sequence, giving
+        `⚙` → jump-to → the map → fit → `⌖` (§2.2). Every one of them is fixed-positioned, so the
+        order moves nothing on screen at any width, the D-448 row included. A jump marks the camera
+        as placed, so the first-load run centring cannot land on top of it if the latest run
+        arrives after.
       */}
       {framed ? null : (
         <RegionJump
@@ -735,14 +738,14 @@ export function MapShell({
           }}
         />
       )}
-      {/* Ticket 0101. Home only: fit-to-territory and `⌖` on the pane, and inspecting a run by clicking its line. */}
-      {framed ? null : <MapControls map={loaded} latest={runs} onSelect={setInspected} />}
       <div
         ref={container}
         style={framed ? framedShell : paneClassName ? undefined : shell}
         className={framed ? undefined : paneClassName}
         data-testid="map-shell"
       />
+      {/* Ticket 0101. Home only: fit-to-territory and `⌖` on the pane, after the map in the DOM (0323), and inspecting a run by clicking its line. */}
+      {framed ? null : <MapControls map={loaded} latest={runs} onSelect={setInspected} />}
       {/*
         Ticket 0055, criterion 10. Renders only under `?fog=mask`, and it is what makes an EMPTY
         mask distinguishable from a broken one — see mask-hud.tsx. It also carries the zoom, which

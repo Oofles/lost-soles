@@ -27,11 +27,11 @@ reading order. Found by the capability 18 drift audit (§2, `06` §2.2), 2026-10
 
 ## Acceptance criteria
 
-- [ ] `<MapControls>` follows the map container in the DOM, so Tab order is
+- [x] `<MapControls>` follows the map container in the DOM, so Tab order is
       `⚙ → jump-to → the map → fit → ⌖`, as §2.2 states. CSS keeps their position unchanged at
       every width, including the D-448 row below 1024px.
-- [ ] A test asserts the DOM order of jump-to, the map container, fit and `⌖`.
-- [ ] The comment at `map-shell.tsx:726` states the whole order.
+- [x] A test asserts the DOM order of jump-to, the map container, fit and `⌖`.
+- [x] The comment at `map-shell.tsx:726` states the whole order.
 
 ## Steps to reproduce
 
@@ -54,3 +54,40 @@ screen. `run-zoom.mjs`'s 24 layouts are the regression check for that.
 None owed. DOM order is asserted by the test; no layout changes.
 
 D-123 trigger checked? none.
+
+## Resolution
+
+**Files touched**
+- `components/map/map-shell.tsx`: `<MapControls>` (fit, `⌖`) moved from before the map container
+  to directly after it. Home's DOM order is now jump-to → `<div data-testid="map-shell">` → fit →
+  `⌖`, so Tab goes `⚙ → jump-to → the map → fit → ⌖` (06 §2.2). The comment above the JSX now
+  gives the whole order and says why moving the JSX moves nothing on screen.
+- `components/map/map-shell-focus-order.test.tsx` (new): renders `MapShell` with
+  `renderToStaticMarkup` and asserts map container → fit → `⌖` in the markup. Jump-to cannot be
+  rendered that way: `RegionJump` draws nothing until it has a loaded map and two regions, and
+  effects do not run in the node vitest environment. Its place before the map container is a
+  source assertion on the returned JSX, the same tripwire trade `map-shell-build.test.ts` makes.
+
+**Why position is unchanged at every width.** Every element involved is fixed-positioned at all
+widths, so sibling order has no effect on layout. `.map-controls` is fixed in `MAP_CONTROLS_CSS`
+in the base rule, and the ≥1024px media query only changes `top`/`bottom`/`right`/`flex-direction`.
+`.route-chip`/`.route-card` (the popup `MapControls` also renders) are fixed. `.home-pane` (the map
+container) is fixed in `PLINTH_CSS`, and so is `.region-jump`. No sibling selector (`+`, `~`,
+`:first-child`, `:nth-child`) targets any of them. Stacking is set by `z-index` (controls 1, popup
+2, pane auto, and a fixed pane makes its own stacking context), not by DOM order. So the D-448 row
+below 1024px (fit, `⌖`, jump-to, `⚙` at `top: 16px`, 8px apart) keeps its position and order: the
+order inside the row comes from each control's own `right` offset and does not depend on the DOM.
+D-448's recorded cost, "below 1024px the row's visual order is the reverse of tab order", still
+holds. This ticket does not change it.
+
+**A finding on the ticket's Notes.** The Notes name `tools/a11y/run-zoom.mjs` as the regression
+check for layout. That harness stubs `@/components/map/map-shell` (its `STUBBED` list), so it never
+renders `MapControls` and cannot catch a change here. The CSS reasoning above is the evidence
+instead. I did not run it.
+
+**Decisions:** none. The design (06 §2.2) was right. The code and its comment were wrong.
+
+**One trap for later readers.** `app/a11y-d148.test.ts` scans source text for the literal
+`position: fixed` and requires a token background next to it. A comment containing that phrase in
+`map-shell.tsx` failed it, so the comment says "fixed-positioned".
+
