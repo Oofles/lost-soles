@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { runWithAmplifyServerContext } from "@/lib/amplify-server"
 import { verifiedBearerSub } from "@/lib/auth/bearer"
+import { NO_STORE } from "@/lib/http/no-store"
 
 /**
  * Server-side auth (ticket 0016, criterion 2; 08-security-privacy.md §5.3).
@@ -73,8 +74,17 @@ export async function middleware(request: NextRequest) {
    */
   if (await verifiedBearerSub(request.headers.get("authorization"))) return response
 
+  /**
+   * The two responses below are built HERE, not by a route handler, so `withNoStore` never sees
+   * them. D-429 / C-3 say EVERY response carries `private, no-store`, 404s and redirects included,
+   * so each sets it itself (ticket 0322). The `return response` paths fall through to a route or
+   * page, which sets its own.
+   */
   if (isApiPath(request.nextUrl.pathname)) {
-    return NextResponse.json({ error: "not found" }, { status: 404 })
+    return NextResponse.json(
+      { error: "not found" },
+      { status: 404, headers: { "Cache-Control": NO_STORE } },
+    )
   }
 
   // `/` is the signed-out landing as well as the home screen, so it must not
@@ -86,7 +96,9 @@ export async function middleware(request: NextRequest) {
   // Where they were headed, so a deep link survives sign-in rather than dumping
   // the user on the home screen with no explanation (§1.5 deep-link behaviour).
   url.searchParams.set("next", request.nextUrl.pathname)
-  return NextResponse.redirect(url)
+  const redirect = NextResponse.redirect(url)
+  redirect.headers.set("Cache-Control", NO_STORE)
+  return redirect
 }
 
 export const config = {

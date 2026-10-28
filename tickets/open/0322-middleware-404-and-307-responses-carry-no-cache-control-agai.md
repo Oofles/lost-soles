@@ -32,9 +32,9 @@ capability 18 drift audit (§2, `08` §5.3), 2026-10-27.
 
 ## Acceptance criteria
 
-- [ ] Both middleware responses set `Cache-Control: no-store, private` (reuse `NO_STORE` from
+- [x] Both middleware responses set `Cache-Control: no-store, private` (reuse `NO_STORE` from
       `lib/http/no-store.ts`; no second spelling of the string).
-- [ ] A middleware test asserts the header on the `/api/*` 404 and on the page 307.
+- [x] A middleware test asserts the header on the `/api/*` 404 and on the page 307.
 - [ ] Smoke test after deploy: `curl -sI https://soles.devaultsecurity.com/api/fog` and
       `curl -sI https://soles.devaultsecurity.com/skills` both show `cache-control: no-store, private`.
 
@@ -60,3 +60,32 @@ are in scope.
 None owed. Header behaviour, so the smoke test in the criteria is the check.
 
 D-123 trigger checked? none. It tightens a header on responses that already serve no data.
+
+## Resolution
+
+**Files touched**
+
+- `middleware.ts`: imports `NO_STORE` from `lib/http/no-store.ts`. The signed-out `/api/*` 404
+  passes `headers: { "Cache-Control": NO_STORE }` in its `NextResponse.json` init; the signed-out
+  page 307 is built with `NextResponse.redirect(url)` and then has `Cache-Control` set to
+  `NO_STORE` before it is returned. A comment says why these two are set by hand: route handlers get
+  the header from `withNoStore`, and `check-route-cache-control.mjs` cannot see the middleware.
+- `middleware.test.ts`: new block, "Cache-Control on the middleware's own responses (0322)". It
+  asserts `cache-control === NO_STORE` on the signed-out 404 for `/api/fog`,
+  `/api/tickets/capture` and `/api`, on the 404 for a bearer token that fails verification, and on
+  the 307 for `/skills`. It compares against the imported constant, so the string has one spelling.
+
+**Decisions:** none new. This applies D-429 / `08` §5.3 C-3 ("every response, 404s and redirects
+included") to the two responses the middleware builds itself. The `return response` paths
+(`NextResponse.next()`) are unchanged: they fall through to a route or page, which sets its own
+header, as the ticket's Notes say.
+
+**Why not widen the build check:** `check-route-cache-control.mjs` scans route handlers for the
+`withNoStore` wrapper. The middleware has exactly two self-built responses and the unit test now
+guards both, so teaching the script to parse `middleware.ts` would add machinery for two lines. If
+the middleware gains more self-built responses, revisit that.
+
+**Verification (worktree):** every guard in `amplify.yml`'s build phase exits 0
+(`check-secret-storage --require-literals` run with `AWS_APP_ID`/`AWS_BRANCH` exported, read-only),
+plus `npm run typecheck`, `npm run lint`, `npx vitest run` (276 files, 4542 passed, 1 skipped)
+and `npm run build`. The smoke-test criterion stays unticked until after deploy.

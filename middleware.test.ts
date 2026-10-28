@@ -43,6 +43,7 @@ vi.mock("@/lib/amplify-server", () => ({
 }))
 
 const { middleware, config } = await import("./middleware")
+const { NO_STORE } = await import("@/lib/http/no-store")
 
 const get = (pathname: string, headers?: HeadersInit) =>
   middleware(new NextRequest(new URL(`https://soles.devaultsecurity.com${pathname}`), { headers }))
@@ -81,6 +82,34 @@ describe("signed out", () => {
     // 404 that reads as a broken route rather than as a sign-in prompt.
     const res = await get("/apiary")
     expect(res.status).toBe(307)
+  })
+})
+
+/**
+ * Ticket 0322. D-429 / C-3: every response carries `private, no-store`, 404s and redirects
+ * included. `withNoStore` covers route handlers; these two responses are built by the middleware
+ * itself and `check-route-cache-control.mjs` cannot see them, so this is their only guard.
+ */
+describe("Cache-Control on the middleware's own responses (0322)", () => {
+  it.each(["/api/fog", "/api/tickets/capture", "/api"])(
+    "the signed-out 404 for %s carries no-store",
+    async (path) => {
+      const res = await get(path)
+      expect(res.status).toBe(404)
+      expect(res.headers.get("cache-control")).toBe(NO_STORE)
+    },
+  )
+
+  it("the signed-out 307 for a page carries no-store", async () => {
+    const res = await get("/skills")
+    expect(res.status).toBe(307)
+    expect(res.headers.get("cache-control")).toBe(NO_STORE)
+  })
+
+  it("a failed bearer token's 404 carries it too", async () => {
+    const res = await get("/api/fog", { authorization: "Bearer forged.token.sig" })
+    expect(res.status).toBe(404)
+    expect(res.headers.get("cache-control")).toBe(NO_STORE)
   })
 })
 
