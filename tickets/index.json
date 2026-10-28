@@ -7489,6 +7489,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-28T02:22:22Z",
+    "started": "2026-10-28T15:10:12Z",
     "path": "tickets/open/0323-map-focus-order-puts-fit-and-recentre-before-the-map-against.md",
     "ready": true,
     "acceptance": {
@@ -7595,6 +7596,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-28T03:39:03Z",
+    "started": "2026-10-28T15:10:12Z",
     "path": "tickets/open/0328-doc-check-gaps-found-in-the-0326-sweep-add-a-skill-example-u.md",
     "ready": true,
     "acceptance": {
