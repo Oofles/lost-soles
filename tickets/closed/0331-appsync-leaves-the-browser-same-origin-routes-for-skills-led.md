@@ -4,7 +4,7 @@ slug: appsync-leaves-the-browser-same-origin-routes-for-skills-led
 title: AppSync leaves the browser: same-origin routes for skills, ledger, log and kind
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 19-authjs-migration
 depends_on: [117]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:18:05Z
 started: 2026-11-02T18:42:31Z
+closed: 2026-11-02T20:19:42Z
 ---
 
 
