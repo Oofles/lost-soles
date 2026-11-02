@@ -106,6 +106,8 @@ describe("disconnect touches the source account and nothing else", () => {
         "@/lib/app-origin",
         // C-3 (0114): the Cache-Control wrapper. Pure; it reads only the response it is handed.
         "@/lib/http/no-store",
+        // D-471 (0330): the shared cross-site check. Pure; it reads only the request's Origin.
+        "@/lib/http/origin",
         "@/lib/log",
         "@/lib/sources/oauth-credentials",
         "@/lib/sources/source-account-store",

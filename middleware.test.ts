@@ -42,15 +42,33 @@ vi.mock("@/lib/amplify-server", () => ({
   }) => operation({}),
 }))
 
+/**
+ * Ticket 0330. next-auth's `auth(handler)` wrapper, stubbed to hand the handler `req.auth` the way
+ * the real one does after decrypting the cookie. What is real is the gate's decision about it,
+ * and `lib/auth/identity.ts`'s two gates with it.
+ */
+let authjsEmail: string | undefined = undefined
+vi.mock("@/lib/auth", () => ({
+  auth:
+    (handler: (req: unknown) => unknown) =>
+    (req: Record<string, unknown>) =>
+      handler(Object.assign(req, { auth: authjsEmail ? { user: { email: authjsEmail } } : null })),
+}))
+
+const OWNER_EMAIL = "amazingbrandon@gmail.com"
+
 const { middleware, config } = await import("./middleware")
 const { NO_STORE } = await import("@/lib/http/no-store")
 
-const get = (pathname: string, headers?: HeadersInit) =>
-  middleware(new NextRequest(new URL(`https://soles.devaultsecurity.com${pathname}`), { headers }))
+// next-auth types the wrapped middleware's result as `void | Response`; the gate always returns one.
+const get = async (pathname: string, headers?: HeadersInit) =>
+  (await middleware(new NextRequest(new URL(`https://soles.devaultsecurity.com${pathname}`), { headers }), { params: Promise.resolve({}) })) as Response
 
 beforeEach(() => {
   authenticated = false
   bearerSub = undefined
+  authjsEmail = undefined
+  process.env.AUTH_ALLOWED_EMAILS = OWNER_EMAIL
 })
 
 describe("signed out", () => {
@@ -176,6 +194,52 @@ describe("bearer token (0149)", () => {
 })
 
 /**
+ * Ticket 0330, D-471. Either session admits; an Auth.js session admits only through BOTH gates.
+ */
+describe("Auth.js session (0330)", () => {
+  it("admits an allowlisted, mapped email to an API route and a page", async () => {
+    authjsEmail = OWNER_EMAIL
+    expect((await get("/api/tickets/capture")).status).toBe(200)
+    expect((await get("/log")).status).toBe(200)
+  })
+
+  it("matches the email case-insensitively", async () => {
+    authjsEmail = OWNER_EMAIL.toUpperCase()
+    expect((await get("/api/fog")).status).toBe(200)
+  })
+
+  it("404s an allowlisted email with no IDENTITIES entry, as signed out", async () => {
+    // A domain cookie school-hub minted for one of its own users (D-470).
+    authjsEmail = "someone-else@example.com"
+    process.env.AUTH_ALLOWED_EMAILS = `${OWNER_EMAIL},someone-else@example.com`
+    const unmapped = await get("/api/tickets/capture")
+    authjsEmail = undefined
+    const none = await get("/api/tickets/capture")
+    expect(unmapped.status).toBe(404)
+    expect(await unmapped.text()).toBe(await none.text())
+  })
+
+  it("404s a mapped email that is no longer on the allowlist", async () => {
+    authjsEmail = OWNER_EMAIL
+    process.env.AUTH_ALLOWED_EMAILS = "someone-else@example.com"
+    expect((await get("/api/tickets/capture")).status).toBe(404)
+  })
+
+  it("404s a mapped email when the allowlist is empty or unset", async () => {
+    authjsEmail = OWNER_EMAIL
+    process.env.AUTH_ALLOWED_EMAILS = ""
+    expect((await get("/api/tickets/capture")).status).toBe(404)
+    delete process.env.AUTH_ALLOWED_EMAILS
+    expect((await get("/api/tickets/capture")).status).toBe(404)
+  })
+
+  it("still admits the Cognito cookie when there is no Auth.js session", async () => {
+    authenticated = true
+    expect((await get("/api/tickets/capture")).status).toBe(200)
+  })
+})
+
+/**
  * THE MATCHER ITSELF, tested as a regex rather than through the handler.
  *
  * Every test above calls `middleware()` directly, which means none of them can see
@@ -202,6 +266,28 @@ describe("the matcher (0053)", () => {
   ])("exempts %s — a static asset must not be redirected", (path) => {
     expect(pattern.test(path)).toBe(false)
   })
+
+  /**
+   * 0330. Auth.js's own routes must be reachable signed out (signin, csrf, the Google callback).
+   * They authenticate themselves and touch no Lost Soles data. Only the PREFIX with its slash is
+   * exempt: every other `/api/*` path, the Strava `/api/auth/*` family included, stays gated.
+   */
+  it.each([
+    "/api/authjs/providers",
+    "/api/authjs/csrf",
+    "/api/authjs/signin/google",
+    "/api/authjs/callback/google",
+    "/api/authjs/session",
+  ])("exempts Auth.js's own route %s", (path) => {
+    expect(pattern.test(path)).toBe(false)
+  })
+
+  it.each(["/api/authjs", "/api/authjsx/providers", "/api/auth/strava/start", "/api/auth/strava/disconnect", "/api/fog/authjs/x"])(
+    "keeps %s gated: the Auth.js exemption is exactly its prefix",
+    (path) => {
+      expect(pattern.test(path)).toBe(true)
+    },
+  )
 
   it.each(["/", "/settings", "/dev/tickets", "/api/tickets/capture", "/skills/running"])(
     "still covers %s",

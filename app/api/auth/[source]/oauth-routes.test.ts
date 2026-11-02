@@ -372,11 +372,28 @@ describe("disconnect — criterion 7", () => {
     expect(markDisconnected).toHaveBeenCalledWith({ userId: OWNER, sourceId: SOURCE })
   })
 
-  it("refuses a cross-site form post, and a post with no Origin at all", async () => {
+  it("refuses a cross-site form post with 403, and a post with no Origin at all", async () => {
     // CORS governs what a script may READ; a form post does not need to read the
     // answer to have revoked the credential.
-    expect((await disconnect({ origin: "https://attacker.example" })).status).toBe(404)
+    expect((await disconnect({ origin: "https://attacker.example" })).status).toBe(403)
     expect((await disconnect({})).status).toBe(404)
     expect(markDisconnected).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  /**
+   * Ticket 0330, D-471. The Auth.js cookie is on `.devaultsecurity.com`, so a sibling subdomain
+   * is same-site and its form post carries the owner's session. SameSite=Lax does not stop it;
+   * the Origin check does.
+   */
+  it.each(["https://school-hub.devaultsecurity.com", "https://devaultsecurity.com", "http://soles.devaultsecurity.com", "null"])(
+    "403s a POST from the same-site foreign origin %s, and revokes nothing",
+    async (origin) => {
+      const res = await disconnect({ origin })
+      expect(res.status).toBe(403)
+      expect(res.headers.get("cache-control")).toBe("no-store, private")
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(markDisconnected).not.toHaveBeenCalled()
+    },
+  )
 })

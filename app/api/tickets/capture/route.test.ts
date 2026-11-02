@@ -404,6 +404,36 @@ describe("the payload secret scan (ticket 0004)", () => {
   })
 })
 
+/**
+ * Ticket 0330, D-471. The Auth.js cookie is on `.devaultsecurity.com`, so every sibling subdomain
+ * is same-site and its requests carry the owner's session: SameSite=Lax no longer separates them.
+ * A foreign `Origin` is refused with 403 before the body is read, and nothing is committed.
+ */
+describe("a foreign Origin is refused (0330, D-471)", () => {
+  it.each(["https://school-hub.devaultsecurity.com", "https://attacker.example", "http://soles.devaultsecurity.com", "null"])(
+    "403s a signed-in owner's POST from %s, with no commit and no quota spent",
+    async (origin) => {
+      const res = await post(valid, { origin })
+      expect(res.status).toBe(403)
+      expect(res.headers.get("cache-control")).toBe("no-store, private")
+      expect(createFile).not.toHaveBeenCalled()
+      expect(claimIdempotencyKey).not.toHaveBeenCalled()
+      expect(consumeRateBudget).not.toHaveBeenCalled()
+    },
+  )
+
+  it("admits the app's own origin and a request with no Origin (a non-browser client, not CSRF)", async () => {
+    expect((await post(valid, { origin: APP_ORIGIN })).status).toBe(201)
+    expect((await post({ ...valid, idempotencyKey: "0d9e1f40-2b3c-4d5e-8f60-718293a4b5c6" })).status).toBe(201) // gitleaks:allow
+  })
+
+  it("still 404s a NON-owner from a foreign origin: the owner check runs first (§6.5)", async () => {
+    signedInAs = "someone-else"
+    const res = await post(valid, { origin: "https://attacker.example" })
+    expect(res.status).toBe(404)
+  })
+})
+
 describe("CORS is locked to the app origin (§6.4/8)", () => {
   it("names the app origin and never a wildcard", async () => {
     // Criterion 11. Defence against a FUTURE subdomain mistake — the day something

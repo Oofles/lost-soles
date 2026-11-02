@@ -3,7 +3,9 @@ import { cookies, headers } from "next/headers"
 import { fetchAuthSession } from "aws-amplify/auth/server"
 
 import { runWithAmplifyServerContext } from "@/lib/amplify-server"
+import { auth } from "@/lib/auth"
 import { verifiedBearerSub } from "@/lib/auth/bearer"
+import { authjsUid } from "@/lib/auth/identity"
 
 export { isOwner, OWNER_USER_IDS } from "@/lib/auth/owner-ids"
 
@@ -34,6 +36,21 @@ export { isOwner, OWNER_USER_IDS } from "@/lib/auth/owner-ids"
  * `check-auth-posture.mjs` both take.
  */
 export async function currentUserId(): Promise<string | undefined> {
+  /**
+   * Ticket 0330, D-471. The Auth.js session FIRST: a Google sign-in whose email is on
+   * `AUTH_ALLOWED_EMAILS` AND in `IDENTITIES` is that uid. Anything else about it (no session,
+   * an unlisted or unmapped email, a config error) falls through to the Cognito paths below,
+   * unchanged, until `0332` removes them. next-auth returns null on a non-OK session response
+   * (the GHSA-8fpg-xm3f-6cx3 fix), and the catch covers anything that throws, so this cannot
+   * fail open: only a mapped email yields a uid.
+   *
+   * THE ONLY SERVER CALL TO `auth()` OUTSIDE middleware.ts. `lib/map-home.ts` once read the
+   * session itself; it asks this function now (`lib/auth/session-readers.test.ts`).
+   */
+  const session = await auth().catch(() => null)
+  const fromAuthjs = authjsUid(session?.user?.email)
+  if (fromAuthjs) return fromAuthjs
+
   const fromCookie = await runWithAmplifyServerContext({
     nextServerContext: { cookies },
     operation: async (contextSpec) => {

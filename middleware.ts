@@ -2,7 +2,9 @@ import { fetchAuthSession } from "aws-amplify/auth/server"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { runWithAmplifyServerContext } from "@/lib/amplify-server"
+import { auth } from "@/lib/auth"
 import { verifiedBearerSub } from "@/lib/auth/bearer"
+import { authjsUid } from "@/lib/auth/identity"
 import { NO_STORE } from "@/lib/http/no-store"
 
 /**
@@ -38,8 +40,21 @@ function isApiPath(pathname: string): boolean {
   return pathname === "/api" || pathname.startsWith("/api/")
 }
 
-export async function middleware(request: NextRequest) {
+/**
+ * Ticket 0330, D-471. Either session admits: an Auth.js session whose email is allowlisted AND
+ * mapped in `IDENTITIES`, or today's Cognito cookie, or a verified bearer token. The Auth.js
+ * reading comes from next-auth's `auth(handler)` wrapper, which decrypts the cookie and hands the
+ * session in as `req.auth` (null on any failure, including a config error). The decision is made
+ * HERE, explicitly, as `school-hub`'s middleware does: with a handler, the `authorized` callback's
+ * `false` does not refuse anything, so nothing may rely on it.
+ *
+ * A domain cookie for an email Lost Soles does not map is not a session here (D-470): it falls
+ * through to the Cognito and bearer checks exactly as no cookie would.
+ */
+async function gate(request: NextRequest, authjsEmail: string | null | undefined) {
   const response = NextResponse.next()
+
+  if (authjsUid(authjsEmail)) return response
 
   const authenticated = await runWithAmplifyServerContext({
     nextServerContext: { request, response },
@@ -101,6 +116,8 @@ export async function middleware(request: NextRequest) {
   return redirect
 }
 
+export const middleware = auth((req) => gate(req, req.auth?.user?.email))
+
 export const config = {
   /**
    * Everything except Next's own static output, the favicon, and `/maplibre/`. Every
@@ -124,8 +141,14 @@ export const config = {
    * copied from Protomaps' OFL/MIT-licensed assets. MapLibre fetches them as subresources, so
    * a 307 to `/` is an HTML body where a PBF should be and every label vanishes. The sprite's
    * `.png` was already exempt by extension; its `.json` and every `.pbf` were not.
+   *
+   * `/api/authjs/` is Auth.js's own route family (ticket 0330, D-471). A signed-out browser must
+   * reach signin, csrf and the Google callback, and this gate 404s every signed-out API request.
+   * Safe to exempt: those routes authenticate themselves (CSRF token, OAuth state/PKCE/nonce, an
+   * encrypted session JWT) and touch no Lost Soles data. The exemption is the PREFIX with its
+   * slash, so `/api/authjs` itself and every other `/api/*` path stay gated.
    */
   matcher: [
-    "/((?!_next/static|_next/image|maplibre/|basemap-assets/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|maplibre/|basemap-assets/|api/authjs/|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 }

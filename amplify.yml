@@ -115,6 +115,14 @@ frontend:
         - npm run typecheck  # tsc --noEmit — REAL, not the dead script pattern
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
+        # Ticket 0330, D-471, 08 §3 S10/S11. Auth.js's six values, SSM -> .env.production, which
+        # the SSR runtime and middleware read at request time. Server-only names, never
+        # NEXT_PUBLIC_. FAILS CLOSED on any missing, empty or unreadable parameter, naming the key
+        # and never the value. Placed after the tests so no secret sits on disk while they run.
+        # Needs ssm:GetParameter on /amplify/shared/d14fhvl4rp79nn/{AUTH_SECRET,GOOGLE_CLIENT_ID,
+        # GOOGLE_CLIENT_SECRET,AUTH_ALLOWED_EMAILS,AUTH_COOKIE_DOMAIN,AUTH_URL}.
+        - node scripts/write-authjs-env.mjs --self-test
+        - node scripts/write-authjs-env.mjs
         - npm run build
         # 08 §2.4 C-2 / 0114. After the build, over what it produced: every prerendered route is
         # on an allowlist, and no prerendered page or static asset carries cell or trace data.
@@ -131,6 +139,7 @@ frontend:
         # a pattern-only pass would be a green tick over an unscanned bundle
         # (0017). Scans .next/static, .next/server and the cdk.out Lambda
         # bundles the backend phase wrote earlier in this same container.
+        # Since 0330 the literals include AUTH_SECRET (S10) and GOOGLE_CLIENT_SECRET (S11).
         - node scripts/check-bundle-leak.mjs --self-test
         - node scripts/check-bundle-leak.mjs --require-literals
         # Ticket 0053. next.config.ts inlines LOST_SOLES_HOME_* at build time because

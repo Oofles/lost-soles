@@ -278,6 +278,10 @@ jobs:
       - name: bundle leak check self-test
         run: node scripts/check-bundle-leak.mjs --self-test
 
+      # 0330. The live write needs SSM (the Amplify build's job); the failure modes need nothing.
+      - name: Auth.js env writer self-test
+        run: node scripts/write-authjs-env.mjs --self-test
+
       - name: no secret in built output (patterns; literals are the deploy path's job)
         run: node scripts/check-bundle-leak.mjs
 

@@ -55,6 +55,13 @@ export const REGISTRY = [
   // verbatim leak, but the LITERAL scan — the one that catches a value reaching the
   // bundle by some route the patterns do not describe — would not know to look.
   { key: "GITHUB_TICKETS_PAT", store: "ssm" },
+  // Ticket 0330, 08 §3 S10/S11 (D-471). Auth.js's session-signing secret, shared with every app on
+  // the domain (anyone holding it can mint a session for any email), and the Google OAuth client
+  // secret. Both reach `.env.production` at build for the SSR runtime and must never reach a
+  // bundle: next-auth reads them from `process.env` at request time, so no build output needs them.
+  // GOOGLE_CLIENT_ID is not listed: it is public by design, in every OAuth authorize URL.
+  { key: "AUTH_SECRET", store: "ssm" },
+  { key: "GOOGLE_CLIENT_SECRET", store: "ssm" },
   { key: "TILES_BASE_URL", store: "env" },
 ]
 const SSM_KEYS = REGISTRY.filter((r) => r.store === "ssm").map((r) => r.key)
@@ -463,6 +470,32 @@ if (isMain && process.argv.includes("--self-test")) {
       const ok = zones[rel] === want
       if (!ok) failed++
       console.log(`  ${ok ? "ok" : "FAIL"}  zone ${want.padEnd(6)}  ${rel}`)
+    }
+
+    // 0330: S10 and S11. A planted AUTH_SECRET in a client chunk and a planted
+    // GOOGLE_CLIENT_SECRET in a server chunk must both fire, under their own key names, which
+    // proves the registry carries them and not merely that some literal scan works.
+    {
+      const AUTH = fixture("q3Zt8vLw0pRk2nYx", "Hs5uMc7eJa9dGb4fTi1oWl6=")
+      const GOOGLE = fixture("GOCSPX-", "aB3dE5gH7jK9mN1pQ2rS4tU6vW8x")
+      const authLits = [{ key: "AUTH_SECRET", value: AUTH }, { key: "GOOGLE_CLIENT_SECRET", value: GOOGLE }]
+      const planted = mkdtempSync(join(tmpdir(), "bundle-leak-authjs-"))
+      try {
+        mkdirSync(join(planted, ".next/static/chunks"), { recursive: true })
+        mkdirSync(join(planted, ".next/server/app/api/authjs"), { recursive: true })
+        writeFileSync(join(planted, ".next/static/chunks/auth.js"), `const s="${AUTH}"\n`)
+        writeFileSync(join(planted, ".next/server/app/api/authjs/route.js"), `const c="${GOOGLE}"\n`)
+        const hits = scanBuild(planted, authLits)
+        const okAuth = hits.some((f) => f.key === "AUTH_SECRET" && f.zone === "CLIENT")
+        const okGoogle = hits.some((f) => f.key === "GOOGLE_CLIENT_SECRET" && f.zone === "SERVER")
+        const okReg = ["AUTH_SECRET", "GOOGLE_CLIENT_SECRET"].every((k) => SSM_KEYS.includes(k))
+        for (const [ok, what] of [[okAuth, "a planted AUTH_SECRET in .next/static"], [okGoogle, "a planted GOOGLE_CLIENT_SECRET in .next/server"], [okReg, "AUTH_SECRET and GOOGLE_CLIENT_SECRET are registry keys"]]) {
+          if (!ok) failed++
+          console.log(`  ${ok ? "ok" : "FAIL"}  must fire   ${what}`)
+        }
+      } finally {
+        rmSync(planted, { recursive: true, force: true })
+      }
     }
 
     // No finding may carry the secret value. This check is itself a leak surface.

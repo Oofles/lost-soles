@@ -7,6 +7,7 @@ import { markDisconnected, readAccessTokenForRevocation } from "@/lib/sources/so
 
 import { NOT_FOUND, resolveRoute, settingsUrl } from "../shared"
 import { withNoStore } from "@/lib/http/no-store"
+import { hasForeignOrigin } from "@/lib/http/origin"
 
 /**
  * Disconnect. Ticket 0032 criterion 7; `02-data-model.md` §7 and
@@ -39,16 +40,27 @@ async function handlePost(
   if (ctx === null) return NOT_FOUND()
 
   /**
-   * CSRF. The settings form is same-origin, so the browser sends `Origin` on the
-   * POST; a cross-site form post carries a different one. Absent is refused rather
-   * than allowed — a request with no `Origin` is not a request proven to be ours.
+   * CSRF, D-471 (ticket 0330). The Auth.js cookie is on `.devaultsecurity.com`, so a sibling
+   * subdomain is same-site and SameSite=Lax no longer keeps the owner's session off its form
+   * posts. A foreign `Origin` is 403, the shared check every state-changing route uses.
+   */
+  if (hasForeignOrigin(request)) {
+    log.warn("disconnect rejected: foreign origin", { source: ctx.sourceId })
+    return new NextResponse(null, { status: 403 })
+  }
+
+  /**
+   * And STRICTER than the shared check, kept from 0032: the settings form is same-origin, so
+   * the browser sends `Origin` on the POST. Absent is refused rather than allowed here, because
+   * nothing but that form ever disconnects a source. A request with no `Origin` is not a
+   * request proven to be ours.
    *
    * This is a state-changing POST reached from a page, which is the one shape the
    * capture endpoint's CORS headers do not defend: CORS governs what a script may
    * READ, and a form post does not need to read the answer to have done the damage.
    */
   if (request.headers.get("origin") !== APP_ORIGIN) {
-    log.warn("disconnect rejected: origin did not match", { source: ctx.sourceId })
+    log.warn("disconnect rejected: no origin", { source: ctx.sourceId })
     return NOT_FOUND()
   }
 

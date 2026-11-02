@@ -27,6 +27,7 @@ import {
 } from "@/lib/tickets/capture-store"
 import { createFile, getToken, GithubApiError } from "@/lib/tickets/github"
 import { withNoStore } from "@/lib/http/no-store"
+import { hasForeignOrigin } from "@/lib/http/origin"
 
 /**
  * POST /api/tickets/capture — tickets 0018 (the plumbing) and 0019 (the hardening).
@@ -208,6 +209,16 @@ async function handlePost(request: Request) {
   // ── 1. Owner, before anything else (§6.4/1, §6.5 row 1) ──────────────────
   const userId = await currentUserId()
   if (!isOwner(userId)) return notFound()
+
+  // ── 1b. Cross-site, before the body is read (D-471, ticket 0330) ──────────
+  // The Auth.js cookie is on `.devaultsecurity.com`, so a sibling subdomain is same-site and its
+  // requests carry the owner's session. A foreign `Origin` is refused with 403: this answer is
+  // only reachable by a request that already passed the owner check, so it tells an outsider
+  // nothing §6.5's 404 was hiding. A request with no `Origin` is a non-browser client, not CSRF.
+  if (hasForeignOrigin(request)) {
+    log.warn("capture rejected: foreign origin", {})
+    return json({ error: "forbidden" }, 403)
+  }
 
   // ── 2. Size, before parsing (§6.4/5) ─────────────────────────────────────
   // Content-Length first so an oversized body can be refused without buffering it,

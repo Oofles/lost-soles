@@ -10,11 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
  * artefacts, and "it's only the map default" is exactly the reasoning §7.2 predicts will
  * break the rule.
  */
-vi.mock("next/headers", () => ({ cookies: () => ({}) }))
-
 const authenticated = vi.fn<() => boolean>()
-vi.mock("@/lib/amplify-server", () => ({
-  runWithAmplifyServerContext: async () => authenticated(),
+// Ticket 0330: the session is read by `currentUserId()` alone; this module only asks it.
+vi.mock("@/lib/auth/owner", () => ({
+  currentUserId: async () => (authenticated() ? "sub-1" : undefined),
 }))
 
 const { homeCameraForSession } = await import("./map-home")

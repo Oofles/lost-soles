@@ -1,7 +1,4 @@
-import { cookies } from "next/headers"
-import { fetchAuthSession } from "aws-amplify/auth/server"
-
-import { runWithAmplifyServerContext } from "@/lib/amplify-server"
+import { currentUserId } from "@/lib/auth/owner"
 import { HOME_ZOOM, type Camera } from "@/lib/map-camera"
 
 /**
@@ -24,7 +21,7 @@ import { HOME_ZOOM, type Camera } from "@/lib/map-camera"
  * finds the site. A `NEXT_PUBLIC_` variable would be worse still — inlined into a
  * publicly served JS bundle.
  *
- * So the read happens on the server, behind the same session check middleware uses, and
+ * So the read happens on the server, behind `currentUserId()`, the one server-side session reader (0330), and
  * a signed-out request gets `null`. The map then opens on the extract-wide fallback,
  * which identifies nobody.
  *
@@ -64,21 +61,8 @@ function configuredHome(): Camera | null {
 }
 
 export async function homeCameraForSession(): Promise<Camera | null> {
-  const authenticated = await runWithAmplifyServerContext({
-    nextServerContext: { cookies },
-    operation: async (contextSpec) => {
-      try {
-        const session = await fetchAuthSession(contextSpec)
-        // Both tokens, exactly as middleware.ts requires. A partial session is a
-        // signed-out session: fail closed.
-        return (
-          session.tokens?.accessToken !== undefined && session.tokens?.idToken !== undefined
-        )
-      } catch {
-        return false
-      }
-    },
-  })
-
+  // Ticket 0330: one function reads the session server-side. Signed in, by either the Auth.js or
+  // the Cognito path, is `currentUserId()` returning a uid; anything else is signed out.
+  const authenticated = (await currentUserId()) !== undefined
   return authenticated ? configuredHome() : null
 }

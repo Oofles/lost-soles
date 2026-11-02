@@ -52,3 +52,33 @@ export function isOwner(userId: string | undefined): boolean {
   if (!userId) return false
   return OWNER_USER_IDS.includes(userId)
 }
+
+/**
+ * THE IDENTITY MAP: a Google sign-in's email -> the internal uid. Ticket 0330, D-471.
+ *
+ * The uid is the Cognito `sub` above, forever. Every DynamoDB partition key and every
+ * `users/<uid>/` and `raw/<uid>/` key is that `sub`, and re-keying a map that cannot re-fog
+ * (D-020) to save one lookup table is the worst available trade. So Auth.js sessions reach the
+ * existing uid through this table.
+ *
+ * THIS IS THE AUTHORIZATION, `AUTH_ALLOWED_EMAILS` (SSM) IS THE SIGN-IN GATE. Both must pass:
+ * an allowlisted email with no entry here is signed out (`lib/auth/identity.ts`). Hard-coded for
+ * the same reasons as `OWNER_USER_IDS`: identifiers, not credentials, and a fail-closed control
+ * with no runtime dependency.
+ *
+ * EMAIL, NOT GOOGLE'S `sub` (operator, D-471). Both of the operator's addresses are already in
+ * this public repository's history, so this publishes nothing new. A changed Google address
+ * unmaps, and fails closed; the fix is a one-line commit.
+ *
+ * D-123 TRIGGER A (D-470): any entry here other than the owner's fires it. Keys are lower case.
+ */
+export const IDENTITIES: Readonly<Record<string, string>> = {
+  "amazingbrandon@gmail.com": "5488e4b8-d081-7014-748e-edd1937f8083",
+}
+
+/** The mapped uid, or undefined. Case-insensitive on the email; no allowlist check here. */
+export function uidForEmail(email: string | null | undefined): string | undefined {
+  if (!email) return undefined
+  const key = email.trim().toLowerCase()
+  return Object.hasOwn(IDENTITIES, key) ? IDENTITIES[key] : undefined
+}
