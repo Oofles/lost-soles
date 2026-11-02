@@ -4,7 +4,7 @@ slug: auth-js-with-google-beside-cognito-and-the-email-to-uid-iden
 title: Auth.js with Google beside Cognito, and the email to uid identity map
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 19-authjs-migration
 depends_on: [117]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:17:55Z
 started: 2026-11-02T18:42:31Z
+closed: 2026-11-02T19:35:52Z
 ---
 
 

@@ -7636,7 +7636,7 @@
     "title": "Auth.js with Google beside Cognito, and the email to uid identity map",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "19-authjs-migration",
     "depends_on": [
@@ -7646,8 +7646,9 @@
     "source": "agent",
     "created": "2026-11-02T17:17:55Z",
     "started": "2026-11-02T18:42:31Z",
-    "path": "tickets/open/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
-    "ready": true,
+    "closed": "2026-11-02T19:35:52Z",
+    "path": "tickets/closed/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
+    "ready": false,
     "acceptance": {
       "checked": 8,
       "total": 8
@@ -7783,7 +7784,7 @@
     "source": "agent",
     "created": "2026-11-02T19:12:18Z",
     "path": "tickets/open/0336-bring-school-hub-to-next-auth-5-0-0-beta-32.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 4
