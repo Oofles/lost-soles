@@ -7612,7 +7612,7 @@
     "title": "Yoga (vinyasa) as a hand-logged workout: the Poise skill, a minutes entry, rules v4",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [],
@@ -7620,10 +7620,11 @@
     "source": "agent",
     "created": "2026-11-02T16:01:44Z",
     "started": "2026-11-02T16:02:11Z",
-    "path": "tickets/open/0329-poise-yoga-skill-minutes-entry-rules-v4.md",
-    "ready": true,
+    "closed": "2026-11-02T16:59:46Z",
+    "path": "tickets/closed/0329-poise-yoga-skill-minutes-entry-rules-v4.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   }
