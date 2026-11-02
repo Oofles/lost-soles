@@ -65,13 +65,25 @@ confirmation gets slower than it is today, say so in the Resolution with numbers
 
 ## Operator validation
 
-Agent smoke tests against production: each GET route signed-out 404; CloudWatch shows `log-workout`
-invoked by the SSR role after a synthetic `/log` POST made with a minted test session (or recorded as
-the operator's check if no session can be minted). Perceptual: the operator logs one workout on `/log`
-and opens `/skills` on the desktop browser. It should look exactly as before.
+**Operator, desktop browser, 2026-11-02, after Amplify job 444:** logged one workout on `/log` and
+opened `/skills`. *"Both look the same"*: the confirmation, XP line, standings and skill sheet are
+unchanged.
 
-D-123 trigger checked? **none** — no new identity, export or public route. Every new route is
-authed and `private, no-store`. Cites D-470.
+**Agent smoke tests, same deploy:**
+- Signed out, all seven new routes (`/api/skills/{state,ledger,ledger?skill=,profile,landmarks}`,
+  `/api/runs/x/{ledger,kind}`) → 404. `POST /api/log` signed out, with and without a `school-hub`
+  Origin → 404: middleware refuses before the route runs. The signed-in 403 path is covered by the
+  route tests.
+- The deployed CSP names no AppSync host (0 matches).
+- The operator's entry reached `log-workout` at 2026-11-02T20:18:28Z: `outcome: logged`,
+  `xpAwarded: 53`, `totalMs: 501`. The browser can no longer reach AppSync (the CSP and the
+  no-`aws-amplify/data` grep test), so this was the SSR role's direct invoke through `/api/log`.
+- Latency: the handler's `totalMs` was 501, against 419 and 387 for the previous two logged entries,
+  which went through AppSync. That is within run-to-run noise, and the operator saw no slower
+  confirmation. The ticket asked for numbers only if `/log` got slower, so these are recorded as no
+  change.
+
+D-123 trigger checked? **none** — no new identity, export or public route. Cites D-470.
 
 ## Resolution
 
