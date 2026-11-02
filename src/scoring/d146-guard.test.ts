@@ -38,6 +38,14 @@ function standingAt(total: number): Record<string, number> {
   return { [lead]: cumulativeXp(leadLevel) }
 }
 
+/** V's own minted rows: skills a ruleset after the baseline added (Poise, v4 — D-469). */
+const mintedInV = enabled.filter((s) => isMinted(s, BASELINE)).length
+
+/** As `standingAt`, but the EARNED Total Level is `total`: V's minted rows are on top of it. */
+function earnedStandingAt(total: number): Record<string, number> {
+  return standingAt(total + mintedInV)
+}
+
 describe("adding a skill row and reprocessing produces zero level-up cards (criteria 7, 8)", () => {
   // 99 earned under V: 100 under NEXT, purely from the minted row.
   const xp = standingAt(99)
@@ -75,13 +83,13 @@ describe("adding a skill row and reprocessing produces zero level-up cards (crit
 })
 
 describe("a Total Level milestone crossed only by a minted point fires no card; earned later, it does (criterion 9)", () => {
-  const xp = standingAt(99)
+  const xp = earnedStandingAt(99)
 
   it("the earned total is the displayed one less the minted row", () => {
     const m = new Map(Object.entries(xp))
     expect(earnedTotalLevel(m, V, BASELINE)).toBe(99)
     expect(earnedTotalLevel(m, NEXT, BASELINE)).toBe(99)
-    expect(totalLevel(m, NEXT.skills, NEXT.curve)).toBe(100)
+    expect(totalLevel(m, NEXT.skills, NEXT.curve)).toBe(100 + mintedInV)
   })
 
   it("the run after the row ships, earning no level, fires nothing — not even at 100", () => {
@@ -95,12 +103,12 @@ describe("a Total Level milestone crossed only by a minted point fires no card; 
 
   it("without the guard the same diff would have nothing to cross either — the card is late, never early", () => {
     // Judged on the DISPLAYED total, 100 was already reached by the mint and the earned run crosses
-    // 100 → 101: no milestone. That is the "never celebrated at all" failure the earned total fixes.
+    // 100 → 101 (plus V's own minted rows): no milestone. That is the "never celebrated at all" failure the earned total fixes.
     const m = new Map(Object.entries(xp))
     const toNext = cumulativeXp(levelForXp(xp[lead]!, NEXT.curve) + 1) - xp[lead]!
     const after = new Map([[lead, xp[lead]! + toNext]])
     const displayed = [totalLevel(m, NEXT.skills, NEXT.curve), totalLevel(after, NEXT.skills, NEXT.curve)]
-    expect(displayed).toEqual([100, 101])
+    expect(displayed).toEqual([100 + mintedInV, 101 + mintedInV])
     expect(earnedMilestonesCrossed(m, after, NEXT, BASELINE, [100])).toEqual([100])
   })
 })

@@ -269,7 +269,9 @@ export function LogRowView({
               ? `${row.label}, minutes and seconds`
               : row.entry === "distance"
                 ? `${row.label}, kilometres`
-                : `${row.label}, count`
+                : row.entry === "minutes"
+                  ? `${row.label}, minutes`
+                  : `${row.label}, count`
           }
           value={draft ?? shown}
           disabled={disabled}

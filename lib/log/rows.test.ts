@@ -15,16 +15,17 @@ import {
   parseTime,
   parseValue,
   SET_SCALE_BY_ENTRY,
+  SKILL_UNITS_PER_ROW_UNIT,
   STEP_BY_ENTRY,
   stepValue,
 } from "./rows"
 
 /**
  * Tickets 0068 and 0071: `/log`'s rows are the registry's, in its order, with its numbers.
- * Run against the real v3 registry — the newest, which the operator's ledger moves onto at
- * `0240`'s replay — so a YAML edit that changes what `/log` shows fails here, not in the browser.
+ * Run against the real v4 registry — the newest, which the operator's ledger moves onto at
+ * `0329`'s replay — so a YAML edit that changes what `/log` shows fails here, not in the browser.
  */
-const registry = loadRuleSet(3)
+const registry = loadRuleSet(4)
 
 describe("logRows — one row per hand-loggable exercise, from the registry (0068)", () => {
   const rows = logRows(registry)
@@ -64,6 +65,15 @@ describe("logRows — one row per hand-loggable exercise, from the registry (006
     for (const r of rows.filter((r) => r.entry !== "distance")) expect(r.optionalTime).toBe(false)
   })
 
+  it("a minutes exercise is a whole-minute row, floored at its credit in minutes (D-469)", () => {
+    const minutes = rows.filter((r) => r.entry === "minutes")
+    expect(minutes.length).toBeGreaterThan(0)
+    for (const r of minutes) {
+      expect(r).toMatchObject({ step: 5, decimals: 0, min: 1, fallback: 30 })
+      expect(formatValue(r, r.fallback)).toBe("30 min")
+    }
+  })
+
   it("labels each row in plain English, never the schema's unit word (0071)", () => {
     for (const r of rows) {
       expect(r.label).not.toMatch(/^(rep|reps|second|seconds)$/)
@@ -72,8 +82,8 @@ describe("logRows — one row per hand-loggable exercise, from the registry (006
     }
   })
 
-  it("steps by entry kind — count ±5, seconds ±15 (D-282), distance ±0.5 km (D-286)", () => {
-    expect(STEP_BY_ENTRY).toEqual({ count: 5, seconds: 15, distance: 0.5 })
+  it("steps by entry kind — count ±5, seconds ±15 (D-282), distance ±0.5 km (D-286), minutes ±5 (D-469)", () => {
+    expect(STEP_BY_ENTRY).toEqual({ count: 5, seconds: 15, distance: 0.5, minutes: 5 })
     for (const r of rows) expect(r.step).toBe(STEP_BY_ENTRY[r.entry])
   })
 
@@ -83,7 +93,8 @@ describe("logRows — one row per hand-loggable exercise, from the registry (006
       const ex = skill.exercises!.find((e) => e.id === r.exerciseId)!
       // Rounded UP to the row's precision: whole units for counts and seconds, 0.1 km for a distance.
       const unit = 10 ** -DECIMALS_BY_ENTRY[r.entry]
-      expect(r.min).toBeCloseTo(Math.max(unit, Math.ceil(skill.minUnitsForCredit / unit) * unit), 9)
+      const credit = skill.minUnitsForCredit / SKILL_UNITS_PER_ROW_UNIT[r.entry]
+      expect(r.min).toBeCloseTo(Math.max(unit, Math.ceil(credit / unit) * unit), 9)
       expect(r.fallback).toBe(Math.max(r.min, ex.quickValues[0]))
     }
   })
@@ -155,6 +166,19 @@ describe("the stepper's arithmetic (0071)", () => {
     expect(parseValue(km, "five")).toBeNull()
   })
 
+  it("a minutes row steps by 5, shows `min`, and reads a bare number as minutes (D-469)", () => {
+    const mins = { entry: "minutes" as const, step: 5, min: 1 }
+    expect(stepValue(mins, 30, 1)).toBe(35)
+    expect(stepValue(mins, 3, -1)).toBe(1)
+    expect(formatValue(mins, 30)).toBe("30 min")
+    expect(formatValue(mins, 90)).toBe("90 min")
+    expect(parseValue(mins, "30")).toBe(30)
+    expect(parseValue(mins, " 45 min ")).toBe(45)
+    expect(parseValue(mins, "45MIN")).toBe(45)
+    expect(parseValue(mins, "30:00")).toBeNull()
+    expect(parseValue(mins, "thirty")).toBeNull()
+  })
+
   it("reads and writes an optional time", () => {
     expect(parseTime("30:00")).toBe(1800)
     expect(parseTime("1:02:05")).toBe(3725)
@@ -184,7 +208,7 @@ describe("what one click sends", () => {
     for (const r of rows) {
       const set = entrySetFor(r, 30, registry)
       expect(Object.values(set)).toEqual([30 * SET_SCALE_BY_ENTRY[r.entry]])
-      expect(Object.keys(set)[0]).toBe({ seconds: "durationS", count: "reps", distance: "distanceM" }[r.entry])
+      expect(Object.keys(set)[0]).toBe({ seconds: "durationS", count: "reps", distance: "distanceM", minutes: "durationS" }[r.entry])
     }
   })
 
@@ -204,6 +228,13 @@ describe("what one click sends", () => {
     const entry = entryFor(r, 5.5, registry, { now: new Date(0), idempotencyKey: "k", timezone: undefined, durationS: 1800 })
     expect(entry.sets).toEqual([{ distanceM: 5500, durationS: 1800 }])
     expect(parseWorkoutEntry(entry, registry)).toMatchObject({ sets: [{ distanceM: 5500, durationS: 1800 }], kind: "run" })
+  })
+
+  it("a minutes log sends seconds, and the server accepts it as the exercise's time (D-469)", () => {
+    const r = rows.find((x) => x.entry === "minutes")!
+    const entry = entryFor(r, 30, registry, { now: new Date(0), idempotencyKey: "k", timezone: undefined })
+    expect(entry.sets).toEqual([{ durationS: 1800 }])
+    expect(parseWorkoutEntry(entry, registry)).toMatchObject({ sets: [{ durationS: 1800 }], kind: "strength" })
   })
 
   it("omits timezone when the browser offers none", () => {

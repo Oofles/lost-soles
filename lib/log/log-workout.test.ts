@@ -213,3 +213,46 @@ describe("a hand-logged distance (0240, D-286)", () => {
     expect(activityOf(h).kind).toBe("strength")
   })
 })
+
+/**
+ * `0329`, D-469: a hand-logged yoga session through the UNCHANGED `processActivity`, under v4.
+ * The row is minutes; the set is seconds, so Poise's `seconds:yoga` measure sums it as the
+ * existing duration kernel does a plank's. 30 minutes at 0.5 XP/s is session parity: 900.
+ */
+describe("a hand-logged yoga session (0329, D-469)", () => {
+  const V4 = loadRuleSet(4)
+  const skill = V4.skills.find((s) => s.exercises?.some((e) => e.entry === "minutes"))!
+  const exercise = skill.exercises!.find((e) => e.entry === "minutes")!
+  const yoga = { exerciseId: exercise.id, sets: [{ durationS: 1800 }], idempotencyKey: "k-yoga", timezone: "America/Denver" }
+  const ledgerXp = (h: ReturnType<typeof harness>, id: string) =>
+    Number(h.transacts[0]!.TransactItems!.find((i) => i.Put?.TableName === LEDGER_TABLE && i.Put.Item!.skillId === id)!.Put!.Item!.xpAwarded)
+
+  it("thirty minutes awards the skill 900 and its feed a third, and nothing else", async () => {
+    const h = harness({}, false, V4)
+    expect(await logWorkout(yoga, USER, h.deps)).toMatchObject({ logged: true })
+    const feeds = (skill.feeds ?? []).map((f) => f.skill)
+    expect(new Set(ledgerSkills(h.transacts))).toEqual(new Set([skill.id, ...feeds]))
+    expect(ledgerXp(h, skill.id)).toBe(900)
+    for (const f of skill.feeds ?? []) expect(ledgerXp(h, f.skill)).toBeCloseTo(900 * f.rate, 0)
+  })
+
+  it("reveals no ground: no cell, no blob, no generation", async () => {
+    const h = harness({}, false, V4)
+    await logWorkout(yoga, USER, h.deps)
+    expect(h.cellWrites).toEqual([])
+    expect(h.blobPuts).toEqual([])
+    expect(h.calls).not.toContain("generation")
+  })
+
+  it("an hour and a half is soft-capped past the first hour (04 §3.5)", async () => {
+    const h = harness({}, false, V4)
+    await logWorkout({ ...yoga, sets: [{ durationS: 5400 }] }, USER, h.deps)
+    // 3600 s at full rate, then 1800 s at half: (3600 + 900) × 0.5.
+    expect(ledgerXp(h, skill.id)).toBe(2250)
+  })
+
+  it("is refused under v3, which has no such exercise", async () => {
+    const h = harness({}, false, loadRuleSet(3))
+    await expect(logWorkout(yoga, USER, h.deps)).rejects.toBeInstanceOf(LogWorkoutRefused)
+  })
+})

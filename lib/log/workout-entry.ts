@@ -115,6 +115,7 @@ export const OPTIONAL_FIELDS_BY_ENTRY: Record<RuleExercise["entry"], readonly Se
   count: [],
   seconds: [],
   distance: [SET_FIELDS.seconds],
+  minutes: [],
 }
 
 /** The enabled activity row that logs `exerciseId`, and the exercise itself. */

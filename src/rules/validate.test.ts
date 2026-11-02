@@ -536,4 +536,17 @@ describe("exercises — what /log can hand-log against a row", () => {
     const dup = broken((r) => (vigil(r).exercises = [{ ...treadmill, id: "pushup" }]))
     expect(dup.map((e) => e.message).join(" ")).toMatch(/duplicate exercise id "pushup"/)
   })
+
+  it("the shipped v4 validates, with its minutes exercise (0329, D-469)", () => {
+    expect(validateRuleSet(parseRuleSetFile(4))).toEqual([])
+  })
+
+  it("a minutes entry agrees with seconds:<id> as a seconds entry does, and with nothing else", () => {
+    const endurance = (r: Record<string, unknown>) => find(r, "endurance")
+    const plankInMinutes = { id: "plank", label: "Plank", entry: "minutes", quickValues: [2] }
+    expect(broken((r) => (endurance(r).exercises = [plankInMinutes]))).toEqual([])
+    expect(paths(broken((r) => (might(r).exercises = [{ ...plankInMinutes, id: "pushup" }])))).toEqual([
+      `skills[${at("might")}].exercises[0].entry`,
+    ])
+  })
 })

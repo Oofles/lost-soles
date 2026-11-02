@@ -59,8 +59,10 @@ export interface RuleExercise {
   /**
    * What `/log`'s stepper counts. `distance` (`0240`, D-286) is kilometres on the row and whole
    * metres in the set (`WorkoutSet.distanceM`), and only sits on a `distanceKm` skill.
+   * `minutes` (`0329`, D-469) is whole minutes on the row and seconds in the set
+   * (`WorkoutSet.durationS`), on a `seconds:<id>` skill exactly as `seconds` is.
    */
-  entry: "count" | "seconds" | "distance"
+  entry: "count" | "seconds" | "distance" | "minutes"
   quickValues: number[]
   /**
    * The `ActivityKind` a log of this exercise IS. Absent means `strength`, which every exercise

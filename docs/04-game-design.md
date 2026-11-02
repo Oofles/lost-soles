@@ -51,6 +51,7 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 | **Might** | Pushups | rep | Pressing strength. |
 | **Fortitude** | Situps | rep | The core. Endurance of the trunk. |
 | **Endurance** | Planks | second | Holding a position against time. |
+| **Poise** | Yoga (vinyasa) | second | Balance and control under load: mostly flexibility, some strength. Logged in minutes (D-469). |
 
 **Meta skills** — never trained directly, only as a by-product of activity skills.
 
@@ -60,10 +61,10 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 | **Constitution** | 1/3 of *all* activity-skill XP | Total lifetime volume. Always high. |
 | **Slayer** | Encounter and boss damage (§5) | POST-MVP — out of MVP per D-122. |
 
-MVP ships **nine enabled skills**: seven activity skills — Wayfaring, Vigil, Roving, Cadence,
-Might, Fortitude, Endurance — plus Cartography and Constitution (**D-122** — Slayer ships
+The registry ships **ten enabled skills**: eight activity skills — Wayfaring, Vigil, Roving, Cadence,
+Might, Fortitude, Endurance, Poise — plus Cartography and Constitution (**D-122** — Slayer ships
 `enabled: false` because combat is out). Six was the count before D-132 added Vigil (ticket
-`0028`) and D-189 added the cycling pair (ticket `0157`); the newest `rules/xp-rules-vN.yaml` is
+`0028`), D-189 added the cycling pair (ticket `0157`) and D-469 added Poise (ticket `0329`, v4); the newest `rules/xp-rules-vN.yaml` is
 the authority and this list follows it, never the other way round. The tables and counts in this
 section, and in §3.2, are asserted against that file by `scripts/check-doc-ruleset.mjs` (D-193,
 ticket `0162`): a row added to the YAML fails the build until it is added here.
@@ -730,6 +731,7 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 | Might | `rep` (pushup) | **4** | 75 = 300 |
 | Fortitude | `rep` (situp) | **3** | 90 = 270 |
 | Endurance | `second` (plank) | **1.5** (90/min) | 180 s = 270 |
+| Poise | `second` (yoga) | **0.5** (30/min) | 1800 s = 900 |
 | Cartography | `cell` (new) | **2.15** (D-279) | 411 cells = 884 |
 | Constitution | `share` | 1/3 of activity XP | run 295 / strength 280 |
 
@@ -749,6 +751,11 @@ worth about the same total XP as one typical hard session of anything else.*
 - Typical run: 8.85 km → **885 XP** (fully new ground) or ~500 XP (mostly repeat).
 - Typical strength session: 75 pushups + 90 situps + 180 s plank →
   300 + 270 + 270 = **840 XP**.
+
+- Typical yoga session (D-469): 30 minutes of vinyasa at 30 XP/min → **900 XP**. The
+  operator's real session length, not an assumed one. Vinyasa's strength component has no
+  activity skill of its own to land in (feeds only reach meta skills), so it is priced into the
+  rate and reaches Constitution through Poise's usual third.
 
 Those match, deliberately. Within the strength session, the internal ratios are:
 

@@ -192,18 +192,18 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
  * `reps:<id>` / `seconds:<id>` measure; a distance entry and a declared `kind` are the first
  * shapes that can be wrong in a way that scores nothing rather than failing loudly.
  *
- * - `entry` is one of the three, and agrees with the row's measure: `count` ⇒ `reps:<id>`,
- *   `seconds` ⇒ `seconds:<id>`, `distance` ⇒ `distanceKm`. Keyed on the entry enum, as
+ * - `entry` is one of the four, and agrees with the row's measure: `count` ⇒ `reps:<id>`,
+ *   `seconds` and `minutes` ⇒ `seconds:<id>`, `distance` ⇒ `distanceKm`. Keyed on the entry enum, as
  *   `/log`'s `STEP_BY_ENTRY` is.
  * - `kind`, when present, is an ActivityKind the row's `match.kinds` admits. Absent means
  *   `strength`, which must then be admitted too — a log the row would not match scores zero.
  * - An exercise id is unique across the whole ruleset, because a log names only the exercise.
  */
-const ENTRY_KINDS = ["count", "seconds", "distance"] as const
+const ENTRY_KINDS = ["count", "seconds", "distance", "minutes"] as const
 
 function entryAgreesWithMeasure(entry: string, exerciseId: string, measure: unknown): boolean {
   if (entry === "count") return measure === `reps:${exerciseId}`
-  if (entry === "seconds") return measure === `seconds:${exerciseId}`
+  if (entry === "seconds" || entry === "minutes") return measure === `seconds:${exerciseId}`
   return measure === "distanceKm"
 }
 

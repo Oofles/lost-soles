@@ -29,6 +29,8 @@ export const STEP_BY_ENTRY: Record<RuleExercise["entry"], number> = {
   seconds: 15,
   /** Kilometres. `0240`, D-286. */
   distance: 0.5,
+  /** Whole minutes: a class is five-minute granular, a plank is not. `0329`, D-469. */
+  minutes: 5,
 }
 
 /**
@@ -39,16 +41,31 @@ export const DECIMALS_BY_ENTRY: Record<RuleExercise["entry"], number> = {
   count: 0,
   seconds: 0,
   distance: 1,
+  minutes: 0,
 }
 
 /**
  * What one unit on the row is in the SET, by entry kind. A set carries integers; a distance row
- * shows kilometres and its set carries whole metres (`WorkoutSet.distanceM`, D-286).
+ * shows kilometres and its set carries whole metres (`WorkoutSet.distanceM`, D-286); a minutes
+ * row shows minutes and its set carries seconds (`WorkoutSet.durationS`, D-469).
  */
 export const SET_SCALE_BY_ENTRY: Record<RuleExercise["entry"], number> = {
   count: 1,
   seconds: 1,
   distance: 1000,
+  minutes: 60,
+}
+
+/**
+ * How many of the SKILL's units one unit on the row is, by entry kind — what turns the registry's
+ * `minUnitsForCredit` into the stepper's floor. Only a minutes row differs: its skill counts
+ * seconds (`unit: second`) and the row counts minutes (D-469).
+ */
+export const SKILL_UNITS_PER_ROW_UNIT: Record<RuleExercise["entry"], number> = {
+  count: 1,
+  seconds: 1,
+  distance: 1,
+  minutes: 60,
 }
 
 export interface LogRow {
@@ -79,7 +96,8 @@ export function logRows(registry: { skills: readonly RuleSkill[] }): LogRow[] {
       (skill.exercises ?? []).map((ex): LogRow => {
         const decimals = DECIMALS_BY_ENTRY[ex.entry]
         const unit = 10 ** -decimals
-        const min = Math.max(unit, roundTo(Math.ceil(skill.minUnitsForCredit / unit) * unit, decimals))
+        const credit = skill.minUnitsForCredit / SKILL_UNITS_PER_ROW_UNIT[ex.entry]
+        const min = Math.max(unit, roundTo(Math.ceil(credit / unit) * unit, decimals))
         return {
           skillId: skill.id,
           skillName: skill.name,
@@ -117,9 +135,11 @@ export function stepValue(
   return clampValue(row, value + direction * row.step)
 }
 
-/** `30` for a count, `1:30` for seconds, `5.0 km` for a distance. What the number on the row shows. */
+/** `30` for a count, `1:30` for seconds, `5.0 km` for a distance, `30 min` for minutes. What the
+ *  number on the row shows. */
 export function formatValue(row: Pick<LogRow, "entry">, value: number): string {
   if (row.entry === "distance") return `${value.toFixed(DECIMALS_BY_ENTRY.distance)} km`
+  if (row.entry === "minutes") return `${value} min`
   if (row.entry !== "seconds") return String(value)
   return formatTime(value)
 }
@@ -145,14 +165,19 @@ export function parseTime(text: string): number | null {
 
 /**
  * What the typed number means, or `null` if it means nothing. A seconds row takes `1:30` or a
- * bare `90`; a count row takes an integer. Not clamped here — the caller clamps, so a typed `0`
- * becomes the minimum rather than being refused.
+ * bare `90`; a minutes row takes `30` or `30 min`, both thirty minutes; a count row takes an
+ * integer. Not clamped here — the caller clamps, so a typed `0` becomes the minimum rather than
+ * being refused.
  */
 export function parseValue(row: Pick<LogRow, "entry">, text: string): number | null {
   const t = text.trim()
   if (row.entry === "distance") {
     const km = /^(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:km)?$/i.exec(t)
     return km ? Number(km[1].replace(",", ".")) : null
+  }
+  if (row.entry === "minutes") {
+    const min = /^(\d{1,3})\s*(?:min)?$/i.exec(t)
+    return min ? Number(min[1]) : null
   }
   if (row.entry === "seconds") {
     const mmss = /^(\d{1,3}):([0-5]\d)$/.exec(t)

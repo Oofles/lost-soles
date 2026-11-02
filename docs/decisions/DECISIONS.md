@@ -6222,3 +6222,30 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   the live Σ comparison the capability audits run (71,749 = 71,749 at `0117`). A scheduled sweep
   would add a Lambda and an alarm to watch an equation that three other checks already pin.
   **Reopen** if D-123's Trigger A fires, or the first time any of those checks finds a mismatch.
+- **D-469** **Yoga is a workout type: the Poise skill, 30 XP per minute, logged in whole minutes
+  through a new `minutes` entry kind. It ships as rules v4.**
+  *(Operator, 2026-11-02, ticket `0329`. The operator began a vinyasa plan: mostly flexibility,
+  some strength, and a session is a duration, e.g. 30 minutes.)*
+  - **Skill.** `poise`, an activity row over a new measure `seconds:yoga` on the existing
+    `seconds:` kernel. No scorer change: a new skill over an existing kernel is a row (`02` §3.7).
+    - Rejected names: Flow (only the movement-linking half of vinyasa), Grace.
+  - **Rate.** 0.5 XP/s = 30 XP/min. This is session parity (`04` §3.2) at the operator's real
+    session: 30 minutes = 900, against a run's 885 and a ride's 900. `softCapUnits: 3600`, so
+    full rate for an hour and then the standard halving. `sanityCeilingUnits: 10800`.
+    - Rejected: 20 XP/min (yoga as lighter work) and 45 XP/min (yoga above a run).
+  - **Strength.** Feeds Constitution at the usual 0.3333 and nothing else. Feeds may only target
+    meta skills (`02` §3.8 check 1b), so the strength side of vinyasa is priced into the rate.
+    - Rejected: a higher Constitution share (breaks the uniform third `04` §1.1 states), and
+      crediting Might (an activity→activity feed the validator forbids; a schema change).
+  - **Entry.** `RuleExercise.entry` gains `minutes`. The row shows `30 min`, steps ±5, and reads a
+    typed bare number as minutes; the set carries `durationS` (×60). The validator requires
+    `minutes` ⇒ `seconds:<id>`, as for `seconds`. Keyed on the entry enum (`STEP_BY_ENTRY`,
+    `SET_SCALE_BY_ENTRY`, and a new `SKILL_UNITS_PER_ROW_UNIT` that turns `minUnitsForCredit`
+    seconds into the stepper's floor in minutes), so a later minute-logged workout is YAML only.
+    - Rejected: reusing `entry: seconds`. Zero code, but ±15 s steps and a typed `30` logging 30
+      seconds are wrong for a class.
+  - **Versioning.** v4 is v3 plus the Poise row, `introducedIn: 4`, so its level 1 is minted and
+    fires no card (D-146). A replay onto v4 moves no XP.
+  - **Out of scope.** Strava `Yoga` activities stay archived and un-ingested (`03` §2.6). A Strava
+    activity carries no sets, so `seconds:yoga` would read zero; ingesting them needs an
+    elapsed-time measure, and would be its own ticket.

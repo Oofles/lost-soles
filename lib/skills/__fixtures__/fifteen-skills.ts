@@ -3,7 +3,8 @@
  *
  * The newest bundled ruleset grown to fifteen enabled skills, the way the registry grows: rows
  * appended after the highest `displayOrder`, as a new version, and nothing existing touched.
- * Five more activity skills and one more meta, so both sections lengthen and no new one appears.
+ * One more meta and as many more activity skills as it takes to reach fifteen (five under v3,
+ * four once v4 added Poise), so both sections lengthen and no new one appears.
  *
  * TEST-ONLY. Never written to `rules/`. Each added row is a copy of an existing row of the same
  * kind with a new id and name: the panel reads `id`, `name`, `kind`, `enabled` and
@@ -16,7 +17,7 @@ import type { RuleSet, RuleSkill } from "@/src/rules/schema"
 
 export const BASE_RULES = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
 
-const ADDED: readonly { id: string; name: string; kind: RuleSkill["kind"] }[] = [
+const CANDIDATES: readonly { id: string; name: string; kind: RuleSkill["kind"] }[] = [
   { id: "yr10-swim", name: "Mountaineering", kind: "activity" },
   { id: "yr10-row", name: "Oarsmanship", kind: "activity" },
   { id: "yr10-climb", name: "Escalade", kind: "activity" },
@@ -36,5 +37,12 @@ export function appendSkills(base: RuleSet, rows: readonly { id: string; name: s
   })
   return { ...structuredClone(base), version, skills: [...structuredClone(base.skills), ...added] }
 }
+
+const baseEnabled = BASE_RULES.skills.filter((s) => s.enabled).length
+const activityNeeded = 15 - baseEnabled - 1
+const ADDED = [
+  ...CANDIDATES.filter((r) => r.kind === "activity").slice(0, activityNeeded),
+  ...CANDIDATES.filter((r) => r.kind === "meta"),
+]
 
 export const FIFTEEN = appendSkills(BASE_RULES, ADDED)

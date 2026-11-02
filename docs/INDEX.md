@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 17,052 lines; three of
+**Read by section, never whole** (D-151). These documents total 17,059 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 559 sections · regenerated 2026-10-28
+13 documents · 559 sections · regenerated 2026-11-02
 
 
 ## `docs/00-vision.md`
@@ -258,55 +258,55 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/04-game-design.md`
 
-**Lost Soles — RPG Systems Design** — 1,535 lines
+**Lost Soles — RPG Systems Design** — 1,542 lines
 
 | Section | Lines | Settles |
 |---|---|---|
 | 0. Design thesis | `13-35` | The user runs 3–5×/week, 3–8 miles, and has done so for years without an app. |
-| 1. The skill system | `36-513` | Per D-030 (hybrid), D-031 (activity skills, must be modular), D-032 (meta skills), |
-| &nbsp;&nbsp;↳ 1.1 The skills | `41-79` |  |
-| &nbsp;&nbsp;↳ 1.2 Total Level (D-033) | `80-121` | Total Level is the headline number on the home screen, not any individual skill. |
-| &nbsp;&nbsp;↳ 1.3 Skills are data, not code — the extensibility requirement (D-031) | `122-513` | This is the most load-bearing structural requirement in the document. |
-| 2. The XP curve | `514-694` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
-| &nbsp;&nbsp;↳ 2.1 Runescape's actual curve, and why it cannot be used | `516-558` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
-| &nbsp;&nbsp;↳ 2.2 The Lost Soles curve | `559-579` | That is a cubic in cumulative terms, C(L) ≈ (4/3)L³, versus Runescape's exponential. |
-| &nbsp;&nbsp;↳ 2.3 What this feels like in runs | `580-596` | Early levels arrive mid-run. |
-| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `597-679` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
-| &nbsp;&nbsp;↳ 2.5 Past 99 | `680-694` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
-| 3. XP awards, exactly | `695-899` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `697-721` | Every explored cell carries its visit history. |
-| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `722-776` | a 5-mile run is about 800. |
-| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `777-809` | three years and the skill flatlines forever. |
-| &nbsp;&nbsp;↳ 3.4 Constitution | `810-822` | Computed on post-multiplier XP — i.e. |
-| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `823-899` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
-| 4. Levels, milestones and feedback | `900-1023` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.1 The guarantee | `902-922` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
-| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `923-971` | This is the core reward loop. |
-| &nbsp;&nbsp;↳ 4.3 Milestone levels | `972-1013` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
-| &nbsp;&nbsp;↳ 4.4 Never punish | `1014-1023` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
-| 5. Combat — POST-MVP | `1024-1162` | so the Slayer skill row already exists in the ruleset (disabled). |
-| &nbsp;&nbsp;↳ 5.1 Fiction | `1035-1045` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
-| &nbsp;&nbsp;↳ 5.2 Player Power | `1046-1061` | Power = round( 0.40 × Wayfaring |
-| &nbsp;&nbsp;↳ 5.3 Map encounters | `1062-1117` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
-| &nbsp;&nbsp;↳ 5.4 Boss quests | `1118-1162` | The problem boss quests solve: rest days and strength days must matter (D-040). |
-| 6. Equipment and loot — POST-MVP | `1163-1225` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
-| &nbsp;&nbsp;↳ 6.1 Rules | `1167-1178` | durability, no consumables, no crafting. |
-| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1179-1206` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
-| &nbsp;&nbsp;↳ 6.3 Sources | `1207-1225` | That last row is the one that matters most. |
-| 7. Balance safety — rebalancing without rewriting history | `1226-1325` | The system will be mis-tuned on the first try. |
-| &nbsp;&nbsp;↳ 7.1 The invariant | `1231-1244` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
-| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1245-1262` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
-| &nbsp;&nbsp;↳ 7.3 The ledger | `1263-1279` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
-| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1280-1296` | the derived layer, §3.5, not be baked in at ingest) |
-| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1297-1312` | A rebalance that reduces rates would de-level the user. |
-| &nbsp;&nbsp;↳ 7.6 Operational notes | `1313-1325` | not a recompute path. |
-| 8. Worked examples | `1326-1483` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
-| &nbsp;&nbsp;↳ 8.1 The pipeline | `1331-1350` | segment < 5 m [§3.5] |
-| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1351-1435` | distance = 5.2 mi × 1.609344 = 8.369 km |
-| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1436-1483` | Pushups 3 × 25 = 75 reps |
-| 9. Summary of judgment calls, for overruling | `1484-1497` | Everything here is a call I made that no decision covers. |
-| 10. Open questions for later documents | `1498-1515` | (R4), but every Cartography number here scales with it linearly. |
-| ADDENDUM — Round 4 user decisions (2026-08-30) | `1516-1535` | Confirmed after this document was written. |
+| 1. The skill system | `36-514` | Per D-030 (hybrid), D-031 (activity skills, must be modular), D-032 (meta skills), |
+| &nbsp;&nbsp;↳ 1.1 The skills | `41-80` |  |
+| &nbsp;&nbsp;↳ 1.2 Total Level (D-033) | `81-122` | Total Level is the headline number on the home screen, not any individual skill. |
+| &nbsp;&nbsp;↳ 1.3 Skills are data, not code — the extensibility requirement (D-031) | `123-514` | This is the most load-bearing structural requirement in the document. |
+| 2. The XP curve | `515-695` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
+| &nbsp;&nbsp;↳ 2.1 Runescape's actual curve, and why it cannot be used | `517-559` | XP(L) = floor( (1/4) Σ{i=1}^{L-1} floor( i + 300 2^(i/7) ) ) |
+| &nbsp;&nbsp;↳ 2.2 The Lost Soles curve | `560-580` | That is a cubic in cumulative terms, C(L) ≈ (4/3)L³, versus Runescape's exponential. |
+| &nbsp;&nbsp;↳ 2.3 What this feels like in runs | `581-597` | Early levels arrive mid-run. |
+| &nbsp;&nbsp;↳ 2.4 Progression table — the actual math | `598-680` | pushups, 14,040 situps and 28,080 plank-seconds a year. |
+| &nbsp;&nbsp;↳ 2.5 Past 99 | `681-695` | a permanent gold-leaf crest beside the skill, and a landmark on the map. |
+| 3. XP awards, exactly | `696-906` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.1 Ground classification (D-120) | `698-722` | Every explored cell carries its visit history. |
+| &nbsp;&nbsp;↳ 3.2 Rates, and why these ratios | `723-783` | a 5-mile run is about 800. |
+| &nbsp;&nbsp;↳ 3.3 Cartography, specifically | `784-816` | three years and the skill flatlines forever. |
+| &nbsp;&nbsp;↳ 3.4 Constitution | `817-829` | Computed on post-multiplier XP — i.e. |
+| &nbsp;&nbsp;↳ 3.5 Degenerate cases | `830-906` | jitter, a fat-fingered zero, a forgotten stopwatch — from corrupting a permanent record. |
+| 4. Levels, milestones and feedback | `907-1030` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.1 The guarantee | `909-929` | central promise and the curve alone does not deliver it — at Wayfaring 90, a run is 1.8% of a |
+| &nbsp;&nbsp;↳ 4.2 The import moment — "Return from the Fog" | `930-978` | This is the core reward loop. |
+| &nbsp;&nbsp;↳ 4.3 Milestone levels | `979-1020` | Milestones tied to place are the strongest ones this app has, because they cost nothing to |
+| &nbsp;&nbsp;↳ 4.4 Never punish | `1021-1030` | There is no XP loss, no decay, no de-levelling, no expiring buff, and no state that requires |
+| 5. Combat — POST-MVP | `1031-1169` | so the Slayer skill row already exists in the ruleset (disabled). |
+| &nbsp;&nbsp;↳ 5.1 Fiction | `1042-1052` | The fog is not weather. It is forgetting. Souls that lost their way are still out there in it, |
+| &nbsp;&nbsp;↳ 5.2 Player Power | `1053-1068` | Power = round( 0.40 × Wayfaring |
+| &nbsp;&nbsp;↳ 5.3 Map encounters | `1069-1124` | seed = hash(userId, h3CellIndex, floor(epochDays / 7)) |
+| &nbsp;&nbsp;↳ 5.4 Boss quests | `1125-1169` | The problem boss quests solve: rest days and strength days must matter (D-040). |
+| 6. Equipment and loot — POST-MVP | `1170-1232` | Out of MVP (D-122). D-013 is the whole design brief here: upkeep is the enemy. |
+| &nbsp;&nbsp;↳ 6.1 Rules | `1174-1185` | durability, no consumables, no crafting. |
+| &nbsp;&nbsp;↳ 6.2 Slots and effects | `1186-1213` | odds (about +37 percentage points of win chance at the extreme, from (P−T)/40). |
+| &nbsp;&nbsp;↳ 6.3 Sources | `1214-1232` | That last row is the one that matters most. |
+| 7. Balance safety — rebalancing without rewriting history | `1233-1332` | The system will be mis-tuned on the first try. |
+| &nbsp;&nbsp;↳ 7.1 The invariant | `1238-1251` | A rebalance is: write xp-rules-v2.yaml, run the replay job, done. |
+| &nbsp;&nbsp;↳ 7.2 Facts, precisely | `1252-1269` | Activity { id, userId, source, sourceActivityId, startedAt, durationSec, |
+| &nbsp;&nbsp;↳ 7.3 The ledger | `1270-1286` | XpLedger { activityId, skillId, reason, units, unitsEffective, |
+| &nbsp;&nbsp;↳ 7.4 Replay determinism | `1287-1303` | the derived layer, §3.5, not be baked in at ingest) |
+| &nbsp;&nbsp;↳ 7.5 Levels are memories — the high-water rule | `1304-1319` | A rebalance that reduces rates would de-level the user. |
+| &nbsp;&nbsp;↳ 7.6 Operational notes | `1320-1332` | not a recompute path. |
+| 8. Worked examples | `1333-1490` | Unambiguous, end-to-end. This is the section to build from. All numbers use |
+| &nbsp;&nbsp;↳ 8.1 The pipeline | `1338-1357` | segment < 5 m [§3.5] |
+| &nbsp;&nbsp;↳ 8.2 Example A — a 5.2-mile run, 38% new ground | `1358-1442` | distance = 5.2 mi × 1.609344 = 8.369 km |
+| &nbsp;&nbsp;↳ 8.3 Example B — a strength session, the next day | `1443-1490` | Pushups 3 × 25 = 75 reps |
+| 9. Summary of judgment calls, for overruling | `1491-1504` | Everything here is a call I made that no decision covers. |
+| 10. Open questions for later documents | `1505-1522` | (R4), but every Cartography number here scales with it linearly. |
+| ADDENDUM — Round 4 user decisions (2026-08-30) | `1523-1542` | Confirmed after this document was written. |
 
 ## `docs/05-fog-of-war.md`
 
