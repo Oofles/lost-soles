@@ -7649,7 +7649,7 @@
     "path": "tickets/open/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
     "ready": true,
     "acceptance": {
-      "checked": 6,
+      "checked": 8,
       "total": 8
     }
   },

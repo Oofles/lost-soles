@@ -49,7 +49,7 @@ one function every server reader goes through learns to accept it.
 
 - [x] `lib/auth/config.ts` is byte-identical to `school-hub`'s, apart from a header comment naming the
       source commit. A test or script asserts the diff is header-only.
-- [ ] `GET /api/authjs/providers` on production returns exactly one provider, `google`.
+- [x] `GET /api/authjs/providers` on production returns exactly one provider, `google`. — verified 2026-11-02 after Amplify job 444: `['google']`.
       *(Post-deploy: the orchestrator's smoke test. Proved locally against `next build` + `next start`:
       200, exactly `{"google":…}`, `Cache-Control: no-store, private`.)*
 - [x] `currentUserId()` unit tests: a mapped allowlisted email → owner uid; an allowlisted unmapped
@@ -62,9 +62,9 @@ one function every server reader goes through learns to accept it.
 - [x] The secret grep over `.next/static` covers `AUTH_SECRET` and `GOOGLE_CLIENT_SECRET` and fails
       on a planted value (self-test).
 - [x] `08` §3 gains rows S10 and S11, and §5.3's CSRF row is rewritten, citing D-471.
-- [ ] The stale `AGENT_SANDBOX_PASSWORD` parameter is deleted.
+- [x] The stale `AGENT_SANDBOX_PASSWORD` parameter is deleted.
       *(Not done by the build agent: AWS is read-only in a wave (WAVES §3). The orchestrator deletes
-      it before close.)*
+      it before close.)* — done 2026-11-02 by the operator's run of the orchestrator's SSM setup script; `get-parameter` now returns ParameterNotFound.
 
 ## Notes
 
@@ -79,9 +79,28 @@ Prove it on the deploy with the providers smoke test. Do not assume it.
 
 ## Operator validation
 
-Agent smoke tests: `curl` the providers route; deploy log shows the secret grep ran with the new
-values; `aws ssm get-parameter` on the deleted path returns ParameterNotFound. No operator step:
-nothing visible changes in this ticket.
+No perceptual check: nothing visible changes in this ticket. Agent smoke tests, 2026-11-02, after
+Amplify job 444 (commit `76c944e`, BUILD/DEPLOY/VERIFY all SUCCEED):
+
+- `GET /api/authjs/providers` → `['google']`.
+- Sign-in start: `GET /api/authjs/csrf`, then `POST /api/authjs/signin/google` → `Location` on
+  `accounts.google.com` with a non-empty `client_id` and
+  `redirect_uri=https://soles.devaultsecurity.com/api/authjs/callback/google`. This proves route
+  handlers read `.env.production` **at request time** on Amplify. Signing the state and PKCE cookies
+  needs `AUTH_SECRET`, and the redirect needs `GOOGLE_CLIENT_ID`.
+- Build log: `Auth.js env written to .env.production: 6 of 6`. The bundle-leak scan of literals
+  covered `AUTH_SECRET` and `GOOGLE_CLIENT_SECRET`, and its planted-value self-tests fired.
+- Signed out: `/log` → 307; `POST /api/log` with a `school-hub` Origin → 404. Middleware refuses a
+  signed-out API call before the route's Origin check runs. The signed-in 403 path is covered by
+  the route tests.
+- `AGENT_SANDBOX_PASSWORD` → ParameterNotFound.
+
+**Not proven on production:** that **middleware** reads `AUTH_SECRET` at runtime (an Auth.js
+session admitted end to end). Proving it needs either a session minted with the shared secret, which
+the operator was asked about and has not answered, or a real Google sign-in. `0332`'s `(operator)`
+sign-in proves it, and `0332` cannot close without it. Route handlers demonstrably see the value, and
+the middleware ran on Node in the local `next start` run, so a gap here would be a surprise. It is
+recorded rather than assumed.
 
 D-123 trigger checked? **A** — restated by D-470, which re-affirms D-123. `IDENTITIES` holds the
 owner only.
