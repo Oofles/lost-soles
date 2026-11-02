@@ -15,14 +15,18 @@ import { ReplayInProgressError } from "@/src/pipeline/xp-ledger"
 import type { RuleSet } from "@/src/rules/schema"
 import { assertValidRuleSet } from "@/src/rules/validate"
 
+import { callerOf } from "../caller"
+
 /**
- * THE `setActivityKind` RESOLVER. Ticket `0244`. AppSync in, `src/pipeline/kind-rescore.ts` out —
+ * THE `setActivityKind` HANDLER. Ticket `0244`. `POST /api/runs/[activityId]/kind` in (D-472,
+ * `0331`), `src/pipeline/kind-rescore.ts` out —
  * the override, the cells and the re-score live there; the AWS clients and the identity live here.
  *
  * ─── WHO ─────────────────────────────────────────────────────────────────────
  *
- * `logWorkout`'s rule: the user is `event.identity.sub`, never an argument, and must be on the
- * owner allowlist. `rescoreKind` then refuses an activity that is not that user's, so the
+ * `logWorkout`'s rule: the user is `event.userId`, set by the route from `currentUserId()` on a
+ * direct invoke only the SSR compute role may make (`../caller.ts`; AppSync's `identity.sub` until
+ * `0334`), never a client field, and must be on the owner allowlist. `rescoreKind` then refuses an activity that is not that user's, so the
  * `activityId` argument cannot reach someone else's run.
  *
  * ─── ERRORS ──────────────────────────────────────────────────────────────────
@@ -47,11 +51,6 @@ function required(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is not set on set-activity-kind. It is wired in amplify/backend.ts.`)
   return value
-}
-
-interface AppSyncEvent {
-  arguments: { activityId?: unknown; kind?: unknown }
-  identity?: { sub?: string } | null
 }
 
 /** What the GraphQL `SetActivityKindResult` carries. Skill maps flattened to lists for the SDL. */
@@ -85,10 +84,10 @@ export function toResult(r: KindRescoreResult): SetActivityKindResult {
   }
 }
 
-export const handler = async (event: AppSyncEvent): Promise<SetActivityKindResult> => {
-  const userId = event.identity?.sub
+export const handler = async (event: unknown): Promise<SetActivityKindResult> => {
+  const { userId, args } = callerOf(event)
   if (!userId || !isOwner(userId)) throw new Error("REFUSED:NOT_OWNER: setActivityKind is owner-only")
-  const { activityId, kind } = event.arguments
+  const { activityId, kind } = args
   if (typeof activityId !== "string" || !activityId || typeof kind !== "string" || !kind) {
     throw new Error("REFUSED:BAD_ARGUMENTS: activityId and kind are required")
   }

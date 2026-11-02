@@ -41,7 +41,7 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 | Hosting + CI/CD | **AWS Amplify Gen 2**, `soles.devaultsecurity.com` | D-080 |
 | Framework | **Next.js 15, App Router**, SSR + route handlers | R5 (deliberate divergence from house Astro) |
 | Auth | **Cognito** user pool, Essentials tier, email + password (passkey planned, never enabled; `08` §5.1), self-signup OFF | R5 §3 |
-| Client-facing data | **AppSync + DynamoDB** via `defineData` | R5 §4 |
+| Client-facing data | **Same-origin route handlers** on the SSR compute, reading the `defineData` DynamoDB tables directly and invoking the two mutation Lambdas. AppSync stays as the tables' owner and has no browser caller (`0331`); was "AppSync + DynamoDB via `defineData`" | R5 §4, **D-472** |
 | Machine-only data | **DynamoDB tables created through the CDK escape hatch** | §2 below |
 | Object storage | **S3** via `defineStorage` (raw trace archive, `explored.bin`) | D-101, D-121.2 |
 | Compute | **Lambda** — Node 22, pure-JS deps only | R5 §5 |
@@ -54,7 +54,8 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 > `AUTH_ALLOWED_EMAILS` allowlist and a committed `email → uid` map onto the existing Cognito `sub`
 > (D-175, D-471). The **Client-facing data** row stops being client-facing: AppSync keeps the five
 > model tables under IAM-only auth with no caller, and the browser talks only to this app's own
-> routes (D-472). The table above is as built until `0332` and `0334` land.
+> routes (D-472). The browser half of that is built (`0331`, the row above); the IAM-only data auth
+> lands in `0334`. The Auth row is as built until `0332` and `0334` land.
 
 ### Why Next.js and not Astro
 

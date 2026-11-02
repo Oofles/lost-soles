@@ -12,7 +12,6 @@ import { connectSources, contentSecurityPolicy, securityHeaders, type CspOutputs
 
 const OUTPUTS: CspOutputs = {
   auth: { aws_region: "us-east-1" },
-  data: { url: "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql" },
   custom: { basemapTilesUrl: "https://d1example.cloudfront.net" },
 }
 
@@ -26,15 +25,24 @@ const directive = (csp: string, name: string) =>
 describe("the CSP (criterion 2)", () => {
   const csp = contentSecurityPolicy(OUTPUTS)
 
-  it("connect-src names exactly the app, AppSync, the tiles host and Cognito — no wildcard", () => {
+  it("connect-src names exactly the app, the tiles host and Cognito — no wildcard", () => {
     expect(directive(csp, "connect-src")).toEqual([
       "'self'",
-      "https://abc123.appsync-api.us-east-1.amazonaws.com",
       "https://d1example.cloudfront.net",
       "https://cognito-idp.us-east-1.amazonaws.com",
       "https://cognito-identity.us-east-1.amazonaws.com",
     ])
     expect(csp).not.toContain("*")
+  })
+
+  /**
+   * D-472, `0331`. `amplify_outputs.json` still carries `data.url` until `0334`, and the browser no
+   * longer talks to it. An AppSync host here would only widen where an XSS could send what it reads.
+   */
+  it("never names the AppSync endpoint, even though the outputs still carry it", () => {
+    const withData = { ...OUTPUTS, data: { url: "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql" } } as CspOutputs
+    expect(connectSources(withData).join(" ")).not.toMatch(/appsync/)
+    expect(contentSecurityPolicy(withData)).not.toMatch(/appsync/)
   })
 
   it("carries frame-ancestors 'none' and closes the non-fetch exfiltration paths", () => {
@@ -52,7 +60,6 @@ describe("the CSP (criterion 2)", () => {
 
   it("fails loudly rather than omit a host the map needs", () => {
     expect(() => connectSources({ ...OUTPUTS, custom: {} })).toThrow(/basemapTilesUrl/)
-    expect(() => connectSources({ ...OUTPUTS, data: {} })).toThrow(/data\.url/)
     expect(() => connectSources({ ...OUTPUTS, auth: {} })).toThrow(/aws_region/)
   })
 })

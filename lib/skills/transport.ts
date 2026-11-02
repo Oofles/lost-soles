@@ -1,83 +1,49 @@
 /**
- * THE BROWSER'S READS FOR `/skills`. Ticket 0073.
+ * THE BROWSER'S READS FOR `/skills`. Ticket 0073; same-origin since `0331` (D-472).
  *
  * `SkillState` comes through `/log`'s `fetchSkills` — one call, one cache key, so the two pages
  * can never show different standings. What is added here is what only the panel needs:
  *
  * - **Recent sessions** for the `NEXT` line: the newest ledger rows across every skill, from
- *   `XpLedgerEntry`'s `byUserAndSeq` index (GSI2), newest activity first and bounded. Never the
- *   whole ledger.
+ *   `XpLedgerEntry`'s `byUserAndSeq` index (GSI2), newest activity first and bounded
+ *   (`LEDGER_ROWS`). Never the whole ledger.
  *
  *   Not `bySkill` (GSI3): NEXT wants the newest sessions across every skill, and GSI3 is one
- *   skill's history. (Until 0242 it could not be queried through AppSync at all: its INCLUDE
- *   projection lacked `owner`, which AppSync's owner rule filters on. It now projects ALL.)
+ *   skill's history.
  * - **`Profile.replayInProgress`**, `0066`'s read-side gate (`02` §4.4 step 1).
+ * - **One skill's ledger and landmarks**, for its sheet, and every landmark for the home map.
  *
- * Owner-scoped by AppSync's auth rule; nothing here passes a user id it was not handed by the
- * session.
+ * Every call is a `GET` to this app's own `/api/skills/*` routes, which run as the SSR compute and
+ * key each read by the session (`lib/skills/server.ts`). The `uid` parameters are kept so no caller
+ * changed, and are NOT sent: the server never takes a user id from the browser (`08` §5.3).
  */
 
-import type { Schema } from "@/amplify/data/resource"
-import { withApiTimeout } from "@/lib/http/timeout"
-import { errorFrom } from "@/lib/log/transport"
+import { sameOriginJson } from "@/lib/http/same-origin-json"
 
 import type { DetailLedgerRow, LandmarkRow } from "./detail"
 import type { SkillLedgerRow } from "./next"
+import {
+  SKILL_PARAM,
+  SKILLS_LANDMARKS_PATH,
+  SKILLS_LEDGER_PATH,
+  SKILLS_PROFILE_PATH,
+  type ProfileFlags,
+} from "./wire"
 
-/**
- * How many of the newest ledger rows are read. A session is one to five rows (one per skill and
- * reason), so this covers the last ~100 activities: every skill trained in that window gets its
- * trailing median, and one not trained in it gets no estimate, which is honest.
- */
-export const LEDGER_ROWS = 500
-const PAGE = 250
+export { LEDGER_ROWS } from "./wire"
 
-type DataClient = ReturnType<typeof import("aws-amplify/data").generateClient<Schema>>
-let client: Promise<DataClient> | undefined
-
-function dataClient(): Promise<DataClient> {
-  client ??= import("aws-amplify/data").then(({ generateClient }) => generateClient<Schema>())
-  return client
-}
-
-/** `06` §9.5's 10 s, the shared helper (0113). Amplify's data client takes no signal; the race is the timeout. */
-function timed<T>(p: Promise<T>, what: string): Promise<T> {
-  return withApiTimeout(what, () => p)
-}
+const forSkill = (path: string, skillId: string) => `${path}?${new URLSearchParams({ [SKILL_PARAM]: skillId })}`
 
 /** The user's newest ledger rows, newest activity first, at most `LEDGER_ROWS`. */
 export async function fetchRecentLedger(uid: string): Promise<SkillLedgerRow[]> {
-  const c = await dataClient()
-  const out: SkillLedgerRow[] = []
-  let nextToken: string | null | undefined
-  do {
-    const { data, errors, nextToken: more } = await timed(
-      c.models.XpLedgerEntry.listXpLedgerEntryByUserIdAndSeq(
-        { userId: uid },
-        {
-          sortDirection: "DESC",
-          limit: Math.min(PAGE, LEDGER_ROWS - out.length),
-          nextToken,
-          selectionSet: ["skillId", "activityId", "xpAwarded", "xpRulesVersion", "isFloor", "seq"],
-        },
-      ),
-      "XpLedgerEntry.byUserAndSeq",
-    )
-    if (errors?.length) throw errorFrom(errors)
-    for (const r of data) {
-      out.push({ skillId: r.skillId, activityId: r.activityId, xpAwarded: r.xpAwarded, xpRulesVersion: r.xpRulesVersion, isFloor: r.isFloor, seq: r.seq })
-    }
-    nextToken = more
-  } while (nextToken && out.length < LEDGER_ROWS)
-  return out
+  void uid // never sent: the route reads the session (see the header)
+  return sameOriginJson<SkillLedgerRow[]>(SKILLS_LEDGER_PATH)
 }
 
 /** `Profile.replayInProgress`. `false` for a user with no Profile row yet. */
 export async function fetchReplayInProgress(uid: string): Promise<boolean> {
-  const c = await dataClient()
-  const { data, errors } = await timed(c.models.Profile.get({ id: uid }, { selectionSet: ["id", "replayInProgress"] }), "Profile.get")
-  if (errors?.length) throw errorFrom(errors)
-  return data?.replayInProgress === true
+  void uid // never sent
+  return (await sameOriginJson<ProfileFlags>(SKILLS_PROFILE_PATH)).replayInProgress === true
 }
 
 /**
@@ -85,79 +51,19 @@ export async function fetchReplayInProgress(uid: string): Promise<boolean> {
  * unordered — `skillDetail` sorts by `seq`, which is activity time; GSI3's sort key is ingest time.
  *
  * Whole rather than ten rows because the sheet COUNTS what it does not list (`… n more`) and its
- * total must equal the bar (I-15). One skill's rows are a few per activity: years of history is
- * a few thousand rows, read in pages, once per sheet opening.
+ * total must equal the bar (I-15).
  */
-export async function fetchSkillLedger(uid: string, skillId: string): Promise<DetailLedgerRow[]> {
-  const c = await dataClient()
-  const out: DetailLedgerRow[] = []
-  let nextToken: string | null | undefined
-  do {
-    const { data, errors, nextToken: more } = await timed(
-      c.models.XpLedgerEntry.listXpLedgerEntryByUserIdSkillIdAndAwardedAt(
-        { userIdSkillId: `${uid}#${skillId}` },
-        {
-          limit: 1000,
-          nextToken,
-          selectionSet: ["skillId", "activityId", "reason", "units", "xpAwarded", "xpRulesVersion", "isFloor", "seq"],
-        },
-      ),
-      "XpLedgerEntry.bySkill",
-    )
-    if (errors?.length) throw errorFrom(errors)
-    for (const r of data) {
-      out.push({
-        skillId: r.skillId,
-        activityId: r.activityId,
-        reason: r.reason,
-        units: r.units,
-        xpAwarded: r.xpAwarded,
-        xpRulesVersion: r.xpRulesVersion,
-        isFloor: r.isFloor,
-        seq: r.seq,
-      })
-    }
-    nextToken = more
-  } while (nextToken)
-  return out
+export async function fetchSkillLedger(_uid: string, skillId: string): Promise<DetailLedgerRow[]> {
+  return sameOriginJson<DetailLedgerRow[]>(forSkill(SKILLS_LEDGER_PATH, skillId))
 }
 
-/**
- * ONE SKILL'S LANDMARKS (`0248`, D-301) — the base table, `userId` and a `skillLevel` prefix. Two
- * rows at most, ever. Owner-scoped by the model's auth rule: a landmark is a coordinate near home
- * (`08` §7.2) and no one else's session can list it.
- */
-export async function fetchLandmarks(uid: string, skillId: string): Promise<LandmarkRow[]> {
-  const c = await dataClient()
-  const { data, errors } = await timed(
-    c.models.Landmark.list({
-      userId: uid,
-      skillLevel: { beginsWith: `${skillId}#` },
-      selectionSet: ["level", "place", "lng", "lat"],
-    }),
-    "Landmark.list",
-  )
-  if (errors?.length) throw errorFrom(errors)
-  return data.map((r) => ({ level: r.level, place: r.place, lng: r.lng ?? null, lat: r.lat ?? null }))
+/** ONE SKILL'S LANDMARKS (`0248`, D-301). Two rows at most, ever. */
+export async function fetchLandmarks(_uid: string, skillId: string): Promise<LandmarkRow[]> {
+  return sameOriginJson<LandmarkRow[]>(forSkill(SKILLS_LANDMARKS_PATH, skillId))
 }
 
-/**
- * EVERY `Landmark` the user has, for the home map (`0260`). Two per skill at most, so this is a
- * handful of rows; paged anyway, because a list that silently stops at one page is a cairn that
- * silently is not there.
- */
+/** EVERY `Landmark` the user has, for the home map (`0260`). Two per skill at most; all pages. */
 export async function fetchAllLandmarks(uid: string): Promise<LandmarkRow[]> {
-  const c = await dataClient()
-  const out: LandmarkRow[] = []
-  let nextToken: string | null | undefined
-  do {
-    const { data, errors, nextToken: more } = await timed(
-      c.models.Landmark.list({ userId: uid, nextToken, selectionSet: ["level", "place", "lng", "lat"] }),
-      "Landmark.list",
-    )
-    if (errors?.length) throw errorFrom(errors)
-    for (const r of data) out.push({ level: r.level, place: r.place, lng: r.lng ?? null, lat: r.lat ?? null })
-    nextToken = more
-  } while (nextToken)
-  return out
+  void uid // never sent
+  return sameOriginJson<LandmarkRow[]>(SKILLS_LANDMARKS_PATH)
 }

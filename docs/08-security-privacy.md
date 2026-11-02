@@ -769,16 +769,26 @@ it were not, since §5.4 is designed to make a second user appear one day.
 - **Every read and write is scoped by the JWT's `sub`** — by a different mechanism per store,
   and the list below is what is built, not what was first planned (D-456; this bullet once
   named a `Trace` model and two CDK tables as Amplify models):
-  - **`defineData` models — Amplify Data owner auth.** `Activity`, `SkillState`,
-    `XpLedgerEntry` and `Landmark` are `allow.owner().to(["read"])`; `Profile` is `allow.owner()`
-    with its server-maintained fields read-only. `DeploySmokeTest`, `0012`'s placeholder (one
-    `note` field, no user data), is `allow.owner()`. No model is `authenticated`-readable, because
-    `authenticated` will one day mean six people. The two custom mutations, `logWorkout` and
-    `setActivityKind`, are `allow.authenticated()` because a custom operation has no row to own;
-    their handlers take the user from `identity.sub`, never an argument, and check the owner
-    allowlist. Where the SSR compute reads a model's table directly (`Query` on T3 for the latest
-    run, on T4's `byUserAndSeq` for the run tally), the partition key is the `sub` re-derived from
-    the verified session (§5.3).
+  - **`defineData` models — read by the SSR compute, keyed by the session (D-472, `0331`).** The
+    browser no longer calls AppSync: nothing under `app/`, `components/` or `lib/` imports
+    `aws-amplify/data` (a grep test pins it), and the CSP's `connect-src` does not name the AppSync
+    endpoint. Its reads are same-origin routes (`/api/skills/{state,ledger,profile,landmarks}`,
+    `/api/runs/[activityId]/{ledger,kind}`) that `Query` the model tables as the SSR compute role,
+    with the partition key, or an explicit `userId` filter where the index is keyed by activity,
+    set from the uid `currentUserId()` re-derived from the verified session (§5.3). The role holds
+    `dynamodb:Query` alone on exactly those tables and indexes: no `GetItem`, `Scan` or write
+    (`amplify/ssr-model-read-grant.test.ts`). Its two writes, `POST /api/log` and
+    `POST /api/runs/[activityId]/kind`, refuse a foreign `Origin` (D-471) and then `lambda:Invoke`
+    `log-workout` and `set-activity-kind` with a server-set `userId`. IAM on that invoke is the
+    trust anchor: the SSR compute role is granted it on those two function ARNs only, the only
+    other invoker is AppSync's own resolver data source until `0334` removes the mutations, and
+    each handler still checks the owner allowlist. The owner rules on the models
+    (`allow.owner().to(["read"])`, `Profile` `allow.owner()`) and the mutations'
+    `allow.authenticated()` exposure stay compiled, uncalled by the browser, until `0334` makes the
+    data API IAM-only with no caller; until then a handler also accepts AppSync's `identity.sub`,
+    so a tab loaded before `0331` does not have its queued log refused and dropped.
+    *(Amended by `0331`, D-472: this bullet said the browser read the models through Amplify Data
+    owner auth, and the mutation handlers took the user from `identity.sub`.)*
   - **CDK tables — IAM plus handler scoping.** `ExploredCell`, `SourceAccount`, `OAuthState`,
     `IngestReceipt` and `CaptureGuard` are not `defineData` models and have no owner rule. No
     browser credential reaches any of them. They are reached only by roles: the pipeline Lambdas,

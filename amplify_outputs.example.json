@@ -117,6 +117,11 @@
     "basemapTilesUrl": "https://dEXAMPLE0000000.cloudfront.net",
     "basemapDistributionId": "EEXAMPLE00000000",
     "activityTableName": "Activity-EXAMPLE000000000000000000-NONE",
-    "xpLedgerTableName": "XpLedgerEntry-EXAMPLE000000000000000000-NONE"
+    "xpLedgerTableName": "XpLedgerEntry-EXAMPLE000000000000000000-NONE",
+    "skillStateTableName": "SkillState-EXAMPLE000000000000000000-NONE",
+    "profileTableName": "Profile-EXAMPLE000000000000000000-NONE",
+    "landmarkTableName": "Landmark-EXAMPLE000000000000000000-NONE",
+    "logWorkoutFunctionName": "amplify-EXAMPLE-logworkoutlambda-EXAMPLE",
+    "setActivityKindFunctionName": "amplify-EXAMPLE-setactivitykindlambda-EXAMPLE"
   }
 }

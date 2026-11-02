@@ -1,28 +1,19 @@
 /**
- * THE RUN PAGE'S TWO CALLS FOR AN ACTIVITY'S KIND. Ticket `0244`.
+ * THE RUN PAGE'S TWO CALLS FOR AN ACTIVITY'S KIND. Ticket `0244`; same-origin since `0331` (D-472).
  *
- * Read: the `Activity` row's kind fields, owner-scoped by AppSync's `allow.owner().to(["read"])`.
- * Write: `setActivityKind`, whose handler takes the user from `identity.sub` (never an argument).
- * Both straight to AppSync with the signed-in user's token, as `/log`'s are.
+ * Both through `/api/runs/[activityId]/kind`, which runs as the SSR compute and takes the user from
+ * the session:
+ *
+ * - `GET`: the `Activity` row's kind fields, filtered on the session's uid (`lib/run-kind/server.ts`).
+ * - `POST { kind }`: the route invokes `set-activity-kind` with a server-set `userId`. No user field
+ *   is sent from here.
  */
 
-import type { Schema } from "@/amplify/data/resource"
-import { withApiTimeout } from "@/lib/http/timeout"
+import { RouteError, sameOriginJson } from "@/lib/http/same-origin-json"
 
 import type { ActivityKindRow, KindChangeResult } from "./kind"
 
-type DataClient = ReturnType<typeof import("aws-amplify/data").generateClient<Schema>>
-let client: Promise<DataClient> | undefined
-
-function dataClient(): Promise<DataClient> {
-  client ??= import("aws-amplify/data").then(({ generateClient }) => generateClient<Schema>())
-  return client
-}
-
-/** `06` §9.5's 10 s, the shared helper (0113). Amplify's data client takes no signal; the race is the timeout. */
-function timed<T>(p: Promise<T>, what: string): Promise<T> {
-  return withApiTimeout(what, () => p)
-}
+export const runKindPath = (activityId: string) => `/api/runs/${encodeURIComponent(activityId)}/kind`
 
 /** `REFUSED:<CODE>: detail` and `BUSY: detail` → the detail, which is written for a person. */
 export function errorText(errors: readonly { message?: string }[]): string {
@@ -30,22 +21,28 @@ export function errorText(errors: readonly { message?: string }[]): string {
   return m.replace(/^(REFUSED:[A-Z_]+|BUSY):\s*/, "")
 }
 
+/** A route failure → an `Error` whose message is for a person, as before. */
+function personError(error: unknown): unknown {
+  if (error instanceof RouteError && error.errors.length > 0) return new Error(errorText(error.errors))
+  return error
+}
+
 /** The activity's kind fields, or `null` if there is no such activity (or it is not this user's). */
 export async function fetchActivityKind(activityId: string): Promise<ActivityKindRow | null> {
-  const c = await dataClient()
-  const { data, errors } = await timed(
-    c.models.Activity.get({ id: activityId }, { selectionSet: ["id", "kind", "derivedKind", "kindOverride.kind"] }),
-    "Activity.get",
-  )
-  if (errors?.length) throw new Error(errorText(errors))
-  if (!data) return null
-  return { kind: data.kind, derivedKind: data.derivedKind, kindOverride: data.kindOverride ? { kind: data.kindOverride.kind } : null }
+  try {
+    return (await sameOriginJson<{ activity: ActivityKindRow | null }>(runKindPath(activityId))).activity
+  } catch (error) {
+    throw personError(error)
+  }
 }
 
 export async function setActivityKind(activityId: string, kind: string): Promise<KindChangeResult> {
-  const c = await dataClient()
-  const { data, errors } = await timed(c.mutations.setActivityKind({ activityId, kind }), "setActivityKind")
-  if (errors?.length) throw new Error(errorText(errors))
+  let data: KindChangeResult | null
+  try {
+    data = await sameOriginJson<KindChangeResult | null>(runKindPath(activityId), { method: "POST", body: { kind } })
+  } catch (error) {
+    throw personError(error)
+  }
   if (!data) throw new Error("setActivityKind returned no data")
   return data
 }

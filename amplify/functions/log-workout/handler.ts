@@ -12,14 +12,19 @@ import { rulesForUser } from "@/src/pipeline/worker-rules"
 import type { RuleSet } from "@/src/rules/schema"
 import { assertValidRuleSet } from "@/src/rules/validate"
 
+import { callerOf } from "../caller"
+
 /**
- * THE `logWorkout` RESOLVER. Ticket 0069. AppSync in, `lib/log/log-workout.ts` out — the
- * pipeline order lives there, the AWS clients and the identity live here.
+ * THE `logWorkout` HANDLER. Ticket 0069. `POST /api/log` in (D-472, `0331`),
+ * `lib/log/log-workout.ts` out — the pipeline order lives there, the AWS clients and the
+ * identity live here.
  *
  * ─── WHO ─────────────────────────────────────────────────────────────────────
  *
- * The user is `event.identity.sub`, verified by AppSync against the user pool. Never an
- * argument: the mutation has no user field, so there is nothing for a client to forge.
+ * The user is `event.userId`, set by the route from `currentUserId()` on a direct invoke only
+ * the SSR compute role may make (`../caller.ts`, which also reads AppSync's `identity.sub` until
+ * `0334`). Never a client field: the route picks the SDL's five arguments and sets `userId`
+ * after them, so there is nothing for a client to forge.
  * The OWNER check is the second half, for `lib/auth/owner.ts`'s reason — "signed in" and
  * "the owner" are the same set today and stop being so the day D-014 adds friends.
  *
@@ -47,19 +52,14 @@ function required(name: string): string {
   return value
 }
 
-interface AppSyncEvent {
-  arguments: Record<string, unknown>
-  identity?: { sub?: string } | null
-}
-
-export const handler = async (event: AppSyncEvent): Promise<LogWorkoutResult> => {
-  const userId = event.identity?.sub
+export const handler = async (event: unknown): Promise<LogWorkoutResult> => {
+  const { userId, args } = callerOf(event)
   if (!userId || !isOwner(userId)) throw new Error("REFUSED:NOT_OWNER: logWorkout is owner-only")
 
   const bucket = required("USER_DATA_BUCKET")
   const startedAt = Date.now()
   try {
-    const result = await logWorkout(event.arguments, userId, {
+    const result = await logWorkout(args, userId, {
       registry: (uid) =>
         rulesForUser(uid, {
           ddb,

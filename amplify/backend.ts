@@ -1558,7 +1558,7 @@ computeRole.addToPrincipalPolicy(
  * of it in replay order (`lib/runs/tally-server.ts`). `dynamodb:Query` on that ONE index ARN: not the
  * base table, not `Scan`, not `GetItem`, for the reasons the T3 grant above gives. The partition key
  * is the session's `sub`, re-derived on the server, so this reads the caller's own ledger only.
- * The browser's other T4 reads go through AppSync's owner rule and are unchanged.
+ * The browser's other T4 reads come through the SSR compute too since `0331` (below).
  */
 computeRole.addToPrincipalPolicy(
   new PolicyStatement({
@@ -1567,6 +1567,71 @@ computeRole.addToPrincipalPolicy(
     resources: [`${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/byUserAndSeq`],
   }),
 )
+
+/**
+ * `0331`, D-472. THE BROWSER'S MODEL READS MOVE ONTO THE SSR COMPUTE, AS `Query` AND NOTHING ELSE.
+ *
+ * `/api/skills/*`, `/api/runs/[activityId]/ledger` and `/api/runs/[activityId]/kind` answer what the
+ * browser used to ask AppSync, keyed by the session's uid. Each statement is `dynamodb:Query` on
+ * exactly the table or index ARN its route reads, for the T3 grant's reasons above: no `GetItem`
+ * (a `Query` on the hash key reads the same row), no `Scan`, no write. T3's base-table `Query` for
+ * the kind read is already covered by `QueryActivityForLatestRun`.
+ *
+ *   - T4 `byActivity` (the run card) and `bySkill` (a skill's sheet). `byUserAndSeq` is granted above.
+ *   - T2 `SkillState`, T1 `Profile`, `Landmark`: base tables, partition = the uid.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "QueryXpLedgerForSkillsAndRunCard",
+    actions: ["dynamodb:Query"],
+    resources: [
+      `${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/byActivity`,
+      `${backend.data.resources.tables["XpLedgerEntry"].tableArn}/index/bySkill`,
+    ],
+  }),
+)
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "QueryModelTablesForSkills",
+    actions: ["dynamodb:Query"],
+    resources: [
+      backend.data.resources.tables["SkillState"].tableArn,
+      backend.data.resources.tables["Profile"].tableArn,
+      backend.data.resources.tables["Landmark"].tableArn,
+    ],
+  }),
+)
+
+/**
+ * `0331`, D-472. THE SSR COMPUTE INVOKES THE TWO MUTATION LAMBDAS, AND ONLY THEM.
+ *
+ * `POST /api/log` and `POST /api/runs/[activityId]/kind` invoke `log-workout` and
+ * `set-activity-kind` with a `userId` the route took from `currentUserId()`. That makes this grant
+ * the trust anchor: a principal that can invoke these functions can name any user, so no other role
+ * in this app is given `lambda:InvokeFunction` on them (AppSync's data-source role keeps its own until
+ * `0334` removes the mutations). Two function ARNs, named; never `*`.
+ */
+computeRole.addToPrincipalPolicy(
+  new PolicyStatement({
+    sid: "InvokeMutationFunctions",
+    actions: ["lambda:InvokeFunction"],
+    resources: [
+      backend.logWorkoutFunction.resources.lambda.functionArn,
+      backend.setActivityKindFunction.resources.lambda.functionArn,
+    ],
+  }),
+)
+
+backend.addOutput({
+  custom: {
+    /** `0331`. The SSR compute's reads and invokes above. Names, not secrets: see the T3 line. */
+    skillStateTableName: backend.data.resources.tables["SkillState"].tableName,
+    profileTableName: backend.data.resources.tables["Profile"].tableName,
+    landmarkTableName: backend.data.resources.tables["Landmark"].tableName,
+    logWorkoutFunctionName: backend.logWorkoutFunction.resources.lambda.functionName,
+    setActivityKindFunctionName: backend.setActivityKindFunction.resources.lambda.functionName,
+  },
+})
 
 /** The Sync action is the only producer today. It sends; it never receives. */
 activityIngestQueue.grantSendMessages(computeRole)
