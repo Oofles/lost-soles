@@ -7645,6 +7645,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T17:17:55Z",
+    "started": "2026-11-02T18:42:31Z",
     "path": "tickets/open/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
     "ready": true,
     "acceptance": {
@@ -7667,6 +7668,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T17:18:05Z",
+    "started": "2026-11-02T18:42:31Z",
     "path": "tickets/open/0331-appsync-leaves-the-browser-same-origin-routes-for-skills-led.md",
     "ready": true,
     "acceptance": {
