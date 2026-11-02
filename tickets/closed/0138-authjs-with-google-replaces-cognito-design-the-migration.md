@@ -4,7 +4,7 @@ slug: authjs-with-google-replaces-cognito-design-the-migration
 title: Auth.js with Google replaces Cognito — design the migration capability
 type: design
 priority: med
-status: open
+status: closed
 size: m
 capability: null
 depends_on: [100, 101, 197, 210, 211, 117]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-09-01T21:31:18Z
 started: 2026-11-02T17:07:43Z
+closed: 2026-11-02T17:21:57Z
 ---
 
 ## Description

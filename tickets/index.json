@@ -3372,7 +3372,7 @@
     "title": "Auth.js with Google replaces Cognito — design the migration capability",
     "type": "design",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "null",
     "depends_on": [
@@ -3387,8 +3387,9 @@
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
     "started": "2026-11-02T17:07:43Z",
-    "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
-    "ready": true,
+    "closed": "2026-11-02T17:21:57Z",
+    "path": "tickets/closed/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
+    "ready": false,
     "acceptance": {
       "checked": 7,
       "total": 7
