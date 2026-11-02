@@ -93,7 +93,7 @@ session. No UI changed: the Authenticator still renders, and no sign-in button e
 
 **Files touched**
 
-- `package.json`, `package-lock.json`: `next-auth` pinned to exactly `5.0.0-beta.32` (see D-NEW-a
+- `package.json`, `package-lock.json`: `next-auth` pinned to exactly `5.0.0-beta.32` (see D-474
   below). I merged only the seven next-auth-tree lock entries by hand (`@auth/core`, `@panva/hkdf`,
   `jose`, `next-auth`, `oauth4webapi`, `preact`, `preact-render-to-string`).
   `npm install --package-lock-only` also added eight bundled-tree entries under
@@ -164,7 +164,7 @@ session. No UI changed: the Authenticator still renders, and no sign-in button e
 
 **Decisions and why**
 
-- **D-NEW-a (proposed; operator chose option a, 2026-11-02): next-auth `5.0.0-beta.32`, not
+- **D-474 (operator chose option a, 2026-11-02; recorded at merge as D-NEW-a): next-auth `5.0.0-beta.32`, not
   school-hub's beta.25.** beta.25 fails `amplify.yml`'s no-exceptions `npm audit --omit=dev
   --audit-level=high`, with critical advisories: GHSA-8fpg-xm3f-6cx3, GHSA-7rqj-j65f-68wh,
   GHSA-x445-f3h2-j279, GHSA-xmf8-cvqr-rfgj and GHSA-5jpx-9hw9-2fx4. beta.32 audits clean, and

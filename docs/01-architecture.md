@@ -1431,6 +1431,7 @@ the correct one per environment automatically. **Standard parameters are free.**
 | `STRAVA_CLIENT_SECRET` | callback + token refresh | **Never leaves a Lambda.** |
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | `ingest-webhook` GET handshake (D-345) | Compared in constant time (sha256 both sides, `timingSafeEqual`, D-347). **Not a `secret()`**: read lazily on GET only by a hand-signed `ssm:GetParameter` on the shared path `/amplify/shared/<app-id>/STRAVA_WEBHOOK_VERIFY_TOKEN`, so an event POST's cold start touches no SSM (D-357) |
 | `INGEST_BEARER_TOKEN` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
+| `AUTH_SECRET`, `GOOGLE_CLIENT_SECRET` (+ `GOOGLE_CLIENT_ID`, `AUTH_ALLOWED_EMAILS`, `AUTH_COOKIE_DOMAIN`, `AUTH_URL`) | Auth.js on the SSR compute (`0330`, D-471) | SSM at `/amplify/shared/<app-id>/`, written into `.env.production` at build by `scripts/write-authjs-env.mjs`, server-only. `AUTH_SECRET` is shared with `school-hub` and signs every session (`08` §3, S10–S11) |
 | `TILES_BASE_URL` | client build | Not a secret; listed here because it is environment-varying config. Use an env var, not `secret()` |
 
 > **Amended 2026-09-06 by D-203**, from the `05-strava-adapter` drift audit (divergence 3). Every

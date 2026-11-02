@@ -7,7 +7,7 @@ priority: med
 status: open
 size: m
 capability: 19-authjs-migration
-depends_on: [330, 331]
+depends_on: [330, 331, 336]
 blocked_by: []
 source: agent
 created: 2026-11-02T17:18:05Z

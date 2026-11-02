@@ -74,6 +74,11 @@ the old posture check) must not assume the block exists. Grep before deploying.
 Amplify may refuse to delete a pool that still has users. The pool has one, the owner. If the deploy
 stalls on it, delete the user by hand with `admin-delete-user` and record it.
 
+**2026-11-02, from `0331` (D-475):** remove the Lambdas' AppSync-event branch
+(`amplify/functions/caller.ts`), and with it AppSync's resolver data-source
+`lambda:InvokeFunction` grant on `log-workout` and `set-activity-kind`. After this ticket the SSR
+compute role is the only invoker.
+
 ## Operator validation
 
 Agent: the gate diff, the post-deploy AWS reads, the Σ comparison, and both checks green in the

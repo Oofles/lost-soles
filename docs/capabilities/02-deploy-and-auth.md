@@ -300,6 +300,7 @@ application config in SSM; per-user rotating credentials in DynamoDB.
 | `STRAVA_WEBHOOK_VERIFY_TOKEN` | SSM `secret()` | `strava-webhook` GET handshake | Compared in constant time |
 | `INGEST_BEARER_TOKEN` | SSM `secret()` | `/api/ingest` | Post-MVP (D-112/D-113). Rotate by changing the parameter and the device config |
 | `GITHUB_TICKETS_PAT` | SSM, read by the **SSR compute role** | `/api/tickets/capture` | Added by ticket **0018**, and it does NOT use `secret()` — see the note below. Fine-grained PAT, `lost-soles` only, Contents read/write, **90-day expiry** |
+| `AUTH_SECRET`, `GOOGLE_CLIENT_SECRET` | SSM SecureString, read at **build** into `.env.production` | Auth.js on the SSR compute | Added by `0330` (D-471, D-474). In `check-bundle-leak.mjs`'s registry. `AUTH_SECRET` is shared with `school-hub` |
 | `NEXT_PUBLIC_TILES_BASE_URL` | **plain env var** | client build (ticket 0052) | **Not a secret.** A public URL the browser fetches tiles from; it is in the client bundle by necessity. It appears in the §7 registry only because it VARIES BY ENVIRONMENT, which is a different problem from being sensitive |
 
 **`GITHUB_TICKETS_PAT` reaches its consumer differently from every other secret here,

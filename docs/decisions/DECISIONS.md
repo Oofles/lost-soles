@@ -6334,3 +6334,42 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     replacement identity is made. Agent smoke tests use AWS directly and the suite (D-229).
   - **Sequence:** `0330` (Auth.js beside Cognito) and `0331` (AppSync out of the browser) → `0332`
     (flag day) → `0333` (deletion) → `0334` (Cognito removed) → `0335` (D-425's re-checks).
+
+- **D-474** **Lost Soles pins `next-auth 5.0.0-beta.32`, not `school-hub`'s beta.25. `lib/auth/config.ts`
+  stays byte-identical to `school-hub`'s.** *(Operator, 2026-11-02, ticket `0330`, option a.)*
+  Amends D-471's "pinned to the version `school-hub` runs".
+  - beta.25 fails `amplify.yml`'s no-exceptions `npm audit --omit=dev --audit-level=high`. It has
+    critical advisories GHSA-8fpg-xm3f-6cx3 (existence-based auth checks can fail open),
+    GHSA-7rqj-j65f-68wh (email-normaliser homoglyph `@` bypass, on the very key D-471 maps by),
+    GHSA-x445-f3h2-j279, GHSA-xmf8-cvqr-rfgj and GHSA-5jpx-9hw9-2fx4. beta.32 audits clean.
+  - The divergence is the package version only. `config.ts` compiles unchanged and is pinned by
+    sha256 in `lib/auth/config.test.ts`. Sessions interoperate, because the JWE format is shared
+    through `AUTH_SECRET` and the cookie name.
+  - **The exposure does not stop at our package.json.** Under D-471, `school-hub` can mint sessions
+    Lost Soles accepts, so its beta.25 sits inside our trust boundary. Ticket `0336` brings it to
+    beta.32, and `0332` (the cutover) depends on it.
+  - Rejected: an audit exception for beta.25 (the gate exists for exactly this), and holding `0330`
+    for `school-hub` to move first (it blocks on another repo for no gain, since beta.32 reads
+    beta.25's sessions).
+  - Also settled at `0330`: Auth.js's `pages` point at `/`, because Lost Soles has no `/login`.
+    `api/authjs/` is exempt from the middleware matcher, because Auth.js's own routes authenticate
+    themselves and the signed-out callback must reach them. Every other `/api/*` path stays gated.
+
+- **D-475** **How the SSR role takes over AppSync's work (`0331`).** *(Agent, 2026-11-02, ticket
+  `0331`, recorded at merge.)* Three rules, each one AppSync used to enforce for us:
+  - **The mutation Lambdas accept both event shapes until `0334`.** A direct invoke carries
+    `{ userId, ...args }`. An AppSync event (it has `arguments`) still takes the user from
+    `identity.sub`, and never reads a top-level `userId`. The AppSync path is kept so that a `/log`
+    tab loaded before the deploy, with an entry queued, does not get `REFUSED:NOT_OWNER` and lose
+    the entry. `0334` deletes the branch along with the mutations, and AppSync's resolver data source
+    keeps `lambda:InvokeFunction` on both functions until then.
+  - **The SSR role's new model-table reads are `dynamodb:Query` only.** Single-row reads are a
+    `Query` on the hash key. A read keyed by activity filters on `userId` explicitly, and never sets
+    `Limit`, because DynamoDB applies `Limit` before the filter.
+  - **The POST routes forward only named fields.** The SDL no longer enforces argument shape on
+    this path, so the route does it: `/api/log` forwards exactly the SDL's five arguments, and the
+    kind route forwards only `kind`, with `activityId` from the path. Handler `REFUSED:` maps to 422,
+    `BUSY:` to 503, and anything else to 502 with a generic body (detail goes to the server log).
+  - `hasForeignOrigin` (`lib/http/origin.ts`) refuses the Amplify default domain and preview
+    branches. That is accepted: the session cookie is scoped to `.devaultsecurity.com`, so they
+    could never carry a session anyway.

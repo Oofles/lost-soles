@@ -167,3 +167,5 @@ AppSync hop) needs the deploy; the post-deploy smoke test records it.
 **Found, not fixed (another ticket's section).** `08` §5.3's Headers row still lists "the AppSync
 endpoint" in `connect-src`. `0330` owns §5.3 in this wave, so it was left for the orchestrator to
 amend at merge.
+
+**Recorded at merge (orchestrator):** the three proposed decisions became **D-475**.

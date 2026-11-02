@@ -7649,7 +7649,7 @@
     "path": "tickets/open/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 8
     }
   },
@@ -7672,7 +7672,7 @@
     "path": "tickets/open/0331-appsync-leaves-the-browser-same-origin-routes-for-skills-led.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -7687,7 +7687,8 @@
     "capability": "19-authjs-migration",
     "depends_on": [
       330,
-      331
+      331,
+      336
     ],
     "blocked_by": [],
     "source": "agent",
@@ -7760,6 +7761,28 @@
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "path": "tickets/open/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 336,
+    "slug": "bring-school-hub-to-next-auth-5-0-0-beta-32",
+    "title": "Bring school-hub to next-auth 5.0.0-beta.32",
+    "type": "chore",
+    "priority": "high",
+    "status": "open",
+    "size": "s",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      330
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T19:12:18Z",
+    "path": "tickets/open/0336-bring-school-hub-to-next-auth-5-0-0-beta-32.md",
     "ready": false,
     "acceptance": {
       "checked": 0,
