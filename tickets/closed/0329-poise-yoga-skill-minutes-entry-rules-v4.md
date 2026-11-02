@@ -113,7 +113,11 @@ before any write:
 **Not done live:** an accepted yoga log. It would award real XP that can never be removed, so the
 operator makes the first one. `log-workout.test.ts` proves the accepted path.
 
-### For the operator: perceptual
+### For the operator: perceptual — verified 2026-11-02
+
+**Done by the operator, desktop browser, `/log`:** "logged it, the row and confirmation look right". This was the real 30-minute session from the morning of 2026-11-02.
+
+The check as written:
 
 **Desktop browser, `/log`.** The yoga row appears after the plank row, as Poise. Check that:
 - the number reads `30 min`;
