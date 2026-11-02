@@ -30,7 +30,7 @@ REFLECT**. Phases in §1 are sets of capabilities; they are not a second epic co
 
 ## 1. The shape of the build
 
-Four phases. Nineteen capabilities. Each phase ends at a **coherent** state — not necessarily
+Four phases. Nineteen capabilities, plus `19`, added after the MVP (D-425). Each phase ends at a **coherent** state — not necessarily
 shippable, but never half-wired: no capability leaves a dangling import, a stubbed contract that
 lies about its type, or a table written by nothing and read by nothing.
 
@@ -40,6 +40,7 @@ lies about its type, or a table written by nothing and read by nothing.
 | **1** | **The Spine** | `02` `03` `04` `05` `06` `07` `08` | **FIRST USABLE (§2).** A real Strava run imports and reveals real territory on a real map at `soles.devaultsecurity.com` |
 | **2** | **The Game Made Visible** | `09` `10` `11` `12` `13` | XP, levels, skills, strength logging and the post-run moment. The app is now the product described in `00-vision.md` |
 | **3** | **Trustworthy and Complete** | `14` `15` `16` `17` `18` | D-013 satisfied (nothing to do after a run), the rebuild drill executed for real, both map modes, MVP done per §9 |
+| *after MVP* | *Auth migration* | `19` | One Google sign-in across `*.devaultsecurity.com`; no Cognito resource left (D-175, D-425) |
 
 **Why this order and not "verticals first".** The temptation is to build one skill end to end
 (Wayfaring: ingest → XP → a level bar) and repeat. That is wrong here for one specific reason:
@@ -169,7 +170,7 @@ to retrofit:
 
 ## 3. Capability breakdown
 
-Nineteen capabilities in dependency-respecting order. Ticket titles are titles only — full
+Nineteen capabilities in dependency-respecting order, then `19` after the MVP. Ticket titles are titles only — full
 tickets, with acceptance criteria in the `07-ticketsmith.md` §3 format, are authored in Phase 0.
 Each capability gets a doc at `docs/capabilities/NN-name.md` (07 §7.2).
 
@@ -511,6 +512,25 @@ still works when the cache is stale, and no write path exists from the phone oth
 | 6 | ▸ **MVP definition-of-done sweep (§9 of this document)** | Evaluate every box objectively. |
 
 **Depends on:** everything. **Done when:** §9 is fully checked.
+
+#### `19-authjs-migration` — 6 tickets — **after the MVP ship (D-425)**
+*Added 2026-11-02 by `0138`. D-175 slotted it between `15` and `16`; D-425 moved it past `0117`.*
+
+Design: [`capabilities/19-authjs-migration.md`](capabilities/19-authjs-migration.md). Decisions
+D-470 (D-123 re-affirmed, Trigger A restated), D-471 (identity), D-472 (AppSync leaves the browser),
+D-473 (cutover).
+
+| # | Ticket | Description |
+|---|---|---|
+| 1 | **`0330` Auth.js beside Cognito + the identity map** | `school-hub`'s config verbatim, `/api/authjs`, `email → uid` onto the existing `sub`. |
+| 2 | **`0331` AppSync leaves the browser** | Four transports become same-origin routes. |
+| 3 | ▸ **`0332` Cutover** | Google replaces the Authenticator, and the bearer path goes. The operator signs in once. |
+| 4 | **`0333` Account deletion on the new identity** | D-400's Cognito steps become allowlist and map edits. |
+| 5 | ▸ **`0334` Cognito removed** | `defineAuth` deleted; posture and Trigger A checks rewritten in the same deploy. |
+| 6 | **`0335` D-425's re-checks** | `0114` Trigger A + A-6, `0115` posture, against the new auth. |
+
+**Depends on:** `0117`. **Done when:** signing in to `school-hub` signs the operator in to Lost
+Soles, and no Cognito resource tagged with this app exists.
 
 ---
 

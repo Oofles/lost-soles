@@ -49,6 +49,13 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 | Basemap tiles | **pmtiles on a dedicated S3 bucket + our own CloudFront** (always-free egress) | D-226 |
 | Geo model | **H3 res 11 cells in DynamoDB**. No PostGIS, no VPC. | D-082, ~~D-115~~ D-237, D-081 |
 
+> **Changes with capability `19-authjs-migration` (after the MVP, D-425).** The **Auth** row becomes
+> Auth.js with Google, sharing `school-hub`'s session cookie across `*.devaultsecurity.com`, with an
+> `AUTH_ALLOWED_EMAILS` allowlist and a committed `email → uid` map onto the existing Cognito `sub`
+> (D-175, D-471). The **Client-facing data** row stops being client-facing: AppSync keeps the five
+> model tables under IAM-only auth with no caller, and the browser talks only to this app's own
+> routes (D-472). The table above is as built until `0332` and `0334` land.
+
 ### Why Next.js and not Astro
 
 The house stack at `devaultsecurity` is Astro 4 + SolidJS, static output, no SSR adapter.
@@ -250,6 +257,11 @@ Every resource, what it does, and what would make it cost money.
 Also in play, **not created by this backend**: `LostSolesAmplifyComputeRole`, the SSR compute role,
 made by hand in `0018` and imported by ARN so CDK can attach grants to it. *(Rows 22–27 and this
 note were added by D-465; the table had stopped at 21.)*
+
+> **Rows 2 and 3 are deleted at cutover** (`0334`, D-473). Capability `19` deletes `defineAuth`, so
+> no Cognito user pool or identity pool remains in this app. Identity moves to Auth.js, whose secrets
+> are SSM parameters (`08` §3, S10–S11), not resources in this table. Rows 22–23 change role too:
+> the two mutation Lambdas are invoked by the SSR compute role, not by AppSync resolvers (D-472).
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
 WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always-on compute.
@@ -1060,6 +1072,10 @@ error.
 > `middleware.ts` (server-side, 0016), not an `(app)/layout.tsx` server component; it covers
 > every non-static route including `/api/*`, which is the ticket-capture endpoint's only
 > authentication today (07 §6.4, ticket `0019` hardens it).
+>
+> **Capability `19` (D-471, D-473):** `middleware.ts` stays the gate, reading an Auth.js session
+> in place of the Amplify cookie, and `currentUserId()` stays the one server-side reader. `/` signed
+> out shows Sign in with Google in place of the Authenticator.
 >
 > The `api/` routes below that do not exist yet — `strava/callback`, `ingest`, `explored` —
 > are still the plan; they arrive with capabilities `05`, `07` and beyond.

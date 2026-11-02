@@ -1266,11 +1266,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - The cost, accepted: a 1-hour ID token means the device re-runs `REFRESH_TOKEN_AUTH` before a
     capture that was queued offline for longer, rather than replaying a stale token. `0022` owns
     that, and the 30-day refresh token behind it is `0151`.
+  → **Superseded at cutover by D-473 (2026-11-02):** the bearer path is dropped with Cognito.
 
 ---
 
 ## The phone capture path is declined; the endpoint stands alone  (2026-09-03, tickets 0020, 0021, 0022)
-
 - **D-184** **The Android quick-capture tile, the Assistant routine and the task-side offline retry
   queue are DECLINED.** `POST /api/tickets/capture` stays exactly as built (`0018`, `0019`, `0149`,
   `0150`, `0151`, `0152`). What is dropped is the *phone automation client in front of it*, not the
@@ -5105,6 +5105,7 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   stale payload and updating in place was rejected: `MapShell` rebuilds MapLibre when `home`
   changes, and a stale `uid` after sign-out → sign-in could cache one account's cells under
   another's IndexedDB key.
+  → **Superseded at cutover by D-473 (2026-11-02):** Auth.js sign-in is a full-page redirect.
 - **D-332** **The run page's breakdown shows XP by reason and never a cell count.** *(Agent,
   2026-10-15, ticket `0277`.)* Each part reads `N XP <words>`, with the cell reasons as ground words
   (`125 XP new ground · 2 XP remembered ground`); cell counts appear only on the tally's cells line.
@@ -6249,3 +6250,87 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Out of scope.** Strava `Yoga` activities stay archived and un-ingested (`03` §2.6). A Strava
     activity carries no sets, so `seconds:yoga` would read zero; ingesting them needs an
     elapsed-time measure, and would be its own ticket.
+
+- **D-470** **D-123 is re-affirmed for the move to Auth.js with Google, and Trigger A is restated
+  against the new identity.** *(Agent, 2026-11-02, ticket `0138`, designing capability
+  `19-authjs-migration`. Operator go, same day.)* Replacing the account system changes what "a second
+  account" means, so D-123 was reopened at proposal time (`08` §2.4's standing rule). **Its premise
+  is unchanged:** one person, a map shown only to them, full-fidelity traces. This decision
+  **re-affirms D-123** on that premise.
+  - **Trigger A now fires** when Lost Soles' production `AUTH_ALLOWED_EMAILS`, or its committed
+    `IDENTITIES` map (D-471), holds any identity other than the owner's. Before cutover it fires on
+    the Cognito pool as well, exactly as today.
+  - **A domain cookie is not an account here.** The Auth.js cookie is set on `.devaultsecurity.com`
+    with a shared `AUTH_SECRET`, so every user `school-hub` admits holds a cookie Lost Soles can
+    verify. Lost Soles' own allowlist and map decide who is a user. Such a person is signed out here,
+    and is not Trigger A.
+  - **Enforcement moves, and does not weaken.** `scripts/check-d123-trigger-a.mjs` is rewritten in
+    `0334` to read `IDENTITIES` from source and the allowlist from SSM. It prints counts and uids,
+    never emails (D-426). §5.4's provisioning runbook keeps its A-1…A-7 gate. Triggers B and C are
+    unchanged, apart from C's "without a valid Cognito session" becoming "without a valid Lost Soles
+    session".
+
+- **D-471** **The internal uid is the existing Cognito `sub`, forever. A Google sign-in reaches it
+  through a committed `email → uid` map, behind `school-hub`'s Auth.js config copied verbatim.**
+  *(Agent and operator, 2026-11-02, ticket `0138`. Operator chose email over Google's `sub`.)*
+  - **Why the uid cannot change.** Every DynamoDB partition key and every `users/<uid>/` and
+    `raw/<uid>/` key is the Cognito `sub`. Re-keying a map that cannot re-fog (D-020) to save one
+    lookup table is the worst available trade. The `sub` becomes an opaque internal id, and
+    `OWNER_USER_IDS` keeps it.
+  - **Two gates.** `AUTH_ALLOWED_EMAILS` (SSM) is the sign-in gate in Auth.js's `signIn`/`authorized`
+    callbacks, and is what `selfSignUpEnabled: false` maps onto (D-175). `IDENTITIES` in
+    `lib/auth/owner-ids.ts` is the authorization: hard-coded for D-183's reasons (identifiers, not
+    credentials; a fail-closed control has no runtime dependency). An allowlisted email with no
+    entry is signed out.
+  - **Email, not Google's `sub`** (operator). Both of the operator's addresses are already in this
+    public repository's commit history, so committing one publishes nothing new. The cost, accepted:
+    a changed Google address unmaps, and fails closed.
+  - **`basePath: "/api/authjs"`.** `/api/auth/[source]` is the Strava OAuth route family (D-194),
+    and Next will not put a `[...nextauth]` catch-all beside it.
+  - **Secrets.** `AUTH_SECRET` (S10) is `school-hub`'s value, because sharing it is what makes the
+    SSO work. The Google client (S11) is `school-hub`'s, with Lost Soles' redirect URI added
+    (operator). Both live in SSM and reach `.env.production` at build, server-only.
+  - **Accepted consequences.** Any app holding `AUTH_SECRET` can mint a session Lost Soles accepts,
+    so the trust boundary is the domain's apps. Signing out of one app signs out of all of them.
+    And because sibling subdomains are same-site, **every state-changing route checks `Origin`**:
+    `SameSite=Lax` no longer separates them, and `08` §5.3's "not CSRF-reachable" stops being true.
+    Google carries the second factor, which is D-466's stated end state.
+
+- **D-472** **AppSync stops being a client-facing API. The browser talks only to its own origin.**
+  *(Agent, 2026-11-02, ticket `0138`.)* Changes the shape of `01-architecture.md` §1 ("Client-facing
+  data: AppSync + DynamoDB via `defineData`").
+  - **What changes.** The four browser transports (`lib/{skills,runs/ledger,log,run-kind}`) become
+    same-origin route handlers that run as the SSR compute role and key every read by
+    `currentUserId()`, which is the pattern `/api/fog` and `/api/runs/*` already use (D-228, D-456).
+    `logWorkout` and `setActivityKind` are invoked by the SSR role with `lambda:Invoke` and a
+    server-set `userId`. IAM on the invoke is the trust anchor, and the handlers still check the owner
+    list. `defineData` stays as the owner of the five model tables, with
+    `defaultAuthorizationMode: "iam"`, no owner rules and no principal granted `appsync:GraphQL`.
+    Gen 2 always adds IAM auth and needs no `defineAuth` for it.
+  - **Rejected: a Lambda authorizer validating the Auth.js JWT.** The session is an `httpOnly`,
+    encrypted cookie on our origin. The browser can neither read it nor send it to AppSync's origin,
+    so an authorizer would need a route that mints a second, readable token, which is a second
+    session to secure for no gain. With subscriptions gone (D-364), nothing needs the browser to be
+    an AppSync client.
+  - **Rejected: deleting `defineData`.** That deletes the tables.
+  - **Rejected: `apiKey`.** A public endpoint.
+
+- **D-473** **The cutover is a flag day: the bearer path is dropped, and the Cognito pool is deleted
+  at cutover with no rollback to it.** *(Operator, 2026-11-02, ticket `0138`.)* Supersedes **D-183**
+  at cutover, and **D-331**, whose held-children guard has nothing to guard once sign-in is a
+  full-page OAuth redirect. The Cognito ordering of **D-400** is superseded by `0333`; **D-403**
+  stands.
+  - **Bearer path dropped** (operator). Its only client after D-184 and D-252 was
+    `tools/capture/capture.sh`, which had made no call in 30 days. `/api/tickets/capture` becomes
+    session-only, and `capture.sh` and `lib/auth/bearer.ts` are deleted. A future non-browser client
+    gets its own decision, and D-183's verified-token shape against Google's JWKS is the obvious start.
+  - **Pool deleted at cutover** (operator), not kept dormant as a rollback path. A reverted
+    `defineAuth` would create a new pool with a new `sub`, so the way back is to fix forward on
+    Auth.js, whose failure modes are config. `check-auth-posture.mjs` and the Trigger A check are
+    rewritten in the same deploy that deletes the pool (`0334`), because both fail closed on a
+    missing pool. `0014`'s criterion 3 is annotated as superseded in that commit (D-175).
+  - **`0130`'s agent account** went with the torn-down sandbox stack (pool `us-east-1_RV7QIiViX` no
+    longer exists, checked 2026-11-02). Its stale SSM password is deleted in `0330`, and no
+    replacement identity is made. Agent smoke tests use AWS directly and the suite (D-229).
+  - **Sequence:** `0330` (Auth.js beside Cognito) and `0331` (AppSync out of the browser) → `0332`
+    (flag day) → `0333` (deletion) → `0334` (Cognito removed) → `0335` (D-425's re-checks).

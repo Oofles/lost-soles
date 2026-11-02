@@ -159,6 +159,11 @@ section converts it into something a person or an agent can actually check.
 friends are "planned" — when the second account is *provisioned* (§5.3). Also fires on a shared
 login, which is the same thing with worse accountability.
 
+*(Restated by D-470 for capability `19-authjs-migration`, which re-affirms D-123. After cutover it
+fires when the production `AUTH_ALLOWED_EMAILS` or the committed `IDENTITIES` map holds anyone but
+the owner. A `.devaultsecurity.com` session cookie held by another app's user is not an account
+here. `0334` rewrites the wording below and the enforcement script.)*
+
 **Gate — all must be true before the second account can sign in:**
 
 - [ ] **A-1. Owner-scoped data access is proven, not assumed.** Every `ExploredCell`, `Activity`,
@@ -648,6 +653,10 @@ factor is ever wanted beyond passkeys, it is **TOTP**, which is free.
 > `AUTH_ALLOWED_EMAILS` allowlist — Google sign-in without one is a public registration endpoint
 > wearing a different hat, which is the very thing the bullet above calls the single most important
 > line in the auth config.
+>
+> **Designed 2026-11-02 (`0138`):** `docs/capabilities/19-authjs-migration.md`. The slot is after the
+> MVP ship (D-425), not before `16`. D-470 re-affirms D-123 and restates Trigger A, D-471 carries
+> the allowlist and identity map, and D-473 deletes this pool at cutover.
 
 **Verification gate on the pool itself:** self-signup and unauthenticated identities are two
 booleans that a console click or a careless `defineAuth` edit can flip back. A one-line

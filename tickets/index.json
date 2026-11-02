@@ -3386,10 +3386,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-09-01T21:31:18Z",
+    "started": "2026-11-02T17:07:43Z",
     "path": "tickets/open/0138-authjs-with-google-replaces-cognito-design-the-migration.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 7,
       "total": 7
     }
   },
@@ -7626,6 +7627,140 @@
     "acceptance": {
       "checked": 6,
       "total": 6
+    }
+  },
+  {
+    "id": 330,
+    "slug": "auth-js-with-google-beside-cognito-and-the-email-to-uid-iden",
+    "title": "Auth.js with Google beside Cognito, and the email to uid identity map",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      117
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:17:55Z",
+    "path": "tickets/open/0330-auth-js-with-google-beside-cognito-and-the-email-to-uid-iden.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
+    }
+  },
+  {
+    "id": 331,
+    "slug": "appsync-leaves-the-browser-same-origin-routes-for-skills-led",
+    "title": "AppSync leaves the browser: same-origin routes for skills, ledger, log and kind",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      117
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:18:05Z",
+    "path": "tickets/open/0331-appsync-leaves-the-browser-same-origin-routes-for-skills-led.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 332,
+    "slug": "cutover-google-sign-in-replaces-the-authenticator-cognito-se",
+    "title": "Cutover: Google sign-in replaces the Authenticator, Cognito session and bearer path",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      330,
+      331
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:18:05Z",
+    "path": "tickets/open/0332-cutover-google-sign-in-replaces-the-authenticator-cognito-se.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 7
+    }
+  },
+  {
+    "id": 333,
+    "slug": "account-deletion-on-the-auth-js-identity",
+    "title": "Account deletion on the Auth.js identity",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      332
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:18:06Z",
+    "path": "tickets/open/0333-account-deletion-on-the-auth-js-identity.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
+    }
+  },
+  {
+    "id": 334,
+    "slug": "cognito-removed-defineauth-deleted-iam-only-data-posture-and",
+    "title": "Cognito removed: defineAuth deleted, IAM-only data, posture and Trigger A checks rewritten",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      332,
+      333
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:18:06Z",
+    "path": "tickets/open/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 335,
+    "slug": "re-run-the-d-123-and-auth-posture-checks-against-the-new-aut",
+    "title": "Re-run the D-123 and auth posture checks against the new auth (D-425)",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "19-authjs-migration",
+    "depends_on": [
+      334
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-02T17:18:06Z",
+    "path": "tickets/open/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 4
     }
   }
 ]
