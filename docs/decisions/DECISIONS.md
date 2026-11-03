@@ -6407,3 +6407,26 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     sessions stop while the slower deletes run. That holds only if the deletes actually wait for it.
     Carrying on would delete data while the email can still sign in.
   - The script never prints the email (D-426's counts-and-uids rule); the steps name the uid.
+
+- **D-478** **Lost Soles joins core's SSO: `core.devaultsecurity.com` is the sign-in point, with
+  the shared `AUTH_SECRET` and the shared cookie `devault.session-token`.** *(Operator, 2026-11-03,
+  found at the `0333` merge gate, ticket `0339`.)* Amends **D-471** (`AUTH_SECRET` was
+  `school-hub`'s value, the cookie was Auth.js's default, and each app ran its own Google sign-in)
+  and **D-474** (the verbatim copy now tracks `school-hub`'s file as of `7ba7d2e`). **Re-affirms
+  D-123** (Trigger A), with its new premise stated below.
+  - **What changed underneath us.** On 2026-11-02 `school-hub` and `eve-ops` joined core's SSO
+    (`../core/SSO-PLAN.md`). They moved to a new shared secret, renamed the session cookie
+    (Auth.js uses the name as the JWE salt) and redirected signed-out visitors to core. Lost Soles'
+    secret and cookie name are now unique to it, so a session from another app never reaches it.
+    `lib/auth/config.test.ts`'s live comparison caught the drift. Amplify does not run it.
+  - **The model** (operator: "core is intended to be the SSO hub for all my apps"). Core does the
+    Google sign-in. Every app reads the shared cookie with the shared secret and **checks its own
+    allowlist**. A signed-out visitor goes to core's `/login?next=<public URL>`. A signed-in account
+    not on this app's allowlist gets a 403. D-471's two gates stand: `AUTH_ALLOWED_EMAILS` and
+    `IDENTITIES` still decide who gets into Lost Soles.
+  - **D-123 re-affirmed. New premise:** the trust boundary is every app holding the shared
+    `AUTH_SECRET`: core, `school-hub` and `eve-ops` today. Any of them can mint a session Lost Soles
+    accepts, as D-471 already accepted for `school-hub` alone. No second account is added, and the
+    allowlist and `IDENTITIES` hold the owner only. A new app joining core does not reopen D-123 on
+    its own. A second email in Lost Soles' allowlist or `IDENTITIES` does.
+  - **Accepted cost:** rotating to the shared secret signs out existing Lost Soles sessions once.

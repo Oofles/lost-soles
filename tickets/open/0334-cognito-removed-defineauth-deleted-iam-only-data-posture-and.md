@@ -4,11 +4,11 @@ slug: cognito-removed-defineauth-deleted-iam-only-data-posture-and
 title: Cognito removed: defineAuth deleted, IAM-only data, posture and Trigger A checks rewritten
 type: feature
 priority: med
-status: open
+status: blocked
 size: m
 capability: 19-authjs-migration
 depends_on: [332, 333]
-blocked_by: []
+blocked_by: [339]
 source: agent
 created: 2026-11-02T17:18:06Z
 ---
@@ -67,6 +67,9 @@ deploy that deletes the pool fails.
       load as before.
 
 ## Notes
+
+
+**Blocked 2026-11-03 on 0339:** 0339 joins core's SSO (D-478) and rewrites middleware and the auth posture first; 0334 removes Cognito from what that leaves
 
 `amplify_outputs.json` loses its `auth` block, and anything reading it structurally (the CSP builder,
 the old posture check) must not assume the block exists. Grep before deploying.

@@ -7734,18 +7734,20 @@
     "title": "Cognito removed: defineAuth deleted, IAM-only data, posture and Trigger A checks rewritten",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "blocked",
     "size": "m",
     "capability": "19-authjs-migration",
     "depends_on": [
       332,
       333
     ],
-    "blocked_by": [],
+    "blocked_by": [
+      339
+    ],
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "path": "tickets/open/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
-    "ready": true,
+    "ready": false,
     "acceptance": {
       "checked": 0,
       "total": 6
@@ -7834,6 +7836,26 @@
     "acceptance": {
       "checked": 0,
       "total": 1
+    }
+  },
+  {
+    "id": 339,
+    "slug": "join-core-sso",
+    "title": "Join core's SSO: shared secret and cookie name, signed-out visitors go to core",
+    "type": "feature",
+    "priority": "med",
+    "status": "open",
+    "size": "m",
+    "capability": "19-authjs-migration",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-03T18:33:38Z",
+    "path": "tickets/open/0339-join-core-sso.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 8
     }
   }
 ]
