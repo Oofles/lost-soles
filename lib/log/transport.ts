@@ -75,7 +75,7 @@ export async function fetchSkills(): Promise<CachedSkill[]> {
 
 /**
  * The signed-in user's uid, from the `ls-uid` cookie — no network, so `/log` still opens its queue
- * and cache offline (D-282). Undefined if signed out, or outside a browser. Ticket 0332, D-NEW-a:
+ * and cache offline (D-282). Undefined if signed out, or outside a browser. Ticket 0332, D-476:
  * it was Amplify's `getCurrentUser()` until the cutover. A KEY FOR LOCAL STORES, NOT A CREDENTIAL:
  * the server never reads this cookie (`lib/auth/uid-cookie.ts`).
  */

@@ -6373,3 +6373,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - `hasForeignOrigin` (`lib/http/origin.ts`) refuses the Amplify default domain and preview
     branches. That is accepted: the session cookie is scoped to `.devaultsecurity.com`, so they
     could never carry a session anyway.
+
+- **D-476** **After the cutover, the browser learns the uid from a readable companion cookie,
+  `ls-uid`, which the server never reads.** *(Operator, 2026-11-02, ticket `0332`, recorded at
+  merge.)* The Auth.js session is an httpOnly cookie, so browser code cannot read it, but the browser
+  still keys its IndexedDB stores (the `/log` queue, the skills cache, the latest run, landmarks) by
+  uid, and `/log` must read them offline (D-282). Before the cutover, Amplify's `getCurrentUser()`
+  answered that locally.
+  - `middleware.ts` sets `ls-uid=<uid>` (`Secure`, `SameSite=Lax`, host-only, `Path=/`, 30 days to
+    match the session, **not** `httpOnly`) on every admitted response, and expires it on every
+    signed-out one, the landing included. `currentUid()` (`lib/log/transport.ts`) reads it from
+    `document.cookie`, with no network.
+  - **The uid is not a credential.** The server authorizes from the Auth.js session alone and never
+    reads `ls-uid`, so a forged value with no session is signed out. That is pinned in
+    `middleware.test.ts` and `lib/auth/owner.test.ts`. A forged value changes only which local
+    cache that browser opens. The uid names an account, not a place, and the browser held the same
+    `sub` inside Amplify's tokens before.
+  - Rejected: a `/api/session/uid` route with a client cache (a request per page, plus cache
+    invalidation); rendering the uid from the root layout (every route dynamic, breaks D-282); a
+    constant store key (changes `02` §6.4 and drops per-user separation).

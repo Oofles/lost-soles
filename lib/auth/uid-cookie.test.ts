@@ -4,7 +4,7 @@ import { currentUid } from "@/lib/log/transport"
 
 import { UID_COOKIE, UID_COOKIE_OPTIONS, uidFromCookieHeader } from "./uid-cookie"
 
-/** Ticket 0332, D-NEW-a. The browser's uid, from `document.cookie`, with no network. */
+/** Ticket 0332, D-476. The browser's uid, from `document.cookie`, with no network. */
 
 const UID = "5488e4b8-d081-7014-748e-edd1937f8083"
 

@@ -22,7 +22,7 @@ vi.mock("@/lib/auth", () => ({
   },
 }))
 /**
- * A bearer header and a forged `ls-uid` cookie (0332, D-NEW-a) are offered on every request here. Nothing may read either: if
+ * A bearer header and a forged `ls-uid` cookie (0332, D-476) are offered on every request here. Nothing may read either: if
  * `currentUserId()` ever looked at headers again, the tests below would still have to pass.
  */
 vi.mock("next/headers", () => ({
@@ -88,7 +88,7 @@ describe("currentUserId() and the Auth.js session (0330)", () => {
 })
 
 describe("no Auth.js session (0332, D-473)", () => {
-  it("is undefined, though a bearer header AND a forged ls-uid cookie are present (D-NEW-a)", async () => {
+  it("is undefined, though a bearer header AND a forged ls-uid cookie are present (D-476)", async () => {
     await expect(currentUserId()).resolves.toBeUndefined()
   })
 

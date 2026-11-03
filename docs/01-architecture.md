@@ -1084,7 +1084,7 @@ error.
 > (`app/auth-actions.ts`) and full-page redirects, so `AuthRefresh` (D-331) is deleted. The
 > Amplify client (`Amplify.configure`, `@aws-amplify/ui-react`, `@aws-amplify/adapter-nextjs`) is
 > gone from `app/`, `components/` and `lib/`. The browser's uid, its IndexedDB key, comes from the
-> readable `ls-uid` cookie the middleware sets, never read by the server (D-NEW-a, `08` §5.3).
+> readable `ls-uid` cookie the middleware sets, never read by the server (D-476, `08` §5.3).
 >
 > The `api/` routes below that do not exist yet — `strava/callback`, `ingest`, `explored` —
 > are still the plan; they arrive with capabilities `05`, `07` and beyond.

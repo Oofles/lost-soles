@@ -112,7 +112,7 @@ describe("signed in", () => {
 })
 
 /**
- * Ticket 0332, D-NEW-a. `ls-uid` is the browser's copy of the uid, for its IndexedDB keys. The gate
+ * Ticket 0332, D-476. `ls-uid` is the browser's copy of the uid, for its IndexedDB keys. The gate
  * WRITES it and never READS it: the uid is not a credential.
  */
 describe("the ls-uid cookie (0332)", () => {

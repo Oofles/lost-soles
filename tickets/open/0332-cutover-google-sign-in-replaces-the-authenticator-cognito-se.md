@@ -72,6 +72,24 @@ comparison above. Operator, desktop browser: the two `(operator)` criteria.
 D-123 trigger checked? **A** — the sign-in mechanism changes. D-470 re-affirms D-123. `IDENTITIES`
 holds the owner only.
 
+
+Agent, local (worktree):
+- `npm run typecheck`, `npm run lint`: clean.
+- `npx vitest run`: 288 files, 4675 passed, 2 skipped.
+- `npm run build`: passed. `/log` and `/skills` are still static.
+- Every `amplify.yml` frontend guard passed: pre-build, `npm audit --omit=dev --audit-level=high`,
+  and post-build (third-party origins, bundle leak, prerender, home-not-in-client).
+- The built CSP names no Cognito host, and no client chunk contains `cognito-idp` or
+  `getCurrentUser`.
+
+Post-deploy, agent:
+- curl the CSP (no `cognito`);
+- a protected API signed out (404) and with a bearer header (404);
+- a page signed out (307);
+- the Σ `XpLedgerEntry.amount` / `Profile.exploredGeneration` comparison.
+
+Operator, desktop browser: the two `(operator)` criteria.
+
 ## Resolution
 
 **What shipped.** This is the flag day (D-473). After it, the only way in is a Google sign-in through
@@ -94,7 +112,7 @@ Auth.js. The Cognito pool and `defineAuth` stay until `0334`, and nothing reads 
 - **Sign out.** `app/settings/settings-controls.tsx`: Sign out is a form posting `signOutEverywhere`
   (Auth.js `signOut({ redirectTo: "/" })`). It carries one line of copy: "This signs you out of every
   devaultsecurity.com app, not only this one." (D-471, shared cookie).
-- **The browser's uid (D-NEW-a, operator chose option a).** `lib/auth/uid-cookie.ts` (new) defines
+- **The browser's uid (D-476, operator chose option a).** `lib/auth/uid-cookie.ts` (new) defines
   `ls-uid`. `middleware.ts` sets it on every admitted response (`Secure`, `SameSite=Lax`,
   host-only, `Path=/`, 30 days, **not** `httpOnly`). It expires it on every signed-out response,
   the landing included, with the same attributes and `Max-Age=0`. It does not use `cookies.delete`,
@@ -132,11 +150,11 @@ Auth.js. The Cognito pool and `defineAuth` stay until `0334`, and nothing reads 
     - the non-browser row removed, and the Cognito hosts struck from the Headers row.
   - `01` §5's capability-19 note amended.
   - Both cite D-473.
-- **Fix:** `lib/auth/config.ts` header says "D-474, amending D-471" (was "D-NEW-a"). The body is
+- **Fix:** `lib/auth/config.ts` header says "D-474, amending D-471" (was "D-476"). The body is
   untouched, and the sha256 pin passes.
 
 **Decisions.**
-- **D-NEW-a (proposed, operator chose option a): how the browser learns the uid after the cutover.**
+- **D-476 (proposed, operator chose option a): how the browser learns the uid after the cutover.**
   The `ls-uid` companion cookie, set and cleared by the middleware. It is a key for local stores,
   **not a credential**: the server authorizes from the Auth.js session alone.
 - **Agent choices, accepted by the operator:**
@@ -146,22 +164,3 @@ Auth.js. The Cognito pool and `defineAuth` stay until `0334`, and nothing reads 
     the client, and Next applies its own Origin check to server actions (`08` §5.3 CSRF row).
 - Untouched, per D-475: the mutation Lambdas' AppSync event branch and AppSync's resolver
   permissions (`0334`'s).
-
-## Operator validation
-
-Agent, local (worktree):
-- `npm run typecheck`, `npm run lint`: clean.
-- `npx vitest run`: 288 files, 4675 passed, 2 skipped.
-- `npm run build`: passed. `/log` and `/skills` are still static.
-- Every `amplify.yml` frontend guard passed: pre-build, `npm audit --omit=dev --audit-level=high`,
-  and post-build (third-party origins, bundle leak, prerender, home-not-in-client).
-- The built CSP names no Cognito host, and no client chunk contains `cognito-idp` or
-  `getCurrentUser`.
-
-Post-deploy, agent:
-- curl the CSP (no `cognito`);
-- a protected API signed out (404) and with a bearer header (404);
-- a page signed out (307);
-- the Σ `XpLedgerEntry.amount` / `Profile.exploredGeneration` comparison.
-
-Operator, desktop browser: the two `(operator)` criteria.

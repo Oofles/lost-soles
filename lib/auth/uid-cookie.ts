@@ -1,5 +1,5 @@
 /**
- * THE BROWSER'S COPY OF THE UID. Ticket 0332, D-NEW-a ("how the browser learns the uid after the
+ * THE BROWSER'S COPY OF THE UID. Ticket 0332, D-476 ("how the browser learns the uid after the
  * cutover").
  *
  * The Auth.js session is an `httpOnly` cookie, so no script can read it. The browser still needs
