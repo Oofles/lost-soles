@@ -95,6 +95,15 @@ possible once the run finished), add `--resume`.
 > no longer signs in to anything. A second identity is now a second email in `AUTH_ALLOWED_EMAILS`
 > or a second `IDENTITIES` entry (D-470), and the script has not been re-run against one: that is
 > Trigger A, and waits for a real need. The steps are kept as the record of `0106`'s run.
+>
+> **The seed's precondition, since `0337`.** `seed-throwaway.ts` makes no Cognito call and reads
+> nothing from `amplify_outputs.json`'s `auth` block. It refuses, exit 2 with nothing written, unless
+> the uid **maps in `IDENTITIES`** (`lib/auth/owner-ids.ts`) **and is not in `OWNER_USER_IDS`**. The
+> check runs before it reads config or builds an AWS client. So step 1 below is now: add a throwaway
+> email to `AUTH_ALLOWED_EMAILS` and an `IDENTITIES` entry mapping it to a fresh uid. **Creating
+> that throwaway identity is D-123 Trigger A** (`08` §2.4, D-470), and it reopens D-123 before the
+> commit that adds the entry merges. Until then every non-owner uid is refused, which is the
+> intended state.
 
 Creating a second Cognito account — including a throwaway for testing this runbook — is **D-123
 Trigger A** (`08` §2.4). For a test: **create → seed → run → delete, in one sitting**, and record the

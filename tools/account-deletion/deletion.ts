@@ -398,6 +398,39 @@ export async function probeArchiveGuard(env: DeletionEnv): Promise<string> {
   throw new Error("guard probe: the default credentials were PERMITTED to delete under raw/. Stop.")
 }
 
+// ─── The identity, as the tools see it ────────────────────────────────────────
+
+/**
+ * The emails `IDENTITIES` (`lib/auth/owner-ids.ts`) maps to `uid`. Passed the map rather than
+ * importing it, so a test supplies its own. Used by `delete-account.ts` and `seed-throwaway.ts`.
+ */
+export function emailsMappedTo(uid: string, identities: Readonly<Record<string, string>>): string[] {
+  return Object.keys(identities).filter((email) => identities[email] === uid)
+}
+
+/**
+ * THE SEED TOOL'S PRECONDITION (`0337`, D-471, D-473). The uid maps in `IDENTITIES` and is not in
+ * `OWNER_USER_IDS`. `null` when it holds, else the refusal to print. It replaced a Cognito user
+ * lookup against the pool `0334` deletes. A throwaway that maps is a second identity, which is
+ * D-123 Trigger A (`08` §2.4); this check does not create one, it only refuses a uid that has none.
+ */
+export function seedRefusal(
+  uid: string,
+  identities: Readonly<Record<string, string>>,
+  ownerIds: readonly string[],
+): string | null {
+  if (ownerIds.includes(uid)) {
+    return "refusing: that uid is in OWNER_USER_IDS. This seeds throwaway accounts only. Nothing was written."
+  }
+  if (emailsMappedTo(uid, identities).length === 0) {
+    return (
+      `refusing: IDENTITIES (lib/auth/owner-ids.ts) maps no email to ${uid}, so no identity can sign in as it. ` +
+      "Mapping a throwaway is D-123 Trigger A (08 §2.4). Nothing was written."
+    )
+  }
+  return null
+}
+
 // ─── The two manual steps ─────────────────────────────────────────────────────
 
 /** Where the sign-in gate lives: the name `scripts/write-authjs-env.mjs` reads at build. */

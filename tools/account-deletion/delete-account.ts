@@ -12,7 +12,7 @@ import { SOURCE_ACCOUNT_TABLE } from "../../lib/sources/source-account-store"
 import { EXPLORED_CELL_TABLE } from "../../src/pipeline/explored-cells"
 import { INGEST_RECEIPT_TABLE } from "../../src/pipeline/ingest-receipt"
 import { modelTables } from "../xp-replay/tables"
-import { ConfirmationMismatch, OwnerRefused, renderConfirmation, runAccountDeletion } from "./deletion"
+import { ConfirmationMismatch, emailsMappedTo, OwnerRefused, renderConfirmation, runAccountDeletion } from "./deletion"
 import { revokeAllSources } from "./revoke"
 
 /**
@@ -83,7 +83,7 @@ try {
   const result = await runAccountDeletion({
     uid,
     bucket,
-    identityEmails: Object.keys(IDENTITIES).filter((email) => IDENTITIES[email] === uid),
+    identityEmails: emailsMappedTo(uid, IDENTITIES),
     breakGlassRoleArn: `arn:aws:iam::${caller.Account}:role/LostSolesArchiveDeletion`,
     identityId: flag("identity-id"),
     resume: args.includes("--resume"),
