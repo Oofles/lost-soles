@@ -45,7 +45,8 @@ exists, but nothing reads it. `0334` deletes it.
       mapped email → through; an `Authorization: Bearer …` header alone → treated as signed out.
 - [x] `/api/tickets/capture` tests are rewritten on the session path. A-6's non-owner test (D-428)
       still fails a non-owner, now an allowlisted-but-unmapped email.
-- [ ] The deployed CSP names no `cognito-idp` or `cognito-identity` host (curl the headers).
+- [x] The deployed CSP names no `cognito-idp` or `cognito-identity` host (curl the headers).
+      — verified 2026-11-03: deployed `connect-src 'self' https://d1wk224yi6fnfe.cloudfront.net`, 0 matches for `cognito`.
       *(Not tickable before deploy. The built CSP in `.next/routes-manifest.json` is `connect-src 'self' https://d1wk224yi6fnfe.cloudfront.net`, and `lib/security-headers.test.ts` pins that no Cognito host appears. The orchestrator curls the deployed headers.)*
 - [x] `08` §5.3 is rewritten for Auth.js: token storage (httpOnly cookie, not `localStorage`), TTL
       (Auth.js's 30-day JWT), revocation (rotate `AUTH_SECRET`, all apps), and the non-browser row
@@ -89,6 +90,18 @@ Post-deploy, agent:
 - the Σ `XpLedgerEntry.amount` / `Profile.exploredGeneration` comparison.
 
 Operator, desktop browser: the two `(operator)` criteria.
+
+Post-deploy, agent — run 2026-11-03 against Amplify job 445 (`b135bb8`, SUCCEED):
+- `curl -I https://soles.devaultsecurity.com/`: 200, CSP `connect-src 'self' https://d1wk224yi6fnfe.cloudfront.net`,
+  no `cognito` anywhere. The signed-out response sets `ls-uid=; Path=/; Max-Age=0; Secure; SameSite=lax`
+  (D-476 expiry, with `Path`), and the body contains "Sign in with Google".
+- `/api/skills/profile`, `/api/runs/latest`, `/api/fog`, `/api/log`: 404 signed out, and 404 with only
+  `Authorization: Bearer <jwt-shaped>`. The bearer path is gone.
+- `/settings` signed out: 307 → `/?next=%2Fsettings`.
+- Data baseline for owner `5488e4b8-…8083`: 377 `XpLedgerEntry` rows, Σ `xpAwarded` = **73,002**;
+  `Profile.exploredGeneration` = **270**. The latest write to either is 2026-11-02T20:18:28Z, before the
+  deploy started (02:56Z on 11-03), so these are also the pre-cutover values. The comparison after the
+  operator signs in is below.
 
 ## Resolution
 
