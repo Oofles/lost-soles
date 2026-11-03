@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
  * Ticket 0019. The middleware half of "an unauthenticated request receives 404"
@@ -31,6 +31,17 @@ vi.mock("@/lib/auth", () => ({
 
 const OWNER_EMAIL = "amazingbrandon@gmail.com"
 
+/**
+ * Ticket 0339, D-478: core's SSO. Production's values, STUBBED, never read from the environment the
+ * suite runs in. Amplify's build container is where `amplify.yml` runs `npm test`, and eve-ops
+ * `5a63a1d` failed a deploy because its middleware tests read the real `AUTH_SSO_URL` from it.
+ * Every test here sets both, including the local-mode block below, which stubs them EMPTY.
+ */
+const CORE = "https://core.devaultsecurity.com"
+const PUBLIC_ORIGIN = "https://soles.devaultsecurity.com"
+const toCore = (pathAndQuery: string) =>
+  `${CORE}/login?next=${encodeURIComponent(`${PUBLIC_ORIGIN}${pathAndQuery}`)}`
+
 const { middleware, config } = await import("./middleware")
 const { NO_STORE } = await import("@/lib/http/no-store")
 
@@ -41,6 +52,12 @@ const get = async (pathname: string, headers?: HeadersInit) =>
 beforeEach(() => {
   authjsEmail = undefined
   process.env.AUTH_ALLOWED_EMAILS = OWNER_EMAIL
+  vi.stubEnv("AUTH_SSO_URL", CORE)
+  vi.stubEnv("AUTH_URL", PUBLIC_ORIGIN)
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe("signed out", () => {
@@ -56,15 +73,36 @@ describe("signed out", () => {
     },
   )
 
-  it("still 307s a PAGE toward `/`, where Sign in with Google renders", async () => {
-    const res = await get("/log")
-    expect(res.status).toBe(307)
-    expect(res.headers.get("location")).toContain("/?next=%2Flog")
+  /** 0339, D-478. Core is the sign-in point: the full public URL, path and query, as `next`. */
+  it.each(["/", "/log", "/skills/running", "/settings?tab=sources"])(
+    "307s the page %s to core's /login, with its full public URL as next",
+    async (path) => {
+      const res = await get(path)
+      expect(res.status).toBe(307)
+      expect(res.headers.get("location")).toBe(toCore(path))
+    },
+  )
+
+  it("sends `/` to core exactly as the ticket's criterion spells it", async () => {
+    const res = await get("/")
+    expect(res.headers.get("location")).toBe(
+      "https://core.devaultsecurity.com/login?next=https%3A%2F%2Fsoles.devaultsecurity.com%2F",
+    )
   })
 
-  it("does not redirect `/` to itself", async () => {
+  it("builds next from AUTH_URL, not the request's host (Amplify's can be internal)", async () => {
+    const res = (await middleware(
+      new NextRequest(new URL("https://internal-compute.example:3000/log")),
+      { params: Promise.resolve({}) },
+    )) as Response
+    expect(res.headers.get("location")).toBe(toCore("/log"))
+  })
+
+  it("the redirect to core carries no body and sets no session cookie", async () => {
     const res = await get("/")
-    expect(res.status).toBe(200)
+    expect(await res.text()).toBe("")
+    const names = res.headers.getSetCookie().map((c) => c.slice(0, c.indexOf("=")))
+    expect(names).toEqual(["ls-uid"])
   })
 
   it("does not treat a page whose name merely starts with `api` as an API path", async () => {
@@ -72,6 +110,87 @@ describe("signed out", () => {
     // 404 that reads as a broken route rather than as a sign-in prompt.
     const res = await get("/apiary")
     expect(res.status).toBe(307)
+  })
+})
+
+/**
+ * Ticket 0339, D-478. Signed in on the domain (core, or another app holding the shared secret),
+ * but not admitted HERE. A redirect to core would loop: core sees a valid session and sends the
+ * browser straight back. So a page answers 403, and an API keeps its 404.
+ */
+describe("signed in on the domain, not admitted here (0339)", () => {
+  it("403s a page for an email not on Lost Soles' allowlist", async () => {
+    authjsEmail = "someone-else@example.com"
+    for (const path of ["/", "/log", "/settings"]) {
+      const res = await get(path)
+      expect(res.status, path).toBe(403)
+      expect(res.headers.get("location"), path).toBeNull()
+      expect(res.headers.get("cache-control"), path).toBe(NO_STORE)
+      expect(await res.text(), path).toContain("does not have access to Lost Soles")
+    }
+  })
+
+  it("403s a page for an allowlisted email with no IDENTITIES entry (D-470)", async () => {
+    authjsEmail = "someone-else@example.com"
+    process.env.AUTH_ALLOWED_EMAILS = `${OWNER_EMAIL},someone-else@example.com`
+    expect((await get("/log")).status).toBe(403)
+  })
+
+  it("404s an API for that email, byte for byte as signed out", async () => {
+    authjsEmail = "someone-else@example.com"
+    const outsider = await get("/api/fog")
+    authjsEmail = undefined
+    const none = await get("/api/fog")
+    expect(outsider.status).toBe(404)
+    expect(await outsider.text()).toBe(await none.text())
+  })
+
+  it("the 403 names no email and expires ls-uid", async () => {
+    authjsEmail = "someone-else@example.com"
+    const res = await get("/", { cookie: "ls-uid=5488e4b8-d081-7014-748e-edd1937f8083" })
+    expect(await res.text()).not.toMatch(/@|someone-else|amazingbrandon/)
+    expect(res.headers.getSetCookie().find((c) => c.startsWith("ls-uid="))).toMatch(/^ls-uid=;.*Max-Age=0/)
+  })
+
+  it("lets the mapped owner through to a page and an API", async () => {
+    authjsEmail = OWNER_EMAIL
+    expect((await get("/")).status).toBe(200)
+    expect((await get("/log")).status).toBe(200)
+    expect((await get("/api/fog")).status).toBe(200)
+  })
+})
+
+/**
+ * WITHOUT core (locally: a cookie cannot span localhost and the domain). `ssoLoginUrl` is null
+ * unless BOTH `AUTH_SSO_URL` and `AUTH_URL` are set, and the gate then does what it did before
+ * 0339: a 307 to `/`, where the `(home)` layout renders Sign in with Google.
+ */
+describe("without AUTH_SSO_URL: the local fallback (pre-0339 behaviour)", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_SSO_URL", "")
+  })
+
+  it("307s a page toward `/`, where Sign in with Google renders", async () => {
+    const res = await get("/log")
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toBe(`${PUBLIC_ORIGIN}/?next=%2Flog`)
+  })
+
+  it("does not redirect `/` to itself", async () => {
+    expect((await get("/")).status).toBe(200)
+  })
+
+  it("with AUTH_SSO_URL set but AUTH_URL unset, falls back too (no half-built next)", async () => {
+    vi.stubEnv("AUTH_SSO_URL", CORE)
+    vi.stubEnv("AUTH_URL", "")
+    const res = await get("/log")
+    expect(res.headers.get("location")).toBe(`${PUBLIC_ORIGIN}/?next=%2Flog`)
+  })
+
+  it("sends a not-admitted session the same way as no session: no 403 without core", async () => {
+    authjsEmail = "someone-else@example.com"
+    expect((await get("/log")).status).toBe(307)
+    expect((await get("/")).status).toBe(200)
   })
 })
 
@@ -90,7 +209,15 @@ describe("Cache-Control on the middleware's own responses (0322)", () => {
     },
   )
 
-  it("the signed-out 307 for a page carries no-store", async () => {
+  it("the signed-out 307 to core for a page carries no-store", async () => {
+    const res = await get("/skills")
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toBe(toCore("/skills"))
+    expect(res.headers.get("cache-control")).toBe(NO_STORE)
+  })
+
+  it("the local fallback's 307 to `/` carries no-store too", async () => {
+    vi.stubEnv("AUTH_SSO_URL", "")
     const res = await get("/skills")
     expect(res.status).toBe(307)
     expect(res.headers.get("cache-control")).toBe(NO_STORE)
@@ -131,7 +258,7 @@ describe("the ls-uid cookie (0332)", () => {
     expect(c).not.toMatch(/Domain=/i)
   })
 
-  it.each(["/", "/log", "/api/fog"])("is deleted, at Path=/, on a signed-out response to %s", async (path) => {
+  it.each(["/", "/log", "/api/fog"])("is deleted, at Path=/, on a signed-out response to %s (the 307 to core included)", async (path) => {
     const c = setCookie(await get(path, { cookie: `ls-uid=${OWNER_UID}` }))
     expect(c).toMatch(/^ls-uid=;/)
     expect(c).toMatch(/Path=\//)
@@ -144,12 +271,14 @@ describe("the ls-uid cookie (0332)", () => {
     expect(setCookie(await get("/"))).toMatch(/^ls-uid=;/)
   })
 
-  it("a FORGED ls-uid with no session is signed out: 404 for an API, 307 for a page", async () => {
+  it("a FORGED ls-uid with no session is signed out: 404 for an API, 307 to core for a page", async () => {
     const forged = { cookie: `ls-uid=${OWNER_UID}` }
     const api = await get("/api/tickets/capture", forged)
     expect(api.status).toBe(404)
     expect(await api.text()).toBe(await (await get("/api/tickets/capture")).text())
-    expect((await get("/log", forged)).status).toBe(307)
+    const page = await get("/log", forged)
+    expect(page.status).toBe(307)
+    expect(page.headers.get("location")).toBe(toCore("/log"))
   })
 
   it("the server never reads it: the gate and the session readers do not name it", async () => {
@@ -178,9 +307,10 @@ describe("bearer token alone (0332)", () => {
     },
   )
 
-  it("307s a PAGE carrying only a bearer header, as signed out", async () => {
+  it("307s a PAGE carrying only a bearer header to core, as signed out", async () => {
     const res = await get("/log", { authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig" })
     expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toBe(toCore("/log"))
   })
 
   it("the middleware no longer imports Amplify or a bearer verifier", async () => {

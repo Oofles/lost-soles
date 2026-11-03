@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { auth } from "@/lib/auth"
+import { ssoLoginUrl } from "@/lib/auth/config"
 import { authjsUid } from "@/lib/auth/identity"
 import { UID_COOKIE, UID_COOKIE_OPTIONS } from "@/lib/auth/uid-cookie"
 import { NO_STORE } from "@/lib/http/no-store"
@@ -13,11 +14,17 @@ import { NO_STORE } from "@/lib/http/no-store"
  * and not "behind auth" in the sense criterion 2 means — hence this. Since 0332
  * (D-473) there is no client gate at all, and this is the only one.
  *
- * A signed-out request for any route other than `/` never receives that route's
- * markup at all; it gets a 307 to `/`, where the `(home)` layout renders Sign in
- * with Google. There is deliberately NO /sign-in route: §1.2 says seven routes, and
- * §1.5 says back always returns toward `/`, so `/` doubling as the signed-out
- * landing keeps both true.
+ * SINCE 0339 (D-478), CORE IS THE SIGN-IN POINT. A signed-out request for a page, `/`
+ * included, never receives that page's markup: it gets a 307 to
+ * `https://core.devaultsecurity.com/login?next=<this page's full public URL>`, and core sends
+ * it back here once signed in. A signed-in account that is not admitted HERE gets a 403, never
+ * that redirect: core would see its valid session and bounce it straight back, forever. This is
+ * `school-hub`'s `middleware.ts` at 7ba7d2e, with Lost Soles' two gates (D-471) as the test.
+ *
+ * WITHOUT `AUTH_SSO_URL` (locally, where a cookie cannot span localhost and the domain), the
+ * gate falls back to what it did before 0339: a 307 to `/`, where the `(home)` layout renders
+ * Sign in with Google. There is deliberately NO /sign-in route: §1.2 says seven routes, and
+ * §1.5 says back always returns toward `/`.
  *
  * The session is read here and NEVER trusted from a request body, query string or
  * header — the same rule §5.3 states for API routes and §4 states for the webhook.
@@ -57,26 +64,49 @@ function gate(request: NextRequest, authjsEmail: string | null | undefined): Nex
     admitted.cookies.set(UID_COOKIE, uid, UID_COOKIE_OPTIONS)
     return admitted
   }
-  const signedOut = refuse(request)
+  const signedOut = refuse(request, Boolean(authjsEmail))
   // Not `cookies.delete(name)`: that omits `Path`, so on `/api/fog` it would clear an `/api`
   // cookie and leave the `Path=/` one standing. Same attributes, expired now.
   signedOut.cookies.set(UID_COOKIE, "", { ...UID_COOKIE_OPTIONS, maxAge: 0 })
   return signedOut
 }
 
-/** The signed-out answer: an API 404, `/` itself, or a 307 to `/`. */
-function refuse(request: NextRequest): NextResponse {
+/**
+ * The not-admitted answer. An API always 404s. A page, under core's SSO (D-478): a 403 for a
+ * session this app does not admit, else a 307 to core. Without `AUTH_SSO_URL`: `/` itself, or a
+ * 307 to `/`.
+ *
+ * `hasSession` is "the Auth.js cookie decrypted to an email", whatever that email is worth here.
+ * It only chooses between two refusals; it never admits anything (`gate` decided that already).
+ */
+function refuse(request: NextRequest, hasSession: boolean): NextResponse {
   /**
-   * The two responses below are built HERE, not by a route handler, so `withNoStore` never sees
-   * them. D-429 / C-3 say EVERY response carries `private, no-store`, 404s and redirects included,
-   * so each sets it itself (ticket 0322). The `NextResponse.next()` paths fall through to a route
-   * or page, which sets its own.
+   * The responses below are built HERE, not by a route handler, so `withNoStore` never sees
+   * them. D-429 / C-3 say EVERY response carries `private, no-store`, 404s, 403s and redirects
+   * included, so each sets it itself (ticket 0322). The `NextResponse.next()` path falls through
+   * to a page, which sets its own.
    */
   if (isApiPath(request.nextUrl.pathname)) {
+    // Signed out and signed in-but-not-here alike: §6.5's 404, so neither can tell "you may not"
+    // from "there is nothing here". school-hub answers 401 JSON; Lost Soles keeps its 404 (0019).
     return NextResponse.json(
       { error: "not found" },
       { status: 404, headers: { "Cache-Control": NO_STORE } },
     )
+  }
+
+  /**
+   * Core's SSO (ticket 0339, D-478). `ssoLoginUrl` is `school-hub`'s, verbatim in
+   * `lib/auth/config.ts`: null unless BOTH `AUTH_SSO_URL` and `AUTH_URL` are set, and the return
+   * address is built from `AUTH_URL`, the public origin, because the request URL behind Amplify
+   * can be an internal host. Path AND query, so a deep link survives the round trip.
+   */
+  const sso = ssoLoginUrl(request.nextUrl.pathname + request.nextUrl.search)
+  if (sso) {
+    if (hasSession) return forbidden()
+    const toCore = NextResponse.redirect(sso)
+    toCore.headers.set("Cache-Control", NO_STORE)
+    return toCore
   }
 
   // `/` is the signed-out landing as well as the home screen, so it must not
@@ -91,6 +121,19 @@ function refuse(request: NextRequest): NextResponse {
   const redirect = NextResponse.redirect(url)
   redirect.headers.set("Cache-Control", NO_STORE)
   return redirect
+}
+
+/**
+ * Signed in on the domain, not admitted here: an allowlisted account of another app, or one that
+ * fails Lost Soles' `AUTH_ALLOWED_EMAILS` or `IDENTITIES` (D-471). Static text, the same for every
+ * such account: it names no email and nothing about the owner.
+ */
+function forbidden(): NextResponse {
+  return new NextResponse(
+    "<!doctype html><meta charset=utf-8><title>Not permitted</title>" +
+      "<p>You are signed in, but this account does not have access to Lost Soles.</p>",
+    { status: 403, headers: { "content-type": "text/html; charset=utf-8", "Cache-Control": NO_STORE } },
+  )
 }
 
 export const middleware = auth((req) => gate(req, req.auth?.user?.email))

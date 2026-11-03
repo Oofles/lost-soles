@@ -15,8 +15,8 @@ import { describe, expect, it } from "vitest"
  * Updating the copy: replace everything below the end-of-header line with the new source, update
  * SOURCE_COMMIT in the header and SOURCE_SHA256 here, together.
  */
-const SOURCE_COMMIT = "099f1ada15142f0cc6bf33bee5e228d20ed4dfb6"
-const SOURCE_SHA256 = "bfa681059b9c568f952bc444547560eeb98aa49bdd79af6fbf53efac0097c9db"
+const SOURCE_COMMIT = "7ba7d2e0a401bd1431fac26de8034e0e972436f2"
+const SOURCE_SHA256 = "421fc93476343e5728a66a502fbbcd492da24435b066c75d210700a759b9ee21"
 const END_OF_HEADER = "// ── END OF HEADER ── everything below is school-hub's file, byte for byte ──\n"
 
 const ROOT = join(__dirname, "..", "..")

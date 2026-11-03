@@ -19,10 +19,13 @@ import { sourceConnections } from "@/lib/plinth/connections"
 // dismissing the Chronicle never re-creates MapLibre and never moves the camera. The route group
 // adds no URL segment. `page.tsx` beside this is `/`, and renders nothing of its own.
 //
-// This is also where a SIGNED-OUT visitor lands: middleware.ts redirects every
-// other route here, and this layout renders `<SignInLanding>` in place of the home
-// screen (ticket 0332; it was the Authenticator in the root layout until then). There
-// is no separate /sign-in route, which keeps §1.2's "seven routes" true.
+// SIGNED OUT, IN PRODUCTION, A VISITOR NEVER REACHES THIS LAYOUT (ticket 0339, D-478): core is
+// the sign-in point, and middleware.ts sends every signed-out page, `/` included, to core's
+// /login with a 307 before any rendering. The middleware does it rather than this layout because
+// it already runs on every route, so `/log` and `/skills` stay static and the redirect carries no
+// payload at all. Only WITHOUT `AUTH_SSO_URL` (locally) does a signed-out `/` render here, as
+// `<SignInLanding>` in place of the home screen (ticket 0332). There is no separate /sign-in
+// route, which keeps §1.2's "seven routes" true.
 //
 // Ticket 0086 replaced the bare Add workout / Sync pair that sat over the map with the plinth
 // (`components/plinth/`). Sync moved INTO the rail as a caption line (D-313); capability 14
@@ -42,6 +45,8 @@ export default async function HomeLayout({ children }: { children: ReactNode }) 
    * SIGNED OUT, THIS IS THE LANDING (ticket 0332, D-473). The Authenticator that used to hide the
    * home screen on the client is gone, so the server decides: no uid, no home screen, no map, and
    * nothing about the account in the payload (0186). Just the name and Sign in with Google.
+   * Since 0339 that is the local fallback; in production the middleware has already sent a
+   * signed-out visitor to core, and this check is the second gate, not the landing.
    */
   const uid = (await currentUserId()) ?? null
   if (!uid) return <SignInLanding />

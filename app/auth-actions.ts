@@ -15,7 +15,11 @@ import { signIn, signOut } from "@/lib/auth"
  * which is why D-331's held-children guard is gone.
  */
 
-/** `/` signed out: one action, Sign in with Google. Back to `/` after the callback. */
+/**
+ * `/` signed out: one action, Sign in with Google. Back to `/` after the callback. Since 0339
+ * (D-478) production never shows it: core is the sign-in point, and the middleware sends a
+ * signed-out `/` there. It stays for local runs without `AUTH_SSO_URL`.
+ */
 export async function signInWithGoogle(): Promise<void> {
   await signIn("google", { redirectTo: "/" })
 }
@@ -23,6 +27,10 @@ export async function signInWithGoogle(): Promise<void> {
 /**
  * `/settings` → Sign out. THE COOKIE IS THE DOMAIN'S (D-471), so this signs out of every app on
  * `.devaultsecurity.com`, `school-hub` included. The settings copy says so.
+ *
+ * Since 0339 (D-478) that cookie is `__Secure-devault.session-token`, core's shared name; Auth.js
+ * expires it with the configured name and `Domain` (`app/sign-out-cookie.test.ts`). The redirect
+ * to `/` then lands on core's sign-in, because the middleware sends a signed-out `/` there.
  */
 export async function signOutEverywhere(): Promise<void> {
   await signOut({ redirectTo: "/" })

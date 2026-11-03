@@ -1086,6 +1086,15 @@ error.
 > gone from `app/`, `components/` and `lib/`. The browser's uid, its IndexedDB key, comes from the
 > readable `ls-uid` cookie the middleware sets, never read by the server (D-476, `08` §5.3).
 >
+> **Core is the sign-in point (ticket `0339`, D-478).** `core.devaultsecurity.com` runs the Google
+> sign-in for every devaultsecurity.com app and sets the shared cookie
+> `__Secure-devault.session-token` on `.devaultsecurity.com`, encrypted with the shared
+> `AUTH_SECRET`. `middleware.ts` sends a signed-out page, `/` included, to
+> `core.devaultsecurity.com/login?next=<full public URL>` before anything renders, so `/log` and
+> `/skills` stay static and the redirect carries no payload; it answers a signed-in account Lost
+> Soles does not admit with a 403. `components/sign-in-landing.tsx` is now only the local fallback,
+> rendered when `AUTH_SSO_URL` is unset.
+>
 > The `api/` routes below that do not exist yet — `strava/callback`, `ingest`, `explored` —
 > are still the plan; they arrive with capabilities `05`, `07` and beyond.
 >

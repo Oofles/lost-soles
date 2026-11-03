@@ -115,12 +115,15 @@ frontend:
         - npm run typecheck  # tsc --noEmit — REAL, not the dead script pattern
         - npm run lint       # eslint — REAL, actually installed and configured
         - npm test           # vitest — carries the T1-T4 boundary tests as they land
-        # Ticket 0330, D-471, 08 §3 S10/S11. Auth.js's six values, SSM -> .env.production, which
+        # Ticket 0330, D-471, 08 §3 S10/S11. Auth.js's eight values, SSM -> .env.production, which
         # the SSR runtime and middleware read at request time. Server-only names, never
         # NEXT_PUBLIC_. FAILS CLOSED on any missing, empty or unreadable parameter, naming the key
         # and never the value. Placed after the tests so no secret sits on disk while they run.
         # Needs ssm:GetParameter on /amplify/shared/d14fhvl4rp79nn/{AUTH_SECRET,GOOGLE_CLIENT_ID,
-        # GOOGLE_CLIENT_SECRET,AUTH_ALLOWED_EMAILS,AUTH_COOKIE_DOMAIN,AUTH_URL}.
+        # GOOGLE_CLIENT_SECRET,AUTH_ALLOWED_EMAILS,AUTH_COOKIE_DOMAIN,AUTH_URL,AUTH_SESSION_COOKIE,
+        # AUTH_SSO_URL}. The last two are core's SSO (ticket 0339, D-478): the shared cookie name
+        # (devault.session-token) and core's origin, where a signed-out page is sent. The build
+        # role's AmplifyBackendDeployFullAccess grants ssm:GetParameter on parameter/amplify/*.
         - node scripts/write-authjs-env.mjs --self-test
         - node scripts/write-authjs-env.mjs
         - npm run build

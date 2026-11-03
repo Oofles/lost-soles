@@ -12,7 +12,12 @@ import { authConfig } from "@/lib/auth/config"
  *   `AUTH_URL` must be the bare origin: next-auth only derives a basePath from it when it has a
  *   path, and this explicit one wins either way.
  * - `pages` -> `/`. `school-hub` has a `/login` page; Lost Soles has none, and `/` is the
- *   signed-out landing (middleware.ts). Auth.js sends a refused or failed sign-in there.
+ *   signed-out landing (middleware.ts). Auth.js sends a refused or failed sign-in there. Since
+ *   0339 (D-478) core does the sign-in and the middleware sends a signed-out `/` to core, so in
+ *   production these pages lead there too; locally, without `AUTH_SSO_URL`, `/` renders the landing.
+ * - The cookie name, `AUTH_SESSION_COOKIE` (`devault.session-token`, core's shared name), and the
+ *   `redirect` callback that allows `https://*.devaultsecurity.com` both come from `config.ts`
+ *   unchanged (0339).
  *
  * Edge-safe: `middleware.ts` imports this. No Node built-ins, no database.
  *
