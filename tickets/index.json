@@ -7815,7 +7815,7 @@
     "path": "tickets/open/0337-seed-throwaway-still-calls-cognito.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
@@ -7856,7 +7856,7 @@
     "path": "tickets/open/0339-join-core-sso.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 8
     }
   }

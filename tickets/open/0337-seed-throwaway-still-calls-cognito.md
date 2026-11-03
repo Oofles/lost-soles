@@ -40,6 +40,12 @@ None for the operator. Agent: the unit tests, and a dry run with an unmapped uid
 
 D-123 trigger checked? **A** (A-5, the deletion path's tooling). D-470 re-affirms D-123 for the Auth.js move. No account is added, and none is created by this ticket.
 
+None for the operator. Agent, on the desktop (WSL), `AWS_PROFILE=devault`:
+- `npx vite-node --config vitest.config.ts tools/account-deletion/seed-throwaway.ts -- --user 00000000-0000-4000-8000-000000000337`
+  printed `refusing: IDENTITIES (lib/auth/owner-ids.ts) maps no email to … Trigger A …`, exit 2.
+- The same with the owner's uid printed `refusing: that uid is in OWNER_USER_IDS …`, exit 2.
+- `npx vitest run tools/account-deletion`: 28 passed, including both subprocess refusals.
+
 ## Resolution
 
 **What changed.** `seed-throwaway.ts` no longer shells out to `aws cognito-idp list-users` and no
@@ -73,11 +79,3 @@ mapped and its refusal is the more specific message. Neither path writes anythin
 
 **Not done, by design.** No identity, allowlist entry or Cognito user was created. Running the seed
 for real still waits for a real second-identity need, which is Trigger A (`0333` Notes).
-
-## Operator validation
-
-None for the operator. Agent, on the desktop (WSL), `AWS_PROFILE=devault`:
-- `npx vite-node --config vitest.config.ts tools/account-deletion/seed-throwaway.ts -- --user 00000000-0000-4000-8000-000000000337`
-  printed `refusing: IDENTITIES (lib/auth/owner-ids.ts) maps no email to … Trigger A …`, exit 2.
-- The same with the owner's uid printed `refusing: that uid is in OWNER_USER_IDS …`, exit 2.
-- `npx vitest run tools/account-deletion`: 28 passed, including both subprocess refusals.
