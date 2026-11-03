@@ -61,8 +61,8 @@ function configuredHome(): Camera | null {
 }
 
 export async function homeCameraForSession(): Promise<Camera | null> {
-  // Ticket 0330: one function reads the session server-side. Signed in, by either the Auth.js or
-  // the Cognito path, is `currentUserId()` returning a uid; anything else is signed out.
+  // Ticket 0330: one function reads the session server-side. Signed in is `currentUserId()`
+  // returning a uid (an Auth.js session for a mapped email, since 0332); anything else is signed out.
   const authenticated = (await currentUserId()) !== undefined
   return authenticated ? configuredHome() : null
 }

@@ -56,8 +56,8 @@ type Json = Record<string, unknown>
 /**
  * §6.4/8. Locked to the app's own origin.
  *
- * The route is same-origin anyway and the Android capture task (0020) is not a
- * browser, so nothing legitimate depends on this header. It is defence against a
+ * The route is same-origin anyway, and since 0332 (D-473) session-only: there is no
+ * non-browser caller left, so nothing legitimate depends on this header. It is defence against a
  * FUTURE subdomain mistake — the day something else lands on
  * `*.devaultsecurity.com` and a wildcard would have handed it a write primitive.
  *
@@ -108,8 +108,8 @@ const notFound = () => json({ error: "not found" }, 404)
  * The reason is structural. A CORS preflight NEVER carries credentials — that is in
  * the spec, not a quirk — so the middleware gate always sees it as signed out and
  * 404s it before routing. Nothing legitimate is lost: the app's own POST is
- * same-origin and so is never preflighted, and the Android capture task (0020) is
- * not a browser and does not implement CORS at all.
+ * same-origin and so is never preflighted, and the bearer-token client (0020) that
+ * did not implement CORS at all was removed in 0332 (D-473).
  *
  * The effect is STRICTER than the CORS policy it implements — a cross-origin caller
  * is refused at the gate rather than by a header — so it is left alone deliberately.

@@ -1,7 +1,9 @@
 "use client"
 
-import { signOut } from "aws-amplify/auth"
 import { useState, type CSSProperties } from "react"
+import { useFormStatus } from "react-dom"
+
+import { signOutEverywhere } from "@/app/auth-actions"
 
 import { button } from "./styles"
 
@@ -93,35 +95,30 @@ export function DisconnectControl({
 /* ─── Sign out ────────────────────────────────────────────────────────────── */
 
 /**
- * Criterion 6. `signOut()` clears the Amplify session from cookie storage and revokes
- * the refresh token. A full navigation to `/`, not a client route change, so the
- * server renders the signed-out state. That is the Authenticator, because `/` is the
- * signed-out landing (`middleware.ts`).
+ * Criterion 6; ticket 0332 (D-473). Auth.js's `signOut`, through the `signOutEverywhere` server
+ * action: it clears the session cookie and redirects to `/`, a full navigation, so the server
+ * renders the signed-out landing.
+ *
+ * THE COOKIE IS THE DOMAIN'S (D-471). Every app on `.devaultsecurity.com` reads the same one, so
+ * this signs out of all of them, and the line under the button says so before it is pressed.
  */
-export async function signOutAndLeave(
-  deps: { signOut: () => Promise<void>; navigate: (href: string) => void } = {
-    signOut: () => signOut(),
-    navigate: (href) => window.location.assign(href),
-  },
-): Promise<void> {
-  await deps.signOut()
-  deps.navigate("/")
+export const SIGN_OUT_SCOPE = "This signs you out of every devaultsecurity.com app, not only this one."
+
+function SignOutSubmit() {
+  const { pending } = useFormStatus()
+  return (
+    <button type="submit" style={quiet} disabled={pending}>
+      Sign out
+    </button>
+  )
 }
 
 export function SignOutButton() {
-  const [pending, setPending] = useState(false)
   return (
-    <button
-      type="button"
-      style={quiet}
-      disabled={pending}
-      onClick={() => {
-        setPending(true)
-        void signOutAndLeave().catch(() => setPending(false))
-      }}
-    >
-      Sign out
-    </button>
+    <form action={signOutEverywhere}>
+      <SignOutSubmit />
+      <p style={{ ...muted, marginBottom: 0 }}>{SIGN_OUT_SCOPE}</p>
+    </form>
   )
 }
 

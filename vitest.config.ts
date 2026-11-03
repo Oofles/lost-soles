@@ -13,22 +13,9 @@ const INCLUDE = ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"]
 const EXCLUDE = ["node_modules/**", ".next/**", ".amplify/**", ".claude/**", "tmp/**"]
 
 /**
- * Ticket 0149. Two projects, because one file needs a different module resolution
- * from every other.
- *
- * `lib/auth/bearer.ts` ships to Next's EDGE runtime (middleware), where
- * `aws-jwt-verify` resolves its "browser" condition and verifies with SubtleCrypto
- * over global `fetch`. Under vitest's default node resolution it loads the Node
- * build instead, which calls `https.request` — so a test stubbing `fetch` stubs
- * nothing, the verifier reaches the REAL Cognito JWKS over the network, and every
- * rejection assertion passes for the wrong reason. 0149 hit exactly that: 14
- * rejection tests green while the two acceptance tests failed, which is the
- * signature of a suite proving nothing.
- *
- * `include`/`exclude` are set per project rather than inherited: a project that
- * `extends: true` and then narrows `include` does NOT narrow — the root value
- * wins, and both projects run every file. That doubled the suite before it was
- * caught here.
+ * Ticket 0149 split the suite into a "node" and an "edge" project, because `lib/auth/bearer.ts`
+ * needed `aws-jwt-verify`'s browser build. Ticket 0332 (D-473) deleted the bearer path, so there is
+ * one project again. It stays a named project so `--project node` keeps working.
  */
 export default defineConfig({
   plugins: [tsconfigPaths()],
@@ -49,7 +36,7 @@ export default defineConfig({
      * Ticket 0230. Every test file gets a private TMPDIR, removed after the file, so the CDK
      * synth suites stop leaking a 30-50 MB `cdk.out` into /tmp per suite. Global setup sweeps
      * what a killed run left and fails the run if a new `cdk.out*` appears in the real /tmp.
-     * Both projects inherit these through `extends: true`. Rationale: scripts/vitest-tmpdir.mjs.
+     * The project inherits these through `extends: true`. Rationale: scripts/vitest-tmpdir.mjs.
      */
     globalSetup: ["./scripts/vitest-global-setup.mjs"],
     setupFiles: ["./scripts/vitest-setup-tmpdir.mjs"],
@@ -60,21 +47,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: INCLUDE,
-          exclude: [...EXCLUDE, "lib/auth/bearer.test.ts"],
-        },
-      },
-      {
-        extends: true,
-        resolve: { conditions: ["browser"] },
-        ssr: { resolve: { conditions: ["browser"] } },
-        test: {
-          name: "edge",
-          environment: "node",
-          include: ["lib/auth/bearer.test.ts"],
           exclude: EXCLUDE,
-          // Externalized dependencies are resolved by Node, which ignores Vite's
-          // conditions — so the package must be inlined for "browser" to win.
-          server: { deps: { inline: ["aws-jwt-verify"] } },
         },
       },
     ],

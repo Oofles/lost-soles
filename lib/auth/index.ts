@@ -18,8 +18,13 @@ import { authConfig } from "@/lib/auth/config"
  *
  * WHO MAY CALL `auth()`. Only `lib/auth/owner.ts` (`currentUserId()`) and `middleware.ts`.
  * Everything else asks `currentUserId()`. `lib/auth/session-readers.test.ts` pins it.
+ *
+ * `signIn` and `signOut` (ticket 0332, D-473) are called only from the server actions in
+ * `app/auth-actions.ts`. Neither reads a session: `signIn` starts the Google redirect and
+ * `signOut` clears the cookie. Because the cookie is the domain's (D-471), signing out here signs
+ * out of every app on `.devaultsecurity.com`.
  */
-export const { handlers, auth } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   basePath: "/api/authjs",
   pages: { signIn: "/", error: "/" },

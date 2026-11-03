@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { ExploredProvider } from "@/components/map/explored-provider"
 import { FogStatus } from "@/components/map/fog-status"
 import { HomeScreen } from "@/components/plinth/home-screen"
+import { SignInLanding } from "@/components/sign-in-landing"
 import { currentUserId } from "@/lib/auth/owner"
 import { homeCameraForSession } from "@/lib/map-home"
 import { sourceConnections } from "@/lib/plinth/connections"
@@ -19,9 +20,9 @@ import { sourceConnections } from "@/lib/plinth/connections"
 // adds no URL segment. `page.tsx` beside this is `/`, and renders nothing of its own.
 //
 // This is also where a SIGNED-OUT visitor lands: middleware.ts redirects every
-// other route here, and the Authenticator in the root layout renders sign-in in
-// place of this content. There is no separate /sign-in route, which keeps §1.2's
-// "seven routes" true.
+// other route here, and this layout renders `<SignInLanding>` in place of the home
+// screen (ticket 0332; it was the Authenticator in the root layout until then). There
+// is no separate /sign-in route, which keeps §1.2's "seven routes" true.
 //
 // Ticket 0086 replaced the bare Add workout / Sync pair that sat over the map with the plinth
 // (`components/plinth/`). Sync moved INTO the rail as a caption line (D-313); capability 14
@@ -34,19 +35,18 @@ import { sourceConnections } from "@/lib/plinth/connections"
  * home coordinate to anyone who fetched it.
  */
 export default async function HomeLayout({ children }: { children: ReactNode }) {
-  const home = await homeCameraForSession()
   /**
-   * The IndexedDB key for the explored set (`02-data-model.md` §6.4, ticket 0054), read
-   * here because the session is already being read one line above and a client component
-   * cannot read it at all.
+   * The IndexedDB key for the explored set (`02-data-model.md` §6.4, ticket 0054). A client
+   * component cannot read it at all: the session is an `httpOnly` cookie (D-471).
    *
-   * `null` for a signed-out visitor, exactly like `home` — `/` is the signed-out landing
-   * route, so nothing here may assume a session. A `sub` is not a secret in the way the
-   * home coordinate is (it identifies an account, not a neighbourhood, and the browser
-   * already holds it inside the ID token cookie), but a signed-out page has no use for
-   * one and does not get one.
+   * SIGNED OUT, THIS IS THE LANDING (ticket 0332, D-473). The Authenticator that used to hide the
+   * home screen on the client is gone, so the server decides: no uid, no home screen, no map, and
+   * nothing about the account in the payload (0186). Just the name and Sign in with Google.
    */
   const uid = (await currentUserId()) ?? null
+  if (!uid) return <SignInLanding />
+
+  const home = await homeCameraForSession()
 
   /**
    * `0087`. Connected, not connected, or broken — the plinth's connect line and its one

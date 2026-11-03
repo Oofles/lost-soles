@@ -82,8 +82,8 @@ const buildEnv = {
  * matcher skips `_next/static`, `/maplibre/` and `/basemap-assets/`, and HSTS and nosniff belong
  * on those too; with no nonce (D-441) nothing varies per request.
  *
- * The CSP names the tiles and Cognito origins from `amplify_outputs.json` (not AppSync's since
- * `0331`, D-472: the browser no longer calls it), read at build
+ * The CSP names the tiles origin from `amplify_outputs.json` (not AppSync's since `0331`, D-472,
+ * nor Cognito's since `0332`, D-473: the browser calls neither), read at build
  * time like the home coordinate above. CI builds against the example file, so its CSP names the
  * example hosts; a real deploy builds after `pipeline-deploy` has written the real one.
  */

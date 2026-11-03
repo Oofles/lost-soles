@@ -1,31 +1,26 @@
-import { fetchAuthSession } from "aws-amplify/auth/server"
 import { NextResponse, type NextRequest } from "next/server"
 
-import { runWithAmplifyServerContext } from "@/lib/amplify-server"
 import { auth } from "@/lib/auth"
-import { verifiedBearerSub } from "@/lib/auth/bearer"
 import { authjsUid } from "@/lib/auth/identity"
+import { UID_COOKIE, UID_COOKIE_OPTIONS } from "@/lib/auth/uid-cookie"
 import { NO_STORE } from "@/lib/http/no-store"
 
 /**
  * Server-side auth (ticket 0016, criterion 2; 08-security-privacy.md §5.3).
  *
- * 0014 shipped the Amplify UI Authenticator, which is a CLIENT-side gate: the
- * markup is served and then replaced on hydration. That is fine for a single-user
- * app whose data is protected by AppSync, but it is not what §5.3 asks for and it
- * is not "behind auth" in the sense criterion 2 means — hence this.
+ * 0014 shipped the Amplify UI Authenticator, which was a CLIENT-side gate: the
+ * markup was served and then replaced on hydration. That was not what §5.3 asks for
+ * and not "behind auth" in the sense criterion 2 means — hence this. Since 0332
+ * (D-473) there is no client gate at all, and this is the only one.
  *
- * A signed-out request for any route other than `/` now never receives that
- * route's markup at all; it gets a 307 to `/`, where the Authenticator renders
- * sign-in. There is deliberately NO /sign-in route: §1.2 says seven routes, and
+ * A signed-out request for any route other than `/` never receives that route's
+ * markup at all; it gets a 307 to `/`, where the `(home)` layout renders Sign in
+ * with Google. There is deliberately NO /sign-in route: §1.2 says seven routes, and
  * §1.5 says back always returns toward `/`, so `/` doubling as the signed-out
  * landing keeps both true.
  *
  * The session is read here and NEVER trusted from a request body, query string or
  * header — the same rule §5.3 states for API routes and §4 states for the webhook.
- *
- * The runner itself moved to `lib/amplify-server.ts` in ticket 0019, so route
- * handlers read the session through the same configuration this does.
  */
 
 /**
@@ -41,59 +36,41 @@ function isApiPath(pathname: string): boolean {
 }
 
 /**
- * Ticket 0330, D-471. Either session admits: an Auth.js session whose email is allowlisted AND
- * mapped in `IDENTITIES`, or today's Cognito cookie, or a verified bearer token. The Auth.js
- * reading comes from next-auth's `auth(handler)` wrapper, which decrypts the cookie and hands the
- * session in as `req.auth` (null on any failure, including a config error). The decision is made
- * HERE, explicitly, as `school-hub`'s middleware does: with a handler, the `authorized` callback's
- * `false` does not refuse anything, so nothing may rely on it.
+ * Ticket 0330, D-471; the only session since 0332 (D-473). An Auth.js session admits when its
+ * email is allowlisted AND mapped in `IDENTITIES`. The reading comes from next-auth's
+ * `auth(handler)` wrapper, which decrypts the cookie and hands the session in as `req.auth` (null
+ * on any failure, including a config error). The decision is made HERE, explicitly, as
+ * `school-hub`'s middleware does: with a handler, the `authorized` callback's `false` does not
+ * refuse anything, so nothing may rely on it.
  *
- * A domain cookie for an email Lost Soles does not map is not a session here (D-470): it falls
- * through to the Cognito and bearer checks exactly as no cookie would.
+ * Nothing else admits. The Amplify cookie and the `Authorization: Bearer` path (D-183, ticket
+ * 0149) are gone, so a request carrying only a bearer header is signed out. A domain cookie for
+ * an email Lost Soles does not map is not a session here either (D-470).
+ *
+ * The `ls-uid` cookie (D-NEW-a, `lib/auth/uid-cookie.ts`) is an OUTPUT of this decision, never an
+ * input: set on every admitted response, deleted on every signed-out one. Nothing here reads it.
  */
-async function gate(request: NextRequest, authjsEmail: string | null | undefined) {
-  const response = NextResponse.next()
+function gate(request: NextRequest, authjsEmail: string | null | undefined): NextResponse {
+  const uid = authjsUid(authjsEmail)
+  if (uid) {
+    const admitted = NextResponse.next()
+    admitted.cookies.set(UID_COOKIE, uid, UID_COOKIE_OPTIONS)
+    return admitted
+  }
+  const signedOut = refuse(request)
+  // Not `cookies.delete(name)`: that omits `Path`, so on `/api/fog` it would clear an `/api`
+  // cookie and leave the `Path=/` one standing. Same attributes, expired now.
+  signedOut.cookies.set(UID_COOKIE, "", { ...UID_COOKIE_OPTIONS, maxAge: 0 })
+  return signedOut
+}
 
-  if (authjsUid(authjsEmail)) return response
-
-  const authenticated = await runWithAmplifyServerContext({
-    nextServerContext: { request, response },
-    operation: async (contextSpec) => {
-      try {
-        const session = await fetchAuthSession(contextSpec)
-        // Both tokens must be present. An expired or partial session is a
-        // signed-out session: fail closed, exactly as the posture check does.
-        return session.tokens?.accessToken !== undefined && session.tokens?.idToken !== undefined
-      } catch {
-        return false
-      }
-    },
-  })
-
-  if (authenticated) return response
-
-  /**
-   * No cookie session — so this may be a NON-BROWSER client (ticket 0149).
-   * A Tasker HTTP task cannot hold a Cognito session cookie, and without this
-   * branch the capture endpoint is unreachable from the phone it exists for.
-   *
-   * Checked SECOND, deliberately. The app's own requests are the overwhelming
-   * majority and carry cookies, so this costs them nothing; and a request that
-   * sends both gets the cookie's answer, which keeps the browser's behaviour
-   * exactly as it was before this branch existed.
-   *
-   * This is a real verification, not a presence check: `verifiedBearerSub`
-   * validates the signature against the production pool's JWKS and returns a
-   * `sub` only from a verified payload. A malformed, expired, wrong-pool or
-   * wrong-client token falls through to the same 404 as no credential at all.
-   */
-  if (await verifiedBearerSub(request.headers.get("authorization"))) return response
-
+/** The signed-out answer: an API 404, `/` itself, or a 307 to `/`. */
+function refuse(request: NextRequest): NextResponse {
   /**
    * The two responses below are built HERE, not by a route handler, so `withNoStore` never sees
    * them. D-429 / C-3 say EVERY response carries `private, no-store`, 404s and redirects included,
-   * so each sets it itself (ticket 0322). The `return response` paths fall through to a route or
-   * page, which sets its own.
+   * so each sets it itself (ticket 0322). The `NextResponse.next()` paths fall through to a route
+   * or page, which sets its own.
    */
   if (isApiPath(request.nextUrl.pathname)) {
     return NextResponse.json(
@@ -104,7 +81,7 @@ async function gate(request: NextRequest, authjsEmail: string | null | undefined
 
   // `/` is the signed-out landing as well as the home screen, so it must not
   // redirect to itself — that is an infinite loop, not a gate.
-  if (request.nextUrl.pathname === "/") return response
+  if (request.nextUrl.pathname === "/") return NextResponse.next()
 
   const url = request.nextUrl.clone()
   url.pathname = "/"

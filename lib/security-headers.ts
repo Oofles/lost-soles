@@ -16,20 +16,19 @@
  * and `/log`, `/skills` and `/skills/[skillId]` are static on purpose (D-282: `/log` must render
  * offline from a prefetch). So this policy does NOT stop an injected inline script running. What
  * it does do: no third-party script file can load, and an XSS that does run can send what it reads
- * (the tokens in `localStorage`, the map) only to the origins in `connect-src` — the app, the tiles
- * distribution and Cognito — and cannot beacon it out through an image, a frame, a form
- * or a `<base>` rewrite. The other half of §5.3's XSS mitigation, no `dangerouslySetInnerHTML`,
+ * (the map; the session is an `httpOnly` cookie since 0332, so not that) only to the origins in
+ * `connect-src` — the app and the tiles distribution — and cannot beacon it out through an image,
+ * a frame, a form or a `<base>` rewrite. The other half of §5.3's XSS mitigation, no `dangerouslySetInnerHTML`,
  * is an ESLint error (`eslint.config.mjs`).
  *
  * `style-src 'unsafe-inline'` (D-442): server-rendered `style="…"` attributes cannot carry a
- * nonce or a hash, and the app and Amplify UI both render them. Style injection is not script
+ * nonce or a hash, and the app renders them. Style injection is not script
  * execution; the exfiltration paths it could open (`url()` fetches) are closed by `img-src`,
  * `font-src` and `connect-src` regardless.
  */
 
 /** The slice of `amplify_outputs.json` the CSP is built from. Structural, like `lib/basemap.ts`. */
 export interface CspOutputs {
-  auth?: { aws_region?: string }
   custom?: { basemapTilesUrl?: string }
 }
 
@@ -52,21 +51,13 @@ function originOf(url: string | undefined, what: string): string {
  *   route handlers, so the AppSync endpoint is no origin the browser talks to, and naming it here
  *   would only widen where an XSS could send what it reads.
  * - The tiles CloudFront distribution: pmtiles range requests (D-226), and `lib/place-names.ts`.
- * - `cognito-idp`: the Authenticator's sign-in, token refresh and `signOut`.
- * - `cognito-identity`: the config carries an identity pool, so Amplify's `fetchAuthSession`
- *   exchanges the ID token for credentials there. Both Cognito hosts leave at `0332`.
+ * - NOT Cognito (D-473, `0332`). Sign-in is a full-page redirect to Google and back through
+ *   `/api/authjs/*` on this origin, which is navigation, not `connect-src`. The two Cognito hosts
+ *   the Authenticator and Amplify's `fetchAuthSession` called left with them. Nothing here reads
+ *   `auth.aws_region` any more, so the CSP survives `0334` deleting the `auth` block.
  */
 export function connectSources(outputs: CspOutputs): string[] {
-  const region = outputs.auth?.aws_region
-  if (!region || !/^[a-z]{2}(-[a-z]+)+-\d$/.test(region)) {
-    throw new Error("security-headers: amplify_outputs.json has no usable auth.aws_region.")
-  }
-  return [
-    "'self'",
-    originOf(outputs.custom?.basemapTilesUrl, "custom.basemapTilesUrl (the tiles distribution)"),
-    `https://cognito-idp.${region}.amazonaws.com`,
-    `https://cognito-identity.${region}.amazonaws.com`,
-  ]
+  return ["'self'", originOf(outputs.custom?.basemapTilesUrl, "custom.basemapTilesUrl (the tiles distribution)")]
 }
 
 /**

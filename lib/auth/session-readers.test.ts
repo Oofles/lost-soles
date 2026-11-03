@@ -15,8 +15,8 @@ import { describe, expect, it } from "vitest"
  *   - an import from `next-auth/jwt` (`getToken`, a raw cookie decryption);
  *   - any import from `next-auth` itself outside `lib/auth/`, where the instance is built.
  *
- * Browser modules using `aws-amplify/auth`'s client `fetchAuthSession` are not server readers and
- * are not covered; `0331` and `0332` remove them. Test files are not modules and are skipped.
+ * Since `0332` (D-473) no module imports `aws-amplify/auth` at all; that rule is pinned in
+ * `lib/auth/no-cognito-client.test.ts`. Test files are not modules and are skipped.
  */
 
 const ROOT = join(__dirname, "..", "..")

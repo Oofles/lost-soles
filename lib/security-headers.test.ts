@@ -11,7 +11,6 @@ import { connectSources, contentSecurityPolicy, securityHeaders, type CspOutputs
 /** Ticket 0143, 08 §5.3's Headers row. */
 
 const OUTPUTS: CspOutputs = {
-  auth: { aws_region: "us-east-1" },
   custom: { basemapTilesUrl: "https://d1example.cloudfront.net" },
 }
 
@@ -25,14 +24,20 @@ const directive = (csp: string, name: string) =>
 describe("the CSP (criterion 2)", () => {
   const csp = contentSecurityPolicy(OUTPUTS)
 
-  it("connect-src names exactly the app, the tiles host and Cognito — no wildcard", () => {
-    expect(directive(csp, "connect-src")).toEqual([
-      "'self'",
-      "https://d1example.cloudfront.net",
-      "https://cognito-idp.us-east-1.amazonaws.com",
-      "https://cognito-identity.us-east-1.amazonaws.com",
-    ])
+  it("connect-src names exactly the app and the tiles host — no wildcard", () => {
+    expect(directive(csp, "connect-src")).toEqual(["'self'", "https://d1example.cloudfront.net"])
     expect(csp).not.toContain("*")
+  })
+
+  /**
+   * D-473, `0332`. The browser no longer talks to Cognito: sign-in is a redirect to Google and back
+   * to `/api/authjs/*` on this origin. `amplify_outputs.json` still carries `auth` until `0334`, and
+   * nothing in the CSP may be built from it.
+   */
+  it("names no cognito-idp or cognito-identity host, even though the outputs still carry auth", () => {
+    const withAuth = { ...OUTPUTS, auth: { aws_region: "us-east-1" } } as CspOutputs
+    expect(contentSecurityPolicy(withAuth)).not.toMatch(/cognito/)
+    expect(connectSources({ custom: OUTPUTS.custom })).toEqual(connectSources(withAuth))
   })
 
   /**
@@ -60,7 +65,6 @@ describe("the CSP (criterion 2)", () => {
 
   it("fails loudly rather than omit a host the map needs", () => {
     expect(() => connectSources({ ...OUTPUTS, custom: {} })).toThrow(/basemapTilesUrl/)
-    expect(() => connectSources({ ...OUTPUTS, auth: {} })).toThrow(/aws_region/)
   })
 })
 

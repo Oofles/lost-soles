@@ -16,9 +16,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 vi.mock("next/headers", () => ({ cookies: () => ({}), headers: async () => new Headers() }))
 
 const authenticated = vi.fn<() => boolean>()
-vi.mock("@/lib/amplify-server", () => ({
-  runWithAmplifyServerContext: async () => authenticated(),
-}))
 vi.mock("@/lib/auth/owner", () => ({
   currentUserId: async () => (authenticated() ? "sub-1" : undefined),
 }))
@@ -27,6 +24,8 @@ vi.mock("@/components/map/explored-provider", () => ({
   ExploredProvider: ({ children }: { children: ReactNode }) => children,
 }))
 vi.mock("@/components/map/fog-status", () => ({ FogStatus: () => null }))
+// `0332`: the landing's form posts a server action; the action module is Auth.js, not under test.
+vi.mock("@/app/auth-actions", () => ({ signInWithGoogle: async () => {} }))
 // `0087`: the connection read is DynamoDB; stubbed so the payload test stays about the payload.
 const sourceConnections = vi.fn(async () => [{ sourceId: "src", name: "Example", state: "connected" }])
 vi.mock("@/lib/plinth/connections", () => ({ sourceConnections: () => sourceConnections() }))
@@ -39,6 +38,7 @@ const { default: HomeLayout } = await import("./layout")
 const Home = () => HomeLayout({ children: null })
 // `0086`: the map and the plinth are one client component now; its props are the payload.
 const { HomeScreen } = await import("@/components/plinth/home-screen")
+const { SignInLanding } = await import("@/components/sign-in-landing")
 
 const ENV = { ...process.env }
 afterEach(() => {
@@ -70,7 +70,9 @@ describe("the signed-out payload of / (0186)", () => {
 
     const tree = await Home()
 
-    expect(propsOf(tree, HomeScreen)).toStrictEqual({ home: null, children: null })
+    // `0332`: signed out, the layout renders the landing and NOT the home screen at all.
+    expect(isValidElement(tree) && tree.type).toBe(SignInLanding)
+    expect(propsOf(tree, HomeScreen)).toBeUndefined()
     // `0087`: nothing about the account's connections is read, or sent, for a signed-out visitor.
     expect(sourceConnections).not.toHaveBeenCalled()
     const body = payload(tree)

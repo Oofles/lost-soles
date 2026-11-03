@@ -4,7 +4,8 @@ import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-vi.mock("aws-amplify/auth", () => ({ signOut: async () => {} }))
+// `0332`: sign-out is Auth.js's, through a server action. The action module is not under test.
+vi.mock("@/app/auth-actions", () => ({ signOutEverywhere: async () => {} }))
 
 const {
   ACCOUNT_DELETION_RUNBOOK_URL,
@@ -12,7 +13,8 @@ const {
   DeletionEntry,
   DisconnectControl,
   deletionPhraseMatches,
-  signOutAndLeave,
+  SIGN_OUT_SCOPE,
+  SignOutButton,
 } = await import("./settings-controls")
 
 /**
@@ -44,22 +46,16 @@ describe("disconnect — one confirmation that reassures (criteria 3 and 4)", ()
   })
 })
 
-describe("sign out (criterion 6)", () => {
-  it("signs out FIRST, then does a full navigation to the signed-out landing", async () => {
-    const order: string[] = []
-    await signOutAndLeave({
-      signOut: async () => void order.push("signOut"),
-      navigate: (href) => void order.push(`navigate ${href}`),
-    })
-    expect(order).toEqual(["signOut", "navigate /"])
+describe("sign out (criterion 6, 0332)", () => {
+  it("is a form posting the Auth.js sign-out action, not a client-side call", () => {
+    const html = renderToStaticMarkup(<SignOutButton />)
+    expect(html).toMatch(/<form[^>]*>[\s\S]*<button type="submit"[^>]*>Sign out<\/button>/)
   })
 
-  it("does not navigate away when sign-out fails, so the screen does not lie", async () => {
-    const navigate = vi.fn()
-    await expect(
-      signOutAndLeave({ signOut: async () => Promise.reject(new Error("offline")), navigate }),
-    ).rejects.toThrow("offline")
-    expect(navigate).not.toHaveBeenCalled()
+  it("says, in one line, that it signs out of every app on the domain (D-471)", () => {
+    const html = renderToStaticMarkup(<SignOutButton />)
+    expect(html).toContain(SIGN_OUT_SCOPE)
+    expect(SIGN_OUT_SCOPE).toMatch(/every devaultsecurity\.com app/)
   })
 })
 

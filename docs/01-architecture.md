@@ -1077,6 +1077,14 @@ error.
 > **Capability `19` (D-471, D-473):** `middleware.ts` stays the gate, reading an Auth.js session
 > in place of the Amplify cookie, and `currentUserId()` stays the one server-side reader. `/` signed
 > out shows Sign in with Google in place of the Authenticator.
+> *(Done at the cutover, ticket `0332`, D-473.)* There is **no client-side gate** any more: the root
+> layout reads no session (so `/log` and `/skills` stay static, D-282), and the `(home)` layout
+> renders `components/sign-in-landing.tsx` when `currentUserId()` is undefined, in place of the home
+> screen, so a signed-out payload carries no map at all. Sign-in and sign-out are server actions
+> (`app/auth-actions.ts`) and full-page redirects, so `AuthRefresh` (D-331) is deleted. The
+> Amplify client (`Amplify.configure`, `@aws-amplify/ui-react`, `@aws-amplify/adapter-nextjs`) is
+> gone from `app/`, `components/` and `lib/`. The browser's uid, its IndexedDB key, comes from the
+> readable `ls-uid` cookie the middleware sets, never read by the server (D-NEW-a, `08` §5.3).
 >
 > The `api/` routes below that do not exist yet — `strava/callback`, `ingest`, `explored` —
 > are still the plan; they arrive with capabilities `05`, `07` and beyond.

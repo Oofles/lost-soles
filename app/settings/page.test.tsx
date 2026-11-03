@@ -34,7 +34,7 @@ vi.mock("@/lib/sources/source-account-store", () => ({
   getSourceAccountSummary: (...a: unknown[]) => getSourceAccountSummary(...a),
 }))
 
-vi.mock("aws-amplify/auth", () => ({ signOut: async () => {} }))
+vi.mock("@/app/auth-actions", () => ({ signOutEverywhere: async () => {} }))
 
 const { default: Settings } = await import("./page")
 const { DisconnectControl } = await import("./settings-controls")

@@ -7,7 +7,7 @@
  * `lib/auth/owner-ids.ts`, so this module stays diffable against its source.
  * `lib/auth/config.test.ts` pins the body to the source's sha256.
  *
- * ONE DIVERGENCE, AND IT IS THE PACKAGE, NOT THIS FILE (D-NEW-a, amending D-471): Lost Soles
+ * ONE DIVERGENCE, AND IT IS THE PACKAGE, NOT THIS FILE (D-474, amending D-471): Lost Soles
  * pins `next-auth` 5.0.0-beta.32, not `school-hub`'s 5.0.0-beta.25. beta.25 carries critical
  * advisories that `npm audit --omit=dev --audit-level=high` in `amplify.yml` refuses with no
  * exceptions: GHSA-8fpg-xm3f-6cx3 (config errors fail existence checks open),

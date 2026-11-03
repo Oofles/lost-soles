@@ -5,9 +5,9 @@ import { GithubApiError } from "@/lib/tickets/github"
 /**
  * Tickets 0018 (the plumbing) and 0019 (the hardening).
  *
- * The GitHub Contents API, SSM, DynamoDB and the Cognito session are mocked — a
- * "unit test" that commits to a real repository is not one, and would make the
- * suite unrunnable in CI and destructive to run twice.
+ * The GitHub Contents API, SSM, DynamoDB and next-auth's cookie decryption are
+ * mocked — a "unit test" that commits to a real repository is not one, and would
+ * make the suite unrunnable in CI and destructive to run twice.
  *
  * What is NOT mocked is the frontmatter rendering, the path derivation or any of
  * the guards in `capture-guard.ts`: those run for real, so a route that assembles
@@ -29,17 +29,29 @@ vi.mock("@/lib/tickets/github", async () => {
 })
 
 /**
- * The session, mocked at the owner module rather than at the Amplify adapter. The
- * route's contract is "the owner, per `isOwner`" — testing through a fabricated JWT
- * would be testing Amplify's parser, which is not this ticket's risk.
+ * THE SESSION PATH, for real (ticket 0332, D-473). Only next-auth's `auth()` — the
+ * cookie decryption — is stubbed, to hand back a session for `signedInAs`'s email.
+ * `currentUserId()`, `AUTH_ALLOWED_EMAILS`' gate and the `IDENTITIES` map all run
+ * as shipped, so this route is tested through the one path that admits anyone now.
+ * There is no bearer path to test: it was deleted with `capture.sh`.
+ *
+ * `OWNER_USER_IDS` is overridable through `owners`, so the empty-allowlist case can
+ * still be proved; everything else in `owner-ids.ts` is the real module.
  */
 let signedInAs: string | undefined
 let owners: string[] = []
 
-vi.mock("@/lib/auth/owner", () => ({
-  currentUserId: async () => signedInAs,
-  isOwner: (id: string | undefined) => id !== undefined && owners.includes(id),
+vi.mock("@/lib/auth", () => ({
+  auth: async () => (signedInAs ? { user: { email: signedInAs }, expires: "2099-01-01T00:00:00.000Z" } : null),
 }))
+
+vi.mock("@/lib/auth/owner-ids", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/auth/owner-ids")>("@/lib/auth/owner-ids")
+  return {
+    ...actual,
+    isOwner: (id: string | undefined) => id !== undefined && owners.includes(id),
+  }
+})
 
 const claimIdempotencyKey = vi.fn()
 const consumeRateBudget = vi.fn()
@@ -68,7 +80,11 @@ const fx = (...parts: string[]) => parts.join("")
 const FAKE_TOKEN = fx("github_pat", "_testtoken0000000000000000")
 const FAKE_LEAKED = fx("github_pat", "_leakedvalue000000000000")
 
-const OWNER = "b3f1c2d4-0000-4000-8000-000000000001"
+/** The real mapping in `IDENTITIES`: the owner's email and the uid it resolves to. */
+const OWNER_EMAIL = "amazingbrandon@gmail.com"
+const OWNER = "5488e4b8-d081-7014-748e-edd1937f8083"
+/** D-428's non-owner since 0332: on the sign-in allowlist, with no `IDENTITIES` entry. */
+const UNMAPPED_EMAIL = "someone-else@example.com"
 const APP_ORIGIN = "https://soles.devaultsecurity.com"
 
 const valid = {
@@ -94,7 +110,8 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  signedInAs = OWNER
+  process.env.AUTH_ALLOWED_EMAILS = `${OWNER_EMAIL},${UNMAPPED_EMAIL}`
+  signedInAs = OWNER_EMAIL
   owners = [OWNER]
 
   getToken.mockResolvedValue(FAKE_TOKEN)
@@ -157,10 +174,13 @@ describe("a valid capture", () => {
 })
 
 describe("owner-only, and a 404 rather than a 403 (§6.4/1, §6.5 row 1)", () => {
-  it("404s a signed-in NON-OWNER and commits nothing", async () => {
-    // Criterion 5. 403 would confirm the route exists and that the caller merely
-    // lacks permission — a free finding for anyone poking at the app.
-    signedInAs = "d9e8f7a6-0000-4000-8000-00000000beef"
+  it("404s a signed-in NON-OWNER (allowlisted, unmapped) and commits nothing", async () => {
+    // Criterion 5; A-6 (D-428), restated for 0332. 403 would confirm the route
+    // exists and that the caller merely lacks permission — a free finding for
+    // anyone poking at the app. The non-owner is a valid Google session for an
+    // email the sign-in gate admits but `IDENTITIES` does not map: exactly the
+    // domain cookie `school-hub` mints for one of its own users (D-470).
+    signedInAs = UNMAPPED_EMAIL
     const res = await post(valid)
     expect(res.status).toBe(404)
     expect(createFile).not.toHaveBeenCalled()
@@ -184,8 +204,23 @@ describe("owner-only, and a 404 rather than a 403 (§6.4/1, §6.5 row 1)", () =>
     expect((await post(valid)).status).toBe(404)
   })
 
+  it("404s a mapped email that is no longer on the sign-in allowlist", async () => {
+    process.env.AUTH_ALLOWED_EMAILS = UNMAPPED_EMAIL
+    const res = await post(valid)
+    expect(res.status).toBe(404)
+    expect(createFile).not.toHaveBeenCalled()
+  })
+
+  it("404s a request carrying only an Authorization: Bearer header", async () => {
+    // 0332, D-473: the bearer path is gone. A header is not a session.
+    signedInAs = undefined
+    const res = await post(valid, { authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig" })
+    expect(res.status).toBe(404)
+    expect(createFile).not.toHaveBeenCalled()
+  })
+
   it("gives a non-owner a response INDISTINGUISHABLE from a signed-out one", async () => {
-    signedInAs = "d9e8f7a6-0000-4000-8000-00000000beef"
+    signedInAs = UNMAPPED_EMAIL
     const nonOwner = await post(valid)
     signedInAs = undefined
     const anonymous = await post(valid)
@@ -422,13 +457,13 @@ describe("a foreign Origin is refused (0330, D-471)", () => {
     },
   )
 
-  it("admits the app's own origin and a request with no Origin (a non-browser client, not CSRF)", async () => {
+  it("admits the app's own origin and a request with no Origin (not CSRF: browsers always send Origin on a POST)", async () => {
     expect((await post(valid, { origin: APP_ORIGIN })).status).toBe(201)
     expect((await post({ ...valid, idempotencyKey: "0d9e1f40-2b3c-4d5e-8f60-718293a4b5c6" })).status).toBe(201) // gitleaks:allow
   })
 
   it("still 404s a NON-owner from a foreign origin: the owner check runs first (§6.5)", async () => {
-    signedInAs = "someone-else"
+    signedInAs = UNMAPPED_EMAIL
     const res = await post(valid, { origin: "https://attacker.example" })
     expect(res.status).toBe(404)
   })

@@ -4,7 +4,6 @@ import type { Metadata } from "next"
 import localFont from "next/font/local"
 import type { ReactNode } from "react"
 
-import { AuthGate } from "@/components/auth-gate"
 import { LogQueueRunner } from "@/components/log-queue-runner"
 import { APP_NAME, APP_TAGLINE } from "@/lib/app-meta"
 
@@ -47,17 +46,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${spectral.variable} ${inter.variable}`}>
       {/*
-        The gate wraps the whole tree, so there is no route that renders without a
-        session — ticket 0014's "an unauthenticated visitor cannot reach any app
-        route". Today that is only `/`; ticket 0016 adds the seven route stubs and
-        they inherit this by construction rather than each remembering to opt in.
+        No client-side gate (ticket 0332, D-473). `middleware.ts` is the gate: every route but `/`
+        is a 307 there when signed out, and `/` itself renders the sign-in landing from the
+        `(home)` layout. This layout reads no session, so `/log` and `/skills` stay static (D-282).
       */}
       <body>
-        <AuthGate>
-          {/* Flushes `/log`'s queue on every route, not only `/log` (ticket 0068, D-282). */}
-          <LogQueueRunner />
-          {children}
-        </AuthGate>
+        {/* Flushes `/log`'s queue on every route, not only `/log` (ticket 0068, D-282). */}
+        <LogQueueRunner />
+        {children}
       </body>
     </html>
   )

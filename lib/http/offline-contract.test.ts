@@ -102,7 +102,6 @@ describe("0113 — source rules", () => {
    */
   it("every file that calls the API imports the 10 s timeout", () => {
     const EXEMPT = new Map([
-      ["lib/auth/bearer.ts", "edge middleware; aws-jwt-verify fetches Cognito's JWKS server-side"],
       ["lib/tickets/github.ts", "server-side GitHub capture, never the browser"],
       ["lib/fog/perf/dataset-source.ts", "?fog=perf only: a static fixture from /fog-fixtures, not the API"],
     ])

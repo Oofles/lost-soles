@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
- * Ticket 0330, criterion 3. `currentUserId()` reads the Auth.js session first, through BOTH of
- * D-471's gates (`AUTH_ALLOWED_EMAILS`, then `IDENTITIES`), and otherwise falls back to today's
- * Cognito cookie, then the bearer token, unchanged.
+ * Ticket 0330, criterion 3; ticket 0332 (D-473). `currentUserId()` reads the Auth.js session,
+ * through BOTH of D-471's gates (`AUTH_ALLOWED_EMAILS`, then `IDENTITIES`), and nothing else: the
+ * Cognito cookie and the bearer token are gone.
  *
- * Stubbed: next-auth's `auth()` (the cookie decryption), Amplify's session read and the bearer
- * verification (proved in `bearer.test.ts`). Real: `config.ts`'s `isAllowedEmail`, `identity.ts`
- * and `owner-ids.ts`'s `IDENTITIES`, which are what this criterion is about.
+ * Stubbed: next-auth's `auth()` (the cookie decryption). Real: `config.ts`'s `isAllowedEmail`,
+ * `identity.ts` and `owner-ids.ts`'s `IDENTITIES`, which are what this criterion is about.
  */
 
 const OWNER_UID = "5488e4b8-d081-7014-748e-edd1937f8083"
@@ -15,8 +14,6 @@ const OWNER_EMAIL = "amazingbrandon@gmail.com"
 
 let authjsSession: unknown = null
 let authjsThrows = false
-let cognitoSub: string | undefined = undefined
-let bearerSub: string | undefined = undefined
 
 vi.mock("@/lib/auth", () => ({
   auth: async () => {
@@ -24,17 +21,14 @@ vi.mock("@/lib/auth", () => ({
     return authjsSession
   },
 }))
+/**
+ * A bearer header and a forged `ls-uid` cookie (0332, D-NEW-a) are offered on every request here. Nothing may read either: if
+ * `currentUserId()` ever looked at headers again, the tests below would still have to pass.
+ */
 vi.mock("next/headers", () => ({
-  cookies: async () => ({}),
-  headers: async () => new Headers({ authorization: "Bearer x.y.z" }),
+  cookies: async () => ({ get: () => ({ name: "ls-uid", value: "5488e4b8-d081-7014-748e-edd1937f8083" }) }),
+  headers: async () => new Headers({ authorization: "Bearer x.y.z", cookie: "ls-uid=5488e4b8-d081-7014-748e-edd1937f8083" }),
 }))
-vi.mock("aws-amplify/auth/server", () => ({
-  fetchAuthSession: async () => ({ tokens: cognitoSub ? { idToken: { payload: { sub: cognitoSub } } } : undefined }),
-}))
-vi.mock("@/lib/amplify-server", () => ({
-  runWithAmplifyServerContext: async ({ operation }: { operation: (spec: unknown) => unknown }) => operation({}),
-}))
-vi.mock("@/lib/auth/bearer", () => ({ verifiedBearerSub: async () => bearerSub }))
 
 const { currentUserId } = await import("./owner")
 const { IDENTITIES, uidForEmail } = await import("./owner-ids")
@@ -46,8 +40,6 @@ const signedInAs = (email: string) => {
 beforeEach(() => {
   authjsSession = null
   authjsThrows = false
-  cognitoSub = undefined
-  bearerSub = undefined
   process.env.AUTH_ALLOWED_EMAILS = OWNER_EMAIL
 })
 
@@ -89,39 +81,21 @@ describe("currentUserId() and the Auth.js session (0330)", () => {
     await expect(currentUserId()).resolves.toBeUndefined()
   })
 
-  it("an auth() that throws (a config error) fails closed to the Cognito path", async () => {
+  it("an auth() that throws (a config error) fails closed", async () => {
     authjsThrows = true
     await expect(currentUserId()).resolves.toBeUndefined()
-    cognitoSub = OWNER_UID
-    await expect(currentUserId()).resolves.toBe(OWNER_UID)
   })
 })
 
-describe("no Auth.js session: today's Cognito path, unchanged (0330)", () => {
-  it("the Cognito cookie's sub", async () => {
-    cognitoSub = "cognito-sub-1"
-    await expect(currentUserId()).resolves.toBe("cognito-sub-1")
-  })
-
-  it("then a verified bearer token", async () => {
-    bearerSub = "bearer-sub-1"
-    await expect(currentUserId()).resolves.toBe("bearer-sub-1")
-  })
-
-  it("the cookie wins over the bearer token", async () => {
-    cognitoSub = "cognito-sub-1"
-    bearerSub = "bearer-sub-1"
-    await expect(currentUserId()).resolves.toBe("cognito-sub-1")
-  })
-
-  it("neither is undefined", async () => {
+describe("no Auth.js session (0332, D-473)", () => {
+  it("is undefined, though a bearer header AND a forged ls-uid cookie are present (D-NEW-a)", async () => {
     await expect(currentUserId()).resolves.toBeUndefined()
   })
 
-  it("an unmapped Auth.js session still falls through to the Cognito cookie", async () => {
-    signedInAs("stranger@example.com")
-    cognitoSub = "cognito-sub-1"
-    await expect(currentUserId()).resolves.toBe("cognito-sub-1")
+  it("the module no longer imports Amplify or a bearer verifier", async () => {
+    const { readFileSync } = await import("node:fs")
+    const src = readFileSync(new URL("./owner.ts", import.meta.url), "utf8")
+    expect(src).not.toMatch(/from\s*["'][^"']*(?:aws-amplify|amplify-server|bearer|next\/headers)/)
   })
 })
 

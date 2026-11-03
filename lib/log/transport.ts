@@ -9,6 +9,7 @@
  * Behind one seam, so the queue and the page can be tested with no network and no Amplify.
  */
 
+import { uidFromCookieHeader } from "@/lib/auth/uid-cookie"
 import { RouteError, sameOriginJson } from "@/lib/http/same-origin-json"
 import type { CachedSkill } from "@/lib/log/optimistic"
 import { LogRefusedError, type SendLog } from "@/lib/log/queue"
@@ -72,12 +73,14 @@ export async function fetchSkills(): Promise<CachedSkill[]> {
   return sameOriginJson<CachedSkill[]>(SKILLS_STATE_PATH)
 }
 
-/** The signed-in user's `sub`, from the local session — no network. Undefined if signed out. */
-export async function currentUid(): Promise<string | undefined> {
-  try {
-    const { getCurrentUser } = await import("aws-amplify/auth")
-    return (await getCurrentUser()).userId
-  } catch {
-    return undefined
-  }
+/**
+ * The signed-in user's uid, from the `ls-uid` cookie — no network, so `/log` still opens its queue
+ * and cache offline (D-282). Undefined if signed out, or outside a browser. Ticket 0332, D-NEW-a:
+ * it was Amplify's `getCurrentUser()` until the cutover. A KEY FOR LOCAL STORES, NOT A CREDENTIAL:
+ * the server never reads this cookie (`lib/auth/uid-cookie.ts`).
+ */
+export async function currentUid(
+  cookie: () => string | undefined = () => (typeof document === "undefined" ? undefined : document.cookie),
+): Promise<string | undefined> {
+  return uidFromCookieHeader(cookie())
 }

@@ -10,37 +10,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
  * separately for the same reason the two path guards are: a layer only exercised
  * through the layer it backs up is not independently proven.
  *
- * Amplify's session read is stubbed. What is real is the routing decision — which
- * path gets a 404 and which gets the 307 — because that is the thing 0019 changed.
+ * next-auth's cookie decryption is stubbed. What is real is the routing decision —
+ * which path gets a 404 and which gets the 307 — because that is the thing 0019
+ * changed, and `lib/auth/identity.ts`'s two gates with it. Since 0332 (D-473) an
+ * Auth.js session is the only thing that admits.
  */
-
-let authenticated = false
-/** The verified `sub` a bearer token yields, or undefined for "not verified". */
-let bearerSub: string | undefined = undefined
-
-vi.mock("aws-amplify/auth/server", () => ({
-  fetchAuthSession: async () =>
-    authenticated ? { tokens: { accessToken: {}, idToken: {} } } : { tokens: undefined },
-}))
-
-/**
- * Ticket 0149. The verification itself is proved against real RSA signatures in
- * `lib/auth/bearer.test.ts`; stubbed here because what this file tests is the
- * ROUTING decision — which credential shape gets through the gate and which gets
- * the 404 — not the cryptography.
- */
-vi.mock("@/lib/auth/bearer", () => ({
-  verifiedBearerSub: async (header: string | null | undefined) =>
-    header ? bearerSub : undefined,
-}))
-
-vi.mock("@/lib/amplify-server", () => ({
-  runWithAmplifyServerContext: async ({
-    operation,
-  }: {
-    operation: (spec: unknown) => unknown
-  }) => operation({}),
-}))
 
 /**
  * Ticket 0330. next-auth's `auth(handler)` wrapper, stubbed to hand the handler `req.auth` the way
@@ -65,8 +39,6 @@ const get = async (pathname: string, headers?: HeadersInit) =>
   (await middleware(new NextRequest(new URL(`https://soles.devaultsecurity.com${pathname}`), { headers }), { params: Promise.resolve({}) })) as Response
 
 beforeEach(() => {
-  authenticated = false
-  bearerSub = undefined
   authjsEmail = undefined
   process.env.AUTH_ALLOWED_EMAILS = OWNER_EMAIL
 })
@@ -84,7 +56,7 @@ describe("signed out", () => {
     },
   )
 
-  it("still 307s a PAGE toward `/`, where the Authenticator renders", async () => {
+  it("still 307s a PAGE toward `/`, where Sign in with Google renders", async () => {
     const res = await get("/log")
     expect(res.status).toBe(307)
     expect(res.headers.get("location")).toContain("/?next=%2Flog")
@@ -124,7 +96,7 @@ describe("Cache-Control on the middleware's own responses (0322)", () => {
     expect(res.headers.get("cache-control")).toBe(NO_STORE)
   })
 
-  it("a failed bearer token's 404 carries it too", async () => {
+  it("a bearer-only request's 404 carries it too", async () => {
     const res = await get("/api/fog", { authorization: "Bearer forged.token.sig" })
     expect(res.status).toBe(404)
     expect(res.headers.get("cache-control")).toBe(NO_STORE)
@@ -133,68 +105,94 @@ describe("Cache-Control on the middleware's own responses (0322)", () => {
 
 describe("signed in", () => {
   it("passes an API request through to the route, which does its own owner check", async () => {
-    authenticated = true
+    authjsEmail = OWNER_EMAIL
     const res = await get("/api/tickets/capture")
     expect(res.status).toBe(200)
   })
 })
 
 /**
- * Ticket 0149 — the non-browser path.
- *
- * Without this branch the capture endpoint is unreachable from a Tasker task,
- * which is the whole of capability `03`'s value. With it, the gate must still be
- * a gate: only a VERIFIED token opens it, and everything else is byte-identical
- * to being signed out.
+ * Ticket 0332, D-NEW-a. `ls-uid` is the browser's copy of the uid, for its IndexedDB keys. The gate
+ * WRITES it and never READS it: the uid is not a credential.
  */
-describe("bearer token (0149)", () => {
-  it("admits an API request carrying a verified bearer token and no cookie", async () => {
-    bearerSub = "5488e4b8-d081-7014-748e-edd1937f8083"
-    const res = await get("/api/tickets/capture", { authorization: "Bearer good.token.sig" })
-    expect(res.status).toBe(200)
+describe("the ls-uid cookie (0332)", () => {
+  const OWNER_UID = "5488e4b8-d081-7014-748e-edd1937f8083"
+  const setCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("ls-uid=")) ?? ""
+
+  it.each(["/", "/log", "/api/fog"])("is set on an admitted response to %s", async (path) => {
+    authjsEmail = OWNER_EMAIL
+    const c = setCookie(await get(path))
+    expect(c).toMatch(new RegExp(`^ls-uid=${OWNER_UID};`))
+    expect(c).toMatch(/Path=\//)
+    expect(c).toMatch(/Secure/)
+    expect(c).toMatch(/SameSite=lax/i)
+    expect(c).toMatch(/Max-Age=2592000/)
+    expect(c).not.toMatch(/HttpOnly/i)
+    expect(c).not.toMatch(/Domain=/i)
   })
 
-  it("404s a bearer token that does NOT verify", async () => {
-    bearerSub = undefined
-    const res = await get("/api/tickets/capture", { authorization: "Bearer forged.token.sig" })
-    expect(res.status).toBe(404)
-    expect(res.headers.get("location")).toBeNull()
+  it.each(["/", "/log", "/api/fog"])("is deleted, at Path=/, on a signed-out response to %s", async (path) => {
+    const c = setCookie(await get(path, { cookie: `ls-uid=${OWNER_UID}` }))
+    expect(c).toMatch(/^ls-uid=;/)
+    expect(c).toMatch(/Path=\//)
+    expect(c).toMatch(/Max-Age=0/)
   })
 
-  it("404s a request with neither a cookie nor a bearer token", async () => {
-    const res = await get("/api/tickets/capture")
-    expect(res.status).toBe(404)
+  it("is deleted for an allowlisted but unmapped email, which is signed out (D-470)", async () => {
+    authjsEmail = "someone-else@example.com"
+    process.env.AUTH_ALLOWED_EMAILS = `${OWNER_EMAIL},someone-else@example.com`
+    expect(setCookie(await get("/"))).toMatch(/^ls-uid=;/)
   })
 
-  it("gives a failed bearer token the SAME response as no credential at all", async () => {
-    // A stale device credential must be indistinguishable from no credential —
-    // otherwise the gate tells an outsider that the route exists (§6.5 row 1).
-    bearerSub = undefined
-    const forged = await get("/api/tickets/capture", { authorization: "Bearer forged.token.sig" })
-    const none = await get("/api/tickets/capture")
-    expect(forged.status).toBe(none.status)
-    expect(await forged.text()).toBe(await none.text())
+  it("a FORGED ls-uid with no session is signed out: 404 for an API, 307 for a page", async () => {
+    const forged = { cookie: `ls-uid=${OWNER_UID}` }
+    const api = await get("/api/tickets/capture", forged)
+    expect(api.status).toBe(404)
+    expect(await api.text()).toBe(await (await get("/api/tickets/capture")).text())
+    expect((await get("/log", forged)).status).toBe(307)
   })
 
-  it("lets a bearer token reach a PAGE too, rather than 307ing it", async () => {
-    // Nothing needs this today — the tile posts to an API route — but the gate
-    // must not be inconsistent about what a valid credential means.
-    bearerSub = "5488e4b8-d081-7014-748e-edd1937f8083"
-    const res = await get("/log", { authorization: "Bearer good.token.sig" })
-    expect(res.status).toBe(200)
-  })
-
-  it("prefers the COOKIE when a request somehow carries both", async () => {
-    // The browser's behaviour must be exactly what it was before 0149 existed.
-    authenticated = true
-    bearerSub = undefined
-    const res = await get("/api/tickets/capture", { authorization: "Bearer forged.token.sig" })
-    expect(res.status).toBe(200)
+  it("the server never reads it: the gate and the session readers do not name it", async () => {
+    const { readFileSync } = await import("node:fs")
+    for (const rel of ["./middleware.ts", "./lib/auth/owner.ts", "./lib/auth/identity.ts"]) {
+      const src = readFileSync(new URL(rel, import.meta.url), "utf8")
+      expect(src, rel).not.toMatch(/cookies\.get\(|uidFromCookieHeader|["']ls-uid["']/)
+    }
   })
 })
 
 /**
- * Ticket 0330, D-471. Either session admits; an Auth.js session admits only through BOTH gates.
+ * Ticket 0332, D-473. The bearer path (D-183, ticket 0149) is gone: its only client,
+ * `tools/capture/capture.sh`, was deleted with it. A request carrying only an
+ * `Authorization` header is signed out, byte for byte.
+ */
+describe("bearer token alone (0332)", () => {
+  it.each(["/api/tickets/capture", "/api/fog", "/api/log"])(
+    "404s %s carrying only a bearer header, exactly as no credential at all",
+    async (path) => {
+      const bearer = await get(path, { authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig" })
+      const none = await get(path)
+      expect(bearer.status).toBe(404)
+      expect(bearer.headers.get("location")).toBeNull()
+      expect(await bearer.text()).toBe(await none.text())
+    },
+  )
+
+  it("307s a PAGE carrying only a bearer header, as signed out", async () => {
+    const res = await get("/log", { authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig" })
+    expect(res.status).toBe(307)
+  })
+
+  it("the middleware no longer imports Amplify or a bearer verifier", async () => {
+    const { readFileSync } = await import("node:fs")
+    const src = readFileSync(new URL("./middleware.ts", import.meta.url), "utf8")
+    expect(src).not.toMatch(/from\s*["'][^"']*(?:aws-amplify|amplify-server|bearer)/)
+    expect(src).not.toMatch(/headers\.get\(\s*["']authorization/i)
+  })
+})
+
+/**
+ * Ticket 0330, D-471. An Auth.js session admits only through BOTH gates.
  */
 describe("Auth.js session (0330)", () => {
   it("admits an allowlisted, mapped email to an API route and a page", async () => {
@@ -231,11 +229,6 @@ describe("Auth.js session (0330)", () => {
     expect((await get("/api/tickets/capture")).status).toBe(404)
     delete process.env.AUTH_ALLOWED_EMAILS
     expect((await get("/api/tickets/capture")).status).toBe(404)
-  })
-
-  it("still admits the Cognito cookie when there is no Auth.js session", async () => {
-    authenticated = true
-    expect((await get("/api/tickets/capture")).status).toBe(200)
   })
 })
 

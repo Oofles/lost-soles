@@ -43,8 +43,9 @@ const I24 =
 
 // ── The environment both worlds render in. Identical in both, so it cannot explain a difference.
 vi.mock("next/headers", () => ({ cookies: () => ({}), headers: async () => new Headers() }))
-vi.mock("@/lib/amplify-server", () => ({ runWithAmplifyServerContext: async () => true }))
 vi.mock("@/lib/auth/owner", () => ({ currentUserId: async () => "sub-1" }))
+// `0332`: the sign-in landing's server action is Auth.js, which vitest cannot load; not under test.
+vi.mock("@/app/auth-actions", () => ({ signInWithGoogle: async () => {}, signOutEverywhere: async () => {} }))
 // MapLibre's CSS import cannot load under vitest; the map is not what is under test.
 vi.mock("@/components/map/map-shell", () => ({ MapShell: () => null }))
 vi.mock("@/lib/log/transport", () => ({
