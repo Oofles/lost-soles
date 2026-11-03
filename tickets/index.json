@@ -7695,6 +7695,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T17:18:05Z",
+    "started": "2026-11-03T02:07:06Z",
     "path": "tickets/open/0332-cutover-google-sign-in-replaces-the-authenticator-cognito-se.md",
     "ready": true,
     "acceptance": {
