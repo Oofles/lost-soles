@@ -43,13 +43,15 @@ The work:
       an API returns 404. With a session for an email not on Lost Soles' allowlist, a page returns 403
       and an API returns 404. A mapped email gets through. A forged `ls-uid` with no session is still
       signed out.
-- [ ] The deployed signed-out `/` redirects to core. Curl shows the `Location`. No response sets a
+- [x] The deployed signed-out `/` redirects to core. Curl shows the `Location`. No response sets a
       `__Secure-authjs.session-token` cookie.
+      — verified 2026-11-03 (build 447): `/` returns 307 to `https://core.devaultsecurity.com/login?next=https%3A%2F%2Fsoles.devaultsecurity.com%2F`, and 0 old-name session cookies across `/`, `/log`, `/settings` and two APIs.
       *(Open until deploy: the build agent cannot deploy. Proven against a local `next start` of
       this build with production's SSO env, see Resolution; the deployed curl is the orchestrator's
       post-deploy smoke test.)*
-- [ ] SSM `AUTH_SECRET` hashes to the shared prefix `a744072a9a` (orchestrator writes it, agent
+- [x] SSM `AUTH_SECRET` hashes to the shared prefix `a744072a9a` (orchestrator writes it, agent
       verifies the hash only).
+      — verified 2026-11-03: the operator ran the SSM writes (the auto-mode classifier refused them to the agent). The hash is `a744072a9a`, and `AUTH_SESSION_COOKIE` and `AUTH_SSO_URL` are Strings with the expected values.
       *(Open until the orchestrator's SSM write. At build time, 2026-11-03, `AUTH_SESSION_COOKIE`
       and `AUTH_SSO_URL` did not exist yet under `/amplify/shared/d14fhvl4rp79nn/`, which is
       expected; the hash check is in the post-deploy smoke test.)*
@@ -75,6 +77,23 @@ The work:
   operator can remove it from the Google console. It is not a blocker, and nothing breaks if it stays.
 - If school-hub's `config.ts` cannot compile unchanged here (for example, a `redirect` callback
   conflicting with the `pages: "/"` setting from D-474), stop and ask (D-152). Do not fork the file.
+
+Orchestrator, 2026-11-03, after merge (`181856e`) and deploy (Amplify job 447, `57951e6`, SUCCEED):
+- SSM: the operator wrote all three. The agent's write was refused by the auto-mode classifier as a secret-store write.
+  The operator copied `AUTH_SECRET` from core's app env, guarded by the hash prefix. It is now SecureString v2 and hashes
+  to `a744072a9a`. v1, Lost Soles' old `d0b3a01de5`, stays in the parameter history.
+  `AUTH_SESSION_COOKIE=devault.session-token` and `AUTH_SSO_URL=https://core.devaultsecurity.com` (both String, v1).
+- Build log: "Auth.js env written to .env.production: 8 of 8", including both new names.
+- Signed-out `/`: 307 to core's `/login?next=https%3A%2F%2Fsoles.devaultsecurity.com%2F`, `cache-control: no-store, private`,
+  and `ls-uid` expired. `/log?x=1`: 307, with the path and query kept in `next`.
+- `/api/fog`: 404 signed out, and 404 with only a bearer header.
+- No `__Secure-authjs.session-token` Set-Cookie on `/`, `/log`, `/settings`, `/api/fog` or `/api/skills/profile`.
+  Auth.js's host-only csrf and callback-url cookies are unchanged. The CSP names no Cognito host.
+- Data before deploy: 377 ledger rows, Σ `xpAwarded` 73,002, `exploredGeneration` 270.
+- Allowlist: Lost Soles' `AUTH_ALLOWED_EMAILS` holds exactly one email, the one `IDENTITIES` maps. So the agent's
+  403 question resolves as long as the operator signs into core with that address.
+- Local gate on merged `main`: every guard passed. 290 test files, 4,704 tests passed. The live `../school-hub` comparison
+  in `lib/auth/config.test.ts` now passes (it failed at the `0333` gate).
 
 ## Resolution
 

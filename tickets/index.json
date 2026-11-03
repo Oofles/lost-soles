@@ -7857,7 +7857,7 @@
     "path": "tickets/open/0339-join-core-sso.md",
     "ready": true,
     "acceptance": {
-      "checked": 4,
+      "checked": 6,
       "total": 8
     }
   }
