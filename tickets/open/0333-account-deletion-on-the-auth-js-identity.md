@@ -39,11 +39,11 @@ identity is an email in `AUTH_ALLOWED_EMAILS` (SSM) plus an `IDENTITIES` entry (
 - [x] `tools/account-deletion/deletion.ts` makes no `cognito-idp` call, and its tests pass with no Cognito mock.
 - [x] A dry run against the owner uid without `--delete-owner` is refused with zero side effects
       (D-403), with a test.
-- [ ] `08` §6.4 is rewritten step by step, and D-400's Cognito ordering is marked superseded in
+- [x] `08` §6.4 is rewritten step by step, and D-400's Cognito ordering is marked superseded in
       `DECISIONS.md` by a line pointing at D-473, without editing D-400's text.
-      *Half done (agent, wave): §6.4 is rewritten (steps 3 and 6c). The `DECISIONS.md` line is not
-      added, because WAVES.md §3 forbids agents to edit it; the exact line is in the wave report for
-      the orchestrator to apply at merge.*
+      *§6.4 rewritten by the agent (steps 3 and 6c). The supersession line under D-400 was added by
+      the orchestrator at merge, because WAVES.md §3 keeps agents out of `DECISIONS.md`. D-400's own
+      text is untouched.*
 - [x] `16-rebuild-drill.md`'s account-deletion section gets a dated note that the Cognito steps it
       records were superseded by `0333`.
 

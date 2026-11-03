@@ -5676,6 +5676,11 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   step 6. This reconciles `02` §8.5 (delete listed last), `08` §6.4 ("delete comes last") and
   `0106` (disable first "while the slower deletes run"), and keeps a failed run resumable, because a
   disabled user still exists to resume against. `08` §6.4 amended.
+  → **Superseded at cutover by D-473 (2026-11-03, `0333`):** there is no Cognito user to disable,
+  sign out or delete. Step 3 is removing the email from `AUTH_ALLOWED_EMAILS` (SSM) and redeploying;
+  the script prints it and waits (D-477). The last step is removing the `IDENTITIES` entry in a
+  commit, which the script prints. It stays last for D-400's reason: a failed run re-runs against an
+  identity that still maps. D-403 stands.
 - **D-401** **The multipart-abort lifecycle rule lives in the CDK stack; the deletion script only
   checks it. No lifecycle rule on the user-data bucket may ever carry an expiration action.**
   *(Agent, 2026-10-20, `0106`.)* A script calling `PutBucketLifecycleConfiguration` would drift
@@ -6392,3 +6397,13 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - Rejected: a `/api/session/uid` route with a client cache (a request per page, plus cache
     invalidation); rendering the uid from the root layout (every route dynamic, breaks D-282); a
     constant store key (changes `02` §6.4 and drops per-user separation).
+
+- **D-477** **Account deletion waits at step 3 until the operator types `done`.** *(Operator,
+  2026-11-03, ticket `0333`.)* Step 3, which removes the email from `AUTH_ALLOWED_EMAILS` in SSM and
+  then redeploys, is manual: it is an SSM write plus a deploy, and neither belongs inside a delete
+  script. The script prints it and then blocks. Any answer but `done` aborts after step 2, with
+  nothing past it deleted, and re-running is safe because every step is idempotent.
+  - **Why wait, not print and carry on:** `08` §6.4 puts sign-out before the data deletes so that
+    sessions stop while the slower deletes run. That holds only if the deletes actually wait for it.
+    Carrying on would delete data while the email can still sign in.
+  - The script never prints the email (D-426's counts-and-uids rule); the steps name the uid.

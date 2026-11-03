@@ -7723,7 +7723,7 @@
     "path": "tickets/open/0333-account-deletion-on-the-auth-js-identity.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },
@@ -7793,6 +7793,46 @@
     "acceptance": {
       "checked": 4,
       "total": 4
+    }
+  },
+  {
+    "id": 337,
+    "slug": "seed-throwaway-still-calls-cognito",
+    "title": "seed-throwaway.ts still calls cognito-idp list-users against the pool 0334 deletes",
+    "type": "chore",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "19-authjs-migration",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-03T18:26:02Z",
+    "path": "tickets/open/0337-seed-throwaway-still-calls-cognito.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 3
+    }
+  },
+  {
+    "id": 338,
+    "slug": "delete-account-exits-0-on-closed-stdin",
+    "title": "delete-account.ts exits 0 when stdin closes at the typed-uid prompt",
+    "type": "bug",
+    "priority": "low",
+    "status": "open",
+    "size": "s",
+    "capability": "16-rebuild-drill",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-03T18:26:02Z",
+    "path": "tickets/open/0338-delete-account-exits-0-on-closed-stdin.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 1
     }
   }
 ]

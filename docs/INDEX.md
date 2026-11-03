@@ -4,7 +4,7 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 17,131 lines; three of
+**Read by section, never whole** (D-151). These documents total 17,144 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
@@ -510,7 +510,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/08-security-privacy.md`
 
-**08 — Security & Privacy** — 1,391 lines
+**08 — Security & Privacy** — 1,404 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -539,24 +539,24 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 5.3 Session handling | `706-724` | Amplify's client owns the token lifecycle; the rules are about where tokens live and how long a |
 | &nbsp;&nbsp;↳ 5.4 Provisioning a second account — the flow, and its hard gate | `725-765` | There is no invite feature, no signup page, and no "add a friend" button in the UI. |
 | &nbsp;&nbsp;↳ 5.5 Authorization, such as it is | `766-835` | With one user, authorization is nearly vacuous — which is exactly why it must be written as if |
-| 6. Data lifecycle, retention, and deletion | `836-988` |  |
-| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `838-854` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
-| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `855-884` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
-| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `885-922` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
-| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `923-974` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
-| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `975-988` | Removing the Strava connection deletes SourceAccount and stops ingest. |
-| 7. Repo hygiene — and one live finding (O-005) | `989-1187` | The repository is the most likely place a secret in this project actually escapes. |
-| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `996-1037` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
-| &nbsp;&nbsp;↳ 7.2 What must never be committed | `1038-1060` |  |
-| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `1061-1095` | makes an accidental git add . |
-| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `1096-1154` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
-| &nbsp;&nbsp;↳ 7.5 Dependencies | `1155-1187` | control, not a convenience. |
-| 8. Incident playbook | `1188-1352` | One responder, who is also the person who wrote the bug. |
-| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1222-1261` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
-| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1262-1287` | which is most of the value); unexpected commits or a changed default branch; the git log |
-| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1288-1319` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
-| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1320-1352` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
-| 9. What we are deliberately not doing | `1353-1391` | Every item below was considered and rejected for this system, at this scale, on this budget |
+| 6. Data lifecycle, retention, and deletion | `836-1001` |  |
+| &nbsp;&nbsp;↳ 6.1 What is retained, and for how long | `838-855` | is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day |
+| &nbsp;&nbsp;↳ 6.2 The bucket, concretely | `856-885` | the control that makes the difference between "a private archive" and "a lifetime GPS history |
+| &nbsp;&nbsp;↳ 6.3 The tension, stated and then resolved | `886-923` | look contradictory. They are not, and the resolution is worth writing down precisely, because |
+| &nbsp;&nbsp;↳ 6.4 Account deletion — the runbook | `924-987` | An operator action, like provisioning (§5.4), and for the same reason: it happens at most six |
+| &nbsp;&nbsp;↳ 6.5 Disconnecting a source is not deleting an account | `988-1001` | Removing the Strava connection deletes SourceAccount and stops ingest. |
+| 7. Repo hygiene — and one live finding (O-005) | `1002-1200` | The repository is the most likely place a secret in this project actually escapes. |
+| &nbsp;&nbsp;↳ 7.1 `.gitignore` — write it before the first commit, not after the first mistake | `1009-1050` | A .gitignore added on day 40 does not protect the first 39 days, and git history is |
+| &nbsp;&nbsp;↳ 7.2 What must never be committed | `1051-1073` |  |
+| &nbsp;&nbsp;↳ 7.3 Scanning, in four places | `1074-1108` | makes an accidental git add . |
+| &nbsp;&nbsp;↳ 7.4 O-005 — a live finding, on this machine, right now | `1109-1167` | live-format AWS access key ID (AKIA…, a single key repeated), inlined into permission |
+| &nbsp;&nbsp;↳ 7.5 Dependencies | `1168-1200` | control, not a convenience. |
+| 8. Incident playbook | `1201-1365` | One responder, who is also the person who wrote the bug. |
+| &nbsp;&nbsp;↳ 8.1 Strava token leaked (S2 client secret, or S4 a user's refresh token) | `1235-1274` | entire Strava history — every GPS trace, indefinitely, silently (§2.1). |
+| &nbsp;&nbsp;↳ 8.2 GitHub PAT leaked (S5) | `1275-1300` | which is most of the value); unexpected commits or a changed default branch; the git log |
+| &nbsp;&nbsp;↳ 8.3 AWS credentials leaked (S8) — the O-005 shape | `1301-1332` | where speed genuinely matters, because the second-order damage is automated bots spinning up |
+| &nbsp;&nbsp;↳ 8.4 Webhook abused (§4) | `1333-1365` | Least severe by construction, because the endpoint holds no credential and reads nothing (§4.5) |
+| 9. What we are deliberately not doing | `1366-1404` | Every item below was considered and rejected for this system, at this scale, on this budget |
 
 ## `docs/09-roadmap.md`
 
