@@ -7804,7 +7804,7 @@
     "title": "seed-throwaway.ts still calls cognito-idp list-users against the pool 0334 deletes",
     "type": "chore",
     "priority": "low",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "19-authjs-migration",
     "depends_on": [],
@@ -7812,8 +7812,9 @@
     "source": "agent",
     "created": "2026-11-03T18:26:02Z",
     "started": "2026-11-03T18:50:51Z",
-    "path": "tickets/open/0337-seed-throwaway-still-calls-cognito.md",
-    "ready": true,
+    "closed": "2026-11-03T21:14:36Z",
+    "path": "tickets/closed/0337-seed-throwaway-still-calls-cognito.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

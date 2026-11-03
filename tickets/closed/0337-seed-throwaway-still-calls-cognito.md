@@ -4,7 +4,7 @@ slug: seed-throwaway-still-calls-cognito
 title: seed-throwaway.ts still calls cognito-idp list-users against the pool 0334 deletes
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 19-authjs-migration
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-03T18:26:02Z
 started: 2026-11-03T18:50:51Z
+closed: 2026-11-03T21:14:36Z
 ---
 
 ## Description
@@ -45,6 +46,10 @@ None for the operator. Agent, on the desktop (WSL), `AWS_PROFILE=devault`:
   printed `refusing: IDENTITIES (lib/auth/owner-ids.ts) maps no email to … Trigger A …`, exit 2.
 - The same with the owner's uid printed `refusing: that uid is in OWNER_USER_IDS …`, exit 2.
 - `npx vitest run tools/account-deletion`: 28 passed, including both subprocess refusals.
+
+Orchestrator, 2026-11-03, on merged `main` (`11a4379`, pushed at `57951e6`): both dry runs were repeated with the
+same results (an unmapped uid refused with the Trigger A message and exit 2; the owner uid refused with exit 2;
+nothing written). `npx vitest run tools/account-deletion`: 28 passed. The full wave gate is green.
 
 ## Resolution
 
