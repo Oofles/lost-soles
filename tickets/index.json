@@ -7684,7 +7684,7 @@
     "title": "Cutover: Google sign-in replaces the Authenticator, Cognito session and bearer path",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "19-authjs-migration",
     "depends_on": [
@@ -7696,10 +7696,11 @@
     "source": "agent",
     "created": "2026-11-02T17:18:05Z",
     "started": "2026-11-03T02:07:06Z",
-    "path": "tickets/open/0332-cutover-google-sign-in-replaces-the-authenticator-cognito-se.md",
-    "ready": true,
+    "closed": "2026-11-03T18:14:18Z",
+    "path": "tickets/closed/0332-cutover-google-sign-in-replaces-the-authenticator-cognito-se.md",
+    "ready": false,
     "acceptance": {
-      "checked": 5,
+      "checked": 7,
       "total": 7
     }
   },
@@ -7719,7 +7720,7 @@
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "path": "tickets/open/0333-account-deletion-on-the-auth-js-identity.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 4

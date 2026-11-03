@@ -4,7 +4,7 @@ slug: cutover-google-sign-in-replaces-the-authenticator-cognito-se
 title: Cutover: Google sign-in replaces the Authenticator, Cognito session and bearer path
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 19-authjs-migration
 depends_on: [330, 331, 336]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:18:05Z
 started: 2026-11-03T02:07:06Z
+closed: 2026-11-03T18:14:18Z
 ---
 
 
@@ -51,10 +52,12 @@ exists, but nothing reads it. `0334` deletes it.
 - [x] `08` §5.3 is rewritten for Auth.js: token storage (httpOnly cookie, not `localStorage`), TTL
       (Auth.js's 30-day JWT), revocation (rotate `AUTH_SECRET`, all apps), and the non-browser row
       removed. `01` §5's auth-gate note is amended. Both cite D-473.
-- [ ] (operator) Signed in to `school-hub` in the desktop browser, opening
+- [x] (operator) Signed in to `school-hub` in the desktop browser, opening
       `soles.devaultsecurity.com` lands on the map signed in, with no second sign-in.
-- [ ] (operator) Signed out, `/` reads clearly as "sign in with Google", and the map, plinth and run
+      — verified 2026-11-03: pass (operator, desktop browser).
+- [x] (operator) Signed out, `/` reads clearly as "sign in with Google", and the map, plinth and run
       log after sign-in are the operator's own, unchanged.
+      — verified 2026-11-03: pass (operator, desktop browser); landing reads as sign-in, map/plinth/log unchanged.
 
 ## Notes
 
@@ -102,6 +105,13 @@ Post-deploy, agent — run 2026-11-03 against Amplify job 445 (`b135bb8`, SUCCEE
   `Profile.exploredGeneration` = **270**. The latest write to either is 2026-11-02T20:18:28Z, before the
   deploy started (02:56Z on 11-03), so these are also the pre-cutover values. The comparison after the
   operator signs in is below.
+
+Operator, desktop browser, 2026-11-03: both `(operator)` criteria pass. A `school-hub` session carried
+straight onto the map. The signed-out `/` reads as "sign in with Google". After signing back in, the
+map, plinth and run log were the operator's own and unchanged.
+
+After the operator's sign-in (agent, 2026-11-03): still 377 ledger rows, Σ `xpAwarded` = 73,002, and
+`exploredGeneration` = 270. Nothing moved across the cutover.
 
 ## Resolution
 
