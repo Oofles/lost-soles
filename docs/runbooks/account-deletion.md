@@ -1,6 +1,7 @@
 # Runbook — deleting an account
 
-**Status: executable.** Written and tested in ticket **`0106`**, and executed once against a throwaway
+**Status: executable.** Written and tested in ticket **`0106`**; its Cognito steps replaced by the
+Auth.js identity in **`0333`** (D-473), and executed once against a throwaway
 account — the before/after counts are in [`../capabilities/16-rebuild-drill.md`](../capabilities/16-rebuild-drill.md)
 §*Account deletion, executed*. This path is linked from `/settings` (D-325); do not move it.
 
@@ -23,9 +24,10 @@ sync, disconnect. Do not use this runbook for that.
 
 - **Laptop, `AWS_PROFILE=devault`** (CLAUDE.md). Run as the operator — the script assumes the
   break-glass role itself, for step 5 only. It refuses to run *as* that role.
-- **The user's Cognito `sub`.** Everything is keyed by it: `raw/<sub>/`, `users/<sub>/`,
-  `snapshots/skillstate/<sub>/`, `U#<sub>#…`. Find it with
-  `aws cognito-idp list-users --user-pool-id <pool> --filter 'email = "<email>"'` (`Attributes[sub]`).
+- **The user's uid** (the old Cognito `sub`, kept forever by D-471). Everything is keyed by it:
+  `raw/<sub>/`, `users/<sub>/`, `snapshots/skillstate/<sub>/`, `U#<sub>#…`. Find it as the value of
+  the user's email in `IDENTITIES`, `lib/auth/owner-ids.ts`. The script refuses a uid that
+  `IDENTITIES` does not map, unless `--resume`.
 - **The identity-pool id, only if `users/<region>:<uuid>/` prefixes exist.** That is the
   `entity('identity')` prefix (`amplify/storage/resource.ts`), a different string from the sub, and it
   cannot be derived from the sub. Nothing writes there today, and the script checks: if any such
@@ -41,7 +43,7 @@ npx vite-node --config vitest.config.ts tools/account-deletion/delete-account.ts
 #   add --delete-owner only if <sub> is the owner's
 ```
 
-1. **Preflight, read-only.** Resolves the Cognito user; counts every row and every S3 version the
+1. **Preflight, read-only.** Checks `IDENTITIES` maps the uid; counts every row and every S3 version the
    user owns (the *before*); and proves the archive guard against the **live** bucket policy with an
    IAM policy simulation: the operator's own principal must get `explicitDeny` for
    `s3:DeleteObject` and `s3:DeleteObjectVersion` on `raw/<sub>/…`, and `LostSolesArchiveDeletion`
@@ -57,11 +59,11 @@ npx vite-node --config vitest.config.ts tools/account-deletion/delete-account.ts
 |---|---|---|
 | 1 | **Revoke upstream** | Each connectable source's own `revoke` — the same call `/settings`' disconnect makes (`tools/account-deletion/revoke.ts`). For Strava that is `POST /oauth/revoke` with client credentials, the current form of the legacy `/oauth/deauthorize`; a 401 means the token is already dead and counts as done. **No token (no row, `DISCONNECTED`, `NEEDS_REAUTH`) is a recorded no-op, not a failure** (D-348). A revoke failure aborts before anything is deleted. |
 | 2 | **Delete `SourceAccount`** | Every `U#<sub>` / `SRC#*` row. Tokens gone. |
-| 3 | **Disable, then global sign-out** | `AdminDisableUser`, `AdminUserGlobalSignOut`. Sessions stop now, while the slow deletes run. |
+| 3 | **Close the sign-in gate — by hand** | The script prints this and **waits for you to type `done`**. Remove the user's email (the `IDENTITIES` key for the uid) from the comma-separated SSM parameter `/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS`, keeping every other email, then redeploy `main`. `authorized` re-checks the allowlist on every request, so once the deploy is live every session for that email is signed out on its next request. Sessions stop now, while the slow deletes run. Anything but `done` aborts after step 2. |
 | 4 | **DynamoDB rows by uid** | `ExploredCell` (`begins_with(pk, "U#<sub>#")` — cells and aggregates), `Activity`, `XpLedgerEntry`, `SkillState`, `Landmark`, `Profile` (D-307), `IngestReceipt`, `OAuthState`. As the operator: every writer holds `UpdateItem` only. |
 | 5 | **S3 current objects** | `raw/<sub>/` **under `LostSolesArchiveDeletion`** (assumed by the script, one hour); `users/<sub>/`, `snapshots/skillstate/<sub>/` (D-259) and any `users/<identityId>/` as the operator. This writes delete markers. Kind overrides and `.duplicate-of.json` markers (D-284) are under `raw/<sub>/` and go with it. |
 | 6 | **Purge every version** | Every noncurrent version **and every delete marker** under each prefix, by `VersionId` — `raw/` again under the role. Enumeration is always the operator's: the role cannot list. Then the multipart-abort lifecycle rule is checked (it is infrastructure, `amplify/backend.ts`; the script does not set it). |
-| — | **Delete the Cognito user** | `AdminDeleteUser`, after the data. `02` §8.5 orders it last and sign-out fails on a deleted user; keeping it until the end also means a failed run still has a (disabled) user to resume against. |
+| — | **Remove the `IDENTITIES` entry — by hand, last** | Printed at the end and carried in the confirmation under *Still to do, by hand*. Delete the user's line from `IDENTITIES` in `lib/auth/owner-ids.ts`, commit, push. Last for D-400's reason: until then the uid still maps, so a failed run is simply run again. |
 | 7 | **Logs** | Nothing. CloudWatch lines that mention the user expire under the 30-day retention. Do not hand-scrub log groups; the retention *is* the answer. |
 | 8 | **Confirm in writing** | Printed and saved to `tmp/account-deletion/<sub>-<time>.md`: before/after counts, what could not be deleted (should be *Nothing.*), the guard evidence, and the PITR statement below. Send it to the requester. |
 
@@ -83,10 +85,16 @@ when such a backup was taken, find and delete it by hand, and say so in the conf
 ## If it fails
 
 The run aborts at the failing step and prints why. Everything before that step is done, nothing after
-it is. Fix the cause and **run it again** — every step is idempotent. If the Cognito user is already
-gone (only possible if the very last destructive step succeeded), add `--resume`.
+it is. Fix the cause and **run it again** — every step is idempotent, and step 3 asks again
+(answer `done`: the gate is already closed). If the `IDENTITIES` entry is already gone (only
+possible once the run finished), add `--resume`.
 
 ## A second account is Trigger A
+
+> **Superseded by `0333` (2026-11-03).** The throwaway procedure below creates a Cognito user, which
+> no longer signs in to anything. A second identity is now a second email in `AUTH_ALLOWED_EMAILS`
+> or a second `IDENTITIES` entry (D-470), and the script has not been re-run against one: that is
+> Trigger A, and waits for a real need. The steps are kept as the record of `0106`'s run.
 
 Creating a second Cognito account — including a throwaway for testing this runbook — is **D-123
 Trigger A** (`08` §2.4). For a test: **create → seed → run → delete, in one sitting**, and record the

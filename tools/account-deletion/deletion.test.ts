@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs"
+
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  ALLOWLIST_PARAMETER,
   ConfirmationMismatch,
   OwnerRefused,
+  SignOutNotConfirmed,
   inventory,
   principalArnOf,
   renderConfirmation,
@@ -13,7 +17,7 @@ import {
 import { revokeAllSources } from "./revoke"
 
 /**
- * Ticket `0106`. The whole run, against a FAKE versioned bucket that enforces the real bucket
+ * Tickets `0106`, `0333`. The whole run, against a FAKE versioned bucket that enforces the real bucket
  * policy's shape (`raw/*` deletes denied to everyone but the break-glass role, which can do nothing
  * else), fake DynamoDB tables and a fake `aws` CLI. Two users live in the world; only one is
  * deleted, and the other is checked untouched.
@@ -21,6 +25,11 @@ import { revokeAllSources } from "./revoke"
  * The live half of "the default role cannot delete under raw/*" is not here — it is the run's own
  * preflight (`verifyArchiveGuard`, IAM simulation against the deployed policy, and
  * `probeArchiveGuard`, S3's own answer), recorded in the written confirmation.
+ *
+ * NO COGNITO (`0333`, D-473). The fake CLI below knows no `cognito-idp` command: any such call
+ * throws "unexpected", so a green suite is itself the proof that the run makes none. The identity
+ * is two manual steps (D-471): step 3's sign-in gate, which the run waits on, and the `IDENTITIES`
+ * entry, printed last.
  */
 
 const UID = "11111111-2222-4333-8444-555555555555"
@@ -51,7 +60,9 @@ type Principal = "operator" | "break-glass"
 /** Every observable action, in order. The ordering test reads this. */
 type Event = string
 
-function world(opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycle?: boolean } = {}) {
+function world(
+  opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycle?: boolean; signOutAnswer?: string } = {},
+) {
   const events: Event[] = []
   let seq = 0
   const s3: Array<{ Key: string; VersionId: string; marker: boolean; seq: number }> = []
@@ -177,7 +188,6 @@ function world(opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycl
     }),
   }
 
-  const cognito = new Set([UID, OWNER])
   const cli = vi.fn(async (args: string[]): Promise<unknown> => {
     const op = `${args[0]} ${args[1]}`
     const arg = (name: string) => args[args.indexOf(name) + 1]!
@@ -191,18 +201,6 @@ function world(opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycl
           EvaluationResults: ["s3:DeleteObject", "s3:DeleteObjectVersion"].map((a) => ({ EvalActionName: a, EvalDecision: decision })),
         }
       }
-      case "cognito-idp list-users": {
-        const sub = /sub = "(.+)"/.exec(arg("--filter"))![1]!
-        return { Users: cognito.has(sub) ? [{ Username: sub }] : [] }
-      }
-      case "cognito-idp admin-disable-user":
-      case "cognito-idp admin-user-global-sign-out":
-        events.push(`cognito:${args[1]}:${arg("--username")}`)
-        return null
-      case "cognito-idp admin-delete-user":
-        events.push(`cognito:${args[1]}:${arg("--username")}`)
-        cognito.delete(arg("--username"))
-        return null
       case "sts assume-role":
         events.push(`sts:assume-role:${arg("--role-arn")}`)
         return { Credentials: { AccessKeyId: "AK", SecretAccessKey: "SK", SessionToken: "ST" } }
@@ -215,7 +213,7 @@ function world(opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycl
   const env = (answer: string): DeletionEnv => ({
     uid: UID,
     bucket: BUCKET,
-    userPoolId: "us-east-1_test",
+    identityEmails: ["friend@example.com"],
     breakGlassRoleArn: BREAK_GLASS,
     tables: TABLES,
     s3: operatorS3,
@@ -227,11 +225,15 @@ function world(opts: { guardBroken?: boolean; probePermitted?: boolean; lifecycl
       return [{ source: "strava", outcome: "revoked" }]
     },
     pitr: async (table) => ({ enabled: table === TABLES.ExploredCell, days: 35 }),
-    ask: async () => answer,
+    ask: async (prompt) => {
+      if (prompt.startsWith("Type the uid")) return answer
+      events.push("manual:sign-in gate closed")
+      return opts.signOutAnswer ?? "done"
+    },
     now: () => new Date("2026-10-20T12:00:00Z"),
     probeId: () => "p1",
   })
-  return { events, env, s3, ddb, cognito, operatorS3, breakGlassS3 }
+  return { events, env, s3, ddb, cli, operatorS3, breakGlassS3 }
 }
 
 const ownerSnapshot = (w: ReturnType<typeof world>) => ({
@@ -244,7 +246,6 @@ describe("typed confirmation (I-30)", () => {
     const w = world()
     await expect(runAccountDeletion(w.env(UID.slice(0, -1)))).rejects.toBeInstanceOf(ConfirmationMismatch)
     expect(w.events).toEqual([])
-    expect(w.cognito.has(UID)).toBe(true)
   })
 
   it("an empty answer aborts too", async () => {
@@ -266,6 +267,21 @@ describe("the owner gate", () => {
     expect(w.events).toEqual([])
   })
 
+  it("a dry run of the real owner uid without --delete-owner is refused before the identity is even looked at (D-403)", async () => {
+    const w = world()
+    // The owner's actual uid, mapped in IDENTITIES as it is in production.
+    const env = { ...w.env(OWNER), uid: OWNER, identityEmails: ["owner@example.com"], isOwner: true }
+    const ask = vi.spyOn(env, "ask")
+    const before = ownerSnapshot(w)
+    await expect(runAccountDeletion(env)).rejects.toThrow(/--delete-owner/)
+    expect(ask).not.toHaveBeenCalled()
+    expect(w.cli).not.toHaveBeenCalled()
+    expect(w.operatorS3.send).not.toHaveBeenCalled()
+    expect(w.breakGlassS3.send).not.toHaveBeenCalled()
+    expect(w.events).toEqual([])
+    expect(ownerSnapshot(w)).toEqual(before)
+  })
+
   it("with --delete-owner it proceeds to the typed confirmation, which still applies", async () => {
     const w = world()
     const env = { ...w.env("not-the-uid"), isOwner: true, deleteOwner: true }
@@ -277,41 +293,82 @@ describe("the owner gate", () => {
 })
 
 describe("the run, in the documented order", () => {
-  it("revokes before any delete, disables before any data delete, and deletes the Cognito user last", async () => {
+  it("revokes before any delete, waits for the sign-in gate before any data delete, and leaves the IDENTITIES entry for last", async () => {
     const w = world()
-    const result = await runAccountDeletion(w.env(UID))
+    const lines: string[] = []
+    const result = await runAccountDeletion({ ...w.env(UID), log: (l) => lines.push(l) })
     const e = w.events
     const first = (p: string) => e.findIndex((x) => x.startsWith(p))
     const last = (p: string) => e.map((x) => x.startsWith(p)).lastIndexOf(true)
 
     expect(first("revoke")).toBe(0)
     expect(first(`ddb:delete:${TABLES.SourceAccount}`)).toBe(1)
-    expect(first("cognito:admin-disable-user")).toBe(2)
-    expect(first("cognito:admin-user-global-sign-out")).toBe(3)
-    // Every other table after sign-out, and before the S3 work.
+    expect(first("manual:sign-in gate closed")).toBe(2)
+    // Every other table after the gate is closed, and before the S3 work.
     const otherDdb = e.findIndex((x) => x.startsWith("ddb:delete:") && !x.includes(TABLES.SourceAccount))
-    expect(otherDdb).toBeGreaterThan(3)
+    expect(otherDdb).toBeGreaterThan(2)
     expect(first("sts:assume-role")).toBeGreaterThan(last("ddb:delete:"))
     expect(first("s3:")).toBeGreaterThan(first("sts:assume-role"))
     // Step 5 (markers) before step 6 (versions).
     expect(last("s3:delete:")).toBeLessThan(first("s3:deleteVersion:"))
-    expect(first("cognito:admin-delete-user")).toBeGreaterThan(last("s3:"))
-    expect(first("cognito:admin-delete-user")).toBe(e.length - 1)
 
     expect(result.steps).toEqual([
       "1 revoke upstream",
       "2 delete SourceAccount",
-      "3a disable Cognito user",
-      "3b global sign-out",
+      "3 sign-in gate closed (manual)",
       "4 delete DynamoDB rows",
       "5a assume break-glass role",
       "5b delete S3 objects",
       "6a purge noncurrent versions and delete markers",
       "6b check multipart-abort lifecycle rule",
-      "3c delete Cognito user",
+      "3c IDENTITIES entry removed (manual, printed)",
       "7 logs age out under the 30-day retention",
       "8 confirm in writing",
     ])
+
+    // Step 3 names the exact SSM parameter and the redeploy, before the run waits on it.
+    const gate = lines.findIndex((l) => l.startsWith("STEP 3, BY HAND"))
+    expect(lines.indexOf("── 3 sign-in gate closed (manual)")).toBe(gate - 1)
+    expect(lines[gate]).toContain(ALLOWLIST_PARAMETER)
+    expect(ALLOWLIST_PARAMETER).toBe("/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS")
+    expect(lines[gate]).toMatch(/Redeploy/)
+    expect(lines[gate]).toContain("lib/auth/owner-ids.ts")
+    // The last step is printed after the data is gone, names the file, and is still owed.
+    const unmap = lines.findIndex((l) => l.startsWith("STEP 3c, BY HAND, LAST"))
+    expect(unmap).toBeGreaterThan(lines.indexOf("── 6b check multipart-abort lifecycle rule"))
+    expect(lines[unmap]).toContain(`IDENTITIES entry for ${UID} from lib/auth/owner-ids.ts`)
+    expect(result.manualStepsLeft).toHaveLength(1)
+    // Emails are never printed; the steps name the uid.
+    expect(lines.join("\n")).not.toContain("friend@example.com")
+  })
+
+  it("a step-3 answer other than done aborts after step 2, with no other data deleted", async () => {
+    const w = world({ signOutAnswer: "not yet" })
+    await expect(runAccountDeletion(w.env(UID))).rejects.toBeInstanceOf(SignOutNotConfirmed)
+    expect(w.events).toEqual(["revoke", `ddb:delete:${TABLES.SourceAccount}`, "manual:sign-in gate closed"])
+  })
+
+  it("refuses a uid IDENTITIES does not map unless --resume, before the prompt and with zero writes", async () => {
+    const w = world()
+    const env = { ...w.env(UID), identityEmails: [] }
+    const ask = vi.spyOn(env, "ask")
+    await expect(runAccountDeletion(env)).rejects.toThrow(/IDENTITIES maps no email.*--resume/)
+    expect(ask).not.toHaveBeenCalled()
+    expect(w.events).toEqual([])
+
+    const resumed = await runAccountDeletion({ ...w.env(UID), identityEmails: [], resume: true })
+    expect(resumed.couldNotDelete).toEqual([])
+    expect(resumed.manualStepsLeft).toEqual([])
+  })
+
+  it("makes no Cognito call: the source names no cognito-idp command or Cognito SDK", async () => {
+    for (const file of ["deletion.ts", "delete-account.ts"]) {
+      const src = readFileSync(new URL(file, import.meta.url), "utf8")
+      expect(src).not.toMatch(/cognito-idp|client-cognito|userPoolId|user_pool_id/)
+    }
+    // ...and the fake CLI throws on anything it does not know, cognito-idp included.
+    const w = world()
+    await expect(w.cli(["cognito-idp", "list-users"])).rejects.toThrow(/unexpected cognito-idp/)
   })
 
   it("deletes every row, object, version and delete marker the user had, and nothing of anyone else's", async () => {
@@ -324,10 +381,8 @@ describe("the run, in the documented order", () => {
     for (const p of result.after.prefixes) expect(p.current + p.noncurrent + p.deleteMarkers).toBe(0)
     // Zero versions AND zero delete markers left under raw/<uid>/ — the criterion's check.
     expect(w.s3.filter((v) => v.Key.startsWith(`raw/${UID}/`))).toEqual([])
-    expect(w.cognito.has(UID)).toBe(false)
 
     expect(ownerSnapshot(w)).toEqual(owner)
-    expect(w.cognito.has(OWNER)).toBe(true)
     expect(w.s3.some((v) => v.Key === `users/${UID}x/manifest.json`)).toBe(true)
   })
 
@@ -393,6 +448,8 @@ describe("step 8, the written confirmation", () => {
     expect(text).toMatch(/## What could not be deleted\n\nNothing\./)
     expect(text).toContain("strava revoked")
     expect(text).toContain("AbortIncompleteMultipartUploads")
+    expect(text).toMatch(/## Still to do, by hand\n\n- Remove the IDENTITIES entry for /)
+    expect(text).not.toContain("friend@example.com")
   })
 
   it("names a missing multipart-abort rule rather than claiming a clean run", async () => {

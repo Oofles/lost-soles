@@ -7,7 +7,7 @@ import { DescribeContinuousBackupsCommand, DynamoDBClient } from "@aws-sdk/clien
 import { S3Client } from "@aws-sdk/client-s3"
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb"
 
-import { isOwner } from "../../lib/auth/owner-ids"
+import { IDENTITIES, isOwner } from "../../lib/auth/owner-ids"
 import { SOURCE_ACCOUNT_TABLE } from "../../lib/sources/source-account-store"
 import { EXPLORED_CELL_TABLE } from "../../src/pipeline/explored-cells"
 import { INGEST_RECEIPT_TABLE } from "../../src/pipeline/ingest-receipt"
@@ -16,14 +16,16 @@ import { ConfirmationMismatch, OwnerRefused, renderConfirmation, runAccountDelet
 import { revokeAllSources } from "./revoke"
 
 /**
- * DELETE AN ACCOUNT. Ticket `0106`. The runbook is `docs/runbooks/account-deletion.md`; read it first.
+ * DELETE AN ACCOUNT. Tickets `0106`, `0333`. The runbook is `docs/runbooks/account-deletion.md`; read it first.
  *
- *   npx vite-node --config vitest.config.ts tools/account-deletion/delete-account.ts -- --user <cognito-sub>
+ *   npx vite-node --config vitest.config.ts tools/account-deletion/delete-account.ts -- --user <uid>
  *        [--identity-id <us-east-1:uuid>]   the user's identity-pool id, if users/<it>/ exists
- *        [--resume]                         the Cognito user is already gone (a re-run)
- *        [--delete-owner]                   required, on top of the typed uid, if the sub is the owner
+ *        [--resume]                         IDENTITIES no longer maps the uid (a re-run)
+ *        [--delete-owner]                   required, on top of the typed uid, if the uid is the owner
  *
- * Read-only until you TYPE THE UID. A mismatch exits 3 having changed nothing. Run as the operator
+ * Read-only until you TYPE THE UID. A mismatch exits 3 having changed nothing. After step 2 it
+ * prints step 3 (the sign-in gate, an SSM edit plus a redeploy) and waits for `done`; it prints the
+ * last step (the `IDENTITIES` commit) at the end. It makes no Cognito call (`0333`). Run as the operator
  * (`AWS_PROFILE=devault`); the script assumes `LostSolesArchiveDeletion` itself, for step 5 only.
  * The operator's own principal must NOT be able to delete under `raw/*` — the script proves that
  * against the live bucket policy before it starts, and refuses to run if it is not true.
@@ -33,8 +35,7 @@ import { revokeAllSources } from "./revoke"
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "")
 const outputs = JSON.parse(readFileSync(`${ROOT}/amplify_outputs.json`, "utf8")) as {
-  auth?: { user_pool_id?: string; aws_region?: string }
-  storage?: { bucket_name?: string }
+  storage?: { bucket_name?: string; aws_region?: string }
 }
 
 const args = process.argv.slice(2)
@@ -44,14 +45,13 @@ const flag = (name: string): string | undefined => {
 }
 const uid = flag("user")
 if (!uid) {
-  console.error("usage: delete-account.ts --user <cognito-sub> [--identity-id <id>] [--resume] [--delete-owner]")
+  console.error("usage: delete-account.ts --user <uid> [--identity-id <id>] [--resume] [--delete-owner]")
   process.exit(2)
 }
-const region = outputs.auth?.aws_region ?? "us-east-1"
+const region = outputs.storage?.aws_region ?? "us-east-1"
 const bucket = outputs.storage?.bucket_name
-const userPoolId = outputs.auth?.user_pool_id
-if (!bucket || !userPoolId) {
-  console.error("amplify_outputs.json has no storage.bucket_name or auth.user_pool_id")
+if (!bucket) {
+  console.error("amplify_outputs.json has no storage.bucket_name")
   process.exit(2)
 }
 
@@ -83,7 +83,7 @@ try {
   const result = await runAccountDeletion({
     uid,
     bucket,
-    userPoolId,
+    identityEmails: Object.keys(IDENTITIES).filter((email) => IDENTITIES[email] === uid),
     breakGlassRoleArn: `arn:aws:iam::${caller.Account}:role/LostSolesArchiveDeletion`,
     identityId: flag("identity-id"),
     resume: args.includes("--resume"),

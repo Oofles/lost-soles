@@ -847,6 +847,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
 | `IngestReceipt` | DynamoDB | **TTL 90 days** (§4.3; was "~30 days", corrected by D-349 to match T8) | A replay ledger, not a record |
 | CloudWatch logs | CloudWatch | **30-day retention** (§3.1) | Logs are where coordinates and secrets leak by accident; an unbounded log group is a liability and a bill |
 | Cognito user | Cognito | Until account deletion | — |
+| Identity: email in `AUTH_ALLOWED_EMAILS`, `IDENTITIES` entry (D-471) | SSM / source | Until account deletion (§6.4 steps 3 and 6c, `0333`) | — |
 
 **Nothing in this system expires on a timer except the two rows that are pure mechanism.** That
 is the shape D-020 asks for, and it is stated as a table so that a future "add a 90-day
@@ -932,11 +933,17 @@ In order, and the order matters:
 1. **Revoke upstream first.** `POST https://www.strava.com/oauth/revoke` through the connector's
    `revoke` (D-404); a user with no connection is a recorded no-op, so the third party stops being able to send us their data mid-deletion.
 2. **Delete the `SourceAccount` row** (S4 — tokens gone; §3).
-3. **Disable the Cognito user, sign it out globally, then delete it.** Disable first: it stops
-   sessions immediately while the slower deletes run. `AdminUserGlobalSignOut` next, to kill
-   outstanding refresh tokens (§5.3); it fails on a user that no longer exists, so delete comes
-   last — after step 6, not inside step 3 (D-400), so a failed run can resume against the disabled
-   user.
+3. **Close the sign-in gate: remove the email from `AUTH_ALLOWED_EMAILS`, then redeploy.**
+   *Rewritten by `0333` (D-473; supersedes D-400's Cognito ordering).* There is no Cognito user
+   after the cutover. The identity is two gates (D-471): the email in the SSM parameter
+   `/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS`, and its `IDENTITIES` entry in
+   `lib/auth/owner-ids.ts`. `authorized` re-checks the allowlist on every request, so once the
+   redeploy is live the next request from **any** session for that email is signed out. That is the
+   disable and the global sign-out, in one. It is an SSM write plus a deploy, which does not belong
+   inside a delete script, so the script prints it after step 2 and **waits for the operator to type
+   `done`** before any further delete. The `IDENTITIES` entry is **not** touched here; see step 6c.
+   (The browser's `ls-uid` cookie and its uid-keyed IndexedDB stores, D-476, are neither
+   credentials nor server data, and are out of scope.)
 4. **Delete DynamoDB rows by `uid`** — `ExploredCell`, `Activity`, and any
    `IngestReceipt` rows not yet TTL'd. *Amended by D-307 (`12` audit, 2026-10-15):* this list is
    every owner-scoped table, not just these — `XpLedgerEntry`, `SkillState`, `Profile`, and
@@ -956,6 +963,12 @@ In order, and the order matters:
    lifecycle rule to abort incomplete multipart uploads while you are there — in the CDK stack,
    never by the script, and never with an expiration action (D-401). Deleting the owner needs
    `--delete-owner` as well as the typed uid (D-403).
+
+   **6c. Remove the `IDENTITIES` entry, last, in a commit** (`0333`). The script prints it at the
+   end and the written confirmation carries it under *Still to do, by hand*. It is last for
+   D-400's reason: until it goes, the uid still has an identity that maps, so a failed run is simply
+   run again. A re-run after it is gone takes `--resume`. A commit does not belong inside a delete
+   script either. The script makes no Cognito call at all.
 7. **Let the logs age out.** CloudWatch entries mentioning the user expire under the 30-day
    retention (§6.1). Do not hand-scrub log groups; the retention *is* the answer, and it is one
    of the reasons it is set.

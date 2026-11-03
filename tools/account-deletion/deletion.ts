@@ -16,21 +16,27 @@ import { BatchWriteCommand, GetCommand, QueryCommand, ScanCommand } from "@aws-s
  *
  *   1  revoke upstream            — the third party stops sending data before anything is removed
  *   2  delete SourceAccount       — tokens gone; stop the inflow before the outflow
- *   3  disable + global sign-out  — sessions stop NOW, while the slower deletes run
+ *   3  sign-in gate closed        — MANUAL: email out of `AUTH_ALLOWED_EMAILS` (SSM), redeploy.
+ *                                   The run waits for the operator to type `done`.
  *   4  DynamoDB rows by uid       — every owner-scoped table (D-307)
  *   5  S3 current objects         — `raw/<uid>/` under the BREAK-GLASS role, the rest as the operator
  *   6  purge every version        — a delete marker over live bytes is not a deletion
  *   6b multipart-abort lifecycle  — checked, not set: it is infrastructure (`amplify/backend.ts`)
- *   3c delete the Cognito user    — LAST of the destructive steps (see below)
+ *   3c identity unmapped          — MANUAL, LAST: the `IDENTITIES` entry removed in a commit. Printed.
  *   7  logs age out               — the 30-day retention is the answer; nothing is scrubbed
  *   8  confirm in writing         — `renderConfirmation`
  *
- * WHY THE COGNITO DELETE IS AFTER THE DATA, not inside step 3. The three texts agree once read
- * together: `02` §8.5 lists "Delete the Cognito user" last; `08` §6.4 says sign-out "fails on a user
- * that no longer exists, so delete comes last"; and `0106` says disabling first "stops sessions
- * immediately while the slower deletes run" — which only means something if the delete waits for
- * them. It also keeps a failed run resumable: until the very end the uid still names a (disabled)
- * user, so a re-run with `--resume` finds what is left.
+ * THE IDENTITY IS TWO GATES, AND THE SCRIPT TOUCHES NEITHER (`0333`, D-471, D-473). There is no
+ * Cognito user after the cutover, and this file makes no Cognito API call. `AUTH_ALLOWED_EMAILS`
+ * (SSM `/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS`) is the sign-in gate, re-checked by
+ * `authorized` on every request, so removing the email and redeploying signs out every session for
+ * it: that is the new disable plus global sign-out. `IDENTITIES` (`lib/auth/owner-ids.ts`) is the
+ * email → uid map. One is an SSM write plus a deploy, the other a commit, and neither belongs inside
+ * a delete script, so both are printed for the operator.
+ *
+ * WHY THE `IDENTITIES` ENTRY GOES LAST (D-400's reason, kept). Until the very end the uid still has
+ * an identity that maps, so a failed run is re-run as it stands. Only once the entry is gone does a
+ * re-run need `--resume`.
  *
  * ─── THE BREAK-GLASS SPLIT ──────────────────────────────────────────────────
  *
@@ -80,7 +86,11 @@ export interface RevokeOutcome {
 export interface DeletionEnv {
   uid: string
   bucket: string
-  userPoolId: string
+  /**
+   * The emails `IDENTITIES` maps to `uid` (`lib/auth/owner-ids.ts`). Never printed: the steps name
+   * the uid, and the operator finds the entry by it.
+   */
+  identityEmails: readonly string[]
   breakGlassRoleArn: string
   /** The identity-pool id, if the operator supplied it (`users/{entity_id}/`). */
   identityId?: string
@@ -94,9 +104,9 @@ export interface DeletionEnv {
   /** Step 1. Wired to the real connector's `revoke` in the entry point. */
   revokeUpstream(uid: string): Promise<RevokeOutcome[]>
   pitr(table: string): Promise<{ enabled: boolean; days: number }>
-  /** A typed answer to `prompt`. */
+  /** A typed answer to `prompt`. The typed uid, and step 3's `done`. */
   ask(prompt: string): Promise<string>
-  /** Permits a Cognito user that is already gone (a re-run after a partial failure). */
+  /** Permits a uid `IDENTITIES` no longer maps (a re-run after the entry was removed). */
   resume?: boolean
   /** True when the uid is in `OWNER_USER_IDS`. Refused unless `deleteOwner` is also set. */
   isOwner?: boolean
@@ -388,18 +398,40 @@ export async function probeArchiveGuard(env: DeletionEnv): Promise<string> {
   throw new Error("guard probe: the default credentials were PERMITTED to delete under raw/. Stop.")
 }
 
-async function cognitoUsername(env: DeletionEnv): Promise<string | null> {
-  const res = (await env.cli([
-    "cognito-idp",
-    "list-users",
-    "--user-pool-id",
-    env.userPoolId,
-    "--filter",
-    `sub = "${env.uid}"`,
-  ])) as { Users?: Array<{ Username: string }> }
-  const users = res.Users ?? []
-  if (users.length > 1) throw new Error(`${users.length} Cognito users share sub ${env.uid}`)
-  return users[0]?.Username ?? null
+// ─── The two manual steps ─────────────────────────────────────────────────────
+
+/** Where the sign-in gate lives: the name `scripts/write-authjs-env.mjs` reads at build. */
+export const ALLOWLIST_PARAMETER = "/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS"
+
+/** Step 3. Printed, then the run waits for `done`. */
+export function signOutStep(uid: string): string {
+  return [
+    "STEP 3, BY HAND: close the sign-in gate.",
+    `  1. Remove the email(s) that IDENTITIES (lib/auth/owner-ids.ts) maps to ${uid} from the`,
+    `     comma-separated SSM parameter ${ALLOWLIST_PARAMETER}`,
+    "     (keep every other email; `scripts/write-authjs-env.mjs` fails the build on an empty value).",
+    "  2. Redeploy main in Amplify, so the build writes the new list into .env.production.",
+    "  When the deploy is live, `authorized` refuses that email on its next request, from every session.",
+  ].join("\n")
+}
+
+/** The last step. Printed, and carried in the written confirmation until it is done. */
+export function unmapStep(uid: string): string {
+  return (
+    `Remove the IDENTITIES entry for ${uid} from lib/auth/owner-ids.ts, in a commit, and push. ` +
+    "It is last so that a failed run could still resume against an identity that maps (D-400's reason). " +
+    "A re-run after this needs --resume."
+  )
+}
+
+export class SignOutNotConfirmed extends Error {
+  constructor() {
+    super(
+      "step 3 was not confirmed. Steps 1 and 2 are done and nothing else was deleted. " +
+        "Close the sign-in gate, then run it again; every step is idempotent.",
+    )
+    this.name = "SignOutNotConfirmed"
+  }
 }
 
 /** The `entity('identity')` prefixes present in the bucket, `users/<region>:<uuid>/`. */
@@ -443,7 +475,10 @@ export interface DeletionResult {
   uid: string
   startedAt: string
   finishedAt: string
-  cognitoUsername: string | null
+  /** How many emails `IDENTITIES` mapped to the uid at the start. Never the emails. */
+  mappedEmails: number
+  /** Manual steps the operator still owes, printed in the confirmation. */
+  manualStepsLeft: string[]
   before: Inventory
   after: Inventory
   guard: GuardEvidence
@@ -472,10 +507,10 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
    * same preflight and the same typed confirmation as any other account.
    */
   if (env.isOwner && !env.deleteOwner) throw new OwnerRefused(env.uid)
-  if (!/^[0-9a-f-]{36}$/.test(env.uid)) throw new Error(`not a Cognito sub: ${JSON.stringify(env.uid)}`)
-  const username = await cognitoUsername(env)
-  if (!username && !env.resume) {
-    throw new Error(`no Cognito user with sub ${env.uid} in ${env.userPoolId}. (A re-run after a partial failure takes --resume.)`)
+  if (!/^[0-9a-f-]{36}$/.test(env.uid)) throw new Error(`not a uid: ${JSON.stringify(env.uid)}`)
+  const mapped = env.identityEmails.length
+  if (mapped === 0 && !env.resume) {
+    throw new Error(`IDENTITIES maps no email to ${env.uid}. (A re-run after its entry was removed takes --resume.)`)
   }
   let identityNote: string
   if (env.identityId) {
@@ -492,7 +527,7 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
   }
   const before = await inventory(env)
   const guard = await verifyArchiveGuard(env)
-  log(`uid ${env.uid}, Cognito user ${username ?? "(absent — resume)"}`)
+  log(`uid ${env.uid}, ${mapped ? `${mapped} email(s) mapped in IDENTITIES` : "unmapped in IDENTITIES (resume)"}`)
   log(`before: ${JSON.stringify(before)}`)
   log(`guard: ${JSON.stringify(guard)}`)
   if (env.isOwner) log("WARNING: --delete-owner given. This deletes the OWNER's map, ledger and archive.")
@@ -511,12 +546,10 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
   const rows: Record<string, number> = {}
   rows.SourceAccount = await deleteItems(env, TABLE_SPECS.find((s) => s.label === "SourceAccount")!)
 
-  step("3a disable Cognito user")
-  if (username) await env.cli(["cognito-idp", "admin-disable-user", "--user-pool-id", env.userPoolId, "--username", username])
-  step("3b global sign-out")
-  if (username) {
-    await env.cli(["cognito-idp", "admin-user-global-sign-out", "--user-pool-id", env.userPoolId, "--username", username])
-  }
+  step("3 sign-in gate closed (manual)")
+  log(signOutStep(env.uid))
+  const done = (await env.ask("Type done once the email is out of the allowlist and the deploy is live: ")).trim()
+  if (done !== "done") throw new SignOutNotConfirmed()
 
   step("4 delete DynamoDB rows")
   for (const spec of TABLE_SPECS) {
@@ -565,9 +598,9 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
   step("6b check multipart-abort lifecycle rule")
   const lifecycleRule = await multipartAbortRule(env)
 
-  step("3c delete Cognito user")
-  if (username) await env.cli(["cognito-idp", "admin-delete-user", "--user-pool-id", env.userPoolId, "--username", username])
-  const stillThere = await cognitoUsername(env)
+  step("3c IDENTITIES entry removed (manual, printed)")
+  const manualStepsLeft = mapped ? [unmapStep(env.uid)] : []
+  for (const m of manualStepsLeft) log(`STEP 3c, BY HAND, LAST: ${m}`)
 
   step("7 logs age out under the 30-day retention")
 
@@ -579,7 +612,6 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
     const n = p.current + p.noncurrent + p.deleteMarkers
     if (n > 0) couldNotDelete.push(`s3://${env.bucket}/${p.prefix}: ${n} version(s)/marker(s)`)
   }
-  if (stillThere) couldNotDelete.push(`Cognito user ${stillThere}`)
   if (!lifecycleRule) couldNotDelete.push("bucket has no multipart-abort lifecycle rule (infrastructure, not this user's data)")
 
   const pitr: DeletionResult["pitr"] = []
@@ -591,7 +623,8 @@ export async function runAccountDeletion(env: DeletionEnv): Promise<DeletionResu
     uid: env.uid,
     startedAt,
     finishedAt: now().toISOString(),
-    cognitoUsername: username,
+    mappedEmails: mapped,
+    manualStepsLeft,
     before,
     after,
     guard,
@@ -625,7 +658,8 @@ export function renderConfirmation(r: DeletionResult, bucket: string): string {
   return [
     `# Account deletion — ${r.uid}`,
     "",
-    `Run ${r.startedAt} → ${r.finishedAt}. Cognito user: ${r.cognitoUsername ?? "(already absent)"}.`,
+    `Run ${r.startedAt} → ${r.finishedAt}. Identity: ${r.mappedEmails ? `${r.mappedEmails} email(s) mapped in IDENTITIES` : "already unmapped"}; ` +
+      `sign-in gate closed by hand at step 3 (\`${ALLOWLIST_PARAMETER}\`).`,
     "",
     "## What was deleted",
     "",
@@ -651,6 +685,10 @@ export function renderConfirmation(r: DeletionResult, bucket: string): string {
     "## What could not be deleted",
     "",
     r.couldNotDelete.length ? r.couldNotDelete.map((c) => `- ${c}`).join("\n") : "Nothing.",
+    "",
+    "## Still to do, by hand",
+    "",
+    r.manualStepsLeft.length ? r.manualStepsLeft.map((m) => `- ${m}`).join("\n") : "Nothing.",
     "",
     "## Backups, and when this is actually complete",
     "",

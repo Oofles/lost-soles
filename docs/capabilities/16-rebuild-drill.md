@@ -24,6 +24,14 @@ executed once against a throwaway account with genuinely ingested data. That exe
 
 Executed 2026-10-20 by the orchestrator (wave 16.1), from the laptop, `AWS_PROFILE=devault`.
 
+> **2026-11-03 — the Cognito steps below are superseded by `0333`** (D-473). The throwaway account,
+> its `admin-create-user`, and the run's disable, global sign-out and `AdminDeleteUser` record the
+> script as it was before the Auth.js cutover. There is no Cognito user now: step 3 is removing the
+> email from `AUTH_ALLOWED_EMAILS` (SSM) and redeploying, and the last step is removing the
+> `IDENTITIES` entry in a commit, both printed by the script (`08` §6.4). The data half of this
+> record (every table and prefix, the archive guard, the PITR statement) is unchanged and still
+> stands. It has not been re-run end to end: that needs a second identity, which is Trigger A.
+
 - Throwaway account `drill-0106@example.invalid`, sub `f4183488-a0a1-702e-5354-3f957fe2e8f6`:
   created 18:04:29Z, seeded 18:04:41Z, deleted by the run 18:05:31Z → 18:05:38Z. **Trigger A was
   open for about 70 seconds** and is closed: the account no longer exists.
