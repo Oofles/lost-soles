@@ -7719,6 +7719,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
+    "started": "2026-11-03T18:16:17Z",
     "path": "tickets/open/0333-account-deletion-on-the-auth-js-identity.md",
     "ready": true,
     "acceptance": {
