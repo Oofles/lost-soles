@@ -4,7 +4,7 @@ slug: account-deletion-on-the-auth-js-identity
 title: Account deletion on the Auth.js identity
 type: feature
 priority: med
-status: open
+status: closed
 size: s
 capability: 19-authjs-migration
 depends_on: [332]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:18:06Z
 started: 2026-11-03T18:16:17Z
+closed: 2026-11-03T18:32:29Z
 ---
 
 
@@ -59,6 +60,19 @@ None for the operator. Agent: the script's test suite, and a dry run printed int
 
 D-123 trigger checked? **A** (A-5, the deletion path) — D-470 re-affirms D-123. No account is
 added.
+
+Orchestrator, 2026-11-03, after merge (`d76893d`, pushed at `a518c7e`). All three read-only dry runs ran against live AWS as `devault`:
+- Owner uid `5488e4b8-…8083` without `--delete-owner`: "…is in OWNER_USER_IDS… Nothing was changed.",
+  **exit 3**, no AWS call (D-403).
+- Unmapped uid `00000000-0000-4000-8000-000000000333`: "ABORTED: IDENTITIES maps no email to…", **exit 1**.
+- The same uid with `--resume`: the preflight ran with **no Cognito call**. All 9 tables and 3 prefixes
+  were 0. The bucket-policy guard showed `cli-user` explicitDeny and the break-glass role allowed on
+  both delete actions. It stopped at the typed-uid prompt with nothing written. On closed stdin it
+  then exits 0, not 3: that bug predates this ticket and is filed as `0338`.
+- Local gate on merged `main`: every `amplify.yml` guard passed, as did typecheck, lint and build.
+  `npm test` passed 4679 tests with 1 failure, `lib/auth/config.test.ts`'s comparison with
+  `../school-hub`. That is school-hub's own `7ba7d2e` (core SSO and a renamed session cookie) and
+  is unrelated to this ticket. Amplify does not run that case. It is followed up in its own ticket.
 
 ## Resolution
 
