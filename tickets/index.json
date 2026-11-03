@@ -7696,7 +7696,7 @@
     "source": "agent",
     "created": "2026-11-02T17:18:05Z",
     "path": "tickets/open/0332-cutover-google-sign-in-replaces-the-authenticator-cognito-se.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 7
@@ -7775,7 +7775,7 @@
     "title": "Bring school-hub to next-auth 5.0.0-beta.32",
     "type": "chore",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "19-authjs-migration",
     "depends_on": [
@@ -7784,8 +7784,9 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T19:12:18Z",
-    "path": "tickets/open/0336-bring-school-hub-to-next-auth-5-0-0-beta-32.md",
-    "ready": true,
+    "closed": "2026-11-03T02:05:48Z",
+    "path": "tickets/closed/0336-bring-school-hub-to-next-auth-5-0-0-beta-32.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4

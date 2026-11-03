@@ -4,13 +4,14 @@ slug: bring-school-hub-to-next-auth-5-0-0-beta-32
 title: Bring school-hub to next-auth 5.0.0-beta.32
 type: chore
 priority: high
-status: open
+status: closed
 size: s
 capability: 19-authjs-migration
 depends_on: [330]
 blocked_by: []
 source: agent
 created: 2026-11-02T19:12:18Z
+closed: 2026-11-03T02:05:48Z
 ---
 
 
