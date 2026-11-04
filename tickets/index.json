@@ -7744,6 +7744,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
+    "started": "2026-11-04T01:31:37Z",
     "path": "tickets/open/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
     "ready": true,
     "acceptance": {
