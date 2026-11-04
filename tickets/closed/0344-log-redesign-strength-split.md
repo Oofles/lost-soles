@@ -4,7 +4,7 @@ slug: log-redesign-strength-split
 title: Redesign /log around the Strength workout split entry
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [343]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-04T05:04:40Z
 started: 2026-11-04T16:51:46Z
+closed: 2026-11-04T19:11:11Z
 ---
 
 ## Description

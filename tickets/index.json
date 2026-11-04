@@ -7963,7 +7963,7 @@
     "title": "Redesign /log around the Strength workout split entry",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -7973,8 +7973,9 @@
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
     "started": "2026-11-04T16:51:46Z",
-    "path": "tickets/open/0344-log-redesign-strength-split.md",
-    "ready": true,
+    "closed": "2026-11-04T19:11:11Z",
+    "path": "tickets/closed/0344-log-redesign-strength-split.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6
