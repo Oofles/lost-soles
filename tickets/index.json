@@ -6528,7 +6528,7 @@
     "title": "Unseen-run marks use --accent-text, not --accent",
     "type": "bug",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "13-home-plinth-and-chronicle",
     "depends_on": [],
@@ -6536,8 +6536,9 @@
     "source": "agent",
     "created": "2026-10-16T04:17:55Z",
     "started": "2026-11-04T20:24:04Z",
-    "path": "tickets/open/0279-unseen-run-marks-use-accent-text-not-accent.md",
-    "ready": true,
+    "closed": "2026-11-04T21:50:25Z",
+    "path": "tickets/closed/0279-unseen-run-marks-use-accent-text-not-accent.md",
+    "ready": false,
     "acceptance": {
       "checked": 3,
       "total": 3

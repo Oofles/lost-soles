@@ -4,7 +4,7 @@ slug: unseen-run-marks-use-accent-text-not-accent
 title: Unseen-run marks use --accent-text, not --accent
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-16T04:17:55Z
 started: 2026-11-04T20:24:04Z
+closed: 2026-11-04T21:50:25Z
 ---
 
 ## Description
