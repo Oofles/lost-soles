@@ -161,3 +161,33 @@ describe("the guard is one named predicate, in one place (criterion 10)", () => 
     expect(cards).not.toMatch(/introducedIn/)
   })
 })
+
+/**
+ * `0343`, D-483: the v4 → v5 replay, on the live standing it was run against (2026-11-04).
+ * Footing is minted (introducedIn 5). Iron keeps Endurance's id, which v4 counted, so it is NOT
+ * minted, and its kind change from activity to meta is no level: it held 0 XP and holds 0 XP.
+ */
+describe("the v4 → v5 replay fires no card (0343, D-483)", async () => {
+  const { baselineOf, celebrableLevelUps, totalLevelDelta } = await import("./celebrate")
+  const V4 = loadRuleSet(4)
+  const V5 = loadRuleSet(5)
+  const live = new Map(Object.entries({
+    cartography: 27061, constitution: 11483, might: 120, poise: 900, roving: 1017, vigil: 660, wayfaring: 31761,
+  }))
+  const before = { ...baselineOf(V4), xpBySkill: live }
+  const after = { ...baselineOf(V5), xpBySkill: live }
+
+  it("Footing is minted against v4; Iron is not, and is a meta row now", () => {
+    expect(isMinted(V5.skills.find((s) => s.id === "footing")!, before)).toBe(true)
+    const iron = V5.skills.find((s) => s.id === "endurance")!
+    expect(iron).toMatchObject({ name: "Iron", kind: "meta" })
+    expect(isMinted(iron, before)).toBe(false)
+  })
+
+  it("no level-up, and no Total Level change to announce, though Total Level rises by Footing's 1", () => {
+    expect(celebrableLevelUps(before, after, V5)).toEqual([])
+    expect(totalLevelDelta(before, after, V5)).toBe(0)
+    expect(totalLevel(live, V5.skills, V5.curve) - totalLevel(live, V4.skills, V4.curve)).toBe(1)
+    expect(levelUpQueue(Object.fromEntries(live), {}, V5)).toEqual([])
+  })
+})

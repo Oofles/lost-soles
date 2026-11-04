@@ -7948,6 +7948,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
+    "started": "2026-11-04T13:50:37Z",
     "path": "tickets/open/0343-rules-v5-strength-regions-and-iron.md",
     "ready": true,
     "acceptance": {

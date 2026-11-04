@@ -410,10 +410,10 @@ const clone = (o) => structuredClone(o)
 
 /** [name, mutate(docs, rulesets), regex the report must match]. Exported for the vitest file. */
 export const SEEDS = [
-  ["a rate in 04 §3.2", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("| Might | `rep` (pushup) | **4** |", "| Might | `rep` (pushup) | **5** |") }, /§3\.2.*row "Might": xpPerUnit — doc says 5, rules\/xp-rules-v\d+\.yaml says 4/],
+  ["a rate in 04 §3.2", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("| Might | `second` (upper body) | **0.5**", "| Might | `second` (upper body) | **0.6**") }, /§3\.2.*row "Might": xpPerUnit — doc says 0\.6, rules\/xp-rules-v\d+\.yaml says 0\.5/],
   ["a rate in the YAML", (_d, r) => { r[newest(r)].skills.find((s) => s.id === "roving").xpPerUnit = 35 }, /§1\.1.*row "Roving": "60 XP\/km" — .* says xpPerUnit 35/],
-  ["a unit in 04 §1.1", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("| Planks | second |", "| Planks | minute |") }, /§1\.1.*row "Endurance": unit — doc says "minute", .* says "second"/],
-  ["a derived total in 04 §3.2", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("| 75 = 300 |", "| 75 = 320 |") }, /row "Might": "75 = 320" — 75 × 4 .* is 300, not 320/],
+  ["a unit in 04 §1.1", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("planks | second |", "planks | minute |") }, /§1\.1.*row "Fortitude": unit — doc says "minute", .* says "second"/],
+  ["a derived total in 04 §3.2", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("| 1800 s = 900; a pushup", "| 1800 s = 920; a pushup") }, /row "Might": "1800 s = 920" — 1800 × 0\.5 .* is 900, not 920/],
   ["a feeds rate", (_d, r) => { for (const s of r[newest(r)].skills) for (const f of s.feeds ?? []) f.rate = 0.25 }, /row "Constitution": feeds rate — doc says 1\/3, .* says 0\.25/],
   ["a flag: enabled", (_d, r) => { r[newest(r)].skills.find((s) => s.id === "slayer").enabled = true }, /row "Slayer": marked POST-MVP, but .* has enabled: true/],
   ["a flag: revealsGround", (_d, r) => { r[newest(r)].skills.find((s) => s.id === "roving").revealsGround = true }, /"Only Wayfaring opens the map" — revealsGround: true .* on \[Wayfaring,Roving\]/],
@@ -421,7 +421,7 @@ export const SEEDS = [
     const v = r[newest(r)]
     v.skills.push({ ...clone(v.skills.find((s) => s.id === "might")), id: "grip", name: "Grip", displayOrder: 65 })
   }, /§1\.1, table at line \d+: holds every activity row, and has no row for "Grip" \(grip\)/],
-  ["a skill count in the 04 §1.1 sentence", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("**ten enabled skills**", "**nine enabled skills**") }, /"nine enabled skills" — .* has 10/],
+  ["a skill count in the 04 §1.1 sentence", (d) => { d["docs/04-game-design.md"] = d["docs/04-game-design.md"].replace("**eleven enabled skills**", "**ten enabled skills**") }, /"ten enabled skills" — .* has 11/],
   ["a unit missing from 02 §3.2 (the `share` case)", (d) => { d["docs/02-data-model.md"] = d["docs/02-data-model.md"].replace("`km \\| rep \\| second \\| cell \\| share`", "`km \\| rep \\| second \\| cell`") }, /row "unit": .* uses "share", and the doc's set is \[km,rep,second,cell\]/],
   ["an exercise key missing from 02 §3.2", (d) => { d["docs/02-data-model.md"] = d["docs/02-data-model.md"].replace("`{id, label, entry, kind, quickValues, scale}`", "`{id, label, entry, quickValues, scale}`") }, /row "exercises": .* exercises carry "kind"/],
   ["an attribute missing from 02 §3.2", (_d, r) => { r[newest(r)].skills[0].cooldownDays = 1 }, /rows carry "cooldownDays", and the attribute table has no row for it/],

@@ -799,7 +799,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `rulesVersion` | S | — | partition. Every shipped version is retained forever (04 §7.6). |
 | `skillId` | S | — | opaque. Appears verbatim in `SkillState.skillId` and `XpLedgerEntry.skillId`. |
 | `name` | S | J5 | display name. **Renaming Vigil is an edit to this field and nothing else** — D-132 says the name is provisional, so it must not be an identifier. |
-| `kind` | S | J5 | `activity \| meta` |
+| `kind` | S | J5 | `activity \| meta`. A row's kind may change in a new version, its id never: v5 made `endurance` (the v1–v4 plank skill) the meta skill **Iron** (D-483, ticket `0343`). It held 0 XP when that shipped, so the change moved none; a row holding XP could not change kind without a replay that moved it, which is a decision, not a rebalance. |
 | `enabled` | BOOL | J1/J5 | `false` hides the skill and stops it matching. Slayer ships `false` (D-122). A disabled skill's historical ledger rows stay valid. **Required on every row, with NO DEFAULT** (ticket `0160`) — the matcher filters on `!enabled`, so an omitted flag is `undefined`, which is falsy, and the skill would silently stop matching. Same argument as `revealsGround` below, and stronger: here the dangerous default is the one the language already supplies. |
 | **`introducedIn`** | N | J5 | **D-146, ticket 0065.** The ruleset version that first shipped this row; carried forward unchanged into every later version. **Required, no default**; `1 ≤ introducedIn ≤ version`. It is how the celebration layer tells a skill *minted* by a ruleset (a free level 1, never celebrated) from one that was always there — see `src/scoring/celebrate.ts`. |
 | `displayOrder` | N | J5 | sparse (10, 20, 30 …) so an insert is a row, not a renumber |
@@ -824,7 +824,8 @@ skill together, which is AP-8.~~ *amended (D-465):* one top-level `curve:` block
 ruleset file, beside `skills:`. Loading a version loads both.
 
 **`splits:` — one log shared across several exercises** (D-483, ticket `0342`). A third optional
-top-level block, absent before v5: `{id, label, entry: minutes, members, shareStep, quickValues}`.
+top-level block, absent before v5. v5 ships one, `strength` (the Strength workout: Upper body,
+Lower body, Core & total body, feeding Might, Footing and Fortitude): `{id, label, entry: minutes, members, shareStep, quickValues}`.
 A split log names the split's `id` as its `exerciseId` and says `split: {durationS, shares}`, with a
 percent per member. The shares are multiples of `shareStep` and sum to 100. The `/log` boundary
 apportions the total into whole-second sets, one per non-zero share, each naming its member

@@ -346,3 +346,78 @@ describe("a split strength log (0342, D-483)", async () => {
     expect(h.accepts).toHaveLength(1)
   })
 })
+
+/**
+ * `0343`, D-483: the SHIPPED v5, through the real adapter and `processActivity`. Pushups, situps
+ * and planks score exactly as under v4 (the replay that moved the live ledger onto v5 depends on
+ * it), a Strength workout lands in the region skills, and Iron takes a third of each.
+ */
+describe("rules v5: strength by region, and Iron (0343, D-483)", () => {
+  const V4 = loadRuleSet(4)
+  const V5 = loadRuleSet(5)
+  const xp = (h: ReturnType<typeof harness>, id: string) =>
+    h.transacts[0]!.TransactItems!.filter((i) => i.Put?.TableName === LEDGER_TABLE && i.Put.Item!.skillId === id)
+      .reduce((n, i) => n + Number(i.Put!.Item!.xpAwarded), 0)
+  const one = (exerciseId: string, set: Record<string, number>) => ({
+    exerciseId, sets: [set], idempotencyKey: `k-${exerciseId}`, timezone: "America/Denver",
+  })
+  const strength = (percents: number[], durationS = 1800) => ({
+    exerciseId: "strength",
+    split: {
+      durationS,
+      shares: ["strength-upper", "strength-lower", "strength-core"].map((exerciseId, i) => ({ exerciseId, percent: percents[i]! })),
+    },
+    idempotencyKey: "k-strength",
+    timezone: "America/Denver",
+  })
+  async function award(rules: typeof V5, body: Parameters<typeof logWorkout>[0]) {
+    const h = harness({}, false, rules)
+    await logWorkout(body, USER, h.deps)
+    return h
+  }
+
+  it.each([
+    ["pushup", { reps: 20 }, "might", "might", 80],
+    ["situp", { reps: 30 }, "fortitude", "fortitude", 90],
+    ["plank", { durationS: 60 }, "endurance", "fortitude", 90],
+  ] as const)("%s %o scores %s under v4 and %s under v5: %i, identical", async (exercise, set, v4Skill, v5Skill, want) => {
+    expect(xp(await award(V4, one(exercise, set)), v4Skill)).toBe(want)
+    const h = await award(V5, one(exercise, set))
+    expect(xp(h, v5Skill)).toBe(want)
+    expect(xp(h, "endurance"), "Iron's third").toBeCloseTo(want * 0.3333, 0)
+  })
+
+  it("a 30-minute, 100% upper-body Strength workout is 900 Might and 300 Iron", async () => {
+    const h = await award(V5, strength([100, 0, 0]))
+    expect(new Set(ledgerSkills(h.transacts))).toEqual(new Set(["might", "constitution", "endurance"]))
+    expect(xp(h, "might")).toBe(900)
+    expect(xp(h, "endurance")).toBeCloseTo(300, 0)
+    expect(xp(h, "constitution")).toBeCloseTo(300, 0)
+  })
+
+  it("45 minutes at 40/30/30 trains all three regions, and Iron a third of all three", async () => {
+    const h = await award(V5, strength([40, 30, 30], 2700))
+    expect(xp(h, "might")).toBe(540)
+    expect(xp(h, "footing")).toBe(405)
+    expect(xp(h, "fortitude")).toBe(405)
+    expect(xp(h, "endurance")).toBeCloseTo(1350 * 0.3333, 0)
+  })
+
+  it("Iron is never matched: no exercise logs it, and it has none", () => {
+    const iron = V5.skills.find((s) => s.id === "endurance")!
+    expect(iron).toMatchObject({ name: "Iron", kind: "meta", match: null })
+    expect(iron.exercises ?? []).toEqual([])
+  })
+
+  it.each([
+    ["shares summing to 90", strength([50, 20, 20])],
+    ["a share off the 10% step", strength([45, 25, 30])],
+    ["an outside member", { ...strength([100, 0, 0]), split: { durationS: 1800, shares: [{ exerciseId: "yoga", percent: 100 }] } }],
+    ["client-sent sets", { ...strength([100, 0, 0]), sets: [{ durationS: 1800 }] }],
+  ])("refuses %s before any write", async (_name, body) => {
+    const h = harness({}, false, V5)
+    await expect(logWorkout(body as never, USER, h.deps)).rejects.toMatchObject({ code: "BAD_SPLIT" })
+    expect(h.accepts).toEqual([])
+    expect(h.transacts).toEqual([])
+  })
+})

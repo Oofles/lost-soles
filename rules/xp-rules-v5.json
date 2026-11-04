@@ -1,0 +1,477 @@
+{
+  "version": 5,
+  "effectiveFrom": "2026-11-04T00:00:00Z",
+  "curve": {
+    "stepFormula": "4 * L^2",
+    "maxLevel": 99,
+    "deepMaxLevel": 120
+  },
+  "skills": [
+    {
+      "id": "wayfaring",
+      "name": "Wayfaring",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 10,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "run",
+          "walk",
+          "hike"
+        ],
+        "requiresTrace": true,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 100,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 300,
+      "minUnitsForCredit": 0.25,
+      "groundMultipliers": {
+        "new": 1,
+        "rearmed": 0.5,
+        "recent": 0.5
+      },
+      "revealsGround": true,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "vigil",
+      "name": "Vigil",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 15,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "run",
+          "walk",
+          "hike"
+        ],
+        "requiresTrace": false,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 100,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 300,
+      "minUnitsForCredit": 0.25,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "treadmill",
+          "label": "Treadmill / track",
+          "entry": "distance",
+          "kind": "run",
+          "quickValues": [
+            5,
+            3,
+            10
+          ]
+        }
+      ]
+    },
+    {
+      "id": "roving",
+      "name": "Roving",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 20,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "ride"
+        ],
+        "requiresTrace": true,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 60,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 200,
+      "minUnitsForCredit": 0.5,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "cadence",
+      "name": "Cadence",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 25,
+      "logMode": "trace",
+      "unit": "km",
+      "match": {
+        "kinds": [
+          "ride"
+        ],
+        "requiresTrace": false,
+        "sources": "any",
+        "measure": "distanceKm"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 60,
+      "softCapUnits": null,
+      "sanityCeilingUnits": 200,
+      "minUnitsForCredit": 0.5,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ]
+    },
+    {
+      "id": "might",
+      "name": "Might",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 30,
+      "logMode": "duration",
+      "unit": "second",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "seconds:might"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 0.5,
+      "softCapUnits": 3600,
+      "sanityCeilingUnits": 10800,
+      "minUnitsForCredit": 8,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        },
+        {
+          "skill": "endurance",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "strength-upper",
+          "label": "Upper body",
+          "entry": "minutes",
+          "quickValues": [
+            30,
+            45,
+            60
+          ],
+          "scale": 1
+        },
+        {
+          "id": "pushup",
+          "label": "Pushups",
+          "entry": "count",
+          "quickValues": [
+            10,
+            20,
+            25,
+            50
+          ],
+          "scale": 8
+        }
+      ]
+    },
+    {
+      "id": "footing",
+      "name": "Footing",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 5,
+      "displayOrder": 35,
+      "logMode": "duration",
+      "unit": "second",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "seconds:footing"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 0.5,
+      "softCapUnits": 3600,
+      "sanityCeilingUnits": 10800,
+      "minUnitsForCredit": 60,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        },
+        {
+          "skill": "endurance",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "strength-lower",
+          "label": "Lower body",
+          "entry": "minutes",
+          "quickValues": [
+            30,
+            45,
+            60
+          ],
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "id": "fortitude",
+      "name": "Fortitude",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 40,
+      "logMode": "duration",
+      "unit": "second",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "seconds:fortitude"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 0.5,
+      "softCapUnits": 3600,
+      "sanityCeilingUnits": 10800,
+      "minUnitsForCredit": 6,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        },
+        {
+          "skill": "endurance",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "strength-core",
+          "label": "Core & total body",
+          "entry": "minutes",
+          "quickValues": [
+            30,
+            45,
+            60
+          ],
+          "scale": 1
+        },
+        {
+          "id": "situp",
+          "label": "Situps",
+          "entry": "count",
+          "quickValues": [
+            20,
+            30,
+            50
+          ],
+          "scale": 6
+        },
+        {
+          "id": "plank",
+          "label": "Plank",
+          "entry": "seconds",
+          "quickValues": [
+            30,
+            60,
+            90,
+            120
+          ],
+          "scale": 3
+        }
+      ]
+    },
+    {
+      "id": "poise",
+      "name": "Poise",
+      "kind": "activity",
+      "enabled": true,
+      "introducedIn": 4,
+      "displayOrder": 55,
+      "logMode": "duration",
+      "unit": "second",
+      "match": {
+        "kinds": [
+          "strength",
+          "other"
+        ],
+        "requiresTrace": "any",
+        "sources": "any",
+        "measure": "seconds:yoga"
+      },
+      "matchPriority": 100,
+      "xpPerUnit": 0.5,
+      "softCapUnits": 3600,
+      "sanityCeilingUnits": 10800,
+      "minUnitsForCredit": 60,
+      "groundMultipliers": null,
+      "revealsGround": false,
+      "feeds": [
+        {
+          "skill": "constitution",
+          "rate": 0.3333
+        }
+      ],
+      "exercises": [
+        {
+          "id": "yoga",
+          "label": "Yoga",
+          "entry": "minutes",
+          "quickValues": [
+            30,
+            45,
+            60
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cartography",
+      "name": "Cartography",
+      "kind": "meta",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 60,
+      "logMode": "derived",
+      "unit": "cell",
+      "match": null,
+      "xpPerUnit": 2.15,
+      "unitMultipliers": {
+        "new": 1,
+        "rearmed": 0.5,
+        "recent": 0
+      },
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    },
+    {
+      "id": "constitution",
+      "name": "Constitution",
+      "kind": "meta",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 70,
+      "logMode": "derived",
+      "unit": "share",
+      "match": null,
+      "xpPerUnit": 1,
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    },
+    {
+      "id": "endurance",
+      "name": "Iron",
+      "kind": "meta",
+      "enabled": true,
+      "introducedIn": 1,
+      "displayOrder": 75,
+      "logMode": "derived",
+      "unit": "share",
+      "match": null,
+      "xpPerUnit": 1,
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    },
+    {
+      "id": "slayer",
+      "name": "Slayer",
+      "kind": "meta",
+      "enabled": false,
+      "introducedIn": 1,
+      "displayOrder": 80,
+      "logMode": "derived",
+      "unit": "share",
+      "match": null,
+      "xpPerUnit": 1,
+      "softCapUnits": null,
+      "sanityCeilingUnits": null,
+      "minUnitsForCredit": 0,
+      "groundMultipliers": null,
+      "revealsGround": null,
+      "feeds": []
+    }
+  ],
+  "splits": [
+    {
+      "id": "strength",
+      "label": "Strength workout",
+      "entry": "minutes",
+      "members": [
+        "strength-upper",
+        "strength-lower",
+        "strength-core"
+      ],
+      "shareStep": 10,
+      "quickValues": [
+        30,
+        45,
+        60
+      ]
+    }
+  ]
+}

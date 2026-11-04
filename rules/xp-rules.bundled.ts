@@ -6,10 +6,12 @@ import V1 from "./xp-rules-v1.json"
 import V2 from "./xp-rules-v2.json"
 import V3 from "./xp-rules-v3.json"
 import V4 from "./xp-rules-v4.json"
+import V5 from "./xp-rules-v5.json"
 
 export const BUNDLED_RULES: Readonly<Record<number, unknown>> = {
   1: V1,
   2: V2,
   3: V3,
   4: V4,
+  5: V5,
 }

@@ -30,6 +30,8 @@ const { RowName } = await import("./log-row")
 const newest = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
 const rows = logRows(newest)
 const html = renderToStaticMarkup(<LogPage />)
+/** A label as the markup carries it: v5's "Core & total body" (D-483) is the first with an `&`. */
+const esc = (s: string) => s.replace(/&/g, "&amp;")
 
 describe("/log's first render (0068)", () => {
   it("is the page the route serves", () => {
@@ -38,16 +40,17 @@ describe("/log's first render (0068)", () => {
 
   it("renders one row per registry row, in registry order, with no network", () => {
     const groups = [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1])
-    expect(groups).toEqual(rows.map((r) => `${r.skillName}: ${r.label}`))
+    expect(groups).toEqual(rows.map((r) => esc(`${r.skillName}: ${r.label}`)))
   })
 
   it("every row has −, the number, + and LOG, each with an accessible name (0071)", () => {
     for (const r of rows) {
-      expect(html).toContain(`aria-label="Decrease ${r.label} by`)
-      expect(html).toContain(`aria-label="Increase ${r.label} by`)
-      expect(html).toMatch(new RegExp(`aria-label="${r.label}, (count|minutes and seconds|kilometres|minutes)"`))
+      const label = esc(r.label)
+      expect(html).toContain(`aria-label="Decrease ${label} by`)
+      expect(html).toContain(`aria-label="Increase ${label} by`)
+      expect(html).toMatch(new RegExp(`aria-label="${label}, (count|minutes and seconds|kilometres|minutes)"`))
       // Before IndexedDB answers, the number is the registry's fallback (D-282).
-      expect(html).toContain(`aria-label="Log ${formatValue(r, r.fallback)} ${r.label}"`)
+      expect(html).toContain(`aria-label="Log ${formatValue(r, r.fallback)} ${label}"`)
     }
     expect(html.match(/>LOG</g)).toHaveLength(rows.length)
   })
@@ -68,7 +71,7 @@ describe("/log's first render (0068)", () => {
 
   it("every row draws its skill's sigil, decorative, before the name (0245, 06 §6.3–6.4)", () => {
     for (const r of rows) {
-      const row = new RegExp(`<div[^>]*role="group" aria-label="${r.skillName}: ${r.label}"[\\s\\S]*?>LOG<`).exec(html)![0]
+      const row = new RegExp(`<div[^>]*role="group" aria-label="${esc(`${r.skillName}: ${r.label}`)}"[\\s\\S]*?>LOG<`).exec(html)![0]
       const svg = /<svg[^>]*>[\s\S]*?<\/svg>/.exec(row)![0]
       expect(svg, r.skillId).toContain('aria-hidden="true"')
       for (const d of sigilPaths(r.skillId)) expect(svg, r.skillId).toContain(`d="${d}"`)

@@ -1,0 +1,471 @@
+# THE SKILL REGISTRY, v5 — the authority. Ticket 0343 (v4: 0329, v3: 0240, v2: 0236, v1: 0028).
+#
+# v5 IS D-483: strength by body region. Might becomes upper body, Footing is new for lower body,
+# and Fortitude becomes core and total body; each is a `seconds:` tally at 0.5 XP/s fed by a
+# minutes exercise plus, for Might and Fortitude, the v4 exercises converted by `scale` (0341)
+# so a pushup, a situp and a plank second keep v4's 4 / 3 / 1.5 XP. Endurance keeps its id and
+# becomes Iron, a meta skill fed a third of all three. A Strength workout split (0342) apportions
+# one session across the three. Every other row is v4's, unchanged. The replay that moved the
+# live ledger onto v5 moved no XP (0343). A new version rather than an edit to v4 because a
+# seeded version never changes (04 §7.6, D-282).
+#
+# Git is the source of truth; the RuleSkill table (T5) is a MATERIALISED PROJECTION of this
+# file, seeded verbatim at deploy time (02-data-model.md §3.2, §3.3). The seeder is
+# idempotent and append-only ACROSS VERSIONS: it never edits an existing rulesVersion
+# partition, because a ledger row citing v1 is meaningless if v1's rows were mutated
+# (04-game-design.md §7.6).
+#
+# ADDING A WORKOUT TYPE IS A ROW IN THIS FILE AND NOTHING ELSE (D-031, D-141). If a change
+# needs a `switch` on a skill id, the schema is wrong — stop and fix the schema.
+#
+# THE `match` BLOCK IS WHY THIS FILE EXISTS BEFORE THE SCORER DOES (D-141).
+# The schema first published in 04-game-design.md §1.3 covered measurement, rating,
+# propagation and presentation, and silently omitted SELECTION — which activities a skill
+# consumes. Under it, Wayfaring and Vigil were byte-identical, so the scorer would have had
+# to decide in code:
+#
+#     const skill = activity.hasTrace ? "wayfaring" : "vigil"   // THE FAILURE MODE
+#
+# Retrofitting selection into data after the scorer exists is a rewrite of every call site
+# plus a data migration of every ledger row's xpRulesVersion semantics. So v1 ships with
+# `match` on every activity skill from the very first seed.
+
+version: 5
+effectiveFrom: 2026-11-04T00:00:00Z
+
+# D-130. NOT per-skill: D-131 explicitly rejected per-skill curve constants, so this is one
+# RuleCurve item stored under SK = "__curve__" in the same partition (02 §3.2).
+curve:
+  stepFormula: "4 * L^2"   # XP to advance from level L to L+1
+  maxLevel: 99
+  deepMaxLevel: 120        # 04 §2.5
+
+skills:
+
+  # ── Activity skills ────────────────────────────────────────────────────────────────────
+  # Every `kind: activity` row carries an explicit `match` and `matchPriority`.
+
+  - id: wayfaring
+    name: Wayfaring
+    kind: activity
+    enabled: true
+    introducedIn: 1                # D-146: the version that first shipped this row. Never edited.
+    displayOrder: 10
+    logMode: trace
+    unit: km
+    match:                        # J1 SELECTION (D-141)
+      kinds: [run, walk, hike]    # ActivityKind values (contract §2). Absent/[] = any.
+      requiresTrace: true         # reads Activity.hasTrace
+      sources: any                # any | [<sourceId>, …] — escape hatch, rarely used
+      measure: distanceKm         # J2: which quantity off the Activity is the unit count
+    matchPriority: 100
+    xpPerUnit: 100
+    softCapUnits: null            # distance gets no diminishing returns — 04 §3.5
+    sanityCeilingUnits: 300       # flag-only, never blocks (D-123)
+    minUnitsForCredit: 0.25
+    groundMultipliers:            # D-120 — applies only to logMode: trace
+      new: 1.0
+      rearmed: 0.5
+      recent: 0.5
+    # THE ONLY `true` IN THIS FILE (D-189). Running is what opens the map — the vision's
+    # first sentence, and the operator's stated motivation. Every other skill earns its own
+    # XP and leaves the fog alone, so ground you cycle through keeps its FULL discovery
+    # value for the day you run it.
+    revealsGround: true
+    feeds:
+      - skill: constitution
+        rate: 0.3333             # Constitution's 1/3 lives HERE, never as a constant in code
+
+  # THE VIGIL ROW (D-132, D-141). GPS-less running: treadmill, track, a dead watch.
+  #
+  # ONE FIELD separates this row from Wayfaring — `match.requiresTrace` — and it is read off
+  # Activity.hasTrace, which the ingestion contract already defines and T3 already stores.
+  # No new type, no new concept, no code. That is the whole proof of D-031.
+  #
+  # Equal matchPriority with Wayfaring is SAFE and deliberate: requiresTrace true vs false
+  # makes the two rows mutually exclusive, so no activity is ever a candidate for both and
+  # the tie-break never fires. 02 §3.8 check 3 asserts that across the whole
+  # ActivityKind x hasTrace grid on every build (ticket 0029).
+  - id: vigil
+    name: Vigil                   # PROVISIONAL (D-132) — a display string, NEVER an
+                                  # identifier. A rename is an edit to this attribute alone.
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 15
+    logMode: trace                # same kernel: a distance-measured effort
+    unit: km
+    match:
+      kinds: [run, walk, hike]
+      requiresTrace: false        # <-- THE ENTIRE DISCRIMINATOR
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 100                # D-132: FULL activity XP, identical to Wayfaring. Not half.
+    softCapUnits: null
+    sanityCeilingUnits: 300
+    minUnitsForCredit: 0.25
+    # `null` means THIS SKILL IS NOT GROUND-SCORED — there is no ground. That is a different
+    # claim from {new: 1, rearmed: 1, recent: 1}, which would assert that ground exists and
+    # every kind of it scores the same. The two must never be conflated (02 §3.2).
+    groundMultipliers: null
+    # Redundant here, and stated anyway. A traceless run has no cells to write, so this
+    # could be inferred — but a reader should not have to reason about tracelessness to
+    # learn whether a skill opens the map, and a validator that requires the field on every
+    # activity row is what stops a future row omitting it silently.
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    # D-286. The one way a GPS-less run reaches Vigil when no watch recorded it. A distance
+    # entry: kilometres on /log's stepper, whole metres in the set, folded into
+    # Activity.distanceM by the manual adapter, so `measure: distanceKm` above scores it
+    # unchanged. `kind: run` is what the log IS; without it a manual log is `strength`, which
+    # this row does not match. No trace, so it reveals no ground whatever the kind.
+    exercises:
+      - id: treadmill
+        label: Treadmill / track
+        entry: distance
+        kind: run
+        quickValues: [5, 3, 10]
+
+  # ── The cycling pair (D-189) ───────────────────────────────────────────────────────────
+  # The same construction as Wayfaring/Vigil one level down: `match.kinds` separates cycling
+  # from running, and `match.requiresTrace` separates outdoors from indoors. All four share
+  # `measure: distanceKm` and are pairwise mutually exclusive, so the matcher returns exactly
+  # one distance skill for any activity.
+  #
+  # NEITHER OPENS THE MAP. Running is the motivation the app is built around and the map is
+  # its reward; a bike covers three times the ground for the same effort, so letting rides
+  # reveal would have made cycling the dominant way to train Cartography — roughly 3:1 over
+  # running — and the map can never re-fog. See D-189 for the rejected middle option.
+
+  - id: roving
+    name: Roving
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 20
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: true
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    # SESSION PARITY at the operator's actual ride distance (D-189, amended by ticket 0158).
+    # 04 §3.2's anchor is that one typical hard session of anything is worth about the same as
+    # one of anything else. The operator's typical ride is 15 km, so 885/15 = 59, rounded to 60
+    # for legibility — a clean 3/5 of running, and 15 km lands at 900 against a typical run's
+    # 885 and a strength session's 840.
+    #
+    # Superseded: 35 XP/km, the speed-ratio anchor (100/3, cycling covering ~3x the distance
+    # for comparable effort). It was chosen against an ASSUMED 25 km ride; at the real 15 km it
+    # paid 525 XP, well under half a run, which is not what session parity means.
+    xpPerUnit: 60
+    softCapUnits: null
+    sanityCeilingUnits: 200        # a flag, never a block (D-123) — 200 km is a long day out
+    minUnitsForCredit: 0.5
+    groundMultipliers: null        # not ground-scored: it does not reveal ground to score
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  - id: cadence
+    name: Cadence                  # the pedalling rate — and a rhythm that goes nowhere,
+                                   # which is the joke Vigil makes about the treadmill
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 25
+    logMode: trace
+    unit: km
+    match:
+      kinds: [ride]
+      requiresTrace: false         # <-- the discriminator, exactly as for Vigil
+      sources: any
+      measure: distanceKm
+    matchPriority: 100
+    xpPerUnit: 60                  # identical to Roving, as D-132 gave Vigil Wayfaring's rate
+    softCapUnits: null
+    sanityCeilingUnits: 200
+    minUnitsForCredit: 0.5
+    groundMultipliers: null
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+
+  # ── Strength, by body region (D-483) ───────────────────────────────────────────────────
+  # Three `seconds:` tallies, one per region. Each is fed by a minutes exercise (the region's
+  # share of a Strength workout, below) and, for Might and Fortitude, by the v4 exercises that
+  # used to own a skill each. Every exercise declares a `scale` into its skill's one measure
+  # (0341): a workout minute is 60 s, a pushup 8 s, a situp 6 s, a plank second 3 s. At 0.5 XP/s
+  # that is 30 XP/min of workout and EXACTLY v4's 4 / 3 / 1.5 XP for pushups, situps and planks,
+  # so no historical XP moves (D-135).
+  #
+  # 30 XP/min is Poise's rate (D-469) at any length. A 45-minute session is 1,350 XP against a
+  # run's 885: that knowingly exceeds session parity (04 §3.2). A strength minute and a yoga
+  # minute are worth the same, and that is the rule. It is not a balance bug.
+  #
+  # The `tally` suffix of each measure is the skill's own id, never an exercise id: a suffix
+  # naming an exercise would be counted by the pre-v5 suffix path too (0341's cross-row check).
+
+  - id: might
+    name: Might
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 30
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:might"
+    matchPriority: 100
+    xpPerUnit: 0.5                # = 30 XP per workout minute; a pushup (8 s) is 4 XP
+    softCapUnits: 3600            # an hour at full rate per session, as Poise
+    sanityCeilingUnits: 10800     # three hours: a flag, never a block (D-123)
+    minUnitsForCredit: 8          # one pushup: v4's /log floor (gates no XP, D-269)
+    groundMultipliers: null       # upper body happens nowhere on the map
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+      - skill: endurance          # Iron
+        rate: 0.3333
+    exercises:
+      - id: strength-upper
+        label: Upper body
+        entry: minutes
+        quickValues: [30, 45, 60]
+        scale: 1                  # a minute is stored as 60 s of durationS
+      - id: pushup
+        label: Pushups
+        entry: count
+        quickValues: [10, 20, 25, 50]
+        scale: 8                  # 8 s of work: 4 XP, as v4
+
+  - id: footing
+    name: Footing
+    kind: activity
+    enabled: true
+    introducedIn: 5               # D-146: shipped in v5, so its minted level 1 fires no card
+    displayOrder: 35
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:footing"
+    matchPriority: 100
+    xpPerUnit: 0.5
+    softCapUnits: 3600
+    sanityCeilingUnits: 10800
+    minUnitsForCredit: 60         # the /log stepper's floor, one minute (D-269)
+    groundMultipliers: null
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+      - skill: endurance          # Iron
+        rate: 0.3333
+    exercises:
+      - id: strength-lower
+        label: Lower body
+        entry: minutes
+        quickValues: [30, 45, 60]
+        scale: 1
+
+  - id: fortitude
+    name: Fortitude
+    kind: activity
+    enabled: true
+    introducedIn: 1
+    displayOrder: 40
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:fortitude"
+    matchPriority: 100
+    xpPerUnit: 0.5
+    softCapUnits: 3600
+    sanityCeilingUnits: 10800
+    # One situp, v4's floor. It gates no XP (D-269); it sets /log's stepper floor per exercise
+    # (rows.ts divides it by `scale`). v4's plank floor was 5 s, and one skill has one floor, so
+    # the plank stepper now starts at 2 s (ceil(6/3)).
+    minUnitsForCredit: 6
+    groundMultipliers: null
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+      - skill: endurance          # Iron
+        rate: 0.3333
+    exercises:
+      - id: strength-core
+        label: Core & total body
+        entry: minutes
+        quickValues: [30, 45, 60]
+        scale: 1
+      - id: situp
+        label: Situps
+        entry: count
+        quickValues: [20, 30, 50]
+        scale: 6                  # 3 XP, as v4
+      - id: plank
+        label: Plank
+        entry: seconds
+        quickValues: [30, 60, 90, 120]
+        scale: 3                  # 1.5 XP per second, as v4
+
+  # THE POISE ROW (D-469). Vinyasa yoga: mostly flexibility, some strength, measured by the
+  # clock. Over the existing `seconds:` kernel, so no scorer change: a new skill over an
+  # existing measure is a row (02 §3.7).
+  #
+  # 0.5 XP/s = 30 XP/min is SESSION PARITY (04 §3.2) at the operator's actual session:
+  # 30 minutes = 900, against a run's 885 and a ride's 900. The strength half of vinyasa has
+  # no separate skill to land in — feeds may only target meta rows — so it is priced into the
+  # rate and carried by Constitution's usual third, like every other workout.
+  - id: poise
+    name: Poise
+    kind: activity
+    enabled: true
+    introducedIn: 4               # D-146: shipped in v4, so adding it fires no level-up card
+    displayOrder: 55
+    logMode: duration
+    unit: second
+    match:
+      kinds: [strength, other]
+      requiresTrace: any
+      sources: any
+      measure: "seconds:yoga"
+    matchPriority: 100
+    xpPerUnit: 0.5                # = 30 XP per minute of yoga
+    softCapUnits: 3600            # an hour at full rate, then the standard halving (04 §3.5)
+    sanityCeilingUnits: 10800     # three hours: a flag, never a block (D-123)
+    minUnitsForCredit: 60         # the /log stepper's floor, one minute (D-269)
+    groundMultipliers: null       # a sun salutation happens nowhere on the map
+    revealsGround: false
+    feeds:
+      - skill: constitution
+        rate: 0.3333
+    # `entry: minutes` (D-469): whole minutes on /log's stepper, ±5, stored as `durationS`
+    # so `seconds:yoga` above sums it unchanged. A plank is timed in seconds; a class is not.
+    exercises:
+      - id: yoga
+        label: Yoga
+        entry: minutes
+        quickValues: [30, 45, 60]
+
+  # ── Meta skills ────────────────────────────────────────────────────────────────────────
+  # NEVER matched. They arrive through `feeds` (J4) and, for Cartography, through the fog
+  # subsystem's own derived award (02 §3.4, 05 §8.2). `match` is null on every one.
+
+  - id: cartography
+    name: Cartography
+    kind: meta
+    enabled: true
+    introducedIn: 1
+    displayOrder: 60
+    logMode: derived
+    unit: cell                    # H3 res-11 (D-237)
+    match: null
+    # 2.15, not 13. D-279 (ticket 0236). 04 §3.2 tunes Cartography to parity with Wayfaring
+    # — ~100 XP per kilometre of brand-new ground. v1's 13 was tuned against res-10 density,
+    # 7.67 cells/km (D-215); D-237 then moved the grid to res 11 and nobody retuned it, so v1
+    # paid ~600 XP/km and Cartography became the dominant skill. Measured on the operator's
+    # live ledger: 1,134 new cells over 24.404 km of new ground = 46.47 cells/km.
+    # 46.47 × 2.15 = 99.9.
+    xpPerUnit: 2.15
+    unitMultipliers:              # D-120 discovery credit. NOT groundMultipliers: this is
+      new: 1.0                    # scored per CELL, not per km of ground.
+      rearmed: 0.5
+      recent: 0.0
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []
+
+  - id: constitution
+    name: Constitution
+    kind: meta
+    enabled: true
+    introducedIn: 1
+    displayOrder: 70
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1                  # the share arrives pre-computed; the rate is on the FEEDER
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []                     # Constitution feeds nothing — 04 §1.1, and 02 §3.8 check 2
+
+  # IRON (D-483). The id stays `endurance` because ids are never renamed; v1–v4's Endurance was
+  # the plank skill, which Fortitude now absorbs. Iron is META: never matched, fed a third of
+  # Might, Footing and Fortitude each, so it tracks the average strength level as Constitution
+  # tracks the average of everything. The kind change moves no XP: Endurance held 0 XP on the
+  # live ledger when v5 shipped (0343's replay), so nothing it held lands anywhere new.
+  # Rejected: a fresh `iron` row with Endurance retired, because disabling a row lowers Total
+  # Level, which 04 §4.1 forbids.
+  - id: endurance
+    name: Iron
+    kind: meta
+    enabled: true
+    introducedIn: 1               # the row first shipped in v1; D-146 keys on the id, not the kind
+    displayOrder: 75
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1                  # the share arrives pre-computed; the rate is on the FEEDER
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null           # meta skills never match, so they never reveal
+    feeds: []
+
+  - id: slayer
+    name: Slayer
+    kind: meta
+    enabled: false                # POST-MVP (D-122): no combat in the MVP. `enabled: false`
+                                  # hides the skill AND stops it matching. Its historical
+                                  # ledger rows, when it ships, stay valid.
+    introducedIn: 1
+    displayOrder: 80
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null       # meta skills never match, so they never reveal
+    feeds: []
+
+# THE STRENGTH WORKOUT (D-483, ticket 0342). One /log entry: total minutes, then each region's
+# share in 10% steps summing to 100. One log is ONE activity carrying one minutes set per
+# non-zero share, each naming its member exercise, so each region is scored by its own row
+# above with its own soft cap. Whole seconds; the remainder goes to the largest share, ties to
+# the first member. The regions are ids here and nowhere in code (D-031).
+splits:
+  - id: strength
+    label: Strength workout
+    entry: minutes
+    members: [strength-upper, strength-lower, strength-core]
+    shareStep: 10
+    quickValues: [30, 45, 60]

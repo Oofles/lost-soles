@@ -299,7 +299,10 @@ describe("registry order, forever (0072, 06 §6.5, §5.3 rule 2)", () => {
         expect(shown).toEqual(order.filter((id) => shown.includes(id)))
       }
     }
-    expect(after.logRows.map((r) => r.skillId)).toEqual(order.filter((id) => after.logRows.some((r) => r.skillId === id)))
+    // One row per exercise, so a skill with several (v5's Might, Fortitude: D-483) is a run of
+    // rows. Collapse each run: the runs must be in registry order and never interleave.
+    const runs = after.logRows.map((r) => r.skillId).filter((id, i, all) => id !== all[i - 1])
+    expect(runs).toEqual(order.filter((id) => after.logRows.some((r) => r.skillId === id)))
     expect(after.logRows.at(-1)!.skillId, "the new row is appended, never inserted").toBe(NEW_SKILL_ID)
   })
 })

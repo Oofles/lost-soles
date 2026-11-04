@@ -48,9 +48,9 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 | **Vigil** | Running without a trace — treadmill, track, dead watch | km | Full Wayfaring XP, no ground (D-132). |
 | **Roving** | Cycling with a trace | km | 60 XP/km (D-189, rescaled by `0158`). Earns no map. |
 | **Cadence** | Cycling without a trace — stationary bike | km | The pedalling rate, and a rhythm that goes nowhere. |
-| **Might** | Pushups | rep | Pressing strength. |
-| **Fortitude** | Situps | rep | The core. Endurance of the trunk. |
-| **Endurance** | Planks | second | Holding a position against time. |
+| **Might** | Upper-body workout minutes; pushups | second | Pressing strength. Upper body (D-483). |
+| **Footing** | Lower-body workout minutes | second | Legs under you. Lower body (D-483). |
+| **Fortitude** | Core and total-body workout minutes; situps; planks | second | The core. Endurance of the trunk (D-483). |
 | **Poise** | Yoga (vinyasa) | second | Balance and control under load: mostly flexibility, some strength. Logged in minutes (D-469). |
 
 **Meta skills** — never trained directly, only as a by-product of activity skills.
@@ -59,12 +59,14 @@ Per **D-030** (hybrid), **D-031** (activity skills, must be modular), **D-032** 
 |---|---|---|
 | **Cartography** | Newly revealed H3 cells (§3.3) | The map itself. The novelty skill. |
 | **Constitution** | 1/3 of *all* activity-skill XP | Total lifetime volume. Always high. |
+| **Iron** | 1/3 of Might, Footing and Fortitude XP | The average strength level. Id `endurance`, the v1–v4 plank skill renamed (D-483). |
 | **Slayer** | Encounter and boss damage (§5) | POST-MVP — out of MVP per D-122. |
 
-The registry ships **ten enabled skills**: eight activity skills — Wayfaring, Vigil, Roving, Cadence,
-Might, Fortitude, Endurance, Poise — plus Cartography and Constitution (**D-122** — Slayer ships
+The registry ships **eleven enabled skills**: eight activity skills — Wayfaring, Vigil, Roving, Cadence,
+Might, Footing, Fortitude, Poise — plus Cartography, Constitution and Iron (**D-122** — Slayer ships
 `enabled: false` because combat is out). Six was the count before D-132 added Vigil (ticket
-`0028`), D-189 added the cycling pair (ticket `0157`) and D-469 added Poise (ticket `0329`, v4); the newest `rules/xp-rules-vN.yaml` is
+`0028`), D-189 added the cycling pair (ticket `0157`), D-469 added Poise (ticket `0329`, v4) and
+D-483 added Footing and turned Endurance into the meta skill Iron (ticket `0343`, v5); the newest `rules/xp-rules-vN.yaml` is
 the authority and this list follows it, never the other way round. The tables and counts in this
 section, and in §3.2, are asserted against that file by `scripts/check-doc-ruleset.mjs` (D-193,
 ticket `0162`): a row added to the YAML fails the build until it is added here.
@@ -161,17 +163,18 @@ must be adding a row.** If it requires a code change, the design has failed.
 > matcher, §3.5 the worked Vigil test, §3.8 the CI checks that stop the property rotting. This
 > section carries the corrected schema; §3 carries the reasoning.
 
-The skill registry is a versioned data file (`rules/xp-rules-v<N>.yaml`, currently v3: v3 adds
-Vigil's `treadmill` exercise and changes no number, D-286), loaded at ingest time and pinned per
-activity (§7). The excerpt below is v2's, whose scoring fields v3 repeats byte for byte. The schema:
+The skill registry is a versioned data file (`rules/xp-rules-v<N>.yaml`, currently v5: D-483's
+strength-by-region rows, ticket `0343`), loaded at ingest time and pinned per activity (§7). The
+excerpt below is v5's; its distance and meta rows repeat v2's scoring fields byte for byte. The
+schema:
 
 ```yaml
 # The newest rules/xp-rules-vN.yaml — an EXCERPT. The file itself is the authority (02 §3.2/§3.3);
 # this block is checked against it by `src/rules/doc-schema.test.ts`, which extracts the
 # YAML below and runs the 0028 validator over it. If it drifts, the build goes red.
 #
-# Trimmed for reading: Fortitude, Endurance and Slayer follow Might's and Constitution's
-# shape exactly. Nothing else is omitted — in particular all FOUR distance skills are here,
+# Trimmed for reading: Footing and Fortitude follow Might's shape, and Slayer follows
+# Constitution's. Nothing else is omitted — in particular all FOUR distance skills are here,
 # because the seed-time totality check (02 §3.8/3, ticket 0029) requires every distance-
 # carrying kind to have exactly one, and an excerpt that dropped one would not validate.
 version: 2
@@ -273,22 +276,28 @@ skills:
     enabled: true
     introducedIn: 1
     displayOrder: 30
-    logMode: reps
-    unit: rep
-    match: { kinds: [strength, other], requiresTrace: any, sources: any, measure: "reps:pushup" }
+    logMode: duration
+    unit: second
+    match: { kinds: [strength, other], requiresTrace: any, sources: any, measure: "seconds:might" }
     matchPriority: 100
-    xpPerUnit: 4
-    softCapUnits: 100        # per session, §3.5
-    sanityCeilingUnits: 600
-    minUnitsForCredit: 1
+    xpPerUnit: 0.5           # 30 XP per workout minute (D-483)
+    softCapUnits: 3600       # per session, §3.5
+    sanityCeilingUnits: 10800
+    minUnitsForCredit: 8
     groundMultipliers: null
     revealsGround: false
-    feeds: [{ skill: constitution, rate: 0.3333 }]
+    feeds: [{ skill: constitution, rate: 0.3333 }, { skill: endurance, rate: 0.3333 }]   # endurance = Iron
     exercises:               # NESTED in the skill that owns them (02 §3.2), not top-level:
-      - id: pushup           # the YAML is bundled as-is (02 §3.8), so the file's shape and
-        label: Pushups       # the loaded row's are one shape. A `skill:` back-reference
-        entry: count         # would be a second place the mapping could disagree.
+      - id: strength-upper   # the YAML is bundled as-is (02 §3.8), so the file's shape and
+        label: Upper body    # the loaded row's are one shape. A `skill:` back-reference
+        entry: minutes       # would be a second place the mapping could disagree.
+        quickValues: [30, 45, 60]
+        scale: 1             # D-483 (0341): each exercise converts into the row's ONE measure
+      - id: pushup
+        label: Pushups
+        entry: count
         quickValues: [10, 20, 25, 50]
+        scale: 8             # a pushup is 8 s of work: 4 XP, as before v5
 
   - id: cartography
     name: Cartography
@@ -324,6 +333,23 @@ skills:
     groundMultipliers: null
     revealsGround: null
     feeds: []                # Constitution feeds nothing — §1.1, and 02 §3.8 check 2
+
+  - id: endurance            # Iron (D-483). The id outlives the name: ids are never renamed,
+    name: Iron               # and v1–v4's Endurance was the plank skill. A row's kind may
+    kind: meta               # change across versions; it held 0 XP when v5 made it meta.
+    enabled: true
+    introducedIn: 1
+    displayOrder: 75
+    logMode: derived
+    unit: share
+    match: null
+    xpPerUnit: 1
+    softCapUnits: null
+    sanityCeilingUnits: null
+    minUnitsForCredit: 0
+    groundMultipliers: null
+    revealsGround: null
+    feeds: []
 ```
 
 **Adding a workout type is exactly this diff** — no code. It goes into a new version file,
@@ -734,12 +760,13 @@ history alone — nothing needs to be denormalised, and a rebalance can recomput
 | Vigil | `km` | **100** | identical to Wayfaring, deliberately — D-132 |
 | Roving | `km` | **60** | 15 km = 900 (`0158`) |
 | Cadence | `km` | **60** | identical to Roving, as Vigil is to Wayfaring |
-| Might | `rep` (pushup) | **4** | 75 = 300 |
-| Fortitude | `rep` (situp) | **3** | 90 = 270 |
-| Endurance | `second` (plank) | **1.5** (90/min) | 180 s = 270 |
+| Might | `second` (upper body) | **0.5** (30/min) | 1800 s = 900; a pushup is 8 s = 4 |
+| Footing | `second` (lower body) | **0.5** (30/min) | 1800 s = 900 |
+| Fortitude | `second` (core and total body) | **0.5** (30/min) | 1800 s = 900; a situp is 6 s = 3, a plank second 3 s = 1.5 |
 | Poise | `second` (yoga) | **0.5** (30/min) | 1800 s = 900 |
 | Cartography | `cell` (new) | **2.15** (D-279) | 411 cells = 884 |
-| Constitution | `share` | 1/3 of activity XP | run 295 / strength 280 |
+| Constitution | `share` | 1/3 of activity XP | run 295 / 45-minute strength workout 450 |
+| Iron | `share` | 1/3 of Might, Footing and Fortitude XP | a 45-minute strength workout: 450 |
 
 **100 XP/km is the anchor**, chosen to be legible: a kilometre is a hundred, a mile is 161,
 a 5-mile run is about 800. Every other rate is derived from it.
@@ -757,6 +784,14 @@ worth about the same total XP as one typical hard session of anything else.*
 - Typical run: 8.85 km → **885 XP** (fully new ground) or ~500 XP (mostly repeat).
 - Typical strength session: 75 pushups + 90 situps + 180 s plank →
   300 + 270 + 270 = **840 XP**.
+  *Superseded as the strength anchor by D-483 (rules v5):* strength is now logged by the minute,
+  split across Might (upper), Footing (lower) and Fortitude (core and total body), at **30 XP per
+  minute, identical to Poise, at any length.** A 45-minute workout earns **1,350 XP** against a
+  run's 885. That **knowingly exceeds session parity**: a strength minute and a yoga minute are
+  worth the same, and that is the rule, not a balance bug. Pushups, situps and planks keep the
+  4 / 3 / 1.5 XP below through a per-exercise conversion (`scale`: 8 s, 6 s, 3 s at 0.5 XP/s), so
+  no historical XP moved (D-135); they are now far below a workout minute (25 pushups = 100 XP,
+  about 3⅓ minutes).
 
 - Typical yoga session (D-469): 30 minutes of vinyasa at 30 XP/min → **900 XP**. The
   operator's real session length, not an assumed one. Vinyasa's strength component has no
@@ -1063,7 +1098,7 @@ One scalar, derived from levels and gear, recomputed at import:
 ```
 Power = round( 0.40 × Wayfaring
              + 0.30 × Constitution
-             + 0.30 × mean(Might, Fortitude, Endurance) )
+             + 0.30 × mean(Might, Footing, Fortitude) )
       + gearPower
 ```
 
@@ -1071,6 +1106,10 @@ It tracks roughly "your average level", which keeps it legible: Power ≈ 18 at 
 ≈ 41 at one year, ≈ 83 at ten years. The weighting says: running is the primary discipline,
 total volume matters nearly as much, and strength is a real but secondary contributor —
 consistent with an app whose subject is a runner.
+
+*Amended (D-483, rules v5):* the strength term was `mean(Might, Fortitude, Endurance)`. Endurance
+is now Iron, a meta skill that already summarises the three region skills and no longer trains,
+so the term averages the regions themselves: Might (upper), Footing (lower), Fortitude (core).
 
 ### 5.3 Map encounters
 

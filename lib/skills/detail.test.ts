@@ -153,7 +153,7 @@ describe("rulesSentence — generated from the registry", () => {
   })
 
   it("states a soft cap, and a fed skill's feeders, from their rows", () => {
-    expect(rulesSentence(rules, row("might"))).toBe("4 XP per rep; full rate up to 100 reps in one session, tapering after.")
+    expect(rulesSentence(rules, row("might"))).toBe("0.5 XP per second; full rate up to 3,600 seconds in one session, tapering after.")
     const fed = rulesSentence(rules, row("constitution"))
     expect(fed).toMatch(/^A third of the XP earned in /)
     for (const s of enabled.filter((s) => s.feeds.some((f) => f.skill === "constitution"))) expect(fed).toContain(s.name)
