@@ -513,7 +513,7 @@ still works when the cache is stale, and no write path exists from the phone oth
 
 **Depends on:** everything. **Done when:** §9 is fully checked.
 
-#### `19-authjs-migration` — 6 tickets — **after the MVP ship (D-425)**
+#### `19-authjs-migration` — 6 tickets planned, 10 built — **after the MVP ship (D-425)**
 *Added 2026-11-02 by `0138`. D-175 slotted it between `15` and `16`; D-425 moved it past `0117`.*
 
 Design: [`capabilities/19-authjs-migration.md`](capabilities/19-authjs-migration.md). Decisions
@@ -529,8 +529,13 @@ D-473 (cutover).
 | 5 | ▸ **`0334` Cognito removed** | `defineAuth` deleted; posture and Trigger A checks rewritten in the same deploy. |
 | 6 | **`0335` D-425's re-checks** | `0114` Trigger A + A-6, `0115` posture, against the new auth. |
 
-**Depends on:** `0117`. **Done when:** signing in to `school-hub` signs the operator in to Lost
-Soles, and no Cognito resource tagged with this app exists.
+*Filed while building (capability-19 audit, D-482):* `0336` (`school-hub` to next-auth beta.32,
+D-474), `0337` (`seed-throwaway.ts` off Cognito), `0339` (join core's SSO, D-478) and `0340` (the
+operator's second address, D-479).
+
+**Depends on:** `0117`. **Done when:** signing in once on `core.devaultsecurity.com` (D-478; said
+`school-hub`, which itself now signs in through core) signs the operator in to Lost Soles, and no
+Cognito resource tagged with this app exists. *Done 2026-11-03.*
 
 ---
 

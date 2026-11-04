@@ -1,6 +1,6 @@
 # 19-authjs-migration
 
-> Status: tickets-generated
+> Status: shipped
 > Started: 2026-11-02 (design, ticket `0138`)
 > Slot: **after the MVP ship** (D-425). It follows `0117`; nothing in `00`–`18` waits on it.
 
@@ -276,7 +276,9 @@ None. The ticket's five, answered:
 ## Acceptance for the capability as a whole
 
 - In one desktop browser, signing in to `school-hub` and then opening `soles.devaultsecurity.com`
-  lands on the map **signed in, with no second sign-in**.
+  lands on the map **signed in, with no second sign-in**. *(Since D-478 the one sign-in is on
+  `core.devaultsecurity.com`, which `school-hub` also uses; met by `0332` and `0339`'s operator
+  checks.)*
 - A Google account not in `AUTH_ALLOWED_EMAILS` is refused at sign-in, and a hand-minted session for
   an allowlisted but unmapped email gets the signed-out response from every authed route. Both are
   proven by tests.
@@ -296,4 +298,76 @@ _Appended by `/tickets audit` at close. See [`AUDIT.md`](AUDIT.md)._
 
 ## Reflection
 
-_Filled in at the REFLECT step, after USE._
+*Written at the close audit, 2026-11-03.*
+
+**USE.** The capability's single perceptual surface, signing in, was exercised for real on the
+desktop browser at three points: `0332` (a `school-hub` session carried into Lost Soles), `0339`
+(signed out → core's sign-in → back signed in) and `0340` (the second address). `0331`'s `/log` and
+`/skills` were checked the same way after the transports moved. The data half went through the real
+path: Σ `XpLedgerEntry` = 73,002 over 377 rows and `Profile.exploredGeneration` = 270 matched across
+`0332` and `0334`, and the audit's §4 rows show cells and XP unchanged against the baseline.
+
+**What the design got right that was not obvious.**
+- **Keeping the Cognito `sub` as the internal uid forever (D-471).** A committed email → uid map
+  meant zero data moved, a flag-day cutover was safe, and `0340`'s second address was a one-line
+  change instead of a migration.
+- **Sequencing the two fail-closed checks into the same deploy as the pool's deletion (`0334`).**
+  The old posture check would have failed on a missing pool; doing both at once is why there was no
+  red deploy.
+- **Finding that items 3 and 4 of the original ticket were already settled** (D-228, D-364) shrank
+  the capability before any code was written.
+
+**What the design got wrong.**
+- **It treated `school-hub` as the SSO peer.** `school-hub` and `eve-ops` moved to core's SSO on
+  2026-11-02, the day this design was written, with a new secret and a renamed cookie. Only
+  `lib/auth/config.test.ts`'s live comparison against `../school-hub` caught it, and Amplify does
+  not run that test. It cost a ticket (`0339`, D-478) and put a block on `0334`. A design whose
+  correctness depends on a sibling repo should check that repo's current head, not its state when
+  the design began.
+- **D-478's Trigger A wording was too broad** and fired on the operator's own second address on the
+  first real sign-in through core (`0340`, D-479). "A second identity" and "a second account" are
+  different things. The rule is now keyed on the uid.
+- **Amplify Gen 2's IAM-only data mode was assumed to grant nothing.** The transformer emits an
+  `appsync:GraphQL` policy for the one IAM rule it accepts, aimed at a role named `"undefined"`
+  (D-480). Found by reading the synthesized assembly, which is the habit to keep.
+
+**Divergences (three, all design-was-wrong, resolved by D-482).** `08` §5.5 and D-456 still
+described the interim between `0331` and `0334`. Cognito-era sentences survived in `08` §3, §3.1,
+§5.3, §6.1 and §6.4 (including a stale claim about *how* `amplify_outputs.json` reaches the bundle;
+it still does, through `lib/basemap.ts`). `09`'s capability-19 entry and this doc's acceptance named
+`school-hub` and six tickets. Every one was an "until `0334`" sentence written by an earlier ticket
+that the ticket doing the removing did not sweep.
+
+**Estimate vs actual.** Planned at six tickets; ten closed (`0336` from D-474's pin, `0337` found at
+a merge gate, `0339` and `0340` from core). Design on 2026-11-02, built in five waves over two days,
+which is roughly the planned session count: the extra tickets were small and fitted inside waves.
+
+**What the next capability should do differently.**
+- **When a ticket deletes something, grep the docs for "until `NNNN`" naming that ticket** and
+  rewrite those sentences in the same commit. That would have prevented all three divergences.
+- **A design that leans on another repo re-reads that repo's head at each wave**, not once.
+
+## Audit — 2026-11-04 (`tickets.mjs audit --record`)
+
+**Verdict: PASS.** Mechanical half: 12 passed, 0 failed, 0 n/a. See AUDIT.md §1, §4, §5.
+
+**Divergences (3 of a budget of 3):**
+
+1. **design-was-wrong** — `D-482` — 08 §5.5 and D-456 still described the interim between 0331 and 0334 (owner rules, mutations, identity.sub, entity('identity'))
+2. **design-was-wrong** — `D-482` — Cognito-era statements left in 08 §3, §3.1 (bundle mechanism, AWS credentials), §5.3, §6.1 and §6.4 step 5 after the pool was deleted
+3. **design-was-wrong** — `D-482` — 09 §3's capability-19 entry and the capability acceptance named school-hub and six tickets after D-478 made core the sign-in point
+
+- `typecheck` — **pass** — npm run typecheck
+- `lint` — **pass** — npm run lint
+- `unit-tests` — **pass** — npm run test
+- `script-tests` — **pass** — node --test tickets.test.mjs
+- `invariant-sweep` — **pass** — all 30 invariants cited by a test name, and the set is declared complete
+- `boundary-greps` — **pass** — check-boundaries.mjs clean
+- `vigil-test` — **pass** — src/rules/registry-delta.test.ts, app/skills/vigil-peer.test.tsx
+- `validate` — **pass** — 0 errors across open/ and closed/
+- `fog-no-refog` — **pass** — 1 baselined user(s): cells 5224 → 5224, gen 270 → 271 — none lower (docs/capabilities/regression-baseline.json)
+- `xp-not-lower` — **pass** — 1 baselined user(s), 10 skill(s): cartography 27061/L27, constitution 11483/L21, might 120/L5, poise 900/L9, roving 1017/L9, vigil 660/L8, wayfaring 31761/L29 — none lower (docs/capabilities/regression-baseline.json)
+- `blocked-by-closed` — **pass** — no blocked_by points at a closed ticket
+- `capability-tickets-closed` — **pass** — 10 closed
+
+<!-- audit-record {"capability":"19-authjs-migration","audited":"2026-11-04T03:34:42Z","verdict":"pass","mechanical":{"pass":12,"fail":0,"na":0},"divergences":3} -->

@@ -1174,8 +1174,8 @@ dark fog. The two modes differ in label density and layer order, not colour.)*
 
 **The delivery path for the explored set:**
 
-1. `GET /api/fog?since=<generation>` — a route handler that re-derives `sub` from the verified
-   session, reads `users/<uid>/manifest.json` with the **SSR compute role**, and answers with a
+1. `GET /api/fog?since=<generation>` — a route handler that re-derives the uid from the verified
+   session (`currentUserId()`; the former Cognito `sub`, D-471), reads `users/<uid>/manifest.json` with the **SSR compute role**, and answers with a
    plan: `up-to-date`, `delta` (the chain, inline), `full`, or `empty`. *Written here until ticket
    `0054` as a presigned `getUrl()` on the blob; D-228 replaced it. Two reasons: the browser's S3
    grant is keyed by identity-pool id while the objects are keyed by Cognito `sub` — so a presigned

@@ -6078,6 +6078,10 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   handlers that key every read by the verified session `sub`. S3's `entity('identity')` rule covers
   no object (D-228); `/api/fog` and `/api/runs/*` read as the SSR compute role with the key built
   from the session `sub`. There is no `Trace` model.
+  → **Superseded in part by D-472/D-480/D-481 (`0331`, `0334`), recorded by D-482:** the models
+  have no owner rule and are read only by the SSR compute role, the two mutations are deleted, the
+  handlers take `event.userId` from the route, and the storage `access` rule is gone. The CDK-table
+  half stands, keyed by the uid.
 - **D-457** **§2.4 A-1 names the scoping mechanism that exists, and keeps its proof.** *(Operator,
   2026-10-26, from `0303`'s report.)* Re-affirms **D-123** and A-1's test. A-1 required every S3
   prefix to sit under `entity('identity')` or a `raw/<uid>/` IAM condition, which D-228 made
@@ -6196,6 +6200,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   factor. Adding TOTP to a pool that is about to be replaced is rework for one user. SMS MFA stays
   rejected for §9's reasons. **Reopen** if `0138` is dropped or slips indefinitely, or if D-123's
   Trigger A fires, because a second account changes who the password protects.
+  → **Concluded by `0332`/`0334` (2026-11-03), recorded by D-482:** the pool is deleted and
+  Google's account carries the second factor, the end state this decision named.
 - **D-467** **Capability 18 re-audit: nine drifts found and resolved in one commit. The rules gate
   moves before the backend deploy, the focus ring becomes global, and the CDK rule is a list, not
   a count.** *(Operator, 2026-10-28: "fix all now, re-audit now", at the second attempt of the `18`
@@ -6467,3 +6473,19 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   grant, which leaves the SSR compute role as the only invoker. The Lambdas keep
   `resourceGroupName: "data"`, so they update in place. `DeploySmokeTest` stays, because removing a
   model deletes its table. Read-only is the safe default if a grant ever reappears.
+- **D-482** **Capability 19's close audit: `08` §3, §3.1, §5.3, §5.5, §6.1 and §6.4, `09` §3's
+  capability-19 entry and `01` §5 are brought to the post-`0334` state.** *(Agent, 2026-11-03,
+  `/tickets audit 19-authjs-migration`.)* All three divergences were the design lagging the code,
+  never the reverse: each ticket amended the section it touched at the time, and `0334`'s deletion
+  of Cognito left the "until `0334`" sentences written by `0331` and `0332` standing.
+  - **`08` §5.5 and D-456** still described the interim between `0331` and `0334`: owner rules and
+    mutations compiled, handlers accepting `identity.sub`, an `entity('identity')` storage rule.
+    Amended to the built state (D-480, D-481); D-456 marked superseded in part.
+  - **Cognito-era statements elsewhere in `08`:** §3.1's "Cognito-vended credentials the Amplify
+    client obtains" (the browser holds no AWS credential now), §3.1's note that the bundle carries
+    `amplify_outputs.json` through `components/auth-gate.tsx` (deleted; the `custom` block still
+    ships, via `lib/basemap.ts`, checked in a client chunk), §5.3's "the pool survives until
+    `0334`", §6.1's Cognito-user row, §6.4 step 5's `entity('identity')` prefix, S8's "Cognito".
+  - **`09` §3 and the capability doc** named `school-hub` as the sign-in and six tickets. D-478
+    made core the sign-in point and four tickets were filed in flight (`0336`, `0337`, `0339`,
+    `0340`). D-466 is marked concluded: its end state, Google carrying the second factor, arrived.

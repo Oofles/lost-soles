@@ -358,7 +358,7 @@ unused at $0.40/secret/month (§9).
 | S5 | **GitHub fine-grained PAT** (ticket commits) | SSM; read by the `/api/tickets/capture` route only | the capture endpoint's server-side GitHub call | **High and non-obvious.** It writes to the source repo. Constrained to *one repo*, **Contents: read/write, nothing else**, 90-day expiry (`07-ticketsmith.md` §6.2). Even so: repo write → `.github/workflows/` → CI execution. The §6.4 path constraints mean *our endpoint* cannot write there; a **stolen token has no such constraint** | Revoke in GitHub settings (one click), issue a new PAT, update SSM. 90-day expiry forces the habit. **v2 (§6.3 of that doc) replaces it with a GitHub App issuing 1-hour installation tokens — that is the real fix, and this row is why it is worth doing** |
 | S6 | **GitHub webhook secret** (push → cache refresh) | SSM `SecureString` at the shared path, to be read through an explicit `ssm:GetParameter` grant like S1–S3 (D-357, D-362). Said "via `secret()`"; nothing in the backend uses `secret()` since `0290` (D-465) | the cache-refresh webhook's HMAC verification — **route not built; `0110` names it** | Low-medium. Forging deliveries lets an attacker make the ticket browse cache say anything; it grants no repo write | Rotate in the repo webhook settings + SSM together |
 | S7 | `INGEST_BEARER_TOKEN` (post-MVP, D-112/D-113) | SSM `SecureString`, to be read through an explicit `ssm:GetParameter` grant, as S6. Said "via `secret()`" (D-465) | `/api/ingest` | Medium. Lets an attacker inject fabricated traces — a data-integrity problem, not a disclosure one. Note it can also *reveal* nothing | Change the parameter and the device config. Per-device tokens when there is more than one device |
-| S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, Cognito, billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
+| S8 | **AWS deploy credentials** | Amplify Hosting's GitHub connection (an OAuth app/installation, not a stored key) + the operator's local `~/.aws/credentials` for `ampx sandbox` | Amplify build, the operator's machine | **Total.** Account-level compromise: the S3 archive, DynamoDB, the SSM-held `AUTH_SECRET` (S10), billing. This is the O-005 class of finding (§7) | IAM: deactivate → create new → verify → delete old. Prefer **IAM Identity Center / short-lived SSO credentials over long-lived access keys on the laptop**; a long-lived `AKIA…` on disk is what §7 is about |
 | S9 | **Map tile access** | *None.* pmtiles on a private S3 bucket (`lost-soles-tiles`) behind our own CloudFront distribution, fetched by HTTP range from the browser (`01-architecture.md` §8; D-226, D-250) | the browser | **No credential exists in the browser.** The distribution is public by design and serves a generic basemap identical for every user, with zero Lost Soles data in it. The bucket is `BLOCK_ALL`; CloudFront reads it through Origin Access Control. *(Amended, 08 audit 2026-09-28: said Cloudflare R2 / public-read bucket.)* | n/a — see the §2.4 C-1 constraint: no explored data ever gets baked into a tile |
 | S10 | **`AUTH_SECRET`** (Auth.js session signing and encryption key; D-471, ticket `0330`) | SSM SecureString `/amplify/shared/d14fhvl4rp79nn/AUTH_SECRET`, the **same value** every app on core's SSO holds: core, `school-hub` and `eve-ops` (D-478, ticket `0339`; sha256 prefix `a744072a9a`; until `0339` it was `school-hub`'s older value). `amplify.yml`'s build phase writes it into `.env.production` (`scripts/write-authjs-env.mjs`), server-only, never `NEXT_PUBLIC_` | next-auth, at request time, in the SSR compute (`/api/authjs/*`, `currentUserId()`) and in `middleware.ts` | **High.** Anyone holding it can mint a session for any email, on every app on `.devaultsecurity.com` that shares it. Lost Soles still admits only an email on `AUTH_ALLOWED_EMAILS` **and** in `IDENTITIES`, so a forged session is limited to an email Lost Soles maps — which is the owner's | Generate a new value; update it in **every app on the domain together** (core, `school-hub`, `eve-ops` and Lost Soles, D-478), then redeploy them all. Rotating signs out every app at once, because they share one cookie |
 | S11 | **`GOOGLE_CLIENT_SECRET`** (+ `GOOGLE_CLIENT_ID`) (D-471, ticket `0330`) | SSM SecureString `/amplify/shared/d14fhvl4rp79nn/GOOGLE_CLIENT_SECRET` and `…/GOOGLE_CLIENT_ID`. **`school-hub`'s OAuth client, reused** (operator, 2026-11-02), with Lost Soles' redirect URI `https://soles.devaultsecurity.com/api/authjs/callback/google` added to it. Delivered as S10 | next-auth's Google provider, server-side only | Medium. With it an attacker can complete OAuth flows as the app, but Google still authenticates the person, and the redirect URIs are fixed on the client. The client id is public by design (it is in every authorize URL) | Google Cloud console → reset the secret → update SSM for both apps → redeploy both |
@@ -373,8 +373,9 @@ Restating `01-architecture.md` §7 because it is the rule that gets broken:
   boolean.
 - **No client secret, no webhook verify token, no GitHub PAT, no ingest bearer token, no
   `AUTH_SECRET` (S10), no Google client secret (S11).**
-- **No AWS credential** beyond the Cognito-vended, identity-scoped temporary credentials the
-  Amplify client obtains for the user themself.
+- **No AWS credential at all.** *(Since `0332`/`0334`, D-473: there is no Amplify client and no
+  identity pool, so the browser holds no AWS credential of any kind. This said "beyond the
+  Cognito-vended, identity-scoped temporary credentials the Amplify client obtains".)*
 - **The client never talks to Strava or GitHub directly.** All third-party traffic originates
   from a Lambda.
 
@@ -405,8 +406,9 @@ secrets and coordinates leak, and an unbounded log group is both a liability and
 > the work keeps its own group at **1 day**, by CDK design. `amplify/log-retention.test.ts` fails the
 > synth on a function without it.
 
-**Not secrets, and must not be mistaken for leaks:** `amplify_outputs.json` (Cognito pool ID,
-app client ID, identity pool ID, AppSync endpoint, **and the `custom` block**) and
+**Not secrets, and must not be mistaken for leaks:** `amplify_outputs.json` (the AppSync endpoint,
+the storage bucket name, **and the `custom` block**; no `auth` block since `0334` deleted
+`defineAuth`) and
 `TILES_BASE_URL`. These are public identifiers protected by policy, not obscurity.
 `amplify_outputs.json` is gitignored because it is generated per-environment, not because it is
 sensitive.
@@ -425,10 +427,12 @@ sensitive.
 > - The account id is **already public by this project's own choice** — `CLAUDE.md` states it, and
 >   the repository is public. Publishing it again in a bundle changes nothing about the exposure.
 >
-> Note the mechanism, since it is not obvious: `components/auth-gate.tsx` is a client component and
-> `Amplify.configure(outputs)` needs the whole object, so **everything in `amplify_outputs.json`
-> reaches the browser** — not just the fields the client uses. Anything added to `custom` is
-> published. A value that genuinely must stay server-side does not belong there; it belongs in SSM
+> Note the mechanism, since it is not obvious: `lib/basemap.ts` imports `amplify_outputs.json` into
+> client code for the tiles URL, and the bundler keeps the `custom` object it reads from, so **the
+> whole `custom` block reaches the browser** (checked at the capability-19 audit: a client chunk
+> carries `activityIngestQueueUrl`). Anything added to `custom` is published. *(Until `0332` the
+> mechanism was `components/auth-gate.tsx` calling `Amplify.configure(outputs)`, which shipped the
+> whole file; that component is deleted, D-473, D-482.)* A value that genuinely must stay server-side does not belong there; it belongs in SSM
 > with an IAM grant, the way the OAuth client credentials do (§7.1).
 
 ---
@@ -756,7 +760,7 @@ can mint a session Lost Soles accepts: core, `school-hub` and `eve-ops` today. T
 are about where the session lives, how long it is worth and how it is ended. Until `0332` this table
 described Amplify's Cognito tokens: `localStorage` JWTs, a 1-hour ID token, a 1-year refresh token,
 app-client revocation and a bearer path for non-browser clients. All of that is gone with the
-Authenticator. The Cognito pool itself survives until `0334`, and nothing reads it.
+Authenticator. The Cognito pool itself was deleted by `0334`'s deploy (D-473).
 
 | Concern | Decision |
 |---|---|
@@ -814,7 +818,7 @@ magnitude. Anyone estimating "add friends" as a small ticket has not read §2.4.
 With one user, authorization is nearly vacuous — which is exactly why it must be written as if
 it were not, since §5.4 is designed to make a second user appear one day.
 
-- **Every read and write is scoped by the JWT's `sub`** — by a different mechanism per store,
+- **Every read and write is scoped by the session's uid** (the former Cognito `sub`, D-471) — by a different mechanism per store,
   and the list below is what is built, not what was first planned (D-456; this bullet once
   named a `Trace` model and two CDK tables as Amplify models):
   - **`defineData` models — read by the SSR compute, keyed by the session (D-472, `0331`).** The
@@ -828,15 +832,18 @@ it were not, since §5.4 is designed to make a second user appear one day.
     (`amplify/ssr-model-read-grant.test.ts`). Its two writes, `POST /api/log` and
     `POST /api/runs/[activityId]/kind`, refuse a foreign `Origin` (D-471) and then `lambda:Invoke`
     `log-workout` and `set-activity-kind` with a server-set `userId`. IAM on that invoke is the
-    trust anchor: the SSR compute role is granted it on those two function ARNs only, the only
-    other invoker is AppSync's own resolver data source until `0334` removes the mutations, and
-    each handler still checks the owner allowlist. The owner rules on the models
-    (`allow.owner().to(["read"])`, `Profile` `allow.owner()`) and the mutations'
-    `allow.authenticated()` exposure stay compiled, uncalled by the browser, until `0334` makes the
-    data API IAM-only with no caller; until then a handler also accepts AppSync's `identity.sub`,
-    so a tab loaded before `0331` does not have its queued log refused and dropped.
+    trust anchor: the SSR compute role is the only principal granted it, on those two function
+    ARNs, and each handler still checks the owner allowlist on `event.userId`. **Since `0334`
+    (D-472, D-480, D-481) the data API is IAM-only and has no caller:** every model carries only
+    `allow.authenticated("identityPool").to(["read"])`, the one IAM rule Gen 2 accepts, and the
+    `appsync:GraphQL` policy the transformer generates for it is removed in `amplify/backend.ts`
+    (`amplify/data-iam-only.test.ts`). The `logWorkout` and `setActivityKind` mutations are deleted
+    from the schema, so AppSync holds no invoke grant on either Lambda, and the handlers no longer
+    read `identity.sub`.
     *(Amended by `0331`, D-472: this bullet said the browser read the models through Amplify Data
-    owner auth, and the mutation handlers took the user from `identity.sub`.)*
+    owner auth, and the mutation handlers took the user from `identity.sub`. Amended at the
+    capability-19 audit, D-482: it then still described the owner rules and mutations as compiled
+    "until `0334`".)*
   - **CDK tables — IAM plus handler scoping.** `ExploredCell`, `SourceAccount`, `OAuthState`,
     `IngestReceipt` and `CaptureGuard` are not `defineData` models and have no owner rule. No
     browser credential reaches any of them. They are reached only by roles: the pipeline Lambdas,
@@ -845,18 +852,19 @@ it were not, since §5.4 is designed to make a second user appear one day.
     `SourceAccount`/`OAuthState` connect routes, the Sync action and `CaptureGuard`, also require
     the owner allowlist. `ExploredCell` has no app read path at all: the browser gets the map from
     S3 blobs.
-  - **S3 — `entity('identity')`, and the route that actually serves it.** `storage/resource.ts`
-    grants `users/{entity_id}/*` to `allow.entity("identity")`, but `{entity_id}` is the
-    identity-pool id and every key is written under the user-pool `sub`, so that rule covers no
-    object (D-228). The browser reads its own objects through `/api/fog` and `/api/runs/*`, which
-    run as the SSR compute role (`s3:GetObject` on `users/*`) with the key built from the
-    session's `sub`. `raw/` and `snapshots/` have no browser or compute read grant.
+  - **S3 — no browser grant, and the route that actually serves it.** `storage/resource.ts` has
+    no `access` block since `0334` (D-472). It held one rule, `users/{entity_id}/*` for
+    `allow.entity("identity")`, which never matched an object: `{entity_id}` was the
+    identity-pool id and every key is written under the uid (D-228). The browser reads its own
+    objects through `/api/fog` and `/api/runs/*`, which run as the SSR compute role
+    (`s3:GetObject` on `users/*`) with the key built from the session's uid. `raw/` and
+    `snapshots/` have no browser or compute read grant.
 
   The owner scoping of the CDK tables and of S3 is therefore a property of the handlers, not of
   IAM: one role serves every user. §2.4's A-1 test (user B gets a 403/empty on user A's `uid`)
   is what proves it.
 - **There is exactly one privileged role: the owner.** It is `OWNER_USER_IDS` in
-  `lib/auth/owner-ids.ts`, a committed list of Cognito `sub`s, hard-coded on purpose: a `sub` is
+  `lib/auth/owner-ids.ts`, a committed list of uids (former Cognito `sub`s, D-471), hard-coded on purpose: a uid is
   an identifier, not a credential, and a control that must fail closed should have no runtime
   dependency that can be unavailable. An empty list 404s everything. Not an SSM parameter, not a
   roles table, not RBAC. *(Amended by D-465: this bullet said the role gated
@@ -865,8 +873,9 @@ it were not, since §5.4 is designed to make a second user appear one day.
   - `POST /api/tickets/capture` (`07-ticketsmith.md` §6.4(1), restated in §2.4 A-6);
   - the source `start`, `callback` and `disconnect` routes (`app/api/auth/[source]/shared.ts`);
   - the manual Sync server action (`app/sync-action.ts`) and `/settings` (`app/settings/page.tsx`);
-  - the `logWorkout` and `setActivityKind` mutation handlers, which import the list directly
-    (`amplify/functions/*/handler.ts`).
+  - the `log-workout` and `set-activity-kind` Lambda handlers, which import the list directly
+    and check the route-set `event.userId` (`amplify/functions/*/handler.ts`; the AppSync mutations
+    that once fronted them are deleted, D-481).
 
   `reconcile-sweep` takes the same list as the set of users it sweeps
   (`lib/sources/reconcile-sweep.ts`). With one user, owner-only and signed-in are the same set, so
@@ -892,7 +901,7 @@ it were not, since §5.4 is designed to make a second user appear one day.
 | `SourceAccount` (Strava tokens, S4) | DynamoDB | Until deauthorization | Deleted the moment the connection is removed (§6.5) |
 | `IngestReceipt` | DynamoDB | **TTL 90 days** (§4.3; was "~30 days", corrected by D-349 to match T8) | A replay ledger, not a record |
 | CloudWatch logs | CloudWatch | **30-day retention** (§3.1) | Logs are where coordinates and secrets leak by accident; an unbounded log group is a liability and a bill |
-| Cognito user | Cognito | Until account deletion | — |
+| ~~Cognito user~~ | ~~Cognito~~ | — | Gone: the pool and its one user were deleted with `defineAuth` in `0334` (D-473). The row below replaces it |
 | Identity: email in `AUTH_ALLOWED_EMAILS`, `IDENTITIES` entry (D-471) | SSM / source | Until account deletion (§6.4 steps 3 and 6c, `0333`) | — |
 
 **Nothing in this system expires on a timer except the two rows that are pure mechanism.** That
@@ -999,8 +1008,11 @@ In order, and the order matters:
    only, so this delete is an operator action under an operator's credentials. Partition-key scoping (§5.5) is what makes this a query
    rather than a scan, which is a second, quieter reason every model is owner-scoped — except
    `ExploredCell` and `IngestReceipt`, found by a filtered scan (D-402).
-5. **Delete `raw/<uid>/` and the user's `entity('identity')` prefix — under the break-glass
-   role** (§6.2). This is the one step that requires deliberately assuming a role, and that
+5. **Delete `raw/<uid>/` — under the break-glass role** (§6.2) — and `users/<uid>/` and
+   `snapshots/skillstate/<uid>/` (`s3Prefixes` in `tools/account-deletion/deletion.ts`).
+   *(Said "and the user's `entity('identity')` prefix". That rule never matched an object (D-228)
+   and is gone since `0334`; the script's optional `--identity-id` sweep is kept only to prove no
+   such prefix exists, D-482.)* This is the one step that requires deliberately assuming a role, and that
    friction is intentional: it is the difference between a bug deleting the archive and a person
    deleting it.
 6. **Purge versions.** Versioning is on (§6.2), so an object "deleted" in step 5 is a delete
