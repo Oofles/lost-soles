@@ -1151,6 +1151,11 @@ walks this list.
       `nightly-reconcile`) have both run successfully on schedule at least once.
 - [ ] A poisoned message lands in the DLQ and is visible somewhere a human looks.
 - [ ] Cognito self-signup is OFF and unauthenticated identities are OFF (`08` §5.1).
+      *(2026-11-03, ticket `0335`: no Cognito resource is left (`0334`, D-425). Re-pointed to
+      "a Google account outside the allowlist cannot sign in" and "no unauthenticated principal
+      reaches any data", both proven by attack on production in `0335`'s Resolution. A session for
+      a non-allowlisted email gets 403 on pages and 404 on every `/api/*`; unsigned AppSync gets
+      401, unsigned S3 gets 403. `scripts/check-auth-posture.mjs` asserts it on every deploy.)*
 - [ ] No secret in the client bundle — the §7 forbidden-list grep passes against `.next/static`.
 - [ ] gitleaks passes on the full history; the O-005 key is rotated and its file is gitignored.
 - [ ] ~~A billing alarm exists at $10/month, and~~ one month of real billing is at or under the D-083
