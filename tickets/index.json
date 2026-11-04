@@ -7885,5 +7885,92 @@
       "checked": 4,
       "total": 4
     }
+  },
+  {
+    "id": 341,
+    "slug": "one-measure-many-exercises",
+    "title": "A skill's one measure can be fed by several exercises, each with a unit conversion",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-04T05:04:40Z",
+    "path": "tickets/open/0341-one-measure-many-exercises.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 342,
+    "slug": "split-strength-log",
+    "title": "A split strength log: one activity, one minutes set per body region",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      341
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-04T05:04:40Z",
+    "path": "tickets/open/0342-split-strength-log.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 5
+    }
+  },
+  {
+    "id": 343,
+    "slug": "rules-v5-strength-regions-and-iron",
+    "title": "Rules v5: Might, Footing, Fortitude by body region; Endurance becomes Iron",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      341,
+      342
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-04T05:04:40Z",
+    "path": "tickets/open/0343-rules-v5-strength-regions-and-iron.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
+  },
+  {
+    "id": 344,
+    "slug": "log-redesign-strength-split",
+    "title": "Redesign /log around the Strength workout split entry",
+    "type": "feature",
+    "priority": "high",
+    "status": "open",
+    "size": "m",
+    "capability": "10-add-workout",
+    "depends_on": [
+      343
+    ],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-04T05:04:40Z",
+    "path": "tickets/open/0344-log-redesign-strength-split.md",
+    "ready": false,
+    "acceptance": {
+      "checked": 0,
+      "total": 6
+    }
   }
 ]

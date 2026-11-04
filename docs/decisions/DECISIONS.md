@@ -6489,3 +6489,50 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **`09` §3 and the capability doc** named `school-hub` as the sign-in and six tickets. D-478
     made core the sign-in point and four tickets were filed in flight (`0336`, `0337`, `0339`,
     `0340`). D-466 is marked concluded: its end state, Google carrying the second factor, arrived.
+
+- **D-483** **Strength workouts are logged by time and split across three body-region skills:
+  Might (upper), Footing (lower) and Fortitude (core and total body), at 30 XP per minute. A new
+  meta skill, Iron, takes a third of all three. It ships as rules v5.** *(Operator and agent,
+  2026-11-03/04, tickets `0341`–`0344`. The operator started Beachbody's Dig Deeper, a
+  strength program of ~45-minute sessions in eleven body-part categories.)*
+  - **Skills.**
+    - `might` stays Might, and becomes upper body: workout minutes plus pushups.
+    - `footing` is new, for lower body: workout minutes.
+    - `fortitude` stays Fortitude, and becomes core and total body: workout minutes plus
+      situps and planks. Total-body days and core work are one category (operator).
+    - `endurance` becomes the meta skill, renamed **Iron**: `kind: meta`, no exercises.
+      Might, Footing and Fortitude each feed it at 0.3333, beside Constitution's 0.3333, so
+      Iron tracks the average strength level. The id stays `endurance`, because ids are never
+      renamed. The swap moves no XP: on 2026-11-02 (`0329`'s replay) Endurance and Fortitude
+      each held 0 XP. Might's 80 XP of pushups stays in Might.
+    - Rejected: a fresh `iron` row with Endurance retired. Disabling a row lowers Total Level,
+      which §4.1 forbids. Also rejected: keeping Endurance as the core skill (the operator
+      prefers Fortitude), and a separate Core skill (abs never appear alone in the program).
+  - **Rate: 0.5 XP/s = 30 XP/min, identical to Poise (D-469), at any length** (operator).
+    A 45-minute session earns 1,350 XP, against a run's 885. This **knowingly exceeds session
+    parity** (`04` §3.2). A strength minute and a yoga minute are worth the same, and that is
+    the rule. It is not a balance bug.
+    - Soft cap 3600 s per skill per session, sanity ceiling 10800 s, as Poise has.
+  - **Pushups, situps and planks keep their v4 XP** (4 per rep, 3 per rep, 1.5 per second).
+    That is far below a workout minute: 25 pushups = 100 XP, about 3⅓ minutes of workout.
+    No historical XP moves (D-135).
+  - **The schema change: one measure per skill, many exercises feeding it.** Might would hold
+    two entry kinds, and Fortitude three. Each exercise therefore declares a conversion into its
+    skill's one `seconds:` measure: a pushup is 8 s, a situp 6 s, a plank second 3 s. D-191 (one
+    measure per row) stands unchanged. `entry` ⇒ `seconds:<exerciseId>` stops being the only
+    legal pairing.
+  - **The split.** /log gets a single generic **Strength workout** entry. You enter the
+    length in minutes, then each region's share (Upper / Lower / Core & total body). Shares
+    step by 10% and must sum to 100%. One log is one activity carrying one set per region with
+    a non-zero share. The minutes are apportioned in whole seconds, and the remainder goes to the
+    largest share.
+    - Rejected: eleven named Dig Deeper presets with default splits. The generic entry outlives
+      any one program (operator).
+    - Rejected: assigning each mixed day wholly to one region (operator wants real proportions).
+  - **/log is redesigned** (operator invited it). `06` §6.5's "rows only, no sections" rule is
+    reopened by the split entry, the first entry that is not one number. `0344` settles the
+    layout with a mock the operator approves before it is built.
+  - **Power** (`04` §5.2, post-MVP) becomes `mean(Might, Footing, Fortitude)`: Iron already
+    summarises them, and Endurance no longer trains.
+  - **Out of scope:** Strava `WeightTraining` stays ignored (manual logging only, operator), and
+    so do individual movements (chest press, underhand row): too fine-grained for a skill.
