@@ -127,3 +127,9 @@ A split log through the deployed page against the live API in a test path that i
 - The route forwards `split` (`LOG_FIELDS`).
 - The Lambda's live `BAD_SPLIT` refusals of a split were proven in `0343`.
 - The first accepted split log is the operator's real session, below.
+
+### Operator, 2026-11-04, desktop browser
+
+After deploy, logged a real Dig Deeper session through the Strength workout split entry on /log.
+The operator's words: "Looks great and logging worked perfectly." This was the first accepted
+split log through the live path (page → `/api/log` → log-workout Lambda).
