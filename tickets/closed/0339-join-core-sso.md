@@ -4,7 +4,7 @@ slug: join-core-sso
 title: Join core's SSO: shared secret and cookie name, signed-out visitors go to core
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 19-authjs-migration
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-03T18:33:38Z
 started: 2026-11-03T18:50:51Z
+closed: 2026-11-04T01:30:05Z
 ---
 
 ## Description
