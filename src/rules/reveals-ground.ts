@@ -69,6 +69,6 @@ export function revealsGround(
           "revealed by an omitted line is permanent (D-020).",
       )
     }
-    return skill.revealsGround && measureUnits(activity, skill.match!.measure) >= skill.minUnitsForCredit
+    return skill.revealsGround && measureUnits(activity, skill.match!.measure, skill.exercises) >= skill.minUnitsForCredit
   })
 }

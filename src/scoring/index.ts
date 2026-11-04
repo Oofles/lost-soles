@@ -11,6 +11,7 @@ export {
   measureUnits,
   scoreUnits,
   SET_FIELDS,
+  SET_FIELD_BY_ENTRY,
   setFieldOf,
   type ScorableActivity,
   type SetField,

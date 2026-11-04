@@ -23,7 +23,7 @@
 
 import type { Activity, ActivityKind, WorkoutSet } from "@/src/domain/activity"
 import type { RuleExercise, RuleSkill } from "@/src/rules/schema"
-import { SET_FIELDS, setFieldOf, type SetField } from "@/src/scoring/units"
+import { SET_FIELDS, SET_FIELD_BY_ENTRY, setFieldOf, type SetField } from "@/src/scoring/units"
 
 /**
  * One set as the client sends it. The exercise is NOT repeated per set on the wire — an entry
@@ -144,6 +144,8 @@ export function entryFieldFor(
   if (!found) return null
   const measure = found.skill.match!.measure
   if (found.exercise.entry === "distance") return measure === "distanceKm" ? "distanceM" : null
+  // D-483: a scaled exercise carries its own entry's field, whatever its skill tallies.
+  if (found.exercise.scale !== undefined) return SET_FIELD_BY_ENTRY[found.exercise.entry]
   const resolved = setFieldOf(measure)
   return resolved && resolved.exercise === exerciseId ? resolved.field : null
 }

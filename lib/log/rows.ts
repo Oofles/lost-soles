@@ -96,7 +96,8 @@ export function logRows(registry: { skills: readonly RuleSkill[] }): LogRow[] {
       (skill.exercises ?? []).map((ex): LogRow => {
         const decimals = DECIMALS_BY_ENTRY[ex.entry]
         const unit = 10 ** -decimals
-        const credit = skill.minUnitsForCredit / SKILL_UNITS_PER_ROW_UNIT[ex.entry]
+        // A scaled exercise's one unit is `scale` of the skill's (D-483): one pushup at 8 is 8 s.
+        const credit = skill.minUnitsForCredit / (SKILL_UNITS_PER_ROW_UNIT[ex.entry] * (ex.scale ?? 1))
         const min = Math.max(unit, roundTo(Math.ceil(credit / unit) * unit, decimals))
         return {
           skillId: skill.id,

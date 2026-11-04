@@ -69,6 +69,17 @@ export interface RuleExercise {
    * before D-286 was. Must be one of its skill's `match.kinds`, or the log would score nothing.
    */
   kind?: ActivityKind
+  /**
+   * How many of the skill's measure units ONE unit of this exercise's set field is (D-483,
+   * ticket 0341). Absent means the pre-v5 rule: the exercise's id IS its skill's measure suffix
+   * (`count` ⇒ `reps:<id>`, `seconds`/`minutes` ⇒ `seconds:<id>`) and each unit counts once.
+   *
+   * Present, the exercise feeds its skill's `reps:`/`seconds:` measure whatever the suffix: the
+   * set's entry field (`reps` for a count, `durationS` for seconds and minutes) times `scale`.
+   * A pushup at 8 on a `seconds:` tally is 8 s of work, so one skill can take strength minutes
+   * and pushups and still tally ONE quantity (D-191 stands). Not allowed on a `distance` entry.
+   */
+  scale?: number
 }
 
 export interface RuleSkill {

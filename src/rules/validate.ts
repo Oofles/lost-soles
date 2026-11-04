@@ -198,8 +198,15 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
  * - `kind`, when present, is an ActivityKind the row's `match.kinds` admits. Absent means
  *   `strength`, which must then be admitted too — a log the row would not match scores zero.
  * - An exercise id is unique across the whole ruleset, because a log names only the exercise.
+ * - D-483 (`0341`): an exercise with `scale` skips the id ⇒ measure rule. It feeds its skill's
+ *   `reps:`/`seconds:` measure by conversion instead, so `scale` must be finite and positive, the
+ *   measure set-summed, and the entry not `distance`.
  */
 const ENTRY_KINDS = ["count", "seconds", "distance", "minutes"] as const
+
+function isSetMeasure(measure: unknown): boolean {
+  return typeof measure === "string" && MEASURE_PREFIXES.some((p) => measure.startsWith(p))
+}
 
 function entryAgreesWithMeasure(entry: string, exerciseId: string, measure: unknown): boolean {
   if (entry === "count") return measure === `reps:${exerciseId}`
@@ -225,6 +232,23 @@ function validateExercises(skill: RuleSkill, i: number, errs: RuleError[], ids: 
     else ids.set(ex.id, at)
     if (!(ENTRY_KINDS as readonly string[]).includes(ex.entry)) {
       errs.push({ path: `${at}.entry`, message: `${JSON.stringify(ex.entry)} is not an entry kind (${ENTRY_KINDS.join(", ")})` })
+    } else if (ex.scale !== undefined) {
+      // D-483, ticket 0341: a scaled exercise feeds its skill's set-summed measure by conversion.
+      const scale: unknown = ex.scale
+      if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0) {
+        errs.push({ path: `${at}.scale`, message: "must be a finite number greater than 0" })
+      }
+      if (ex.entry === "distance") {
+        errs.push({
+          path: `${at}.scale`,
+          message: "a distance entry cannot be scaled: it folds into Activity.distanceM, which no set-summed measure reads",
+        })
+      } else if (!isSetMeasure(skill.match?.measure)) {
+        errs.push({
+          path: `${at}.scale`,
+          message: `a scaled exercise needs a reps:/seconds: measure, not ${JSON.stringify(skill.match?.measure)}: the log would score nothing`,
+        })
+      }
     } else if (!entryAgreesWithMeasure(ex.entry, ex.id, skill.match?.measure)) {
       errs.push({
         path: `${at}.entry`,
@@ -542,6 +566,22 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
             message: "required — a share is an attribute of the feeder row, never a constant in code",
           })
         }
+      })
+    }
+  })
+
+  // D-483, ticket 0341 — a set-summed measure's suffix may not name ANOTHER skill's exercise.
+  // The unscaled path sums every set whose exercise is the suffix, so `seconds:plank` on one row
+  // and a scaled `plank` exercise on another would score each plank set twice.
+  skills.forEach((s, i) => {
+    const measure = s?.match?.measure
+    if (!isSetMeasure(measure)) return
+    const suffix = (measure as string).slice((measure as string).indexOf(":") + 1)
+    const owner = exerciseIds.get(suffix)
+    if (owner !== undefined && !owner.startsWith(`skills[${i}].`)) {
+      errs.push({
+        path: `skills[${i}].match.measure`,
+        message: `${JSON.stringify(measure)} names exercise ${JSON.stringify(suffix)}, which ${owner} logs for another skill: its sets would score twice`,
       })
     }
   })

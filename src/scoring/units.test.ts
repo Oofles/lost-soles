@@ -237,3 +237,59 @@ describe("no branch on a skill id in src/scoring (I-25, D-031, D-141)", () => {
     expect(re.test("const units = measureUnits(a, m)")).toBe(false)
   })
 })
+
+/** Ticket 0341, D-483 — one `seconds:` tally fed by exercises of different entry kinds. */
+describe("a scaled exercise feeds its skill's one measure", async () => {
+  const { scaledTallyRuleSet, TALLY_MEASURE, WORKOUT_EXERCISE } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const tally = scaledTallyRuleSet()
+
+  it("sums minutes (as seconds) and pushups (× 8) into one tally, once per activity", () => {
+    const got = scoreUnits(
+      strength([
+        { exercise: WORKOUT_EXERCISE, durationS: 1800 },
+        { exercise: "pushup", reps: 20 },
+        { exercise: "pushup", reps: 5 },
+      ]),
+      tally,
+    )
+    expect(got).toEqual([{ skillId: "might", measure: TALLY_MEASURE, units: 1800 + 25 * 8 }])
+  })
+
+  it("a pushup alone scores what it did under v4: 20 × 8 s × 0.5 XP/s = 80 = 20 × 4", () => {
+    const [u] = scoreUnits(strength([{ exercise: "pushup", reps: 20 }]), tally)
+    expect(u!.units * tally.skills.find((s) => s.id === "might")!.xpPerUnit).toBe(80)
+  })
+
+  it("reads each exercise's own entry field: a pushup's durationS is not counted", () => {
+    expect(measureUnits(strength([{ exercise: "pushup", reps: 2, durationS: 999 }]), TALLY_MEASURE,
+      tally.skills.find((s) => s.id === "might")!.exercises)).toBe(16)
+  })
+
+  it("without the skill's exercises, a tally counts only sets named for its suffix (the pre-v5 rule)", () => {
+    expect(measureUnits(strength([{ exercise: "pushup", reps: 20 }]), TALLY_MEASURE)).toBe(0)
+  })
+
+  it("leaves the other skills' measures alone", () => {
+    const got = scoreUnits(strength([{ exercise: "pushup", reps: 10 }, { exercise: "situp", reps: 30 }]), tally)
+    expect(skillIds(got)).toEqual(["fortitude", "might"])
+  })
+})
+
+describe("every shipped ruleset scores as it did before scaling existed (0341)", () => {
+  const sets: WorkoutSet[] = [
+    { exercise: "pushup", reps: 25 },
+    { exercise: "situp", reps: 30 },
+    { exercise: "plank", durationS: 90 },
+    { exercise: "yoga", durationS: 1800 },
+  ]
+  it.each([1, 2, 3, 4])("v%i: no exercise is scaled, and each measure sums its own suffix", (v) => {
+    const r = loadRuleSet(v)
+    expect(r.skills.flatMap((s) => s.exercises ?? []).some((e) => e.scale !== undefined)).toBe(false)
+    const got = scoreUnits(strength(sets), r)
+    for (const u of got) {
+      const suffix = u.measure.slice(u.measure.indexOf(":") + 1)
+      const field = u.measure.startsWith("reps:") ? "reps" : "durationS"
+      expect(u.units).toBe(sets.filter((s) => s.exercise === suffix).reduce((n, s) => n + (s[field] ?? 0), 0))
+    }
+  })
+})

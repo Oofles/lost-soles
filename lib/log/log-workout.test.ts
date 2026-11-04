@@ -256,3 +256,38 @@ describe("a hand-logged yoga session (0329, D-469)", () => {
     await expect(logWorkout(yoga, USER, h.deps)).rejects.toBeInstanceOf(LogWorkoutRefused)
   })
 })
+
+/**
+ * `0341`, D-483: one `seconds:` tally fed by a scaled minutes exercise and a scaled pushup, through
+ * the real adapter and the UNCHANGED `processActivity`. The fixture is v4 with Might as a tally.
+ */
+describe("scaled exercises feed one tally (0341, D-483)", async () => {
+  const { scaledTallyRuleSet, WORKOUT_EXERCISE } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const TALLY = scaledTallyRuleSet()
+  const ledgerXp = (h: ReturnType<typeof harness>, id: string) =>
+    Number(h.transacts[0]!.TransactItems!.find((i) => i.Put?.TableName === LEDGER_TABLE && i.Put.Item!.skillId === id)!.Put!.Item!.xpAwarded)
+  const workout = { exerciseId: WORKOUT_EXERCISE, sets: [{ durationS: 1800 }], idempotencyKey: "k-w", timezone: "America/Denver" }
+
+  it("thirty minutes of workout is 900 to the tally's skill", async () => {
+    const h = harness({}, false, TALLY)
+    await logWorkout(workout, USER, h.deps)
+    expect(ledgerXp(h, "might")).toBe(900)
+  })
+
+  it("thirty pushups are still 120, as under v4 (4 XP each)", async () => {
+    const h = harness({}, false, TALLY)
+    await logWorkout(pushups, USER, h.deps)
+    expect(ledgerXp(h, "might")).toBe(120)
+  })
+
+  it("the soft cap applies once to the tally, not per exercise", async () => {
+    const h = harness({}, false, TALLY)
+    await logWorkout({ ...workout, sets: [{ durationS: 5400 }] }, USER, h.deps)
+    expect(ledgerXp(h, "might")).toBe(2250)
+  })
+
+  it("a pushup set carrying seconds is refused: a scaled count logs reps", async () => {
+    const h = harness({}, false, TALLY)
+    await expect(logWorkout({ ...pushups, sets: [{ durationS: 30 }] }, USER, h.deps)).rejects.toBeInstanceOf(LogWorkoutRefused)
+  })
+})

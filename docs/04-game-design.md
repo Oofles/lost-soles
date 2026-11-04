@@ -479,6 +479,12 @@ measures and not the other. There is no sensible tie-break for a row that is hal
 both reps and seconds — is two rows that happen to share a display name. That costs a `displayOrder`
 and a line, and it keeps the matcher's grouping total.
 
+*Amended by D-483 (ticket `0341`):* **one measure can be fed by several exercises.** An exercise
+with a `scale` converts its own entry into its row's measure (`02` §3.7): Might in v5 tallies
+`seconds`, and takes strength minutes at `scale: 1` and pushups at `scale: 8`. The row still owns
+one quantity, so this section's rule is unchanged. What changed is that "two quantities" which are
+honestly the same work — time under load, however it was logged — can be one.
+
 **This is not a limitation to route around later.** It is the same shape as the rest of the schema:
 the general mechanism is rows, and the answer to "I need one row to do two things" is two rows.
 `02-data-model.md` §3.7's closed set of four kernels is the same principle at the layer below.

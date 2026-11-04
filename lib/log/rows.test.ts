@@ -242,3 +242,19 @@ describe("what one click sends", () => {
     expect("timezone" in entry).toBe(false)
   })
 })
+
+describe("a scaled exercise's row (0341, D-483)", async () => {
+  const { scaledTallyRuleSet, WORKOUT_EXERCISE } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const rows = logRows(scaledTallyRuleSet())
+  const row = (id: string) => rows.find((r) => r.exerciseId === id)!
+
+  it("floors at one unit of its own entry, converted through scale: 8 s of credit is one pushup", () => {
+    expect(row("pushup").min).toBe(1)
+    expect(row(WORKOUT_EXERCISE).min).toBe(1)
+  })
+
+  it("writes its own entry's field, whatever the skill tallies", () => {
+    expect(entrySetFor(row("pushup"), 25, scaledTallyRuleSet())).toEqual({ reps: 25 })
+    expect(entrySetFor(row(WORKOUT_EXERCISE), 45, scaledTallyRuleSet())).toEqual({ durationS: 2700 })
+  })
+})

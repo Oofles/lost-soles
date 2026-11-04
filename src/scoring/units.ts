@@ -19,7 +19,7 @@
  */
 
 import type { Activity, WorkoutSet } from "@/src/domain/activity"
-import type { Measure, RuleSkill } from "@/src/rules/schema"
+import type { Measure, RuleExercise, RuleSkill } from "@/src/rules/schema"
 import { selectActivitySkills } from "@/src/rules/select-activity-skills"
 
 /** The subset of an `Activity` the scorer reads: what the matcher reads, plus the work. */
@@ -37,10 +37,13 @@ export interface SkillUnits {
  * `trace`, `reps` and `duration` kernels; `derived` (`cells`, `share`) is deliberately
  * absent, because those units come from another subsystem, never off the activity.
  */
-const KERNELS: Record<string, (a: ScorableActivity, exercise: string) => number> = {
+const KERNELS: Record<
+  string,
+  (a: ScorableActivity, exercise: string, exercises: readonly RuleExercise[]) => number
+> = {
   distanceKm: (a) => (a.distanceM ?? 0) / 1000,
-  reps: (a, exercise) => sumSets(a, exercise, SET_FIELDS.reps),
-  seconds: (a, exercise) => sumSets(a, exercise, SET_FIELDS.seconds),
+  reps: (a, exercise, exercises) => sumSets(a, exercise, SET_FIELDS.reps, exercises),
+  seconds: (a, exercise, exercises) => sumSets(a, exercise, SET_FIELDS.seconds, exercises),
 }
 
 /**
@@ -60,6 +63,19 @@ export const SET_FIELDS = {
 export type SetField = (typeof SET_FIELDS)[keyof typeof SET_FIELDS]
 
 /**
+ * The set field an exercise's ENTRY writes, by entry kind (D-483, ticket 0341). What a scaled
+ * exercise contributes from: a pushup row writes `reps` even when its skill tallies seconds.
+ * `distance` writes no set-summed field — the adapter folds it into `Activity.distanceM`, and a
+ * scaled distance is refused by the validator. Keyed on the schema enum, like `STEP_BY_ENTRY`.
+ */
+export const SET_FIELD_BY_ENTRY: Record<RuleExercise["entry"], SetField | null> = {
+  count: SET_FIELDS.reps,
+  seconds: SET_FIELDS.seconds,
+  minutes: SET_FIELDS.seconds,
+  distance: null,
+}
+
+/**
  * The set field a measure sums, and the exercise it sums it for — `reps:pushup` →
  * `{ field: "reps", exercise: "pushup" }`. Null for a measure that does not read `sets`.
  */
@@ -71,22 +87,55 @@ export function setFieldOf(measure: Measure): { field: SetField; exercise: strin
   return { field: SET_FIELDS[kernel as keyof typeof SET_FIELDS], exercise: measure.slice(colon + 1) }
 }
 
-/** Σ over EVERY set — never positional. A three-set entry and a one-set entry of the same
- *  total are the same work (D-062, ticket 0070). */
-function sumSets(a: ScorableActivity, exercise: string, field: SetField): number {
+/**
+ * Σ over EVERY set — never positional. A three-set entry and a one-set entry of the same
+ * total are the same work (D-062, ticket 0070).
+ *
+ * TWO WAYS A SET FEEDS A MEASURE (D-483, ticket 0341):
+ * - **Unscaled** — the set's exercise IS the measure's suffix (`reps:pushup` sums pushup
+ *   `reps`). Every exercise before v5, and every set an archive written before v5 carries.
+ * - **Scaled** — the skill lists the exercise with a `scale`: the set's entry field (`reps` for a
+ *   count, `durationS` for seconds or minutes) times `scale`, in the measure's unit. This is how
+ *   one `seconds:` tally takes strength minutes AND pushups (8 s each). A scaled exercise whose
+ *   id is the suffix takes the scaled path, so it is never counted twice.
+ *
+ * Only the skill's OWN exercises scale. The validator refuses a suffix naming another skill's
+ * exercise, so no set feeds two measures.
+ */
+function sumSets(
+  a: ScorableActivity,
+  exercise: string,
+  field: SetField,
+  exercises: readonly RuleExercise[],
+): number {
+  const scaled = new Map<string, { field: SetField; scale: number }>()
+  for (const ex of exercises) {
+    const exField = SET_FIELD_BY_ENTRY[ex.entry]
+    if (ex.scale !== undefined && exField) scaled.set(ex.id, { field: exField, scale: ex.scale })
+  }
   let total = 0
-  for (const set of a.sets) if (set.exercise === exercise) total += set[field] ?? 0
+  for (const set of a.sets) {
+    const s = scaled.get(set.exercise)
+    if (s) total += (set[s.field] ?? 0) * s.scale
+    else if (set.exercise === exercise) total += set[field] ?? 0
+  }
   return total
 }
 
 /**
- * How many units of `measure` this activity carries. `reps:pushup` → Σ pushup reps.
+ * How many units of `measure` this activity carries. `reps:pushup` → Σ pushup reps; with the
+ * skill's exercises, also Σ each scaled exercise's sets × its `scale` (D-483).
  *
  * Throws on a measure with no kernel here. A validated ruleset can only reach that with an
  * activity row naming a `derived` measure, and the right response is a loud failure, not a
  * zero that silently drops the skill.
  */
-export function measureUnits(activity: ScorableActivity, measure: Measure): number {
+export function measureUnits(
+  activity: ScorableActivity,
+  measure: Measure,
+  /** The skill's `exercises` — what lets a scaled exercise feed this measure (D-483). */
+  exercises: readonly RuleExercise[] = [],
+): number {
   const colon = measure.indexOf(":")
   const kernel = colon === -1 ? measure : measure.slice(0, colon)
   const exercise = colon === -1 ? "" : measure.slice(colon + 1)
@@ -100,7 +149,7 @@ export function measureUnits(activity: ScorableActivity, measure: Measure): numb
     )
   }
 
-  const units = extract(activity, exercise)
+  const units = extract(activity, exercise, exercises)
   // XP never decreases (D-135), so a corrupt count that reached the ledger could never be
   // taken back. Negative or non-finite input is an upstream bug and fails here, loudly.
   if (!Number.isFinite(units) || units < 0) {
@@ -129,7 +178,7 @@ export function scoreUnits(
   const out: SkillUnits[] = []
   for (const skill of selectActivitySkills(activity, registry)) {
     const measure = skill.match!.measure
-    const units = measureUnits(activity, measure)
+    const units = measureUnits(activity, measure, skill.exercises)
     if (units > 0) out.push({ skillId: skill.id, measure, units })
   }
   return out

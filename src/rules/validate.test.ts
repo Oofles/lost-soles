@@ -550,3 +550,42 @@ describe("exercises — what /log can hand-log against a row", () => {
     ])
   })
 })
+
+/** Ticket 0341, D-483 — `scale` lets several exercises feed one measure. */
+describe("scaled exercises", async () => {
+  const { scaledTallyRuleSet } = await import("./__fixtures__/scaled-tally")
+  const might = (r: Record<string, unknown>) => find(r, "might")
+  const tally = () => structuredClone(scaledTallyRuleSet()) as unknown as Record<string, unknown>
+  const exercisesOf = (r: Record<string, unknown>) => might(r).exercises as Record<string, unknown>[]
+
+  it("a seconds: tally fed by a scaled minutes entry and a scaled count validates", () => {
+    expect(validateRuleSet(tally())).toEqual([])
+  })
+
+  it("without scale, an exercise still has to name its skill's measure", () => {
+    const r = tally()
+    delete exercisesOf(r)[1]!.scale
+    expect(paths(validateRuleSet(r))).toEqual([`skills[${at("might")}].exercises[1].entry`])
+  })
+
+  it.each([0, -1, Number.POSITIVE_INFINITY, Number.NaN, "8"])("refuses scale %s", (scale) => {
+    const r = tally()
+    exercisesOf(r)[1]!.scale = scale
+    expect(paths(validateRuleSet(r))).toEqual([`skills[${at("might")}].exercises[1].scale`])
+  })
+
+  it("refuses a scaled distance entry, and a scaled exercise on a distanceKm row", () => {
+    const r = tally()
+    exercisesOf(r)[1] = { id: "jog", label: "Jog", entry: "distance", quickValues: [5], scale: 1 }
+    expect(paths(validateRuleSet(r))).toEqual([`skills[${at("might")}].exercises[1].scale`])
+    const v = broken((x) => (find(x, "vigil").exercises = [{ id: "laps", label: "Laps", entry: "count", kind: "run", quickValues: [4], scale: 400 }]))
+    expect(paths(v)).toEqual([`skills[${at("vigil")}].exercises[0].scale`])
+  })
+
+  it("refuses a measure whose suffix is another skill's exercise — its sets would score twice", () => {
+    const r = tally()
+    ;(find(r, "fortitude").match as Record<string, unknown>).measure = "reps:pushup"
+    find(r, "fortitude").exercises = []
+    expect(validateRuleSet(r).map((e) => e.message).join(" ")).toMatch(/names exercise "pushup".*score twice/)
+  })
+})

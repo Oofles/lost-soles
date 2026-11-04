@@ -815,7 +815,7 @@ SK   skillId        = "wayfaring"       (opaque string — NEVER a TypeScript un
 | `sanityCeilingUnits` | N/NULL | J3 | flag-only; never blocks (D-123) |
 | `minUnitsForCredit` | N | J3 | gates discovery, never XP; inert when `revealsGround: false` (04 §3.5, D-269) |
 | `feeds` | L of M | J4 | `[{skill, rate}]`. Constitution's 1/3 is a row's attribute, not a constant in the scorer. |
-| `exercises` | L of M | J5 | for `logMode: reps\|duration\|trace` — `{id, label, entry, kind, quickValues}`, what `(app)/log/page.tsx` renders (D-061). `kind` is optional: the `ActivityKind` a log asserts (D-286). It is why `trace` is in the list — `xp-rules-v3` gave Vigil one exercise, `treadmill`, `kind: run`. The list, the shape and the `kind`/`logMode`/`unit` vocabularies above are checked against the newest ruleset by `scripts/check-doc-ruleset.mjs` (ticket `0162`). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
+| `exercises` | L of M | J5 | for `logMode: reps\|duration\|trace` — `{id, label, entry, kind, quickValues, scale}`, what `(app)/log/page.tsx` renders (D-061). `kind` is optional: the `ActivityKind` a log asserts (D-286). `scale` is optional (D-483, ticket `0341`): present, the exercise feeds its row's `reps:`/`seconds:` measure by conversion — its entry's set field × `scale` — instead of being the measure's suffix, so one row can tally strength minutes and pushups (§3.7). It is why `trace` is in the list — `xp-rules-v3` gave Vigil one exercise, `treadmill`, `kind: run`. The list, the shape and the `kind`/`logMode`/`unit` vocabularies above are checked against the newest ruleset by `scripts/check-doc-ruleset.mjs` (ticket `0162`). Nested here rather than in a sibling `RuleExercise` table because an exercise has no meaning without its skill, and the log page's only query is "give me the whole enabled registry" anyway. |
 
 The curve (`stepFormula: "4 * L^2"`, `maxLevel`, `deepMaxLevel` — D-130) is not per-skill:
 **D-131 explicitly rejected per-skill curve constants**, so it is ~~one `RuleCurve` item stored in
@@ -1029,6 +1029,15 @@ a programming language with no debugger. The line is drawn here:
 metadata the scorer does not read, so the validator refuses a row where the two disagree
 (`LOG_MODE_OF_MEASURE` in `src/rules/schema.ts` — this table as data; ticket `0238`). Reps and
 duration sum only the one exercise the measure's suffix names, not every `exercises[].id`.
+
+*Amended by D-483 (ticket `0341`):* **plus every exercise the row lists with a `scale`.** A scaled
+exercise contributes its own entry's set field (`reps` for `count`, `durationS` for `seconds` and
+`minutes`) times `scale`, in the measure's unit — a pushup at `scale: 8` on a `seconds:` tally is 8 s.
+This is still one measure per row (D-191): several exercises add into one quantity, one soft cap
+and one `minUnitsForCredit`, per skill per activity. An unscaled exercise keeps the suffix rule
+exactly, so v1–v4 score unchanged. The validator refuses a non-positive or non-finite `scale`, a
+scaled `distance` entry, a scaled exercise on a `distanceKm` row, and a set-summed measure whose
+suffix names another row's exercise (whose sets would then score twice).
 
 **Data (everything else):** which skills exist, their names, ids, order, units, rates, caps,
 floors, ground multipliers, meta-skill feeds, exercise rows and quick-log values — **and which

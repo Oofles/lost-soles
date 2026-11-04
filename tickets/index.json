@@ -7892,17 +7892,19 @@
     "title": "A skill's one measure can be fed by several exercises, each with a unit conversion",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [],
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
-    "path": "tickets/open/0341-one-measure-many-exercises.md",
-    "ready": true,
+    "started": "2026-11-04T05:09:52Z",
+    "closed": "2026-11-04T05:15:41Z",
+    "path": "tickets/closed/0341-one-measure-many-exercises.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   },
@@ -7922,7 +7924,7 @@
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
     "path": "tickets/open/0342-split-strength-log.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 5
