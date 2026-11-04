@@ -9,7 +9,7 @@ proposing anything that changes what it is.**
 > **Standing rule: the D-123 trigger.** Read **`docs/08-security-privacy.md` §2.4, "THE D-123
 > TRIGGER — three conditions, each with a hard gate"**. If any of its three conditions becomes true,
 > or is *proposed* in a ticket, a design doc or a PR, D-123 is reopened before that work merges:
-> **(A)** a second Cognito account, **(B)** any share, export or screenshot feature, **(C)** any
+> **(A)** a second account (any identity in `AUTH_ALLOWED_EMAILS` or `IDENTITIES` that maps to a uid other than the owner's, D-470/D-479), **(B)** any share, export or screenshot feature, **(C)** any
 > public URL serving cell data. Trigger **(A)** also needs five things built first: owner-scoping
 > tests (A-1), a fidelity field (A-3), a consent screen (A-4), a working delete (A-5), and a
 > recorded successor decision (A-7). Reopening means a new decision in **`docs/decisions/DECISIONS.md`**

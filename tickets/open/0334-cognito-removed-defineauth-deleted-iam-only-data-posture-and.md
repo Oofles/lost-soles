@@ -67,11 +67,11 @@ deploy that deletes the pool fails.
       half is the orchestrator's, post-deploy.)*
 - [ ] Σ ledger and `Profile.exploredGeneration` for the owner uid equal the values recorded in
       `0332`.
-- [ ] `0014` criterion 3 is annotated. `08` §5.1 and §2.4 Trigger A (wording and the "Enforced"
+- [x] `0014` criterion 3 is annotated. `08` §5.1 and §2.4 Trigger A (wording and the "Enforced"
       paragraph) and `01` §1 Auth row and §2 resource-table rows 2–3 are amended to the as-built
       state, citing D-472/D-473/D-470. *(The doc half is done. `0014` is another ticket's file, which
       a wave agent may not edit (WAVES.md §3); the orchestrator appends `— superseded by
-      D-175/D-473 at cutover (0334), <date>` to its criterion 3 and runs `tickets.mjs index`.)*
+      D-175/D-473 at cutover (0334), <date>` to its criterion 3 and runs `tickets.mjs index`. Done by the orchestrator at the wave 19 merge, 2026-11-03.)*
 - [ ] (operator) Signed in on the desktop browser after the deploy, the map, plinth and `/skills`
       load as before.
 
@@ -122,7 +122,7 @@ all of it, because the two deploy-gate checks would otherwise fail closed on a m
   `NoSuchEntity`). `amplify/backend.ts` removes the policy before synth, matched by CloudFormation type
   because the data construct bundles its own aws-cdk-lib. That is also what makes "no principal is granted
   `appsync:GraphQL`" true. It is a new escape-hatch use, added to `01` §2 as item 8 (D-467). Proposed as
-  D-NEW-a.
+  D-480 (proposed as D-NEW-a, recorded at merge).
 - **Storage:** the `access` block is removed; `versioned` and `keepOnDelete` stay. Removing it also drops
   Amplify's `/amplify/resource_reference/…/LOST_SOLES_USER_DATA_BUCKET_NAME` SSM parameter, which nothing
   reads (grepped).
@@ -209,7 +209,7 @@ two pre-existing differences this ticket did not cause (absent from a synth-vs-s
 after): `AlarmName` on `IngestDlqNotEmpty` and `ReconcileSweepRecovering`, `AlarmName`/`AlarmDescription`
 on `WebhookOwnerFlood`, and `Description` on `ArchiveDeletionRole`. Recorded, not chased.
 
-**Decisions made here.** The `AuthRolePolicy01` removal (D-NEW-a, proposed). Deleting the two mutations
+**Decisions made here.** The `AuthRolePolicy01` removal (D-480, proposed as D-NEW-a). Deleting the mutations is D-481. Deleting the two mutations
 rather than giving them an IAM rule: the ticket asked that they lose their exposure, and the only way to
 keep them would be to keep a resolver nobody may call. `DeploySmokeTest` stays, because removing a model
 deletes its table. All six models are read-only, including the three that allowed writes, because nothing

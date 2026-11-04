@@ -70,7 +70,7 @@ Nothing was ticked on the ticket's behalf.
 - [x] The deployed user pool is on the **Essentials** tier with email sign-in enabled — pinned
       explicitly rather than left to default, since a silent tier change is a silent bill (D-083).
 - [x] No social IdP, no SAML/OIDC federation and no SMS MFA is configured on the pool. Now
-      *enforced* on every deploy, not merely true today.
+      *enforced* on every deploy, not merely true today. — superseded by D-175/D-473 at cutover (0334), 2026-11-03: the pool is deleted, and Google via core is the only provider (D-478).
 - [x] ~~The owner account exists, created by hand, and can sign in to the deployed app.~~
       **Amended, split by what is verifiable from here.** The account exists, created by hand via
       `admin-create-user` with the default email invite (no password over any chat), status

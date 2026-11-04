@@ -6448,3 +6448,22 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - **Cost, accepted:** two Google accounts can now reach the map. Either one compromised is the
     same exposure as one, and Google carries the second factor for both.
 
+
+- **D-480** **With no `defineAuth`, the data construct's generated `AuthRolePolicy01` is removed in
+  `amplify/backend.ts`.** *(Agent, 2026-11-03, ticket `0334`. Operator accepted at the wave 19 merge.)*
+  Gen 2 refuses a model with no auth rule, and the only rule it accepts under an IAM-only API is
+  `allow.authenticated("identityPool")`. For that rule, the auth transformer emits a managed policy
+  granting `appsync:GraphQL` on every model. It attaches the policy to
+  `ctx.synthParameters.authenticatedUserRoleName`, which is the literal string `"undefined"` once
+  `defineAuth` is gone. That would have failed the deploy, since `iam get-role undefined` returns
+  `NoSuchEntity`. Had a role by that name ever existed, it would have been granted read on every
+  model. Removing the policy is the only way to make D-472's "no principal is granted
+  `appsync:GraphQL`" true. The match is by CloudFormation type, because the data construct bundles
+  its own `aws-cdk-lib`. It is escape-hatch item 8 in `01` §2 (D-467), and
+  `amplify/data-iam-only.test.ts` pins it.
+- **D-481** **`logWorkout` and `setActivityKind` are deleted from the schema, not narrowed, and all
+  six models are read-only.** *(Agent, 2026-11-03, ticket `0334`.)* Nothing has called the mutations
+  since `0331` (D-475). Deleting them also removes AppSync's Lambda data sources and their invoke
+  grant, which leaves the SSR compute role as the only invoker. The Lambdas keep
+  `resourceGroupName: "data"`, so they update in place. `DeploySmokeTest` stays, because removing a
+  model deletes its table. Read-only is the safe default if a grant ever reappears.

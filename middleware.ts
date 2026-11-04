@@ -54,7 +54,7 @@ function isApiPath(pathname: string): boolean {
  * 0149) are gone, so a request carrying only a bearer header is signed out. A domain cookie for
  * an email Lost Soles does not map is not a session here either (D-470).
  *
- * The `ls-uid` cookie (D-NEW-a, `lib/auth/uid-cookie.ts`) is an OUTPUT of this decision, never an
+ * The `ls-uid` cookie (D-476, `lib/auth/uid-cookie.ts`) is an OUTPUT of this decision, never an
  * input: set on every admitted response, deleted on every signed-out one. Nothing here reads it.
  */
 function gate(request: NextRequest, authjsEmail: string | null | undefined): NextResponse {

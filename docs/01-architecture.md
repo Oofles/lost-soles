@@ -303,7 +303,7 @@ six at once. Counted from `amplify/backend.ts` on 2026-10-28.)*
 5. **`BasemapTiles`** stack — the tiles bucket and its CloudFront distribution (D-226).
 6. **The webhook's Function URL**, and its metric filter and alarm (D-345).
 7. **The nightly reconcile `Schedule`** (D-350), and **the log-retention Aspect** (`0305`).
-8. **The removal of the data construct's `AuthRolePolicy01`** (`0334`, D-472). The auth transformer
+8. **The removal of the data construct's `AuthRolePolicy01`** (`0334`, D-472, D-480). The auth transformer
    emits it for any IAM model rule, granting `appsync:GraphQL` to the identity pool's role. With no
    `defineAuth` that role is named `"undefined"`, so the deploy would fail; removing the policy is
    also what makes "no principal holds `appsync:GraphQL`" true. `amplify/data-iam-only.test.ts` pins it.
