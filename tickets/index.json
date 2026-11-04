@@ -7772,7 +7772,7 @@
     "path": "tickets/open/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },

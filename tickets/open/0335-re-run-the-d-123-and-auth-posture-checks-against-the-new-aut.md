@@ -45,9 +45,9 @@ re-affirmed D-123 it checks against.
       positive control (200) proves the minted cookie decrypts, so the refusal is the allowlist
       deciding, not a malformed token. No second Google account was needed.)*
 - [x] `09-roadmap.md` §9 rows that mention Cognito carry a dated note pointing at this ticket.
-- [ ] The capability `19` drift audit is unblocked: no capability ticket is left open.
+- [x] The capability `19` drift audit is unblocked: no capability ticket is left open.
       *(Agent, 2026-11-03: true once the orchestrator closes this ticket. It is the only
-      `19-authjs-migration` ticket in `tickets/open/` or `tickets/blocked/`; nine are closed.)*
+      `19-authjs-migration` ticket in `tickets/open/` or `tickets/blocked/`; nine are closed.)* — verified 2026-11-03 by the orchestrator: `tickets.mjs list --capability 19-authjs-migration --status open` lists only 0335.
 
 ## Notes
 
@@ -245,3 +245,14 @@ Notes anticipated. No perceptual check applies.
 
 D-123 trigger checked? **A**, verified after the migration: one uid, the owner's (D-470, D-479).
 **B** and **C** are not touched by this ticket.
+
+**Orchestrator, at merge (wave 19).** I re-ran the unsigned AppSync attack myself, against the endpoint
+`appsync get-graphql-api --api-id nog4xy2l7baqlhghpndh2565qe` reports as production's
+(`uris.GRAPHQL` = `https://hopa22ito5foleo6o727cezz3u.appsync-api…/graphql`; the hostname is not the
+API id, which is why I checked). The results were the same: no auth gave 401 `UnauthorizedException`, a
+fake `x-api-key` gave 401, and an unsigned JWT in `Authorization` gave 403
+`IncompleteSignatureException`. The account's other two `amplifyData` APIs use Cognito user pools and
+belong to other apps; neither carries this app's tags (the posture check's assertion passes). The commit
+has no code changes. Its only content outside the ticket is the §9.4 note in `09`, so I checked it for
+secrets by grep as well as with the hook's gitleaks: it holds no token-shaped string.
+
