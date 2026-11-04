@@ -261,8 +261,12 @@ describe("I-28 / I-29 — T7 is absent from the AppSync schema, at any auth leve
      * subscriptions disabled; the pipeline is its only writer. No credential material of any kind.
      *
      * `DeploySmokeTest` is 0012's placeholder — `defineData` refuses an empty schema.
+     *
+     * `0334` (D-472) removed `logWorkout` and `setActivityKind` from the schema (the browser reaches
+     * their Lambdas through route handlers) and made every model IAM-only with no caller. The
+     * paragraphs above on those two describe what they were.
      */
-    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "Landmark", "logWorkout", "setActivityKind", "DeploySmokeTest"])
+    expect(models).toEqual(["Activity", "Profile", "SkillState", "XpLedgerEntry", "Landmark", "DeploySmokeTest"])
   })
 })
 

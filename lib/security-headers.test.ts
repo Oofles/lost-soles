@@ -31,18 +31,19 @@ describe("the CSP (criterion 2)", () => {
 
   /**
    * D-473, `0332`. The browser no longer talks to Cognito: sign-in is a redirect to Google and back
-   * to `/api/authjs/*` on this origin. `amplify_outputs.json` still carries `auth` until `0334`, and
-   * nothing in the CSP may be built from it.
+   * to `/api/authjs/*` on this origin. `0334` deleted `defineAuth`, so `amplify_outputs.json` has no
+   * `auth` block; if one ever reappeared, nothing in the CSP may be built from it.
    */
-  it("names no cognito-idp or cognito-identity host, even though the outputs still carry auth", () => {
+  it("names no cognito-idp or cognito-identity host, even if the outputs carried auth", () => {
     const withAuth = { ...OUTPUTS, auth: { aws_region: "us-east-1" } } as CspOutputs
     expect(contentSecurityPolicy(withAuth)).not.toMatch(/cognito/)
     expect(connectSources({ custom: OUTPUTS.custom })).toEqual(connectSources(withAuth))
   })
 
   /**
-   * D-472, `0331`. `amplify_outputs.json` still carries `data.url` until `0334`, and the browser no
-   * longer talks to it. An AppSync host here would only widen where an XSS could send what it reads.
+   * D-472, `0331`. `amplify_outputs.json` still carries `data.url` (`defineData` stays, IAM-only since
+   * `0334`), and the browser no longer talks to it. An AppSync host here would only widen where an
+   * XSS could send what it reads.
    */
   it("never names the AppSync endpoint, even though the outputs still carry it", () => {
     const withData = { ...OUTPUTS, data: { url: "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql" } } as CspOutputs

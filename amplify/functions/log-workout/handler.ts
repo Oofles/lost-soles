@@ -22,8 +22,8 @@ import { callerOf } from "../caller"
  * ─── WHO ─────────────────────────────────────────────────────────────────────
  *
  * The user is `event.userId`, set by the route from `currentUserId()` on a direct invoke only
- * the SSR compute role may make (`../caller.ts`, which also reads AppSync's `identity.sub` until
- * `0334`). Never a client field: the route picks the SDL's five arguments and sets `userId`
+ * the SSR compute role may make (`../caller.ts`; AppSync's path was removed in
+ * `0334`). Never a client field: the route picks the five arguments and sets `userId`
  * after them, so there is nothing for a client to forge.
  * The OWNER check is the second half, for `lib/auth/owner.ts`'s reason — "signed in" and
  * "the owner" are the same set today and stop being so the day D-014 adds friends.

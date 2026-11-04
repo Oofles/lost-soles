@@ -48,7 +48,6 @@ import { Topic } from "aws-cdk-lib/aws-sns"
 import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
 
-import { auth } from "./auth/resource"
 import { data } from "./data/resource"
 import { ingestWebhook } from "./functions/ingest-webhook/resource"
 import { logWorkoutFunction } from "./functions/log-workout/resource"
@@ -95,17 +94,18 @@ import { applyLogRetention } from "./log-retention"
  * `defineBackend`; exporting the result changes nothing about the deploy.
  */
 export const backend = defineBackend({
-  auth,
+  // No `auth` (D-473, `0334`): sign-in is Auth.js against core's SSO (D-478), and no Cognito
+  // resource remains in this app. `scripts/check-auth-posture.mjs` asserts none exists.
   data,
   storage,
   // Ticket 0042. The ingest worker. Its queue, DLQ, grants and environment are at the
   // bottom of this file — `defineFunction` has no queue primitive, which is the second
   // of the four escape-hatch uses 01-architecture.md §2 sanctions.
   processActivity,
-  // Ticket 0069. The `logWorkout` resolver (`data/resource.ts`). Its grants are below the
+  // Ticket 0069. The `log-workout` Lambda, invoked by `POST /api/log` (0331). Its grants are below the
   // worker's, and are a strict subset of them: no queue, no source credentials, no cells.
   logWorkoutFunction,
-  // Ticket 0244. The `setActivityKind` resolver; its grants are below `logWorkout`'s.
+  // Ticket 0244. The `set-activity-kind` Lambda (`POST /api/runs/[activityId]/kind`); its grants are below.
   setActivityKindFunction,
   // Ticket 0094. The scheduled token sweep. Its schedule is Amplify-native
   // (`resource.ts`); its grants on T7 are below the worker's environment.
@@ -120,105 +120,28 @@ export const backend = defineBackend({
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- * THE TWO LINES THAT CARRY THE SECURITY POSTURE  (08-security-privacy.md §5.1)
+ * NO PRINCIPAL IS GRANTED `appsync:GraphQL`  (D-472, ticket 0334)
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * These are L1 CloudFormation properties because `defineAuth` exposes neither.
- * Ticket 0014's description writes them as `selfSignUpEnabled: false` and
- * `allowUnauthenticatedIdentities: false`; those are the INTENT, not the API.
- * The real API is below, and the names differ enough to be worth stating.
+ * Every model carries `allow.authenticated("identityPool").to(["read"])`, the one IAM rule Gen 2
+ * accepts on a model (`data/resource.ts`). For any IAM rule the auth transformer also emits a
+ * managed policy, `AuthRolePolicy01`, granting `appsync:GraphQL` to the identity pool's
+ * authenticated role. With no `defineAuth` that role's name is the literal string "undefined",
+ * so left alone the deploy would fail on a role that does not exist, or, if anyone ever made an
+ * IAM role called `undefined`, hand it a read of every model.
  *
- * Both were live-verified WRONG on the deployed pool before this ticket:
- * AllowAdminCreateUserOnly was `false` and AllowUnauthenticatedIdentities was
- * `true` from 0012's skeleton deploy onward. They were not theoretical holes.
- *
- * `scripts/check-auth-posture.mjs` asserts all of this against the DEPLOYED pool
- * on every Amplify build (amplify.yml), because a console click can flip any of
- * it back and a source-code read would never notice (§5.1, D-163).
+ * The policy is removed here, before synth, so the API has no caller at all: AppSync's one auth
+ * mode is `AWS_IAM` and no IAM principal in the account holds `appsync:GraphQL` on it.
+ * `amplify/data-iam-only.test.ts` asserts that across the whole synthesized assembly, and
+ * `scripts/check-auth-posture.mjs` asserts the deployed modes. One of the escape-hatch uses
+ * enumerated in `01-architecture.md` §2 (D-467).
  */
-const { cfnUserPool, cfnUserPoolClient, cfnIdentityPool } =
-  backend.auth.resources.cfnResources
-
-/**
- * NO PUBLIC REGISTRATION ENDPOINT. The single most important line in the auth
- * config (§5.1). A default-on Cognito pool *is* a public signup endpoint: leave
- * this and anyone on the internet can mint an account, making the threat model's
- * core premise — "the only accounts are ones the owner created" — false from the
- * day it deploys, and firing §2.4's Trigger A without anyone noticing it had.
- * Self-signup is not a convenience being declined; it is a hole not being drilled.
- */
-cfnUserPool.adminCreateUserConfig = {
-  allowAdminCreateUserOnly: true,
-}
-
-/**
- * Essentials tier: Managed Login and passwordless/passkey (WebAuthn) sign-in,
- * 10,000 MAU free and — confirmed — non-expiring, so auth costs $0.00 forever at
- * this scale (D-083). Pinned explicitly rather than relied on as a default: a
- * silent tier change is a silent bill.
- */
-cfnUserPool.userPoolTier = "ESSENTIALS"
-
-/**
- * NO ANONYMOUS IDENTITY, EVER. The identity pool vends no guest credentials.
- * Combined with the `entity('identity')` S3 scoping in ./storage/resource.ts
- * (§6.2), there is then no unauthenticated principal in the account that can
- * touch storage at all.
- */
-cfnIdentityPool.allowUnauthenticatedIdentities = false
-
-/**
- * Session handling, §5.3. Token storage is left at Amplify's default, and §5.3
- * reasons about that as localStorage — an accepted decision there rather than an
- * oversight, since an XSS in this app could equally just read the map, which is
- * the asset.
- *
- * IN PRACTICE IT IS COOKIES, NOT localStorage. `components/auth-gate.tsx` calls
- * `Amplify.configure(outputs, { ssr: true })`, and the Next.js adapter stores the
- * tokens in cookies so `middleware.ts` can read the session server-side. Noted
- * here because the sentence above sent ticket 0149's operator to an empty Local
- * Storage panel; the reasoning is unchanged, the storage medium is not what §5.3
- * says it is.
- *
- * Revocation is enabled so `globalSignOut` actually invalidates outstanding
- * refresh tokens. §5.3 is pointed that "untested revocation is not revocation".
- */
-cfnUserPoolClient.enableTokenRevocation = true
-
-/** 1 hour, the default, not extended (§5.3). Units must be set or CFN assumes days. */
-cfnUserPoolClient.accessTokenValidity = 60
-cfnUserPoolClient.idTokenValidity = 60
-/**
- * ONE YEAR, raised from 30 days in ticket 0151. Sliding.
- *
- * The original 30 days was reasoned for a BROWSER — "long enough a phone stays
- * signed in between runs, short enough a stolen device goes stale on its own".
- * D-183 changed what this number governs. The Android capture task (0020) holds a
- * refresh token and exchanges it for a 1-hour ID token per capture, so at 30 days
- * the quick-settings tile stops working every month — and it stops SILENTLY. The
- * tile still exists, still listens, still takes the dictation; the note is simply
- * never committed. That is the exact failure capability 03 is built to prevent: a
- * thought captured once, with no second copy.
- *
- * The short-lived half of the pair is unchanged and is where the protection
- * actually lives: the ID token above is still 60 minutes, so a token intercepted
- * in transit is worthless within the hour. Lengthening BOTH would be a different
- * and much worse change.
- *
- * What makes a year defensible rather than lazy is that revocation is real and
- * immediate: `enableTokenRevocation` above is true, so a lost phone is one
- * `AdminUserGlobalSignOut` away from being cut off, and §5.3's "untested
- * revocation is not revocation" is why that line is not decorative.
- *
- * Cognito's ceiling is 10 years. A year was chosen over the maximum because
- * re-pairing the phone annually is a cheap forcing function that proves the
- * recovery path still works before it is needed in anger.
- */
-cfnUserPoolClient.refreshTokenValidity = 525600
-cfnUserPoolClient.tokenValidityUnits = {
-  accessToken: "minutes",
-  idToken: "minutes",
-  refreshToken: "minutes",
+// Matched by CloudFormation type, not `instanceof`: the data construct bundles its own aws-cdk-lib.
+for (const c of backend.data.node.findAll()) {
+  const l1 = c.node.defaultChild as { cfnResourceType?: string } | undefined
+  if (/^AuthRolePolicy\d+$/.test(c.node.id) && l1?.cfnResourceType === "AWS::IAM::ManagedPolicy") {
+    c.node.scope?.node.tryRemoveChild(c.node.id)
+  }
 }
 
 /*
@@ -1273,7 +1196,7 @@ processActivityLambda.addToRolePolicy(
  * bucket-wide by the policy above.
  *
  * `users/*`, NOT `users/<uid>/*`: one worker serves every user, and the per-user scoping
- * is the browser's, enforced by `entity('identity')` in `storage/resource.ts`.
+ * is the read path's: `/api/fog` re-derives the uid from the verified session (below).
  */
 processActivityLambda.addToRolePolicy(
   new PolicyStatement({
@@ -1340,11 +1263,12 @@ processActivityLambda.addToRolePolicy(
  *
  * ─── WHY THE COMPUTE ROLE AND NOT THE BROWSER'S OWN CREDENTIAL ──────────────
  *
- * `storage/resource.ts` grants `users/{entity_id}/*` to `allow.entity("identity")`, where
- * `{entity_id}` is the Cognito **identity-pool identity id**. The worker writes
+ * `storage/resource.ts` used to grant `users/{entity_id}/*` to `allow.entity("identity")`, where
+ * `{entity_id}` was the Cognito **identity-pool identity id**. The worker writes
  * `users/<sub>/…`, where `<sub>` is the **user-pool sub** (`02` T1: *"the `<uid>` in every
- * S3 key"*). Those are different strings, so that grant has never covered a single object
- * in the delivery layer. `0049` found it and assigned it to `0054`.
+ * S3 key"*). Those are different strings, so that grant never covered a single object
+ * in the delivery layer. `0049` found it and assigned it to `0054`; `0334` (D-472) removed the
+ * rule with the identity pool, so no browser credential of any kind reaches this bucket.
  *
  * The fix is not to widen the browser's grant. `05` §7.4's chain is walked BACKWARDS
  * (D-220), so a browser holding S3 credentials would still need a round trip to this app
@@ -1608,8 +1532,9 @@ computeRole.addToPrincipalPolicy(
  * `POST /api/log` and `POST /api/runs/[activityId]/kind` invoke `log-workout` and
  * `set-activity-kind` with a `userId` the route took from `currentUserId()`. That makes this grant
  * the trust anchor: a principal that can invoke these functions can name any user, so no other role
- * in this app is given `lambda:InvokeFunction` on them (AppSync's data-source role keeps its own until
- * `0334` removes the mutations). Two function ARNs, named; never `*`.
+ * in this app is given `lambda:InvokeFunction` on them. Since `0334` removed the two AppSync
+ * mutations, AppSync's data-source role and its grant are gone too, and this role is the only
+ * invoker (`amplify/data-iam-only.test.ts` pins it). Two function ARNs, named; never `*`.
  */
 computeRole.addToPrincipalPolicy(
   new PolicyStatement({
@@ -1926,7 +1851,7 @@ backend.addOutput({
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- * THE `logWorkout` RESOLVER  (ticket 0069, `02` §2.11)
+ * THE `log-workout` LAMBDA  (ticket 0069, `02` §2.11; invoked by `POST /api/log` since 0331)
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * It runs `processActivity`, so it needs what the worker's MANUAL path touches and nothing
@@ -2001,7 +1926,7 @@ backend.logWorkoutFunction.addEnvironment("USER_DATA_BUCKET", backend.storage.re
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- * THE `setActivityKind` RESOLVER  (ticket 0244, D-284, D-285)
+ * THE `set-activity-kind` LAMBDA  (ticket 0244, D-284, D-285)
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * It runs `rescoreKind` for one activity, so it needs what that function touches and nothing

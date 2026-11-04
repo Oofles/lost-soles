@@ -25,7 +25,7 @@ import { callerOf } from "../caller"
  * ─── WHO ─────────────────────────────────────────────────────────────────────
  *
  * `logWorkout`'s rule: the user is `event.userId`, set by the route from `currentUserId()` on a
- * direct invoke only the SSR compute role may make (`../caller.ts`; AppSync's `identity.sub` until
+ * direct invoke only the SSR compute role may make (`../caller.ts`; the AppSync path was removed in
  * `0334`), never a client field, and must be on the owner allowlist. `rescoreKind` then refuses an activity that is not that user's, so the
  * `activityId` argument cannot reach someone else's run.
  *

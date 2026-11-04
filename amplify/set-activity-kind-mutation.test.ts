@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 /**
- * Ticket `0244`, criterion 1: `setActivityKind` is owner-only on `logWorkout`'s pattern.
+ * Ticket `0244`: `set-activity-kind` is owner-only on `log-workout`'s pattern.
  *
- * Asserted on the GENERATED SDL, as `log-workout-mutation.test.ts` is, because that is what
- * AppSync serves. The owner half — `identity.sub`, the allowlist — is the handler's, and is
- * pinned in `functions/set-activity-kind/handler.test.ts`.
+ * The `setActivityKind` mutation was deleted by `0334` (D-472, D-475), and with it AppSync's data
+ * source and its invoke grant on this Lambda. The surface is `POST /api/runs/[activityId]/kind`,
+ * which takes an activity id and a kind and sets `userId` from the session; the owner half (the
+ * allowlist) is the handler's, pinned in `functions/set-activity-kind/handler.test.ts`.
  */
 
 process.env.CDK_CONTEXT_JSON = JSON.stringify({
@@ -19,18 +20,9 @@ const { backend } = await import("./backend")
 const { data } = await import("./data/resource")
 
 const sdl = (data as unknown as { props: { schema: { transform(): { schema: string } } } }).props.schema.transform().schema
-const mutationLine = () => sdl.split("\n").find((l) => l.trim().startsWith("setActivityKind("))!
-
-describe("setActivityKind's surface", () => {
-  it("takes exactly an activity id and a kind — no user, no XP", () => {
-    const line = mutationLine()
-    const args = [...line.slice(line.indexOf("(") + 1, line.indexOf(")")).matchAll(/(\w+):/g)].map((m) => m[1])
-    expect(args).toEqual(["activityId", "kind"])
-  })
-
-  it("is signed-in only, never public or guest", () => {
-    expect(mutationLine()).toMatch(/@auth\(rules: \[\{allow: private\}\]\)/)
-    expect(mutationLine()).not.toMatch(/public|iam/)
+describe("setActivityKind's AppSync surface is gone (0334)", () => {
+  it("the generated SDL names no setActivityKind", () => {
+    expect(sdl).not.toMatch(/setActivityKind|SetActivityKind/)
   })
 })
 

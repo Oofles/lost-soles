@@ -70,7 +70,8 @@ describe("I-18 / I-20 — no client can write XP", () => {
   /**
    * The GENERATED SCHEMA, as the Amplify transformer receives it: the directive line each model
    * compiles to. `@model(mutations:null,subscriptions:null)` is what removes the operations, and
-   * the `@auth` rule is exactly owner-scoped read. Anything else in either fails here.
+   * the `@auth` rule is exactly IAM-only read (D-472, `0334`; owner-scoped read before it).
+   * Anything else in either fails here.
    */
   it.each(["XpLedgerEntry", "SkillState", "Landmark"])("%s compiles to a read-only, mutation-free @model", async (model) => {
     const { data } = await import("./data/resource")
@@ -78,7 +79,7 @@ describe("I-18 / I-20 — no client can write XP", () => {
     const line = sdl.split("\n").find((l) => l.startsWith(`type ${model} `))
     expect(line).toBe(
       `type ${model} @model(mutations:null,subscriptions:null) ` +
-        `@auth(rules: [{allow: owner, operations: [read], ownerField: "owner"}])`,
+        `@auth(rules: [{allow: private, provider: identityPool, operations: [read]}])`,
     )
   })
 })

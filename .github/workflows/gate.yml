@@ -286,10 +286,14 @@ jobs:
         run: node scripts/check-bundle-leak.mjs
 
       # ── D-123 TRIGGERS (0114, 08 §2.4) ───────────────────────────────────────
-      # A reads the live Cognito pool. This job holds no AWS credentials (0017), so the real check
-      # runs in amplify.yml's backend phase and only its self-test runs here.
-      - name: D-123 Trigger A self-test (the live pool check runs in amplify.yml)
+      # A reads the live AUTH_ALLOWED_EMAILS from SSM (0334, D-470). This job holds no AWS
+      # credentials (0017), so the real check runs in amplify.yml's backend phase and only its
+      # self-test runs here. The auth posture check is the same shape (0334).
+      - name: D-123 Trigger A self-test (the live allowlist check runs in amplify.yml)
         run: node scripts/check-d123-trigger-a.mjs --self-test
+
+      - name: Auth posture self-test (the live check runs in amplify.yml)
+        run: node scripts/check-auth-posture.mjs --self-test
 
       # B diffs the push range. checkout is shallow, so the script fetches `before` at depth 1;
       # an all-zeros `before` (a first push) falls back to HEAD^, deepening by one.

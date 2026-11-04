@@ -178,6 +178,34 @@ whose failure modes are all config.
 | `scripts/delete-account` path (D-400, D-403) | `0333`: "disable, global sign-out, delete the Cognito user last" becomes "remove the email from `AUTH_ALLOWED_EMAILS` first and from `IDENTITIES` last". `--delete-owner` stays. `08` §6.4 is amended. |
 | `OWNER_USER_IDS` | Unchanged. It still holds the uid `5488e4b8-…`, and `IDENTITIES` maps the owner's email onto it. |
 
+**As built in `0334`.** Two findings the design above did not anticipate:
+
+- **The auth transformer grants `appsync:GraphQL` for any IAM model rule.** Every model carries
+  `allow.authenticated("identityPool").to(["read"])`, the one IAM rule Gen 2 accepts, and for it the
+  transformer emits a managed policy (`AuthRolePolicy01`) attached to the identity pool's
+  authenticated role. With no `defineAuth` that role's name is the string `"undefined"`, so the
+  deploy would fail on a missing role. `amplify/backend.ts` removes the policy before synth, which is
+  also what makes "no principal is granted `appsync:GraphQL`" true. It is escape-hatch use 8 in
+  `01` §2, and `amplify/data-iam-only.test.ts` pins it over the whole synthesized assembly.
+- **The two custom mutations are deleted, not narrowed.** `logWorkout` and `setActivityKind` had no
+  IAM-only form worth keeping, and removing them removes AppSync's Lambda data sources (the
+  `FunctionDirectiveStack`) and with them AppSync's `lambda:InvokeFunction` on both Lambdas (D-475).
+  The Lambdas keep `resourceGroupName: "data"`, so they are not recreated.
+
+**The build role's hand-managed policy** (`LostSolesAuthPostureCheckReadOnly` on
+`AmplifySSRLoggingRole-bcad2fbf-…`, D-426), after `0334`. The Cognito describe statements and
+`ListUsersForD123TriggerA` are gone. What the two rewritten checks call:
+
+| Check | Calls | Grant |
+|---|---|---|
+| `check-auth-posture.mjs` | `cognito-idp:ListUserPools`, `cognito-identity:ListIdentityPools`, `appsync:ListGraphqlApis` | `Resource: "*"` (list actions take no resource) |
+| `check-auth-posture.mjs` | `cognito-idp:ListTagsForResource` on `userpool/*`, `cognito-identity:ListTagsForResource` on `identitypool/*` | read-only, this account and region |
+| both | `ssm:GetParameter` on `/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS` | that one parameter ARN. A `String`, so no `kms:Decrypt` |
+
+`sts:GetCallerIdentity` needs no grant. `AmplifyBackendDeployFullAccess` already allows
+`ssm:GetParameter` on `parameter/amplify/*`; the named statement is kept so the dependency is
+written down where D-426 says the build role's extra reads live.
+
 ## User-facing changes
 
 - Signed out, `/` shows the app name and one **Sign in with Google** button in place of the email

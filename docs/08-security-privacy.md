@@ -155,22 +155,27 @@ section converts it into something a person or an agent can actually check.
 
 #### TRIGGER A — a second user account is created
 
-**Fires when:** any Cognito user exists in the production pool other than the owner. Not when
-friends are "planned" — when the second account is *provisioned* (§5.3). Also fires on a shared
-login, which is the same thing with worse accountability.
+**Fires when:** Lost Soles' production `AUTH_ALLOWED_EMAILS` (SSM), or its committed `IDENTITIES`
+map (`lib/auth/owner-ids.ts`), holds any identity other than the owner's: an `IDENTITIES` entry that
+maps to a uid other than the owner's, or an allowlisted email (D-470). Not when friends are
+"planned" — when the second identity is *provisioned* (§5.4: added to the allowlist and the map).
+Also fires on a shared login, which is the same thing with worse accountability. The operator's own
+addresses may each map to the owner uid: that is one account with two ways in, not a second
+account (D-479). A `.devaultsecurity.com` session cookie held by another app's user is not an
+account here, because it becomes a uid only through both lists (§5.1).
 
-*(Restated by D-470 for capability `19-authjs-migration`, which re-affirms D-123. After cutover it
-fires when the production `AUTH_ALLOWED_EMAILS` or the committed `IDENTITIES` map holds anyone but
-the owner. A `.devaultsecurity.com` session cookie held by another app's user is not an account
-here. `0334` rewrites the wording below and the enforcement script.)*
+*(Restated by D-470 for capability `19-authjs-migration`, which re-affirms D-123; as built since
+`0334`. Was "any Cognito user exists in the production pool other than the owner". The pool was
+deleted at cutover, D-473.)*
 
 **Gate — all must be true before the second account can sign in:**
 
 - [ ] **A-1. Owner-scoped data access is proven, not assumed.** Every `ExploredCell`, `Activity`,
       `SourceAccount` and route-trace (`users/<uid>/` S3 object) read path is scoped by the
-      Cognito user-pool `sub`. For the `defineData` models that is owner auth. For the CDK tables
-      and S3 it is the route handler, which builds every key from the verified session `sub`,
-      because one role serves every user (§5.5, D-228). Proven by a test that signs in as user B
+      session's uid. Since `0334` no client reaches the `defineData` models at all (IAM-only, no
+      caller, D-472), so for them, as for the CDK tables and S3, it is the route handler, which
+      builds every key from the uid `currentUserId()` derives from the verified session, because
+      one role serves every user (§5.5, D-228). Proven by a test that signs in as user B
       and asserts a 403/empty on user A's `uid` — an actual failing-then-passing test, not a code
       review. *(Mechanism clause reworded by D-457. It once required `entity('identity')` or a
       `raw/<uid>/` IAM condition per S3 prefix, which D-228 made unsatisfiable.)*
@@ -190,11 +195,15 @@ here. `0334` rewrites the wording below and the enforcement script.)*
       box could have been ticked by curling a 404 for entirely the wrong reason.)*
 - [ ] **A-7. D-123 reopened and a successor decision recorded.**
 
-**Enforced (`0114`, D-426; recorded by D-465):** `scripts/check-d123-trigger-a.mjs` reads
-the live production pool in `amplify.yml`'s backend phase and fails the deploy on any account that is
-neither an owner (`OWNER_USER_IDS`, §5.5) nor listed in its `APPROVED_ACCOUNTS` under a decision
-that supersedes or re-affirms D-123. A console-provisioned account never touches the repo, which is
-why the check reads the pool and not the source. The GitHub gate runs only its self-test.
+**Enforced (`0114`, D-426; rewritten by `0334` for D-470):** `scripts/check-d123-trigger-a.mjs`
+reads `IDENTITIES` from source and the live `AUTH_ALLOWED_EMAILS` from SSM in `amplify.yml`'s
+backend phase, and fails the deploy on an `IDENTITIES` entry mapping to a uid that is neither an
+owner (`OWNER_USER_IDS`, §5.5) nor listed in its `APPROVED_ACCOUNTS` under a decision that
+supersedes or re-affirms D-123, and on an allowlist and map that disagree (an allowlisted email
+with no map entry, or a mapped email off the allowlist). Two addresses on the owner uid pass
+(D-479). An SSM edit admits someone without touching the repo, which is why the allowlist is read
+live. It prints counts and uids, never an email (D-426). The GitHub gate runs only its self-test.
+*(Was: read the live Cognito pool with `ListUsers`, until the pool was deleted, D-473.)*
 
 **What must be BUILT before Trigger A:** A-1 (owner-scoping tests), A-3 (a fidelity field on the
 user record, even if every user is set to `full`), A-4 (a consent screen), A-5 (a working delete).
@@ -325,7 +334,7 @@ A checklist in a design doc that nobody opens is decoration. Three placements, a
 
 Those three cost one line in a template and one regex, and they were once the whole enforcement
 mechanism. **Since `0114` they are not** (recorded by D-465). Four CI checks enforce §2.4
-directly, each described under its item above: Trigger A against the live pool (D-426), Trigger B
+directly, each described under its item above: Trigger A against the live allowlist and the committed map (D-426, D-470), Trigger B
 on the lines a push adds (D-427), C-2's prerender allowlist and scan (D-430), and C-3's
 `withNoStore` rule (D-429). The three placements stay. The checks catch what reaches a diff or a
 deploy. The placements catch the conversation before it does.
@@ -607,6 +616,32 @@ because it is *free, boring, and hard to misconfigure* at six users — not beca
 
 ### 5.1 The configuration, and the two lines that matter
 
+> **AS BUILT SINCE `0334` (D-473, D-472, D-478). Read this first; the rest of §5.1 is the Cognito
+> design it replaced, kept for its reasoning.** There is **no Cognito resource in this app**: the
+> user pool, the identity pool and `defineAuth` were deleted at cutover, and there is no rollback
+> to Cognito (a reverted `defineAuth` would mint a new pool with a new `sub`). Sign-in is **Auth.js
+> with Google, joined to core's SSO**: core (`core.devaultsecurity.com`) does the Google sign-in and
+> the session is the domain's shared `devault.session-token` cookie (D-478). The two lines that
+> carry the posture now are:
+>
+> ```
+> AUTH_ALLOWED_EMAILS (SSM)       // the sign-in gate; empty permits nobody (selfSignUpEnabled: false's heir)
+> IDENTITIES (lib/auth/owner-ids) // email -> uid; an allowlisted email with no entry is signed out
+> ```
+>
+> Both must pass for a session to become a uid (`lib/auth/identity.ts`), because a valid domain
+> cookie proves only that *some* app on the domain admitted the email (D-470). The operator's two
+> addresses both map to the owner uid (D-479). The data API is **IAM-only with no caller** (D-472):
+> AppSync's one auth mode is `AWS_IAM` and no principal holds `appsync:GraphQL`. The storage bucket
+> has no `access` rule, so no browser credential of any kind reaches it (§6.2). The heir of
+> `allowUnauthenticatedIdentities: false` is simply that **no identity pool exists** to vend one.
+>
+> **Verification gate, as built (`0334`):** `scripts/check-auth-posture.mjs`, rewritten rather than
+> deleted (D-175), runs in `amplify.yml`'s backend phase after the deploy and fails it unless: no
+> Cognito user pool or identity pool is tagged with this app's `amplify:app-id`; the data API's
+> auth modes are exactly `AWS_IAM`; `AUTH_ALLOWED_EMAILS` is non-empty; and Google is the only
+> Auth.js provider in the build. `--self-test` proves each assertion fires.
+
 **Cognito user pool, Essentials tier, email sign-in (planned: + passkey), self-signup OFF**
 (`01-architecture.md` §1, table row 2; research in `R5-aws-amplify.md` §3). Essentials includes
 Managed Login and passwordless/passkey (WebAuthn) sign-in, with 10,000 MAU free and — confirmed
@@ -668,8 +703,9 @@ booleans that a console click or a careless `defineAuth` edit can flip back. A o
 post-deploy check — `aws cognito-idp describe-user-pool` asserting the admin-only signup policy
 — belongs in the same CI step as the secret grep (§3.1). It is the cheapest possible guard
 against the highest-consequence misconfiguration in the system. *(Built, `0014`:
-`scripts/check-auth-posture.mjs` reads the live pool in `amplify.yml`'s backend phase, right after
-the deploy, and fails it on either boolean.)*
+`scripts/check-auth-posture.mjs` read the live pool in `amplify.yml`'s backend phase, right after
+the deploy, and failed it on either boolean. **Rewritten by `0334`** for the pool's deletion; its
+assertions now are in the as-built note at the top of this section.)*
 
 ### 5.2 Passkeys, and the recovery problem nobody plans for
 

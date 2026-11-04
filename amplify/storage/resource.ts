@@ -2,15 +2,15 @@ import { defineStorage } from "@aws-amplify/backend"
 
 /**
  * The raw-trace archive (D-101, D-121.2) and the home of `explored-r11.<gen>.bin`
- * (01-architecture.md §5). Paths are scoped to the owning identity from the start —
- * a lifetime GPS history is the one thing in this system that must never be readable
- * by anyone else (08-security-privacy.md §6.2).
+ * (01-architecture.md §5). A lifetime GPS history is the one thing in this system that must
+ * never be readable by anyone else (08-security-privacy.md §6.2).
  *
- * `raw/*` is DELIBERATELY ABSENT from `access`. Nothing holding an identity-pool
- * credential — which is to say, nothing a browser can ever hold — has any grant on
- * the archive at all. The only writer is the ingest worker (ticket 0042), through its
- * Lambda execution role. That absence is the access control; there is no rule to
- * widen because there is no rule.
+ * NO `access` BLOCK (D-472, `0334`). It held one rule, `users/{entity_id}/*` for
+ * `allow.entity("identity")`, and that rule never matched an object: `{entity_id}` is an
+ * identity-pool id, and every key here is the user-pool sub (D-228). With Cognito gone there is
+ * no identity pool for it to name. NO BROWSER HOLDS ANY GRANT ON THIS BUCKET: the map is served
+ * through `/api/fog` as the SSR compute role (`../backend.ts`), and the only writers are the
+ * Lambda execution roles. `raw/*` has no read path through the app at all.
  *
  * The two flags below arrived with ticket 0039 and both carry I-3:
  *
@@ -42,7 +42,4 @@ export const storage = defineStorage({
   name: "lostSolesUserData",
   versioned: true,
   keepOnDelete: true,
-  access: (allow) => ({
-    "users/{entity_id}/*": [allow.entity("identity").to(["read", "write", "delete"])],
-  }),
 })

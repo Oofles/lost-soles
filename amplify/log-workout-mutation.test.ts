@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 /**
- * Ticket 0069, criterion 4, and I-20's carve-out: `logWorkout` accepts MEASURED WORK ONLY.
+ * Ticket 0069, and I-20's carve-out: `log-workout` takes MEASURED WORK ONLY.
  *
- * Asserted on the GENERATED SDL — what AppSync will actually serve — rather than on the
- * `a.mutation()` source, because the transform is where an argument could appear that the
- * source does not obviously spell (a `ref` to a widened type, a default the builder adds).
+ * Until `0334` this asserted the `logWorkout` mutation's generated SDL. `0334` (D-472, D-475)
+ * deleted the mutation: the browser reaches the Lambda through `POST /api/log`, which picks the
+ * five measured-work fields and sets `userId` from the session, and `app/api/log/route.test.ts`
+ * pins that ("ignores a userId in the body, and every field the mutation never had"). What is
+ * asserted here now is that AppSync serves no mutation of its own at all, and the Lambda's grants.
  */
 
 process.env.CDK_CONTEXT_JSON = JSON.stringify({
@@ -20,49 +22,10 @@ const { data } = await import("./data/resource")
 
 const sdl = (data as unknown as { props: { schema: { transform(): { schema: string } } } }).props.schema.transform().schema
 
-/** The body of `type X {…}` or `input X {…}`, one field per line, names only. */
-function fieldsOf(kind: "type" | "input", name: string): string[] {
-  const start = sdl.split("\n").findIndex((l) => l.startsWith(`${kind} ${name} `) || l === `${kind} ${name} {`)
-  expect(start, `${kind} ${name} not in the generated SDL`).toBeGreaterThanOrEqual(0)
-  const out: string[] = []
-  for (const line of sdl.split("\n").slice(start + 1)) {
-    if (line.startsWith("}")) break
-    out.push(line.trim().split(/[(:]/)[0]!)
-  }
-  return out
-}
-
-const mutationLine = () => sdl.split("\n").find((l) => l.trim().startsWith("logWorkout("))!
-
-/** Anything that names a reward rather than a measurement. */
-const FORBIDDEN = /xp|skill|level|award|score|rating|cell|generation/i
-
-describe("logWorkout's arguments are measured work only (I-20)", () => {
-  it("takes exactly: exercise, sets, when, idempotency key, zone", () => {
-    const line = mutationLine()
-    const list = line.slice(line.indexOf("(") + 1, line.indexOf(")"))
-    const args = [...list.matchAll(/(\w+):/g)].map((m) => m[1])
-    expect(args).toEqual(["exerciseId", "sets", "occurredAt", "idempotencyKey", "timezone"])
-  })
-
-  it("no argument and no set field names a reward", () => {
-    const line = mutationLine()
-    // The argument NAMES only: the return type `LogWorkoutResult` legitimately reports xp.
-    const names = [...line.slice(line.indexOf("(") + 1, line.indexOf(")")).matchAll(/(\w+):/g)].map((m) => m[1])
-    for (const name of names) expect(name).not.toMatch(FORBIDDEN)
-    for (const field of fieldsOf("input", "LogWorkoutSetInput")) expect(field).not.toMatch(FORBIDDEN)
-  })
-
-  it("a set carries only the measurement fields `WorkoutSet` has", () => {
-    expect(fieldsOf("input", "LogWorkoutSetInput")).toEqual(["reps", "durationS", "distanceM", "weightKg"])
-  })
-
-  it("is one of exactly two custom mutations the API serves (0244 added setActivityKind)", () => {
-    expect(fieldsOf("type", "Mutation")).toEqual(["logWorkout", "setActivityKind"])
-  })
-
-  it("is signed-in only, never public or guest", () => {
-    expect(mutationLine()).toMatch(/@auth\(rules: \[\{allow: private\}\]\)/)
+describe("AppSync serves no custom mutation (0334, D-472)", () => {
+  it("has no logWorkout or setActivityKind, and no Mutation type beyond the models' own", () => {
+    expect(sdl).not.toMatch(/\blogWorkout\b|\bsetActivityKind\b/)
+    expect(sdl).not.toMatch(/LogWorkout|SetActivityKind/)
   })
 })
 

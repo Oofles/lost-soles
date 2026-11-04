@@ -16,16 +16,20 @@ backend:
         - node scripts/build-rules-json.mjs --check
         - npx vitest run src/rules
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
-        # Post-deploy, and in the BACKEND phase on purpose: this needs both the
-        # amplify_outputs.json that pipeline-deploy just wrote and the AWS
-        # credentials this phase already holds. Self-signup and guest identities
-        # are two booleans a console click can flip back, and source code cannot
-        # see that (08-security-privacy.md §5.1, D-163). Both were live-WRONG
-        # before 0014. Fails closed: an unreadable posture fails the deploy.
+        # Post-deploy, and in the BACKEND phase on purpose: it reads what pipeline-deploy just
+        # changed, with the AWS credentials this phase already holds (08-security-privacy.md §5.1,
+        # D-163). Rewritten by 0334 (D-175, D-472, D-473): no Cognito user or identity pool tagged
+        # with this app, the data API's auth modes exactly AWS_IAM, AUTH_ALLOWED_EMAILS non-empty,
+        # Google the only Auth.js provider. In THIS deploy's phase so it cannot lag the pool's
+        # deletion. Fails closed: an unreadable posture fails the deploy. Build-role grants
+        # (LostSolesAuthPostureCheckReadOnly) are listed in 19-authjs-migration.md.
+        - node scripts/check-auth-posture.mjs --self-test
         - node scripts/check-auth-posture.mjs
-        # 08 §2.4 TRIGGER A / 0114: a second account in the production pool fails the deploy unless a
-        # decision superseding or re-affirming D-123 admits it. Needs cognito-idp:ListUsers on the
-        # build role (LostSolesAuthPostureCheckReadOnly). Prints subs only, never usernames or emails.
+        # 08 §2.4 TRIGGER A / 0114, restated by D-470 and rewritten by 0334: an IDENTITIES entry
+        # mapping to a uid other than the owner's, or a live AUTH_ALLOWED_EMAILS that disagrees with
+        # IDENTITIES, fails the deploy unless a decision superseding or re-affirming D-123 admits it.
+        # The operator's two addresses on the owner uid pass (D-479). Needs ssm:GetParameter on that
+        # one parameter. Prints counts and uids only, never an email (D-426).
         - node scripts/check-d123-trigger-a.mjs --self-test
         - node scripts/check-d123-trigger-a.mjs
         # Ticket 0115, 08 §3. The same reasoning one level over: what is DEPLOYED, not

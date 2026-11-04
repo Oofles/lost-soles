@@ -40,8 +40,8 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 |---|---|---|
 | Hosting + CI/CD | **AWS Amplify Gen 2**, `soles.devaultsecurity.com` | D-080 |
 | Framework | **Next.js 15, App Router**, SSR + route handlers | R5 (deliberate divergence from house Astro) |
-| Auth | **Cognito** user pool, Essentials tier, email + password (passkey planned, never enabled; `08` §5.1), self-signup OFF | R5 §3 |
-| Client-facing data | **Same-origin route handlers** on the SSR compute, reading the `defineData` DynamoDB tables directly and invoking the two mutation Lambdas. AppSync stays as the tables' owner and has no browser caller (`0331`); was "AppSync + DynamoDB via `defineData`" | R5 §4, **D-472** |
+| Auth | **Auth.js with Google**, joined to core's SSO: core does the sign-in and the session cookie is the domain's shared `devault.session-token` (D-478). An `AUTH_ALLOWED_EMAILS` allowlist (SSM) and a committed `IDENTITIES` email → uid map onto the existing uid (D-471, D-479). **No Cognito resource remains** (`0334`, D-473). *(Was "Cognito user pool, Essentials tier, email + password, self-signup OFF".)* | R5 §3, **D-471**, **D-473**, **D-478** |
+| Client-facing data | **Same-origin route handlers** on the SSR compute, reading the `defineData` DynamoDB tables directly and invoking the two mutation Lambdas. AppSync stays as the tables' owner, **IAM-only with no caller**: its one auth mode is `AWS_IAM` and no principal holds `appsync:GraphQL` (`0331`, `0334`); was "AppSync + DynamoDB via `defineData`" | R5 §4, **D-472** |
 | Machine-only data | **DynamoDB tables created through the CDK escape hatch** | §2 below |
 | Object storage | **S3** via `defineStorage` (raw trace archive, `explored.bin`) | D-101, D-121.2 |
 | Compute | **Lambda** — Node 22, pure-JS deps only | R5 §5 |
@@ -49,13 +49,10 @@ user-confirmed. Nothing in this document may contradict it. Research backing liv
 | Basemap tiles | **pmtiles on a dedicated S3 bucket + our own CloudFront** (always-free egress) | D-226 |
 | Geo model | **H3 res 11 cells in DynamoDB**. No PostGIS, no VPC. | D-082, ~~D-115~~ D-237, D-081 |
 
-> **Changes with capability `19-authjs-migration` (after the MVP, D-425).** The **Auth** row becomes
-> Auth.js with Google, sharing `school-hub`'s session cookie across `*.devaultsecurity.com`, with an
-> `AUTH_ALLOWED_EMAILS` allowlist and a committed `email → uid` map onto the existing Cognito `sub`
-> (D-175, D-471). The **Client-facing data** row stops being client-facing: AppSync keeps the five
-> model tables under IAM-only auth with no caller, and the browser talks only to this app's own
-> routes (D-472). The browser half of that is built (`0331`, the row above); the IAM-only data auth
-> lands in `0334`. The Auth row is as built until `0332` and `0334` land.
+> **Changed by capability `19-authjs-migration` (after the MVP, D-425).** Both rows above are as
+> built: the Auth row since `0332` (sign-in) and `0334` (Cognito deleted, D-473), the data row since
+> `0331` (browser off AppSync) and `0334` (IAM-only, no caller, D-472). The uid every table and S3
+> key is partitioned on is still the old Cognito `sub`; `IDENTITIES` maps an email onto it (D-471).
 
 ### Why Next.js and not Astro
 
@@ -228,9 +225,9 @@ Every resource, what it does, and what would make it cost money.
 | # | Resource | Logical name | Created by | Purpose | Cost driver |
 |---|---|---|---|---|---|
 | 1 | Amplify Hosting app | `lost-soles` | Console + `amplify.yml` | Next.js SSR, CDN, CI/CD, auto-SSL | Build minutes; SSR requests; **data transfer out @ $0.15/GB after 15 GB** |
-| 2 | Cognito user pool | `defineAuth` | `amplify/auth/resource.ts` | Identity. Email + password; no passkey was enabled (`0014`, `09` §2.3; `08` §5.1). `allowUnauthenticatedIdentities: false`, self-signup disabled | MAU (10,000 free, non-expiring) |
-| 3 | Cognito identity pool | `defineAuth` | same | S3 `entity('identity')` scoping | Always free |
-| 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Client-facing reads under owner auth, plus the two custom mutations `logWorkout` and `setActivityKind` (#22, #23). **No subscriptions**: the live notify path was dropped by D-364 | $4.00/M ops |
+| 2 | ~~Cognito user pool~~ **Deleted** (`0334`, D-473) | — | — | Was identity: email + password, self-signup off. `defineAuth` and `amplify/auth/resource.ts` are gone; sign-in is Auth.js against core (D-478). `check-auth-posture.mjs` fails a deploy that brings a pool back | — |
+| 3 | ~~Cognito identity pool~~ **Deleted** (`0334`, D-473) | — | — | Was S3 `entity('identity')` scoping, which never matched an object (D-228). The storage `access` block went with it: no browser credential reaches the bucket | — |
+| 4 | AppSync GraphQL API | `defineData` | `amplify/data/resource.ts` | Owns the six model tables (#5). **IAM-only, no caller** (D-472, `0334`): one auth mode, `AWS_IAM`; every model is IAM read-only, and no principal holds `appsync:GraphQL`. No custom mutations since `0334` (the browser reaches #22, #23 through route handlers). **No subscriptions**: the live notify path was dropped by D-364 | $0: nothing calls it |
 | 5 | DynamoDB (Amplify-managed) | `Activity` (manual logs included — sets ride on `Activity.sets`, D-280), `Profile`, `SkillState`, `XpLedgerEntry`, `Landmark`, `DeploySmokeTest` (`0012`'s placeholder, one `note` field). *(Said `Profile, Skill, Activity, Region, Ticket`; D-465.)* | `defineData` models | Game state the client reads. `process-activity` writes these tables directly, not through AppSync (§4, D-276) | WRU $0.625/M, RRU $0.125/M, 25 GB free storage |
 | 6 | DynamoDB (CDK) | `LostSolesExploredCell` | `backend.createStack` | H3 res-11 cell set (D-237; writer `src/pipeline/explored-cells.ts`). `PK = U#<uid>#C#<res7parent>` (D-267), `SK = <res11cell>` | WRU — ~80–130 writes/run |
 | 7 | DynamoDB (CDK) | `LostSolesSourceAccount` | `backend.createStack` | Per-user OAuth access/refresh tokens + `expiresAt`. **Not in AppSync.** | Negligible |
@@ -248,8 +245,8 @@ Every resource, what it does, and what would make it cost money.
 | 19 | Route 53 hosted zone | `devaultsecurity.com` | **Already exists** | DNS. Do NOT create a second zone | $0 marginal |
 | 20 | S3 bucket + CloudFront distribution | `lost-soles-tiles` | `backend.createStack` | pmtiles basemap, fetched by HTTP range from the browser. **Private** — `blockPublicAccess: BLOCK_ALL`; CloudFront reads it through Origin Access Control with `originPath: "/tiles"`, so the distribution is the bucket's only reader (D-250; D-226's "public-read" wording was wrong). Served on the distribution's default `*.cloudfront.net` name, so **no ACM cert and no Route 53 record** (D-226) | ~$0.03/mo storage; egress inside CloudFront's **always-free** 1 TB + 10M requests |
 | 21 | DynamoDB (CDK) | `LostSolesCaptureGuard` | `backend.createStack` | Capture-endpoint rate-limit counters and idempotency records. `PK = pk`, TTL 2 h / 2 d / 24 h. Read and written by the **SSR compute**, not by a Lambda (ticket 0019, D-180) | Negligible |
-| 22 | Lambda | `log-workout` | `defineFunction` (`resourceGroupName: "data"`) | The `logWorkout` AppSync resolver: a manual workout to `Activity` and the ledger (`0069`, D-280). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
-| 23 | Lambda | `set-activity-kind` | `defineFunction` (`resourceGroupName: "data"`) | The `setActivityKind` AppSync resolver: the operator's kind for a run (`0244`, D-284). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
+| 22 | Lambda | `log-workout` | `defineFunction` (`resourceGroupName: "data"`) | A manual workout to `Activity` and the ledger (`0069`, D-280), invoked by `POST /api/log` as the SSR compute role, its only invoker (D-472; was the `logWorkout` AppSync resolver until `0334`). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
+| 23 | Lambda | `set-activity-kind` | `defineFunction` (`resourceGroupName: "data"`) | The operator's kind for a run (`0244`, D-284), invoked by `POST /api/runs/[activityId]/kind` as the SSR compute role, its only invoker (D-472; was the `setActivityKind` AppSync resolver until `0334`). 1024 MB, 30 s. Owner allowlist checked in the handler | Negligible |
 | 24 | DynamoDB (CDK) | `LostSolesOAuthState` | `backend.createStack` | OAuth `state` nonces, 10-minute rows with TTL; issued by `/api/auth/[source]/start`, consumed by the callback. Kept apart from #7 so no new item shape needs a write grant where the tokens live. SSR compute only | Negligible |
 | 25 | KMS customer-managed key | `SourceAccountKey`, `alias/lost-soles-source-account` | `backend.createStack` | Encrypts #7's tokens. Auditable `Decrypt`, revocable in one action, annual rotation, `RETAIN` with a 30-day pending window. Granted to the four principals D-362 names (`08` §9 carves it out of "no CMKs") | **$1/month**, the largest runtime line (D-433) |
 | 26 | SNS topic + 3 CloudWatch alarms | `IngestAlarms`; `IngestDlqNotEmpty`, `WebhookOwnerFlood` (on a log metric filter), `ReconcileSweepRecovering` | `backend.ts` | Email to the operator: an activity failed to import, the webhook is being flooded, the webhook is missing runs. The only push channel (D-185) | Free at this volume |
@@ -259,10 +256,10 @@ Also in play, **not created by this backend**: `LostSolesAmplifyComputeRole`, th
 made by hand in `0018` and imported by ARN so CDK can attach grants to it. *(Rows 22–27 and this
 note were added by D-465; the table had stopped at 21.)*
 
-> **Rows 2 and 3 are deleted at cutover** (`0334`, D-473). Capability `19` deletes `defineAuth`, so
-> no Cognito user pool or identity pool remains in this app. Identity moves to Auth.js, whose secrets
-> are SSM parameters (`08` §3, S10–S11), not resources in this table. Rows 22–23 change role too:
-> the two mutation Lambdas are invoked by the SSR compute role, not by AppSync resolvers (D-472).
+> **Rows 2 and 3 were deleted at cutover** (`0334`, D-473). No Cognito user pool or identity pool
+> remains in this app. Identity is Auth.js, whose secrets are SSM parameters (`08` §3, S10–S11), not
+> resources in this table. Rows 22–23 are invoked by the SSR compute role alone; AppSync's Lambda
+> data sources and their invoke grants went with the two mutations (D-472, D-475).
 
 Deliberately **absent**: VPC, NAT Gateway, RDS/Aurora, RDS Proxy, API Gateway, ECS/Fargate,
 WAF ($15/mo/app), Secrets Manager ($0.40/secret/mo), any tile server, any always-on compute.
@@ -306,6 +303,10 @@ six at once. Counted from `amplify/backend.ts` on 2026-10-28.)*
 5. **`BasemapTiles`** stack — the tiles bucket and its CloudFront distribution (D-226).
 6. **The webhook's Function URL**, and its metric filter and alarm (D-345).
 7. **The nightly reconcile `Schedule`** (D-350), and **the log-retention Aspect** (`0305`).
+8. **The removal of the data construct's `AuthRolePolicy01`** (`0334`, D-472). The auth transformer
+   emits it for any IAM model rule, granting `appsync:GraphQL` to the identity pool's role. With no
+   `defineAuth` that role is named `"undefined"`, so the deploy would fail; removing the policy is
+   also what makes "no principal holds `appsync:GraphQL`" true. `amplify/data-iam-only.test.ts` pins it.
 
 The block below is the original sketch, kept for its reasoning; the list above is what exists.
 

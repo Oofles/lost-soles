@@ -1,16 +1,26 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend"
 
-import { logWorkoutFunction } from "../functions/log-workout/resource"
-import { setActivityKindFunction } from "../functions/set-activity-kind/resource"
-
 /**
  * The AppSync-backed half of the data model. `02-data-model.md` §2.1: six `defineData`
  * models (one physical table each, which is how Gen 2 works) plus five raw CDK
  * `dynamodb.Table` constructs for the machine-only tables in `../backend.ts` (D-456, D-465).
  *
- * A model belongs HERE when a browser is allowed to ask about it, and in the CDK
- * escape hatch when it is not. That is the whole rule: "no auth rule is as safe as no
- * reachability" (§2.1 reason 1).
+ * WHY `defineData` STAYS AT ALL (D-472, `0334`). It owns the six model tables, and deleting it
+ * would delete them, with the activity and ledger history no rebuild reproduces without a drill.
+ * AppSync is no longer a client-facing API: the browser talks only to its own origin, and the SSR
+ * compute reads these tables directly with `dynamodb:Query` (`../backend.ts`).
+ *
+ * IAM-ONLY, AND NO CALLER. `defaultAuthorizationMode: "iam"` with no `defineAuth` makes `AWS_IAM`
+ * the API's one auth mode (Gen 2 always adds IAM; `@aws-amplify/backend-data`'s
+ * `convert_authorization_modes.js`). Every model carries the one rule described above `schema`,
+ * because Gen 2 refuses a model with no rule at all, and NO PRINCIPAL IS GRANTED `appsync:GraphQL`,
+ * so the API answers nobody. `scripts/check-auth-posture.mjs` asserts the deployed modes are
+ * exactly `AWS_IAM`.
+ *
+ * The two custom mutations (`logWorkout`, `setActivityKind`) are gone: since `0331` the browser
+ * reaches their Lambdas through `POST /api/log` and `POST /api/runs/[activityId]/kind`, and the
+ * SSR compute role is the only invoker. The Lambdas keep `resourceGroupName: "data"` so they stay
+ * in this stack rather than being recreated in another.
  *
  * `DeploySmokeTest` was 0012's placeholder — `defineData` refuses an empty schema and
  * something had to stand in. T3 replaces it as the first real model; the placeholder
@@ -87,6 +97,15 @@ const kindOverride = a.customType({
   setAt: a.datetime().required(),
   key: a.string().required(),
 })
+
+/**
+ * THE ONE RULE EVERY MODEL CARRIES (D-472). `allow.authenticated("identityPool")` is the minimal
+ * IAM-provider rule Gen 2 accepts on a model (`{allow: private, provider: iam}`). With no identity
+ * pool in this app there is no authenticated role it could admit, and no IAM principal holds
+ * `appsync:GraphQL` on the API, so it admits nobody. Read-only, so even a future grant could not
+ * write a table the pipeline owns (I-20). Inlined on each model rather than shared, so Gen 2's
+ * `ClientSchema` inference sees the literal rule. `amplify/data-iam-only.test.ts` pins it.
+ */
 
 const schema = a.schema({
   SourceRef: sourceRef,
@@ -230,17 +249,12 @@ const schema = a.schema({
         .projection("INCLUDE", ["kind", "distanceM", "xpAwarded"]),
     ])
     /**
-     * READ-ONLY TO THE CLIENT, and that is the security posture rather than a
-     * convenience. T3: "Client creates are only permitted through the manual-log
-     * mutation (§2.11), never a raw `createActivity`."
-     *
-     * Every field on this model is written by the pipeline, which runs server-side
-     * under an IAM role and does not go through AppSync at all. A client that could
-     * `createActivity` could mint XP by inventing a run — server-side scoring (01 §4
-     * step 14: "never let the client claim XP") means nothing if the client can write
-     * the input to it. So the owner gets `read` and nothing else.
+     * NO CLIENT REACHES THIS MODEL (D-472). Every field is written by the pipeline, which runs
+     * server-side under an IAM role and does not go through AppSync at all; a client that could
+     * `createActivity` could mint XP by inventing a run (01 §4 step 14). Until `0334` the owner
+     * had `read`; now nobody does, and the run views read T3 through the SSR compute.
      */
-    .authorization((allow) => [allow.owner().to(["read"])]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 
   /**
    * T1 `Profile`. Ticket 0066, `02-data-model.md` T1. One row per user, `id` = the Cognito sub.
@@ -250,37 +264,36 @@ const schema = a.schema({
    * attributes are declared now so capabilities 08 and 13 inherit the schema `02` chose rather
    * than growing it one column per ticket.
    *
-   * ─── THE CLIENT MAY EDIT ITS PREFERENCES, NEVER ITS NUMBERS ─────────────────
+   * ─── NO CLIENT WRITES IT (D-472; D-258's field rules went with the owner rule) ───
    *
-   * `02` T1 says `allow.owner()`, and the preferences (`displayName`, `showColdTerritory`,
-   * `rulesVersionPinned`) are the owner's to write. The four attributes the
-   * pipeline owns are narrowed to owner READ at the field (D-258): the XP trust boundary
-   * (`01` §5, I-20) does not stop being true because a total is denormalised onto a row the
-   * client can otherwise edit. A client that could write `totalLevel` could forge the headline.
+   * Until `0334` the owner could edit the preferences through AppSync and only READ the
+   * pipeline-owned attributes, narrowed at the field (D-258). With AppSync answering no caller
+   * there is no client write path left to narrow. The XP trust boundary (`01` §5, I-20) now
+   * holds because no principal can reach the API at all.
    */
   Profile: a
     .model({
       displayName: a.string(),
       /** Mirror of the manifest's generation (`02` §6.4). Wired by `0182`. */
-      exploredGeneration: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      exploredGeneration: a.integer(),
       /** Atlas-only overlay (D-133). */
       showColdTerritory: a.boolean(),
       rulesVersionPinned: a.integer(),
       /** D-033's headline, denormalised so it is one read, not six (`02` T1). */
-      totalLevel: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
-      totalXp: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      totalLevel: a.integer(),
+      totalXp: a.integer(),
       /**
        * `02` §4.4 step 1. While true, the UI keeps rendering the SkillState it already has
        * rather than refetching, so no number visibly moves until step 6 has written them all.
        */
-      replayInProgress: a.boolean().authorization((allow) => [allow.owner().to(["read"])]),
+      replayInProgress: a.boolean(),
       /**
        * `0235`, D-275. The version §4.4 step 6 moved the ledger to. Every ingest commit with XP
        * is conditioned on it, so a commit scored before a replay cannot land after one.
        */
-      ledgerRulesVersion: a.integer().authorization((allow) => [allow.owner().to(["read"])]),
+      ledgerRulesVersion: a.integer(),
     })
-    .authorization((allow) => [allow.owner()]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 
   /**
    * T2 `SkillState`. Ticket 0062, `02-data-model.md` T2.
@@ -317,14 +330,14 @@ const schema = a.schema({
     .identifier(["userId", "skillId"])
     /**
      * NO MUTATIONS AND NO SUBSCRIPTIONS EXIST, rather than existing and being denied (I-20).
-     * `allow.owner().to(["read"])` alone still generates `createSkillState` and friends, with
+     * A read-only rule alone still generates `createSkillState` and friends, with
      * an auth check that refuses them; `Activity` above is that shape today. For the two
      * tables that ARE the XP, "no auth rule is as safe as no reachability" (§2.1) wins.
      * Subscriptions go too: they fire only on AppSync mutations, and the pipeline writes
      * DynamoDB directly, so one could never fire.
      */
     .disableOperations(["mutations", "subscriptions"])
-    .authorization((allow) => [allow.owner().to(["read"])]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 
   /**
    * T4 `XpLedgerEntry`. Ticket 0062, `02-data-model.md` T4 and §4.
@@ -398,7 +411,7 @@ const schema = a.schema({
     ])
     /** See `SkillState` above: no mutation exists, rather than one that is refused. */
     .disableOperations(["mutations", "subscriptions"])
-    .authorization((allow) => [allow.owner().to(["read"])]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 
   /**
    * `Landmark` — WHERE A PLACE-BOUND MILESTONE WAS EARNED. Ticket `0248`, `04` §4.3, D-301.
@@ -433,90 +446,17 @@ const schema = a.schema({
     .identifier(["userId", "skillLevel"])
     /** See `SkillState`: no mutation exists, rather than one that is refused. */
     .disableOperations(["mutations", "subscriptions"])
-    .authorization((allow) => [allow.owner().to(["read"])]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 
   /**
-   * 0012's placeholder. Kept until a second real model lands — see the header.
+   * 0012's placeholder. Kept because removing the model would delete its table, which is churn
+   * `0334` does not need on the deploy that changes the API's auth.
    */
-  /**
-   * ─── THE ONE MUTATION THAT CREATES AN ACTIVITY (I-20's carve-out) ─────────────
-   *
-   * Ticket 0069, `02` §2.11. It runs the manual adapter and the SAME `processActivity` as the
-   * ingest worker (`amplify/functions/log-workout`), so a hand-logged pushup takes a Strava
-   * run's path. Its arguments are MEASURED WORK ONLY: an exercise, its sets, when, and an
-   * idempotency key. No XP, no skill id, no level — `log-workout-mutation.test.ts` asserts the
-   * generated SDL, because one optional `xp: Int` here would make every number in the game
-   * forgeable.
-   *
-   * `allow.authenticated()`, not `allow.owner()`: Amplify's owner rule applies to MODELS, and a
-   * custom operation has no row to own. The ticket's intent — only the user, about themselves —
-   * is met by the handler: the user is `identity.sub`, never an argument, and it must be on
-   * the owner allowlist.
-   */
-  LogWorkoutSet: a.customType({
-    reps: a.integer(),
-    durationS: a.integer(),
-    /** `0240`, D-286. Whole metres. With it, `durationS` is the optional time, not a plank. */
-    distanceM: a.integer(),
-    weightKg: a.float(),
-  }),
-  LogWorkoutResult: a.customType({
-    logged: a.boolean().required(),
-    activityId: a.string().required(),
-    xpAwarded: a.integer().required(),
-  }),
-  logWorkout: a
-    .mutation()
-    .arguments({
-      exerciseId: a.string().required(),
-      sets: a.ref("LogWorkoutSet").required().array().required(),
-      occurredAt: a.datetime(),
-      idempotencyKey: a.string().required(),
-      timezone: a.string(),
-    })
-    .returns(a.ref("LogWorkoutResult").required())
-    .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(logWorkoutFunction)),
-
-  /**
-   * `0244`, D-284. The operator corrects what an activity WAS, and that one activity is re-scored
-   * (`src/pipeline/kind-rescore.ts`). Owner-only on `logWorkout`'s pattern: `allow.authenticated()`
-   * here, and the handler takes the user from `identity.sub` and checks the owner allowlist. No
-   * user argument and no XP argument — `set-activity-kind-mutation.test.ts` pins both.
-   *
-   * The result reports the XP in plain parts for the run page: what each skill gained, and what
-   * was RETAINED as a floor because XP never goes down (D-135). Both empty is a real outcome.
-   */
-  SetActivityKindXp: a.customType({
-    skillId: a.string().required(),
-    xp: a.integer().required(),
-  }),
-  SetActivityKindResult: a.customType({
-    outcome: a.string().required(),
-    activityId: a.string().required(),
-    kind: a.string().required(),
-    from: a.string(),
-    derivedKind: a.string(),
-    gained: a.ref("SetActivityKindXp").required().array().required(),
-    retained: a.ref("SetActivityKindXp").required().array().required(),
-    cellsRevealed: a.integer().required(),
-    message: a.string().required(),
-  }),
-  setActivityKind: a
-    .mutation()
-    .arguments({
-      activityId: a.string().required(),
-      kind: a.string().required(),
-    })
-    .returns(a.ref("SetActivityKindResult").required())
-    .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(setActivityKindFunction)),
-
   DeploySmokeTest: a
     .model({
       note: a.string(),
     })
-    .authorization((allow) => [allow.owner()]),
+    .authorization((allow) => [allow.authenticated("identityPool").to(["read"])]),
 })
 
 export type Schema = ClientSchema<typeof schema>
@@ -524,17 +464,10 @@ export type Schema = ClientSchema<typeof schema>
 export const data = defineData({
   schema,
   /**
-   * UNCHANGED BY THIS TICKET. The ingest pipeline writes `Activity` rows straight to
-   * DynamoDB inside a `TransactWriteItems` (01 §4 step 15) and never touches AppSync,
-   * so it needs no auth mode of its own here.
-   *
-   * 01 §4 step 17 — the worker calling an IAM-authed mutation to wake the browser's
-   * subscription, because Amplify has no on-demand ISR and there is no
-   * `revalidatePath` to call from a webhook — needs an IAM grant on this model. That
-   * arrives with the worker that makes the call (0042) and the invalidation contract
-   * (0051); adding it now would be config for a caller that does not exist.
+   * `iam`, and no `defineAuth` exists (D-472, D-473, `0334`). The API's auth modes are exactly
+   * `AWS_IAM`, which `scripts/check-auth-posture.mjs` asserts against the deployed API.
    */
   authorizationModes: {
-    defaultAuthorizationMode: "userPool",
+    defaultAuthorizationMode: "iam",
   },
 })

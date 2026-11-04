@@ -7,6 +7,10 @@
 /**
  * The allowlist. Cognito `sub`s, hard-coded per §6.4/1.
  *
+ * SINCE `0334` (D-473) THERE IS NO COGNITO POOL. The uid below is the old pool's `sub`, frozen:
+ * every partition key and S3 key is it, and `IDENTITIES` (below) maps a Google email onto it. The
+ * two-pools warning that follows is history; it explains why the uid is what it is.
+ *
  * WHY THE SUB AND NOT THE EMAIL. A sub is immutable and Cognito-assigned; an email
  * is a mutable user attribute. Allowlisting something the account holder can change
  * is allowlisting the wrong thing, even when the account holder is the operator.

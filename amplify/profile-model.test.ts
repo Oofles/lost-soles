@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest"
 /**
  * T1 `Profile`, asserted against the synthesized backend. Ticket 0066, `02-data-model.md` T1, D-258.
  *
- * The field-level narrowing is the assertion that matters: the owner may edit their preferences,
- * and may only READ the four attributes the pipeline owns. A dropped `.authorization()` on
- * `totalLevel` would let a client forge the headline, and nothing else would notice.
+ * Until `0334` the field-level narrowing was the assertion that mattered (D-258): the owner could
+ * edit preferences and only READ what the pipeline owns. `0334` (D-472) left AppSync with no
+ * caller, so the assertion now is the stronger one: the model is IAM-only read, no field carries a
+ * rule of its own that could widen it, and nothing in the schema is owner-scoped any more.
  *
  * Synthesized once at module scope — see `activity-model.test.ts` on the 5 s timeout.
  */
@@ -44,29 +45,27 @@ describe("T1 Profile", () => {
     expect(props.globalSecondaryIndexes ?? []).toEqual([])
   })
 
-  it("is owner-scoped at the model", () => {
-    expect(profileType().split("\n")[0]).toMatch(/^type Profile @model @auth\(rules: \[\{allow: owner, ownerField: "owner"\}\]\)/)
+  it("is IAM-only read at the model, with no owner rule (D-472)", () => {
+    expect(profileType().split("\n")[0]).toBe(
+      "type Profile @model @auth(rules: [{allow: private, provider: identityPool, operations: [read]}])",
+    )
+    expect(profileType()).not.toMatch(/allow: owner|ownerField/)
   })
 
-  it.each(["totalLevel", "totalXp", "replayInProgress", "exploredGeneration", "ledgerRulesVersion"])(
-    "the owner can only READ %s",
-    (field) => {
-      const line = profileType()
-        .split("\n")
-        .find((l) => l.trim().startsWith(`${field}:`))
-      expect(line, `no ${field} on Profile`).toBeDefined()
-      expect(line).toMatch(/@auth\(rules: \[\{allow: owner, operations: \[read\], ownerField: "owner"\}\]\)/)
-    },
-  )
-
-  it.each(["displayName", "showColdTerritory", "rulesVersionPinned"])(
-    "%s stays the owner's to write",
-    (field) => {
-      const line = profileType()
-        .split("\n")
-        .find((l) => l.trim().startsWith(`${field}:`))
-      expect(line).toBeDefined()
-      expect(line).not.toMatch(/@auth/)
-    },
-  )
+  it.each([
+    "totalLevel",
+    "totalXp",
+    "replayInProgress",
+    "exploredGeneration",
+    "ledgerRulesVersion",
+    "displayName",
+    "showColdTerritory",
+    "rulesVersionPinned",
+  ])("%s carries no field rule of its own (nothing could widen it past the model's)", (field) => {
+    const line = profileType()
+      .split("\n")
+      .find((l) => l.trim().startsWith(`${field}:`))
+    expect(line, `no ${field} on Profile`).toBeDefined()
+    expect(line).not.toMatch(/@auth/)
+  })
 })
