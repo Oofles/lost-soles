@@ -7857,7 +7857,7 @@
     "path": "tickets/open/0339-join-core-sso.md",
     "ready": true,
     "acceptance": {
-      "checked": 6,
+      "checked": 8,
       "total": 8
     }
   },
@@ -7878,7 +7878,7 @@
     "path": "tickets/open/0340-admit-operator-second-address.md",
     "ready": true,
     "acceptance": {
-      "checked": 3,
+      "checked": 4,
       "total": 4
     }
   }

@@ -58,10 +58,12 @@ The work:
 - [x] `08` §5.3 and `01` §5 name core as the sign-in point and the shared cookie, citing D-478.
       `SSO-PLAN.md` in `../core` is not edited from here: the orchestrator reports the join to the
       operator.
-- [ ] (operator) Signed in on core (or school-hub) in the desktop browser, opening
+- [x] (operator) Signed in on core (or school-hub) in the desktop browser, opening
       `soles.devaultsecurity.com` lands on the map signed in, with no second sign-in.
-- [ ] (operator) Signed out, opening `soles.devaultsecurity.com` lands on core's sign-in. After
+      — verified 2026-11-03: pass (operator, desktop browser): signed in on core as `brandondevault@gmail.com` (after `0340`), the map loaded with no second sign-in.
+- [x] (operator) Signed out, opening `soles.devaultsecurity.com` lands on core's sign-in. After
       signing in there, you come back to Lost Soles' map, unchanged.
+      — verified 2026-11-03: pass (operator, desktop browser): sign-out landed on core's sign-in, and sign-in returned to the map, unchanged.
 
 ## Notes
 
@@ -94,6 +96,10 @@ Orchestrator, 2026-11-03, after merge (`181856e`) and deploy (Amplify job 447, `
   403 question resolves as long as the operator signs into core with that address.
 - Local gate on merged `main`: every guard passed. 290 test files, 4,704 tests passed. The live `../school-hub` comparison
   in `lib/auth/config.test.ts` now passes (it failed at the `0333` gate).
+
+Operator, desktop browser, 2026-11-03: both `(operator)` criteria pass. The first attempt hit the 403, because core
+signed in with `brandondevault@gmail.com`, which Lost Soles did not admit. `0340` (D-479) admitted it, and the re-run passed.
+After: still 377 rows, Σ 73,002, `exploredGeneration` 270. Nothing moved.
 
 ## Resolution
 

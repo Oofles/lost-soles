@@ -28,8 +28,9 @@ Both addresses are the operator's, and both are already in this public repositor
       — verified 2026-11-03: v2 = `amazingbrandon@gmail.com,brandondevault@gmail.com`. The agent wrote it on the operator's explicit go, guarded on the old value.
 - [x] Deployed: a signed-out `/` still 307s to core, and the owner data Σ is unchanged.
       — verified 2026-11-03 (build 448, `52f7652`): `/` returns 307 to core's `/login?next=…soles…%2F`, `/api/fog` returns 404, and the data is 377 rows, Σ 73,002, `exploredGeneration` 270.
-- [ ] (operator) Signed in on core as `brandondevault@gmail.com`, `soles.devaultsecurity.com` lands on
+- [x] (operator) Signed in on core as `brandondevault@gmail.com`, `soles.devaultsecurity.com` lands on
       the map, not the 403.
+      — verified 2026-11-03: pass (operator, desktop browser): the map loaded, not the 403.
 
 ## Notes
 
@@ -42,6 +43,8 @@ Agent: the SSM value, the deployed redirect, the Σ check. Operator: the one `(o
 
 Agent, 2026-11-03: the gate passed before the push (typecheck, lint, 4,705 tests, trigger-a, auth-posture, secret-storage,
 history-secrets, build and post-build guards). Then the two criteria above, verified against build 448.
+
+Operator, desktop browser, 2026-11-03: signed in on core as `brandondevault@gmail.com`, Lost Soles showed the map. Pass.
 
 D-123 trigger checked? **A**, proposed and resolved: D-479 re-affirms D-123. No second account, since the new address maps to the owner uid.
 
