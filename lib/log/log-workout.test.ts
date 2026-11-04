@@ -291,3 +291,58 @@ describe("scaled exercises feed one tally (0341, D-483)", async () => {
     await expect(logWorkout({ ...pushups, sets: [{ durationS: 30 }] }, USER, h.deps)).rejects.toBeInstanceOf(LogWorkoutRefused)
   })
 })
+
+/** `0342`, D-483: a split log through the real adapter and `processActivity`, as ONE activity. */
+describe("a split strength log (0342, D-483)", async () => {
+  const { splitRuleSet, SPLIT_ID, REGION_EXERCISES } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const R = splitRuleSet()
+  const shares = (...p: number[]) => p.map((percent, i) => ({ exerciseId: REGION_EXERCISES[i]!, percent }))
+  const log = (p: number[], durationS = 2700) => ({
+    exerciseId: SPLIT_ID,
+    split: { durationS, shares: shares(...p) },
+    idempotencyKey: "k-split",
+    timezone: "America/Denver",
+  })
+  const xp = (h: ReturnType<typeof harness>, id: string) =>
+    h.transacts[0]!.TransactItems!.filter((i) => i.Put?.TableName === LEDGER_TABLE && i.Put.Item!.skillId === id)
+      .reduce((n, i) => n + Number(i.Put!.Item!.xpAwarded), 0)
+
+  it("45 min at 40/30/30 awards 540 / 405 / 405 and Constitution a third of each, in one transaction", async () => {
+    const h = harness({}, false, R)
+    const result = await logWorkout(log([40, 30, 30]), USER, h.deps)
+    expect(result).toMatchObject({ logged: true })
+    expect(h.transacts).toHaveLength(1)
+    expect(xp(h, "might")).toBe(540)
+    expect(xp(h, "fortitude")).toBe(405)
+    expect(xp(h, "endurance")).toBe(405)
+    expect(xp(h, "constitution")).toBeCloseTo(1350 * 0.3333, 0)
+    expect(result.xpAwarded).toBeCloseTo(1350 + 1350 * 0.3333, 0)
+  })
+
+  it("100/0/0 trains one skill only", async () => {
+    const h = harness({}, false, R)
+    await logWorkout(log([100, 0, 0]), USER, h.deps)
+    expect(new Set(ledgerSkills(h.transacts))).toEqual(new Set(["might", "constitution"]))
+    expect(xp(h, "might")).toBe(1350)
+  })
+
+  it("the soft cap applies per skill: two hours at 50/50 is an hour each, uncapped", async () => {
+    const h = harness({}, false, R)
+    await logWorkout(log([50, 50], 7200), USER, h.deps)
+    expect(xp(h, "might")).toBe(1800)
+    expect(xp(h, "fortitude")).toBe(1800)
+  })
+
+  it("refuses a bad split before any write: no accept, no transaction", async () => {
+    const h = harness({}, false, R)
+    await expect(logWorkout(log([40, 30, 20]), USER, h.deps)).rejects.toMatchObject({ code: "BAD_SPLIT" })
+    expect(h.accepts).toEqual([])
+    expect(h.transacts).toEqual([])
+  })
+
+  it("a re-delivered key is one log, not two", async () => {
+    const h = harness({}, true, R)
+    await logWorkout(log([40, 30, 30]), USER, h.deps)
+    expect(h.accepts).toHaveLength(1)
+  })
+})

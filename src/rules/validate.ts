@@ -30,6 +30,7 @@ import {
   LOG_MODE_OF_MEASURE,
   LOG_MODES,
   MEASURE_PREFIXES,
+  type RuleExercise,
   type RuleSet,
   type RuleSkill,
 } from "./schema"
@@ -203,6 +204,72 @@ function validateMatch(skill: RuleSkill, i: number, errs: RuleError[]): void {
  *   measure set-summed, and the entry not `distance`.
  */
 const ENTRY_KINDS = ["count", "seconds", "distance", "minutes"] as const
+
+/**
+ * `splits[]` — D-483, ticket 0342. A split is one log of N minutes shared across member
+ * exercises. Every member must be a `minutes` exercise on an enabled activity row, or a share
+ * would score nothing; and every member must log the same `kind`, because one log is one
+ * activity with one kind.
+ */
+function validateSplits(ruleSet: Record<string, unknown>, skills: RuleSkill[], errs: RuleError[]): void {
+  const splits = ruleSet.splits
+  if (splits === undefined) return
+  if (!Array.isArray(splits)) {
+    errs.push({ path: "splits", message: "must be an array" })
+    return
+  }
+  const exercises = new Map<string, { exercise: RuleExercise; skill: RuleSkill }>()
+  for (const skill of skills) {
+    for (const exercise of (isObject(skill) && Array.isArray(skill.exercises) ? skill.exercises : [])) {
+      if (isObject(exercise) && typeof exercise.id === "string") exercises.set(exercise.id, { exercise, skill })
+    }
+  }
+  const ids = new Set<string>()
+  splits.forEach((sp: unknown, i: number) => {
+    const at = `splits[${i}]`
+    if (!isObject(sp) || typeof sp.id !== "string" || sp.id === "") {
+      errs.push({ path: at, message: "a split needs a non-empty string id" })
+      return
+    }
+    if (ids.has(sp.id) || exercises.has(sp.id)) {
+      errs.push({ path: `${at}.id`, message: `duplicate id ${JSON.stringify(sp.id)}: a log names a split or an exercise by it, so it must be unique across both` })
+    }
+    ids.add(sp.id)
+    if (typeof sp.label !== "string" || sp.label === "") errs.push({ path: `${at}.label`, message: "required" })
+    if (sp.entry !== "minutes") errs.push({ path: `${at}.entry`, message: 'must be "minutes"' })
+    const step = sp.shareStep
+    if (typeof step !== "number" || !Number.isInteger(step) || step <= 0 || 100 % step !== 0) {
+      errs.push({ path: `${at}.shareStep`, message: "must be a positive integer percent that divides 100" })
+    }
+    if (!Array.isArray(sp.quickValues) || !sp.quickValues.every((v: unknown) => typeof v === "number" && Number.isInteger(v) && v > 0)) {
+      errs.push({ path: `${at}.quickValues`, message: "must be a list of positive whole minutes" })
+    }
+    const members = sp.members
+    if (!Array.isArray(members) || members.length < 2) {
+      errs.push({ path: `${at}.members`, message: "must list at least two exercises: a split of one is a row" })
+      return
+    }
+    if (new Set(members).size !== members.length) errs.push({ path: `${at}.members`, message: "lists an exercise twice" })
+    const kinds = new Set<string>()
+    members.forEach((m: unknown, j: number) => {
+      const found = typeof m === "string" ? exercises.get(m) : undefined
+      if (!found) {
+        errs.push({ path: `${at}.members[${j}]`, message: `${JSON.stringify(m)} is not an exercise of any row` })
+        return
+      }
+      if (found.exercise.entry !== "minutes") {
+        errs.push({ path: `${at}.members[${j}]`, message: `${JSON.stringify(m)} is a ${found.exercise.entry} exercise; a split shares minutes` })
+      }
+      if (found.skill.kind !== "activity" || found.skill.enabled !== true) {
+        errs.push({ path: `${at}.members[${j}]`, message: `${JSON.stringify(m)} is on a row that is not an enabled activity skill: its share would score nothing` })
+      }
+      kinds.add(found.exercise.kind ?? "strength")
+    })
+    if (kinds.size > 1) {
+      errs.push({ path: `${at}.members`, message: `members log different kinds (${[...kinds].join(", ")}); one log is one activity of one kind` })
+    }
+  })
+}
 
 function isSetMeasure(measure: unknown): boolean {
   return typeof measure === "string" && MEASURE_PREFIXES.some((p) => measure.startsWith(p))
@@ -585,6 +652,8 @@ export function validateRuleSet(ruleSet: unknown): RuleError[] {
       })
     }
   })
+
+  validateSplits(ruleSet, skills, errs)
 
   // Selection checks run only once the shape is sound: the matcher reads `match.measure` and
   // would report noise on a ruleset that has not yet earned a coherent one.

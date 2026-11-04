@@ -7914,7 +7914,7 @@
     "title": "A split strength log: one activity, one minutes set per body region",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -7923,10 +7923,12 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
-    "path": "tickets/open/0342-split-strength-log.md",
-    "ready": true,
+    "started": "2026-11-04T05:16:02Z",
+    "closed": "2026-11-04T05:22:43Z",
+    "path": "tickets/closed/0342-split-strength-log.md",
+    "ready": false,
     "acceptance": {
-      "checked": 0,
+      "checked": 5,
       "total": 5
     }
   },
@@ -7947,7 +7949,7 @@
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
     "path": "tickets/open/0343-rules-v5-strength-regions-and-iron.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6

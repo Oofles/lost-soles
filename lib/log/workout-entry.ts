@@ -22,7 +22,7 @@
  */
 
 import type { Activity, ActivityKind, WorkoutSet } from "@/src/domain/activity"
-import type { RuleExercise, RuleSkill } from "@/src/rules/schema"
+import type { RuleExercise, RuleSkill, RuleSplit } from "@/src/rules/schema"
 import { SET_FIELDS, SET_FIELD_BY_ENTRY, setFieldOf, type SetField } from "@/src/scoring/units"
 
 /**
@@ -32,7 +32,26 @@ import { SET_FIELDS, SET_FIELD_BY_ENTRY, setFieldOf, type SetField } from "@/src
  * Deliberately open: a future `restSeconds` is an optional key on this object, and a reader
  * that does not know it ignores it (criterion 8). No field is reserved for it now.
  */
-export type EntrySet = Omit<WorkoutSet, "exercise">
+export type EntrySet = Omit<WorkoutSet, "exercise"> & {
+  /**
+   * Only on a SPLIT log (D-483, ticket 0342), where one entry spans several exercises: the
+   * member this set belongs to. Never taken from the client — `parseWorkoutEntry` writes it while
+   * apportioning the split, and a plain entry's sets never carry it.
+   */
+  exercise?: string
+}
+
+/** One member's share of a split log, in percent. */
+export interface SplitShare {
+  exerciseId: string
+  percent: number
+}
+
+/** What a split log says on the wire: the total, and how it divides (D-483). */
+export interface SplitSpec {
+  durationS: number
+  shares: SplitShare[]
+}
 
 export interface WorkoutEntry {
   /** A registry `exercises[].id` — `pushup`, `plank`. Data, never a union (D-031). */
@@ -57,6 +76,12 @@ export interface WorkoutEntry {
    * D-286 (no `kind`) still reads as the strength log it was.
    */
   kind?: ActivityKind
+  /**
+   * A split log (D-483): `exerciseId` names a `RuleSet.splits[]` entry, and this is what the user
+   * said. `sets` is then DERIVED from it, one per non-zero share, each carrying its member
+   * `exercise`, by `apportionSplit` on both sides of the wire. Only this goes over the wire.
+   */
+  split?: SplitSpec
 }
 
 export type WorkoutEntryErrorCode =
@@ -67,6 +92,7 @@ export type WorkoutEntryErrorCode =
   | "BAD_OCCURRED_AT"
   | "BAD_IDEMPOTENCY_KEY"
   | "BAD_TIMEZONE"
+  | "BAD_SPLIT"
 
 /** The one named error the `/log` boundary throws. `code` says which rule failed. */
 export class WorkoutEntryError extends Error {
@@ -150,9 +176,77 @@ export function entryFieldFor(
   return resolved && resolved.exercise === exerciseId ? resolved.field : null
 }
 
-/** The kind a log of `exerciseId` is: the exercise's `kind`, else `strength` (D-286). */
-export function exerciseKind(exerciseId: string, registry: { skills: readonly RuleSkill[] }): ActivityKind {
-  return exerciseOf(exerciseId, registry)?.exercise.kind ?? "strength"
+/** The kind a log of `exerciseId` is: the exercise's `kind`, else `strength` (D-286). A split
+ *  logs its members' kind, which the validator holds to one (D-483). */
+export function exerciseKind(
+  exerciseId: string,
+  registry: { skills: readonly RuleSkill[]; splits?: readonly RuleSplit[] },
+): ActivityKind {
+  const split = splitOf(exerciseId, registry)
+  const id = split ? split.members[0]! : exerciseId
+  return exerciseOf(id, registry)?.exercise.kind ?? "strength"
+}
+
+/** The split `id` names, or null. D-483. */
+export function splitOf(
+  id: string,
+  registry: { splits?: readonly RuleSplit[] },
+): RuleSplit | null {
+  return registry.splits?.find((s) => s.id === id) ?? null
+}
+
+/**
+ * A split's total, divided by share into whole-second sets — one per non-zero share, in member
+ * order (D-483). Each share is floored; the seconds left over go to the largest share, ties to
+ * the first member. So the sets always sum to exactly the total, and the same input apportions
+ * the same way on the client (its optimistic award) and the server (what is scored).
+ *
+ * Throws `BAD_SPLIT` on anything a user could not have meant: an unknown member, a member twice,
+ * a share that is not a multiple of the split's step, or shares that do not sum to 100.
+ */
+export function apportionSplit(split: RuleSplit, spec: SplitSpec): EntrySet[] {
+  const bad = (m: string) => new WorkoutEntryError("BAD_SPLIT", m)
+  if (!isPositiveInt(spec.durationS)) throw bad("split.durationS must be a positive integer")
+  if (!Array.isArray(spec.shares) || spec.shares.length === 0) throw bad("split.shares must be a non-empty list")
+  const byMember = new Map<string, number>()
+  for (const [i, s] of spec.shares.entries()) {
+    if (!isRecord(s) || typeof s.exerciseId !== "string") throw bad(`split.shares[${i}] must be { exerciseId, percent }`)
+    if (!split.members.includes(s.exerciseId)) {
+      throw bad(`split.shares[${i}]: ${JSON.stringify(s.exerciseId)} is not part of ${JSON.stringify(split.id)}`)
+    }
+    if (byMember.has(s.exerciseId)) throw bad(`split.shares[${i}]: ${JSON.stringify(s.exerciseId)} is listed twice`)
+    const p = s.percent
+    if (typeof p !== "number" || !Number.isInteger(p) || p < 0 || p > 100 || p % split.shareStep !== 0) {
+      throw bad(`split.shares[${i}].percent must be a whole multiple of ${split.shareStep} from 0 to 100`)
+    }
+    byMember.set(s.exerciseId, p)
+  }
+  const total = [...byMember.values()].reduce((a, b) => a + b, 0)
+  if (total !== 100) throw bad(`split shares sum to ${total}%, not 100%`)
+
+  const parts = split.members
+    .map((id) => ({ id, percent: byMember.get(id) ?? 0 }))
+    .filter((p) => p.percent > 0)
+    .map((p) => ({ ...p, seconds: Math.floor((spec.durationS * p.percent) / 100) }))
+  const left = spec.durationS - parts.reduce((a, p) => a + p.seconds, 0)
+  // `parts` is in member order, so the first of equal largest shares is the first member.
+  const largest = parts.reduce((best, p) => (p.percent > best.percent ? p : best), parts[0]!)
+  largest.seconds += left
+  return parts.map((p) => ({ exercise: p.id, [SET_FIELDS.seconds]: p.seconds }))
+}
+
+function parseSplit(input: Record<string, unknown>, split: RuleSplit): { split: SplitSpec; sets: EntrySet[] } {
+  if (input.sets != null) {
+    throw new WorkoutEntryError("BAD_SPLIT", `${JSON.stringify(split.id)} is a split: it carries split, not sets`)
+  }
+  const raw = input.split
+  if (!isRecord(raw)) throw new WorkoutEntryError("BAD_SPLIT", "a split log needs split: { durationS, shares }")
+  const shares = Array.isArray(raw.shares)
+    ? raw.shares.map((s) => (isRecord(s) ? { exerciseId: s.exerciseId, percent: s.percent } : s))
+    : raw.shares
+  const spec = { durationS: raw.durationS, shares } as SplitSpec
+  const sets = apportionSplit(split, spec)
+  return { split: { durationS: spec.durationS, shares: spec.shares.map((s) => ({ exerciseId: s.exerciseId, percent: s.percent })) }, sets }
 }
 
 /**
@@ -165,7 +259,7 @@ export function exerciseKind(exerciseId: string, registry: { skills: readonly Ru
  */
 export function parseWorkoutEntry(
   input: unknown,
-  registry: { skills: readonly RuleSkill[] },
+  registry: { skills: readonly RuleSkill[]; splits?: readonly RuleSplit[] },
 ): WorkoutEntry {
   if (!isRecord(input)) throw new WorkoutEntryError("NOT_AN_OBJECT", "a workout entry must be a JSON object")
 
@@ -173,6 +267,12 @@ export function parseWorkoutEntry(
 
   if (typeof exerciseId !== "string" || exerciseId === "") {
     throw new WorkoutEntryError("UNKNOWN_EXERCISE", "exerciseId must be a non-empty string")
+  }
+  const split = splitOf(exerciseId, registry)
+  if (split) {
+    // D-483: the sets are derived here from what the user said, never sent.
+    const parsed = parseSplit(input, split)
+    return { exerciseId, ...parsed, ...parseEnvelope(occurredAt, idempotencyKey, timezone), kind: exerciseKind(exerciseId, registry) }
   }
   const field = entryFieldFor(exerciseId, registry)
   if (!field) {
@@ -221,6 +321,15 @@ export function parseWorkoutEntry(
     return set
   })
 
+  return { exerciseId, sets: clean, ...parseEnvelope(occurredAt, idempotencyKey, timezone), kind: exerciseKind(exerciseId, registry) }
+}
+
+/** WHEN and WHICH LOG — the half of an entry that is the same for a row and a split. */
+function parseEnvelope(
+  occurredAt: unknown,
+  idempotencyKey: unknown,
+  timezone: unknown,
+): Pick<WorkoutEntry, "occurredAt" | "idempotencyKey" | "timezone"> {
   if (typeof occurredAt !== "string" || !ISO_UTC.test(occurredAt) || Number.isNaN(Date.parse(occurredAt))) {
     throw new WorkoutEntryError("BAD_OCCURRED_AT", "occurredAt must be an ISO 8601 UTC instant ending in Z")
   }
@@ -241,12 +350,9 @@ export function parseWorkoutEntry(
   }
 
   return {
-    exerciseId,
-    sets: clean,
     occurredAt,
     idempotencyKey,
     ...(typeof timezone === "string" ? { timezone } : {}),
-    kind: exerciseKind(exerciseId, registry),
   }
 }
 
@@ -262,7 +368,8 @@ export function parseWorkoutEntry(
 export function entryActivityFields(
   entry: WorkoutEntry,
 ): Pick<Activity, "startedAt" | "sets" | "kind" | "elapsedS"> & Partial<Pick<Activity, "distanceM">> {
-  const sets = entry.sets.map((s) => ({ ...s, exercise: entry.exerciseId }))
+  // A split's sets name their member (D-483); every other entry's sets are its one exercise.
+  const sets = entry.sets.map((s) => ({ ...s, exercise: s.exercise ?? entry.exerciseId }))
   const distances = sets.filter((s) => typeof s.distanceM === "number")
   return {
     startedAt: entry.occurredAt,

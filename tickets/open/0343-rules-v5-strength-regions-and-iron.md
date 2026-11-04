@@ -46,4 +46,4 @@ On the desktop browser, open `/skills`: Footing and Iron appear, Endurance does 
 
 ### Agent smoke test
 
-The live ledger's before/after per-skill XP from the replay, and refused-before-write invocations of `log-workout` for the new exercise ids.
+The live ledger's before/after per-skill XP from the replay, and refused-before-write invocations of `log-workout` for the new exercise ids. Carried from `0342`: live `BAD_SPLIT` refusals of the Strength workout split (shares summing to 90, a share off the 10% step, an outside member, client-sent sets), each with no write.

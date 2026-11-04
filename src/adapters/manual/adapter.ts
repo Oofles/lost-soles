@@ -41,7 +41,9 @@ import type { AckResult, InboundRequest, IngestJob, SourceAdapter, SweepJob } fr
  */
 
 /** `fetchRaw`'s `schemaHint`. Bumped when what this adapter archives changes shape. */
-export const MANUAL_SCHEMA_HINT = "manual/workout-entry@1"
+export const MANUAL_SCHEMA_HINT = "manual/workout-entry@2"
+// @2 (0342, D-483): a split log's entry adds `split`, and its sets each name their `exercise`.
+// Additive: an @1 archive reads unchanged, because a set with no `exercise` is the entry's.
 
 /** `IngestJob.meta` for this source: the archived bytes, verbatim, as UTF-8. */
 interface ManualIngestMeta {
@@ -60,7 +62,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 function readEntry(raw: Buffer | string): WorkoutEntry {
   const parsed: unknown = JSON.parse(raw.toString())
   if (!isRecord(parsed)) throw new Error("manual entry is not a JSON object")
-  const { exerciseId, sets, occurredAt, idempotencyKey, timezone, kind } = parsed
+  const { exerciseId, sets, occurredAt, idempotencyKey, timezone, kind, split } = parsed
   if (typeof exerciseId !== "string" || exerciseId === "") throw new Error("manual entry has no exerciseId")
   if (!Array.isArray(sets) || sets.length === 0 || !sets.every(isRecord)) {
     throw new Error("manual entry has no sets")
@@ -75,6 +77,11 @@ function readEntry(raw: Buffer | string): WorkoutEntry {
   if (kind !== undefined && !(ACTIVITY_KINDS as readonly unknown[]).includes(kind)) {
     throw new Error(`manual entry has an unknown kind ${JSON.stringify(kind)}`)
   }
+  // D-483: a split's sets were apportioned by `parseWorkoutEntry` and each names its member.
+  if (!sets.every((s) => s.exercise === undefined || (typeof s.exercise === "string" && s.exercise !== ""))) {
+    throw new Error("manual entry has a set with a bad exercise")
+  }
+  if (split !== undefined && !isRecord(split)) throw new Error("manual entry has a bad split")
   return {
     exerciseId,
     sets: sets as WorkoutEntry["sets"],
@@ -83,6 +90,7 @@ function readEntry(raw: Buffer | string): WorkoutEntry {
     ...(timezone !== undefined ? { timezone } : {}),
     // D-286: stamped by `parseWorkoutEntry` from the registry. Absent on pre-D-286 archives.
     ...(kind !== undefined ? { kind: kind as WorkoutEntry["kind"] } : {}),
+    ...(split !== undefined ? { split: split as unknown as WorkoutEntry["split"] } : {}),
   }
 }
 

@@ -823,6 +823,19 @@ the same table under `SK = "__curve__"`. One `Query` on the partition returns th
 skill together, which is AP-8.~~ *amended (D-465):* one top-level `curve:` block per
 ruleset file, beside `skills:`. Loading a version loads both.
 
+**`splits:` — one log shared across several exercises** (D-483, ticket `0342`). A third optional
+top-level block, absent before v5: `{id, label, entry: minutes, members, shareStep, quickValues}`.
+A split log names the split's `id` as its `exerciseId` and says `split: {durationS, shares}`, with a
+percent per member. The shares are multiples of `shareStep` and sum to 100. The `/log` boundary
+apportions the total into whole-second sets, one per non-zero share, each naming its member
+`exercise`. The remainder goes to the largest share, ties to the first member, and the client runs
+the same function for its optimistic award. The sets are never taken from the client. One log is
+one activity, so a 40/30/30 Strength workout trains three skills, each with its own soft cap,
+through the unchanged scorer. The validator requires every member to be a `minutes` exercise on an
+enabled activity row, members to share one `kind`, `shareStep` to divide 100, and the split's id
+to be unique across exercises and splits. A split's archive is `manual/workout-entry@2`: an `@1`
+set with no `exercise` is still read as its entry's.
+
 ### 3.3 Why the registry is a table and not just a file
 
 The scoring Lambda could read the YAML from S3. The client cannot cheaply, and the client needs

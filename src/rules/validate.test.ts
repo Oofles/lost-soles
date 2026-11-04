@@ -589,3 +589,46 @@ describe("scaled exercises", async () => {
     expect(validateRuleSet(r).map((e) => e.message).join(" ")).toMatch(/names exercise "pushup".*score twice/)
   })
 })
+
+/** Ticket 0342, D-483 — `splits[]`: one log of minutes, shared across member exercises. */
+describe("splits", async () => {
+  const { splitRuleSet, REGION_EXERCISES } = await import("./__fixtures__/scaled-tally")
+  const fresh = () => structuredClone(splitRuleSet()) as unknown as Record<string, unknown>
+  const split = (r: Record<string, unknown>) => (r.splits as Record<string, unknown>[])[0]!
+  const errsOf = (mutate: (r: Record<string, unknown>) => void) => {
+    const r = fresh()
+    mutate(r)
+    return validateRuleSet(r)
+  }
+
+  it("the three-region fixture validates", () => {
+    expect(validateRuleSet(fresh())).toEqual([])
+  })
+
+  it.each([
+    ["an unknown member", (r: Record<string, unknown>) => ((split(r).members as string[])[1] = "nope"), "splits[0].members[1]"],
+    ["a non-minutes member", (r: Record<string, unknown>) => ((split(r).members as string[])[1] = "pushup"), "splits[0].members[1]"],
+    ["a member twice", (r: Record<string, unknown>) => (split(r).members = [REGION_EXERCISES[0], REGION_EXERCISES[0]]), "splits[0].members"],
+    ["one member", (r: Record<string, unknown>) => (split(r).members = [REGION_EXERCISES[0]]), "splits[0].members"],
+    ["a step that does not divide 100", (r: Record<string, unknown>) => (split(r).shareStep = 15), "splits[0].shareStep"],
+    ["an id an exercise already has", (r: Record<string, unknown>) => (split(r).id = "pushup"), "splits[0].id"],
+    ["a non-minutes entry", (r: Record<string, unknown>) => (split(r).entry = "count"), "splits[0].entry"],
+  ])("refuses %s", (_, mutate, path) => {
+    expect(paths(errsOf(mutate))).toEqual([path])
+  })
+
+  it("refuses members of different kinds: one log is one activity", () => {
+    const errs = errsOf((r) => {
+      const v = find(r, "vigil")
+      v.exercises = [...(v.exercises as unknown[]), { id: "jog-min", label: "Jog", entry: "minutes", kind: "run", quickValues: [30], scale: 1 }]
+      ;(v.match as Record<string, unknown>).measure = "distanceKm"
+      split(r).members = [REGION_EXERCISES[0], "jog-min"]
+    })
+    expect(errs.map((e) => e.message).join(" ")).toMatch(/different kinds/)
+  })
+
+  it("refuses a member on a disabled row", () => {
+    const errs = errsOf((r) => (find(r, "fortitude").enabled = false))
+    expect(paths(errs)).toContain("splits[0].members[1]")
+  })
+})

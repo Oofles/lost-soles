@@ -258,3 +258,22 @@ describe("a scaled exercise's row (0341, D-483)", async () => {
     expect(entrySetFor(row(WORKOUT_EXERCISE), 45, scaledTallyRuleSet())).toEqual({ durationS: 2700 })
   })
 })
+
+describe("splitEntryFor (0342, D-483)", async () => {
+  const { splitRuleSet, REGION_EXERCISES } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const { splitEntryFor } = await import("./rows")
+  const split = splitRuleSet().splits![0]!
+  it("builds the entry the server will apportion identically", () => {
+    const e = splitEntryFor(split, 45, [{ exerciseId: REGION_EXERCISES[0], percent: 40 }, { exerciseId: REGION_EXERCISES[2], percent: 60 }], {
+      now: new Date("2026-11-04T13:00:00.000Z"), idempotencyKey: "k", timezone: "UTC",
+    })
+    expect(e).toEqual({
+      exerciseId: split.id,
+      sets: [{ exercise: REGION_EXERCISES[0], durationS: 1080 }, { exercise: REGION_EXERCISES[2], durationS: 1620 }],
+      split: { durationS: 2700, shares: [{ exerciseId: REGION_EXERCISES[0], percent: 40 }, { exerciseId: REGION_EXERCISES[2], percent: 60 }] },
+      occurredAt: "2026-11-04T13:00:00.000Z",
+      idempotencyKey: "k",
+      timezone: "UTC",
+    })
+  })
+})

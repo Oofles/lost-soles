@@ -71,7 +71,8 @@ describe("criterion 1 — sets is a list everywhere, with no scalar beside it", 
     expectTypeOf<keyof WorkoutEntry>().toEqualTypeOf<
       // `timezone` (0069, D-281) is context about WHEN, not a measure. `kind` (0240, D-286) is
       // what the log IS, stamped by the server from the registry — not a measure either.
-      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey" | "timezone" | "kind"
+      // `split` (0342, D-483) is what a split log SAID; its `sets` are still the measured work.
+      "exerciseId" | "sets" | "occurredAt" | "idempotencyKey" | "timezone" | "kind" | "split"
     >()
     expectTypeOf<Activity["sets"]>().toEqualTypeOf<WorkoutSet[]>()
   })
@@ -225,5 +226,80 @@ describe("0069 — the optional timezone, and GraphQL's nulls", () => {
   it("reads an unset nullable set field arriving as null as absent, not as a stray", () => {
     const entry = parseWorkoutEntry(body({ sets: [{ reps: 30, durationS: null, weightKg: null }] }), rules)
     expect(entry.sets).toEqual([{ reps: 30 }])
+  })
+})
+
+/** Ticket 0342, D-483 — a split log: the total and the shares are said; the sets are derived. */
+describe("a split log", async () => {
+  const { splitRuleSet, SPLIT_ID, REGION_EXERCISES } = await import("@/src/rules/__fixtures__/scaled-tally")
+  const { apportionSplit } = await import("./workout-entry")
+  const R = splitRuleSet()
+  const SPLIT = R.splits![0]!
+  const [UP, LOW, CORE] = REGION_EXERCISES
+  const shares = (...p: number[]) => p.map((percent, i) => ({ exerciseId: REGION_EXERCISES[i]!, percent }))
+  const splitBody = (over: Record<string, unknown> = {}) => ({
+    exerciseId: SPLIT_ID,
+    split: { durationS: 2700, shares: shares(40, 30, 30) },
+    occurredAt: "2026-11-04T13:00:00.000Z",
+    idempotencyKey: "k-split",
+    ...over,
+  })
+
+  it("45 minutes at 40/30/30 is three sets, one per member, in seconds", () => {
+    expect(parseWorkoutEntry(splitBody(), R).sets).toEqual([
+      { exercise: UP, durationS: 1080 },
+      { exercise: LOW, durationS: 810 },
+      { exercise: CORE, durationS: 810 },
+    ])
+  })
+
+  it("keeps what was said, and stamps the members' kind", () => {
+    const e = parseWorkoutEntry(splitBody(), R)
+    expect(e.split).toEqual({ durationS: 2700, shares: shares(40, 30, 30) })
+    expect(e.kind).toBe("strength")
+  })
+
+  it("writes no set for a zero share, and a missing member is a zero share", () => {
+    expect(parseWorkoutEntry(splitBody({ split: { durationS: 2700, shares: shares(100, 0, 0) } }), R).sets).toEqual([
+      { exercise: UP, durationS: 2700 },
+    ])
+    expect(parseWorkoutEntry(splitBody({ split: { durationS: 2700, shares: shares(50, 50) } }), R).sets).toHaveLength(2)
+  })
+
+  it("apportions whole seconds summing to the total; the remainder goes to the largest share, ties to the first", () => {
+    expect(apportionSplit(SPLIT, { durationS: 61, shares: shares(50, 50) })).toEqual([
+      { exercise: UP, durationS: 31 },
+      { exercise: LOW, durationS: 30 },
+    ])
+    const odd = apportionSplit(SPLIT, { durationS: 1001, shares: shares(20, 50, 30) })
+    expect(odd.reduce((n, s) => n + s.durationS!, 0)).toBe(1001)
+    expect(odd[1]).toEqual({ exercise: LOW, durationS: 501 })
+  })
+
+  it.each([
+    ["shares that sum to 90", { durationS: 2700, shares: shares(40, 30, 20) }],
+    ["a share off the 10% step", { durationS: 2700, shares: shares(45, 25, 30) }],
+    ["an exercise outside the split", { durationS: 2700, shares: [{ exerciseId: "pushup", percent: 100 }] }],
+    ["a member twice", { durationS: 2700, shares: [{ exerciseId: UP, percent: 50 }, { exerciseId: UP, percent: 50 }] }],
+    ["a negative share", { durationS: 2700, shares: shares(110, -10) }],
+    ["no shares", { durationS: 2700, shares: [] }],
+    ["a zero total", { durationS: 0, shares: shares(100) }],
+    ["a fractional total", { durationS: 2700.5, shares: shares(100) }],
+  ])("refuses %s with BAD_SPLIT", (_, split) => {
+    expect(codeOf(() => parseWorkoutEntry(splitBody({ split }), R))).toBe("BAD_SPLIT")
+  })
+
+  it("refuses client-sent sets, and a split log with no split", () => {
+    expect(codeOf(() => parseWorkoutEntry(splitBody({ sets: [{ exercise: UP, durationS: 9999 }] }), R))).toBe("BAD_SPLIT")
+    expect(codeOf(() => parseWorkoutEntry(splitBody({ split: undefined }), R))).toBe("BAD_SPLIT")
+  })
+
+  it("is an unknown exercise under a ruleset with no splits", () => {
+    expect(codeOf(() => parseWorkoutEntry(splitBody(), loadRuleSet(4)))).toBe("UNKNOWN_EXERCISE")
+  })
+
+  it("its Activity carries each member's set under that member", () => {
+    const sets = entryActivityFields(parseWorkoutEntry(splitBody(), R)).sets
+    expect(sets.map((s) => s.exercise)).toEqual([UP, LOW, CORE])
   })
 })

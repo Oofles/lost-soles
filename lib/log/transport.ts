@@ -55,7 +55,10 @@ export const sendLog: SendLog = async (entry: WorkoutEntry) => {
       method: "POST",
       body: {
         exerciseId: entry.exerciseId,
-        sets: entry.sets.map((s) => ({ ...s })),
+        // A split log sends what was SAID; the server apportions it again (D-483).
+        ...(entry.split
+          ? { split: { durationS: entry.split.durationS, shares: entry.split.shares.map((s) => ({ ...s })) } }
+          : { sets: entry.sets.map((s) => ({ ...s })) }),
         occurredAt: entry.occurredAt,
         idempotencyKey: entry.idempotencyKey,
         timezone: entry.timezone ?? null,

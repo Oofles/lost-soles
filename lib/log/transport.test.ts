@@ -72,3 +72,17 @@ describe("errorFrom", () => {
     expect(errorFrom([{ errorType: "Lambda:Unhandled" }]).message).toContain("Lambda:Unhandled")
   })
 })
+
+describe("a split log on the wire (0342, D-483)", () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it("sends the split as said, and not the derived sets", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ logged: true, xpAwarded: 1 }), { status: 200, headers: { "content-type": "application/json" } }))
+    vi.stubGlobal("fetch", fetch)
+    const split = { durationS: 2700, shares: [{ exerciseId: "a", percent: 100 }] }
+    await sendLog({ ...ENTRY, exerciseId: "s", sets: [{ exercise: "a", durationS: 2700 }], split } as never)
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.split).toEqual(split)
+    expect(body).not.toHaveProperty("sets")
+  })
+})

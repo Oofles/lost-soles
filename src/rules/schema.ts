@@ -139,11 +139,35 @@ export interface RuleCurve {
   deepMaxLevel: number
 }
 
+/**
+ * ONE LOG, SPLIT BY SHARE ACROSS SEVERAL MINUTES EXERCISES (D-483, ticket 0342).
+ *
+ * The Strength workout: N minutes, then a percentage per body region. Each member is an
+ * existing `minutes` exercise on some activity row, so each region's share is scored by that row
+ * exactly as if it had been logged alone, and one activity can train several skills. The regions
+ * are these ids, read as data. Nothing in code names them (D-031).
+ */
+export interface RuleSplit {
+  /** What a split log names as its `exerciseId`. Unique across exercises and splits. */
+  id: string
+  label: string
+  /** The total's entry kind. `minutes` only: shares of a count are not a thing anyone logs. */
+  entry: "minutes"
+  /** Member exercise ids, in display order. Ties in apportioning break on this order. */
+  members: string[]
+  /** Percent. Shares are multiples of it and sum to 100. Must divide 100. */
+  shareStep: number
+  /** The total's quick values, in the entry's row unit (minutes). */
+  quickValues: number[]
+}
+
 export interface RuleSet {
   version: number
   effectiveFrom: string
   curve: RuleCurve
   skills: RuleSkill[]
+  /** D-483. Absent on v1–v4. */
+  splits?: RuleSplit[]
 }
 
 /* ── Closed vocabularies, as runtime values ─────────────────────────────────────────────

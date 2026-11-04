@@ -170,3 +170,17 @@ describe("the IndexedDB store specifically", () => {
     expect(indexedDbLogStore(null)).toBeNull()
   })
 })
+
+describe("a split log is one queued entry (0342, D-483)", () => {
+  it("one undo removes the whole split", async () => {
+    const store = stores[0]![1]()
+    const split: WorkoutEntry = {
+      ...entry("split"),
+      sets: [{ exercise: "a", durationS: 1620 }, { exercise: "b", durationS: 1080 }],
+      split: { durationS: 2700, shares: [{ exerciseId: "a", percent: 60 }, { exerciseId: "b", percent: 40 }] },
+    }
+    await store.put(queuedLog("u", split, {}, T0))
+    expect(await undoLog(store, "split", T0 + 1_000)).toBe(true)
+    expect(await store.pending("u")).toEqual([])
+  })
+})

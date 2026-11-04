@@ -170,3 +170,31 @@ describe("localWallClock", () => {
     expect(localWallClock("2026-07-15T00:00:00Z", null)).toBe("2026-07-15T00:00:00")
   })
 })
+
+describe("a split log's archive (0342, D-483)", () => {
+  const SPLIT = {
+    ...ENTRY,
+    exerciseId: "tally-split",
+    sets: [{ exercise: "tally-upper", durationS: 1620 }, { exercise: "tally-core", durationS: 1080 }],
+    split: { durationS: 2700, shares: [{ exerciseId: "tally-upper", percent: 60 }, { exerciseId: "tally-core", percent: 40 }] },
+  }
+
+  it("normalizes each set under its own member, not the split's id", async () => {
+    const job = await jobFor(SPLIT)
+    const { activity } = manualAdapter.normalize(Buffer.from(JSON.stringify(SPLIT)), REF, job)
+    expect(activity.sets.map((s) => [s.exercise, s.durationS])).toEqual([["tally-upper", 1620], ["tally-core", 1080]])
+    expect(activity.elapsedS).toBe(2700)
+    expect(activity.source.sourceTypeRaw).toBe("tally-split")
+  })
+
+  it("an @1 archive with no per-set exercise still reads as its entry's exercise", async () => {
+    const job = await jobFor()
+    const { activity } = manualAdapter.normalize(request().rawBody, REF, job)
+    expect(new Set(activity.sets.map((s) => s.exercise))).toEqual(new Set([ENTRY.exerciseId]))
+  })
+
+  it("refuses a set whose exercise is not a non-empty string", async () => {
+    const ack = await manualAdapter.accept(request({ ...SPLIT, sets: [{ exercise: 7, durationS: 60 }] }))
+    expect(ack.status).toBe(400)
+  })
+})

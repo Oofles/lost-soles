@@ -13,10 +13,10 @@
  * its treadmill exercise is still logged by hand. There is no `trace-manual` mode (D-282).
  */
 
-import type { WorkoutEntry, EntrySet } from "@/lib/log/workout-entry"
-import { OPTIONAL_FIELDS_BY_ENTRY, entryFieldFor } from "@/lib/log/workout-entry"
+import type { WorkoutEntry, EntrySet, SplitShare } from "@/lib/log/workout-entry"
+import { OPTIONAL_FIELDS_BY_ENTRY, apportionSplit, entryFieldFor } from "@/lib/log/workout-entry"
 import { SET_FIELDS } from "@/src/scoring/units"
-import type { RuleExercise, RuleSkill } from "@/src/rules/schema"
+import type { RuleExercise, RuleSkill, RuleSplit } from "@/src/rules/schema"
 
 /**
  * THE STEPPER'S STEP, BY ENTRY KIND (D-282). `RuleExercise` carries no `step`, and the
@@ -221,6 +221,29 @@ export function entryFor(
   return {
     exerciseId: row.exerciseId,
     sets: [entrySetFor(row, value, registry, { durationS: at.durationS })],
+    occurredAt: at.now.toISOString(),
+    idempotencyKey: at.idempotencyKey,
+    ...(at.timezone ? { timezone: at.timezone } : {}),
+  }
+}
+
+/**
+ * The entry one click of a SPLIT sends (D-483, ticket 0342): `minutes` in total, divided by
+ * `shares`. `sets` is apportioned here exactly as the server will apportion it, so the
+ * optimistic award is the scored one. On the wire only `split` travels (`transport.ts`).
+ * Throws `WorkoutEntryError` (`BAD_SPLIT`) on shares that do not sum to 100.
+ */
+export function splitEntryFor(
+  split: RuleSplit,
+  minutes: number,
+  shares: readonly SplitShare[],
+  at: { now: Date; idempotencyKey: string; timezone: string | undefined },
+): WorkoutEntry {
+  const spec = { durationS: Math.round(minutes * SET_SCALE_BY_ENTRY[split.entry]), shares: shares.map((s) => ({ ...s })) }
+  return {
+    exerciseId: split.id,
+    sets: apportionSplit(split, spec),
+    split: spec,
     occurredAt: at.now.toISOString(),
     idempotencyKey: at.idempotencyKey,
     ...(at.timezone ? { timezone: at.timezone } : {}),

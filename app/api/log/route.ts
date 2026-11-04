@@ -26,7 +26,7 @@ import { badRequest, notFound } from "@/lib/http/route-params"
 export const dynamic = "force-dynamic"
 
 /** `logWorkout`'s argument list, as the AppSync SDL declares it. */
-const LOG_FIELDS = ["exerciseId", "sets", "occurredAt", "idempotencyKey", "timezone"] as const
+const LOG_FIELDS = ["exerciseId", "sets", "split", "occurredAt", "idempotencyKey", "timezone"] as const
 
 const forbidden = () => NextResponse.json({ error: "forbidden" }, { status: 403 })
 
