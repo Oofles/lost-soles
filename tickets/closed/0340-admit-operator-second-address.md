@@ -4,7 +4,7 @@ slug: admit-operator-second-address
 title: Admit the operator's second Google address to the owner uid
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 19-authjs-migration
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-04T00:46:38Z
 started: 2026-11-04T00:47:24Z
+closed: 2026-11-04T01:30:06Z
 ---
 
 ## Description
