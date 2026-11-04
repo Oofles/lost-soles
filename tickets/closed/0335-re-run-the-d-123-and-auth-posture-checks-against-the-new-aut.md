@@ -4,7 +4,7 @@ slug: re-run-the-d-123-and-auth-posture-checks-against-the-new-aut
 title: Re-run the D-123 and auth posture checks against the new auth (D-425)
 type: chore
 priority: med
-status: open
+status: closed
 size: s
 capability: 19-authjs-migration
 depends_on: [334]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:18:06Z
 started: 2026-11-04T03:02:06Z
+closed: 2026-11-04T03:12:53Z
 ---
 
 

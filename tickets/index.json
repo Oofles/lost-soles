@@ -7759,7 +7759,7 @@
     "title": "Re-run the D-123 and auth posture checks against the new auth (D-425)",
     "type": "chore",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "s",
     "capability": "19-authjs-migration",
     "depends_on": [
@@ -7769,8 +7769,9 @@
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "started": "2026-11-04T03:02:06Z",
-    "path": "tickets/open/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
-    "ready": true,
+    "closed": "2026-11-04T03:12:53Z",
+    "path": "tickets/closed/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
+    "ready": false,
     "acceptance": {
       "checked": 4,
       "total": 4
