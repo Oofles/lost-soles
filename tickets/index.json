@@ -7938,7 +7938,7 @@
     "title": "Rules v5: Might, Footing, Fortitude by body region; Endurance becomes Iron",
     "type": "feature",
     "priority": "high",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "10-add-workout",
     "depends_on": [
@@ -7949,8 +7949,9 @@
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
     "started": "2026-11-04T13:50:37Z",
-    "path": "tickets/open/0343-rules-v5-strength-regions-and-iron.md",
-    "ready": true,
+    "closed": "2026-11-04T16:51:20Z",
+    "path": "tickets/closed/0343-rules-v5-strength-regions-and-iron.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6
@@ -7972,7 +7973,7 @@
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
     "path": "tickets/open/0344-log-redesign-strength-split.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 6

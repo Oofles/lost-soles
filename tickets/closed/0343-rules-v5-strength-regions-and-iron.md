@@ -4,7 +4,7 @@ slug: rules-v5-strength-regions-and-iron
 title: Rules v5: Might, Footing, Fortitude by body region; Endurance becomes Iron
 type: feature
 priority: high
-status: open
+status: closed
 size: m
 capability: 10-add-workout
 depends_on: [341, 342]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-04T05:04:40Z
 started: 2026-11-04T13:50:37Z
+closed: 2026-11-04T16:51:20Z
 ---
 
 ## Description
