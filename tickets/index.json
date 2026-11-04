@@ -7748,7 +7748,7 @@
     "path": "tickets/open/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
     "ready": true,
     "acceptance": {
-      "checked": 2,
+      "checked": 6,
       "total": 6
     }
   },

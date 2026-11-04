@@ -58,22 +58,23 @@ deploy that deletes the pool fails.
       *(Done as a local synth of the branch assembly diffed against the deployed templates, not a
       sandbox: a sandbox deploys. The baseline synth of the unchanged tree matched the deployed
       templates exactly, so the diff is trustworthy. Every table and bucket is byte-identical.)*
-- [ ] After deploy, `aws cognito-idp list-user-pools` shows no pool tagged `amplify:app-id =
+- [x] After deploy, `aws cognito-idp list-user-pools` shows no pool tagged `amplify:app-id =
       d14fhvl4rp79nn`. `aws appsync get-graphql-api` shows `AWS_IAM` as the only auth mode.
-- [ ] `check-auth-posture.mjs --self-test` and `check-d123-trigger-a.mjs --self-test` pass, and both
+      — verified 2026-11-03 after job 449: both pools ResourceNotFound, AppSync `AWS_IAM` only.
+- [x] `check-auth-posture.mjs --self-test` and `check-d123-trigger-a.mjs --self-test` pass, and both
       pass live in the Amplify build log. *(Both self-tests pass locally, and the live Trigger A check
       passes against production now. The live posture check passes only after this deploy: run
       against today's account it fails exactly the three assertions the deploy fixes. The build-log
       half is the orchestrator's, post-deploy.)*
-- [ ] Σ ledger and `Profile.exploredGeneration` for the owner uid equal the values recorded in
-      `0332`.
+- [x] Σ ledger and `Profile.exploredGeneration` for the owner uid equal the values recorded in
+      `0332`. — verified 2026-11-03 after job 449: 377 rows, Σ 73,002; exploredGeneration 270.
 - [x] `0014` criterion 3 is annotated. `08` §5.1 and §2.4 Trigger A (wording and the "Enforced"
       paragraph) and `01` §1 Auth row and §2 resource-table rows 2–3 are amended to the as-built
       state, citing D-472/D-473/D-470. *(The doc half is done. `0014` is another ticket's file, which
       a wave agent may not edit (WAVES.md §3); the orchestrator appends `— superseded by
       D-175/D-473 at cutover (0334), <date>` to its criterion 3 and runs `tickets.mjs index`. Done by the orchestrator at the wave 19 merge, 2026-11-03.)*
-- [ ] (operator) Signed in on the desktop browser after the deploy, the map, plinth and `/skills`
-      load as before.
+- [x] (operator) Signed in on the desktop browser after the deploy, the map, plinth and `/skills`
+      load as before. — verified 2026-11-03: operator reports "check is good".
 
 ## Notes
 
@@ -97,6 +98,24 @@ Agent: the gate diff, the post-deploy AWS reads, the Σ comparison, and both che
 build log. Operator: the one `(operator)` criterion.
 
 D-123 trigger checked? **A** — Trigger A's enforcement is rewritten. D-470 re-affirms D-123.
+
+**Results, 2026-11-03, after Amplify job 449 (commit `0ba97b8`, SUCCEED on BUILD/DEPLOY/VERIFY):**
+- **Build log:** `check-auth-posture.mjs --self-test` passed, then the live run printed "All posture
+  assertions passed." `check-d123-trigger-a.mjs --self-test` passed (22 cases), then the live run printed
+  "Trigger A has not fired: every mapped identity is the owner's, and the allowlist and the map agree."
+  Both live checks re-run from the desktop give the same result.
+- **Cognito:** `describe-user-pool us-east-1_3lreDA1d1` and `describe-identity-pool us-east-1:8738715f-…`
+  both return `ResourceNotFoundException`. CloudFormation deleted the pool with its one user, so no hand
+  `admin-delete-user` was needed. The two pools left in the account belong to other apps (the posture
+  check's tag assertion passes).
+- **AppSync** `nog4xy2l7baqlhghpndh2565qe`: `authenticationType AWS_IAM`, no additional providers, no
+  `userPoolConfig`. The API id is unchanged, so every table name is too.
+- **Data:** the owner's `XpLedgerEntry` holds 377 rows with Σ `xpAwarded` = 73,002 (query complete, no
+  `LastEvaluatedKey`), and `Profile.exploredGeneration` = 270. Both equal `0332`'s recorded values.
+- **HTTP, signed out:** `/api/skills/profile` returns 404, and `/` returns 307 to
+  `https://core.devaultsecurity.com/login?next=https%3A%2F%2Fsoles.devaultsecurity.com%2F`.
+- **Operator, desktop browser:** signed in after the deploy; the map, plinth and `/skills` load as before
+  ("check is good").
 
 ## Resolution
 
@@ -122,7 +141,7 @@ all of it, because the two deploy-gate checks would otherwise fail closed on a m
   `NoSuchEntity`). `amplify/backend.ts` removes the policy before synth, matched by CloudFormation type
   because the data construct bundles its own aws-cdk-lib. That is also what makes "no principal is granted
   `appsync:GraphQL`" true. It is a new escape-hatch use, added to `01` §2 as item 8 (D-467). Proposed as
-  D-480 (proposed as D-NEW-a, recorded at merge).
+  D-NEW-a and recorded at merge as **D-480**.
 - **Storage:** the `access` block is removed; `versioned` and `keepOnDelete` stay. Removing it also drops
   Amplify's `/amplify/resource_reference/…/LOST_SOLES_USER_DATA_BUCKET_NAME` SSM parameter, which nothing
   reads (grepped).
@@ -219,4 +238,24 @@ may call them and read-only is the safer default if a grant ever appears.
 nobody uses, and the pool behind it is D-473's to delete. D-175 requires the posture check to follow
 the posture, not be deleted. D-470 moves Trigger A from "a second Cognito user" to "a second identity on
 the allowlist or the map".
+
+**Orchestrator, at merge (wave 19).**
+- The operator accepted D-NEW-a before the push. It is recorded as **D-480**, and the mutations' deletion
+  as **D-481**. `01` §2 item 8 now cites D-480.
+- **Build role, before the push (D-426's ordering):** `LostSolesAuthPostureCheckReadOnly` on
+  `AmplifySSRLoggingRole-bcad2fbf-…` was replaced. Removed: `ReadCognitoPostureForDeployGate`,
+  `ReadIdentityPoolPosture`, `ListUsersForD123TriggerA`. Added: `ListPoolsAndApisForPostureCheck`
+  (`cognito-idp:ListUserPools`, `cognito-identity:ListIdentityPools`, `appsync:ListGraphqlApis` on `*`),
+  `ListTagsForResource` on each service's pool ARNs, and `ssm:GetParameter` on the one allowlist parameter.
+  `iam simulate-principal-policy` showed each new action allowed on its resource. The build log proves the
+  grant was enough.
+- `0014`'s criterion 3 annotated. CLAUDE.md's standing rule now describes Trigger A as a second identity
+  mapping to a non-owner uid (D-470/D-479), at the operator's request. A stale `D-NEW-a` in a
+  `middleware.ts` comment (from `0332`) was corrected to D-476.
+- **What went wrong:** my first local gate ran in a worktree under `/tmp`. That is a different filesystem,
+  so `worktree-prepare`'s hard-link copy of `node_modules` failed, and with no binaries the suite, typecheck
+  and build failed. A `while` loop in a subshell then swallowed the failure, and the run printed
+  "GATE-OK". I caught it from the log, not from the exit code. I re-ran the gate in `.claude/worktrees/`,
+  where the suite passed (4705, 2 skipped). The three post-build guards I had ordered before the build
+  passed once they ran after it.
 
