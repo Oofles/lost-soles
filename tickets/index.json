@@ -7734,7 +7734,7 @@
     "title": "Cognito removed: defineAuth deleted, IAM-only data, posture and Trigger A checks rewritten",
     "type": "feature",
     "priority": "med",
-    "status": "open",
+    "status": "closed",
     "size": "m",
     "capability": "19-authjs-migration",
     "depends_on": [
@@ -7745,8 +7745,9 @@
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "started": "2026-11-04T01:31:37Z",
-    "path": "tickets/open/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
-    "ready": true,
+    "closed": "2026-11-04T02:39:13Z",
+    "path": "tickets/closed/0334-cognito-removed-defineauth-deleted-iam-only-data-posture-and.md",
+    "ready": false,
     "acceptance": {
       "checked": 6,
       "total": 6
@@ -7768,7 +7769,7 @@
     "source": "agent",
     "created": "2026-11-02T17:18:06Z",
     "path": "tickets/open/0335-re-run-the-d-123-and-auth-posture-checks-against-the-new-aut.md",
-    "ready": false,
+    "ready": true,
     "acceptance": {
       "checked": 0,
       "total": 4

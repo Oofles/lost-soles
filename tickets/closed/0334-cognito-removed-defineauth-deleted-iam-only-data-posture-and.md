@@ -4,7 +4,7 @@ slug: cognito-removed-defineauth-deleted-iam-only-data-posture-and
 title: Cognito removed: defineAuth deleted, IAM-only data, posture and Trigger A checks rewritten
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 19-authjs-migration
 depends_on: [332, 333]
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-11-02T17:18:06Z
 started: 2026-11-04T01:31:37Z
+closed: 2026-11-04T02:39:13Z
 ---
 
 
