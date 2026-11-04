@@ -6535,10 +6535,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-16T04:17:55Z",
+    "started": "2026-11-04T20:24:04Z",
     "path": "tickets/open/0279-unseen-run-marks-use-accent-text-not-accent.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 2,
       "total": 3
     }
   },

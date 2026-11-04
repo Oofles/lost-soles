@@ -95,7 +95,9 @@ describe("the Chronicle's rows (criteria 4, 5)", () => {
 describe("the unseen mark (criterion 6)", () => {
   it("is a gold rule on the row, never a number, badge or dot", () => {
     const html = windowAt(0)
-    expect(html).toMatch(/data-unseen=""[^>]*box-shadow:inset 3px 0 0 var\(--accent\)/)
+    // `0279`: `--accent-text` (`--gold-700`), never `--accent` (2.1:1) — D-291, D-335.
+    expect(html).toMatch(/data-unseen=""[^>]*box-shadow:inset 3px 0 0 var\(--accent-text\)/)
+    expect(html).not.toContain("var(--accent)")
     expect(html).not.toMatch(/badge|\bdot\b|role="status"/i)
     // No count of unseen rows anywhere: the only digits a row carries are its own date, measure and cells.
     expect(text(FULL)).not.toMatch(/\bunseen\b|\d+\s+(new runs|unseen)/i)

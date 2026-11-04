@@ -64,7 +64,8 @@ export function ChronicleRows({
               height: CHRONICLE_ROW_PX,
               boxSizing: "border-box",
               borderBottom: "1px solid var(--line)",
-              boxShadow: isUnseen ? "inset 3px 0 0 var(--accent)" : undefined,
+              // `0279`: `--accent-text`, not `--accent` — the only visible cue must clear 3:1 (D-291, D-335).
+              boxShadow: isUnseen ? "inset 3px 0 0 var(--accent-text)" : undefined,
             }}
           >
             <Link href={row.href} className="chronicle-row">

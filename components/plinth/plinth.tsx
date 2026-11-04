@@ -58,10 +58,12 @@ export const PLINTH_CSS =
   // `0087`. An unseen run: a gold RULE down the line's left edge (never gold text, D-148) and one
   // pulse of a gold ring that closes in and is gone — `1` iteration, and the class is set once per
   // run per page load (`home-screen.tsx`), so a re-render can never restart it. Reduced motion: none.
-  " .plinth-fresh { box-shadow: inset 3px 0 0 var(--accent); }" +
+  // `0279`. The rule carries meaning, so it is `--accent-text` (`--gold-700`, ≥3:1), never `--accent`
+  // (`--gold-500`, 2.1:1 on parchment) — D-291, D-335. Still a rule, never text colour.
+  " .plinth-fresh { box-shadow: inset 3px 0 0 var(--accent-text); }" +
   " .plinth-pulse { animation: plinth-pulse 1200ms ease-out 1; }" +
-  " @keyframes plinth-pulse { from { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 4px var(--accent); }" +
-  " to { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 var(--accent); } }" +
+  " @keyframes plinth-pulse { from { box-shadow: inset 3px 0 0 var(--accent-text), 0 0 0 4px var(--accent-text); }" +
+  " to { box-shadow: inset 3px 0 0 var(--accent-text), 0 0 0 0 var(--accent-text); } }" +
   " @media (prefers-reduced-motion: reduce) { .plinth-pulse { animation: none; } }" +
   // `0087`. The settings lines — connect, reconnect — are ink, quiet, and underlined in the rule
   // colour. Nothing about them is red, and nothing about them moves.

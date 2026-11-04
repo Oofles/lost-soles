@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-16T04:17:55Z
+started: 2026-11-04T20:24:04Z
 ---
 
 ## Description
@@ -30,9 +31,9 @@ meaning-bearing mark, and stays `--accent`.
 
 ## Acceptance criteria
 
-- [ ] The plinth's `1 new run` rule, its pulse, and the Chronicle row's unseen inset use
+- [x] The plinth's `1 new run` rule, its pulse, and the Chronicle row's unseen inset use
       `var(--accent-text)`; none uses `var(--accent)`.
-- [ ] A test pins it: the plinth and Chronicle styles carry `--accent-text` for the unseen marks and
+- [x] A test pins it: the plinth and Chronicle styles carry `--accent-text` for the unseen marks and
       no `--accent)` in those rules.
 - [ ] (operator) On the desktop browser, the unseen mark on `/` and on the Chronicle still reads as
       an invitation, not an alert, at the darker gold.
@@ -52,6 +53,33 @@ meaning-bearing mark, and stays `--accent`.
 
 Filed by the capability `13` drift audit (`AUDIT.md` §2, code-was-wrong). D-324's at-most-one-row
 rule is unchanged. `06` §2.4, §3.3 and §8.3 are amended in the same audit.
+
+## Resolution
+
+Files touched:
+- `components/plinth/plinth.tsx`: `.plinth-fresh` and both `plinth-pulse` keyframes (four
+  occurrences) changed from `var(--accent)` to `var(--accent-text)`. `.plinth-dest-primary`'s
+  border is still `--accent`, as the Description says it should be.
+- `components/chronicle/chronicle-rows.tsx`: the unseen row's inset `boxShadow` is now
+  `var(--accent-text)`.
+- `components/plinth/plinth.test.tsx`: the fresh-line test now requires every var in the fresh
+  block to be `var(--accent-text)` and none to be `var(--accent)`.
+  - Conflict found: the D-148 test "gold appears only as a fill or a rule" banned the
+    `--accent-text` token from `plinth.tsx` outright. It used the token's presence as a stand-in for
+    "gold text". D-335 makes that stand-in wrong.
+  - What it checks now: no `color: var(--accent-text)`, and no `--accent-text` anywhere in
+    `PLINTH_CSS` outside a `box-shadow` declaration. D-148's intent is unchanged; the test asserts
+    it directly now.
+- `components/chronicle/chronicle-panel.test.tsx`: the unseen-row test now matches
+  `var(--accent-text)` and refuses `var(--accent)` in the rendered rows.
+
+`--accent-text` is defined in both themes (`app/tokens.css`). Light is `--gold-700`, dark is
+`--gold-300`, so the dark-mode mark is the same gold it already was through `--accent`.
+
+No new decision. This implements D-335.
+
+Checks: full `vitest run` (4807 passed, 1 skipped), `tsc --noEmit` clean, eslint clean on both
+component directories.
 
 ## Operator validation
 

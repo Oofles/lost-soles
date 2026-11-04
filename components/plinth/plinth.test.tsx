@@ -222,7 +222,9 @@ describe("chrome is opaque and gold is never text (D-148)", () => {
 
   it("gold appears only as a fill or a rule", () => {
     const src = readFileSync(join(import.meta.dirname, "plinth.tsx"), "utf8") + readFileSync(join(import.meta.dirname, "..", "add-workout-link.tsx"), "utf8")
-    expect(src).not.toContain("--accent-text")
+    // `--accent-text` is allowed only inside a box-shadow (the unseen rule, D-335), never as text colour.
+    expect(src).not.toMatch(/color: ?"?var\(--accent-text/)
+    expect(PLINTH_CSS.replace(/box-shadow:[^;}]*/g, "")).not.toContain("--accent-text")
     expect(src).not.toMatch(/(?<![-\w])color: ?"?var\(--(accent|gold|progress)/)
     // Where gold IS used: Add workout's border and the bar's fill.
     expect(PLINTH_CSS).toContain(".plinth-dest-primary { border-color: var(--accent); }")
@@ -246,7 +248,9 @@ describe("the home screen's states (0087)", () => {
     expect(fresh).not.toMatch(/infinite|alternate/)
     expect(fresh).toMatch(/prefers-reduced-motion: reduce\) \{ \.plinth-pulse \{ animation: none; \}/)
     // The only colour the fresh treatment uses is gold, and only as box-shadow (a rule and a ring).
-    expect(fresh.match(/var\(--[\w-]+\)/g)!.every((v) => v === "var(--accent)")).toBe(true)
+    // `0279`: `--accent-text` (`--gold-700`), never `--accent` (2.1:1) — D-291, D-335.
+    expect(fresh.match(/var\(--[\w-]+\)/g)!.every((v) => v === "var(--accent-text)")).toBe(true)
+    expect(fresh).not.toContain("var(--accent)")
     expect(fresh).not.toMatch(/(?<![-\w])color:/)
   })
 
