@@ -7972,10 +7972,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-11-04T05:04:40Z",
+    "started": "2026-11-04T16:51:46Z",
     "path": "tickets/open/0344-log-redesign-strength-split.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 6,
       "total": 6
     }
   }

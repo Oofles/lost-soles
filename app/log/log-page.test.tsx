@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { FALLBACK_SEAL, sigilPaths } from "@/components/sigil"
-import { formatValue, logRows } from "@/lib/log/rows"
+import { logColumns } from "@/lib/log/layout"
+import { formatValue } from "@/lib/log/rows"
 import { BUNDLED_RULES } from "@/rules/xp-rules.bundled"
 import type { RuleSet } from "@/src/rules/schema"
 
@@ -28,7 +29,10 @@ const { default: Log } = await import("./page")
 const { RowName } = await import("./log-row")
 
 const newest = BUNDLED_RULES[Math.max(...Object.keys(BUNDLED_RULES).map(Number))] as RuleSet
-const rows = logRows(newest)
+const columns = logColumns(newest)
+const items = columns.flatMap((c) => c.items)
+const rows = items.flatMap((i) => (i.kind === "row" ? [i.row] : []))
+const splits = items.flatMap((i) => (i.kind === "split" ? [i.split] : []))
 const html = renderToStaticMarkup(<LogPage />)
 /** A label as the markup carries it: v5's "Core & total body" (D-483) is the first with an `&`. */
 const esc = (s: string) => s.replace(/&/g, "&amp;")
@@ -38,9 +42,14 @@ describe("/log's first render (0068)", () => {
     expect(renderToStaticMarkup(<Log />)).toBe(html)
   })
 
-  it("renders one row per registry row, in registry order, with no network", () => {
+  it("renders every entry, in the layout's columns and order, with no network (0344)", () => {
     const groups = [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1])
-    expect(groups).toEqual(rows.map((r) => esc(`${r.skillName}: ${r.label}`)))
+    expect(groups).toEqual(items.map((i) => esc(i.kind === "row" ? `${i.row.skillName}: ${i.row.label}` : i.split.label)))
+  })
+
+  it("draws the layout's column headings, in order (0344, D-485)", () => {
+    const headings = [...html.matchAll(/<h2 [^>]*>([^<]+)<\/h2>/g)].map((m) => m[1])
+    expect(headings).toEqual(columns.map((c) => c.title.toUpperCase()))
   })
 
   it("every row has −, the number, + and LOG, each with an accessible name (0071)", () => {
@@ -52,7 +61,7 @@ describe("/log's first render (0068)", () => {
       // Before IndexedDB answers, the number is the registry's fallback (D-282).
       expect(html).toContain(`aria-label="Log ${formatValue(r, r.fallback)} ${label}"`)
     }
-    expect(html.match(/>LOG</g)).toHaveLength(rows.length)
+    expect(html.match(/>LOG</g)).toHaveLength(rows.length + splits.length)
   })
 
   it("has a way back to the map", () => {
@@ -83,6 +92,22 @@ describe("/log's first render (0068)", () => {
     const head = renderToStaticMarkup(<RowName row={{ skillId: "no-such-skill", skillName: "Nobody" }} />)
     for (const d of FALLBACK_SEAL) expect(head).toContain(`d="${d}"`)
     expect(head).toContain("NOBODY")
+  })
+
+  it("a split entry: length at its fallback, one share slider per member at 0%, LOG disabled (0344)", () => {
+    expect(splits.length).toBeGreaterThan(0)
+    for (const s of splits) {
+      const card = new RegExp(`<div[^>]*role="group" aria-label="${esc(s.label)}"[\\s\\S]*?LOG waits for 100%`).exec(html)![0]
+      expect(card).toContain(`aria-label="Decrease workout length by ${s.step} min"`)
+      expect(card).toContain(`value="${s.fallback} min"`)
+      for (const m of s.members) {
+        expect(card).toMatch(new RegExp(`role="slider" tabindex="-1" aria-label="${esc(m.label)} share" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"`))
+        expect(card).toContain(`>${esc(m.label)}</span>`)
+      }
+      expect(card).toMatch(new RegExp(`<button type="button" disabled="" aria-label="Log ${s.fallback} min ${esc(s.label.toLowerCase())}"`))
+      expect(card).toContain("0% — 100% left to place")
+      for (const d of sigilPaths(s.splitId)) expect(card).toContain(`d="${d}"`)
+    }
   })
 
   it("never shows the schema's unit words as a label", () => {

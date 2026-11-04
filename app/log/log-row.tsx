@@ -35,7 +35,7 @@ export interface Logged {
   previous: number | undefined
 }
 
-const control: React.CSSProperties = {
+export const control: React.CSSProperties = {
   minWidth: "2.75rem",
   height: "2.75rem",
   borderRadius: ".375rem",
@@ -49,7 +49,7 @@ const control: React.CSSProperties = {
   userSelect: "none",
 }
 
-const logButton: React.CSSProperties = {
+export const logButton: React.CSSProperties = {
   ...control,
   minWidth: "5.5rem",
   marginLeft: "auto",
@@ -61,7 +61,7 @@ const logButton: React.CSSProperties = {
   letterSpacing: ".08em",
 }
 
-const card: React.CSSProperties = {
+export const card: React.CSSProperties = {
   border: "1px solid var(--line)",
   borderRadius: ".5rem",
   background: "var(--surface)",

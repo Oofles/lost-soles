@@ -1275,6 +1275,43 @@ Target: **from the plinth's "Add workout" to logged, under three seconds, withou
 
 ### 6.3 Wireframe
 
+*Amended by D-485 (ticket `0344`, operator-approved mock, 2026-11-04).* `/log` is **two columns**,
+laid out by `rules/log-layout.json`: **Full workouts** (Strength workout, Poise, Vigil) and **Quick
+workouts** (pushups, situps, plank). They sit side by side on a desktop and stack, Full first, below
+760px. The Strength workout is a **split entry** (D-483): a length stepper, then one ten-block share
+bar per body region, each with its live minutes and XP, then a sum line. LOG waits for 100%.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  ←  ADD WORKOUT                                                                        │
+│  FULL WORKOUTS                                        QUICK WORKOUTS                   │
+│  ┌──────────────────────────────────────────────┐   ┌────────────────────────────────┐ │
+│  │ ⚒ STRENGTH WORKOUT   split by body region    │   │ ✥ MIGHT   pushups              │ │
+│  │  [−] [45 min] [+]                     [LOG]  │   │  [−] [ 25 ] [+]          [LOG] │ │
+│  │ ───────────────────────────────────────────  │   └────────────────────────────────┘ │
+│  │ ✥ Upper body           ■■■■□□□□□□    40%     │   ┌────────────────────────────────┐ │
+│  │   18 min · Might +540                        │   │ ✜ FORTITUDE   situps           │ │
+│  │ ⌊ Lower body           ■■■□□□□□□□    30%     │   │  [−] [ 30 ] [+]          [LOG] │ │
+│  │   13:30 · Footing +405                       │   └────────────────────────────────┘ │
+│  │ ✜ Core & total body    ■■■□□□□□□□    30%     │   ┌────────────────────────────────┐ │
+│  │   13:30 · Fortitude +405                     │   │ ✜ FORTITUDE   plank            │ │
+│  │ ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬  │   │  [−] [1:00] [+]          [LOG] │ │
+│  │ 100% — ready to log               +1,350 XP  │   └────────────────────────────────┘ │
+│  └──────────────────────────────────────────────┘                                      │
+│  ┌──────────────────────────────────────────────┐                                      │
+│  │ ⚘ POISE   yoga    [−] [30 min] [+]    [LOG]  │                                      │
+│  └──────────────────────────────────────────────┘                                      │
+│  ┌──────────────────────────────────────────────┐                                      │
+│  │ ◈ VIGIL   treadmill / track  [−][5.0 km][+]  │                                      │
+│  └──────────────────────────────────────────────┘                                      │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+A split log confirms in its card exactly as a row does: every skill it paid (`Might +540 → L8`,
+`Footing +405`, `Fortitude +405`, `Constitution +450`, `Iron +450`) and the in-row 8-second undo.
+
+*The single-column wireframe this replaced, kept as the record:*
+
 ```
 ┌──────────────────────────────────────────────┐
 │  ←   ADD WORKOUT                             │
@@ -1326,6 +1363,7 @@ Immediately after a tap, that row — and only that row — becomes:
 | **The number** | Pre-filled with **your last logged value for this type**, not a goal, not an average, not a target. Tap it → numeric keypad, select-all on focus |
 | **− / +** | Step by the exercise's `entry` kind (D-282): pushups ±5, situps ±5, plank ±15 s, Vigil ±0.5 km (D-286; a distance row also takes an optional time), yoga ±5 min (D-469; a `minutes` row shows `30 min`, a typed `30` is thirty minutes, and its set carries seconds). Long-press repeats at 4/s. Clamped at the registry's `minUnitsForCredit` |
 | **LOG** | Commits *that row* immediately. No page-level save button, no "done", no dialog |
+| **Split entry** *(D-485)* | Read from the ruleset's `splits:` block (02 §3.2): its label, its members in declared order, its share step. The **length** is pre-filled with your last split log's length, like a row's number. Every **share starts at 0%**, every time (operator, `0344`): a share is a decision about today's session, not a habit. A share bar is ten blocks of `shareStep`: click a block to set the share; click the top lit block again to step one block down. To the keyboard and assistive technology each bar is a `role="slider"` (arrows ±10%, Home 0%, End 100%). Under each region, its whole-second minutes and its skill's XP, live, scored through the same `awardFor` the confirmation uses. **LOG is disabled until the shares sum to 100%**, and the sum line says how much is left to place. One click is one log, one activity, one undo. A split's members never appear as rows of their own |
 
 **Committing.** The write lands in IndexedDB before the animation starts, is rendered
 optimistically, and flushes to the API on a background-sync queue with an idempotency key — the
@@ -1357,17 +1395,27 @@ The whole point of D-061, stated as a procedure:
 2. Add one sigil to the icon set.
 3. Ship.
 
-`/log` gains a row at the bottom. `/skills` gains a tile in `ACTIVITY`. The home screen changes
+`/log` gains a row at the bottom of the column its entry kind falls to (*D-485*:
+`fallbackByEntry` in `rules/log-layout.json`, so minutes and distance go to Full workouts and
+counts and seconds to Quick workouts) until someone lists it. `/skills` gains a tile in `ACTIVITY`. The home screen changes
 by **zero pixels**. No component is written, no layout is revisited, no screen is redesigned.
 That is the test D-031 and D-132 set, and it is the same test in both documents.
 
 Two supporting rules keep it true:
 
 - **Registry order, forever** — the same rule as §5.3. Rows never reorder by frequency,
-  recency or level. A row that moves is a row you mis-tap.
-- **When the page outgrows one screen, it scrolls.** It does not gain sections, tabs, search,
+  recency or level. A row that moves is a row you mis-tap. *(D-485: on `/log` the order is the layout
+  file's, which lists entries per column; an unlisted entry falls in registry order at the bottom
+  of its column. Fixed either way.)*
+- ~~**When the page outgrows one screen, it scrolls.** It does not gain sections, tabs, search,
   favourites, or a "frequent" group. Those are all ways of reordering, and reordering is the
-  thing we just forbade. Ten types is one short scroll; that is fine.
+  thing we just forbade. Ten types is one short scroll; that is fine.~~
+  *Amended by D-485 (ticket `0344`).* The page now has **two fixed columns**, Full workouts and
+  Quick workouts, because the split entry is the first entry that is more than one number and the
+  operator wanted it beside, not above, the one-click rows. What the old rule protected still
+  holds, and is the rule now: **nothing reorders by frequency, recency or level.** Column and order
+  are data in `rules/log-layout.json`, written by a person and changed only by an edit to that file.
+  Each column scrolls with the page. Still no tabs, search, favourites or "frequent" group.
 
 ### 6.6 What is deferred, and how it fits later without a redesign
 

@@ -1,0 +1,8 @@
+{
+  "_doc": "/log's two columns (D-485, ticket 0344). Presentation, not scoring: NOT versioned with the XP rules, like sigils.json, so moving a row is an edit here and never a rescore. `entries` are exercise and split ids, listed in the order the column shows them. An entry no column lists (a workout type added since) goes to the bottom of the column `fallbackByEntry` names for its entry kind, in registry order, so a new YAML row still needs nothing else to appear (06 §6.5). A split's members never appear as rows of their own: the split replaces them.",
+  "columns": [
+    { "id": "full", "title": "Full workouts", "entries": ["strength", "yoga", "treadmill"] },
+    { "id": "quick", "title": "Quick workouts", "entries": ["pushup", "situp", "plank"] }
+  ],
+  "fallbackByEntry": { "minutes": "full", "distance": "full", "count": "quick", "seconds": "quick" }
+}

@@ -104,7 +104,9 @@ const enabledOf = (r: RuleSet) => r.skills.filter((s) => s.enabled).sort((a, b) 
 const TRAINED = enabledOf(BASE).map((s, i) => ({ skillId: s.id, xp: cumulativeXp(5 + 3 * i) + 1 }))
 
 const groups = (html: string) => [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1])
-const items = (html: string) => html.split("<li>").slice(1).map((li) => li.replace(/<\/ul><\/main>$/, ""))
+// Each item up to its own </li>: what follows the last one is page chrome (since 0344, the column
+// sections' closing tags), not part of the row.
+const items = (html: string) => html.split("<li>").slice(1).map((li) => li.replace(/<\/li>[\s\S]*$/, "</li>"))
 const section = (html: string, label: string) => new RegExp(`<section aria-label="${label}">[\\s\\S]*?</section>`).exec(html)?.[0] ?? ""
 const sectionLabels = (html: string) => [...html.matchAll(/<section aria-label="([^"]+)"/g)].map((m) => m[1])
 const tiles = (html: string) => [...html.matchAll(/data-skill="([^"]+)"/g)].map((m) => m[1])

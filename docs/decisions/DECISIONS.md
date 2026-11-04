@@ -6549,3 +6549,29 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     and building one would have held the operator on v4, unable to log a Strength workout.
   - **Lesson for the next kind change:** "the row held 0 XP" is not enough. Also check what
     the new feeds would pay the row from history.
+- **D-485** **`/log` is two columns, Full workouts and Quick workouts, laid out by an unversioned
+  `rules/log-layout.json`. The Strength workout split entry heads Full workouts, and its shares
+  start at 0% every time.** *(Operator, 2026-11-04, ticket `0344`, from an approved mock.)*
+  - **Columns.** Full workouts: Strength workout, Poise, Vigil. Quick workouts: pushups,
+    situps, plank. They sit side by side on a desktop and stack, Full first, below 760px. This
+    supersedes `06` §6.5's "no sections" rule. What that rule protected is restated, and still
+    binds: nothing reorders by frequency, recency or level.
+  - **Where the layout lives: `rules/log-layout.json`, not the ruleset** (operator). It is
+    presentation, like `sigils.json`, so moving a row never needs a new ruleset version or a
+    replay. An entry the file does not list goes to the bottom of the column `fallbackByEntry`
+    names for its entry kind (minutes and distance to Full, count and seconds to Quick), in
+    registry order. So a new workout type is still a YAML row and a sigil and nothing else
+    (D-031, `06` §6.5).
+    - Rejected: `column`/`order` fields in the ruleset. Reordering would need v6 and a replay.
+  - **A split's members are never rows of their own.** The split is how they are logged. Under
+    v5 that removes the interim Upper body / Lower body / Core & total body minutes rows.
+  - **The split entry.**
+    - The length pre-fills from the last split log.
+    - The shares start at 0% every time (operator: "to make it easier to log"). This amends
+      `0344`'s criterion, which asked for them to pre-fill.
+    - Each share is a ten-block bar. To the keyboard and assistive technology it is a
+      `role="slider"`.
+    - LOG waits for 100%.
+    - The sigil is keyed by the split id in `sigils.json` (the anvil, as Iron's).
+    - Rejected after the mock: − 40% + steppers (the operator preferred the bar), and a
+      "click a block to add" hint.

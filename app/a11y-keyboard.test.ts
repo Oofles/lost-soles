@@ -38,6 +38,7 @@ const ACTIVATABLE = new Set(["button", "a", "Link", "input", "select", "textarea
 const POINTER_EXTRAS: Record<string, string> = {
   "app/skills/skill-sheet.tsx <div onClick>": "the scrim's click-outside; Esc and the sheet's close button dismiss it too (§1.5)",
   "components/map/region-jump-control.tsx <li onClick>": "a listbox option; the list's onKeyDown takes arrows, Enter and Esc (0285)",
+  "app/log/split-entry.tsx <span onClick>": "a share-bar block; the bar is a role=slider whose onKeyDown takes arrows, Home and End (0344)",
 }
 
 /** Pointer listeners added outside JSX, each with its keyboard path. */

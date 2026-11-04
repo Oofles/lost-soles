@@ -1,5 +1,5 @@
 {
-  "_doc": "Skill sigils, keyed by skill id. Ticket 0073, 06-ui-ux.md §8.6: monoline, stroked at 1.5 on a 24-unit box, no fills. Each value is a list of SVG path `d` strings. Data, not code (D-031): a new workout type adds one entry here and nothing under src/, app/, lib/ or components/. A skill with no entry renders the fallback seal in components/sigil.tsx. Not versioned with the XP rules: redrawing a sigil is not a rescore.",
+  "_doc": "Skill sigils, keyed by skill id, or by a /log split id (the Strength workout wears Iron's anvil, ticket 0344). Ticket 0073, 06-ui-ux.md §8.6: monoline, stroked at 1.5 on a 24-unit box, no fills. Each value is a list of SVG path `d` strings. Data, not code (D-031): a new workout type adds one entry here and nothing under src/, app/, lib/ or components/. A skill with no entry renders the fallback seal in components/sigil.tsx. Not versioned with the XP rules: redrawing a sigil is not a rescore.",
   "viewBox": 24,
   "sigils": {
     "wayfaring": ["M4 20 C 9 18, 6 12, 11 11 S 15 6, 19 5", "M14.5 4.5 L19 5 L18 9.5"],
@@ -10,6 +10,7 @@
     "footing": ["M5 3 L12.5 3", "M5.5 3 L5.5 21 L20.5 21 L20.5 18.5 C 20.5 16.3, 17.5 15.3, 13.5 14.8 C 12.6 14.6, 12 14, 12 13 L12 3", "M5.5 18.5 L20.5 18.5"],
     "fortitude": ["M12 3 L19 6 L19 12 C 19 16, 16 19, 12 21 C 8 19, 5 16, 5 12 L5 6 Z", "M12 7 L12 17"],
     "endurance": ["M3 7 L21 7 L21 10.5 L16.5 10.5 C 15 10.5, 14 11.5, 14 13 L14 15 L10 15 L10 13 C 10 11.5, 9 10.5, 7.5 10.5 C 5 10.5, 3 9.5, 3 7 Z", "M9 15 L7 20.5 L17 20.5 L15 15"],
+    "strength": ["M3 7 L21 7 L21 10.5 L16.5 10.5 C 15 10.5, 14 11.5, 14 13 L14 15 L10 15 L10 13 C 10 11.5, 9 10.5, 7.5 10.5 C 5 10.5, 3 9.5, 3 7 Z", "M9 15 L7 20.5 L17 20.5 L15 15"],
     "poise": ["M10 4.5 A 2 2 0 1 0 14 4.5 A 2 2 0 1 0 10 4.5", "M12 6.5 L12 21", "M6 3.5 L12 9 L18 3.5", "M12 14.5 L16 17 L12 19"],
     "cartography": ["M12 2.5 L15.5 12 L12 21.5 L8.5 12 Z", "M2.5 12 L8.5 12", "M15.5 12 L21.5 12"],
     "constitution": ["M12 20 C 5 15, 3 11.5, 3 8.5 A 4.5 4.5 0 0 1 12 7 A 4.5 4.5 0 0 1 21 8.5 C 21 11.5, 19 15, 12 20 Z"],
