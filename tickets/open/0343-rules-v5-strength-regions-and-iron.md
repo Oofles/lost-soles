@@ -136,7 +136,11 @@ single minutes rows: "Upper body" (Might), "Lower body" (Footing) and "Core & to
 
 ## Operator validation
 
-### For the operator: perceptual
+### For the operator: perceptual — verified 2026-11-04
+
+**Done by the operator, desktop browser, `/skills`:** "Validation is great!" Footing and Iron appear, Endurance does not, and the names, sigils (boot, anvil) and order read right.
+
+The check as written:
 
 On the desktop browser, open `/skills`: Footing and Iron appear, Endurance does not, and the names, sigils and order read right.
 
