@@ -24,8 +24,10 @@ Both addresses are the operator's, and both are already in this public repositor
 
 - [x] `IDENTITIES` maps `brandondevault@gmail.com` to the owner uid. `lib/auth/owner.test.ts` pins the
       exact two entries, and that no value is anything but the owner uid.
-- [ ] SSM `AUTH_ALLOWED_EMAILS` holds exactly the two addresses (the operator writes it).
-- [ ] Deployed: a signed-out `/` still 307s to core, and the owner data Σ is unchanged.
+- [x] SSM `AUTH_ALLOWED_EMAILS` holds exactly the two addresses (the operator writes it).
+      — verified 2026-11-03: v2 = `amazingbrandon@gmail.com,brandondevault@gmail.com`. The agent wrote it on the operator's explicit go, guarded on the old value.
+- [x] Deployed: a signed-out `/` still 307s to core, and the owner data Σ is unchanged.
+      — verified 2026-11-03 (build 448, `52f7652`): `/` returns 307 to core's `/login?next=…soles…%2F`, `/api/fog` returns 404, and the data is 377 rows, Σ 73,002, `exploredGeneration` 270.
 - [ ] (operator) Signed in on core as `brandondevault@gmail.com`, `soles.devaultsecurity.com` lands on
       the map, not the 403.
 
@@ -38,4 +40,19 @@ must land before the push that deploys this.
 
 Agent: the SSM value, the deployed redirect, the Σ check. Operator: the one `(operator)` criterion.
 
+Agent, 2026-11-03: the gate passed before the push (typecheck, lint, 4,705 tests, trigger-a, auth-posture, secret-storage,
+history-secrets, build and post-build guards). Then the two criteria above, verified against build 448.
+
 D-123 trigger checked? **A**, proposed and resolved: D-479 re-affirms D-123. No second account, since the new address maps to the owner uid.
+
+## Resolution
+
+- `lib/auth/owner-ids.ts`: `brandondevault@gmail.com` → the owner uid, and the comment restates Trigger A as "an
+  entry mapping to any uid other than the owner's" (D-479).
+- `lib/auth/owner.test.ts`: pins the exact two entries, plus a new test that every value is the owner uid.
+- `docs/decisions/DECISIONS.md`: D-479, amending D-478's last rule and re-affirming D-123.
+- SSM `/amplify/shared/d14fhvl4rp79nn/AUTH_ALLOWED_EMAILS` v2.
+- What went wrong: D-478, written earlier the same day, said any second email reopens D-123. That was too broad.
+  It did not separate a second account from a second address for the same account. The operator hit it on the
+  first real sign-in through core.
+
