@@ -6,7 +6,8 @@
 # so a pushup, a situp and a plank second keep v4's 4 / 3 / 1.5 XP. Endurance keeps its id and
 # becomes Iron, a meta skill fed a third of all three. A Strength workout split (0342) apportions
 # one session across the three. Every other row is v4's, unchanged. The replay that moved the
-# live ledger onto v5 moved no XP (0343). A new version rather than an edit to v4 because a
+# live ledger onto v5 changed one number: Iron gained 40 XP, a third of Might's historical pushups
+# (D-484). A new version rather than an edit to v4 because a
 # seeded version never changes (04 §7.6, D-282).
 #
 # Git is the source of truth; the RuleSkill table (T5) is a MATERIALISED PROJECTION of this
@@ -417,8 +418,9 @@ skills:
   # IRON (D-483). The id stays `endurance` because ids are never renamed; v1–v4's Endurance was
   # the plank skill, which Fortitude now absorbs. Iron is META: never matched, fed a third of
   # Might, Footing and Fortitude each, so it tracks the average strength level as Constitution
-  # tracks the average of everything. The kind change moves no XP: Endurance held 0 XP on the
-  # live ledger when v5 shipped (0343's replay), so nothing it held lands anywhere new.
+  # tracks the average of everything. Endurance held 0 XP on the live ledger when v5 shipped, so
+  # the kind change stranded nothing. The new feeds did pay it from history: 40 XP from Might's
+  # past pushups at the v5 replay (D-484).
   # Rejected: a fresh `iron` row with Endurance retired, because disabling a row lowers Total
   # Level, which 04 §4.1 forbids.
   - id: endurance

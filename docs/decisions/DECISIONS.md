@@ -6536,3 +6536,16 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     summarises them, and Endurance no longer trains.
   - **Out of scope:** Strava `WeightTraining` stays ignored (manual logging only, operator), and
     so do individual movements (chest press, underhand row): too fine-grained for a skill.
+- **D-484** **Iron takes a third of past strength XP too: the v5 replay credited it 40 XP from
+  the 30 pushups already in Might. This amends D-483's "the swap moves no XP".** *(Operator,
+  2026-11-04, ticket `0343`.)*
+  - D-483 checked that Endurance and Fortitude held 0 XP and concluded no XP would move. It missed
+    the feed: under v5 Might feeds Iron 0.3333, and a replay rescores every activity, so Might's
+    120 XP of historical pushups also paid Iron 39.996. Iron went from level 1 to level 3. Every
+    other skill was unchanged, and the total went from 73,002 to 73,042 XP.
+  - Accepted, because it is the rule every future log follows, and it only adds XP (D-135 holds).
+    No card fired: a replay does not go through the post-run card path.
+  - Rejected: a cutoff date on feeds, so pre-v5 XP would not reach Iron. No such mechanism exists,
+    and building one would have held the operator on v4, unable to log a Strength workout.
+  - **Lesson for the next kind change:** "the row held 0 XP" is not enough. Also check what
+    the new feeds would pay the row from history.
