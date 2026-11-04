@@ -70,10 +70,13 @@ export function isOwner(userId: string | undefined): boolean {
  * this public repository's history, so this publishes nothing new. A changed Google address
  * unmaps, and fails closed; the fix is a one-line commit.
  *
- * D-123 TRIGGER A (D-470): any entry here other than the owner's fires it. Keys are lower case.
+ * D-123 TRIGGER A (D-470, D-479): an entry mapping to any uid other than the owner's fires it.
+ * The operator's own addresses may each map to the owner uid; that is one account with two ways
+ * in, not a second account (D-479). Keys are lower case.
  */
 export const IDENTITIES: Readonly<Record<string, string>> = {
   "amazingbrandon@gmail.com": "5488e4b8-d081-7014-748e-edd1937f8083",
+  "brandondevault@gmail.com": "5488e4b8-d081-7014-748e-edd1937f8083", // D-479, signs in via core
 }
 
 /** The mapped uid, or undefined. Case-insensitive on the email; no allowlist check here. */

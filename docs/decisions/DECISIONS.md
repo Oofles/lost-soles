@@ -6430,3 +6430,21 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     allowlist and `IDENTITIES` hold the owner only. A new app joining core does not reopen D-123 on
     its own. A second email in Lost Soles' allowlist or `IDENTITIES` does.
   - **Accepted cost:** rotating to the shared secret signs out existing Lost Soles sessions once.
+
+- **D-479** **The operator's second Google address maps to the owner uid. One account with two ways
+  in is not a second account.** *(Operator, 2026-11-03, ticket `0340`.)* Amends **D-478**'s last
+  rule ("a second email in Lost Soles' allowlist or `IDENTITIES` does [reopen D-123]") and
+  **re-affirms D-123** under it.
+  - **What happened.** At `0339`'s operator check, core signed the operator in with
+    `brandondevault@gmail.com`. Lost Soles admitted only `amazingbrandon@gmail.com`, so it answered
+    403. The operator asked for the second address to be admitted.
+  - **The rule, restated.** D-123's premise is one person and one map. An `IDENTITIES` entry mapping
+    to the **owner uid** keeps that premise: same `users/<uid>/` data, same map, same person. An
+    entry mapping to **any other uid**, or an allowlisted email that is not the operator's, is a
+    second account and fires Trigger A, needing A-1…A-7 first. `lib/auth/owner.test.ts` pins both
+    the exact entries and that every value is the owner uid.
+  - Both addresses were already in this public repository's history (D-471), so committing the
+    second one publishes nothing new.
+  - **Cost, accepted:** two Google accounts can now reach the map. Either one compromised is the
+    same exposure as one, and Google carries the second factor for both.
+

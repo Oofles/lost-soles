@@ -100,8 +100,12 @@ describe("no Auth.js session (0332, D-473)", () => {
 })
 
 describe("IDENTITIES (D-470, D-471)", () => {
-  it("holds the owner only, mapped to the existing uid", () => {
-    expect(IDENTITIES).toEqual({ [OWNER_EMAIL]: OWNER_UID })
+  it("holds the owner's two addresses only, both mapped to the existing uid (D-479)", () => {
+    expect(IDENTITIES).toEqual({ [OWNER_EMAIL]: OWNER_UID, "brandondevault@gmail.com": OWNER_UID })
+  })
+
+  it("maps no address to any uid but the owner's: a second uid is Trigger A (D-479)", () => {
+    expect(new Set(Object.values(IDENTITIES))).toEqual(new Set([OWNER_UID]))
   })
 
   it("is not fooled by an inherited property name", () => {

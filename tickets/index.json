@@ -7860,5 +7860,26 @@
       "checked": 6,
       "total": 8
     }
+  },
+  {
+    "id": 340,
+    "slug": "admit-operator-second-address",
+    "title": "Admit the operator's second Google address to the owner uid",
+    "type": "chore",
+    "priority": "med",
+    "status": "open",
+    "size": "s",
+    "capability": "19-authjs-migration",
+    "depends_on": [],
+    "blocked_by": [],
+    "source": "agent",
+    "created": "2026-11-04T00:46:38Z",
+    "started": "2026-11-04T00:47:24Z",
+    "path": "tickets/open/0340-admit-operator-second-address.md",
+    "ready": true,
+    "acceptance": {
+      "checked": 1,
+      "total": 4
+    }
   }
 ]
