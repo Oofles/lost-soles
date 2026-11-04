@@ -35,8 +35,9 @@ meaning-bearing mark, and stays `--accent`.
       `var(--accent-text)`; none uses `var(--accent)`.
 - [x] A test pins it: the plinth and Chronicle styles carry `--accent-text` for the unseen marks and
       no `--accent)` in those rules.
-- [ ] (operator) On the desktop browser, the unseen mark on `/` and on the Chronicle still reads as
-      an invitation, not an alert, at the darker gold.
+- [x] (operator) On the desktop browser, the unseen mark on `/` and on the Chronicle still reads as
+      an invitation, not an alert, at the darker gold — verified 2026-11-04: still reads as an
+      invitation.
 
 ## Steps to reproduce
 
@@ -84,3 +85,8 @@ component directories.
 ## Operator validation
 
 Perceptual: does the darker rule still read as an invitation? Desktop browser, private window.
+
+- **Operator, desktop browser, private window, 2026-11-04:** checked the `1 new run — open it` rule
+  and pulse on `/`, and the marked row on RUNS, against the deployed build (Amplify job 455, commit
+  `2ee33ef`). Verdict: still reads as an invitation, not an alert.
+- **Smoke test (agent):** Amplify job 455 for `2ee33ef` finished `SUCCEED` on `main`.
