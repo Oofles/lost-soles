@@ -4,7 +4,7 @@ slug: fog-layer-waits-for-every-visible-tile-before-it-can-draw
 title: Fog layer waits for every visible tile before it can draw
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 08-map-and-fog-renderer
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-23T02:39:32Z
 started: 2026-11-05T05:29:03Z
+closed: 2026-11-05T05:36:56Z
 ---
 
 ## Description
