@@ -11,7 +11,8 @@ import { CHRONICLE_ROW_PX } from "@/lib/chronicle/window"
  * it, each placed absolutely at its own index. So the scrollbar is honest about the length of the
  * history while the DOM holds a screenful.
  *
- * A row is a link to `/run/:id` in its END STATE (§3.1): no autoplay intent. It PUSHES (the
+ * A row is a link to `/run/:id` in its END STATE (§3.1): no autoplay intent — or, on the workout
+ * list (`0345`, §2.6), to `/workouts/:id`. It PUSHES (the
  * operator, 2026-10-15): back from the run is the Chronicle again, and a second back is `/`.
  *
  * The unseen mark is a gold RULE on the row's leading edge — D-148: gold is a fill or a rule, never
@@ -35,6 +36,7 @@ export function ChronicleRows({
   start,
   total,
   unseen,
+  label = "Runs, newest first",
 }: {
   rows: readonly ChronicleRowView[]
   /** The index of `rows[0]` in the whole list. */
@@ -42,10 +44,12 @@ export function ChronicleRows({
   /** Rows loaded in all — the list's height. */
   total: number
   unseen: ReadonlySet<string>
+  /** `0345`: the list's accessible name — `Runs, newest first` or `Workouts, newest first`. */
+  label?: string
 }) {
   return (
     <ol
-      aria-label="Runs and workouts, newest first"
+      aria-label={label}
       data-chronicle-list=""
       style={{ position: "relative", listStyle: "none", margin: 0, padding: 0, height: total * CHRONICLE_ROW_PX }}
     >

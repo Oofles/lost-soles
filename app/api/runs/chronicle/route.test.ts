@@ -46,6 +46,8 @@ describe("GET /api/runs/chronicle", () => {
     expect(await response.json()).toEqual(PAGE)
     expect(chroniclePage.mock.calls[0]![0]).toBe("u-1")
     expect(chroniclePage.mock.calls[0]![2]).toBeNull()
+    // `0345`, D-486: RUNS is the traced activities only.
+    expect(chroniclePage.mock.calls[0]![3]).toBe("traced")
   })
 
   it("passes a cursor through as a position — the account is the session's, always", async () => {

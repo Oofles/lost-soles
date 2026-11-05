@@ -208,3 +208,26 @@ describe("its place on the screen (criteria 1, 9)", () => {
     expect(text(panel({ items: [], next: null })).replace(/\s+/g, " ")).toMatch(/CHRONICLE × Nothing here yet\./)
   })
 })
+
+describe("0345 — the same panel as the workout history (06 §2.6, D-486)", () => {
+  const WORKOUTS = FIXTURE.filter((r) => !r.traced)
+  const html = renderToStaticMarkup(<ChroniclePanel initial={{ items: WORKOUTS, next: null }} list="workouts" />)
+
+  it("is named for what it holds, and its rows open /workouts/:id — never the run page", () => {
+    expect(text(html)).toContain("WORKOUTS")
+    expect(html).toContain('aria-label="Workouts, newest first"')
+    expect(html).toContain('aria-label="Close the workouts"')
+    const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]!)
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const h of hrefs) expect(h).toMatch(/^\/workouts\/a-\d+$/)
+  })
+
+  it("carries no unseen mark", () => {
+    expect(html).not.toContain("data-unseen")
+    expect(text(html)).not.toContain("not yet seen")
+  })
+
+  it("the runs list keeps its own name", () => {
+    expect(FULL).toContain('aria-label="Runs, newest first"')
+  })
+})

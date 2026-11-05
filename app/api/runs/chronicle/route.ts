@@ -8,7 +8,8 @@ import { backfillBatchOrNull } from "@/lib/backfill/store"
 import { withNoStore } from "@/lib/http/no-store"
 
 /**
- * GET /api/runs/chronicle?after=<cursor> — ticket `0088`. `06-ui-ux.md` §2.5.
+ * GET /api/runs/chronicle?after=<cursor> — ticket `0088`. `06-ui-ux.md` §2.5. Traced activities
+ * only since `0345` (D-486); the traceless ones are `/api/runs/workouts`.
  *
  * The Chronicle's later pages; the first is rendered on the server with `/chronicle` itself. The
  * same posture as `/api/runs/latest`: the uid comes from the verified session and nowhere else, a
@@ -33,7 +34,7 @@ async function handleGet(request: NextRequest): Promise<NextResponse> {
 
   // `0257`: a historical import's rows are marked, so none of them is ever the gold row.
   const deps = defaultRunReadDeps()
-  const [unmarked, batch] = await Promise.all([chroniclePage(userId, deps, after), backfillBatchOrNull(userId, deps)])
+  const [unmarked, batch] = await Promise.all([chroniclePage(userId, deps, after, "traced"), backfillBatchOrNull(userId, deps)])
   const page = chronicleWithBackfill(unmarked, batch)
   return NextResponse.json(page, { headers: { "Cache-Control": "no-store, private" } })
 }

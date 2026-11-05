@@ -6,11 +6,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { rulesForSkills } from "@/lib/log/optimistic"
 import { browserChronicleReturn } from "@/lib/chronicle/return"
 import { chronicleRow, exerciseLabels, latestTraced, unseenIds } from "@/lib/chronicle/rows"
-import { fetchChroniclePage } from "@/lib/chronicle/transport"
+import { fetchChroniclePage, fetchWorkoutsPage } from "@/lib/chronicle/transport"
 import { rowWindow, shouldLoadMore } from "@/lib/chronicle/window"
 import { isSeen } from "@/lib/run-moment/seen"
 import { browserHistoryHost, seedHomeBehind } from "@/lib/runs/history"
-import type { ChroniclePage, RunListItem } from "@/lib/runs/wire"
+import { runHref, workoutHref, type ChroniclePage, type RunListItem } from "@/lib/runs/wire"
 import { useSwipeDismiss } from "@/lib/sheet/swipe-dismiss"
 
 import { ChronicleRows } from "./chronicle-rows"
@@ -57,7 +57,37 @@ export const CHRONICLE_CSS =
   " .chronicle { top: 0; bottom: 0; left: 0; right: auto; width: 24rem;" +
   " border: 0; border-right: 1px solid var(--line); border-radius: 0; } }"
 
-const CHRONICLE_PATH = "/chronicle"
+/**
+ * `0345`, D-486. THE TWO LISTS THIS PANEL CAN BE. `RUNS` opens `/chronicle`, the traced activities;
+ * `WORKOUTS` opens `/workouts`, the rest (`06` §2.6). One panel in every respect but these: the
+ * server already split the rows by their trace data, so nothing here reads a skill or a kind.
+ * A workout row opens its plain record, and the list carries no unseen mark — a workout is logged on
+ * this device, so there is nothing unseen to point at.
+ */
+export type HistoryList = "runs" | "workouts"
+
+const LISTS = {
+  runs: {
+    path: "/chronicle",
+    titleId: "chronicle-title",
+    title: "CHRONICLE",
+    close: "Close the Chronicle",
+    list: "Runs, newest first",
+    fetchPage: fetchChroniclePage,
+    href: runHref,
+    marksUnseen: true,
+  },
+  workouts: {
+    path: "/workouts",
+    titleId: "workouts-title",
+    title: "WORKOUTS",
+    close: "Close the workouts",
+    list: "Workouts, newest first",
+    fetchPage: fetchWorkoutsPage,
+    href: workoutHref,
+    marksUnseen: false,
+  },
+} as const satisfies Record<HistoryList, unknown>
 
 /** Merge a fetched page onto what is loaded, newest first, never duplicating a row. */
 function append(have: readonly RunListItem[], page: readonly RunListItem[]): RunListItem[] {
@@ -65,9 +95,10 @@ function append(have: readonly RunListItem[], page: readonly RunListItem[]): Run
   return [...have, ...page.filter((r) => !ids.has(r.activityId))]
 }
 
-export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
+export function ChroniclePanel({ initial, list: which = "runs" }: { initial: ChroniclePage; list?: HistoryList }) {
+  const cfg = LISTS[which]
   const router = useRouter()
-  const pathname = usePathname() ?? CHRONICLE_PATH
+  const pathname = usePathname() ?? cfg.path
 
   // A back from a run this Chronicle opened gets its rows and offset back (the operator, 2026-10-15).
   const [restored] = useState(() => browserChronicleReturn().take(pathname))
@@ -149,7 +180,7 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
     if (loading || failed || !next || !shouldLoadMore({ start, end }, items.length, true)) return
     let live = true
     setLoading(true)
-    fetchChroniclePage(next).then(
+    cfg.fetchPage(next).then(
       (page) => {
         if (!live) return
         setItems((have) => append(have, page.items))
@@ -165,10 +196,11 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
     return () => {
       live = false
     }
-  }, [start, end, items.length, next, loading, failed])
+  }, [start, end, items.length, next, loading, failed, cfg])
 
   // `0084`'s per-device flag, asked once per loaded traced row.
   useEffect(() => {
+    if (!cfg.marksUnseen) return
     const latest = latestTraced(items)
     // `0257`: a backfilled row is never new, so its flag is not worth reading.
     const ask = latest && !latest.backfilled && !seen.has(latest.activityId) ? [latest] : []
@@ -185,27 +217,29 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
     return () => {
       live = false
     }
-  }, [items, seen])
+  }, [items, seen, cfg])
 
   const label = useMemo(() => exerciseLabels(rulesForSkills([])), [])
-  const rows = useMemo(() => items.slice(start, end).map((r) => chronicleRow(r, label)), [items, start, end, label])
-  const unseen = useMemo(() => unseenIds(items, seen), [items, seen])
+  const rows = useMemo(() => items.slice(start, end).map((r) => chronicleRow(r, label, cfg.href)), [items, start, end, label, cfg])
+  const unseen = useMemo(() => (cfg.marksUnseen ? unseenIds(items, seen) : new Set<string>()), [items, seen, cfg])
+  const titleId = cfg.titleId
 
   return (
     <section
       ref={panel}
       className="chronicle"
-      aria-labelledby="chronicle-title"
+      aria-labelledby={titleId}
       data-chronicle=""
+      data-history-list={which}
       tabIndex={-1}
       onScroll={onScroll}
     >
       <style>{CHRONICLE_CSS}</style>
       <header className="chronicle-head">
-        <h2 id="chronicle-title" style={{ margin: 0, font: "600 12px/1.2 var(--font-sans)", letterSpacing: ".08em", color: "var(--text-secondary)" }}>
-          CHRONICLE
+        <h2 id={titleId} style={{ margin: 0, font: "600 12px/1.2 var(--font-sans)", letterSpacing: ".08em", color: "var(--text-secondary)" }}>
+          {cfg.title}
         </h2>
-        <button type="button" className="chronicle-close" aria-label="Close the Chronicle" onClick={dismiss}>
+        <button type="button" className="chronicle-close" aria-label={cfg.close} onClick={dismiss}>
           <span aria-hidden="true">×</span>
         </button>
       </header>
@@ -215,7 +249,7 @@ export function ChroniclePanel({ initial }: { initial: ChroniclePage }) {
             Nothing here yet.
           </p>
         ) : (
-          <ChronicleRows rows={rows} start={start} total={items.length} unseen={unseen} />
+          <ChronicleRows rows={rows} start={start} total={items.length} unseen={unseen} label={cfg.list} />
         )}
       </div>
     </section>

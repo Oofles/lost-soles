@@ -3,7 +3,7 @@ import { join, relative } from "node:path"
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { fetchChroniclePage } from "@/lib/chronicle/transport"
+import { fetchChroniclePage, fetchWorkoutsPage } from "@/lib/chronicle/transport"
 import { httpLastRunFetch } from "@/lib/fog/last-run"
 import { httpTransport } from "@/lib/fog/transport"
 import { fetchLatestRun, fetchRunFacts, fetchTraceWebRuns } from "@/lib/runs/client"
@@ -130,6 +130,7 @@ describe("0113 — every fetch transport gives up at 10 s on a hung endpoint", (
     ["GET /api/runs/web", () => fetchTraceWebRuns(hung)],
     ["GET /api/runs/summary", () => fetchRunFacts(["a"], hung)],
     ["GET /api/runs/chronicle", () => fetchChroniclePage("cursor", hung)],
+    ["GET /api/runs/workouts", () => fetchWorkoutsPage("cursor", hung)],
   ]
 
   it.each(cases)("%s", async (_name, call) => {

@@ -159,6 +159,12 @@ export interface RunSummary {
    * reached it) — "reveal nothing" is the safe reading of both; familiar ground is never fogged.
    */
   reveal: RunClasses
+  /**
+   * `0345`, D-486. Whether the activity has a trace (`hasTrace`, or a `traceRef` on an older row).
+   * `false` sends `/run/:id` to `/workouts/:id`. Optional, so a fixture that predates it reads as
+   * a run, which is what every fixture of a run page is.
+   */
+  traced?: boolean
 }
 
 /**
@@ -221,6 +227,14 @@ export const CHRONICLE_PAGE_SIZE = 50
  * so a reload or a shared link opens the end state rather than replaying.
  */
 export const PLAY_PARAM = "play"
+
+/** `0345`, D-486. The workout history's later pages, as `RUNS_CHRONICLE_PATH` is the runs'. */
+export const RUNS_WORKOUTS_PATH = "/api/runs/workouts"
+
+/** `0345`. THE ONE WRITER OF A `/workouts/:id` LINK — a past workout's plain record (`06` §2.6). */
+export function workoutHref(activityId: string): string {
+  return `/workouts/${encodeURIComponent(activityId)}`
+}
 
 export function runHref(activityId: string, opts: { play?: boolean } = {}): string {
   const path = `/run/${encodeURIComponent(activityId)}`

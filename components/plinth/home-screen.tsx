@@ -27,6 +27,11 @@ import { fetchReplayInProgress } from "@/lib/skills/transport"
 
 import { Plinth, PLINTH_CSS } from "./plinth"
 
+/** The `(home)` routes that replace the rail with a panel: `/chronicle`, `/workouts`, `/workouts/:id`. */
+export function isHistoryPanel(pathname: string | null): boolean {
+  return pathname === "/chronicle" || pathname === "/workouts" || (pathname?.startsWith("/workouts/") ?? false)
+}
+
 /**
  * `/`, IN THE BROWSER. Ticket `0086`, `06-ui-ux.md` §2.
  *
@@ -46,7 +51,7 @@ import { Plinth, PLINTH_CSS } from "./plinth"
  *
  * DOM order is §2.2's focus order: the plinth's rows, then `⚙`, then the map.
  *
- * `0088`. Rendered by the `(home)` LAYOUT, so it is mounted under both `/` and `/chronicle`.
+ * `0088`. Rendered by the `(home)` LAYOUT, so it is mounted under `/`, `/chronicle` and (`0345`) `/workouts`.
  * `children` is the route's own content: nothing on `/`, the Chronicle panel on `/chronicle`,
  * which takes the rail's column (§2.5, D-313) — so the plinth is not drawn while it is open.
  */
@@ -61,7 +66,8 @@ export function HomeScreen({
   /** `0088`. The `(home)` layout's page: null on `/`, the Chronicle on `/chronicle`. */
   children?: ReactNode
 }) {
-  const chronicleOpen = usePathname() === "/chronicle"
+  // `0345`: `/workouts` and a workout's record are the Chronicle's kind of panel (§2.6, D-486).
+  const chronicleOpen = isHistoryPanel(usePathname())
   const explored = useExplored()
   const [skills, setSkills] = useState<CachedSkill[]>()
   const [latest, setLatest] = useState<RunFeatureCollection>(EMPTY_COLLECTION)

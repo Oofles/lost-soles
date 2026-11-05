@@ -324,6 +324,8 @@ export async function runById(
     deferredCellCount: row.deferredCellCount ?? null,
     route,
     reveal,
+    // `0345`, D-486: a traceless activity is a workout, and `/run/:id` sends it to `/workouts/:id`.
+    traced: isTraced(row as ChronicleRow),
   }
 }
 
@@ -397,13 +399,18 @@ export function decodeChronicleCursor(cursor: string): { startedAt: string; id: 
 const CHRONICLE_COLUMNS = ["id", "startedAt", "startedAtLocal", "name", "kind", "distanceM", "elapsedS", "movingS", "newCellCount", "traceRef", "hasTrace", "sets", "status"]
 
 /**
- * `0287`. HOW MANY QUERY PAGES ONE CHRONICLE PAGE MAY READ to find a row that is not tombstoned.
- * Dropping tombstoned rows can empty a page while history goes on, and an empty first page would
- * render "Nothing here yet" over an account with runs. A delete is rare, so the second read almost
- * never happens; the bound only stops a pathological history walking itself on one request. A page
- * still empty after it is returned with its cursor, and the panel asks again on its next scroll.
+ * `0287`, `0345` (D-487). HOW MANY QUERY PAGES ONE CHRONICLE PAGE MAY READ to fill itself. A read can come
+ * back with too few rows for the list: tombstoned rows leave every list, and since `0345` (D-486)
+ * each list holds only one side of the trace line, so a run of workouts is a run of rows `RUNS`
+ * skips. The reader keeps reading until the page is full or history ends, and this bound only
+ * stops a pathological history walking itself on one request: twenty reads is a thousand rows,
+ * ~9× the operator's whole history today. A page still short after it is returned with its
+ * cursor, and the panel asks again on its next scroll.
  */
-export const CHRONICLE_MAX_READS = 4
+export const CHRONICLE_MAX_READS = 20
+
+/** `0345`, D-486. Which side of the trace line a list holds: `RUNS` is traced, `WORKOUTS` is not. */
+export type ChronicleFilter = "traced" | "untraced"
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined)
 
@@ -430,20 +437,47 @@ type ChronicleRow = FullActivityRow & { id: string; startedAt: string; sets?: un
 const isTraced = (r: ChronicleRow): boolean =>
   (r as Record<string, unknown>)["hasTrace"] === true || (typeof r.traceRef === "string" && r.traceRef.length > 0)
 
+/** One Chronicle row from a projected T3 item, or `null` for a row no list shows. */
+function listItem(raw: Record<string, unknown>): RunListItem | null {
+  // `0287`: a tombstoned activity leaves the list (`02` §4.7); its cells and XP do not.
+  if (typeof raw.id !== "string" || typeof raw.startedAt !== "string" || isTombstoned(raw)) return null
+  const r = raw as ChronicleRow
+  return {
+    activityId: r.id,
+    startedAt: r.startedAt,
+    startedAtLocal: r.startedAtLocal ?? r.startedAt,
+    name: r.name ?? null,
+    kind: r.kind ?? "other",
+    distanceM: num(r.distanceM) ?? null,
+    durationS: num(r.movingS) ?? num(r.elapsedS) ?? null,
+    newCellCount: num(r.newCellCount) ?? null,
+    traced: isTraced(r),
+    sets: chronicleSets(r.sets),
+  }
+}
+
 /**
- * ONE PAGE OF THE CALLER'S HISTORY, NEWEST FIRST. Ticket `0088`, `06-ui-ux.md` §2.5.
+ * ONE PAGE OF THE CALLER'S HISTORY, NEWEST FIRST. Ticket `0088`, `06-ui-ux.md` §2.5; `0345`, §2.6.
  *
- * Runs and logged workouts in one list, because they are one table: a manual log is an activity
- * like any other (`lib/log/log-workout.ts`). One `Query` on `byUserAndStart`, descending, with a
- * projection, `CHRONICLE_PAGE_SIZE` rows at a time — a backfill of years is paged, never read
- * whole (the ticket's "do not render 2,000 rows" starts here).
+ * Runs and logged workouts are one table (a manual log is an activity like any other,
+ * `lib/log/log-workout.ts`), but since D-486 they are TWO LISTS: `RUNS` holds the traced
+ * activities and `WORKOUTS` the rest. The split reads the row's trace data (`isTraced`), never a
+ * skill id or a kind (D-031), so a mapped ride is a run and a new workout type needs no change here.
+ *
+ * One `Query` on `byUserAndStart`, descending, with a projection — a backfill of years is paged,
+ * never read whole. DynamoDB applies `Limit` BEFORE any filter, so filtering in the query would
+ * hand back short pages. Instead the reader reads on until the page holds `CHRONICLE_PAGE_SIZE`
+ * rows or history ends, and the cursor is the key of the LAST ROW RETURNED, not the query's
+ * `LastEvaluatedKey`: the rows read past it are read again next time, never skipped.
  */
 export async function chroniclePage(
   userId: string,
   deps: Pick<RunReadDeps, "ddb" | "activityTable">,
   after: { startedAt: string; id: string } | null = null,
+  filter: ChronicleFilter = "traced",
 ): Promise<ChroniclePage> {
   const names = Object.fromEntries(CHRONICLE_COLUMNS.map((c, i) => [`#c${i}`, c]))
+  const wantTraced = filter === "traced"
   const items: RunListItem[] = []
   let start = after
   for (let reads = 0; reads < CHRONICLE_MAX_READS; reads++) {
@@ -461,32 +495,54 @@ export async function chroniclePage(
       }),
     )) as { Items?: Record<string, unknown>[]; LastEvaluatedKey?: Record<string, unknown> }
 
-    for (const raw of out.Items ?? []) {
-      // `0287`: a tombstoned activity leaves the list (`02` §4.7); its cells and XP do not.
-      if (typeof raw.id !== "string" || typeof raw.startedAt !== "string" || isTombstoned(raw)) continue
-      const r = raw as ChronicleRow
-      items.push({
-        activityId: r.id,
-        startedAt: r.startedAt,
-        startedAtLocal: r.startedAtLocal ?? r.startedAt,
-        name: r.name ?? null,
-        kind: r.kind ?? "other",
-        distanceM: num(r.distanceM) ?? null,
-        durationS: num(r.movingS) ?? num(r.elapsedS) ?? null,
-        newCellCount: num(r.newCellCount) ?? null,
-        traced: isTraced(r),
-        sets: chronicleSets(r.sets),
-      })
+    const rows = out.Items ?? []
+    const last = out.LastEvaluatedKey
+    const more = Boolean(last && typeof last.startedAt === "string" && typeof last.id === "string")
+    for (const [i, raw] of rows.entries()) {
+      const item = listItem(raw)
+      if (!item || item.traced !== wantTraced) continue
+      items.push(item)
+      if (items.length === CHRONICLE_PAGE_SIZE) {
+        // Full. History goes on unless this was the very last row there is.
+        const end = i === rows.length - 1 && !more
+        return { items, next: end ? null : encodeChronicleCursor({ startedAt: item.startedAt, id: item.activityId }) }
+      }
     }
 
-    const last = out.LastEvaluatedKey
-    start =
-      last && typeof last.startedAt === "string" && typeof last.id === "string"
-        ? { startedAt: last.startedAt, id: last.id }
-        : null
-    if (items.length > 0 || !start) break
+    start = more ? { startedAt: last!.startedAt as string, id: last!.id as string } : null
+    if (!start) break
   }
   return { items, next: start ? encodeChronicleCursor(start) : null }
+}
+
+/**
+ * ONE PAST WORKOUT, IF AND ONLY IF IT IS THE CALLER'S. Ticket `0345`, `06` §2.6 (D-486).
+ *
+ * `/workouts/:id`'s read: `runById`'s base-table `Query` by id and its ownership rule — `null` for an
+ * id that is not the caller's and the same `null` for one that does not exist — narrowed to the
+ * Chronicle row's columns, with no S3 read. A traced activity is `null` too, because it is a run,
+ * and so is a tombstoned one, which has left every list (`02` §4.7).
+ */
+export async function workoutById(
+  userId: string,
+  activityId: string,
+  deps: Pick<RunReadDeps, "ddb" | "activityTable">,
+): Promise<RunListItem | null> {
+  const names = Object.fromEntries([...CHRONICLE_COLUMNS, "userId"].map((c, i) => [`#c${i}`, c]))
+  const out = await deps.ddb.send(
+    new QueryCommand({
+      TableName: deps.activityTable,
+      KeyConditionExpression: "#id = :id",
+      ExpressionAttributeNames: { "#id": "id", ...names },
+      ExpressionAttributeValues: { ":id": activityId },
+      ProjectionExpression: Object.keys(names).join(", "),
+      Limit: 1,
+    }),
+  )
+  const raw = (out.Items ?? [])[0] as Record<string, unknown> | undefined
+  if (!raw || raw.userId !== userId) return null
+  const item = listItem(raw)
+  return item && !item.traced ? item : null
 }
 
 /**

@@ -16,7 +16,10 @@ import { kindLabel } from "@/lib/run-kind/kind"
 
 export interface ChronicleRowView {
   activityId: string
-  /** `/run/:id` with no autoplay intent: §3.1, *"Chronicle → any past run"* opens the end state. */
+  /**
+   * `/run/:id` with no autoplay intent: §3.1, *"Chronicle → any past run"* opens the end state.
+   * On the workout list (`0345`, §2.6) it is `/workouts/:id`, the plain record.
+   */
   href: string
   date: string
   kind: string
@@ -51,14 +54,18 @@ export function workoutSummary(sets: readonly ChronicleSet[], label: ExerciseLab
   return parts.length > 0 ? parts.join(", ") : null
 }
 
-export function chronicleRow(item: RunListItem, label: ExerciseLabel): ChronicleRowView {
+export function chronicleRow(
+  item: RunListItem,
+  label: ExerciseLabel,
+  href: (activityId: string) => string = runHref,
+): ChronicleRowView {
   const measure =
     runDistance(item.distanceM) ??
     workoutSummary(item.sets, label) ??
     (item.durationS !== null && item.durationS > 0 ? runDuration(item.durationS) : null)
   return {
     activityId: item.activityId,
-    href: runHref(item.activityId),
+    href: href(item.activityId),
     date: runDate(item.startedAtLocal),
     kind: kindLabel(item.kind),
     name: item.name,

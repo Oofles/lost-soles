@@ -18,7 +18,8 @@ import { markSheetOpenedFromHome } from "@/lib/skills/sheet-origin"
  *   1. the two glance numbers — Total Level (the largest type on `/`) and lifetime cells;
  *   2. the milestone bar, with a NAMED target, never a bare percentage;
  *   3. the last run, one line, the whole line a link to `/run/:id`;
- *   4. SKILLS · + ADD WORKOUT · RUNS, `1fr 1.5fr 1fr`, 40px — Add workout centred and widest (D-061);
+ *   4. the destinations, two rows at 40px (D-486, `0345`): `+ ADD WORKOUT` full width, the only
+ *      action and the most prominent (D-061), then SKILLS · RUNS · WORKOUTS in equal thirds;
  *   5. the interim Sync caption line (D-313), until capability `14` deletes it.
  *
  * **D-013 IS THE SPECIFICATION.** Nothing here asks for anything: no streak, no today, no this-week,
@@ -42,7 +43,9 @@ export const PLINTH_CSS =
   " .plinth { position: fixed; z-index: 1; left: 16px; right: 16px; bottom: 36px; max-height: 55vh;" +
   " overflow-y: auto; box-sizing: border-box; padding: 16px; background: var(--surface-raised);" +
   " border: 1px solid var(--line); border-radius: 8px; color: var(--text-primary); font-family: var(--font-sans); }" +
-  " .plinth-dests { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 8px; }" +
+  // `0345`, D-486: two rows. `+ ADD WORKOUT` spans the first; the three destinations share the second.
+  " .plinth-dests { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }" +
+  " .plinth-dests > .plinth-dest-primary { grid-column: 1 / -1; }" +
   " .plinth-dest { display: flex; align-items: center; justify-content: center; height: 40px; box-sizing: border-box;" +
   " padding: 0 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control);" +
   " color: var(--text-primary); text-decoration: none; font: 500 13px/1.3 var(--font-sans);" +
@@ -256,20 +259,26 @@ export function Plinth({
         ) : null}
       </div>
 
-      {/* Row 9 — the three destinations, below a rule. */}
+      {/*
+        Row 9 — the destinations, below a rule (D-486, `0345`). DOM order is §2.2's focus order:
+        + ADD WORKOUT, then SKILLS · RUNS · WORKOUTS. RUNS is the traced activities, WORKOUTS the rest.
+      */}
       <nav aria-label="Destinations" style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 16 }}>
         <div className="plinth-dests">
+          <AddWorkoutLink />
           <Link href="/skills" className="plinth-dest">
             Skills
           </Link>
-          <AddWorkoutLink />
           <Link href="/chronicle" className="plinth-dest">
             Runs
+          </Link>
+          <Link href="/workouts" className="plinth-dest">
+            Workouts
           </Link>
         </div>
       </nav>
 
-      {/* Interim (D-313): manual ingest until capability 14. A caption line, never a fourth button. */}
+      {/* Interim (D-313): manual ingest until capability 14. A caption line, never another button. */}
       <SyncButton onReconnect={onReconnect} />
 
       {/*

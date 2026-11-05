@@ -6600,3 +6600,16 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     - Rejected: workout history on `/log` (`/log` is static and offline by D-282, so a server-read
       history would undo that), per skill in `/skills`, and a `Runs | Workouts` switch inside the
       Chronicle panel. The operator chose a separate route.
+- **D-487** **A Chronicle page reads on until it is full, and its cursor is the last row it
+  returned.** *(Agent, 2026-11-05, ticket `0345`. Supersedes D-359.)* D-486 split one list into two
+  by trace data. A page boundary can now fall inside a long stretch of the other kind's rows, and
+  D-359's rule (read until at least one row) would hand `RUNS` a page of one run after a week of
+  workouts. `chroniclePage(…, filter)` reads `byUserAndStart` until it holds `CHRONICLE_PAGE_SIZE`
+  rows or history ends. When a page fills partway through a query, the cursor is that last row's
+  key, not `LastEvaluatedKey`, so the rows read past it are read again rather than skipped.
+  `CHRONICLE_MAX_READS` rises from 4 to 20, which is 1,000 rows per request, about 9× the
+  operator's whole history on 2026-11-05 (122 activities). It is still a bound against a
+  pathological history, never a page size.
+  - Rejected: a DynamoDB `FilterExpression`. It applies after `Limit`, so it does not fix short
+    pages. Also rejected: a sparse GSI per list, which costs a new index and a migration to save
+    reads that one person's history does not need.

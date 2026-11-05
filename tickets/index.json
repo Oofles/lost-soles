@@ -8002,10 +8002,11 @@
     "blocked_by": [],
     "source": "operator",
     "created": "2026-11-05T16:45:47Z",
+    "started": "2026-11-05T17:54:08Z",
     "path": "tickets/open/0345-runs-lists-only-runs-non-run-workouts-get-their-own-history.md",
     "ready": true,
     "acceptance": {
-      "checked": 1,
+      "checked": 9,
       "total": 10
     }
   }

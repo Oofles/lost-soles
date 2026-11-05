@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { ExploredProvider } from "@/components/map/explored-provider"
 import { currentUserId } from "@/lib/auth/owner"
@@ -8,7 +8,7 @@ import { basemapPlaceNames } from "@/lib/place-names"
 import { chronicleFor, historyUpTo, namesFor, type RunNames } from "@/lib/runs/chronicle-server"
 import { defaultRunReadDeps, runById } from "@/lib/runs/server"
 import { ledgerTableName, xpBeforeRun } from "@/lib/runs/tally-server"
-import { PLAY_PARAM } from "@/lib/runs/wire"
+import { PLAY_PARAM, workoutHref } from "@/lib/runs/wire"
 
 import { RunMoment } from "./run-moment"
 
@@ -39,6 +39,9 @@ export default async function RunMomentPage({
   const deps = defaultRunReadDeps()
   const summary = await runById(uid, activityId, deps)
   if (!summary) notFound()
+  // `0345`, D-486: a traceless activity is a workout. Its page is the plain record, never this one —
+  // an old link or a pasted URL lands there, before anything of the run page is read or drawn.
+  if (summary.traced === false) redirect(workoutHref(activityId))
 
   // Beat 2's "before" (`0081`, D-296), as of this run. A failed read costs the bars and the totals,
   // never the page: the tally still shows what the run earned. Inside the promise, so a build with

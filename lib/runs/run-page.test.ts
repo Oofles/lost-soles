@@ -6,7 +6,7 @@ import { activityItem } from "@/src/pipeline/persist"
 import { runDate, runDistance, runDuration, sourceLabel } from "./format"
 import { isColdLanding, seedHomeBehind, SEED_MARKER, type HistoryHost } from "./history"
 import { runLedger, type ActivityLedgerRow } from "./ledger"
-import { CHRONICLE_MAX_READS, chroniclePage, decodeChronicleCursor, encodeChronicleCursor, runById, type RunReadDeps } from "./server"
+import { CHRONICLE_MAX_READS, chroniclePage, decodeChronicleCursor, encodeChronicleCursor, runById, workoutById, type RunReadDeps } from "./server"
 import { CHRONICLE_PAGE_SIZE, EMPTY_COLLECTION, runHref } from "./wire"
 
 /**
@@ -191,7 +191,7 @@ describe("chroniclePage — the Chronicle's rows (0088)", () => {
 
   it("narrows a logged session's sets to what the row's summary reads", async () => {
     const { deps } = rig([row({ traceRef: null, hasTrace: false, distanceM: null, sets: [{ exercise: "pushup", reps: 40, weightKg: 0 }, { bogus: 1 }] })])
-    const [item] = (await chroniclePage("u-1", deps)).items
+    const [item] = (await chroniclePage("u-1", deps, null, "untraced")).items
     expect(item!.traced).toBe(false)
     expect(item!.sets).toEqual([{ exercise: "pushup", reps: 40 }])
   })
@@ -235,14 +235,14 @@ describe("chroniclePage — the Chronicle's rows (0088)", () => {
     const queries: QueryCommand["input"][] = []
     const pages = [
       { Items: [row({ id: "a-gone", status: "TOMBSTONED" })], LastEvaluatedKey: { userId: "u-1", startedAt: "2026-08-29T11:00:00.000Z", id: "a-gone" } },
-      { Items: [row()], LastEvaluatedKey: { userId: "u-1", startedAt: "2026-08-28T11:00:00.000Z", id: "a-9" } },
+      { Items: [row()] },
     ]
     const deps = { activityTable: "TestActivity", ddb: { async send(c: QueryCommand) { queries.push(c.input); return pages[queries.length - 1]! } } }
     const page = await chroniclePage("u-1", deps)
     expect(page.items.map((r) => r.activityId)).toEqual(["a-9"])
     expect(queries).toHaveLength(2)
     expect(queries[1]!.ExclusiveStartKey).toEqual({ userId: "u-1", startedAt: "2026-08-29T11:00:00.000Z", id: "a-gone" })
-    expect(decodeChronicleCursor(page.next!)).toEqual({ startedAt: "2026-08-28T11:00:00.000Z", id: "a-9" })
+    expect(page.next).toBeNull()
   })
 
   it("stops after CHRONICLE_MAX_READS and hands back its cursor, never walking the whole history", async () => {
@@ -260,6 +260,87 @@ describe("chroniclePage — the Chronicle's rows (0088)", () => {
     expect(n).toBe(CHRONICLE_MAX_READS)
     expect(page.items).toEqual([])
     expect(decodeChronicleCursor(page.next!)).toEqual({ startedAt: `s-${n}`, id: `gone-${n}` })
+  })
+
+  it("RUNS holds traced activities and WORKOUTS the rest, read off the trace data, never the kind (0345, D-486)", async () => {
+    const legacy: Record<string, unknown> = row({ id: "a-old", traceRef: "users/u-1/traces/a-old.segments.json.gz" })
+    delete legacy.hasTrace
+    const rows = [
+      row(),
+      row({ id: "a-ride", kind: "ride" }),
+      legacy,
+      // A run with no trace (a treadmill, a manual distance) is a WORKOUT: the list is the trace line.
+      row({ id: "w-run", kind: "run", hasTrace: false, traceRef: null }),
+      row({ id: "w-push", kind: "strength", hasTrace: false, traceRef: null, distanceM: null, sets: [{ exercise: "pushup", reps: 40 }] }),
+    ]
+    expect((await chroniclePage("u-1", rig(rows).deps)).items.map((r) => r.activityId)).toEqual(["a-9", "a-ride", "a-old"])
+    expect((await chroniclePage("u-1", rig(rows).deps, null, "traced")).items.map((r) => r.activityId)).toEqual(["a-9", "a-ride", "a-old"])
+    expect((await chroniclePage("u-1", rig(rows).deps, null, "untraced")).items.map((r) => r.activityId)).toEqual(["w-run", "w-push"])
+  })
+
+  /**
+   * A history newest first, `n` rows: `kinds(i)` says which side of the trace line row `i` is on.
+   * The fake honours `Limit` and `ExclusiveStartKey` as DynamoDB does, so a page boundary is real.
+   */
+  function history(n: number, traced: (i: number) => boolean) {
+    const all = Array.from({ length: n }, (_, i) => {
+      const t = traced(i)
+      const at = new Date(Date.UTC(2026, 9, 1) - i * 3_600_000).toISOString()
+      return row({ id: `x-${String(i).padStart(4, "0")}`, startedAt: at, startedAtLocal: at.slice(0, 19), ...(t ? {} : { hasTrace: false, traceRef: null }) })
+    })
+    const queries: QueryCommand["input"][] = []
+    const deps = {
+      activityTable: "TestActivity",
+      ddb: {
+        async send(c: QueryCommand) {
+          queries.push(c.input)
+          const from = c.input.ExclusiveStartKey ? all.findIndex((r) => r.id === c.input.ExclusiveStartKey!.id) + 1 : 0
+          const items = all.slice(from, from + (c.input.Limit ?? all.length))
+          const lastRow = items[items.length - 1]
+          const more = from + items.length < all.length
+          return { Items: items, ...(more && lastRow ? { LastEvaluatedKey: { userId: "u-1", startedAt: lastRow.startedAt, id: lastRow.id } } : {}) }
+        },
+      },
+    }
+    return { all, deps, queries }
+  }
+
+  async function walk(deps: Parameters<typeof chroniclePage>[1], filter: "traced" | "untraced") {
+    const pages: string[][] = []
+    let after: { startedAt: string; id: string } | null = null
+    for (;;) {
+      const page = await chroniclePage("u-1", deps, after, filter)
+      pages.push(page.items.map((r) => r.activityId))
+      if (!page.next) return pages
+      after = decodeChronicleCursor(page.next)
+    }
+  }
+
+  it("fills every page: a boundary inside a long run of workouts never makes RUNS short (0345)", async () => {
+    // 50 runs, then 120 workouts in a row, then 30 more runs. Page one ends exactly where the
+    // workouts begin; page two has to read through all of them to find its runs.
+    const traced = (i: number) => i < 50 || i >= 170
+    const { all, deps } = history(200, traced)
+    const pages = await walk(deps, "traced")
+    expect(pages.map((p) => p.length)).toEqual([CHRONICLE_PAGE_SIZE, 30])
+    expect(pages.flat()).toEqual(all.filter((_, i) => traced(i)).map((r) => r.id))
+  })
+
+  it("never skips a row past a full page: the cursor is the last row RETURNED (0345)", async () => {
+    // Alternating, so a 50-row query yields 25 runs and the page fills mid-way through the second.
+    const traced = (i: number) => i % 2 === 0
+    const { all, deps } = history(260, traced)
+    const runs = await walk(deps, "traced")
+    const workouts = await walk(deps, "untraced")
+    expect(runs.slice(0, -1).every((p) => p.length === CHRONICLE_PAGE_SIZE)).toBe(true)
+    expect(workouts.slice(0, -1).every((p) => p.length === CHRONICLE_PAGE_SIZE)).toBe(true)
+    expect(runs.flat()).toEqual(all.filter((_, i) => traced(i)).map((r) => r.id))
+    expect(workouts.flat()).toEqual(all.filter((_, i) => !traced(i)).map((r) => r.id))
+  })
+
+  it("a page that fills on history's very last row says there is no next page", async () => {
+    const { deps } = history(CHRONICLE_PAGE_SIZE, () => true)
+    expect((await chroniclePage("u-1", deps)).next).toBeNull()
   })
 
   it("refuses a cursor that is not its own shape", () => {
@@ -363,5 +444,38 @@ describe("seedHomeBehind — criterion 5: back from a cold deep link lands on /"
   it("a cold landing with ?play=1 is still cold", () => {
     const { h } = host({ navUrl: "https://soles.example/run/a-9?play=1" })
     expect(isColdLanding(h)).toBe(true)
+  })
+})
+
+describe("0345 — which page a past activity opens (D-486)", () => {
+  it("runById says whether the activity is traced, from hasTrace or an older row's traceRef", async () => {
+    getObject.mockReset()
+    getObject.mockResolvedValue(undefined)
+    expect((await runById("u-1", "a-9", rig([row()]).deps))!.traced).toBe(true)
+    const legacy: Record<string, unknown> = row()
+    delete legacy.hasTrace
+    expect((await runById("u-1", "a-9", rig([legacy]).deps))!.traced).toBe(true)
+    const logged = row({ hasTrace: false, traceRef: null, kind: "strength", distanceM: null })
+    expect((await runById("u-1", "a-9", rig([logged]).deps))!.traced).toBe(false)
+  })
+
+  const workout = (over: Record<string, unknown> = {}) =>
+    row({ id: "w-1", kind: "strength", hasTrace: false, traceRef: null, distanceM: null, sets: [{ exercise: "pushup", reps: 40 }], ...over })
+
+  it("workoutById reads one traceless activity of the caller's, with a projection and no S3 read", async () => {
+    getObject.mockReset()
+    const { deps, queries } = rig([workout()])
+    const item = await workoutById("u-1", "w-1", deps)
+    expect(item).toMatchObject({ activityId: "w-1", traced: false, sets: [{ exercise: "pushup", reps: 40 }] })
+    expect(queries[0]!.ExpressionAttributeValues).toEqual({ ":id": "w-1" })
+    expect(Object.values(queries[0]!.ExpressionAttributeNames ?? {})).not.toContain("raw")
+    expect(getObject).not.toHaveBeenCalled()
+  })
+
+  it("workoutById is null for another user's activity, a run, and a tombstoned workout — one answer for all", async () => {
+    expect(await workoutById("u-2", "w-1", rig([workout()]).deps)).toBeNull()
+    expect(await workoutById("u-1", "a-9", rig([row()]).deps)).toBeNull()
+    expect(await workoutById("u-1", "w-1", rig([workout({ status: "TOMBSTONED" })]).deps)).toBeNull()
+    expect(await workoutById("u-1", "nope", rig([]).deps)).toBeNull()
   })
 })

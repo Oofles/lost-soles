@@ -65,15 +65,17 @@ describe("the plinth's content (0086)", () => {
     expect(html).toMatch(/<a [^>]*href="\/run\/a-9"[^>]*>[\s\S]*Last: Thu 27 Aug · 8\.40 km · 21 new[\s\S]*?<\/a>/)
   })
 
-  it("has exactly the three destinations, Add workout between the other two, RUNS → /chronicle", () => {
+  it("has Add workout first, then SKILLS · RUNS · WORKOUTS, in §2.2's focus order (D-486)", () => {
     const html = plinth()
     const nav = html.slice(html.indexOf('aria-label="Destinations"'), html.indexOf("</nav>"))
-    expect(hrefs(nav)).toEqual(["/skills", "/log", "/chronicle"])
+    expect(hrefs(nav)).toEqual(["/log", "/skills", "/chronicle", "/workouts"])
   })
 
-  it("lays the destinations out 1fr 1.5fr 1fr at 40px, so Add workout is centred and widest (D-061, D-313)", () => {
-    expect(PLINTH_CSS).toContain("grid-template-columns: 1fr 1.5fr 1fr")
+  it("lays Add workout full width over three equal thirds, all 40px, 8px apart (D-061, D-486)", () => {
+    expect(PLINTH_CSS).toMatch(/\.plinth-dests \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 8px/)
+    expect(PLINTH_CSS).toMatch(/\.plinth-dests > \.plinth-dest-primary \{ grid-column: 1 \/ -1; \}/)
     expect(PLINTH_CSS).toMatch(/\.plinth-dest \{[^}]*height: 40px/)
+    expect(PLINTH_CSS).toMatch(/\.plinth-dest \{[^}]*border-radius: var\(--radius-control\)/)
   })
 
   it("is a 24rem rail at ≥1024px with the map pane beside it, and a bottom card below", () => {
@@ -167,7 +169,7 @@ describe("what the home route must never render (D-013, §2.3)", () => {
 
   it("no 'log a run' and no per-exercise control: the only links are the plinth's and the gear", () => {
     const links = hrefs(home())
-    expect(new Set(links)).toEqual(new Set(["/skills", "/log", "/chronicle", "/settings"]))
+    expect(new Set(links)).toEqual(new Set(["/skills", "/log", "/chronicle", "/workouts", "/settings"]))
     expect(links.every((h) => !/\/log[?#/]/.test(h))).toBe(true)
   })
 
