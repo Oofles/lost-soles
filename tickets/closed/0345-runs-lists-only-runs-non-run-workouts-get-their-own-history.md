@@ -4,7 +4,7 @@ slug: runs-lists-only-runs-non-run-workouts-get-their-own-history
 title: RUNS lists only runs; non-run workouts get their own history and a detail view without the run page's map
 type: feature
 priority: med
-status: open
+status: closed
 size: m
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: operator
 created: 2026-11-05T16:45:47Z
 started: 2026-11-05T17:54:08Z
+closed: 2026-11-05T18:28:56Z
 ---
 
 ## Description
