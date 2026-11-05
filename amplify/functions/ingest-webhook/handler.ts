@@ -9,7 +9,12 @@ import type { InboundRequest, IngestCommand } from "@/src/adapters/types"
 import { computeActivityId } from "@/src/domain/activity-id"
 import { disconnectMessage } from "@/src/pipeline/disconnect-message"
 import { retractMessage } from "@/src/pipeline/retract-message"
-import { acceptIngest, INGEST_RECEIPT_TABLE, type ReceiptDdb } from "@/src/pipeline/ingest-receipt"
+import {
+  acceptIngest,
+  INGEST_RECEIPT_TABLE,
+  type ReceiptDdb,
+  releaseUnsentReceipt,
+} from "@/src/pipeline/ingest-receipt"
 
 import { countOwnerEvent } from "./owner-rate"
 import { lazyWebhookSecret, WEBHOOK_SECRET_PARAMETER_ENV } from "./webhook-secret"
@@ -41,11 +46,21 @@ import { lazyWebhookSecret, WEBHOOK_SECRET_PARAMETER_ENV } from "./webhook-secre
  * ─── THE HOLE BETWEEN THE TWO WRITES, AND WHO FILLS IT ──────────────────────
  *
  * Accept-then-send is two operations. If the send fails, this answers 500 and Strava retries —
- * but the retry meets an existing receipt and is a `duplicate`. That activity is then held by a
- * `QUEUED`, `attempts: 0` receipt with no message, which is precisely the case `lib/sources/
- * sync.ts`'s `needsEnqueue` re-enqueues on the next sweep. It is not re-checked here because that
- * needs `GetItem`, a third grant the ticket's least-privilege criterion refuses; the sweep is the
- * path of record and this is a latency optimisation (§2.3).
+ * but the retry meets an existing receipt, and what happens then depends on the aspect (`0292`):
+ *
+ *   create — the retry is a `duplicate`. The activity is held by a `QUEUED`, `attempts: 0`
+ *            receipt with no message, which is precisely the case `lib/sources/sync.ts`'s
+ *            `needsEnqueue` re-enqueues on the next sweep: the sweep mints the same create key.
+ *            The sweep is the path of record here and the webhook a latency optimisation (§2.3).
+ *   update — no sweep mints an update key (D-356; D-350 says the sweep cannot see edits), so
+ *   delete   the sweep cannot fill this. Instead `sendOrRelease` puts the receipt back to
+ *            `RECLAIMABLE` (`releaseUnsentReceipt`, a conditional `PutItem`, so no new grant), and
+ *            the retry re-claims it through `reopenReclaimable`. If the release itself fails it is
+ *            logged and the answer is still 500; that key is then lost until its 90-day TTL,
+ *            which needs two AWS failures in one invocation.
+ *
+ * Nothing here reads the receipt back: that needs `GetItem`, a grant the least-privilege criterion
+ * refuses.
  */
 
 /** `/api/webhooks/<source>`, the fixed callback path. A source id is lower-case and short. */
@@ -302,7 +317,8 @@ async function forwardRetract(
   )
   if (accepted.kind === "duplicate") return "duplicate"
   const now = deps.receipt.now?.() ?? new Date()
-  await deps.send(
+  await sendOrRelease(
+    source,
     JSON.stringify(
       retractMessage({
         source: command.source,
@@ -312,8 +328,45 @@ async function forwardRetract(
         now,
       }),
     ),
+    {
+      ingestKey: command.ingestKey,
+      userId: command.userId,
+      activityId: computeActivityId(command.userId, command.source, command.externalId),
+      source: command.source,
+    },
+    deps,
   )
   return "retract-queued"
+}
+
+/**
+ * SEND, AND ON FAILURE RELEASE THE RECEIPT JUST WRITTEN. Ticket `0292`; see "THE HOLE BETWEEN THE
+ * TWO WRITES" above. For update and delete keys only. The send's error is rethrown either way, so
+ * the handler still answers 500 and Strava still retries. A failed release is logged and swallowed:
+ * it must never replace the send's error or throw past the handler.
+ */
+async function sendOrRelease(
+  source: string,
+  messageBody: string,
+  receipt: Parameters<typeof releaseUnsentReceipt>[0],
+  deps: WebhookDeps,
+): Promise<void> {
+  try {
+    await deps.send(messageBody)
+  } catch (sendError) {
+    try {
+      const released = await releaseUnsentReceipt(receipt, deps.receipt)
+      log({ source, ingestKey: receipt.ingestKey, decision: `send-failed-${released}` })
+    } catch (releaseError) {
+      log({
+        source,
+        ingestKey: receipt.ingestKey,
+        decision: "release-failed",
+        errorClass: (releaseError as Error)?.name ?? "Error",
+      })
+    }
+    throw sendError
+  }
 }
 
 async function enqueue(source: string, command: IngestCommand, deps: WebhookDeps): Promise<string> {
@@ -335,17 +388,21 @@ async function enqueue(source: string, command: IngestCommand, deps: WebhookDeps
     logFlood(source, rate.count)
     return "owner-flood"
   }
-  const accepted = await acceptIngest(
-    {
-      ingestKey: job.ingestKey,
-      userId: job.userId,
-      activityId: computeActivityId(job.userId, job.source, job.externalId),
-      source: job.source,
-    },
-    deps.receipt,
-  )
+  const receipt = {
+    ingestKey: job.ingestKey,
+    userId: job.userId,
+    activityId: computeActivityId(job.userId, job.source, job.externalId),
+    source: job.source,
+  }
+  /**
+   * `0292`: an update (`reingest`) may re-claim a key whose earlier send failed, as a delete
+   * already may. A `create` may not: the sweep fills that hole, and its key stays a duplicate.
+   */
+  const isUpdate = command.kind === "reingest"
+  const accepted = await acceptIngest(receipt, deps.receipt, { reopenReclaimable: isUpdate })
   if (accepted.kind === "duplicate") return "duplicate"
-  await deps.send(JSON.stringify(job))
+  if (isUpdate) await sendOrRelease(source, JSON.stringify(job), receipt, deps)
+  else await deps.send(JSON.stringify(job))
   return "queued"
 }
 

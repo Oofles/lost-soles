@@ -100,10 +100,11 @@ export const FAILED_BY_USER_INDEX = "failedByUser"
 /**
  * T8. Every transition is a conditional update; there is no unguarded status write.
  *
- * `RECLAIMABLE` (ticket `0288`) is written on ONE kind of receipt only: a retract's, when the source
- * said the activity still exists (`forged-or-stale`). It is the one status the accept gate may write
- * over, and only when its caller asks to (`AcceptOptions.reopenReclaimable`). See
- * `releaseRetractReceipt`.
+ * `RECLAIMABLE` (ticket `0288`) is written in two places: on a retract's receipt when the source
+ * said the activity still exists (`forged-or-stale`, `releaseRetractReceipt`), and on an update's or
+ * a delete's receipt when the webhook's queue send failed (`0292`, `releaseUnsentReceipt`). It is the
+ * one status the accept gate may write over, and only when its caller asks to
+ * (`AcceptOptions.reopenReclaimable`).
  */
 export type ReceiptStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED" | "RECLAIMABLE"
 
@@ -220,9 +221,10 @@ export type AcceptResult = { kind: "accepted" } | { kind: "duplicate" }
 
 /**
  * Ticket `0288`. `reopenReclaimable: true` lets the gate's `PutItem` replace a receipt whose status
- * is `RECLAIMABLE`, as well as create a missing one. Only the webhook's retract path passes it: a
- * delete the source denied once (`forged-or-stale`) must not shut out the genuine delete that
- * follows. Every other status, `QUEUED` and `PROCESSING` included, is still a duplicate, so a
+ * is `RECLAIMABLE`, as well as create a missing one. Only the webhook's retract and update paths
+ * pass it: a delete the source denied once (`forged-or-stale`) must not shut out the genuine delete
+ * that follows, and an update or delete whose queue send failed (`0292`) must be re-claimable by
+ * Strava's retry, because no sweep mints those keys. `create` never passes it: the sweep covers it. Every other status, `QUEUED` and `PROCESSING` included, is still a duplicate, so a
  * redelivery that lands while the worker is mid-confirmation is dropped as before, and a delete that
  * has tombstoned (`DONE`) stays shut for T8's 90 days.
  *
@@ -795,6 +797,57 @@ export async function releaseRetractReceipt(ingestKey: string, deps: ReceiptDeps
     )
   } catch (error) {
     if (!isConditionalFailure(error)) throw error
+  }
+}
+
+/**
+ * RELEASE A RECEIPT WHOSE MESSAGE WAS NEVER SENT. Ticket `0292`.
+ *
+ * The webhook accepts (QUEUED, attempts 0) and then sends. When the send throws it answers 500 and
+ * Strava retries, but the retry meets the receipt and is a `duplicate`. For a `create` key the sweep
+ * fills that hole (`needsEnqueue`); nothing mints an update or a delete key, so for those this puts
+ * the receipt back to `RECLAIMABLE` and the retry re-claims it at the gate.
+ *
+ * A conditional `PutItem`, NOT an `UpdateItem`: the webhook's role holds `PutItem` on this table
+ * and `UpdateItem` on `rate#*` keys only (D-349), and that stays. A Put replaces the row, so the
+ * whole item is written again — the same fields `acceptIngest` wrote, with a fresh `acceptedAt`
+ * and `ttl`.
+ *
+ * The condition is `QUEUED AND attempts = 0`: exactly the row this invocation just wrote and
+ * nobody has delivered. A send that threw but actually landed lets the worker's `recordDelivery`
+ * bump `attempts` first, and then this loses — correctly. It never reopens `PROCESSING`, `DONE`
+ * or `FAILED`. Losing the condition is a normal outcome (`kept`), not an error.
+ */
+export async function releaseUnsentReceipt(
+  receipt: { ingestKey: string; userId: string; activityId: string; source: SourceId },
+  deps: ReceiptDeps,
+): Promise<"released" | "kept"> {
+  const now = nowOf(deps)
+  const item: IngestReceipt = {
+    ingestKey: receipt.ingestKey,
+    keyKind: "ACCEPT",
+    status: "RECLAIMABLE",
+    userId: receipt.userId,
+    activityId: receipt.activityId,
+    source: receipt.source,
+    attempts: 0,
+    acceptedAt: now.toISOString(),
+    ttl: receiptTtl(now),
+  }
+  try {
+    await deps.ddb.send(
+      new PutCommand({
+        TableName: INGEST_RECEIPT_TABLE,
+        Item: item,
+        ConditionExpression: "#status = :queued AND attempts = :zero",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: { ":queued": "QUEUED", ":zero": 0 },
+      }),
+    )
+    return "released"
+  } catch (error) {
+    if (isConditionalFailure(error)) return "kept"
+    throw error
   }
 }
 
