@@ -6575,3 +6575,28 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
     - The sigil is keyed by the split id in `sigils.json` (the anvil, as Iron's).
     - Rejected after the mock: − 40% + steppers (the operator preferred the bar), and a
       "click a block to add" hint.
+- **D-486** **`RUNS` lists only traced activities. Non-run workouts get their own history at
+  `/workouts`, opened by a fourth plinth destination, `WORKOUTS`. Add workout moves to a full-width
+  first row, with `SKILLS · RUNS · WORKOUTS` in the row below it.** *(Operator, 2026-11-05,
+  ticket `0345`.)*
+  - **Why.** The Chronicle held every activity. A strength workout opened `/run/:id`, which flew
+    the camera to the last run, titled itself "Return from the Fog", and offered a ⟲ Relive that
+    replayed the award over a map that did nothing. §6.4 already said logged work gets no reveal
+    sequence; the run page was the wrong view, not a broken one.
+  - **"A run" means "traced on the map"** (operator: *"Only things traced on the map count as
+    runs"*). The filter reads the activity's trace data (`hasTrace` / `traceRef`), never a skill
+    id (D-031). A mapped bike ride lists under `RUNS`. The label stays `RUNS` for now: the
+    operator could not name a better one, and it is accurate for every traced activity so far.
+  - **`/workouts`** is its own route (operator: *"a separate endpoint"*). It mirrors §2.5's
+    Chronicle: it opens in the rail's column with the map live beside it, newest first, paged.
+    *(The placement in the rail column is the agent's reading, stated so it can be overturned.)*
+  - **A past workout opens as a plain record** at `/workouts/:id`, in the same column: date,
+    what was logged (the split or sets), and the XP it earned. No camera move, no "Return from the
+    Fog", no replay. The operator may add to it later; basic is the brief. A `/run/:id` for a
+    traceless activity goes to `/workouts/:id`.
+  - **The plinth.** Row one is `+ ADD WORKOUT`, full width: it stays the only action and the most
+    prominent (D-061). Row two is `SKILLS · RUNS · WORKOUTS`, equal thirds. This supersedes `06`
+    §2.2 row 9's single row of three at `1fr 1.5fr 1fr`, and §2.3's "Three destinations".
+    - Rejected: workout history on `/log` (`/log` is static and offline by D-282, so a server-read
+      history would undo that), per skill in `/skills`, and a `Runs | Workouts` switch inside the
+      Chronicle panel. The operator chose a separate route.

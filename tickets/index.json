@@ -8005,8 +8005,8 @@
     "path": "tickets/open/0345-runs-lists-only-runs-non-run-workouts-get-their-own-history.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
-      "total": 9
+      "checked": 1,
+      "total": 10
     }
   }
 ]

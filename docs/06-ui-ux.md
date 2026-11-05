@@ -133,6 +133,7 @@ segments.
 | `/skills` | Constraint R1 — every session must move a *named* number, and the user must be able to go look at those names. Runescape's skills panel is the explicitly-loved reference. | Levels exist but are unreadable; the "9 runs to 48" plan (04 §4.1) has no home. | Never |
 | `/log` | D-061, verbatim: an Add workout **button**, not per-exercise buttons, opening a **dedicated page**. | Strength work is unloggable (D-060: no API on earth exposes reps). | Never |
 | `/chronicle` | The only way back to a past run's `/run/:id`. It carries no lifetime totals (D-329): those live on the plinth. A panel over the map, not a page — it is a list, and a list does not deserve a screen of its own. | Past runs are unreachable; the reveal is a one-shot you can never look at again. | No, but keep it thin |
+| `/workouts` | D-486. The history of logged, untraced workouts, and the only way back to one (`/workouts/:id`, a plain record). A panel over the map like `/chronicle`. | A past strength workout is unreachable, or opens the run page, which has nothing to show for it. | No, but keep it thin |
 | `/dev/tickets` | ~~D-090 + D-092, phone-friendly capture.~~ **Withdrawn by D-252:** at the desk the repo, `tickets.mjs` and the agent are already open. | Nothing. | Yes — removed by `0216` |
 | `/settings` | Connect, reconnect or disconnect each source, named by its connector's display name, never a hard-coded "Strava" *(D-100)* — reconnecting is the one recurring chore S3 permits. Sign out, the account-deletion entry point, a build line. ~~reduced-motion/battery, units~~ — *amended by ticket `0089`: no preference control of any kind; reduced motion follows the OS, units follow the locale (D-013).* | Re-auth has nowhere to happen and the app dies silently when the token expires. | Never, but keep it under one screenful |
 
@@ -226,9 +227,12 @@ starts, and the plinth's position is fixed at every desktop size.
 │ Last: Fri 28 Aug · 8.40 km · 21 new│                                             │
 │ [7]  (D-316)                     › │               THE MAP PANE                  │
 │ ────────────────────────────────── │     light map + dark fog (D-373);           │
-│ ┌───────┐ ┌──────────────┐ ┌─────┐ │     first-ever load framed on the           │
-│ │SKILLS │ │ + ADD WORKOUT│ │RUNS │ │     latest run's bbox centre, z14           │
-│ └───────┘ └──────────────┘ └─────┘ │     (D-249), in the PANE's centre           │
+│ ┌────────────────────────────────┐ │     first-ever load framed on the           │
+│ │         + ADD WORKOUT          │ │     latest run's bbox centre, z14           │
+│ └────────────────────────────────┘ │     (D-249), in the PANE's centre           │
+│ ┌────────┐ ┌────────┐ ┌──────────┐ │                                             │
+│ │ SKILLS │ │  RUNS  │ │ WORKOUTS │ │                                             │
+│ └────────┘ └────────┘ └──────────┘ │                                             │
 │ [9]                                │                                             │
 │ Sync now  (interim, until cap 14)  │                                             │
 │ Strava needs reconnecting    [12]  │                                      ┌────┐ │
@@ -252,7 +256,7 @@ starts, and the plinth's position is fixed at every desktop size.
 | 6 | **Fit to territory** | Right edge of the map pane, above ⌖, 40 × 40px, 8px gap | Frames the whole explored set. A separate control, not a long-press (D-253); `0101`'s. |
 | 7 | **Last run** | Third row, one line | One link: the whole line is the hit area, `›` at its end. Click → `/run/:id` end state. Text: `Last: Fri 28 Aug · 8.40 km · 21 new` — the latest traced run, the date from its own wall clock, missing parts omitted *(D-316)*. This line also carries the §2.4 new-run state, and only that one; reconnect is row 12 *(D-337)*. |
 | 8 | **Recentre** `⌖` | Right edge of the map pane, 40 × 40px, its bottom 16px above the attribution | Recentres on the last run's end point at z14 (§4.4); `0101`'s. |
-| 9 | **Three destinations** | Fourth row, below a `--line` rule | `SKILLS` · `+ ADD WORKOUT` · `RUNS` in one row, all 40px tall, 8px apart, columns `1fr 1.5fr 1fr` so Add workout is centred and widest (D-061). `RUNS` → `/chronicle`. |
+| 9 | **The destinations** | Fourth row, below a `--line` rule | Two rows, all 40px tall, 8px apart. Row one: `+ ADD WORKOUT`, full width, the only action and the most prominent (D-061). Row two: `SKILLS` · `RUNS` · `WORKOUTS`, equal thirds. `RUNS` → `/chronicle`, traced activities only; `WORKOUTS` → `/workouts` (§2.6). *(D-486, superseding one row of three at `1fr 1.5fr 1fr`.)* |
 | 10 | **Attribution** | Bottom-right **of the map pane**, MapLibre's own control, uncompacted | A licence requirement (`0052`). Nothing may cover it. |
 | 11 | **Skills quick-view** | Fifth row, below the Sync line, the reconnect line when present, and a `--line` rule; ≥1024px only | `0270`. A glance, not a second skills panel: one 32px row per TRAINED skill — sigil, name, a 3px bar to the next level in `/skills`' fills, the level; no XP. `ACTIVITY` then `META` headings, registry order; an untrained skill has no row and an empty group no heading. Each row links to `/skills/<id>`'s sheet, which dismisses back to `/`. Below 1024px it is omitted: the bottom card only must not break (D-251). |
 | 12 | **Reconnect line** | Own caption-size line directly below the Sync line; present only when a token is broken | `<source> needs reconnecting`, named by the connector's display name, one ink link to `/settings` *(D-337, D-318)*. The only failure `/` ever shows. Replacing row 7 would hide the last run, which §2.3 says the plinth still shows. |
@@ -267,8 +271,8 @@ thumb dragged up into the Chronicle. With a pointer it is a second, smaller door
 
 **Interim, until capability `14` automates ingest:** the manual Sync control (`09` §2.3 — the
 one thing D-013 is knowingly violated for) moves *into* the rail as a quiet caption-size text
-button on its own line below the three destinations, and capability `14` deletes that line with
-no other layout change. It is never a fourth destination button. Beneath the button sits a
+button on its own line below the destinations, and capability `14` deletes that line with
+no other layout change. It is never a destination button. Beneath the button sits a
 reserved `aria-live` status line, one caption tall whether or not it has text, so nothing jumps:
 `Checking for new activities…` while the press is in flight (the button itself reads `Syncing…`),
 then D-318's result sentence — `N activities queued.` — or nothing at all.
@@ -279,7 +283,7 @@ latest run in the visible map with no `padding` at all. The pane is narrower tha
 not occluded by anything.
 
 **Focus and keyboard order** follows reading order, left to right: the last-run line →
-`SKILLS` → `+ ADD WORKOUT` → `RUNS` → (interim Sync) → the reconnect line when present (D-337) → the quick-view's rows (`0270`) → mode toggle → `⚙` → jump-to (`0285`) → the map (arrow keys
+`+ ADD WORKOUT` → `SKILLS` → `RUNS` → `WORKOUTS` → (interim Sync) → the reconnect line when present (D-337) → the quick-view's rows (`0270`) → mode toggle → `⚙` → jump-to (`0285`) → the map (arrow keys
 and `+`/`−` act on it while it holds focus, D-253) → fit → `⌖`. `M` toggles the mode from
 anywhere on `/` except while a text field has focus. Every focusable element shows the §9.4
 focus ring.
@@ -322,8 +326,9 @@ window there.
   a bare percentage reads as nothing.
 - **The last run, one line, clickable.** It is the door back into §3, and it answers "did my run
   land?" — which is the single most common reason to open this app.
-- **Three destinations.** Skills, Add workout, Runs. Add workout is centre and widest: it is the
-  only *action* on the screen, and D-061 says it is one button.
+- **Four destinations, one of them an action.** Add workout on its own full-width row: it is the
+  only *action* on the screen, and D-061 says it is one button. Below it, Skills, Runs and
+  Workouts *(D-486)*.
 
 **Does not earn it:**
 
@@ -360,7 +365,7 @@ does is burn back.
 
 ### 2.5 Where the Chronicle opens (D-313)
 
-`RUNS` opens `/chronicle` **in the rail's column, replacing the rail's contents**: the same
+`RUNS` opens `/chronicle` — **traced activities only**, the ones drawn on the map *(D-486)* — **in the rail's column, replacing the rail's contents**: the same
 24rem width, the full window height, with the run list scrolling inside it. The plinth's rows are
 not drawn while it is open. *(Confirmed by the operator, 2026-10-15.)* The Chronicle does **not**
 repeat the lifetime totals at its own top: it is a plain list, newest first, and cumulative
@@ -385,6 +390,22 @@ The skill detail is the other thing that opens over a parent, and it is delibera
 a **centred dialog with a scrim** over `/skills` (§5.5, as `0074` built it), because the panel
 behind it has nothing to do while you read it.
 
+### 2.6 Workouts (D-486)
+
+`WORKOUTS` opens `/workouts`: every logged activity with **no trace**, newest first, paged. It is
+§2.5's panel in every respect but its rows — the rail's column, no scrim, the map live and unmoved
+beside it, dismissed by Esc, its close control or back. It carries no unseen mark: a workout is
+logged on this device, so there is nothing unseen to point at.
+
+**Clicking a row** opens `/workouts/:id` in the same column: **a plain record** — the date, what
+was logged (the split and its shares, or the count, seconds or minutes), and the XP each skill
+earned. No camera move, no "Return from the Fog", no ⟲ Relive: there is no territory, and §6.4
+already says a workout gets no reveal sequence. Back returns to the list. A `/run/:id` for a
+traceless activity redirects here.
+
+What tells the lists apart is the activity's trace data, never its skill: a new workout type is
+still a data row (D-031), and a mapped ride lists under `RUNS`.
+
 ---
 
 ## 3. The post-run moment — "Return from the Fog"
@@ -404,7 +425,7 @@ document is infrastructure for these nine seconds.
 | ~~Push notification "your run is on the map"~~ | *Dropped by D-253: there is no push notification.* A pasted `/run/:id` link to an unseen run behaves as the next row |
 | Plinth `1 new run — open it` | Opens `/run/:id`; the sequence auto-plays from beat 1 |
 | App opened cold with an unseen import | Home renders first (map, pre-run territory), then the plinth's new-run line pulses **once**. It does **not** auto-play. Ambushing the user with a nine-second animation they did not ask for is how a reward becomes an obstacle |
-| Chronicle → any past run | `/run/:id` opens in **static end-state**, with a `⟲ Relive` control. Replays are opt-in |
+| Chronicle → any past run | `/run/:id` opens in **static end-state**, with a `⟲ Relive` control. Replays are opt-in. A traceless activity never opens here: it is a workout, and opens at `/workouts/:id` (§2.6, D-486) |
 
 A run is marked `seen` the first time the sequence completes or is skipped. `seen` is a local
 per-device flag; it never affects scoring (D-135's spirit: display state is not truth).
@@ -1380,7 +1401,8 @@ identically. Strength work earns the same celebration running does — D-131 is 
 levels mean the same thing across disciplines, and the UI must not quietly disagree.
 
 **What does not happen:** no reveal sequence (there is no territory), no navigation away, no
-toast, no "workout saved!" confirmation banner. The row itself is the confirmation.
+toast, no "workout saved!" confirmation banner. The row itself is the confirmation. A past
+workout is read later at `/workouts` (§2.6), never on the run page *(D-486)*.
 
 ### 6.5 How a new workout type arrives
 

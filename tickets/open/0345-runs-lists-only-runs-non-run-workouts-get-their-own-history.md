@@ -40,8 +40,13 @@ a list of skill ids (D-031/D-141).
 
 ## Acceptance criteria
 
-- [ ] A recorded decision (`D-xxx`) settles the open questions below, and `06` §2.5, §3.1 and §6
-      are amended to match **before** the UI work merges (D-152).
+- [x] A recorded decision settles the open questions below, and `06` is amended to match
+      **before** the UI work merges (D-152). — done 2026-11-05: **D-486**; `06` §1 route table,
+      §2.2 wireframe, row 9 and keyboard order, §2.3, §2.5, new **§2.6 Workouts**, §3.1, §6.4.
+- [ ] The plinth's destinations follow `06` §2.2 row 9 as amended: row one `+ ADD WORKOUT` full
+      width; row two `SKILLS` · `RUNS` · `WORKOUTS` in equal thirds, all 40px, 8px gaps, 8px radii
+      (`--radius-control`). Focus order matches §2.2's amended keyboard order. Below 1024px the two
+      rows still fit the bottom card.
 - [ ] `/chronicle` (opened by `RUNS`) lists only traced activities. The filter reads the row's trace
       data (`isTraced`), never a skill id. Adding a new non-run workout type is still a data row
       with an empty `.tsx` diff (D-031; the CI guard stays green).
@@ -49,39 +54,36 @@ a list of skill ids (D-031/D-141).
       rows after the `Limit`: either the query filters before the limit, or the reader keeps
       reading until the page is full or the history ends. A test covers a page boundary that falls
       in a run of consecutive workouts.
-- [ ] Non-run workouts have their own history, at the place the decision names, newest first,
-      backfill and paging included.
-- [ ] Opening a past non-run workout shows a view built for one: no camera move, no "Return from the
-      Fog", no reveal sequence. Whatever it shows (date, the split or sets, the XP award) comes
-      from the activity row.
-- [ ] `/run/:id` for a traceless activity (an old link, a pasted URL) goes to that workout view
-      instead of rendering the run page.
+- [ ] `WORKOUTS` opens `/workouts` (§2.6): every traceless activity, newest first, paged, in the
+      rail's column with the map live and unmoved beside it; Esc, close and back dismiss it; no
+      unseen mark.
+- [ ] A row opens `/workouts/:id` in the same column: a plain record of the date, what was logged
+      (the split and its shares, or the count/seconds/minutes) and the XP each skill earned. No
+      camera move, no "Return from the Fog", no ⟲ Relive. Back returns to the list.
+- [ ] `/run/:id` for a traceless activity (an old link, a pasted URL) redirects to
+      `/workouts/:id` instead of rendering the run page.
 - [ ] A test proves that replaying or reopening a workout writes nothing. The ledger is untouched
       (D-135); any replay is display only. (Expected to be true already. Prove it, do not assume it.)
 - [ ] The unseen mark keeps its rule: at most one row, the latest traced run (§2.5, D-324).
-- [ ] (operator) On the desktop browser, `RUNS` shows only runs, the workout history is where the
-      decision put it, and opening a strength workout from it feels like reading a record, not a
-      broken run page.
+- [ ] (operator) On the desktop browser, the plinth's two button rows read well, `RUNS` shows only
+      runs, and opening a strength workout from `WORKOUTS` reads as a record, not a broken run page.
 
 ## Notes
 
-**Open questions, to be settled by the D-xxx before building:**
+**Open questions, settled 2026-11-05 by D-486 (operator):**
 
-1. **Where the workout history lives.** Options:
-   - (a) A second list in the Chronicle panel, e.g. `Runs | Workouts`, keeping one destination in
-     the rail column.
-   - (b) On `/log`, below the add buttons, next to where workouts are entered (§6). Note that
-     `/log` is static by design (D-282) and must render offline, so a server-read history there
-     needs care.
-   - (c) Per skill, in the skill sheet on `/skills` (§5.5): Might's history under Might.
-   - (d) A new plinth destination. The rail has three today (§2.3 limits what earns space).
-2. **What opening a past workout shows.** Probably a static record: date, the split or sets, and
-   the XP it earned. Does it keep a ⟲ replay of the award or level-up card at all, or is a replay
-   with no map simply removed?
-3. **Do traced activities that are not runs count as runs here** (a walk or a ride, if such skills
-   exist)? This ticket assumes yes: the list is "what drew on the map", which is the data-driven
-   definition. Confirm or amend.
-4. **Does the plinth label stay `RUNS`?** With the filter, it becomes accurate.
+1. *Where the workout history lives* → its own route, `/workouts`, behind a fourth plinth
+   destination, `WORKOUTS`. Add workout moves to a full-width first row; `SKILLS · RUNS · WORKOUTS`
+   sit below it. That `/workouts` opens in the rail's column like the Chronicle is the agent's
+   reading, recorded in D-486 so it can be overturned.
+2. *What a past workout shows* → a plain record (date, what was logged, XP earned). No replay. The
+   operator may add more later.
+3. *Do traced non-runs count as runs* → yes: "only things traced on the map count as runs". A mapped
+   ride lists under `RUNS`.
+4. *The label* → stays `RUNS` for now.
+
+**Size:** filed `m`. With a new route, a record view and a redirect it is at the top of `m`; if it
+grows past that while being worked, split the record view off rather than letting it sprawl.
 
 **D-123:** no trigger. Single account, no share or export, no public URL.
 
