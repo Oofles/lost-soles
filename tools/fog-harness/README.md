@@ -11,6 +11,7 @@ node tools/fog-harness/run-mode-swap.mjs  # 0098: atlas/adventure swaps keep the
 node tools/fog-harness/mode-parity-shots.mjs # 0099: ghost grid + street-name contrast, real tiles
 node tools/fog-harness/run-map-controls.mjs # 0101: no rotate or tilt, the zoom rubber band, route opacities
 node tools/fog-harness/run-cold-cost.mjs  # 0298: atlas's cold pass vs cold weight 0, HEADED on the real GPU
+node tools/fog-harness/run-tile-wait.mjs  # 0313: the fog draws while every tile hangs and `load` never fires
 ```
 
 **`run-cold-cost.mjs`** (ticket `0298`) is the one runner here that is **headed and on a real

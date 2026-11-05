@@ -242,8 +242,17 @@ export function MapShell({
    *
    * `useFogMask` has to add a custom layer, and `addLayer` needs a style that has finished loading
    * — so it needs both a re-render when that happens and a new identity when a context-loss rebuild
-   * constructs a different Map. A ref gives neither. It is set on `load` and cleared in `teardown`,
+   * constructs a different Map. A ref gives neither. It is set on `style.load` (`0313`; it was `load`
+   * until tiles were found to gate it) and cleared in `teardown`,
    * which is what makes the layer's lifetime exactly the map's.
+   */
+  const [styled, setStyled] = useState<MapInstance | null>(null)
+  /**
+   * `0313`. THE SAME MAP, ONCE MapLibre's `load` HAS FIRED. `load` waits for every visible tile to
+   * arrive or fail (`Style.loaded()` checks each tile manager), so nothing that only adds a layer or
+   * moves the camera may wait on it: the fog never waits on tiles (`06` §4.8). Two things do wait:
+   * D-439's paint gate, which is ABOUT the first visually complete paint, and `onStage`, whose
+   * `ready` starts the post-run beat (a reveal played over a missing basemap is not the moment).
    */
   const [loaded, setLoaded] = useState<MapInstance | null>(null)
 
@@ -385,8 +394,13 @@ export function MapShell({
       lockOrientation(instance)
 
       map.current = instance
-      // `once`, not `on`: a style change re-fires `load`, and a second setState with the same
-      // instance would remount the fog layer for no reason.
+      // `once`, not `on`: a mode swap's `setStyle` re-fires `style.load`, and a second setState with
+      // the same instance would remount the fog layer for no reason. `0313`: the fog and everything
+      // else that only needs the style hang off `style.load`, which fires once the style is parsed
+      // and before a single tile arrives. `load` (every visible tile in) is kept for the two
+      // consumers `loaded`'s doc names. The style loads a frame after construction (`loadJSON`
+      // defers to `frameAsync`), so neither listener can miss its event.
+      instance.once("style.load", () => setStyled(instance))
       instance.once("load", () => setLoaded(instance))
 
       // `0078`. Framed on the whole run, with §3.2's 12% padding, and no flight.
@@ -457,6 +471,7 @@ export function MapShell({
     }
 
     function teardown() {
+      setStyled(null)
       setLoaded(null)
       resizeObserver?.disconnect()
       resizeObserver = null
@@ -519,7 +534,7 @@ export function MapShell({
     () => ({ palette: () => frame.current.fog, animated: fogAnimated, coldTerritory }),
     [fogAnimated, coldTerritory],
   )
-  const fogLayer = useFogMask(loaded, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog, look)
+  const fogLayer = useFogMask(styled, harness, reveal ?? sequenceReveal, reveal ? 1 : 0, homeFog, look)
   const fogLayerRef = useRef(fogLayer)
   fogLayerRef.current = fogLayer
 
@@ -555,7 +570,7 @@ export function MapShell({
    * A re-toggle mid-fade starts from the frame on screen, so nothing jumps back to an end state.
    */
   useEffect(() => {
-    if (!loaded) return
+    if (!styled) return
     const to = wanted
     if (shown.current === to) {
       setFogAnimated(MODE_FRAMES[to].fog.animated)
@@ -563,7 +578,7 @@ export function MapShell({
     }
     shown.current = to
     try {
-      swapBasemap(loaded as never, to)
+      swapBasemap(styled as never, to)
     } catch (error) {
       log.warn(`map mode: the basemap swap to ${to} failed: ${(error as Error).message}`)
     }
@@ -581,11 +596,11 @@ export function MapShell({
       },
       apply: (next) => {
         frame.current = next
-        applyModeFrame(loaded, fogLayerRef.current, next)
+        applyModeFrame(styled, fogLayerRef.current, next)
       },
       done: () => setFogAnimated(MODE_FRAMES[to].fog.animated),
     })
-  }, [loaded, wanted])
+  }, [styled, wanted])
 
   useEffect(() => () => transition.current?.cancel(), [])
 
@@ -616,7 +631,7 @@ export function MapShell({
    * corridor on the frame it is set, on some commits and not others. `use-latest-run.ts` says
    * the same thing at the effect that depends on it.
    */
-  const { runs, answer } = useLatestRun(loaded, fogLayer, run, held === null)
+  const { runs, answer } = useLatestRun(styled, fogLayer, run, held === null)
 
   /**
    * `0086`. Handed up after commit; a run's page (`framed`) has nothing to report. `0273`: with what
@@ -631,14 +646,14 @@ export function MapShell({
    * (`useLatestRun`, just above, in an earlier effect of the same commit); atlas draws the core alone.
    */
   useEffect(() => {
-    if (loaded) applyModeFrame(loaded, fogLayerRef.current, frame.current)
-  }, [loaded, runs])
+    if (styled) applyModeFrame(styled, fogLayerRef.current, frame.current)
+  }, [styled, runs])
 
   /**
    * Ticket `0085`. Every past route, faint, under the labels (`lib/trace-web/layer.ts`). `0101`: on a
    * run's page it dims beneath the selected run, so a path run once reads 0.18 (`06` §4.5).
    */
-  useTraceWeb(loaded, framed ? RUN_PAGE_TRACE_K : 1)
+  useTraceWeb(styled, framed ? RUN_PAGE_TRACE_K : 1)
 
   /**
    * `0101`. THE SELECTED RUN ON `/`: the latest, unless a click on one route line picked another
@@ -647,21 +662,21 @@ export function MapShell({
    */
   const [inspected, setInspected] = useState<IndexedRun | null>(null)
   useEffect(() => {
-    if (!loaded || framed) return
+    if (!styled || framed) return
     try {
-      const source = loaded.getSource(RUN_SOURCE_ID) as { setData?: (d: unknown) => void } | undefined
+      const source = styled.getSource(RUN_SOURCE_ID) as { setData?: (d: unknown) => void } | undefined
       source?.setData?.(inspected ? selectedCollection(inspected) : runs)
-      loaded.triggerRepaint()
+      styled.triggerRepaint()
     } catch (error) {
       log.warn(`map: could not draw the selected run: ${(error as Error).message}`)
     }
-  }, [loaded, framed, runs, inspected])
+  }, [styled, framed, runs, inspected])
 
   /**
    * Ticket `0260`. Every recorded cairn and shrine, above the fog and under the route. Home only: a
    * run's page is about that run, and its sequence drives the map imperatively.
    */
-  useLandmarks(framed ? null : loaded)
+  useLandmarks(framed ? null : styled)
 
   /**
    * Ticket `0186`. THE MOST RECENT RUN'S CENTRE, ON A FIRST-EVER LOAD ONLY.
@@ -686,18 +701,18 @@ export function MapShell({
    * the stored camera — which the flight's `moveend` has just written — rather than flying again.
    */
   useEffect(() => {
-    if (!loaded || framed) return
+    if (!styled || framed) return
     const at = parseAt(window.location.search)
     if (!at) return
     centredOnRun.current = true
-    loaded.flyTo({ center: [at.lng, at.lat], zoom: at.zoom, bearing: 0 })
+    styled.flyTo({ center: [at.lng, at.lat], zoom: at.zoom, bearing: 0 })
     const url = new URL(window.location.href)
     url.searchParams.delete("at")
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
-  }, [loaded, framed])
+  }, [styled, framed])
 
   useEffect(() => {
-    if (!loaded || framed) return
+    if (!styled || framed) return
     const target = firstLoadRunCamera({
       storedAtMount: storedAtMount.current,
       userMoved: userMoved.current,
@@ -706,8 +721,8 @@ export function MapShell({
     })
     if (!target) return
     centredOnRun.current = true
-    loaded.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: 0 })
-  }, [loaded, runs, framed])
+    styled.jumpTo({ center: [target.lng, target.lat], zoom: target.zoom, bearing: 0 })
+  }, [styled, runs, framed])
 
   if (unsupported) {
     return (
@@ -732,7 +747,7 @@ export function MapShell({
       */}
       {framed ? null : (
         <RegionJump
-          map={loaded}
+          map={styled}
           onJump={() => {
             centredOnRun.current = true
           }}
@@ -745,15 +760,15 @@ export function MapShell({
         data-testid="map-shell"
       />
       {/* Ticket 0101. Home only: fit-to-territory and `⌖` on the pane, after the map in the DOM (0323), and inspecting a run by clicking its line. */}
-      {framed ? null : <MapControls map={loaded} latest={runs} onSelect={setInspected} />}
+      {framed ? null : <MapControls map={styled} latest={runs} onSelect={setInspected} />}
       {/*
         Ticket 0055, criterion 10. Renders only under `?fog=mask`, and it is what makes an EMPTY
         mask distinguishable from a broken one — see mask-hud.tsx. It also carries the zoom, which
         this ticket's operator validation names and the UI otherwise never shows.
       */}
-      <MaskHud map={loaded} layer={fogLayer} />
+      <MaskHud map={styled} layer={fogLayer} />
       {/* Ticket 0059. Renders only under `?fog=perf`; `harness` is null otherwise. */}
-      <PerfOverlay map={loaded} layer={fogLayer} harness={harness} />
+      <PerfOverlay map={styled} layer={fogLayer} harness={harness} />
       {/* Ticket 0079. Renders only under `?fog=scrub`, on a run's page. */}
       {reveal ? <RevealScrub layer={fogLayer} cells={reveal.length} /> : null}
     </>

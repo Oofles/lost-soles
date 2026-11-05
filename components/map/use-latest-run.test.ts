@@ -31,7 +31,7 @@ describe("hook order in map-shell (criterion 5's clearing rule)", () => {
      * list. A needle that has to be edited whenever a signature changes is a needle that will one
      * day be edited to match rather than to check.
      */
-    const fog = shell.indexOf("useFogMask(loaded")
+    const fog = shell.indexOf("useFogMask(styled")
     const run = shell.indexOf("useLatestRun(")
     expect(fog).toBeGreaterThan(-1)
     expect(run).toBeGreaterThan(-1)

@@ -7280,10 +7280,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-23T02:39:32Z",
+    "started": "2026-11-05T05:29:03Z",
     "path": "tickets/open/0313-fog-layer-waits-for-every-visible-tile-before-it-can-draw.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },
