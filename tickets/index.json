@@ -6798,10 +6798,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-19T05:19:38Z",
+    "started": "2026-11-05T03:46:35Z",
     "path": "tickets/open/0291-lambda-log-groups-never-expire-08-3-1-requires-30-day-retent.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 4,
       "total": 4
     }
   },

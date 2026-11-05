@@ -11,6 +11,7 @@ depends_on: []
 blocked_by: []
 source: agent
 created: 2026-10-19T05:19:38Z
+started: 2026-11-05T03:46:35Z
 ---
 
 ## Description
@@ -40,18 +41,18 @@ but this capability cited §3.1 and added three of the groups.
 
 ## Acceptance criteria
 
-- [ ] Every application Lambda's log group (`ingest-webhook`, `process-activity`, `token-refresh`,
+- [x] Every application Lambda's log group (`ingest-webhook`, `process-activity`, `token-refresh`,
       `reconcile-sweep`, `log-workout`, `set-activity-kind`, and any other `defineFunction`)
       has a 30-day retention that the backend declares, so a fresh deploy gets it too. Setting it by
       hand alone does not satisfy this.
-- [ ] The webhook flood alarm's `MetricFilter` (`amplify/backend.ts`, `WebhookOwnerFloodFilter`)
+- [x] The webhook flood alarm's `MetricFilter` (`amplify/backend.ts`, `WebhookOwnerFloodFilter`)
       still attaches to the same group. **Trap:** the groups already exist, so a CDK-owned `LogGroup`
       with the same name fails the deploy with "already exists". Prefer Amplify's
       `defineFunction({ logging: { retention } })` if the installed backend version supports it.
       Otherwise use a mechanism that adopts or updates the existing group, such as an
       `AwsCustomResource` calling `PutRetentionPolicy`, or `LogRetention`.
-- [ ] A synth test asserts the retention for each application function.
-- [ ] Amplify's own custom-resource Lambdas (`AmplifyBranchLinker…`, `CustomS3AutoDelete…`,
+- [x] A synth test asserts the retention for each application function.
+- [x] Amplify's own custom-resource Lambdas (`AmplifyBranchLinker…`, `CustomS3AutoDelete…`,
       `TableManager…`, `CustomCDKBucketDeployment…`): they are covered too, or the Resolution
       says why not.
 
@@ -66,3 +67,41 @@ a future logging mistake ages out.
 None expected. Smoke test after deploy: `aws logs describe-log-groups --profile devault
 --log-group-name-prefix /aws/lambda/amplify-d14fhvl4rp79nn` shows `30` for every application
 function, and the flood alarm is still `OK`, not `INSUFFICIENT_DATA` from a detached filter.
+
+## Resolution
+
+**Duplicate of `0305`; no code changed in this ticket.** Filed 2026-10-19 at capability 14's
+audit; four days later `0305` ("Lost Soles CloudWatch log groups never expire; 08 §3.1 says 30")
+was filed for the same finding and closed 2026-10-23 without either ticket referencing the other.
+Found when starting this ticket: `amplify/backend.ts` already imported `applyLogRetention`.
+
+Each criterion is met by `0305`'s work, checked here rather than taken on trust:
+
+- **30 days declared by the backend, every application function.** `amplify/log-retention.ts`
+  is a CDK Aspect adding a `LogRetention` (by name, `/aws/lambda/<Ref>`) to every
+  `AWS::Lambda::Function` in every backend stack, so a new `defineFunction` gets it without opting in.
+  This is the same mechanism proposed for this ticket before the duplicate turned up.
+- **Flood filter still attached.** `LogRetention` changes neither group names nor ownership.
+  Live `WebhookOwnerFloodFilter…` targets `/aws/lambda/…ingestwebhooklambda65771-RRPWjLnILYBs`.
+- **Synth test.** `amplify/log-retention.test.ts`, 5/5 passing today. It checks every function
+  across all stacks, and checks with a probe stack that a bare function fails.
+- **Amplify's own custom-resource Lambdas.** Covered by the same Aspect, and live at 30. The
+  exception is the `LogRetention` providers themselves, which CDK sets to 1 day by design
+  (stricter than 30).
+
+Process note: the duplicate slipped in because `tickets create` doesn't search open tickets for
+a similar title. Not filing a ticket for it. Two audit findings colliding is rare, and this one
+cost a few minutes.
+
+## Operator validation
+
+None needed: the work is invisible, and the smoke test below covers it.
+Smoke test 2026-11-04, `--profile devault`, us-east-1:
+- `aws logs describe-log-groups --log-group-name-prefix /aws/lambda/amplify-d14fhvl4rp79nn`:
+  every application function (`ingest-webhook`, `process-activity`, `token-refresh`,
+  `reconcile-sweep`, `log-workout`, `set-activity-kind`) is `30`, as is the leftover group of
+  `secret-smoke-test` (function deleted in `0290`; its old events age out). The
+  framework groups (branch linker ×2, table manager ×2, S3 auto-delete ×3, bucket deployment)
+  are also `30`. The five `LogRetention` provider groups are `1`. `/aws/amplify/d14fhvl4rp79nn`
+  is `30`.
+- Alarm "Lost Soles — the webhook is being flooded": `OK`, not `INSUFFICIENT_DATA`.
