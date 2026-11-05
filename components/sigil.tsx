@@ -25,6 +25,12 @@ export const FALLBACK_SEAL: readonly string[] = [
 /** The crest: Total Level's mark (`✦` in §5.2), drawn rather than typed so it matches the sigils. */
 export const CREST: readonly string[] = ["M12 2.5 L14 10 L21.5 12 L14 14 L12 21.5 L10 14 L2.5 12 L10 10 Z"]
 
+/**
+ * The frontier: a hollow diamond (`◇` in §3.2 beat 5), drawn rather than typed so it shares the
+ * sigils' monoline stroke (§8.6). Ticket `0280`.
+ */
+export const FRONTIER: readonly string[] = ["M12 4 L20 12 L12 20 L4 12 Z"]
+
 /** The paths for `skillId`, or the fallback seal. */
 export function sigilPaths(skillId: string): readonly string[] {
   return Object.hasOwn(MARKS, skillId) ? MARKS[skillId]! : FALLBACK_SEAL

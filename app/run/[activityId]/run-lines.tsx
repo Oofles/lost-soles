@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react"
+import { FRONTIER, Mark } from "@/components/sigil"
 
 /**
  * BEATS 4 AND 5'S TWO LINES. Ticket `0083`. `06-ui-ux.md` §3.2.
@@ -17,7 +18,7 @@ const chronicle: CSSProperties = {
   fontFamily: SERIF,
   fontStyle: "italic",
   fontSize: "17px",
-  lineHeight: 1.45,
+  lineHeight: 1.5,
   textAlign: "center",
   color: "var(--text-chronicle)",
 }
@@ -44,12 +45,12 @@ export function ChronicleLine({
 }
 
 /**
- * `--ink-500` (`--text-muted`), 14sp, a small hollow diamond. Quiet by construction: one colour, no
+ * `--ink-500` (`--text-muted`), 14sp, a small hollow diamond — the `FRONTIER` mark, monoline per §8.6. Quiet by construction: one colour, no
  * hover state that shouts, no badge, no count — and nothing to remember, so nothing to repeat.
  */
 const frontierButton: CSSProperties = {
   display: "inline-flex",
-  alignItems: "baseline",
+  alignItems: "center",
   gap: ".5rem",
   padding: ".25rem 0",
   border: "none",
@@ -75,7 +76,7 @@ export function FrontierLine({
     <p data-slot="frontier-line" style={{ margin: 0, ...(opacity === undefined ? {} : { opacity }) }}>
       {text ? (
         <button type="button" data-sequence-control="" style={frontierButton} onClick={onSelect}>
-          <span aria-hidden="true">◇</span>
+          <Mark paths={FRONTIER} size={16} />
           {text}
         </button>
       ) : null}

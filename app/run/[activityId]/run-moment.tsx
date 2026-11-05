@@ -7,6 +7,7 @@ import { useExplored } from "@/components/map/explored-provider"
 import { MapShell, type MapStage } from "@/components/map/map-shell"
 import { useMapMode } from "@/components/map/use-map-mode"
 import { backArrowClick, browserChronicleReturn } from "@/lib/chronicle/return"
+import { MOTION_MS, easeStandard } from "@/lib/motion"
 import { REDUCED_MOTION_QUERY } from "@/lib/fog/animation"
 import { revealCellsForRoute } from "@/lib/fog/reveal"
 import type { Camera } from "@/lib/map-camera"
@@ -82,7 +83,7 @@ const FRONTIER_ZOOM = 14.5
 const relive: React.CSSProperties = {
   alignSelf: "flex-start",
   padding: ".5rem 1rem",
-  borderRadius: ".375rem",
+  borderRadius: "var(--radius-control)",
   border: "1px solid var(--accent)",
   background: "var(--surface)",
   color: "var(--text-primary)",
@@ -370,7 +371,7 @@ export function RunMoment({
     // `0098`: honoured — the map cross-fades to atlas (`runPageMode`) while the camera flies.
     setFrontierClicked(true)
     if (stage?.kind === "ready") {
-      stage.map.flyTo({ center: [target.centre.lng, target.centre.lat], zoom: FRONTIER_ZOOM, duration: 800 })
+      stage.map.flyTo({ center: [target.centre.lng, target.centre.lat], zoom: FRONTIER_ZOOM, duration: MOTION_MS.long, easing: easeStandard })
     }
   }
   const frontierLine = (opacity?: number) => (

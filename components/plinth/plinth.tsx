@@ -44,7 +44,7 @@ export const PLINTH_CSS =
   " border: 1px solid var(--line); border-radius: 8px; color: var(--text-primary); font-family: var(--font-sans); }" +
   " .plinth-dests { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 8px; }" +
   " .plinth-dest { display: flex; align-items: center; justify-content: center; height: 40px; box-sizing: border-box;" +
-  " padding: 0 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px;" +
+  " padding: 0 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control);" +
   " color: var(--text-primary); text-decoration: none; font: 500 13px/1.3 var(--font-sans);" +
   " letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }" +
   " .plinth-dest-primary { border-color: var(--accent); }" +
@@ -53,7 +53,7 @@ export const PLINTH_CSS =
   " outline: 2px solid var(--text-primary); outline-offset: 2px; }" +
   " .home-gear { position: fixed; z-index: 1; top: 16px; right: 16px; width: 40px; height: 40px;" +
   " display: flex; align-items: center; justify-content: center; box-sizing: border-box;" +
-  " background: var(--surface-raised); border: 1px solid var(--line); border-radius: 4px;" +
+  " background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-control);" +
   " color: var(--text-primary); text-decoration: none; font-size: 20px; line-height: 1; }" +
   // `0087`. An unseen run: a gold RULE down the line's left edge (never gold text, D-148) and one
   // pulse of a gold ring that closes in and is gone — `1` iteration, and the class is set once per
@@ -61,7 +61,7 @@ export const PLINTH_CSS =
   // `0279`. The rule carries meaning, so it is `--accent-text` (`--gold-700`, ≥3:1), never `--accent`
   // (`--gold-500`, 2.1:1 on parchment) — D-291, D-335. Still a rule, never text colour.
   " .plinth-fresh { box-shadow: inset 3px 0 0 var(--accent-text); }" +
-  " .plinth-pulse { animation: plinth-pulse 1200ms ease-out 1; }" +
+  " .plinth-pulse { animation: plinth-pulse var(--motion-long) var(--ease-standard) 1; }" +
   " @keyframes plinth-pulse { from { box-shadow: inset 3px 0 0 var(--accent-text), 0 0 0 4px var(--accent-text); }" +
   " to { box-shadow: inset 3px 0 0 var(--accent-text), 0 0 0 0 var(--accent-text); } }" +
   " @media (prefers-reduced-motion: reduce) { .plinth-pulse { animation: none; } }" +
@@ -73,7 +73,7 @@ export const PLINTH_CSS =
   // 55% of the window (D-313, D-251): it only must not break there, and a list would crowd it.
   " .plinth-skills { display: none; }" +
   " .plinth-skill { display: grid; grid-template-columns: 18px 7.5rem minmax(0, 1fr) 2.5rem; align-items: center;" +
-  " gap: 8px; min-height: 32px; padding: 0 4px; border-radius: 4px; color: var(--text-primary); text-decoration: none; }" +
+  " gap: 8px; min-height: 32px; padding: 0 4px; border-radius: var(--radius-control); color: var(--text-primary); text-decoration: none; }" +
   " .plinth-skill:hover { background: var(--bg); }" +
   // Inside the list's scroll box an outset ring would be clipped at the rail's edges.
   " .plinth .plinth-skill:focus-visible { outline-offset: -2px; }" +

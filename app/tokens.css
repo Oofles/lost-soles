@@ -136,6 +136,19 @@
      --font-sans is Inter: everything you read to operate rather than to enjoy. */
   --font-serif: var(--font-spectral, Spectral), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-inter, Inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Shape — 06-ui-ux.md §8.5. Controls and floating controls are 8; nothing at the component level
+     invents its own corner. Ticket 0280. */
+  --radius-control: 8px;
+
+  /* Motion — 06-ui-ux.md §8.7. Five durations, one easing. lib/motion.ts holds the same values as
+     numbers for camera calls; the two must agree. The post-run sequence (§3.2) is exempt (D-338). */
+  --motion-state: 120ms;
+  --motion-exit: 200ms;
+  --motion-sheet: 320ms;
+  --motion-reveal: 400ms;
+  --motion-long: 1400ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /*

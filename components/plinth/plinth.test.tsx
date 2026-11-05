@@ -244,12 +244,15 @@ describe("the home screen's states (0087)", () => {
     expect(text(html)).toContain("1 new run — open it")
     const fresh = freshCss()
     // Once: one iteration, and none at all under reduced motion.
-    expect(fresh).toMatch(/\.plinth-pulse \{ animation: plinth-pulse \d+ms ease-out 1; \}/)
+    // `0280`: §8.7's long slot and its one easing, through the tokens — never a literal of its own.
+    expect(fresh).toMatch(/\.plinth-pulse \{ animation: plinth-pulse var\(--motion-long\) var\(--ease-standard\) 1; \}/)
     expect(fresh).not.toMatch(/infinite|alternate/)
     expect(fresh).toMatch(/prefers-reduced-motion: reduce\) \{ \.plinth-pulse \{ animation: none; \}/)
     // The only colour the fresh treatment uses is gold, and only as box-shadow (a rule and a ring).
     // `0279`: `--accent-text` (`--gold-700`), never `--accent` (2.1:1) — D-291, D-335.
-    expect(fresh.match(/var\(--[\w-]+\)/g)!.every((v) => v === "var(--accent-text)")).toBe(true)
+    // (`0280`: the motion tokens are timing, not colour, so they are set aside before the check.)
+    const colours = fresh.match(/var\(--[\w-]+\)/g)!.filter((v) => !/^var\(--(motion|ease)-/.test(v))
+    expect(colours.every((v) => v === "var(--accent-text)")).toBe(true)
     expect(fresh).not.toContain("var(--accent)")
     expect(fresh).not.toMatch(/(?<![-\w])color:/)
   })

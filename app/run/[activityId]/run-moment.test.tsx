@@ -94,7 +94,10 @@ describe("the ledger never depends on the graphics (criterion 8)", () => {
     expect(html).toContain('data-slot="chronicle-line"')
     expect(html).toContain('data-slot="frontier-line"')
     expect(t).toContain(CHRONICLE)
-    expect(t).toContain("◇ Unclaimed ground 1.2 km north")
+    expect(t).toContain("Unclaimed ground 1.2 km north")
+    // `0280`: the diamond is a drawn §8.6 mark — inline SVG, decorative, `currentColor` — not a glyph.
+    expect(t).not.toContain("◇")
+    expect(html).toMatch(/<svg[^>]*stroke="currentColor"[^>]*aria-hidden="true"[^>]*>\s*<path d="M12 4 L20 12 L12 20 L4 12 Z"/)
   })
 
   it("never renders a zero: an absent rearmed count leaves no '0 remembered'", () => {

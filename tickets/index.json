@@ -6557,10 +6557,11 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-16T04:17:55Z",
+    "started": "2026-11-05T16:21:32Z",
     "path": "tickets/open/0280-plinth-and-run-page-chrome-off-the-06-8-scales-radii-pulse-a.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 4
     }
   },
