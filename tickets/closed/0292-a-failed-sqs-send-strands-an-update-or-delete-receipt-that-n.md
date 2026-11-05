@@ -4,7 +4,7 @@ slug: a-failed-sqs-send-strands-an-update-or-delete-receipt-that-n
 title: A failed SQS send strands an update or delete receipt that no retry or sweep reopens
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T05:23:49Z
 started: 2026-11-05T18:52:06Z
+closed: 2026-11-05T19:08:25Z
 ---
 
 ## Description
