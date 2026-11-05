@@ -66,8 +66,9 @@ a list of skill ids (D-031/D-141).
 - [x] A test proves that replaying or reopening a workout writes nothing. The ledger is untouched
       (D-135); any replay is display only. (Expected to be true already. Prove it, do not assume it.)
 - [x] The unseen mark keeps its rule: at most one row, the latest traced run (§2.5, D-324).
-- [ ] (operator) On the desktop browser, the plinth's two button rows read well, `RUNS` shows only
+- [x] (operator) On the desktop browser, the plinth's two button rows read well, `RUNS` shows only
       runs, and opening a strength workout from `WORKOUTS` reads as a record, not a broken run page.
+      — verified 2026-11-05: passed, desktop browser ("looks great!")
 
 ## Notes
 
@@ -195,5 +196,6 @@ a filtered `/api/runs/chronicle` against live data and confirm full pages with n
 are dynamic, and the prerender guard is green. Typecheck, lint, the full vitest suite (297 files,
 4,842 tests) and every static guard in `amplify.yml` pass.
 
-**Pending (operator, desktop browser):** the `(operator)` criterion above.
+**Operator, desktop browser, 2026-11-05:** the two plinth rows, `RUNS` showing only runs, and a
+strength workout opening from `WORKOUTS` as a plain record were all checked and passed ("looks great!").
 
