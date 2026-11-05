@@ -4,7 +4,7 @@ slug: plinth-and-run-page-chrome-off-the-06-8-scales-radii-pulse-a
 title: Plinth and run-page chrome off the 06 §8 scales: radii, pulse and fly timing, line-height, frontier glyph
 type: bug
 priority: low
-status: open
+status: closed
 size: s
 capability: 13-home-plinth-and-chronicle
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-16T04:17:55Z
 started: 2026-11-05T16:21:32Z
+closed: 2026-11-05T16:44:39Z
 ---
 
 ## Description
@@ -36,8 +37,8 @@ together they are the drift §8 exists to stop.
 - [x] The frontier diamond is an inline SVG sigil per §8.6, `aria-hidden`, coloured by
       `currentColor`.
 - [x] Existing tests stay green; tests asserting the old literals are updated, not deleted.
-- [ ] (operator) On the desktop browser, `/` and a run page's end state look the same or better: the
-      8px corners do not make the rail look soft, and the pulse is still noticeable without demanding.
+- [x] (operator) On the desktop browser, `/` and a run page's end state look the same or better: the
+      8px corners do not make the rail look soft, and the pulse is still noticeable without demanding. — verified 2026-11-05: operator reports validation good.
 
 ## Steps to reproduce
 
@@ -58,7 +59,7 @@ the card belongs to capability `12`.
 
 ## Resolution
 
-*(Work committed 2026-11-05; the `(operator)` criterion is still open, so the ticket is not closed yet.)*
+*(Work committed 2026-11-05 in `b0ec260`; closed the same day after the operator check.)*
 
 **Tokens added**, because `app/tokens.css` had none for shape or motion, and a literal with a comment
 would have let the next component invent its own value:
@@ -100,3 +101,4 @@ Full suite: 4813 passed, 1 skipped. `tsc`, eslint and `check-design-tokens` are 
 
 Perceptual: the rail at 8px radii, and the pulse at the §8.7 duration. Desktop browser.
 
+**Result, 2026-11-05, desktop browser (operator):** good. The 8px rail, the 1400ms pulse, the drawn frontier diamond and the 1400ms fly were all accepted as they are.
