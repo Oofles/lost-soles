@@ -4,7 +4,7 @@ slug: lambda-log-groups-never-expire-08-3-1-requires-30-day-retent
 title: Lambda log groups never expire; 08 §3.1 requires 30-day retention
 type: bug
 priority: med
-status: open
+status: closed
 size: s
 capability: 14-webhook-and-automatic-sync
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-19T05:19:38Z
 started: 2026-11-05T03:46:35Z
+closed: 2026-11-05T03:47:36Z
 ---
 
 ## Description
