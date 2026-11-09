@@ -4,7 +4,7 @@ slug: api-runs-web-is-sent-uncompressed-and-413s-past-5-9-mb-raw
 title: /api/runs/web is sent uncompressed and 413s past ~5.9 MB raw
 type: chore
 priority: low
-status: open
+status: closed
 size: m
 capability: 12-post-run-moment
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-27T01:39:35Z
 started: 2026-11-09T16:13:05Z
+closed: 2026-11-09T16:32:22Z
 ---
 
 ## Description
