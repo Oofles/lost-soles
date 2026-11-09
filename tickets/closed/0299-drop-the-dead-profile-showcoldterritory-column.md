@@ -4,7 +4,7 @@ slug: drop-the-dead-profile-showcoldterritory-column
 title: Drop the dead Profile.showColdTerritory column
 type: chore
 priority: low
-status: open
+status: closed
 size: s
 capability: 15-two-map-modes-and-cold-territory
 depends_on: []
@@ -12,6 +12,7 @@ blocked_by: []
 source: agent
 created: 2026-10-20T16:12:39Z
 started: 2026-11-09T15:46:28Z
+closed: 2026-11-09T16:00:40Z
 ---
 
 
