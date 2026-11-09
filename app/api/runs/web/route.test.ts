@@ -1,3 +1,5 @@
+import { gunzipSync } from "node:zlib"
+
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 /**
@@ -29,9 +31,20 @@ describe("GET /api/runs/web", () => {
     traceWebRuns.mockResolvedValueOnce(RUNS)
     const response = await GET()
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ runs: RUNS })
+    expect(JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString("utf8"))).toEqual({ runs: RUNS })
     expect(traceWebRuns.mock.calls[0]![0]).toBe("u-1")
     expect(GET.length).toBe(0)
+  })
+
+  it("emits gzip and says so, because Amplify never compresses it and caps the raw bytes (0321, D-460)", async () => {
+    signedInAs = "u-1"
+    traceWebRuns.mockResolvedValueOnce(RUNS)
+    const response = await GET()
+    expect(response.headers.get("content-encoding")).toBe("gzip")
+    expect(response.headers.get("content-type")).toBe("application/json")
+    expect(response.headers.get("vary")).toBe("Accept-Encoding")
+    const bytes = Buffer.from(await response.arrayBuffer())
+    expect([bytes[0], bytes[1]]).toEqual([0x1f, 0x8b])
   })
 
   it("404s a signed-out caller, byte-identically to the middleware", async () => {

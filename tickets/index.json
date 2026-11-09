@@ -7461,6 +7461,7 @@
     "blocked_by": [],
     "source": "agent",
     "created": "2026-10-27T01:39:35Z",
+    "started": "2026-11-09T16:13:05Z",
     "path": "tickets/open/0321-api-runs-web-is-sent-uncompressed-and-413s-past-5-9-mb-raw.md",
     "ready": true,
     "acceptance": {

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react"
 
 import { log } from "@/lib/log"
 import { documentTraceColor, setTraceK, setTraceWeb, type TraceHost } from "@/lib/trace-web/layer"
-import { buildWebOffThread } from "@/lib/trace-web/off-thread"
-import { webSource } from "@/lib/trace-web/runs"
+import { loadDrawnWeb } from "@/lib/trace-web/load"
 import { EMPTY_WEB, type WebFeatureCollection } from "@/lib/trace-web/web"
 
 import { useExplored } from "./explored-provider"
@@ -28,17 +27,9 @@ export function useTraceWeb(map: (TraceHost & { triggerRepaint(): void }) | null
 
   useEffect(() => {
     let cancelled = false
-    webSource(generation)
-      .then(
-        (source) => buildWebOffThread(source),
-        (error: unknown) => {
-          log.error("trace web: fetch failed", error)
-          return null
-        },
-      )
-      .then((built) => {
-        if (built && !cancelled) setWeb(built)
-      })
+    loadDrawnWeb(generation).then((built) => {
+      if (built && !cancelled) setWeb(built)
+    })
     return () => {
       cancelled = true
     }
