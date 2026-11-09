@@ -218,7 +218,7 @@ the atomic ingest commit in 01 §4 step 15 works unchanged. Nothing is lost.
 
 | # | Table | Managed by | In AppSync? | Items @ 5 y | Purpose |
 |---|---|---|---|---|---|
-| T1 | `Profile` | `defineData` | yes, `allow.owner()` | ≤ 6 | identity, display prefs, generation mirror *(map mode is per-device localStorage, 05 §5.3; `mapMode` dropped by `0296`. `showColdTerritory` is dead and goes in `0299`, D-395)* |
+| T1 | `Profile` | `defineData` | yes, `allow.owner()` | ≤ 6 | identity, display prefs, generation mirror *(map mode is per-device localStorage, 05 §5.3; `mapMode` dropped by `0296`. `showColdTerritory` dropped by `0299`, D-395)* |
 | T2 | `SkillState` | `defineData` | yes, owner-read only | ~36–60 | materialised per-skill XP + level + D-135 floors |
 | T3 | `Activity` | `defineData` | yes, owner | 2,000–5,000 | the fact row; canonical shape from the contract |
 | T4 | `XpLedgerEntry` | `defineData` | yes, owner-read only | 9,000–25,000 | append-only XP events with rule version |
@@ -249,7 +249,6 @@ PK   id                = <userId>    (the Cognito sub; Amplify's default identif
 | `id` | S | `= userId`. Also the `<uid>` in every S3 key and every other table's partition key. |
 | `displayName` | S | free text |
 | `exploredGeneration` | N | **mirror** of `manifest.json`'s `generation` (05 §7.3). Lives here so the AppSync subscription in 01 §4 step 17 has something to push. Authoritative copy is the manifest. |
-| `showColdTerritory` | BOOL | atlas-only overlay (D-133) |
 | `rulesVersionPinned` | N | which `RuleSkill` version the UI renders. Normally the newest. |
 | `totalLevel`, `totalXp` | N | denormalised from `SkillState` in the same transaction as an XP write; D-033's headline number, so it must not cost six reads. |
 | `replayInProgress` | BOOL | §4.4 step 1's freeze flag. `true` while a replay runs; the UI keeps rendering the `SkillState` it has. (D-258) |
@@ -262,6 +261,8 @@ numbers. Access patterns: **AP-1**, **AP-14**.
 There is no `mapMode` attribute: atlas/adventure (D-052) is a per-device localStorage setting
 (05 §5.3), not a profile preference, and the map mode may not be named outside the renderer, the
 toggle and the run-moment seam (D-383). The column first declared here was dropped by `0296`.
+There is no `showColdTerritory` attribute either: atlas always paints cold ground and there is
+no toggle (D-133, D-395). The column first declared here was dropped by `0299`.
 5-year count: ≤ 6 (D-014). No GSIs.
 
 ---

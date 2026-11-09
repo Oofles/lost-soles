@@ -276,8 +276,6 @@ const schema = a.schema({
       displayName: a.string(),
       /** Mirror of the manifest's generation (`02` §6.4). Wired by `0182`. */
       exploredGeneration: a.integer(),
-      /** Atlas-only overlay (D-133). */
-      showColdTerritory: a.boolean(),
       rulesVersionPinned: a.integer(),
       /** D-033's headline, denormalised so it is one read, not six (`02` T1). */
       totalLevel: a.integer(),

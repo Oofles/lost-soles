@@ -59,7 +59,6 @@ describe("T1 Profile", () => {
     "exploredGeneration",
     "ledgerRulesVersion",
     "displayName",
-    "showColdTerritory",
     "rulesVersionPinned",
   ])("%s carries no field rule of its own (nothing could widen it past the model's)", (field) => {
     const line = profileType()

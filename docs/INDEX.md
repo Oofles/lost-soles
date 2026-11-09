@@ -4,14 +4,14 @@
 > doc edit and a stale index is worse than none. Edit summaries in
 > `docs/.index-summaries.json` instead; they are preserved across regeneration.
 
-**Read by section, never whole** (D-151). These documents total 17,360 lines; three of
+**Read by section, never whole** (D-151). These documents total 17,361 lines; three of
 them end to end is most of a context window. Find the section here, then read only its range:
 
 ```
 sed -n '120,190p' docs/05-fog-of-war.md
 ```
 
-13 documents · 560 sections · regenerated 2026-11-05
+13 documents · 560 sections · regenerated 2026-11-09
 
 
 ## `docs/00-vision.md`
@@ -120,7 +120,7 @@ sed -n '120,190p' docs/05-fog-of-war.md
 
 ## `docs/02-data-model.md`
 
-**02 — Data Model & Persistence** — 2,306 lines
+**02 — Data Model & Persistence** — 2,307 lines
 
 | Section | Lines | Settles |
 |---|---|---|
@@ -130,71 +130,71 @@ sed -n '120,190p' docs/05-fog-of-war.md
 | &nbsp;&nbsp;↳ 1.2 What lives where | `54-116` | s3://lost-soles-storage/ |
 | &nbsp;&nbsp;↳ 1.3 What ships to the browser | `117-126` | Per R3 the entire explored set is 300–450 KB gzipped at the five-year worst case and ships |
 | &nbsp;&nbsp;↳ 1.4 Proof of D-101 — and where it breaks | `127-177` | D-101: user-supplied raw files in S3 are the system of record; everything else must be |
-| 2. DynamoDB table design | `178-747` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
+| 2. DynamoDB table design | `178-748` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
 | &nbsp;&nbsp;↳ 2.1 Multi-table. Eight tables. Here is why that is not laziness. | `180-216` | how Gen 2 works) plus three raw CDK dynamodb.Table constructs (01 §2, the escape-hatch block). |
 | &nbsp;&nbsp;↳ 2.2 Table index | `217-239` | participates in ingest. |
-| &nbsp;&nbsp;↳ T1 — `Profile` | `240-268` | Table: Profile (Amplify defineData model) |
-| &nbsp;&nbsp;↳ T2 — `SkillState` | `269-297` | Table: SkillState |
-| &nbsp;&nbsp;↳ T3 — `Activity` | `298-374` | The item is the contract's Activity (contract §2) stored flat, with the nested SourceRef and |
-| &nbsp;&nbsp;↳ T4 — `XpLedgerEntry` | `375-410` | Table: XpLedgerEntry |
-| &nbsp;&nbsp;↳ T5 — `RuleSkill` | `411-429` | The skill registry, materialised as rows. |
-| &nbsp;&nbsp;↳ T6 — `ExploredCell` — the fog | `430-583` | downloads explored-r10.bin and queries it in memory. |
-| &nbsp;&nbsp;↳ T7 — `SourceAccount` | `584-623` | access/refresh tokens. |
-| &nbsp;&nbsp;↳ T8 — `IngestReceipt` — idempotency | `624-679` | pk = ingestKey (no sort key) |
-| &nbsp;&nbsp;↳ 2.9 Two things this design deliberately does not store | `680-699` | {userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls |
-| &nbsp;&nbsp;↳ 2.10 Blob regeneration does not re-read the table | `700-717` | Naïvely, regenerating explored-r10.bin means Querying every res-6 partition — ~24 MB of |
-| &nbsp;&nbsp;↳ 2.11 The remaining Amplify models | `718-747` | denominator are precomputed once and shipped from regions/ in S3, because they never change. |
-| 3. The skill schema — skills are data, not code | `748-1112` | requires a code change, the design has failed." D-031 makes modularity a product decision, |
-| &nbsp;&nbsp;↳ 3.1 The five jobs a skill row has to do | `761-777` | A skill definition is not just a name and an XP rate. |
-| &nbsp;&nbsp;↳ 3.2 `RuleSkill` — the item shape (T5) | `778-839` | The YAML in rules/xp-rules-vN.yaml is authored in git and is the human-editable authority. |
-| &nbsp;&nbsp;↳ 3.3 Why the registry is a table and not just a file | `840-853` | The scoring Lambda could read the YAML from S3. |
-| &nbsp;&nbsp;↳ 3.4 `match` — the selection clause, declaratively | `854-904` | kinds: [run, walk, hike] # ActivityKind values (contract §2). |
-| &nbsp;&nbsp;↳ 3.5 THE VIGIL TEST (D-132) | `905-983` | D-132: "GPS-less running trains a SEPARATE activity skill, at full XP, with zero discovery |
-| &nbsp;&nbsp;↳ 3.6 The loud part: 04 §1.3's schema, as written, does NOT pass | `984-1026` | The YAML in 04-game-design.md §1.3 has no match block. |
-| &nbsp;&nbsp;↳ 3.7 The honest boundary — what stays code, forever | `1027-1065` | Data cannot be turned all the way down, and pretending otherwise produces a YAML dialect that is |
-| &nbsp;&nbsp;↳ 3.8 Seeding, and the CI checks that keep this true | `1066-1112` | The deploy-time seeder reads rules/xp-rules-vN.yaml, validates it, and writes T5 items under |
-| 4. The XP ledger | `1113-1465` | must be a recomputation, not a migration. |
-| &nbsp;&nbsp;↳ 4.1 One row per (activity, skill, reason) | `1126-1150` | that table needs to be operable at all: a deterministic id and an explicit seq. |
-| &nbsp;&nbsp;↳ 4.2 The `reason` vocabulary | `1151-1178` | Closed, and versioned with the ruleset. |
-| &nbsp;&nbsp;↳ 4.3 The write path | `1179-1244` | Every ledger row is written inside the single TransactWriteItems described in §2 T8 layer 3, |
-| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1245-1348` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
-| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1349-1377` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
-| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1378-1448` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
-| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1449-1465` | D-135 is about replay, but three non-replay paths could also lower a number. |
-| 5. Access patterns | `1466-1604` | Every query the app makes. |
-| &nbsp;&nbsp;↳ 5.1 The complete list | `1472-1535` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
-| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1536-1549` |  |
-| &nbsp;&nbsp;↳ 5.3 Write patterns | `1550-1563` | thing is the thing the product is about. |
-| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1564-1573` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
-| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1574-1580` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
-| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1581-1604` | build minutes, all of which sit in 01's estimate. |
-| 6. The client payload | `1605-1795` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
-| &nbsp;&nbsp;↳ 6.1 The objects | `1615-1630` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
-| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1631-1675` | Three cell-count scenarios. |
-| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1676-1697` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
-| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1698-1752` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
-| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1753-1795` | The emotional payload of the product (05 §7.4). |
-| 7. Migrations and versioning | `1796-1949` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1798-1821` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
-| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1822-1842` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
-| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1843-1859` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
-| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1860-1934` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
-| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1935-1949` | depends on it. |
-| 8. Retention, deletion, and the rebuild drill | `1950-2210` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
-| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1956-1980` |  |
-| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1981-2015` | D-135 says replay may never lower already-displayed XP. |
-| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `2016-2166` | Rebuild the entire application state from raw/ alone. |
-| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2167-2181` | been executed is not a recovery path. |
-| &nbsp;&nbsp;↳ 8.5 Account deletion | `2182-2210` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
-| 9. Invariants an implementer must not violate | `2211-2306` | Everything above argues for a design. |
-| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2227-2237` |  |
-| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2238-2247` |  |
-| &nbsp;&nbsp;↳ 9.3 Time | `2248-2255` |  |
-| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2256-2266` |  |
-| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2267-2274` |  |
-| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2275-2283` |  |
-| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2284-2291` |  |
-| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2292-2306` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
+| &nbsp;&nbsp;↳ T1 — `Profile` | `240-269` | Table: Profile (Amplify defineData model) |
+| &nbsp;&nbsp;↳ T2 — `SkillState` | `270-298` | Table: SkillState |
+| &nbsp;&nbsp;↳ T3 — `Activity` | `299-375` | The item is the contract's Activity (contract §2) stored flat, with the nested SourceRef and |
+| &nbsp;&nbsp;↳ T4 — `XpLedgerEntry` | `376-411` | Table: XpLedgerEntry |
+| &nbsp;&nbsp;↳ T5 — `RuleSkill` | `412-430` | The skill registry, materialised as rows. |
+| &nbsp;&nbsp;↳ T6 — `ExploredCell` — the fog | `431-584` | downloads explored-r10.bin and queries it in memory. |
+| &nbsp;&nbsp;↳ T7 — `SourceAccount` | `585-624` | access/refresh tokens. |
+| &nbsp;&nbsp;↳ T8 — `IngestReceipt` — idempotency | `625-680` | pk = ingestKey (no sort key) |
+| &nbsp;&nbsp;↳ 2.9 Two things this design deliberately does not store | `681-700` | {userId, h3Index, activityId, visitedAt} as the fact that makes D-120 recomputable, and calls |
+| &nbsp;&nbsp;↳ 2.10 Blob regeneration does not re-read the table | `701-718` | Naïvely, regenerating explored-r10.bin means Querying every res-6 partition — ~24 MB of |
+| &nbsp;&nbsp;↳ 2.11 The remaining Amplify models | `719-748` | denominator are precomputed once and shipped from regions/ in S3, because they never change. |
+| 3. The skill schema — skills are data, not code | `749-1113` | requires a code change, the design has failed." D-031 makes modularity a product decision, |
+| &nbsp;&nbsp;↳ 3.1 The five jobs a skill row has to do | `762-778` | A skill definition is not just a name and an XP rate. |
+| &nbsp;&nbsp;↳ 3.2 `RuleSkill` — the item shape (T5) | `779-840` | The YAML in rules/xp-rules-vN.yaml is authored in git and is the human-editable authority. |
+| &nbsp;&nbsp;↳ 3.3 Why the registry is a table and not just a file | `841-854` | The scoring Lambda could read the YAML from S3. |
+| &nbsp;&nbsp;↳ 3.4 `match` — the selection clause, declaratively | `855-905` | kinds: [run, walk, hike] # ActivityKind values (contract §2). |
+| &nbsp;&nbsp;↳ 3.5 THE VIGIL TEST (D-132) | `906-984` | D-132: "GPS-less running trains a SEPARATE activity skill, at full XP, with zero discovery |
+| &nbsp;&nbsp;↳ 3.6 The loud part: 04 §1.3's schema, as written, does NOT pass | `985-1027` | The YAML in 04-game-design.md §1.3 has no match block. |
+| &nbsp;&nbsp;↳ 3.7 The honest boundary — what stays code, forever | `1028-1066` | Data cannot be turned all the way down, and pretending otherwise produces a YAML dialect that is |
+| &nbsp;&nbsp;↳ 3.8 Seeding, and the CI checks that keep this true | `1067-1113` | The deploy-time seeder reads rules/xp-rules-vN.yaml, validates it, and writes T5 items under |
+| 4. The XP ledger | `1114-1466` | must be a recomputation, not a migration. |
+| &nbsp;&nbsp;↳ 4.1 One row per (activity, skill, reason) | `1127-1151` | that table needs to be operable at all: a deterministic id and an explicit seq. |
+| &nbsp;&nbsp;↳ 4.2 The `reason` vocabulary | `1152-1179` | Closed, and versioned with the ruleset. |
+| &nbsp;&nbsp;↳ 4.3 The write path | `1180-1245` | Every ledger row is written inside the single TransactWriteItems described in §2 T8 layer 3, |
+| &nbsp;&nbsp;↳ 4.4 Recomputation — the procedure | `1246-1349` | A rebalance is: write rules/xp-rules-v2.yaml, seed T5 partition 2 (§3.8), run the replay job. |
+| &nbsp;&nbsp;↳ 4.5 `ReplayRun` — the audit row | `1350-1378` | The waterline must outlive the job, or a crash in step 5 loses the record of what the user had |
+| &nbsp;&nbsp;↳ 4.6 D-135, enforced — what happens when the new number is lower | `1379-1449` | Unconditionally. No exceptions for bug fixes, no exceptions for a rate the user "shouldn't have |
+| &nbsp;&nbsp;↳ 4.7 The other three ways XP could go down, and what each does | `1450-1466` | D-135 is about replay, but three non-replay paths could also lower a number. |
+| 5. Access patterns | `1467-1605` | Every query the app makes. |
+| &nbsp;&nbsp;↳ 5.1 The complete list | `1473-1536` | marked, because nothing in this app is harmed by a 100 ms-stale number. |
+| &nbsp;&nbsp;↳ 5.2 By screen — what actually fires | `1537-1550` |  |
+| &nbsp;&nbsp;↳ 5.3 Write patterns | `1551-1564` | thing is the thing the product is about. |
+| &nbsp;&nbsp;↳ 5.4 What is deliberately *not* a query | `1565-1574` | need either PostGIS (D-082 forbids) or a per-viewport API (05 §7 forbids in bold). |
+| &nbsp;&nbsp;↳ 5.5 Pricing basis | `1575-1581` | On-demand pricing, us-east-1, approximate: $0.125 per million RRU, $0.625 per million WRU; |
+| &nbsp;&nbsp;↳ 5.6 The five-year bill (the §2.1 forward reference) | `1582-1605` | build minutes, all of which sit in 01's estimate. |
+| 6. The client payload | `1606-1796` | storage-side obligations, the size arithmetic at one and five years, and the invalidation contract |
+| &nbsp;&nbsp;↳ 6.1 The objects | `1616-1631` | anywhere — browser, IndexedDB, CloudFront — can ever be wrong, and nothing needs purging. |
+| &nbsp;&nbsp;↳ 6.2 Size, at one year and at five | `1632-1676` | Three cell-count scenarios. |
+| &nbsp;&nbsp;↳ 6.3 What it costs the client, which is the real budget | `1677-1698` | Bytes on the wire are not the binding constraint; memory on a mid-range Android (D-124) is. |
+| &nbsp;&nbsp;↳ 6.4 Invalidation — the contract between the Lambda and the browser | `1699-1753` | Lambda inside the same transaction as the cell writes (05 §7.3, §4.3 above), and mirrored to |
+| &nbsp;&nbsp;↳ 6.5 A run landing mid-session | `1754-1796` | The emotional payload of the product (05 §7.4). |
+| 7. Migrations and versioning | `1797-1950` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.1 Five version numbers, deliberately independent | `1799-1822` | Conflating any two of these would couple a change in one subsystem to a rewrite in another. |
+| &nbsp;&nbsp;↳ 7.2 Schema evolution — the rules for changing a table | `1823-1843` | era wrote it. Activity.cellCount is written even when zero (§2 T3) precisely so the row shape |
+| &nbsp;&nbsp;↳ 7.3 XP rule versioning | `1844-1860` | ledger row citing v1 is meaningless if v1's rows were mutated, and 04 §7.6 wants the |
+| &nbsp;&nbsp;↳ 7.4 The D-121 migration — moving off Strava | `1861-1935` | D-121 was made with full knowledge of the risk and against advice; the mitigation that makes it |
+| &nbsp;&nbsp;↳ 7.5 What a migration must never do | `1936-1950` | depends on it. |
+| 8. Retention, deletion, and the rebuild drill | `1951-2211` | That is a claim, and a claim about recoverability that has never been executed is worth nothing. |
+| &nbsp;&nbsp;↳ 8.1 What is kept forever, and what is not | `1957-1981` |  |
+| &nbsp;&nbsp;↳ 8.2 The one derived thing that is not re-derivable — and the snapshot it forces | `1982-2016` | D-135 says replay may never lower already-displayed XP. |
+| &nbsp;&nbsp;↳ 8.3 The rebuild drill | `2017-2167` | Rebuild the entire application state from raw/ alone. |
+| &nbsp;&nbsp;↳ 8.4 Running the drill before it is needed | `2168-2182` | been executed is not a recovery path. |
+| &nbsp;&nbsp;↳ 8.5 Account deletion | `2183-2211` | D-014 permits up to ~6 users; D-123 declines special home-location handling for the |
+| 9. Invariants an implementer must not violate | `2212-2307` | Everything above argues for a design. |
+| &nbsp;&nbsp;↳ 9.1 Layering and reconstructibility | `2228-2238` |  |
+| &nbsp;&nbsp;↳ 9.2 The fog — D-020, D-120, D-144 | `2239-2248` |  |
+| &nbsp;&nbsp;↳ 9.3 Time | `2249-2256` |  |
+| &nbsp;&nbsp;↳ 9.4 XP — D-135, D-142 | `2257-2267` |  |
+| &nbsp;&nbsp;↳ 9.5 Idempotency and dedupe | `2268-2275` |  |
+| &nbsp;&nbsp;↳ 9.6 Skills are data — D-031, D-132, D-141 | `2276-2284` |  |
+| &nbsp;&nbsp;↳ 9.7 Boundaries and secrets | `2285-2292` |  |
+| &nbsp;&nbsp;↳ 9.8 Where each invariant is enforced | `2293-2307` | is here because some other part of the design leans on it: the fog leans on I-7 through I-11, the |
 
 ## `docs/03-integrations.md`
 
