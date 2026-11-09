@@ -7465,7 +7465,7 @@
     "path": "tickets/open/0321-api-runs-web-is-sent-uncompressed-and-413s-past-5-9-mb-raw.md",
     "ready": true,
     "acceptance": {
-      "checked": 0,
+      "checked": 3,
       "total": 3
     }
   },

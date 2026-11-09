@@ -6125,6 +6125,8 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   emits, consistent with Lambda's 6 MB response limit, and `/api/runs/web` travels raw. At today's
   ~2.8 KB a run, the trace web reaches the cap near 2,100 runs; at D-451's realistic density, near
   1,000. The follow-up is `0321`.
+  → **Resolved by D-488 (2026-11-09):** the handler now gzips the body itself, so the cap counts
+  compressed bytes.
 - **D-461** **The two Amplify-tree advisories are an accepted risk; nothing waits on Amplify's
   release.** *(Operator, 2026-10-26, ticket `0319`. Amends D-459's re-check, which was tied to
   `0319` resuming.)* `@graphql-tools/utils` GHSA-7mx3-vvmw-hjmv and `zod` GHSA-mrhx-c7xc-m3w5 sit in
@@ -6613,3 +6615,17 @@ WebSearch quota was exhausted for that agent; findings come from primary docs on
   - Rejected: a DynamoDB `FilterExpression`. It applies after `Limit`, so it does not fix short
     pages. Also rejected: a sparse GSI per list, which costs a new index and a migration to save
     reads that one person's history does not need.
+- **D-488** **`/api/runs/web` compresses its own body; the handler, not the platform, owns the
+  encoding.** *(Ticket `0321`, 2026-11-09. Follows D-460, whose "`/api/runs/web` travels raw" this
+  ends; amends D-451's "Measured" bullet a second time.)* The handler gzips the JSON and sets
+  `Content-Encoding: gzip`, `Content-Type: application/json` and `Vary: Accept-Encoding`
+  (`lib/runs/web-body.ts`). Amplify's ~5.94 MB cap then counts compressed bytes. At year five
+  (1,000 runs × 8 km) that is 1.09 MB at ~30 pts/km and 2.65 MB at ~96 pts/km, against 5.55 MB
+  and 17.6 MB raw. **Measured live** (job 461, `5e3ff6b`): CloudFront passes the handler's
+  encoding through untouched. 113 runs: 73,202 bytes on the wire, 317,034 decoded.
+  - The encoding is **not negotiated**. Every browser accepts gzip, so a client sending
+    `identity` still gets gzip. Negotiating would add a second, raw code path that hits the cap.
+  - A non-2xx from the route (a 413 included) is a map without the web, never a broken page
+    (`lib/trace-web/load.ts`).
+  - Rejected for now: D-451's delta-encoded integer store (2.65 → ~1.1 MB at noisy density),
+    because it is a format change and is not needed for headroom. Also rejected: paginating the web.
